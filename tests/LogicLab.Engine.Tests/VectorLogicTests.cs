@@ -121,11 +121,11 @@ public sealed class VectorLogicTests
         using (Assert.Multiple())
         {
             await Assert.That(() => VectorLogic.And(shorter, longer))
-                .Throws<ArgumentException>();
+                .ThrowsExactly<ArgumentException>();
             await Assert.That(() => VectorLogic.Or(shorter, longer))
-                .Throws<ArgumentException>();
+                .ThrowsExactly<ArgumentException>();
             await Assert.That(() => VectorLogic.Xor(shorter, longer))
-                .Throws<ArgumentException>();
+                .ThrowsExactly<ArgumentException>();
         }
     }
 
@@ -137,17 +137,17 @@ public sealed class VectorLogicTests
         using (Assert.Multiple())
         {
             await Assert.That(() => VectorLogic.NormalizeInput(null!))
-                .Throws<ArgumentNullException>();
+                .ThrowsExactly<ArgumentNullException>();
             await Assert.That(() => VectorLogic.Not(null!))
-                .Throws<ArgumentNullException>();
+                .ThrowsExactly<ArgumentNullException>();
             await Assert.That(() => VectorLogic.And(null!, vector))
-                .Throws<ArgumentNullException>();
+                .ThrowsExactly<ArgumentNullException>();
             await Assert.That(() => VectorLogic.And(vector, null!))
-                .Throws<ArgumentNullException>();
+                .ThrowsExactly<ArgumentNullException>();
             await Assert.That(() => VectorLogic.Or(null!, vector))
-                .Throws<ArgumentNullException>();
+                .ThrowsExactly<ArgumentNullException>();
             await Assert.That(() => VectorLogic.Xor(vector, null!))
-                .Throws<ArgumentNullException>();
+                .ThrowsExactly<ArgumentNullException>();
         }
     }
 

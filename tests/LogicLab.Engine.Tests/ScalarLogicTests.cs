@@ -119,6 +119,6 @@ public sealed class ScalarLogicTests
         var undefined = (LogicValue)byte.MaxValue;
 
         await Assert.That(() => ScalarLogic.NormalizeInput(undefined))
-            .Throws<ArgumentOutOfRangeException>();
+            .ThrowsExactly<ArgumentOutOfRangeException>();
     }
 }
