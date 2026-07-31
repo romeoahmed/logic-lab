@@ -55,7 +55,7 @@ The baseline is ready for implementation slices, not qualified for production re
 | authoring, Compilation, Simulation, analysis, format, diagnostics, symbols | closed V1 behavior and Module interfaces | executable projects and conformance suites |
 | Workspace, Durable Project catalog, persistence, concurrency, browser messages | closed commands, keyset paging, queries, preconditions, outcomes, and transfer values | Application/Infrastructure implementations and integration tests |
 | Blazor host and Canvas/waveform runtime | closed ownership, lifecycle, rendering, input, localization, security, and failure rules | browser matrix, corpus traces, load/security tests |
-| .NET engineering and dependency supply chain | SDK feature band, central build/analyzer/package/audit policy, TUnit/MTP test architecture, execution/DI/JSON/telemetry/publication rules | migrate the current xUnit executables and lock graphs to TUnit before item `03`; then add later project files, application-root locks, CI and architecture gates |
+| .NET engineering and dependency supply chain | SDK feature band, central build/analyzer/package/audit policy, migrated TUnit/MTP executables and lock graphs, execution/DI/JSON/telemetry/publication rules | add later project files, application-root locks, CI and architecture gates |
 | policies and capacity | dimensions and failure semantics are closed | calibrated values tied to a versioned corpus and deployment profile |
 | production operations | required readiness, shutdown, key, migration, proxy, and observability behavior is closed | provider-specific TLS, secrets, backup/restore, telemetry, alert, and runbook evidence |
 

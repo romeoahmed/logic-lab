@@ -4,81 +4,79 @@ namespace LogicLab.Engine.Tests;
 
 public sealed class NetResolverTests
 {
-    [Fact]
-    public void Resolve_NoEffectiveDriver_ReturnsHighImpedanceWithUndrivenCause()
+    [Test]
+    public async Task Resolve_NoEffectiveDriver_ReturnsHighImpedanceWithUndrivenCause()
     {
         var noDrivers = NetResolver.Resolve([]);
         var highImpedanceDrivers = NetResolver.Resolve([LogicValue.Z, LogicValue.Z]);
+        var expected = new NetResolution(LogicValue.Z, NetResolutionCauses.Undriven);
 
-        Assert.Equal(
-            new NetResolution(LogicValue.Z, NetResolutionCauses.Undriven),
-            noDrivers);
-        Assert.Equal(
-            new NetResolution(LogicValue.Z, NetResolutionCauses.Undriven),
-            highImpedanceDrivers);
+        using (Assert.Multiple())
+        {
+            await Assert.That(noDrivers).IsEqualTo(expected);
+            await Assert.That(highImpedanceDrivers).IsEqualTo(expected);
+        }
     }
 
-    [Theory]
-    [InlineData(LogicValue.Zero)]
-    [InlineData(LogicValue.One)]
-    public void Resolve_EqualKnownDrivers_ReturnsKnownValueWithoutCause(
+    [Test]
+    [Arguments(LogicValue.Zero)]
+    [Arguments(LogicValue.One)]
+    public async Task Resolve_EqualKnownDrivers_ReturnsKnownValueWithoutCause(
         LogicValue value)
     {
         var actual = NetResolver.Resolve([LogicValue.Z, value, value]);
 
-        Assert.Equal(
-            new NetResolution(value, NetResolutionCauses.None),
-            actual);
+        await Assert.That(actual)
+            .IsEqualTo(new NetResolution(value, NetResolutionCauses.None));
     }
 
-    [Fact]
-    public void Resolve_UnknownDriver_ReturnsUnknownWithUnknownDriverCause()
+    [Test]
+    public async Task Resolve_UnknownDriver_ReturnsUnknownWithUnknownDriverCause()
     {
         var actual = NetResolver.Resolve(
             [LogicValue.Z, LogicValue.Zero, LogicValue.X]);
 
-        Assert.Equal(
-            new NetResolution(LogicValue.X, NetResolutionCauses.UnknownDriver),
-            actual);
+        await Assert.That(actual)
+            .IsEqualTo(
+                new NetResolution(LogicValue.X, NetResolutionCauses.UnknownDriver));
     }
 
-    [Fact]
-    public void Resolve_ConflictingKnownDrivers_ReturnsUnknownWithContentionCause()
+    [Test]
+    public async Task Resolve_ConflictingKnownDrivers_ReturnsUnknownWithContentionCause()
     {
         var actual = NetResolver.Resolve(
             [LogicValue.Z, LogicValue.Zero, LogicValue.One]);
 
-        Assert.Equal(
-            new NetResolution(LogicValue.X, NetResolutionCauses.Contention),
-            actual);
+        await Assert.That(actual)
+            .IsEqualTo(new NetResolution(LogicValue.X, NetResolutionCauses.Contention));
     }
 
-    [Fact]
-    public void Resolve_UnknownAndConflictingDrivers_ReturnsBothCauses()
+    [Test]
+    public async Task Resolve_UnknownAndConflictingDrivers_ReturnsBothCauses()
     {
         var actual = NetResolver.Resolve(
             [LogicValue.Zero, LogicValue.X, LogicValue.One, LogicValue.Z]);
 
-        Assert.Equal(
-            new NetResolution(
-                LogicValue.X,
-                NetResolutionCauses.UnknownDriver | NetResolutionCauses.Contention),
-            actual);
+        await Assert.That(actual)
+            .IsEqualTo(
+                new NetResolution(
+                    LogicValue.X,
+                    NetResolutionCauses.UnknownDriver | NetResolutionCauses.Contention));
     }
 
-    [Fact]
-    public void Resolve_NullDrivers_ThrowsArgumentNullException()
+    [Test]
+    public async Task Resolve_NullDrivers_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(
-            () => NetResolver.Resolve(null!));
+        await Assert.That(() => NetResolver.Resolve(null!))
+            .Throws<ArgumentNullException>();
     }
 
-    [Fact]
-    public void Resolve_UndefinedDriver_ThrowsArgumentOutOfRangeException()
+    [Test]
+    public async Task Resolve_UndefinedDriver_ThrowsArgumentOutOfRangeException()
     {
         var undefined = (LogicValue)byte.MaxValue;
 
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => NetResolver.Resolve([LogicValue.Z, undefined]));
+        await Assert.That(() => NetResolver.Resolve([LogicValue.Z, undefined]))
+            .Throws<ArgumentOutOfRangeException>();
     }
 }
