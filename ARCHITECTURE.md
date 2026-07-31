@@ -1,6 +1,6 @@
 # Logic Lab Architecture
 
-> Status: implementation in progress; slice 01 executable
+> Status: implementation in progress; slices 01-02 executable
 > Target: .NET 10, C# 14, Blazor Web App
 > Last reviewed: 2026-07-31
 
@@ -8,7 +8,7 @@ Architecture owns system shape, dependency direction, module seams, fact ownersh
 
 ## 1. Baseline and product scope
 
-`logic-lab.slnx` contains the first production and test projects. Slice `01` provides the Domain-owned minimum `logiclab.core` schema and the Engine-owned scalar four-state oracle, Conservative Merge, and Net resolution. All later modules, adapters, stores, and deployment behavior below remain target design rather than implemented evidence. The [Documentation Map](./docs/README.md) is the authority index.
+`logic-lab.slnx` contains the first production and test projects. Slice `01` provides the Domain-owned minimum `logiclab.core` schema and the Engine-owned scalar four-state oracle, Conservative Merge, and Net resolution. Slice `02` adds a private packed Logic Vector representation, word-wise scalar-equivalent operations, non-word-aligned slices, Conservative Merge, and per-bit Net resolution evidence. All later modules, adapters, stores, and deployment behavior below remain target design rather than implemented evidence. The [Documentation Map](./docs/README.md) is the authority index.
 
 V1 supports:
 
