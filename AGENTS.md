@@ -24,7 +24,7 @@ Use four-space indentation for C#, LF-normalized text, nullable reference types,
 
 Use TUnit on Microsoft Testing Platform with source-generated discovery and awaited TUnit assertions. Use `TUnit.FsCheck` for generative semantic properties, bUnit for Razor projections, `TUnit.Playwright` for browser interaction, and BenchmarkDotNet only for comparative benchmarks. TUnit runs tests concurrently by default: isolate resources first, then use keyed `[NotInParallel]` or `ParallelLimiter<T>` only around a real shared constraint. Name test classes `{Subject}Tests` and tests `Method_Scenario_Outcome`. Match evidence to ownership; UI tests do not prove simulation semantics, retries never conceal deterministic failures, and coverage is supporting telemetry rather than the release gate.
 
-The executable test projects still use xUnit v3 until the approved documentation-first migration is implemented. Do not add new xUnit tests or mix frameworks inside a test project; the next test-changing slice migrates both existing test projects, package locks, runner configuration, assertions, and property tests atomically.
+Both executable test projects use the centrally pinned TUnit stack. Do not add xUnit packages, runner configuration, attributes, or assertions, and do not mix test frameworks inside a project.
 
 ## Commit & Pull Request Guidelines
 
