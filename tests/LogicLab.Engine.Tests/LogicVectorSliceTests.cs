@@ -110,17 +110,17 @@ public sealed class LogicVectorSliceTests
         using (Assert.Multiple())
         {
             await Assert.That(() => vector.Slice(-1, 1))
-                .Throws<ArgumentOutOfRangeException>();
+                .ThrowsExactly<ArgumentOutOfRangeException>();
             await Assert.That(() => vector.Slice(0, 0))
-                .Throws<ArgumentOutOfRangeException>();
+                .ThrowsExactly<ArgumentOutOfRangeException>();
             await Assert.That(() => vector.Slice(0, -1))
-                .Throws<ArgumentOutOfRangeException>();
+                .ThrowsExactly<ArgumentOutOfRangeException>();
             await Assert.That(() => vector.Slice(3, 1))
-                .Throws<ArgumentOutOfRangeException>();
+                .ThrowsExactly<ArgumentOutOfRangeException>();
             await Assert.That(() => vector.Slice(2, 2))
-                .Throws<ArgumentOutOfRangeException>();
+                .ThrowsExactly<ArgumentOutOfRangeException>();
             await Assert.That(() => vector.Slice(int.MaxValue, int.MaxValue))
-                .Throws<ArgumentOutOfRangeException>();
+                .ThrowsExactly<ArgumentOutOfRangeException>();
         }
     }
 }

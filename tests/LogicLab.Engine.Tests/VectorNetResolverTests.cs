@@ -175,21 +175,21 @@ public sealed class VectorNetResolverTests
         var driver = new LogicVector([LogicValue.Zero]);
 
         await Assert.That(() => VectorNetResolver.Resolve(2, [driver]))
-            .Throws<ArgumentException>();
+            .ThrowsExactly<ArgumentException>();
     }
 
     [Test]
     public async Task Resolve_NullDrivers_ThrowsArgumentNullException()
     {
         await Assert.That(() => VectorNetResolver.Resolve(1, null!))
-            .Throws<ArgumentNullException>();
+            .ThrowsExactly<ArgumentNullException>();
     }
 
     [Test]
     public async Task Resolve_NullDriverElement_ThrowsArgumentException()
     {
         await Assert.That(() => VectorNetResolver.Resolve(1, [null!]))
-            .Throws<ArgumentException>();
+            .ThrowsExactly<ArgumentException>();
     }
 
     [Test]
@@ -198,9 +198,9 @@ public sealed class VectorNetResolverTests
         using (Assert.Multiple())
         {
             await Assert.That(() => VectorNetResolver.Resolve(0, []))
-                .Throws<ArgumentOutOfRangeException>();
+                .ThrowsExactly<ArgumentOutOfRangeException>();
             await Assert.That(() => VectorNetResolver.Resolve(-1, []))
-                .Throws<ArgumentOutOfRangeException>();
+                .ThrowsExactly<ArgumentOutOfRangeException>();
         }
     }
 
@@ -212,9 +212,9 @@ public sealed class VectorNetResolverTests
         using (Assert.Multiple())
         {
             await Assert.That(() => resolution.GetCauses(-1))
-                .Throws<ArgumentOutOfRangeException>();
+                .ThrowsExactly<ArgumentOutOfRangeException>();
             await Assert.That(() => resolution.GetCauses(1))
-                .Throws<ArgumentOutOfRangeException>();
+                .ThrowsExactly<ArgumentOutOfRangeException>();
         }
     }
 }

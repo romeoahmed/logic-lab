@@ -84,21 +84,21 @@ public sealed class VectorConservativeMergeTests
     public async Task Merge_EmptyVectors_ThrowsArgumentException()
     {
         await Assert.That(() => VectorConservativeMerge.Merge([]))
-            .Throws<ArgumentException>();
+            .ThrowsExactly<ArgumentException>();
     }
 
     [Test]
     public async Task Merge_NullVectors_ThrowsArgumentNullException()
     {
         await Assert.That(() => VectorConservativeMerge.Merge(null!))
-            .Throws<ArgumentNullException>();
+            .ThrowsExactly<ArgumentNullException>();
     }
 
     [Test]
     public async Task Merge_NullVectorElement_ThrowsArgumentException()
     {
         await Assert.That(() => VectorConservativeMerge.Merge([null!]))
-            .Throws<ArgumentException>();
+            .ThrowsExactly<ArgumentException>();
     }
 
     [Test]
@@ -108,6 +108,6 @@ public sealed class VectorConservativeMergeTests
         var longer = new LogicVector([LogicValue.Zero, LogicValue.One]);
 
         await Assert.That(() => VectorConservativeMerge.Merge([shorter, longer]))
-            .Throws<ArgumentException>();
+            .ThrowsExactly<ArgumentException>();
     }
 }
