@@ -143,40 +143,31 @@ public sealed class VectorLogicTests
         Func<LogicVector, LogicVector, LogicVector> vectorOperation)
     {
         int[] wordTailWidths = [63, 64, 65, 127, 128, 129, 130];
-        (LogicValue Left, LogicValue Right)[] orderedPairs =
+        LogicValue[] logicValues =
         [
-            (LogicValue.Zero, LogicValue.Zero),
-            (LogicValue.Zero, LogicValue.One),
-            (LogicValue.Zero, LogicValue.X),
-            (LogicValue.Zero, LogicValue.Z),
-            (LogicValue.One, LogicValue.Zero),
-            (LogicValue.One, LogicValue.One),
-            (LogicValue.One, LogicValue.X),
-            (LogicValue.One, LogicValue.Z),
-            (LogicValue.X, LogicValue.Zero),
-            (LogicValue.X, LogicValue.One),
-            (LogicValue.X, LogicValue.X),
-            (LogicValue.X, LogicValue.Z),
-            (LogicValue.Z, LogicValue.Zero),
-            (LogicValue.Z, LogicValue.One),
-            (LogicValue.Z, LogicValue.X),
-            (LogicValue.Z, LogicValue.Z),
+            LogicValue.Zero,
+            LogicValue.One,
+            LogicValue.X,
+            LogicValue.Z,
         ];
 
         foreach (var width in wordTailWidths)
         {
-            foreach (var (left, right) in orderedPairs)
+            foreach (var left in logicValues)
             {
-                var leftValues = Enumerable.Repeat(left, width).ToArray();
-                var rightValues = Enumerable.Repeat(right, width).ToArray();
+                foreach (var right in logicValues)
+                {
+                    var leftValues = Enumerable.Repeat(left, width).ToArray();
+                    var rightValues = Enumerable.Repeat(right, width).ToArray();
 
-                AssertMatchesScalar(
-                    vectorOperation(
-                        new LogicVector(leftValues),
-                        new LogicVector(rightValues)),
-                    leftValues,
-                    rightValues,
-                    scalarOperation);
+                    AssertMatchesScalar(
+                        vectorOperation(
+                            new LogicVector(leftValues),
+                            new LogicVector(rightValues)),
+                        leftValues,
+                        rightValues,
+                        scalarOperation);
+                }
             }
         }
     }
