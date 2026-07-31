@@ -109,15 +109,22 @@ public sealed class VectorLogicTests
         Func<LogicValue, LogicValue, LogicValue> scalarOperation,
         Func<LogicVector, LogicVector, LogicVector> vectorOperation)
     {
-        Prop.ForAll<int[]>(data =>
+        CheckBinaryWordTailMatrix(scalarOperation, vectorOperation);
+
+        Prop.ForAll<int[], int[]>((leftData, rightData) =>
             {
-                var seed = data is { Length: > 0 } ? data[0] : 0;
-                var width = LogicVectorTestData.PositiveWidth(seed);
-                var leftValues = LogicVectorTestData.CreateValues(width, seed, data);
+                var leftSeed = leftData is { Length: > 0 } ? leftData[0] : 0;
+                var rightSeed = rightData is { Length: > 0 } ? rightData[0] : 0;
+                var width = LogicVectorTestData.PositiveWidth(
+                    leftSeed ^ rightSeed);
+                var leftValues = LogicVectorTestData.CreateValues(
+                    width,
+                    leftSeed,
+                    leftData);
                 var rightValues = LogicVectorTestData.CreateValues(
                     width,
-                    ~seed,
-                    data?.Select(value => ~value).ToArray());
+                    rightSeed,
+                    rightData);
                 var expected = Enumerable.Range(0, width)
                     .Select(index => scalarOperation(leftValues[index], rightValues[index]))
                     .ToArray();
@@ -129,6 +136,49 @@ public sealed class VectorLogicTests
                     expected);
             })
             .QuickCheckThrowOnFailure();
+    }
+
+    private static void CheckBinaryWordTailMatrix(
+        Func<LogicValue, LogicValue, LogicValue> scalarOperation,
+        Func<LogicVector, LogicVector, LogicVector> vectorOperation)
+    {
+        int[] wordTailWidths = [63, 64, 65, 127, 128, 129, 130];
+        (LogicValue Left, LogicValue Right)[] orderedPairs =
+        [
+            (LogicValue.Zero, LogicValue.Zero),
+            (LogicValue.Zero, LogicValue.One),
+            (LogicValue.Zero, LogicValue.X),
+            (LogicValue.Zero, LogicValue.Z),
+            (LogicValue.One, LogicValue.Zero),
+            (LogicValue.One, LogicValue.One),
+            (LogicValue.One, LogicValue.X),
+            (LogicValue.One, LogicValue.Z),
+            (LogicValue.X, LogicValue.Zero),
+            (LogicValue.X, LogicValue.One),
+            (LogicValue.X, LogicValue.X),
+            (LogicValue.X, LogicValue.Z),
+            (LogicValue.Z, LogicValue.Zero),
+            (LogicValue.Z, LogicValue.One),
+            (LogicValue.Z, LogicValue.X),
+            (LogicValue.Z, LogicValue.Z),
+        ];
+
+        foreach (var width in wordTailWidths)
+        {
+            foreach (var (left, right) in orderedPairs)
+            {
+                var leftValues = Enumerable.Repeat(left, width).ToArray();
+                var rightValues = Enumerable.Repeat(right, width).ToArray();
+
+                AssertMatchesScalar(
+                    vectorOperation(
+                        new LogicVector(leftValues),
+                        new LogicVector(rightValues)),
+                    leftValues,
+                    rightValues,
+                    scalarOperation);
+            }
+        }
     }
 
     private static void AssertMatchesScalar(
