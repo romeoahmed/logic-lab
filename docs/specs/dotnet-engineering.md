@@ -135,7 +135,7 @@ The first implementation change establishes these gates before feature breadth:
 ```text
 dotnet restore logic-lab.slnx --locked-mode --nologo
 dotnet build logic-lab.slnx --no-restore --nologo
-dotnet test --solution logic-lab.slnx --no-build --no-restore --nologo
+dotnet test --solution logic-lab.slnx --no-build --no-restore
 dotnet format logic-lab.slnx --verify-no-changes --no-restore
 git diff --check
 ```

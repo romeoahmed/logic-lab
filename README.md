@@ -2,7 +2,7 @@
 
 Logic Lab is a teaching-oriented gate-level digital logic workbench for authoring, simulating, observing, and simplifying combinational and sequential circuits.
 
-The project is currently an implementation-ready documentation and root-tooling baseline for .NET 10, C# 14, and a server-first Blazor Web App. There is no production source tree yet.
+Implementation has begun on the documentation and root-tooling baseline for .NET 10, C# 14, and a server-first Blazor Web App. The first slice supplies the Domain-owned minimum `logiclab.core` schema and the Engine-owned scalar four-state oracle; the broader Workbench remains target design.
 
 ## Core capabilities
 
@@ -22,6 +22,6 @@ The project is currently an implementation-ready documentation and root-tooling 
 4. [Documentation Map](./docs/README.md)
 5. [.NET Engineering Baseline](./docs/specs/dotnet-engineering.md)
 
-Implementation can begin from the vertical-slice sequence in Architecture. The documentation baseline closes V1 behavior and interfaces; policy calibration and provider-specific production evidence remain explicit release work in the [Documentation Map](./docs/README.md#development-readiness).
+Continue implementation from the vertical-slice sequence in Architecture and the [Implementation Plan](./docs/implementation-plan.md). The documentation baseline closes V1 behavior and interfaces; policy calibration and provider-specific production evidence remain explicit release work in the [Documentation Map](./docs/README.md#development-readiness).
 
 The repository-local [IEEE 91A reference](./00027895.pdf) and [IEEE 1800-2023 reference](./1800-2023.pdf) support standards research. They are references, not project source code.

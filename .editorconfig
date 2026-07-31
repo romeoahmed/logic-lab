@@ -13,6 +13,10 @@ dotnet_sort_system_directives_first = true
 dotnet_separate_import_directive_groups = false
 csharp_style_namespace_declarations = file_scoped:warning
 
+# Test names intentionally follow the repository's Method_Scenario_Outcome contract.
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+
 [*.{json,yml,yaml}]
 indent_size = 2
 

@@ -1,14 +1,14 @@
 # Logic Lab Architecture
 
-> Status: documentation-only implementation baseline
+> Status: implementation in progress; slice 01 executable
 > Target: .NET 10, C# 14, Blazor Web App
-> Last reviewed: 2026-07-30
+> Last reviewed: 2026-07-31
 
 Architecture owns system shape, dependency direction, module seams, fact ownership, deployment shape, and delivery order. Specifications own exact interfaces and observable behavior; contracts own values exchanged at real seams; [Workbench](./WORKBENCH.md) owns product behavior; [Context Map](./CONTEXT-MAP.md) owns domain language.
 
 ## 1. Baseline and product scope
 
-No production or test project exists yet. `logic-lab.slnx` is empty, so every module, adapter, store, and deployment below is target design rather than implemented evidence. The [Documentation Map](./docs/README.md) is the authority index.
+`logic-lab.slnx` contains the first production and test projects. Slice `01` provides the Domain-owned minimum `logiclab.core` schema and the Engine-owned scalar four-state oracle, Conservative Merge, and Net resolution. All later modules, adapters, stores, and deployment behavior below remain target design rather than implemented evidence. The [Documentation Map](./docs/README.md) is the authority index.
 
 V1 supports:
 
