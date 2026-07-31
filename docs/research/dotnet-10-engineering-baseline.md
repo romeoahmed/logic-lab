@@ -1,12 +1,12 @@
 # .NET 10 Engineering Baseline Research
 
 > Status: primary-source evidence and readiness assessment, not a second implementation specification
-> Target: .NET 10, C# 14, ASP.NET Core 10, EF Core 10, xUnit v3 on Microsoft Testing Platform
-> Sources last checked: 2026-07-30
+> Target: .NET 10, C# 14, ASP.NET Core 10, EF Core 10, TUnit on Microsoft Testing Platform
+> Sources last checked: 2026-07-31
 
 ## 1. Scope and method
 
-This review began with every Markdown document in the repository, then tested the resulting design against primary Microsoft, .NET, NuGet, EF Core, xUnit, and BenchmarkDotNet sources. The two overview pages supplied with the review request were used as discovery maps, not as sufficient evidence by themselves:
+This review began with every Markdown document in the repository, then tested the resulting design against primary Microsoft, .NET, NuGet, EF Core, TUnit, and BenchmarkDotNet sources. The two overview pages supplied with the review request were used as discovery maps, not as sufficient evidence by themselves. The later TUnit decision is detailed separately in [TUnit Modern Testing Research](./tunit-modern-testing.md):
 
 - [.NET runtime libraries overview](https://learn.microsoft.com/en-us/dotnet/standard/runtime-libraries-overview)
 - [What's new in .NET 10](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/overview)
@@ -182,11 +182,13 @@ The provider profile must also specify the database path and permissions, volume
 
 ## 10. Testing, Microsoft Testing Platform, and benchmarks
 
-.NET 10 natively selects Microsoft Testing Platform through `global.json`. The `dotnet test` integration requires MTP 1.7 or later; each test project's xUnit/MTP package graph should be exact and centrally versioned when the project is created ([testing with `dotnet test`](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-with-dotnet-test), [MTP overview](https://learn.microsoft.com/en-us/dotnet/core/testing/microsoft-testing-platform-intro), [xUnit v3 on MTP](https://xunit.net/docs/getting-started/v3/microsoft-testing-platform)). Do not add `Microsoft.NET.Test.Sdk` and a VSTest adapter by habit when the chosen runner and IDE path do not require them.
+.NET 10 natively selects Microsoft Testing Platform through `global.json`; `dotnet test --solution logic-lab.slnx` is the stable whole-solution entry point and accepts platform arguments directly. TUnit is built on MTP, produces executable test projects, and must not be combined with `Microsoft.NET.Test.Sdk`, VSTest adapters, Coverlet, or an xUnit runner. The approved exact migration target on 2026-07-31 is `TUnit` 1.63.0 plus `TUnit.FsCheck` 1.63.0, centrally pinned and locked ([testing with `dotnet test`](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-with-dotnet-test), [MTP overview](https://learn.microsoft.com/en-us/dotnet/core/testing/microsoft-testing-platform-intro), [TUnit installation](https://tunit.dev/docs/getting-started/installation), [NuGet package](https://www.nuget.org/packages/TUnit/1.63.0)).
 
-`dotnet test --solution logic-lab.slnx` is the stable whole-solution entry point after the first test project exists. With the current empty MTP-enabled solution, SDK 10.0.302 exits nonzero with `The solution configuration '|' is invalid`; that empty-baseline behavior must not be described as a successful zero-test run. MTP can run test modules in parallel and defaults the maximum module count to `Environment.ProcessorCount`; CI should set an explicit cap when browser, SQLite, or load fixtures would otherwise oversubscribe the agent ([MTP `dotnet test` options](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp)).
+TUnit shifts discovery, strongly typed invocation, fixture injection, data-source binding, and hooks into generated code, with analyzers rejecting invalid configurations during the build. This is valuable to Logic Lab even without publishing tests as Native AOT. TUnit's source-generated mode remains the default; reflection is a narrow compatibility path, especially for externally generated tests. TUnit.FsCheck is deliberately retained for semantic generation, shrinking, and replay, but its reflection/dynamic-code requirements mean the property suite is not Native AOT-compatible ([engine modes](https://tunit.dev/docs/execution/engine-modes), [TUnit.FsCheck](https://tunit.dev/docs/examples/fscheck)).
 
-xUnit's default within an assembly is parallel test collections, normally one per class, using the conservative algorithm. Keep that default for isolated unit/property tests. Put tests that share a database, server, browser, port, static process state, or deployment fixture into an explicit nonparallel collection or give each test an isolated resource. Disabling all parallelism hides ownership defects and makes the semantic suites unnecessarily slow ([xUnit parallel execution](https://xunit.net/docs/running-tests-in-parallel)).
+Parallelism has two independent layers: MTP may execute test modules concurrently, while TUnit makes every test inside a module eligible to run concurrently. CI must cap both layers. Isolated deterministic tests retain full concurrency; shared databases, servers, browsers, ports, process globals, and cultures use unique resources first, keyed `NotInParallel` constraints second, and typed parallel limiters for genuinely bounded pools. Test dependencies express actual data/workflow prerequisites, not arbitrary ordering ([MTP `dotnet test` options](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp), [TUnit parallelism](https://tunit.dev/docs/execution/parallelism), [test dependencies](https://tunit.dev/docs/writing-tests/ordering)).
+
+The current executable slices `01` and `02` still use xUnit v3 and passed 140 tests before this documentation change. That is historical implementation evidence, not the selected future stack. The implementation migration must change both test projects, their locks, runner files, attributes, awaited assertions, and property entry points atomically, then prove test-count and semantic equivalence before using TUnit-only features. The official TUnit xUnit migration analyzer can automate common syntax but does not replace manual review of fixtures, data sources, assertion argument order, or parallel behavior ([xUnit migration](https://tunit.dev/docs/migration/xunit/)).
 
 BenchmarkDotNet belongs in a separate executable project and outside `dotnet test`. Run optimized Release builds without an attached debugger, record runtime/OS/hardware/power configuration, use production-shaped corpus cases, and compare on a controlled host. A noisy shared CI timing result is telemetry, not a release gate ([BenchmarkDotNet good practices](https://benchmarkdotnet.org/articles/guides/good-practices.html)). Browser traces and multi-circuit load tests remain separate because a microbenchmark cannot prove circuit capacity, end-to-end latency, or rendering behavior.
 
@@ -277,6 +279,10 @@ All sources were accessed on 2026-07-30.
 - [Microsoft Testing Platform overview](https://learn.microsoft.com/en-us/dotnet/core/testing/microsoft-testing-platform-intro)
 - [Testing with `dotnet test`](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-with-dotnet-test)
 - [`dotnet test` with MTP](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp)
-- [xUnit v3 on Microsoft Testing Platform](https://xunit.net/docs/getting-started/v3/microsoft-testing-platform)
-- [xUnit parallel execution](https://xunit.net/docs/running-tests-in-parallel)
+- [TUnit documentation index](https://tunit.dev/llms.txt)
+- [TUnit installation](https://tunit.dev/docs/getting-started/installation)
+- [TUnit engine modes](https://tunit.dev/docs/execution/engine-modes)
+- [TUnit parallel execution](https://tunit.dev/docs/execution/parallelism)
+- [TUnit xUnit migration](https://tunit.dev/docs/migration/xunit/)
+- [TUnit.FsCheck](https://tunit.dev/docs/examples/fscheck)
 - [BenchmarkDotNet good practices](https://benchmarkdotnet.org/articles/guides/good-practices.html)

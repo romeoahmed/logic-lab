@@ -27,6 +27,10 @@ Every completed item must:
 5. pass the applicable restore, build, test, format, architecture, and whitespace gates; and
 6. update an authoritative document only when implementation uncovers a real specification defect.
 
+### Approved test-stack migration before item 03
+
+Before item `03` changes production or test behavior, perform one repository-engineering increment that atomically migrates both executable test projects from xUnit v3 to the centrally pinned TUnit stack selected by the [.NET Engineering Baseline](./specs/dotnet-engineering.md). Replace runner configuration and lock graphs, convert assertions and fixed data rows, expose generative Engine properties through `TUnit.FsCheck`, and then adopt source-generated discovery, awaited assertion analysis, intentional matrix cases, and the documented parallel/resource controls. The increment is complete only when test discovery preserves or improves the existing 140-test evidence, the scalar-oracle differential properties still shrink and replay, no xUnit artifact remains, and every repository gate passes. This is an engineering migration rather than a new V1 product slice; it does not change the dependency frontier below.
+
 ## Phase A — Executable semantics and first tracer
 
 | ID | Slice | Blocked by | Independently delivers |

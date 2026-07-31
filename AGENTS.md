@@ -10,6 +10,7 @@ As implementation expands, preserve the project seams named in `ARCHITECTURE.md`
 
 - `dotnet build logic-lab.slnx --nologo` validates the solution.
 - `dotnet test --solution logic-lab.slnx` is the whole-solution test command. In .NET 10 MTP mode, do not pass `--nologo`; it is forwarded to the test applications and rejected as an unknown option.
+- TUnit filters use MTP tree-node syntax, for example `dotnet test --solution logic-lab.slnx --treenode-filter "/*/*/ScalarLogicTests/*"`; .NET 10 passes platform arguments directly without an extra `--` separator.
 - `dotnet format logic-lab.slnx --verify-no-changes` is the formatting gate.
 - `git diff --check` catches whitespace errors.
 
@@ -21,7 +22,9 @@ Use four-space indentation for C#, LF-normalized text, nullable reference types,
 
 ## Testing Guidelines
 
-Use xUnit v3 on Microsoft Testing Platform. Add FsCheck for semantic properties, bUnit for Razor projections, Playwright for browser interaction, and BenchmarkDotNet only for comparative benchmarks. Name test classes `{Subject}Tests` and tests `Method_Scenario_Outcome`. Match evidence to ownership; UI tests do not prove simulation semantics. Coverage is supporting telemetry, not the release gate.
+Use TUnit on Microsoft Testing Platform with source-generated discovery and awaited TUnit assertions. Use `TUnit.FsCheck` for generative semantic properties, bUnit for Razor projections, `TUnit.Playwright` for browser interaction, and BenchmarkDotNet only for comparative benchmarks. TUnit runs tests concurrently by default: isolate resources first, then use keyed `[NotInParallel]` or `ParallelLimiter<T>` only around a real shared constraint. Name test classes `{Subject}Tests` and tests `Method_Scenario_Outcome`. Match evidence to ownership; UI tests do not prove simulation semantics, retries never conceal deterministic failures, and coverage is supporting telemetry rather than the release gate.
+
+The executable test projects still use xUnit v3 until the approved documentation-first migration is implemented. Do not add new xUnit tests or mix frameworks inside a test project; the next test-changing slice migrates both existing test projects, package locks, runner configuration, assertions, and property tests atomically.
 
 ## Commit & Pull Request Guidelines
 
