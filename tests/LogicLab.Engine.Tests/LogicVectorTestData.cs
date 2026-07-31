@@ -27,6 +27,13 @@ internal static class LogicVectorTestData
         return values;
     }
 
+    internal static LogicValue[] ToValues(LogicVector vector)
+    {
+        return Enumerable.Range(0, vector.Width)
+            .Select(index => vector[index])
+            .ToArray();
+    }
+
     internal static bool Matches(
         LogicVector vector,
         IReadOnlyList<LogicValue> expected)
