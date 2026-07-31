@@ -1,62 +1,64 @@
 using FsCheck;
 using FsCheck.Fluent;
 using LogicLab.Domain;
+using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
 public sealed class VectorNetResolverTests
 {
-    [Fact]
-    public void Resolve_ArbitraryDriverSets_MatchesScalarValueAndCausesAtEveryBit()
+    [Test, FsCheckProperty]
+    public Property Resolve_ArbitraryDriverSets_MatchesScalarValueAndCausesAtEveryBit()
     {
-        Prop.ForAll<int[]>(data =>
+        return Prop.ForAll<int[]>(data =>
+        {
+            var seed = data is { Length: > 0 } ? data[0] : 0;
+            var width = LogicVectorTestData.PositiveWidth(seed);
+            var countSeed = data is { Length: > 1 } ? data[1] : seed;
+            var driverCount = (int)(unchecked((uint)countSeed) % 6u);
+            var driverValues = Enumerable.Range(0, driverCount)
+                .Select(index => LogicVectorTestData.CreateValues(
+                    width,
+                    unchecked(seed ^ (index * 1_000_003)),
+                    data?.Select(value => unchecked(value + index)).ToArray()))
+                .ToArray();
+            var drivers = driverValues
+                .Select(values => new LogicVector(values))
+                .ToArray();
+
+            var actual = VectorNetResolver.Resolve(width, drivers);
+
+            return Enumerable.Range(0, width).All(bitIndex =>
             {
-                var seed = data is { Length: > 0 } ? data[0] : 0;
-                var width = LogicVectorTestData.PositiveWidth(seed);
-                var countSeed = data is { Length: > 1 } ? data[1] : seed;
-                var driverCount = (int)(unchecked((uint)countSeed) % 6u);
-                var driverValues = Enumerable.Range(0, driverCount)
-                    .Select(index => LogicVectorTestData.CreateValues(
-                        width,
-                        unchecked(seed ^ (index * 1_000_003)),
-                        data?.Select(value => unchecked(value + index)).ToArray()))
-                    .ToArray();
-                var drivers = driverValues
-                    .Select(values => new LogicVector(values))
-                    .ToArray();
-
-                var actual = VectorNetResolver.Resolve(width, drivers);
-
-                return Enumerable.Range(0, width).All(bitIndex =>
-                {
-                    var expected = NetResolver.Resolve(
-                        driverValues
-                            .Select(values => values[bitIndex])
-                            .ToArray());
-                    return actual.Value[bitIndex] == expected.Value
-                        && actual.GetCauses(bitIndex) == expected.Causes;
-                });
-            })
-            .QuickCheckThrowOnFailure();
+                var expected = NetResolver.Resolve(
+                    driverValues
+                        .Select(values => values[bitIndex])
+                        .ToArray());
+                return actual.Value[bitIndex] == expected.Value
+                    && actual.GetCauses(bitIndex) == expected.Causes;
+            });
+        });
     }
 
-    [Fact]
-    public void Resolve_NoDrivers_ReturnsHighImpedanceAndUndrivenForEveryBit()
+    [Test]
+    public async Task Resolve_NoDrivers_ReturnsHighImpedanceAndUndrivenForEveryBit()
     {
         var actual = VectorNetResolver.Resolve(130, []);
 
-        Assert.Equal(130, actual.Value.Width);
-        for (var index = 0; index < actual.Value.Width; index++)
+        using (Assert.Multiple())
         {
-            Assert.Equal(LogicValue.Z, actual.Value[index]);
-            Assert.Equal(
-                NetResolutionCauses.Undriven,
-                actual.GetCauses(index));
+            await Assert.That(actual.Value.Width).IsEqualTo(130);
+            for (var index = 0; index < actual.Value.Width; index++)
+            {
+                await Assert.That(actual.Value[index]).IsEqualTo(LogicValue.Z);
+                await Assert.That(actual.GetCauses(index))
+                    .IsEqualTo(NetResolutionCauses.Undriven);
+            }
         }
     }
 
-    [Fact]
-    public void Resolve_AllHighImpedanceDrivers_ReturnsUndrivenForEveryBit()
+    [Test]
+    public async Task Resolve_AllHighImpedanceDrivers_ReturnsUndrivenForEveryBit()
     {
         var highImpedance = new LogicVector(
             Enumerable.Repeat(LogicValue.Z, 130).ToArray());
@@ -65,17 +67,19 @@ public sealed class VectorNetResolverTests
             130,
             [highImpedance, highImpedance]);
 
-        for (var index = 0; index < actual.Value.Width; index++)
+        using (Assert.Multiple())
         {
-            Assert.Equal(LogicValue.Z, actual.Value[index]);
-            Assert.Equal(
-                NetResolutionCauses.Undriven,
-                actual.GetCauses(index));
+            for (var index = 0; index < actual.Value.Width; index++)
+            {
+                await Assert.That(actual.Value[index]).IsEqualTo(LogicValue.Z);
+                await Assert.That(actual.GetCauses(index))
+                    .IsEqualTo(NetResolutionCauses.Undriven);
+            }
         }
     }
 
-    [Fact]
-    public void Resolve_MultipleDriversAtWordTails_ReportIndependentValuesAndCauses()
+    [Test]
+    public async Task Resolve_MultipleDriversAtWordTails_ReportIndependentValuesAndCauses()
     {
         const int width = 130;
         var firstValues = Enumerable.Repeat(LogicValue.Z, width).ToArray();
@@ -98,26 +102,27 @@ public sealed class VectorNetResolverTests
                 new LogicVector(thirdValues),
             ]);
 
-        Assert.Equal(LogicValue.Z, actual.Value[0]);
-        Assert.Equal(NetResolutionCauses.Undriven, actual.GetCauses(0));
-        Assert.Equal(LogicValue.One, actual.Value[1]);
-        Assert.Equal(NetResolutionCauses.None, actual.GetCauses(1));
-        Assert.Equal(LogicValue.X, actual.Value[63]);
-        Assert.Equal(
-            NetResolutionCauses.UnknownDriver,
-            actual.GetCauses(63));
-        Assert.Equal(LogicValue.X, actual.Value[64]);
-        Assert.Equal(
-            NetResolutionCauses.Contention,
-            actual.GetCauses(64));
-        Assert.Equal(LogicValue.X, actual.Value[129]);
-        Assert.Equal(
-            NetResolutionCauses.UnknownDriver | NetResolutionCauses.Contention,
-            actual.GetCauses(129));
+        using (Assert.Multiple())
+        {
+            await Assert.That(actual.Value[0]).IsEqualTo(LogicValue.Z);
+            await Assert.That(actual.GetCauses(0)).IsEqualTo(NetResolutionCauses.Undriven);
+            await Assert.That(actual.Value[1]).IsEqualTo(LogicValue.One);
+            await Assert.That(actual.GetCauses(1)).IsEqualTo(NetResolutionCauses.None);
+            await Assert.That(actual.Value[63]).IsEqualTo(LogicValue.X);
+            await Assert.That(actual.GetCauses(63))
+                .IsEqualTo(NetResolutionCauses.UnknownDriver);
+            await Assert.That(actual.Value[64]).IsEqualTo(LogicValue.X);
+            await Assert.That(actual.GetCauses(64))
+                .IsEqualTo(NetResolutionCauses.Contention);
+            await Assert.That(actual.Value[129]).IsEqualTo(LogicValue.X);
+            await Assert.That(actual.GetCauses(129))
+                .IsEqualTo(
+                    NetResolutionCauses.UnknownDriver | NetResolutionCauses.Contention);
+        }
     }
 
-    [Fact]
-    public void Resolve_ListDriversAcrossWordBoundary_MatchesScalarValueAndCausesAtEveryBit()
+    [Test]
+    public async Task Resolve_ListDriversAcrossWordBoundary_MatchesScalarValueAndCausesAtEveryBit()
     {
         const int width = 130;
         var firstValues = Enumerable.Range(0, width)
@@ -147,60 +152,69 @@ public sealed class VectorNetResolverTests
 
         var actual = VectorNetResolver.Resolve(width, drivers);
 
-        for (var bitIndex = 0; bitIndex < width; bitIndex++)
+        using (Assert.Multiple())
         {
-            var expected = NetResolver.Resolve(
-                [
-                    firstValues[bitIndex],
-                    secondValues[bitIndex],
-                    thirdValues[bitIndex],
-                ]);
+            for (var bitIndex = 0; bitIndex < width; bitIndex++)
+            {
+                var expected = NetResolver.Resolve(
+                    [
+                        firstValues[bitIndex],
+                        secondValues[bitIndex],
+                        thirdValues[bitIndex],
+                    ]);
 
-            Assert.Equal(expected.Value, actual.Value[bitIndex]);
-            Assert.Equal(expected.Causes, actual.GetCauses(bitIndex));
+                await Assert.That(actual.Value[bitIndex]).IsEqualTo(expected.Value);
+                await Assert.That(actual.GetCauses(bitIndex)).IsEqualTo(expected.Causes);
+            }
         }
     }
 
-    [Fact]
-    public void Resolve_DifferentDriverWidth_ThrowsArgumentException()
+    [Test]
+    public async Task Resolve_DifferentDriverWidth_ThrowsArgumentException()
     {
         var driver = new LogicVector([LogicValue.Zero]);
 
-        Assert.Throws<ArgumentException>(
-            () => VectorNetResolver.Resolve(2, [driver]));
+        await Assert.That(() => VectorNetResolver.Resolve(2, [driver]))
+            .Throws<ArgumentException>();
     }
 
-    [Fact]
-    public void Resolve_NullDrivers_ThrowsArgumentNullException()
+    [Test]
+    public async Task Resolve_NullDrivers_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(
-            () => VectorNetResolver.Resolve(1, null!));
+        await Assert.That(() => VectorNetResolver.Resolve(1, null!))
+            .Throws<ArgumentNullException>();
     }
 
-    [Fact]
-    public void Resolve_NullDriverElement_ThrowsArgumentException()
+    [Test]
+    public async Task Resolve_NullDriverElement_ThrowsArgumentException()
     {
-        Assert.Throws<ArgumentException>(
-            () => VectorNetResolver.Resolve(1, [null!]));
+        await Assert.That(() => VectorNetResolver.Resolve(1, [null!]))
+            .Throws<ArgumentException>();
     }
 
-    [Fact]
-    public void Resolve_NonpositiveWidth_ThrowsArgumentOutOfRangeException()
+    [Test]
+    public async Task Resolve_NonpositiveWidth_ThrowsArgumentOutOfRangeException()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => VectorNetResolver.Resolve(0, []));
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => VectorNetResolver.Resolve(-1, []));
+        using (Assert.Multiple())
+        {
+            await Assert.That(() => VectorNetResolver.Resolve(0, []))
+                .Throws<ArgumentOutOfRangeException>();
+            await Assert.That(() => VectorNetResolver.Resolve(-1, []))
+                .Throws<ArgumentOutOfRangeException>();
+        }
     }
 
-    [Fact]
-    public void GetCauses_IndexOutsideVector_ThrowsArgumentOutOfRangeException()
+    [Test]
+    public async Task GetCauses_IndexOutsideVector_ThrowsArgumentOutOfRangeException()
     {
         var resolution = VectorNetResolver.Resolve(1, []);
 
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => resolution.GetCauses(-1));
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => resolution.GetCauses(1));
+        using (Assert.Multiple())
+        {
+            await Assert.That(() => resolution.GetCauses(-1))
+                .Throws<ArgumentOutOfRangeException>();
+            await Assert.That(() => resolution.GetCauses(1))
+                .Throws<ArgumentOutOfRangeException>();
+        }
     }
 }

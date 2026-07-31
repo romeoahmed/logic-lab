@@ -1,53 +1,59 @@
 using FsCheck;
 using FsCheck.Fluent;
 using LogicLab.Domain;
+using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
 public sealed class LogicVectorTests
 {
-    [Fact]
-    public void Create_ArbitraryPositiveWidth_RoundTripsEveryValueInBitIndexOrder()
+    [Test, FsCheckProperty]
+    public Property Create_ArbitraryPositiveWidth_RoundTripsEveryValueInBitIndexOrder()
     {
-        Prop.ForAll<int[]>(data =>
-            {
-                var widthSeed = data is { Length: > 0 } ? data[0] : 0;
-                var width = LogicVectorTestData.PositiveWidth(widthSeed);
-                var values = LogicVectorTestData.CreateValues(
-                    width,
-                    widthSeed,
-                    data);
-                var vector = new LogicVector(values);
+        return Prop.ForAll<int[]>(data =>
+        {
+            var widthSeed = data is { Length: > 0 } ? data[0] : 0;
+            var width = LogicVectorTestData.PositiveWidth(widthSeed);
+            var values = LogicVectorTestData.CreateValues(
+                width,
+                widthSeed,
+                data);
+            var vector = new LogicVector(values);
 
-                return LogicVectorTestData.Matches(vector, values);
-            })
-            .QuickCheckThrowOnFailure();
+            return LogicVectorTestData.Matches(vector, values);
+        });
     }
 
-    [Theory]
-    [InlineData(1)]
-    [InlineData(63)]
-    [InlineData(64)]
-    [InlineData(65)]
-    [InlineData(127)]
-    [InlineData(128)]
-    [InlineData(129)]
-    public void Create_WordBoundaryWidth_RoundTripsEveryLogicValue(int width)
+    [Test]
+    [Arguments(1)]
+    [Arguments(63)]
+    [Arguments(64)]
+    [Arguments(65)]
+    [Arguments(127)]
+    [Arguments(128)]
+    [Arguments(129)]
+    public async Task Create_WordBoundaryWidth_RoundTripsEveryLogicValue(int width)
     {
         var values = Enumerable.Range(0, width)
             .Select(index => (LogicValue)(index % 4))
             .ToArray();
 
         var vector = new LogicVector(values);
+        var actual = Enumerable.Range(0, width)
+            .Select(index => vector[index])
+            .ToArray();
 
-        Assert.Equal(width, vector.Width);
-        Assert.Equal(
-            values,
-            Enumerable.Range(0, width).Select(index => vector[index]));
+        using (Assert.Multiple())
+        {
+            await Assert.That(vector.Width).IsEqualTo(width);
+            await Assert.That(actual)
+                .IsEquivalentTo(values, CollectionOrdering.Matching);
+        }
     }
 
-    [Fact]
-    public void Create_SourceMutation_DoesNotChangeOwnedVector()
+    [Test]
+    public async Task Create_SourceMutation_DoesNotChangeOwnedVector()
     {
         var values = new[]
         {
@@ -60,45 +66,52 @@ public sealed class LogicVectorTests
 
         Array.Fill(values, LogicValue.One);
 
-        Assert.Equal(LogicValue.Zero, vector[0]);
-        Assert.Equal(LogicValue.One, vector[1]);
-        Assert.Equal(LogicValue.X, vector[2]);
-        Assert.Equal(LogicValue.Z, vector[3]);
+        var actual = Enumerable.Range(0, vector.Width)
+            .Select(index => vector[index])
+            .ToArray();
+        await Assert.That(actual)
+            .IsEquivalentTo(
+                [LogicValue.Zero, LogicValue.One, LogicValue.X, LogicValue.Z],
+                CollectionOrdering.Matching);
     }
 
-    [Fact]
-    public void Create_EmptyValues_ThrowsArgumentException()
+    [Test]
+    public async Task Create_EmptyValues_ThrowsArgumentException()
     {
-        Assert.Throws<ArgumentException>(() => new LogicVector([]));
+        await Assert.That(() => new LogicVector([]))
+            .Throws<ArgumentException>();
     }
 
-    [Fact]
-    public void Create_NullValues_ThrowsArgumentNullException()
+    [Test]
+    public async Task Create_NullValues_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => new LogicVector(null!));
+        await Assert.That(() => new LogicVector(null!))
+            .Throws<ArgumentNullException>();
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void Create_UndefinedLogicValue_ThrowsArgumentOutOfRangeException(
+    [Test]
+    [Arguments(0)]
+    [Arguments(1)]
+    [Arguments(2)]
+    public async Task Create_UndefinedLogicValue_ThrowsArgumentOutOfRangeException(
         int undefinedIndex)
     {
         var values = new[] { LogicValue.Zero, LogicValue.One, LogicValue.Z };
         values[undefinedIndex] = (LogicValue)byte.MaxValue;
 
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new LogicVector(values));
+        await Assert.That(() => new LogicVector(values))
+            .Throws<ArgumentOutOfRangeException>();
     }
 
-    [Fact]
-    public void Indexer_IndexOutsideVector_ThrowsArgumentOutOfRangeException()
+    [Test]
+    public async Task Indexer_IndexOutsideVector_ThrowsArgumentOutOfRangeException()
     {
         var vector = new LogicVector([LogicValue.Zero]);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => vector[-1]);
-        Assert.Throws<ArgumentOutOfRangeException>(() => vector[1]);
+        using (Assert.Multiple())
+        {
+            await Assert.That(() => vector[-1]).Throws<ArgumentOutOfRangeException>();
+            await Assert.That(() => vector[1]).Throws<ArgumentOutOfRangeException>();
+        }
     }
-
 }

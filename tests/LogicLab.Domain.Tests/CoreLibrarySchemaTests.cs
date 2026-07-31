@@ -1,109 +1,131 @@
 using LogicLab.Domain.Components;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Domain.Tests;
 
 public sealed class CoreLibrarySchemaTests
 {
-    [Fact]
-    public void Library_RequiredIdentity_HasExactValues()
+    [Test]
+    public async Task Library_RequiredIdentity_HasExactValues()
     {
-        Assert.Equal("logiclab.core", CoreLibrarySchema.LibraryId);
-        Assert.Equal("1.0.0", CoreLibrarySchema.Version);
+        using (Assert.Multiple())
+        {
+            await Assert.That(CoreLibrarySchema.LibraryId).IsEqualTo("logiclab.core");
+            await Assert.That(CoreLibrarySchema.Version).IsEqualTo("1.0.0");
+        }
     }
 
-    [Fact]
-    public void FindContract_SourceInput_HasExactSchema()
+    [Test]
+    public async Task FindContract_SourceInput_HasExactSchema()
     {
-        var sourceInput = FindCoreContract("source.input");
+        var sourceInput = await FindCoreContract("source.input");
 
-        Assert.Equal(
-            new ComponentContractKey("logiclab.core", "source.input"),
-            sourceInput.Key);
-        Assert.Equal(
-            ["width", "initialValue"],
-            sourceInput.Parameters.Select(parameter => parameter.Id));
-        Assert.Equal(
-            [ComponentParameterKind.PositiveWidth, ComponentParameterKind.LogicVector],
-            sourceInput.Parameters.Select(parameter => parameter.Kind));
-        Assert.Null(sourceInput.Parameters[0].WidthParameterId);
-        Assert.Equal("width", sourceInput.Parameters[1].WidthParameterId);
-        Assert.Empty(sourceInput.Parameters[0].AllowedValues);
-        Assert.Empty(sourceInput.Parameters[1].AllowedValues);
-        Assert.Equal(["Q"], sourceInput.Ports.Select(port => port.Id));
-        Assert.Equal([PortDirection.Output], sourceInput.Ports.Select(port => port.Direction));
-        Assert.Equal(["width"], sourceInput.Ports.Select(port => port.WidthParameterId));
+        using (Assert.Multiple())
+        {
+            await Assert.That(sourceInput.Key)
+                .IsEqualTo(new ComponentContractKey("logiclab.core", "source.input"));
+            await Assert.That(sourceInput.Parameters.Select(parameter => parameter.Id).ToArray())
+                .IsEquivalentTo(["width", "initialValue"], CollectionOrdering.Matching);
+            await Assert.That(sourceInput.Parameters.Select(parameter => parameter.Kind).ToArray())
+                .IsEquivalentTo(
+                    [ComponentParameterKind.PositiveWidth, ComponentParameterKind.LogicVector],
+                    CollectionOrdering.Matching);
+            await Assert.That(sourceInput.Parameters[0].WidthParameterId).IsNull();
+            await Assert.That(sourceInput.Parameters[1].WidthParameterId).IsEqualTo("width");
+            await Assert.That(sourceInput.Parameters[0].AllowedValues).IsEmpty();
+            await Assert.That(sourceInput.Parameters[1].AllowedValues).IsEmpty();
+            await Assert.That(sourceInput.Ports.Select(port => port.Id).ToArray())
+                .IsEquivalentTo(["Q"], CollectionOrdering.Matching);
+            await Assert.That(sourceInput.Ports.Select(port => port.Direction).ToArray())
+                .IsEquivalentTo([PortDirection.Output], CollectionOrdering.Matching);
+            await Assert.That(sourceInput.Ports.Select(port => port.WidthParameterId).ToArray())
+                .IsEquivalentTo(["width"], CollectionOrdering.Matching);
+        }
     }
 
-    [Fact]
-    public void FindContract_LogicNot_HasExactSchema()
+    [Test]
+    public async Task FindContract_LogicNot_HasExactSchema()
     {
-        var logicNot = FindCoreContract("logic.not");
+        var logicNot = await FindCoreContract("logic.not");
 
-        Assert.Equal(
-            new ComponentContractKey("logiclab.core", "logic.not"),
-            logicNot.Key);
-        Assert.Equal(["width"], logicNot.Parameters.Select(parameter => parameter.Id));
-        Assert.Equal(
-            [ComponentParameterKind.PositiveWidth],
-            logicNot.Parameters.Select(parameter => parameter.Kind));
-        Assert.Null(logicNot.Parameters[0].WidthParameterId);
-        Assert.Empty(logicNot.Parameters[0].AllowedValues);
-        Assert.Equal(["A", "Q"], logicNot.Ports.Select(port => port.Id));
-        Assert.Equal(
-            [PortDirection.Input, PortDirection.Output],
-            logicNot.Ports.Select(port => port.Direction));
-        Assert.Equal(
-            ["width", "width"],
-            logicNot.Ports.Select(port => port.WidthParameterId));
+        using (Assert.Multiple())
+        {
+            await Assert.That(logicNot.Key)
+                .IsEqualTo(new ComponentContractKey("logiclab.core", "logic.not"));
+            await Assert.That(logicNot.Parameters.Select(parameter => parameter.Id).ToArray())
+                .IsEquivalentTo(["width"], CollectionOrdering.Matching);
+            await Assert.That(logicNot.Parameters.Select(parameter => parameter.Kind).ToArray())
+                .IsEquivalentTo(
+                    [ComponentParameterKind.PositiveWidth],
+                    CollectionOrdering.Matching);
+            await Assert.That(logicNot.Parameters[0].WidthParameterId).IsNull();
+            await Assert.That(logicNot.Parameters[0].AllowedValues).IsEmpty();
+            await Assert.That(logicNot.Ports.Select(port => port.Id).ToArray())
+                .IsEquivalentTo(["A", "Q"], CollectionOrdering.Matching);
+            await Assert.That(logicNot.Ports.Select(port => port.Direction).ToArray())
+                .IsEquivalentTo(
+                    [PortDirection.Input, PortDirection.Output],
+                    CollectionOrdering.Matching);
+            await Assert.That(logicNot.Ports.Select(port => port.WidthParameterId).ToArray())
+                .IsEquivalentTo(["width", "width"], CollectionOrdering.Matching);
+        }
     }
 
-    [Fact]
-    public void FindContract_SinkOutput_HasExactSchema()
+    [Test]
+    public async Task FindContract_SinkOutput_HasExactSchema()
     {
-        var sinkOutput = FindCoreContract("sink.output");
+        var sinkOutput = await FindCoreContract("sink.output");
 
-        Assert.Equal(
-            new ComponentContractKey("logiclab.core", "sink.output"),
-            sinkOutput.Key);
-        Assert.Equal(
-            ["width", "radix"],
-            sinkOutput.Parameters.Select(parameter => parameter.Id));
-        Assert.Equal(
-            [ComponentParameterKind.PositiveWidth, ComponentParameterKind.Choice],
-            sinkOutput.Parameters.Select(parameter => parameter.Kind));
-        Assert.Null(sinkOutput.Parameters[0].WidthParameterId);
-        Assert.Null(sinkOutput.Parameters[1].WidthParameterId);
-        Assert.Empty(sinkOutput.Parameters[0].AllowedValues);
-        Assert.Equal(
-            ["binary", "hex", "unsigned"],
-            sinkOutput.Parameters[1].AllowedValues);
-        Assert.Equal(["D"], sinkOutput.Ports.Select(port => port.Id));
-        Assert.Equal([PortDirection.Input], sinkOutput.Ports.Select(port => port.Direction));
-        Assert.Equal(["width"], sinkOutput.Ports.Select(port => port.WidthParameterId));
+        using (Assert.Multiple())
+        {
+            await Assert.That(sinkOutput.Key)
+                .IsEqualTo(new ComponentContractKey("logiclab.core", "sink.output"));
+            await Assert.That(sinkOutput.Parameters.Select(parameter => parameter.Id).ToArray())
+                .IsEquivalentTo(["width", "radix"], CollectionOrdering.Matching);
+            await Assert.That(sinkOutput.Parameters.Select(parameter => parameter.Kind).ToArray())
+                .IsEquivalentTo(
+                    [ComponentParameterKind.PositiveWidth, ComponentParameterKind.Choice],
+                    CollectionOrdering.Matching);
+            await Assert.That(sinkOutput.Parameters[0].WidthParameterId).IsNull();
+            await Assert.That(sinkOutput.Parameters[1].WidthParameterId).IsNull();
+            await Assert.That(sinkOutput.Parameters[0].AllowedValues).IsEmpty();
+            await Assert.That(sinkOutput.Parameters[1].AllowedValues)
+                .IsEquivalentTo(
+                    ["binary", "hex", "unsigned"],
+                    CollectionOrdering.Matching);
+            await Assert.That(sinkOutput.Ports.Select(port => port.Id).ToArray())
+                .IsEquivalentTo(["D"], CollectionOrdering.Matching);
+            await Assert.That(sinkOutput.Ports.Select(port => port.Direction).ToArray())
+                .IsEquivalentTo([PortDirection.Input], CollectionOrdering.Matching);
+            await Assert.That(sinkOutput.Ports.Select(port => port.WidthParameterId).ToArray())
+                .IsEquivalentTo(["width"], CollectionOrdering.Matching);
+        }
     }
 
-    [Fact]
-    public void FindContract_UnknownContract_ReturnsNull()
+    [Test]
+    public async Task FindContract_UnknownContract_ReturnsNull()
     {
         var contract = CoreLibrarySchema.FindContract(
             new ComponentContractKey("logiclab.core", "logic.unknown"));
 
-        Assert.Null(contract);
+        await Assert.That(contract).IsNull();
     }
 
-    [Fact]
-    public void FindContract_UnknownLibrary_ReturnsNull()
+    [Test]
+    public async Task FindContract_UnknownLibrary_ReturnsNull()
     {
         var contract = CoreLibrarySchema.FindContract(
             new ComponentContractKey("other.library", "logic.not"));
 
-        Assert.Null(contract);
+        await Assert.That(contract).IsNull();
     }
 
-    private static ComponentContractSchema FindCoreContract(string contractId)
+    private static async Task<ComponentContractSchema> FindCoreContract(string contractId)
     {
-        return Assert.IsType<ComponentContractSchema>(
-            CoreLibrarySchema.FindContract(
-                new ComponentContractKey("logiclab.core", contractId)));
+        var contract = CoreLibrarySchema.FindContract(
+            new ComponentContractKey("logiclab.core", contractId));
+
+        await Assert.That(contract).IsTypeOf<ComponentContractSchema>();
+        return (ComponentContractSchema)contract!;
     }
 }
