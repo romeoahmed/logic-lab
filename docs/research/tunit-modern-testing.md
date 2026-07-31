@@ -22,20 +22,20 @@ This note distinguishes **source fact** from **Logic Lab inference**. The invest
 
 Do not apply every TUnit feature indiscriminately. `[Retry]`, `[Repeat]`, `[DependsOn]`, global non-parallel execution, dynamic tests, and shared mutable fixtures solve specific problems and would reduce the quality of the current deterministic unit suite if added without evidence.
 
-## 2. Current Logic Lab baseline
+## 2. Pre-migration Logic Lab baseline
 
-The repository currently has two executable `net10.0` test projects, both using `xunit.v3.mtp-v2` 3.2.2 through central package management. The Engine test project also references FsCheck 3.3.4 directly. Both projects set `UseMicrosoftTestingPlatformRunner`, import `Xunit` globally, and copy `xunit.runner.json` to output.
+Before the 2026-07-31 migration, the repository had two executable `net10.0` test projects, both using `xunit.v3.mtp-v2` 3.2.2 through central package management. The Engine test project also referenced FsCheck 3.3.4 directly. Both projects set `UseMicrosoftTestingPlatformRunner`, imported `Xunit` globally, and copied `xunit.runner.json` to output.
 
-The current C# corpus contains:
+That C# corpus contained:
 
 - 49 `[Fact]` declarations;
 - 12 `[Theory]` declarations;
 - 91 `[InlineData]` rows;
-- 6 source-level `QuickCheckThrowOnFailure()` call sites across five files; two call sites are shared helpers invoked by five vector-operation tests, so 9 discovered test methods currently execute FsCheck properties;
+- 6 source-level `QuickCheckThrowOnFailure()` call sites across five files; two call sites were shared helpers invoked by five vector-operation tests, so 9 discovered test methods executed FsCheck properties;
 - only ordinary `Assert.Equal`, `Assert.Null`, `Assert.Empty`, `Assert.IsType`, and `Assert.Throws` calls;
 - no xUnit fixtures, collections, traits, output helper, skip, timeout, or lifecycle interfaces.
 
-**Logic Lab inference:** The absence of fixtures and runner-specific extension points lowers migration risk. The main semantic risks are awaited assertion conversion, preserving exact data-row coverage and failure identity, and moving the six FsCheck properties without changing generators, shrink behavior, or differential oracles.
+**Logic Lab implementation result:** Both projects now use exact centrally pinned `TUnit` 1.63.0; Engine also uses `TUnit.FsCheck` 1.63.0 and direct FsCheck 3.3.4. The nine generative methods are first-class FsCheck properties, ordered collection checks use `CollectionOrdering.Matching`, and a source-generated matrix exposes 112 word-tail combinations independently. Discovery increased from 140 to 252 tests without changing production code or the scalar differential oracles.
 
 ## 3. Package and project model
 

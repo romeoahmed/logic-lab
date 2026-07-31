@@ -27,9 +27,9 @@ Every completed item must:
 5. pass the applicable restore, build, test, format, architecture, and whitespace gates; and
 6. update an authoritative document only when implementation uncovers a real specification defect.
 
-### Approved test-stack migration before item 03
+### Completed test-stack migration before item 03
 
-Before item `03` changes production or test behavior, perform one repository-engineering increment that atomically migrates both executable test projects from xUnit v3 to the centrally pinned TUnit stack selected by the [.NET Engineering Baseline](./specs/dotnet-engineering.md). Replace runner configuration and lock graphs, convert assertions and fixed data rows, expose generative Engine properties through `TUnit.FsCheck`, and then adopt source-generated discovery, awaited assertion analysis, intentional matrix cases, and the documented parallel/resource controls. The increment is complete only when test discovery preserves or improves the existing 140-test evidence, the scalar-oracle differential properties still shrink and replay, no xUnit artifact remains, and every repository gate passes. This is an engineering migration rather than a new V1 product slice; it does not change the dependency frontier below.
+Before item `03`, one repository-engineering increment migrated both executable test projects from xUnit v3 to the centrally pinned TUnit stack selected by the [.NET Engineering Baseline](./specs/dotnet-engineering.md). The increment replaced runner configuration and lock graphs, converted assertions and fixed data rows, exposed all nine generative Engine properties through `TUnit.FsCheck`, and adopted source-generated discovery, awaited assertion analysis, and an intentional 112-case word-tail matrix. Test discovery increased from 140 to 252 independently reported tests while preserving scalar-oracle shrinking and replay, and no xUnit artifact remains. This is an engineering migration rather than a new V1 product slice; it does not change the dependency frontier below.
 
 ## Phase A — Executable semantics and first tracer
 

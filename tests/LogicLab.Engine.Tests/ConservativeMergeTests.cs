@@ -4,65 +4,65 @@ namespace LogicLab.Engine.Tests;
 
 public sealed class ConservativeMergeTests
 {
-    [Theory]
-    [InlineData(LogicValue.Zero)]
-    [InlineData(LogicValue.One)]
-    [InlineData(LogicValue.X)]
-    [InlineData(LogicValue.Z)]
-    public void Merge_IdenticalValues_ReturnsSharedValue(LogicValue value)
+    [Test]
+    [Arguments(LogicValue.Zero)]
+    [Arguments(LogicValue.One)]
+    [Arguments(LogicValue.X)]
+    [Arguments(LogicValue.Z)]
+    public async Task Merge_IdenticalValues_ReturnsSharedValue(LogicValue value)
     {
         var actual = ConservativeMerge.Merge([value, value, value]);
 
-        Assert.Equal(value, actual);
+        await Assert.That(actual).IsEqualTo(value);
     }
 
-    [Theory]
-    [InlineData(LogicValue.Zero, LogicValue.One)]
-    [InlineData(LogicValue.Zero, LogicValue.X)]
-    [InlineData(LogicValue.Zero, LogicValue.Z)]
-    [InlineData(LogicValue.One, LogicValue.Zero)]
-    [InlineData(LogicValue.One, LogicValue.X)]
-    [InlineData(LogicValue.One, LogicValue.Z)]
-    [InlineData(LogicValue.X, LogicValue.Zero)]
-    [InlineData(LogicValue.X, LogicValue.One)]
-    [InlineData(LogicValue.X, LogicValue.Z)]
-    [InlineData(LogicValue.Z, LogicValue.Zero)]
-    [InlineData(LogicValue.Z, LogicValue.One)]
-    [InlineData(LogicValue.Z, LogicValue.X)]
-    public void Merge_DifferentValues_ReturnsUnknown(
+    [Test]
+    [Arguments(LogicValue.Zero, LogicValue.One)]
+    [Arguments(LogicValue.Zero, LogicValue.X)]
+    [Arguments(LogicValue.Zero, LogicValue.Z)]
+    [Arguments(LogicValue.One, LogicValue.Zero)]
+    [Arguments(LogicValue.One, LogicValue.X)]
+    [Arguments(LogicValue.One, LogicValue.Z)]
+    [Arguments(LogicValue.X, LogicValue.Zero)]
+    [Arguments(LogicValue.X, LogicValue.One)]
+    [Arguments(LogicValue.X, LogicValue.Z)]
+    [Arguments(LogicValue.Z, LogicValue.Zero)]
+    [Arguments(LogicValue.Z, LogicValue.One)]
+    [Arguments(LogicValue.Z, LogicValue.X)]
+    public async Task Merge_DifferentValues_ReturnsUnknown(
         LogicValue first,
         LogicValue second)
     {
         var actual = ConservativeMerge.Merge([first, second]);
 
-        Assert.Equal(LogicValue.X, actual);
+        await Assert.That(actual).IsEqualTo(LogicValue.X);
     }
 
-    [Fact]
-    public void Merge_EmptyValues_ThrowsArgumentException()
+    [Test]
+    public async Task Merge_EmptyValues_ThrowsArgumentException()
     {
-        Assert.Throws<ArgumentException>(
-            () => ConservativeMerge.Merge([]));
+        await Assert.That(() => ConservativeMerge.Merge([]))
+            .Throws<ArgumentException>();
     }
 
-    [Fact]
-    public void Merge_NullValues_ThrowsArgumentNullException()
+    [Test]
+    public async Task Merge_NullValues_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(
-            () => ConservativeMerge.Merge(null!));
+        await Assert.That(() => ConservativeMerge.Merge(null!))
+            .Throws<ArgumentNullException>();
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void Merge_UndefinedValue_ThrowsArgumentOutOfRangeException(
+    [Test]
+    [Arguments(0)]
+    [Arguments(1)]
+    [Arguments(2)]
+    public async Task Merge_UndefinedValue_ThrowsArgumentOutOfRangeException(
         int undefinedIndex)
     {
         var values = new[] { LogicValue.Zero, LogicValue.One, LogicValue.Zero };
         values[undefinedIndex] = (LogicValue)byte.MaxValue;
 
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => ConservativeMerge.Merge(values));
+        await Assert.That(() => ConservativeMerge.Merge(values))
+            .Throws<ArgumentOutOfRangeException>();
     }
 }

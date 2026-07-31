@@ -1,43 +1,79 @@
 using FsCheck;
 using FsCheck.Fluent;
 using LogicLab.Domain;
+using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
 public sealed class VectorLogicTests
 {
-    [Fact]
-    public void NormalizeInput_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
+    [Test, FsCheckProperty]
+    public Property NormalizeInput_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
     {
-        CheckUnary(ScalarLogic.NormalizeInput, VectorLogic.NormalizeInput);
+        return CheckUnary(ScalarLogic.NormalizeInput, VectorLogic.NormalizeInput);
     }
 
-    [Fact]
-    public void Not_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
+    [Test, FsCheckProperty]
+    public Property Not_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
     {
-        CheckUnary(ScalarLogic.Not, VectorLogic.Not);
+        return CheckUnary(ScalarLogic.Not, VectorLogic.Not);
     }
 
-    [Fact]
-    public void And_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
+    [Test, FsCheckProperty]
+    public Property And_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
     {
-        CheckBinary(ScalarLogic.And, VectorLogic.And);
+        return CheckBinary(ScalarLogic.And, VectorLogic.And);
     }
 
-    [Fact]
-    public void Or_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
+    [Test, FsCheckProperty]
+    public Property Or_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
     {
-        CheckBinary(ScalarLogic.Or, VectorLogic.Or);
+        return CheckBinary(ScalarLogic.Or, VectorLogic.Or);
     }
 
-    [Fact]
-    public void Xor_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
+    [Test, FsCheckProperty]
+    public Property Xor_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
     {
-        CheckBinary(ScalarLogic.Xor, VectorLogic.Xor);
+        return CheckBinary(ScalarLogic.Xor, VectorLogic.Xor);
     }
 
-    [Fact]
-    public void GateOperations_XAndZAtWordTails_MatchScalarOracleWithoutLeakage()
+    [Test]
+    [MatrixDataSource]
+    public async Task BinaryOperations_WordTailWidthsAndUniformInputs_MatchScalarOracle(
+        [Matrix(63, 64, 65, 127, 128, 129, 130)] int width,
+        [Matrix(LogicValue.Zero, LogicValue.One, LogicValue.X, LogicValue.Z)]
+        LogicValue left,
+        [Matrix(LogicValue.Zero, LogicValue.One, LogicValue.X, LogicValue.Z)]
+        LogicValue right)
+    {
+        var leftValues = Enumerable.Repeat(left, width).ToArray();
+        var rightValues = Enumerable.Repeat(right, width).ToArray();
+        var leftVector = new LogicVector(leftValues);
+        var rightVector = new LogicVector(rightValues);
+
+        using (Assert.Multiple())
+        {
+            await AssertMatchesScalar(
+                VectorLogic.And(leftVector, rightVector),
+                leftValues,
+                rightValues,
+                ScalarLogic.And);
+            await AssertMatchesScalar(
+                VectorLogic.Or(leftVector, rightVector),
+                leftValues,
+                rightValues,
+                ScalarLogic.Or);
+            await AssertMatchesScalar(
+                VectorLogic.Xor(leftVector, rightVector),
+                leftValues,
+                rightValues,
+                ScalarLogic.Xor);
+        }
+    }
+
+    [Test]
+    public async Task GateOperations_XAndZAtWordTails_MatchScalarOracleWithoutLeakage()
     {
         const int width = 130;
         var leftValues = Enumerable.Repeat(LogicValue.Zero, width).ToArray();
@@ -51,151 +87,153 @@ public sealed class VectorLogicTests
         var left = new LogicVector(leftValues);
         var right = new LogicVector(rightValues);
 
-        AssertMatchesScalar(VectorLogic.NormalizeInput(left), leftValues, ScalarLogic.NormalizeInput);
-        AssertMatchesScalar(VectorLogic.Not(left), leftValues, ScalarLogic.Not);
-        AssertMatchesScalar(VectorLogic.And(left, right), leftValues, rightValues, ScalarLogic.And);
-        AssertMatchesScalar(VectorLogic.Or(left, right), leftValues, rightValues, ScalarLogic.Or);
-        AssertMatchesScalar(VectorLogic.Xor(left, right), leftValues, rightValues, ScalarLogic.Xor);
+        using (Assert.Multiple())
+        {
+            await AssertMatchesScalar(
+                VectorLogic.NormalizeInput(left),
+                leftValues,
+                ScalarLogic.NormalizeInput);
+            await AssertMatchesScalar(VectorLogic.Not(left), leftValues, ScalarLogic.Not);
+            await AssertMatchesScalar(
+                VectorLogic.And(left, right),
+                leftValues,
+                rightValues,
+                ScalarLogic.And);
+            await AssertMatchesScalar(
+                VectorLogic.Or(left, right),
+                leftValues,
+                rightValues,
+                ScalarLogic.Or);
+            await AssertMatchesScalar(
+                VectorLogic.Xor(left, right),
+                leftValues,
+                rightValues,
+                ScalarLogic.Xor);
+        }
     }
 
-    [Fact]
-    public void BinaryOperations_DifferentWidths_ThrowArgumentException()
+    [Test]
+    public async Task BinaryOperations_DifferentWidths_ThrowArgumentException()
     {
         var shorter = new LogicVector([LogicValue.Zero]);
         var longer = new LogicVector([LogicValue.Zero, LogicValue.One]);
 
-        Assert.Throws<ArgumentException>(() => VectorLogic.And(shorter, longer));
-        Assert.Throws<ArgumentException>(() => VectorLogic.Or(shorter, longer));
-        Assert.Throws<ArgumentException>(() => VectorLogic.Xor(shorter, longer));
-    }
-
-    [Fact]
-    public void Operations_NullOperands_ThrowArgumentNullException()
-    {
-        var vector = new LogicVector([LogicValue.Zero]);
-
-        Assert.Throws<ArgumentNullException>(
-            () => VectorLogic.NormalizeInput(null!));
-        Assert.Throws<ArgumentNullException>(() => VectorLogic.Not(null!));
-        Assert.Throws<ArgumentNullException>(
-            () => VectorLogic.And(null!, vector));
-        Assert.Throws<ArgumentNullException>(
-            () => VectorLogic.And(vector, null!));
-        Assert.Throws<ArgumentNullException>(
-            () => VectorLogic.Or(null!, vector));
-        Assert.Throws<ArgumentNullException>(
-            () => VectorLogic.Xor(vector, null!));
-    }
-
-    private static void CheckUnary(
-        Func<LogicValue, LogicValue> scalarOperation,
-        Func<LogicVector, LogicVector> vectorOperation)
-    {
-        Prop.ForAll<int[]>(data =>
-            {
-                var seed = data is { Length: > 0 } ? data[0] : 0;
-                var width = LogicVectorTestData.PositiveWidth(seed);
-                var values = LogicVectorTestData.CreateValues(width, seed, data);
-                var expected = values.Select(scalarOperation).ToArray();
-
-                return LogicVectorTestData.Matches(
-                    vectorOperation(new LogicVector(values)),
-                    expected);
-            })
-            .QuickCheckThrowOnFailure();
-    }
-
-    private static void CheckBinary(
-        Func<LogicValue, LogicValue, LogicValue> scalarOperation,
-        Func<LogicVector, LogicVector, LogicVector> vectorOperation)
-    {
-        CheckBinaryWordTailMatrix(scalarOperation, vectorOperation);
-
-        Prop.ForAll<int[], int[]>((leftData, rightData) =>
-            {
-                var leftSeed = leftData is { Length: > 0 } ? leftData[0] : 0;
-                var rightSeed = rightData is { Length: > 0 } ? rightData[0] : 0;
-                var width = LogicVectorTestData.PositiveWidth(
-                    leftSeed ^ rightSeed);
-                var leftValues = LogicVectorTestData.CreateValues(
-                    width,
-                    leftSeed,
-                    leftData);
-                var rightValues = LogicVectorTestData.CreateValues(
-                    width,
-                    rightSeed,
-                    rightData);
-                var expected = Enumerable.Range(0, width)
-                    .Select(index => scalarOperation(leftValues[index], rightValues[index]))
-                    .ToArray();
-
-                return LogicVectorTestData.Matches(
-                    vectorOperation(
-                        new LogicVector(leftValues),
-                        new LogicVector(rightValues)),
-                    expected);
-            })
-            .QuickCheckThrowOnFailure();
-    }
-
-    private static void CheckBinaryWordTailMatrix(
-        Func<LogicValue, LogicValue, LogicValue> scalarOperation,
-        Func<LogicVector, LogicVector, LogicVector> vectorOperation)
-    {
-        int[] wordTailWidths = [63, 64, 65, 127, 128, 129, 130];
-        LogicValue[] logicValues =
-        [
-            LogicValue.Zero,
-            LogicValue.One,
-            LogicValue.X,
-            LogicValue.Z,
-        ];
-
-        foreach (var width in wordTailWidths)
+        using (Assert.Multiple())
         {
-            foreach (var left in logicValues)
-            {
-                foreach (var right in logicValues)
-                {
-                    var leftValues = Enumerable.Repeat(left, width).ToArray();
-                    var rightValues = Enumerable.Repeat(right, width).ToArray();
-
-                    AssertMatchesScalar(
-                        vectorOperation(
-                            new LogicVector(leftValues),
-                            new LogicVector(rightValues)),
-                        leftValues,
-                        rightValues,
-                        scalarOperation);
-                }
-            }
+            await Assert.That(() => VectorLogic.And(shorter, longer))
+                .Throws<ArgumentException>();
+            await Assert.That(() => VectorLogic.Or(shorter, longer))
+                .Throws<ArgumentException>();
+            await Assert.That(() => VectorLogic.Xor(shorter, longer))
+                .Throws<ArgumentException>();
         }
     }
 
-    private static void AssertMatchesScalar(
+    [Test]
+    public async Task Operations_NullOperands_ThrowArgumentNullException()
+    {
+        var vector = new LogicVector([LogicValue.Zero]);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(() => VectorLogic.NormalizeInput(null!))
+                .Throws<ArgumentNullException>();
+            await Assert.That(() => VectorLogic.Not(null!))
+                .Throws<ArgumentNullException>();
+            await Assert.That(() => VectorLogic.And(null!, vector))
+                .Throws<ArgumentNullException>();
+            await Assert.That(() => VectorLogic.And(vector, null!))
+                .Throws<ArgumentNullException>();
+            await Assert.That(() => VectorLogic.Or(null!, vector))
+                .Throws<ArgumentNullException>();
+            await Assert.That(() => VectorLogic.Xor(vector, null!))
+                .Throws<ArgumentNullException>();
+        }
+    }
+
+    private static Property CheckUnary(
+        Func<LogicValue, LogicValue> scalarOperation,
+        Func<LogicVector, LogicVector> vectorOperation)
+    {
+        return Prop.ForAll<int[]>(data =>
+        {
+            var seed = data is { Length: > 0 } ? data[0] : 0;
+            var width = LogicVectorTestData.PositiveWidth(seed);
+            var values = LogicVectorTestData.CreateValues(width, seed, data);
+            var expected = values.Select(scalarOperation).ToArray();
+
+            return LogicVectorTestData.Matches(
+                vectorOperation(new LogicVector(values)),
+                expected);
+        });
+    }
+
+    private static Property CheckBinary(
+        Func<LogicValue, LogicValue, LogicValue> scalarOperation,
+        Func<LogicVector, LogicVector, LogicVector> vectorOperation)
+    {
+        return Prop.ForAll<int[], int[]>((leftData, rightData) =>
+        {
+            var leftSeed = leftData is { Length: > 0 } ? leftData[0] : 0;
+            var rightSeed = rightData is { Length: > 0 } ? rightData[0] : 0;
+            var width = LogicVectorTestData.PositiveWidth(
+                leftSeed ^ rightSeed);
+            var leftValues = LogicVectorTestData.CreateValues(
+                width,
+                leftSeed,
+                leftData);
+            var rightValues = LogicVectorTestData.CreateValues(
+                width,
+                rightSeed,
+                rightData);
+            var expected = Enumerable.Range(0, width)
+                .Select(index => scalarOperation(leftValues[index], rightValues[index]))
+                .ToArray();
+
+            return LogicVectorTestData.Matches(
+                vectorOperation(
+                    new LogicVector(leftValues),
+                    new LogicVector(rightValues)),
+                expected);
+        });
+    }
+
+    private static async Task AssertMatchesScalar(
         LogicVector actual,
         LogicValue[] values,
         Func<LogicValue, LogicValue> scalarOperation)
     {
-        Assert.Equal(values.Length, actual.Width);
-        for (var index = 0; index < values.Length; index++)
+        var expected = values.Select(scalarOperation).ToArray();
+        var actualValues = Enumerable.Range(0, actual.Width)
+            .Select(index => actual[index])
+            .ToArray();
+
+        using (Assert.Multiple())
         {
-            Assert.Equal(scalarOperation(values[index]), actual[index]);
+            await Assert.That(actual.Width).IsEqualTo(values.Length);
+            await Assert.That(actualValues)
+                .IsEquivalentTo(expected, CollectionOrdering.Matching);
         }
     }
 
-    private static void AssertMatchesScalar(
+    private static async Task AssertMatchesScalar(
         LogicVector actual,
         LogicValue[] left,
         LogicValue[] right,
         Func<LogicValue, LogicValue, LogicValue> scalarOperation)
     {
-        Assert.Equal(left.Length, actual.Width);
-        for (var index = 0; index < left.Length; index++)
+        var expected = Enumerable.Range(0, left.Length)
+            .Select(index => scalarOperation(left[index], right[index]))
+            .ToArray();
+        var actualValues = Enumerable.Range(0, actual.Width)
+            .Select(index => actual[index])
+            .ToArray();
+
+        using (Assert.Multiple())
         {
-            Assert.Equal(
-                scalarOperation(left[index], right[index]),
-                actual[index]);
+            await Assert.That(actual.Width).IsEqualTo(left.Length);
+            await Assert.That(actualValues)
+                .IsEquivalentTo(expected, CollectionOrdering.Matching);
         }
     }
 }
