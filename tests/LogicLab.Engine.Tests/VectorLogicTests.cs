@@ -204,9 +204,7 @@ public sealed class VectorLogicTests
         Func<LogicValue, LogicValue> scalarOperation)
     {
         var expected = values.Select(scalarOperation).ToArray();
-        var actualValues = Enumerable.Range(0, actual.Width)
-            .Select(index => actual[index])
-            .ToArray();
+        var actualValues = LogicVectorTestData.ToValues(actual);
 
         using (Assert.Multiple())
         {
@@ -225,9 +223,7 @@ public sealed class VectorLogicTests
         var expected = Enumerable.Range(0, left.Length)
             .Select(index => scalarOperation(left[index], right[index]))
             .ToArray();
-        var actualValues = Enumerable.Range(0, actual.Width)
-            .Select(index => actual[index])
-            .ToArray();
+        var actualValues = LogicVectorTestData.ToValues(actual);
 
         using (Assert.Multiple())
         {

@@ -68,9 +68,7 @@ public sealed class VectorConservativeMergeTests
 
         var actual = VectorConservativeMerge.Merge(
             [new LogicVector(firstValues), new LogicVector(secondValues)]);
-        var actualValues = Enumerable.Range(0, actual.Width)
-            .Select(index => actual[index])
-            .ToArray();
+        var actualValues = LogicVectorTestData.ToValues(actual);
         var expectedValues = Enumerable.Range(0, firstValues.Length)
             .Select(index => index is 63 or 64 or 129
                 ? LogicValue.X
