@@ -142,5 +142,5 @@ The [official NuGet version index](https://api.nuget.org/v3-flatcontainer/micros
 - [SignalR overview](https://learn.microsoft.com/en-us/aspnet/core/signalr/introduction?view=aspnetcore-10.0)
 - [EF Core](https://learn.microsoft.com/en-us/ef/core/) and [efficient querying](https://learn.microsoft.com/en-us/ef/core/performance/efficient-querying)
 - [Fluent UI Blazor v5](https://v5.fluentui-blazor.net/)
-- [xUnit v3](https://xunit.net/docs/getting-started/v3/getting-started), [bUnit](https://github.com/bUnit-dev/bUnit), and [Playwright for .NET](https://playwright.dev/dotnet/)
+- [TUnit](https://tunit.dev/docs/intro/), [TUnit ASP.NET Core integration](https://tunit.dev/docs/examples/aspnet), [bUnit](https://github.com/bUnit-dev/bUnit), and [TUnit Playwright integration](https://tunit.dev/docs/examples/playwright)
 - [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/)

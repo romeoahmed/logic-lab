@@ -177,9 +177,9 @@ C# 14 is the sole production language. The [.NET Engineering Baseline](./docs/sp
 |---|---|
 | Web chrome | Fluent UI Blazor v5 RC, exact pin, Web only |
 | persistence/auth | EF Core 10 SQLite and ASP.NET Core Identity |
-| unit/integration | xUnit v3 on Microsoft Testing Platform |
-| properties | FsCheck for test projects |
-| Razor/browser | bUnit and Playwright for .NET |
+| unit/integration | TUnit on Microsoft Testing Platform |
+| properties | TUnit.FsCheck with FsCheck generation, shrinking, and replay |
+| host/Razor/browser | TUnit.AspNetCore, bUnit, and TUnit.Playwright |
 | comparative kernels | BenchmarkDotNet in a benchmark project |
 
 Do not add mediation, mapping, generic Result, graph, binary-serialization, BDD/SAT, or alternative-DI packages without a measured missing capability.
