@@ -40,9 +40,7 @@ public sealed class LogicVectorTests
             .ToArray();
 
         var vector = new LogicVector(values);
-        var actual = Enumerable.Range(0, width)
-            .Select(index => vector[index])
-            .ToArray();
+        var actual = LogicVectorTestData.ToValues(vector);
 
         using (Assert.Multiple())
         {
@@ -66,9 +64,7 @@ public sealed class LogicVectorTests
 
         Array.Fill(values, LogicValue.One);
 
-        var actual = Enumerable.Range(0, vector.Width)
-            .Select(index => vector[index])
-            .ToArray();
+        var actual = LogicVectorTestData.ToValues(vector);
         await Assert.That(actual)
             .IsEquivalentTo(
                 [LogicValue.Zero, LogicValue.One, LogicValue.X, LogicValue.Z],

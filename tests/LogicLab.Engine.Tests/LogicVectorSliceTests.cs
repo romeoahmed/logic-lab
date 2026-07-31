@@ -38,9 +38,7 @@ public sealed class LogicVectorSliceTests
         var vector = new LogicVector(values);
 
         var actual = vector.Slice(61, 83);
-        var actualValues = Enumerable.Range(0, actual.Width)
-            .Select(index => actual[index])
-            .ToArray();
+        var actualValues = LogicVectorTestData.ToValues(actual);
 
         using (Assert.Multiple())
         {
@@ -81,12 +79,8 @@ public sealed class LogicVectorSliceTests
 
         var first = vector.Slice(17, 50);
         var second = vector.Slice(43, 50);
-        var firstValues = Enumerable.Range(0, first.Width)
-            .Select(index => first[index])
-            .ToArray();
-        var secondValues = Enumerable.Range(0, second.Width)
-            .Select(index => second[index])
-            .ToArray();
+        var firstValues = LogicVectorTestData.ToValues(first);
+        var secondValues = LogicVectorTestData.ToValues(second);
 
         using (Assert.Multiple())
         {
