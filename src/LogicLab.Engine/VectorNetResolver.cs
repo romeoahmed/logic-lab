@@ -10,11 +10,9 @@ public static class VectorNetResolver
         ArgumentNullException.ThrowIfNull(drivers);
 
         var wordCount = LogicVector.GetWordCount(width);
-        var sawZero = new ulong[wordCount];
-        var sawOne = new ulong[wordCount];
-        var sawUnknown = new ulong[wordCount];
+        var driverArray = drivers as LogicVector[] ?? drivers.ToArray();
 
-        foreach (var driver in drivers)
+        foreach (var driver in driverArray)
         {
             if (driver is null)
             {
@@ -29,36 +27,40 @@ public static class VectorNetResolver
                     "Net Driver vectors must match the resolved width.",
                     nameof(drivers));
             }
-
-            for (var wordIndex = 0; wordIndex < wordCount; wordIndex++)
-            {
-                var mask = LogicVector.GetWordMask(width, wordIndex);
-                var low = driver.GetLowWord(wordIndex);
-                var high = driver.GetHighWord(wordIndex);
-                sawZero[wordIndex] |= ~(low | high) & mask;
-                sawOne[wordIndex] |= low & ~high;
-                sawUnknown[wordIndex] |= high & ~low;
-            }
         }
 
         var valueLowBits = new ulong[wordCount];
         var valueHighBits = new ulong[wordCount];
         var undrivenBits = new ulong[wordCount];
+        var unknownDriverBits = new ulong[wordCount];
         var contentionBits = new ulong[wordCount];
 
         for (var wordIndex = 0; wordIndex < wordCount; wordIndex++)
         {
             var mask = LogicVector.GetWordMask(width, wordIndex);
-            var undriven = ~(sawZero[wordIndex]
-                | sawOne[wordIndex]
-                | sawUnknown[wordIndex]) & mask;
-            var contention = sawZero[wordIndex] & sawOne[wordIndex];
-            var unknown = sawUnknown[wordIndex] | contention;
-            var resolvedOne = sawOne[wordIndex] & ~unknown;
+            var sawZero = 0UL;
+            var sawOne = 0UL;
+            var sawUnknown = 0UL;
+
+            for (var driverIndex = 0; driverIndex < driverArray.Length; driverIndex++)
+            {
+                var driver = driverArray[driverIndex];
+                var low = driver.GetLowWord(wordIndex);
+                var high = driver.GetHighWord(wordIndex);
+                sawZero |= ~(low | high) & mask;
+                sawOne |= low & ~high;
+                sawUnknown |= high & ~low;
+            }
+
+            var undriven = ~(sawZero | sawOne | sawUnknown) & mask;
+            var contention = sawZero & sawOne;
+            var unknown = sawUnknown | contention;
+            var resolvedOne = sawOne & ~unknown;
 
             valueLowBits[wordIndex] = resolvedOne | undriven;
             valueHighBits[wordIndex] = unknown | undriven;
             undrivenBits[wordIndex] = undriven;
+            unknownDriverBits[wordIndex] = sawUnknown;
             contentionBits[wordIndex] = contention;
         }
 
@@ -70,7 +72,7 @@ public static class VectorNetResolver
         return new VectorNetResolution(
             value,
             undrivenBits,
-            sawUnknown,
+            unknownDriverBits,
             contentionBits);
     }
 }
