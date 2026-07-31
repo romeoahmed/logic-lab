@@ -42,14 +42,14 @@ public sealed class ConservativeMergeTests
     public async Task Merge_EmptyValues_ThrowsArgumentException()
     {
         await Assert.That(() => ConservativeMerge.Merge([]))
-            .Throws<ArgumentException>();
+            .ThrowsExactly<ArgumentException>();
     }
 
     [Test]
     public async Task Merge_NullValues_ThrowsArgumentNullException()
     {
         await Assert.That(() => ConservativeMerge.Merge(null!))
-            .Throws<ArgumentNullException>();
+            .ThrowsExactly<ArgumentNullException>();
     }
 
     [Test]
@@ -63,6 +63,6 @@ public sealed class ConservativeMergeTests
         values[undefinedIndex] = (LogicValue)byte.MaxValue;
 
         await Assert.That(() => ConservativeMerge.Merge(values))
-            .Throws<ArgumentOutOfRangeException>();
+            .ThrowsExactly<ArgumentOutOfRangeException>();
     }
 }
