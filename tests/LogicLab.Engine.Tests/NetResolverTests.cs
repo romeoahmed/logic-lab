@@ -68,7 +68,7 @@ public sealed class NetResolverTests
     public async Task Resolve_NullDrivers_ThrowsArgumentNullException()
     {
         await Assert.That(() => NetResolver.Resolve(null!))
-            .Throws<ArgumentNullException>();
+            .ThrowsExactly<ArgumentNullException>();
     }
 
     [Test]
@@ -77,6 +77,6 @@ public sealed class NetResolverTests
         var undefined = (LogicValue)byte.MaxValue;
 
         await Assert.That(() => NetResolver.Resolve([LogicValue.Z, undefined]))
-            .Throws<ArgumentOutOfRangeException>();
+            .ThrowsExactly<ArgumentOutOfRangeException>();
     }
 }

@@ -79,14 +79,14 @@ public sealed class LogicVectorTests
     public async Task Create_EmptyValues_ThrowsArgumentException()
     {
         await Assert.That(() => new LogicVector([]))
-            .Throws<ArgumentException>();
+            .ThrowsExactly<ArgumentException>();
     }
 
     [Test]
     public async Task Create_NullValues_ThrowsArgumentNullException()
     {
         await Assert.That(() => new LogicVector(null!))
-            .Throws<ArgumentNullException>();
+            .ThrowsExactly<ArgumentNullException>();
     }
 
     [Test]
@@ -100,7 +100,7 @@ public sealed class LogicVectorTests
         values[undefinedIndex] = (LogicValue)byte.MaxValue;
 
         await Assert.That(() => new LogicVector(values))
-            .Throws<ArgumentOutOfRangeException>();
+            .ThrowsExactly<ArgumentOutOfRangeException>();
     }
 
     [Test]
@@ -110,8 +110,8 @@ public sealed class LogicVectorTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(() => vector[-1]).Throws<ArgumentOutOfRangeException>();
-            await Assert.That(() => vector[1]).Throws<ArgumentOutOfRangeException>();
+            await Assert.That(() => vector[-1]).ThrowsExactly<ArgumentOutOfRangeException>();
+            await Assert.That(() => vector[1]).ThrowsExactly<ArgumentOutOfRangeException>();
         }
     }
 }
