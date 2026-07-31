@@ -1,6 +1,7 @@
 using FsCheck;
 using FsCheck.Fluent;
 using LogicLab.Domain;
+using TUnit.Assertions.Enums;
 using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
@@ -67,17 +68,17 @@ public sealed class VectorConservativeMergeTests
 
         var actual = VectorConservativeMerge.Merge(
             [new LogicVector(firstValues), new LogicVector(secondValues)]);
+        var actualValues = Enumerable.Range(0, actual.Width)
+            .Select(index => actual[index])
+            .ToArray();
+        var expectedValues = Enumerable.Range(0, firstValues.Length)
+            .Select(index => index is 63 or 64 or 129
+                ? LogicValue.X
+                : LogicValue.One)
+            .ToArray();
 
-        using (Assert.Multiple())
-        {
-            for (var index = 0; index < actual.Width; index++)
-            {
-                var expected = index is 63 or 64 or 129
-                    ? LogicValue.X
-                    : LogicValue.One;
-                await Assert.That(actual[index]).IsEqualTo(expected);
-            }
-        }
+        await Assert.That(actualValues)
+            .IsEquivalentTo(expectedValues, CollectionOrdering.Matching);
     }
 
     [Test]
