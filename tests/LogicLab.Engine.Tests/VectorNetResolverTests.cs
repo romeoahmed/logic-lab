@@ -1,6 +1,7 @@
 using FsCheck;
 using FsCheck.Fluent;
 using LogicLab.Domain;
+using TUnit.Assertions.Enums;
 using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
@@ -44,16 +45,17 @@ public sealed class VectorNetResolverTests
     public async Task Resolve_NoDrivers_ReturnsHighImpedanceAndUndrivenForEveryBit()
     {
         var actual = VectorNetResolver.Resolve(130, []);
+        var actualResolutions = ToScalarResolutions(actual);
+        var expectedResolutions = Enumerable.Repeat(
+                new NetResolution(LogicValue.Z, NetResolutionCauses.Undriven),
+                130)
+            .ToArray();
 
         using (Assert.Multiple())
         {
             await Assert.That(actual.Value.Width).IsEqualTo(130);
-            for (var index = 0; index < actual.Value.Width; index++)
-            {
-                await Assert.That(actual.Value[index]).IsEqualTo(LogicValue.Z);
-                await Assert.That(actual.GetCauses(index))
-                    .IsEqualTo(NetResolutionCauses.Undriven);
-            }
+            await Assert.That(actualResolutions)
+                .IsEquivalentTo(expectedResolutions, CollectionOrdering.Matching);
         }
     }
 
@@ -66,16 +68,14 @@ public sealed class VectorNetResolverTests
         var actual = VectorNetResolver.Resolve(
             130,
             [highImpedance, highImpedance]);
+        var actualResolutions = ToScalarResolutions(actual);
+        var expectedResolutions = Enumerable.Repeat(
+                new NetResolution(LogicValue.Z, NetResolutionCauses.Undriven),
+                130)
+            .ToArray();
 
-        using (Assert.Multiple())
-        {
-            for (var index = 0; index < actual.Value.Width; index++)
-            {
-                await Assert.That(actual.Value[index]).IsEqualTo(LogicValue.Z);
-                await Assert.That(actual.GetCauses(index))
-                    .IsEqualTo(NetResolutionCauses.Undriven);
-            }
-        }
+        await Assert.That(actualResolutions)
+            .IsEquivalentTo(expectedResolutions, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -151,22 +151,18 @@ public sealed class VectorNetResolverTests
         ];
 
         var actual = VectorNetResolver.Resolve(width, drivers);
+        var actualResolutions = ToScalarResolutions(actual);
+        var expectedResolutions = Enumerable.Range(0, width)
+            .Select(bitIndex => NetResolver.Resolve(
+                [
+                    firstValues[bitIndex],
+                    secondValues[bitIndex],
+                    thirdValues[bitIndex],
+                ]))
+            .ToArray();
 
-        using (Assert.Multiple())
-        {
-            for (var bitIndex = 0; bitIndex < width; bitIndex++)
-            {
-                var expected = NetResolver.Resolve(
-                    [
-                        firstValues[bitIndex],
-                        secondValues[bitIndex],
-                        thirdValues[bitIndex],
-                    ]);
-
-                await Assert.That(actual.Value[bitIndex]).IsEqualTo(expected.Value);
-                await Assert.That(actual.GetCauses(bitIndex)).IsEqualTo(expected.Causes);
-            }
-        }
+        await Assert.That(actualResolutions)
+            .IsEquivalentTo(expectedResolutions, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -216,5 +212,14 @@ public sealed class VectorNetResolverTests
             await Assert.That(() => resolution.GetCauses(1))
                 .ThrowsExactly<ArgumentOutOfRangeException>();
         }
+    }
+
+    private static NetResolution[] ToScalarResolutions(VectorNetResolution resolution)
+    {
+        return Enumerable.Range(0, resolution.Value.Width)
+            .Select(bitIndex => new NetResolution(
+                resolution.Value[bitIndex],
+                resolution.GetCauses(bitIndex)))
+            .ToArray();
     }
 }
