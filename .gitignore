@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Agent working files
+.testagent/
+
 # User-specific files
 *.rsuser
 *.suo

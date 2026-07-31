@@ -2,16 +2,16 @@
 
 ## Project Structure & Module Organization
 
-Logic Lab is currently an implementation-ready documentation and root-tooling baseline; `logic-lab.slnx` contains no projects yet. Start with `README.md`, then consult `ARCHITECTURE.md` for ownership, `WORKBENCH.md` for product behavior, `CONTEXT-MAP.md` for domain language, and `docs/specs/dotnet-engineering.md` for build/runtime rules. Detailed material lives under `docs/`: `specs/` defines observable behavior, `contracts/` defines application/browser/HTTP seams, `adr/` records decisions, `domain/` holds bounded-context glossaries, `policies/` owns limits, and `research/` preserves evidence. The root PDFs are standards references, not source assets.
+Logic Lab has completed implementation-plan slice `01`: `logic-lab.slnx` contains `LogicLab.Domain`, `LogicLab.Engine`, and their test projects. Start with `README.md`, then consult `ARCHITECTURE.md` for ownership, `WORKBENCH.md` for product behavior, `CONTEXT-MAP.md` for domain language, and `docs/specs/dotnet-engineering.md` for build/runtime rules. Detailed material lives under `docs/`: `specs/` defines observable behavior, `contracts/` defines application/browser/HTTP seams, `adr/` records decisions, `domain/` holds bounded-context glossaries, `policies/` owns limits, and `research/` preserves evidence. The root PDFs are standards references, not source assets.
 
-When implementation begins, preserve the project seams named in `ARCHITECTURE.md`: `LogicLab.Domain`, `LogicLab.Engine`, `LogicLab.BooleanAnalysis`, `LogicLab.Presentation`, `LogicLab.ProjectFormat`, `LogicLab.Application`, `LogicLab.Infrastructure`, and `LogicLab.Web`. Keep test and benchmark projects separate from production projects.
+As implementation expands, preserve the project seams named in `ARCHITECTURE.md`: `LogicLab.Domain`, `LogicLab.Engine`, `LogicLab.BooleanAnalysis`, `LogicLab.Presentation`, `LogicLab.ProjectFormat`, `LogicLab.Application`, `LogicLab.Infrastructure`, and `LogicLab.Web`. Keep test and benchmark projects separate from production projects.
 
 ## Build, Test, and Development Commands
 
-- `dotnet build logic-lab.slnx --nologo` validates the solution. Today it succeeds with a no-projects warning.
-- `dotnet test --solution logic-lab.slnx --nologo` is the whole-solution test command once a test project exists. With the current empty MTP-enabled `.slnx`, SDK 10.0.302 exits nonzero with `The solution configuration '|' is invalid`; this is an empty-baseline limitation, not a test failure.
-- `dotnet format logic-lab.slnx --verify-no-changes` becomes the formatting gate when the first project exists; today the empty solution has no source to format.
-- `git diff --check` catches whitespace errors in documentation changes.
+- `dotnet build logic-lab.slnx --nologo` validates the solution.
+- `dotnet test --solution logic-lab.slnx` is the whole-solution test command. In .NET 10 MTP mode, do not pass `--nologo`; it is forwarded to the test applications and rejected as an unknown option.
+- `dotnet format logic-lab.slnx --verify-no-changes` is the formatting gate.
+- `git diff --check` catches whitespace errors.
 
 Use the `global.json`-selected .NET 10 SDK feature band and C# 14. Do not introduce package versions outside `Directory.Packages.props`; application-root lock files are added with the projects that consume packages.
 

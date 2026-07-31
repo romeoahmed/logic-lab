@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\LogicLab.Domain\LogicLab.Domain.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,2 +1,10 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LogicLab.Domain/LogicLab.Domain.csproj" />
+    <Project Path="src/LogicLab.Engine/LogicLab.Engine.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LogicLab.Domain.Tests/LogicLab.Domain.Tests.csproj" />
+    <Project Path="tests/LogicLab.Engine.Tests/LogicLab.Engine.Tests.csproj" />
+  </Folder>
 </Solution>
