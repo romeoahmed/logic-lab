@@ -125,7 +125,8 @@ public sealed class CoreLibrarySchemaTests
         var contract = CoreLibrarySchema.FindContract(
             new ComponentContractKey("logiclab.core", contractId));
 
-        await Assert.That(contract).IsTypeOf<ComponentContractSchema>();
-        return (ComponentContractSchema)contract!;
+        var schema = await Assert.That(contract).IsTypeOf<ComponentContractSchema>();
+        Assert.NotNull(schema);
+        return schema;
     }
 }
