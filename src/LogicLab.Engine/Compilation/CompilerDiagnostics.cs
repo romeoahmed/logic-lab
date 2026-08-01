@@ -25,6 +25,9 @@ public sealed record CompilerUnsignedDecimalValue(ulong Value)
 public sealed record CompilerDigestValue(string Value)
     : CompilerDiagnosticValue;
 
+public sealed record CompilerCorrelationTokenValue(string Value)
+    : CompilerDiagnosticValue;
+
 public sealed record CompilerContractKeyValue(ComponentContractKey Value)
     : CompilerDiagnosticValue;
 

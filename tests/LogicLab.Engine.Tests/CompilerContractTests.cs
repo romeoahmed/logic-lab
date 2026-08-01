@@ -6,6 +6,17 @@ namespace LogicLab.Engine.Tests;
 public sealed class CompilerContractTests
 {
     [Test]
+    public async Task CompilerCorrelationTokenValue_OpaqueToken_PreservesExactValue()
+    {
+        const string correlation = "019c1d08ac107b42a70851f763cdd3d9";
+
+        CompilerDiagnosticValue value = new CompilerCorrelationTokenValue(correlation);
+
+        await Assert.That(((CompilerCorrelationTokenValue)value).Value)
+            .IsEqualTo(correlation);
+    }
+
+    [Test]
     public async Task CompilationSource_NullIdentity_ThrowsArgumentNullException()
     {
         var revision = CompilerTestCircuit.BeginProject();
