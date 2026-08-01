@@ -20,6 +20,21 @@ public static class VectorConservativeMerge
         var lowBits = new ulong[first.WordCount];
         var highBits = new ulong[first.WordCount];
 
+        for (var valueIndex = 1; valueIndex < values.Count; valueIndex++)
+        {
+            var value = values[valueIndex]
+                ?? throw new ArgumentException(
+                    "Conservative Merge vectors cannot be null.",
+                    nameof(values));
+
+            if (value.Width != first.Width)
+            {
+                throw new ArgumentException(
+                    "Conservative Merge vectors must have equal widths.",
+                    nameof(values));
+            }
+        }
+
         for (var wordIndex = 0; wordIndex < first.WordCount; wordIndex++)
         {
             var firstLow = first.GetLowWord(wordIndex);
@@ -28,18 +43,7 @@ public static class VectorConservativeMerge
 
             for (var valueIndex = 1; valueIndex < values.Count; valueIndex++)
             {
-                var value = values[valueIndex]
-                    ?? throw new ArgumentException(
-                        "Conservative Merge vectors cannot be null.",
-                        nameof(values));
-
-                if (value.Width != first.Width)
-                {
-                    throw new ArgumentException(
-                        "Conservative Merge vectors must have equal widths.",
-                        nameof(values));
-                }
-
+                var value = values[valueIndex];
                 different |= value.GetLowWord(wordIndex) ^ firstLow;
                 different |= value.GetHighWord(wordIndex) ^ firstHigh;
             }
