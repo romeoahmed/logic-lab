@@ -204,6 +204,7 @@ public sealed record SimulationProjection
         SimulationSessionId sessionId,
         ulong sessionVersion,
         ulong logicalTime,
+        TraceCursor traceCursor,
         IReadOnlyList<ProbeProjection> probes)
     {
         ArgumentNullException.ThrowIfNull(sessionId);
@@ -211,6 +212,7 @@ public sealed record SimulationProjection
         SessionId = sessionId;
         SessionVersion = sessionVersion;
         LogicalTime = logicalTime;
+        TraceCursor = traceCursor;
         Probes = Array.AsReadOnly(probes.ToArray());
     }
 
@@ -219,6 +221,8 @@ public sealed record SimulationProjection
     public ulong SessionVersion { get; }
 
     public ulong LogicalTime { get; }
+
+    public TraceCursor TraceCursor { get; }
 
     public ReadOnlyCollection<ProbeProjection> Probes { get; }
 }

@@ -1,5 +1,6 @@
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
 using LogicLab.Engine;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
@@ -11,19 +12,21 @@ public sealed class EditorWorkspace
     private readonly Lock gate = new();
     private readonly Dictionary<WorkspaceId, WorkspaceState> workspaces = [];
 
-    public WorkspaceOpenOutcome Open(
+    public Task<WorkspaceOpenOutcome> OpenAsync(
         OpenWorkspaceRequest request,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (cancellationToken.IsCancellationRequested)
         {
-            return new WorkspaceOpenRejected("operation_cancelled", []);
+            return Task.FromResult<WorkspaceOpenOutcome>(
+                new WorkspaceOpenRejected("operation_cancelled", []));
         }
 
         if (request is not CreateSandbox create)
         {
-            return new WorkspaceOpenRejected("workspace_request_unsupported", []);
+            return Task.FromResult<WorkspaceOpenOutcome>(
+                new WorkspaceOpenRejected("workspace_request_unsupported", []));
         }
 
         var genesis = ProjectEditor.Begin(new NewProjectSeed(
@@ -36,15 +39,16 @@ public sealed class EditorWorkspace
             create.EntryCircuitDefinitionDisplayName));
         if (genesis is ProjectGenesisRejected rejected)
         {
-            return new WorkspaceOpenRejected(
-                rejected.Reason,
-                rejected.Diagnostics.Select(item => item.Code).ToArray());
+            return Task.FromResult<WorkspaceOpenOutcome>(new WorkspaceOpenRejected(
+                    rejected.Reason,
+                    rejected.Diagnostics.Select(item => item.Code).ToArray()));
         }
 
         var committed = (ProjectGenesisCommitted)genesis;
         if (cancellationToken.IsCancellationRequested)
         {
-            return new WorkspaceOpenRejected("operation_cancelled", []);
+            return Task.FromResult<WorkspaceOpenOutcome>(
+                new WorkspaceOpenRejected("operation_cancelled", []));
         }
 
         var id = WorkspaceId.Create();
@@ -54,10 +58,11 @@ public sealed class EditorWorkspace
             workspaces.Add(id, state);
         }
 
-        return new WorkspaceOpened(id, Project(state));
+        return Task.FromResult<WorkspaceOpenOutcome>(
+            new WorkspaceOpened(id, Project(state)));
     }
 
-    public WorkspaceCommandOutcome Execute(
+    public async Task<WorkspaceCommandOutcome> DispatchAsync(
         WorkspaceCommand command,
         CancellationToken cancellationToken)
     {
@@ -67,14 +72,27 @@ public sealed class EditorWorkspace
             return Reject("operation_cancelled");
         }
 
+        WorkspaceState state;
         lock (gate)
         {
-            if (!workspaces.TryGetValue(command.WorkspaceId, out var state))
+            if (!workspaces.TryGetValue(command.WorkspaceId, out state!))
             {
                 return Reject("workspace_not_found");
             }
+        }
 
-            return command switch
+        try
+        {
+            await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return Reject("operation_cancelled");
+        }
+
+        try
+        {
+            return await Task.Run(() => command switch
             {
                 ApplyEdit apply => Apply(state, apply, cancellationToken),
                 RequestCompilation => Compile(state, cancellationToken),
@@ -85,11 +103,15 @@ public sealed class EditorWorkspace
                     cancellationToken),
                 StepSession => Step(state, cancellationToken),
                 _ => Reject("workspace_command_unsupported"),
-            };
+            }).ConfigureAwait(false);
+        }
+        finally
+        {
+            state.CommandGate.Release();
         }
     }
 
-    public WorkspaceReadOutcome Read(
+    public async Task<WorkspaceReadOutcome> ReadAsync(
         WorkspaceId workspaceId,
         CancellationToken cancellationToken)
     {
@@ -99,11 +121,31 @@ public sealed class EditorWorkspace
             return new WorkspaceReadRejected("operation_cancelled");
         }
 
+        WorkspaceState state;
         lock (gate)
         {
-            return workspaces.TryGetValue(workspaceId, out var state)
-                ? new ProjectionSnapshot(Project(state))
-                : new WorkspaceReadRejected("workspace_not_found");
+            if (!workspaces.TryGetValue(workspaceId, out state!))
+            {
+                return new WorkspaceReadRejected("workspace_not_found");
+            }
+        }
+
+        try
+        {
+            await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return new WorkspaceReadRejected("operation_cancelled");
+        }
+
+        try
+        {
+            return new ProjectionSnapshot(Project(state));
+        }
+        finally
+        {
+            state.CommandGate.Release();
         }
     }
 
@@ -232,8 +274,9 @@ public sealed class EditorWorkspace
             return Reject("simulation_open_rejected");
         }
 
+        var simulation = ReadSimulation(opened.Handle);
         state.SessionHandle = opened.Handle;
-        state.Simulation = ReadSimulation(opened.Handle, cancellationToken);
+        state.Simulation = simulation;
         state.ProjectionVersion++;
         return new SimulationSessionCreated(
             opened.SessionId,
@@ -256,8 +299,39 @@ public sealed class EditorWorkspace
         }
 
         var assignments = new List<StimulusAssignment>(command.Assignments.Count);
+        var definition = state.Revision.Document.EntryCircuitDefinition;
         foreach (var assignment in command.Assignments)
         {
+            if (assignment is null
+                || assignment.Value.Count == 0
+                || assignment.Value.Any(value => !Enum.IsDefined(value)))
+            {
+                return Reject("session_precondition_failed");
+            }
+
+            var input = definition.ComponentInstances.SingleOrDefault(instance =>
+                instance.Id == assignment.InputComponentInstanceId);
+            var width = input?.Parameters
+                .SingleOrDefault(parameter => string.Equals(
+                    parameter.ParameterId,
+                    "width",
+                    StringComparison.Ordinal))
+                ?.Value as Unsigned32ParameterValue;
+            if (input is null
+                || !string.Equals(
+                    input.ContractKey.LibraryId,
+                    CoreLibrarySchema.LibraryId,
+                    StringComparison.Ordinal)
+                || !string.Equals(
+                    input.ContractKey.ContractId,
+                    "source.input",
+                    StringComparison.Ordinal)
+                || width is null
+                || assignment.Value.Count != checked((int)width.Value))
+            {
+                return Reject("session_precondition_failed");
+            }
+
             var source = state.Artifact.SourceMap.Drivers
                 .Select(item => item.Source)
                 .SingleOrDefault(item => item.Identity is InstancePortSourceIdentity port
@@ -265,7 +339,7 @@ public sealed class EditorWorkspace
                     && string.Equals(port.PortId, "Q", StringComparison.Ordinal));
             if (source is null)
             {
-                return Reject("input_driver_not_found");
+                return Reject("session_precondition_failed");
             }
 
             assignments.Add(new StimulusAssignment(
@@ -291,7 +365,7 @@ public sealed class EditorWorkspace
             return Reject("stimulus_rejected");
         }
 
-        state.Simulation = ReadSimulation(state.SessionHandle, cancellationToken);
+        state.Simulation = ReadSimulation(state.SessionHandle);
         state.ProjectionVersion++;
         return new StimulusScheduled(
             scheduled.ScheduledLogicalTime,
@@ -326,7 +400,7 @@ public sealed class EditorWorkspace
                 : Reject("simulation_step_rejected");
         }
 
-        state.Simulation = ReadSimulation(state.SessionHandle, cancellationToken);
+        state.Simulation = ReadSimulation(state.SessionHandle);
         state.ProjectionVersion++;
         return new SessionStepped(committed.LogicalTime, state.ProjectionVersion);
     }
@@ -355,14 +429,12 @@ public sealed class EditorWorkspace
             .ToArray();
     }
 
-    private static SimulationProjection ReadSimulation(
-        SimulationSessionHandle handle,
-        CancellationToken cancellationToken)
+    private static SimulationProjection ReadSimulation(SimulationSessionHandle handle)
     {
         var outcome = SimulationRuntime.Read(
             handle,
             new ReadSessionSnapshot(),
-            cancellationToken);
+            CancellationToken.None);
         if (outcome is not SessionSnapshotRead snapshot)
         {
             throw new InvalidOperationException("The simulation snapshot could not be read.");
@@ -372,6 +444,7 @@ public sealed class EditorWorkspace
             snapshot.SessionId,
             snapshot.SessionVersion,
             snapshot.LogicalTime,
+            snapshot.TraceCursor,
             snapshot.Probes.Select(probe => new ProbeProjection(
                 probe.ProbeId,
                 probe.Source.Identity,
@@ -455,5 +528,7 @@ public sealed class EditorWorkspace
         public SimulationSessionHandle? SessionHandle { get; set; }
 
         public SimulationProjection? Simulation { get; set; }
+
+        public SemaphoreSlim CommandGate { get; } = new(1, 1);
     }
 }

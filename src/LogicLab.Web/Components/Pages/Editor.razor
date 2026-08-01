@@ -26,7 +26,7 @@
         <ProbePanel Simulation="Projection?.Simulation" />
     </div>
 
-    <WorkbenchStatusStrip Message="@Status" />
+    <WorkbenchStatusStrip State="StatusState" Message="@Status" />
 </div>
 
 @code {
@@ -46,6 +46,10 @@
             ? WorkbenchViewState.ReadyToCreate
             : WorkbenchViewState.From(Projection, StimulusIsScheduled);
 
+    private WorkbenchStatusState StatusState => WorkbenchStatusState.From(
+        Projection,
+        IsInteractive);
+
     protected override void OnAfterRender(bool firstRender)
     {
         if (firstRender && RendererInfo.IsInteractive)
@@ -56,9 +60,9 @@
         }
     }
 
-    private void CreateProject()
+    private async Task CreateProject()
     {
-        var outcome = Workspace.Open(
+        var outcome = await Workspace.OpenAsync(
             new CreateSandbox("Sandbox Project", "Main"),
             CancellationToken.None);
         if (outcome is not WorkspaceOpened opened)
@@ -72,7 +76,7 @@
         Status = "Sandbox Project created. Author the sample circuit.";
     }
 
-    private void AuthorCircuit()
+    private async Task AuthorCircuit()
     {
         if (Projection is null)
         {
@@ -80,7 +84,7 @@
         }
 
         var definitionId = Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
-        if (!Apply(new PlaceComponentInstanceIntent(
+        if (!await Apply(new PlaceComponentInstanceIntent(
                 definitionId,
                 Contract("source.input"),
                 [
@@ -96,7 +100,7 @@
         }
 
         var input = Find("source.input");
-        if (!Apply(new PlaceComponentInstanceIntent(
+        if (!await Apply(new PlaceComponentInstanceIntent(
                 definitionId,
                 Contract("logic.not"),
                 [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
@@ -107,7 +111,7 @@
         }
 
         var logicNot = Find("logic.not");
-        if (!Apply(new PlaceComponentInstanceIntent(
+        if (!await Apply(new PlaceComponentInstanceIntent(
                 definitionId,
                 Contract("sink.output"),
                 [
@@ -121,11 +125,11 @@
         }
 
         var output = Find("sink.output");
-        if (!Apply(new ConnectTerminalsIntent([
+        if (!await Apply(new ConnectTerminalsIntent([
                 Terminal(definitionId, input.Id, "Q"),
                 Terminal(definitionId, logicNot.Id, "A"),
             ]))
-            || !Apply(new ConnectTerminalsIntent([
+            || !await Apply(new ConnectTerminalsIntent([
                 Terminal(definitionId, logicNot.Id, "Q"),
                 Terminal(definitionId, output.Id, "D"),
             ])))
@@ -136,27 +140,27 @@
         Status = "Circuit authored. Compile the current Project Revision.";
     }
 
-    private void Compile()
+    private async Task Compile()
     {
-        var outcome = Execute(new RequestCompilation(Projection!.WorkspaceId));
+        var outcome = await Execute(new RequestCompilation(Projection!.WorkspaceId));
         Status = outcome is CompilationPublished
             ? "Compilation Artifact published atomically."
             : $"Compilation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
     }
 
-    private void CreateSimulationSession()
+    private async Task CreateSimulationSession()
     {
-        var outcome = Execute(new CreateSession(Projection!.WorkspaceId));
+        var outcome = await Execute(new CreateSession(Projection!.WorkspaceId));
         Status = outcome is SimulationSessionCreated
             ? "Simulation Session created at Logical Time 0."
             : $"Session creation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
     }
 
-    private void ScheduleStimulus()
+    private async Task ScheduleStimulus()
     {
         var input = Find("source.input");
         var logicalTime = checked(Projection!.Simulation!.LogicalTime + 1);
-        var outcome = Execute(new ScheduleInputStimulus(
+        var outcome = await Execute(new ScheduleInputStimulus(
             Projection.WorkspaceId,
             logicalTime,
             [new InputStimulusAssignment(input.Id, [LogicValue.One])]));
@@ -166,18 +170,18 @@
             : $"Stimulus rejected: {((WorkspaceCommandRejected)outcome).Code}.";
     }
 
-    private void Step()
+    private async Task Step()
     {
-        var outcome = Execute(new StepSession(Projection!.WorkspaceId));
+        var outcome = await Execute(new StepSession(Projection!.WorkspaceId));
         StimulusIsScheduled = false;
         Status = outcome is SessionStepped stepped
             ? $"Step committed at Logical Time {stepped.LogicalTime}; output probe is now 0."
             : $"Step rejected: {((WorkspaceCommandRejected)outcome).Code}.";
     }
 
-    private bool Apply(EditIntent intent)
+    private async Task<bool> Apply(EditIntent intent)
     {
-        var outcome = Execute(new ApplyEdit(Projection!.WorkspaceId, intent));
+        var outcome = await Execute(new ApplyEdit(Projection!.WorkspaceId, intent));
         if (outcome is AuthoringCommitted)
         {
             return true;
@@ -187,21 +191,21 @@
         return false;
     }
 
-    private WorkspaceCommandOutcome Execute(WorkspaceCommand command)
+    private async Task<WorkspaceCommandOutcome> Execute(WorkspaceCommand command)
     {
-        var outcome = Workspace.Execute(command, CancellationToken.None);
-        Refresh();
+        var outcome = await Workspace.DispatchAsync(command, CancellationToken.None);
+        await Refresh();
         return outcome;
     }
 
-    private void Refresh()
+    private async Task Refresh()
     {
         if (Projection is null)
         {
             return;
         }
 
-        var read = Workspace.Read(Projection.WorkspaceId, CancellationToken.None);
+        var read = await Workspace.ReadAsync(Projection.WorkspaceId, CancellationToken.None);
         Projection = ((ProjectionSnapshot)read).Projection;
         ProjectScene();
     }
