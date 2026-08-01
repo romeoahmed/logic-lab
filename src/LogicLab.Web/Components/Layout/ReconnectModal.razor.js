@@ -1,4 +1,3 @@
-// Set up event handlers
 const reconnectModal = document.getElementById("components-reconnect-modal");
 reconnectModal.addEventListener("components-reconnect-state-changed", handleReconnectStateChanged);
 
@@ -34,16 +33,19 @@ async function retry() {
     // - false to mean we reached the server, but it rejected the connection (e.g., unknown circuit ID)
     // - exception to mean we didn't reach the server (this can be sync or async)
     const successful = await Blazor.reconnect();
-    if (!successful) {
-      // We have been able to reach the server, but the circuit is no longer available.
-      // We'll reload the page so the user can continue using the app as quickly as possible.
-      const resumeSuccessful = await Blazor.resumeCircuit();
-      if (!resumeSuccessful) {
-        location.reload();
-      } else {
-        reconnectModal.close();
-      }
+    if (successful) {
+      return;
     }
+
+    // We have been able to reach the server, but the circuit is no longer available.
+    // We'll reload the page so the user can continue using the app as quickly as possible.
+    const resumeSuccessful = await Blazor.resumeCircuit();
+    if (resumeSuccessful) {
+      reconnectModal.close();
+      return;
+    }
+
+    location.reload();
   } catch {
     // We got an exception, server is currently unavailable
     scheduleRetryWhenVisible();
