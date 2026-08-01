@@ -53,6 +53,47 @@ public sealed class WorkbenchComponentTests
         }
     }
 
+    [Test]
+    public async Task WorkbenchStatusStrip_StaticShell_ExposesIndependentStatusFacts()
+    {
+        using var context = CreateContext();
+
+        var rendered = context.Render<WorkbenchStatusStrip>(parameters => parameters
+            .Add(component => component.Message, "Connecting to the interactive workbench…"));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.Find("[data-status='connection']").TextContent)
+                .Contains("Connecting");
+            await Assert.That(rendered.Find("[data-status='connection'] .status-dot")
+                .ClassList).Contains("is-connecting");
+            await Assert.That(rendered.Find("[data-status='logical-time']").TextContent)
+                .Contains("—");
+            await Assert.That(rendered.Find("[data-status='quiescence']").TextContent)
+                .Contains("Unavailable");
+            await Assert.That(rendered.Find("[data-status='trace']").TextContent)
+                .Contains("Unavailable");
+            await Assert.That(rendered.Find("[data-status='compilation']").TextContent)
+                .Contains("Not requested");
+            await Assert.That(rendered.Find("[data-status='save']").TextContent)
+                .Contains("Sandbox");
+        }
+    }
+
+    [Test]
+    public async Task WorkbenchStatusState_InteractiveWithoutProject_ReportsConnected()
+    {
+        var state = WorkbenchStatusState.From(projection: null, isInteractive: true);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(state.IsConnected).IsTrue();
+            await Assert.That(state.Connection).IsEqualTo("Connected");
+            await Assert.That(state.Compilation).IsEqualTo("Not requested");
+            await Assert.That(state.LogicalTime).IsEqualTo("—");
+        }
+    }
+
     private static BunitContext CreateContext()
     {
         var context = new BunitContext();

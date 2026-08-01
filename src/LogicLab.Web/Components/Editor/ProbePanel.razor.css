@@ -1,8 +1,7 @@
 .probe-panel {
     padding: 1rem;
-    border: 1px solid var(--lab-border);
-    border-radius: 0.9rem;
-    background: var(--lab-panel);
+    border: 1px solid var(--ll-border);
+    background: var(--ll-panel);
 }
 
 .probe-panel h2,
@@ -12,7 +11,7 @@
 
 .eyebrow {
     margin-bottom: 0.2rem;
-    color: var(--lab-accent);
+    color: var(--ll-signal);
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.12em;
@@ -39,6 +38,5 @@
 .probe-panel li {
     margin-top: 1rem;
     padding: 0.8rem;
-    border-radius: 0.6rem;
-    background: var(--lab-accent-soft);
+    background: var(--ll-signal-soft);
 }

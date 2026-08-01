@@ -4,8 +4,8 @@
     justify-content: space-between;
     min-height: 4.5rem;
     padding: 0 clamp(1rem, 4vw, 4rem);
-    border-bottom: 1px solid var(--lab-border);
-    background: color-mix(in srgb, var(--lab-bg) 88%, transparent);
+    border-bottom: 1px solid var(--ll-border);
+    background: color-mix(in srgb, var(--ll-bench) 92%, transparent);
     backdrop-filter: blur(18px);
 }
 
@@ -13,7 +13,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.7rem;
-    color: var(--lab-text);
+    color: var(--ll-ink);
     font-weight: 750;
     text-decoration: none;
 }
@@ -23,21 +23,20 @@
     width: 2rem;
     height: 2rem;
     place-items: center;
-    border-radius: 0.55rem;
-    color: #03131f;
-    background: var(--lab-accent);
+    color: white;
+    background: var(--ll-signal);
     font-size: 0.75rem;
     letter-spacing: -0.05em;
 }
 
 .site-header nav a {
-    color: var(--lab-muted);
+    color: var(--ll-muted);
     text-decoration: none;
 }
 
 .site-header nav a:hover,
 .site-header nav a:focus-visible {
-    color: var(--lab-text);
+    color: var(--ll-ink);
 }
 
 main {

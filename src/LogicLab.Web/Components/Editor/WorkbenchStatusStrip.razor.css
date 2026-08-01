@@ -1,17 +1,75 @@
 .status-strip {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    min-height: 2.5rem;
-    padding: 0 0.8rem;
-    color: var(--lab-muted);
+    display: grid;
+    gap: 0.5rem;
+    padding-block: 0.75rem;
+    border-top: 1px solid var(--ll-border);
+    color: var(--ll-muted);
     font-size: 0.875rem;
+}
+
+.status-facts {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(7rem, 1fr));
+    gap: 0;
+    margin: 0;
+}
+
+.status-facts > div {
+    min-width: 0;
+    padding-inline: 0.75rem;
+    border-left: 1px solid var(--ll-border);
+}
+
+.status-facts > div:first-child {
+    border-left: 0;
+    padding-left: 0;
+}
+
+.status-facts dt {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.status-facts dd {
+    margin: 0.2rem 0 0;
+    color: var(--ll-ink);
+    font-family: "IBM Plex Mono", "Noto Sans Mono CJK", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+.status-message {
+    margin: 0;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--ll-border);
 }
 
 .status-dot {
     width: 0.55rem;
     height: 0.55rem;
     border-radius: 50%;
-    background: var(--lab-accent);
-    box-shadow: 0 0 0 4px var(--lab-accent-soft);
+    display: inline-block;
+    margin-right: 0.4rem;
+}
+
+.status-dot.is-connected {
+    background: var(--ll-signal);
+}
+
+.status-dot.is-connecting {
+    border: 1px solid var(--ll-muted);
+    background: transparent;
+}
+
+@media (max-width: 850px) {
+    .status-facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 0.75rem;
+    }
+
+    .status-facts > div:nth-child(odd) {
+        border-left: 0;
+        padding-left: 0;
+    }
 }

@@ -4,7 +4,7 @@
     min-height: calc(100vh - 4.5rem);
     align-content: center;
     padding: clamp(3rem, 8vw, 8rem) clamp(1rem, 7vw, 7rem);
-    background: radial-gradient(circle at 80% 35%, var(--lab-accent-soft), transparent 28rem);
+    background: var(--ll-bench);
 }
 
 .home-hero h1 {
@@ -17,7 +17,7 @@
 
 .eyebrow {
     margin: 0 0 1rem;
-    color: var(--lab-accent);
+    color: var(--ll-signal);
     font-size: 0.78rem;
     font-weight: 750;
     letter-spacing: 0.16em;
@@ -27,7 +27,7 @@
 .lede {
     max-width: 45rem;
     margin: 2rem 0;
-    color: var(--lab-muted);
+    color: var(--ll-muted);
     font-size: clamp(1.05rem, 2vw, 1.3rem);
     line-height: 1.7;
 }
@@ -35,9 +35,8 @@
 .primary-link {
     justify-self: start;
     padding: 0.9rem 1.15rem;
-    border-radius: 0.65rem;
-    color: #03131f;
-    background: var(--lab-accent);
+    color: white;
+    background: var(--ll-signal);
     font-weight: 750;
     text-decoration: none;
 }
