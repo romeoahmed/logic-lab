@@ -245,10 +245,7 @@ internal static class CompilationArtifactValidator
         foreach (var ordinal in ordinals)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (ordinal < 0 || ordinal >= count)
-            {
-                Invalid($"A {family} ordinal is out of bounds.");
-            }
+            RequireInBounds(ordinal, count, family);
         }
     }
 
