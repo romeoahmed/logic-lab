@@ -23,7 +23,7 @@ public static class Compiler
         {
             return Reject(request, "compilation_cancelled", [], observations);
         }
-        catch (Exception exception) when (!IsFatal(exception))
+        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
             var diagnostic = new CompilerDiagnostic(
                 "compiler_internal_invariant",
@@ -61,16 +61,15 @@ public static class Compiler
                 [],
                 new CompilerProjectRootLocation(
                     request.ProjectRevision.Document.ProjectId)));
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return RejectInvalid(request, diagnostics, observations);
         }
 
         if (diagnostics.Count != 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Reject(
-                request,
-                "compilation_invalid",
-                CompilerCanonicalizer.Diagnostics(diagnostics),
-                observations);
+            return RejectInvalid(request, diagnostics, observations);
         }
 
         var policyRejection = ObserveInitialDimensions(
@@ -87,23 +86,19 @@ public static class Compiler
 
         var resolvedInstances = ResolveInstances(
             request,
-            definition!,
+            definition,
             diagnostics,
             cancellationToken);
         var netByTerminal = ValidateTopology(
             request,
-            definition!,
+            definition,
             resolvedInstances,
             diagnostics,
             cancellationToken);
         if (diagnostics.Count != 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Reject(
-                request,
-                "compilation_invalid",
-                CompilerCanonicalizer.Diagnostics(diagnostics),
-                observations);
+            return RejectInvalid(request, diagnostics, observations);
         }
 
         ulong driverCount = 0;
@@ -122,7 +117,7 @@ public static class Compiler
 
         var elaboratedSlotCount = checked(
             (ulong)resolvedInstances.Length
-            + (ulong)definition!.Nets.Count
+            + (ulong)definition.Nets.Count
             + driverCount);
         var slotRejection = Observe(
             request,
@@ -150,7 +145,7 @@ public static class Compiler
 
         var artifact = BuildArtifact(
             request,
-            definition!,
+            definition,
             resolvedInstances,
             netByTerminal,
             cancellationToken);
@@ -892,6 +887,18 @@ public static class Compiler
             CreateEvidence(request, observations, breach));
     }
 
+    private static CompilationRejected RejectInvalid(
+        CompilationRequest request,
+        IEnumerable<CompilerDiagnostic> diagnostics,
+        Dictionary<ProjectScaleDimension, ulong> observations)
+    {
+        return Reject(
+            request,
+            "compilation_invalid",
+            CompilerCanonicalizer.Diagnostics(diagnostics),
+            observations);
+    }
+
     private static CompilationEvidence CreateEvidence(
         CompilationRequest request,
         Dictionary<ProjectScaleDimension, ulong> observations,
@@ -926,13 +933,6 @@ public static class Compiler
             _ => throw new InvalidOperationException(
                 "The Project Scale Dimension variant is undefined."),
         };
-    }
-
-    private static bool IsFatal(Exception exception)
-    {
-        return exception is OutOfMemoryException
-            or StackOverflowException
-            or AccessViolationException;
     }
 
     private readonly record struct TerminalKey(
