@@ -86,7 +86,7 @@ public sealed class SimulationRuntimeTests
     }
 
     [Test]
-    public async Task Open_UnresolvedProbe_RejectsWithoutHandle()
+    public async Task Open_UnresolvedInitialProbe_ReturnsExplicitInvalidBinding()
     {
         var context = SimulationTestContext.Create();
         var foreignContext = SimulationTestContext.Create();
@@ -96,18 +96,44 @@ public sealed class SimulationRuntimeTests
             context.Request(foreignSource),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
-        var rejected = (SimulationOpenRejected)outcome;
+        await Assert.That(outcome).IsTypeOf<InitialProbeBindingsInvalid>();
+        var invalid = (InitialProbeBindingsInvalid)outcome;
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Reason)
-                .IsEqualTo(SimulationFailureReason.SimulationInternalDefect);
-            await Assert.That(rejected.Diagnostics).IsEmpty();
+            await Assert.That(invalid.Rule)
+                .IsEqualTo(InitialProbeBindingInvalidRule.UnresolvedSource);
+            await Assert.That(invalid.BindingIndex).IsEqualTo(0);
+            await Assert.That(invalid.ConflictingBindingIndex).IsNull();
+            await Assert.That(invalid.Diagnostics).IsEmpty();
+            await Assert.That(invalid.WorkEvidence.PolicyLimitBreach).IsNull();
         }
     }
 
     [Test]
-    public async Task Open_ProbeLimitExceeded_RejectsWithoutHandleAndReportsEvidence()
+    public async Task Open_DuplicateResolvedNetInitialProbes_ReturnsExplicitInvalidBinding()
+    {
+        var context = SimulationTestContext.Create();
+        var outputSource = context.NetSource(context.Circuit.OutputNet.Id);
+
+        var outcome = SimulationRuntime.Open(
+            context.Request(outputSource, outputSource),
+            CancellationToken.None);
+
+        await Assert.That(outcome).IsTypeOf<InitialProbeBindingsInvalid>();
+        var invalid = (InitialProbeBindingsInvalid)outcome;
+        using (Assert.Multiple())
+        {
+            await Assert.That(invalid.Rule)
+                .IsEqualTo(InitialProbeBindingInvalidRule.DuplicateResolvedNet);
+            await Assert.That(invalid.BindingIndex).IsEqualTo(1);
+            await Assert.That(invalid.ConflictingBindingIndex).IsEqualTo(0);
+            await Assert.That(invalid.Diagnostics).IsEmpty();
+            await Assert.That(invalid.WorkEvidence.PolicyLimitBreach).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task Open_ProbeLimitExceeded_ReportsBreachMatchingObservedDimension()
     {
         var context = SimulationTestContext.Create();
         var tracePolicy = new TracePolicy(
@@ -131,17 +157,112 @@ public sealed class SimulationRuntimeTests
 
         await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
         var rejected = (SimulationOpenRejected)outcome;
+        await Assert.That(rejected.WorkEvidence.PolicyLimitBreach).IsNotNull();
+        var breach = rejected.WorkEvidence.PolicyLimitBreach!;
+        var observed = ObservedDimension(
+            rejected.WorkEvidence,
+            SimulationWorkPolicy.Trace,
+            "probe_count");
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason)
                 .IsEqualTo(SimulationFailureReason.SimulationResourceLimit);
-            await Assert.That(rejected.WorkEvidence.PolicyLimitBreach).IsNotNull();
-            await Assert.That(rejected.WorkEvidence.PolicyLimitBreach!.Policy)
+            await Assert.That(breach.Policy)
                 .IsEqualTo(SimulationWorkPolicy.Trace);
-            await Assert.That(rejected.WorkEvidence.PolicyLimitBreach.Dimension)
+            await Assert.That(breach.Dimension)
                 .IsEqualTo("probe_count");
-            await Assert.That(rejected.WorkEvidence.PolicyLimitBreach.Observed)
-                .IsEqualTo(2UL);
+            await Assert.That(breach.Observed).IsEqualTo(2UL);
+            await Assert.That(observed).IsEqualTo(breach);
+        }
+    }
+
+    [Test]
+    public async Task Open_WorkingLayerLimitExceeded_ReportsBreachMatchingObservedDimension()
+    {
+        var context = SimulationTestContext.Create();
+        var policy = SimulationPolicyWithOpenLimits(
+            advanceWorkItemCount: 100_000,
+            workingLayerSlotCount: 1);
+
+        var outcome = SimulationRuntime.Open(
+            context.Request(
+                policy,
+                context.NetSource(context.Circuit.OutputNet.Id)),
+            CancellationToken.None);
+
+        await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
+        var rejected = (SimulationOpenRejected)outcome;
+        await Assert.That(rejected.WorkEvidence.PolicyLimitBreach).IsNotNull();
+        var breach = rejected.WorkEvidence.PolicyLimitBreach!;
+        var observed = ObservedDimension(
+            rejected.WorkEvidence,
+            SimulationWorkPolicy.Simulation,
+            "working_layer_slot_count");
+        var probeCount = ObservedDimension(
+            rejected.WorkEvidence,
+            SimulationWorkPolicy.Trace,
+            "probe_count");
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason)
+                .IsEqualTo(SimulationFailureReason.SimulationResourceLimit);
+            await Assert.That(breach.Policy)
+                .IsEqualTo(SimulationWorkPolicy.Simulation);
+            await Assert.That(breach.Dimension)
+                .IsEqualTo("working_layer_slot_count");
+            await Assert.That(breach.Observed).IsGreaterThan(1UL);
+            await Assert.That(observed).IsEqualTo(breach);
+            await Assert.That(probeCount.Observed).IsEqualTo(1UL);
+        }
+    }
+
+    [Test]
+    public async Task Open_AdvanceWorkLimitExceeded_PreservesObservedWorkBeforeTermination()
+    {
+        var context = SimulationTestContext.Create();
+        var policy = SimulationPolicyWithOpenLimits(
+            advanceWorkItemCount: 3,
+            workingLayerSlotCount: 100_000);
+
+        var outcome = SimulationRuntime.Open(
+            context.Request(
+                policy,
+                context.NetSource(context.Circuit.OutputNet.Id)),
+            CancellationToken.None);
+
+        await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
+        var rejected = (SimulationOpenRejected)outcome;
+        await Assert.That(rejected.WorkEvidence.PolicyLimitBreach).IsNotNull();
+        var breach = rejected.WorkEvidence.PolicyLimitBreach!;
+        var observedWork = ObservedDimension(
+            rejected.WorkEvidence,
+            SimulationWorkPolicy.Simulation,
+            "advance_work_item_count");
+        var observedFrontier = ObservedDimension(
+            rejected.WorkEvidence,
+            SimulationWorkPolicy.Simulation,
+            "advance_frontier_item_count");
+        var observedWorkingLayer = ObservedDimension(
+            rejected.WorkEvidence,
+            SimulationWorkPolicy.Simulation,
+            "working_layer_slot_count");
+        var observedProbes = ObservedDimension(
+            rejected.WorkEvidence,
+            SimulationWorkPolicy.Trace,
+            "probe_count");
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason)
+                .IsEqualTo(SimulationFailureReason.SimulationResourceLimit);
+            await Assert.That(breach.Policy)
+                .IsEqualTo(SimulationWorkPolicy.Simulation);
+            await Assert.That(breach.Dimension)
+                .IsEqualTo("advance_work_item_count");
+            await Assert.That(breach.Observed).IsEqualTo(4UL);
+            await Assert.That(observedWork).IsEqualTo(breach);
+            await Assert.That(observedFrontier.Observed).IsGreaterThan(0UL);
+            await Assert.That(observedWorkingLayer.Observed).IsGreaterThan(0UL);
+            await Assert.That(observedProbes.Observed).IsEqualTo(1UL);
         }
     }
 
@@ -363,15 +484,16 @@ public sealed class SimulationRuntimeTests
 
         await Assert.That(rejected).IsTypeOf<SimulationCommandFailed>();
         var failed = (SimulationCommandFailed)rejected;
+        await Assert.That(failed.PolicyEvidence).IsNotNull();
+        var policyEvidence = failed.PolicyEvidence!;
         using (Assert.Multiple())
         {
             await Assert.That(failed.Reason)
                 .IsEqualTo(SimulationFailureReason.SimulationResourceLimit);
             await Assert.That(failed.SessionVersion).IsEqualTo(2UL);
-            await Assert.That(failed.PolicyEvidence).IsNotNull();
-            await Assert.That(failed.PolicyEvidence!.Dimension)
+            await Assert.That(policyEvidence.Dimension)
                 .IsEqualTo("scheduled_batch_count");
-            await Assert.That(failed.PolicyEvidence.Observed).IsEqualTo(2UL);
+            await Assert.That(policyEvidence.Observed).IsEqualTo(2UL);
             await Assert.That(committed.LogicalTime).IsEqualTo(10UL);
             await Assert.That(committed.SessionVersion).IsEqualTo(3UL);
         }
@@ -466,14 +588,15 @@ public sealed class SimulationRuntimeTests
 
         await Assert.That(outcome).IsTypeOf<AdvanceFailed>();
         var failed = (AdvanceFailed)outcome;
+        await Assert.That(failed.PolicyEvidence).IsNotNull();
+        var policyEvidence = failed.PolicyEvidence!;
         using (Assert.Multiple())
         {
             await Assert.That(failed.Reason)
                 .IsEqualTo(SimulationFailureReason.SimulationResourceLimit);
-            await Assert.That(failed.PolicyEvidence).IsNotNull();
-            await Assert.That(failed.PolicyEvidence!.Dimension)
+            await Assert.That(policyEvidence.Dimension)
                 .IsEqualTo("advance_work_item_count");
-            await Assert.That(failed.PolicyEvidence.Observed).IsEqualTo(5UL);
+            await Assert.That(policyEvidence.Observed).IsEqualTo(5UL);
             await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
             await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
             await Assert.That(after.TraceCursor).IsEqualTo(before.TraceCursor);
@@ -528,6 +651,43 @@ public sealed class SimulationRuntimeTests
             await Assert.That(second.LogicalTime).IsEqualTo(20UL);
             await Assert.That(second.ObservedProbePatch[0].Value[0])
                 .IsEqualTo(LogicValue.One);
+        }
+    }
+
+    [Test]
+    public async Task Execute_OutOfOrderTimeBuckets_AdvanceInHeapPriorityOrder()
+    {
+        var context = SimulationTestContext.Create();
+        var opened = OpenOutputProbe(context);
+        ulong[] scheduledTimes = [60, 10, 50, 20, 40, 30];
+        var scheduledSequences = new List<ulong>(scheduledTimes.Length);
+        foreach (var logicalTime in scheduledTimes)
+        {
+            var scheduled = (StimulusBatchScheduled)SimulationRuntime.Execute(
+                opened.Handle,
+                Schedule(context, logicalTime, LogicValue.One),
+                CancellationToken.None);
+            scheduledSequences.Add(scheduled.StableSequence);
+        }
+
+        var committedTimes = new List<ulong>(scheduledTimes.Length);
+        for (var index = 0; index < scheduledTimes.Length; index++)
+        {
+            var committed = (AdvanceCommitted)SimulationRuntime.Execute(
+                opened.Handle,
+                new AdvanceToNextQuiescentBoundary(),
+                CancellationToken.None);
+            committedTimes.Add(committed.LogicalTime);
+        }
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(scheduledSequences).IsEquivalentTo(
+                new ulong[] { 1, 2, 3, 4, 5, 6 },
+                CollectionOrdering.Matching);
+            await Assert.That(committedTimes).IsEquivalentTo(
+                new ulong[] { 10, 20, 30, 40, 50, 60 },
+                CollectionOrdering.Matching);
         }
     }
 
@@ -606,6 +766,65 @@ public sealed class SimulationRuntimeTests
     }
 
     [Test]
+    public async Task Execute_TraceRingWraparound_PreservesNewestChunksInSequenceOrder()
+    {
+        var context = SimulationTestContext.Create();
+        var tracePolicy = SimulationTestContext.TracePolicyWithRetention(
+            retainedTransitionCount: 2,
+            sealedChunkCount: 2);
+        var opened = (SimulationOpened)SimulationRuntime.Open(
+            context.Request(
+                context.SimulationPolicy,
+                tracePolicy,
+                context.NetSource(context.Circuit.OutputNet.Id)),
+            CancellationToken.None);
+        for (var index = 1; index <= 6; index++)
+        {
+            var value = index % 2 == 0 ? LogicValue.Zero : LogicValue.One;
+            _ = SimulationRuntime.Execute(
+                opened.Handle,
+                Schedule(context, checked((ulong)index * 10UL), value),
+                CancellationToken.None);
+            _ = SimulationRuntime.Execute(
+                opened.Handle,
+                new AdvanceToNextQuiescentBoundary(),
+                CancellationToken.None);
+        }
+
+        var unavailable = SimulationRuntime.Read(
+            opened.Handle,
+            new ReadTraceWindow(new SimulationTraceWindowRequest(
+                opened.ProbeIds,
+                new LogicalTimeRange(0, 61),
+                afterSequence: 4)),
+            CancellationToken.None);
+        var retained = SimulationRuntime.Read(
+            opened.Handle,
+            new ReadTraceWindow(new SimulationTraceWindowRequest(
+                opened.ProbeIds,
+                new LogicalTimeRange(0, 61),
+                afterSequence: 5)),
+            CancellationToken.None);
+
+        await Assert.That(unavailable).IsTypeOf<TraceRangeUnavailable>();
+        await Assert.That(retained).IsTypeOf<TraceTransitionsAvailable>();
+        var available = (TraceTransitionsAvailable)retained;
+        using (Assert.Multiple())
+        {
+            await Assert.That(available.EarliestAvailable).IsEqualTo(6UL);
+            await Assert.That(available.LatestSequence).IsEqualTo(7UL);
+            await Assert.That(available.Transitions.Select(item => item.Sequence))
+                .IsEquivalentTo(
+                    new ulong[] { 6, 7 },
+                    CollectionOrdering.Matching);
+            await Assert.That(available.Transitions.Select(item => item.LogicalTime))
+                .IsEquivalentTo(
+                    new ulong[] { 50, 60 },
+                    CollectionOrdering.Matching);
+        }
+    }
+
+    [Test]
     public async Task Read_Cancelled_ReturnsTypedFailure()
     {
         var context = SimulationTestContext.Create();
@@ -648,5 +867,41 @@ public sealed class SimulationRuntimeTests
                     context.InputDriverSource(),
                     new LogicVector([value])),
             ]));
+    }
+
+    private static SimulationPolicy SimulationPolicyWithOpenLimits(
+        ulong advanceWorkItemCount,
+        ulong workingLayerSlotCount)
+    {
+        return new SimulationPolicy(
+            "open-evidence-test",
+            "1",
+            [
+                new SimulationLimit(SimulationDimension.ScheduledBatchCount, 1_000),
+                new SimulationLimit(
+                    SimulationDimension.ScheduledAssignmentCount,
+                    10_000),
+                new SimulationLimit(
+                    SimulationDimension.AdvanceWorkItemCount,
+                    advanceWorkItemCount),
+                new SimulationLimit(
+                    SimulationDimension.AdvanceFrontierItemCount,
+                    100_000),
+                new SimulationLimit(
+                    SimulationDimension.WorkingLayerSlotCount,
+                    workingLayerSlotCount),
+                new SimulationLimit(SimulationDimension.TriggerBatchCount, 100_000),
+                new SimulationLimit(SimulationDimension.ZeroTimeStateCount, 100_000),
+            ]);
+    }
+
+    private static SimulationWorkObservation ObservedDimension(
+        SimulationWorkEvidence evidence,
+        SimulationWorkPolicy policy,
+        string dimension)
+    {
+        return evidence.ObservedDimensions.Single(observation =>
+            observation.Policy == policy
+            && string.Equals(observation.Dimension, dimension, StringComparison.Ordinal));
     }
 }
