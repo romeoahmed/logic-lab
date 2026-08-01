@@ -2,7 +2,7 @@
 
 Logic Lab is a teaching-oriented gate-level digital logic workbench for authoring, simulating, observing, and simplifying combinational and sequential circuits.
 
-Implementation has begun on the documentation and root-tooling baseline for .NET 10, C# 14, and a server-first Blazor Web App. The first five slices supply the Domain-owned minimum `logiclab.core` schema, the Engine-owned scalar four-state oracle plus private packed Logic Vector operations with differential evidence, immutable Domain-owned Project lineage with Project Genesis plus narrow place, connect, and move editing, deterministic Compilation of the first flat combinational circuit into sealed Simulation IR and a total Source Map, and the first atomic Simulation Session with future Stimulus Batches, Quiescent Boundaries, Probes, and bounded Trace transitions; the broader Workbench remains target design.
+Implementation has begun on the documentation and root-tooling baseline for .NET 10, C# 14, and a server-first Blazor Web App. The first six slices supply the Domain-owned minimum `logiclab.core` schema, the Engine-owned scalar four-state oracle plus private packed Logic Vector operations with differential evidence, immutable Domain-owned Project lineage with Project Genesis plus narrow place, connect, and move editing, deterministic Compilation of the first flat combinational circuit into sealed Simulation IR and a total Source Map, the first atomic Simulation Session with future Stimulus Batches, Quiescent Boundaries, Probes, and bounded Trace transitions, and an Interactive Server `/editor` tracer through Application-owned Workspace commands and an accessible Presentation projection; the broader Workbench remains target design.
 
 ## Core capabilities
 

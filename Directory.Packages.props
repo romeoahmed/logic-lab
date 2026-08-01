@@ -6,7 +6,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageVersion Include="bunit" Version="2.8.6" />
     <PackageVersion Include="FsCheck" Version="3.3.4" />
+    <PackageVersion Include="Microsoft.FluentUI.AspNetCore.Components" Version="5.0.0-rc.4-26180.1" />
     <PackageVersion Include="TUnit" Version="1.63.0" />
     <PackageVersion Include="TUnit.FsCheck" Version="1.63.0" />
   </ItemGroup>
