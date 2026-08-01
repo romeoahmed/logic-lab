@@ -216,7 +216,7 @@ public static class SimulationRuntime
         state.ScheduledBatches = new();
         state.ScheduledAssignmentsByTime = [];
         state.ScheduledAssignmentCount = 0;
-        state.Trace.Clear();
+        state.Trace = new(state.TracePolicy);
         state.Diagnostics = [];
         return new SessionClosed(state.SessionId);
     }
