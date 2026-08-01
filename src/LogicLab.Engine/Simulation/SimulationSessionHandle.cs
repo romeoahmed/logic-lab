@@ -158,20 +158,6 @@ internal sealed class SimulationTraceStore
         EvictToPolicy();
     }
 
-    public void Clear()
-    {
-        chunks = new TraceChunk?[InitialChunkCapacity];
-        head = 0;
-        chunkCount = 0;
-        retainedBytes = 0;
-        retainedTransitionCount = 0;
-        hasEvicted = false;
-        LatestSequence = 0;
-        ObservedBytes = 0;
-        ObservedTransitionCount = 0;
-        ObservedChunkCount = 0;
-    }
-
     public SimulationReadOutcome Read(SimulationTraceWindowRequest request)
     {
         var earliest = EarliestAvailableSequence;
