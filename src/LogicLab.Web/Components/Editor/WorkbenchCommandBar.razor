@@ -1,0 +1,47 @@
+@using Microsoft.FluentUI.AspNetCore.Components
+
+<nav class="command-bar" aria-label="Workbench commands">
+    <FluentButton data-command="create"
+                  Appearance="ButtonAppearance.Primary"
+                  Disabled="@(!State.CanCreate)"
+                  OnClick="OnCreate">Create Sandbox Project</FluentButton>
+    <FluentButton data-command="author"
+                  Disabled="@(!State.CanAuthor)"
+                  OnClick="OnAuthor">Author circuit</FluentButton>
+    <FluentButton data-command="compile"
+                  Disabled="@(!State.CanCompile)"
+                  OnClick="OnCompile">Compile</FluentButton>
+    <FluentButton data-command="session"
+                  Disabled="@(!State.CanCreateSession)"
+                  OnClick="OnCreateSession">Create Session</FluentButton>
+    <FluentButton data-command="stimulus"
+                  Disabled="@(!State.CanScheduleStimulus)"
+                  OnClick="OnScheduleStimulus">Set input to 1</FluentButton>
+    <FluentButton data-command="step"
+                  Appearance="ButtonAppearance.Primary"
+                  Disabled="@(!State.CanStep)"
+                  OnClick="OnStep">Step</FluentButton>
+</nav>
+
+@code {
+    [Parameter, EditorRequired]
+    public WorkbenchViewState State { get; set; } = WorkbenchViewState.StaticShell;
+
+    [Parameter]
+    public EventCallback OnCreate { get; set; }
+
+    [Parameter]
+    public EventCallback OnAuthor { get; set; }
+
+    [Parameter]
+    public EventCallback OnCompile { get; set; }
+
+    [Parameter]
+    public EventCallback OnCreateSession { get; set; }
+
+    [Parameter]
+    public EventCallback OnScheduleStimulus { get; set; }
+
+    [Parameter]
+    public EventCallback OnStep { get; set; }
+}

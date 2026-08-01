@@ -1,0 +1,49 @@
+@using LogicLab.Application.Workspaces
+
+<aside class="probe-panel" aria-labelledby="probe-panel-heading">
+    <p class="eyebrow">Simulation</p>
+    <h2 id="probe-panel-heading">Probe</h2>
+    @if (Simulation is null)
+    {
+        <p>No active session.</p>
+    }
+    else
+    {
+        <dl>
+            <div>
+                <dt>Logical time</dt>
+                <dd>@Simulation.LogicalTime</dd>
+            </div>
+            <div>
+                <dt>Session version</dt>
+                <dd>@Simulation.SessionVersion</dd>
+            </div>
+        </dl>
+        <ul aria-label="Observed probes">
+            @foreach (var probe in Simulation.Probes)
+            {
+                <li>
+                    <span>Output</span>
+                    <strong>@Format(probe.Value)</strong>
+                </li>
+            }
+        </ul>
+    }
+</aside>
+
+@code {
+    [Parameter]
+    public SimulationProjection? Simulation { get; set; }
+
+    private static string Format(IEnumerable<LogicValue> values)
+    {
+        return string.Concat(values.Select(value => value switch
+        {
+            LogicValue.Zero => "0",
+            LogicValue.One => "1",
+            LogicValue.X => "X",
+            LogicValue.Z => "Z",
+            _ => "?",
+        }));
+    }
+}

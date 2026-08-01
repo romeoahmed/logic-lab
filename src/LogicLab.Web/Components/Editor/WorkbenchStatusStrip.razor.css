@@ -1,0 +1,17 @@
+.status-strip {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 2.5rem;
+    padding: 0 0.8rem;
+    color: var(--lab-muted);
+    font-size: 0.875rem;
+}
+
+.status-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--lab-accent);
+    box-shadow: 0 0 0 4px var(--lab-accent-soft);
+}
