@@ -150,6 +150,45 @@ public sealed class ProjectEditorGenesisTests
         }
     }
 
+    [Test]
+    [Arguments("OtherProfile", "1.0.0")]
+    [Arguments("TeachingMixed", "2.0.0")]
+    public async Task Begin_UnregisteredSymbolProfile_RejectsWithoutRevision(
+        string profileId,
+        string profileVersion)
+    {
+        var seed = new NewProjectSeed(
+            "Project",
+            LibrarySnapshot.Core,
+            new SymbolProfileReference(
+                profileId,
+                profileVersion,
+                IndicationConvention.Negation),
+            "Main");
+
+        var outcome = ProjectEditor.Begin(seed);
+
+        await Assert.That(outcome).IsTypeOf<ProjectGenesisRejected>();
+        var rejected = (ProjectGenesisRejected)outcome;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Diagnostics).Count().IsEqualTo(1);
+            await Assert.That(rejected.Diagnostics[0].Code)
+                .IsEqualTo("authoring_symbol_profile_unresolved");
+            await Assert.That(rejected.Diagnostics[0].Arguments)
+                .IsEquivalentTo(
+                    [
+                        new AuthoringDiagnosticArgument(
+                            "profileId",
+                            new StableTokenDiagnosticValue(profileId)),
+                        new AuthoringDiagnosticArgument(
+                            "profileVersion",
+                            new StableTokenDiagnosticValue(profileVersion)),
+                    ],
+                    CollectionOrdering.Matching);
+        }
+    }
+
     private static NewProjectSeed CreateSeed(
         string displayName,
         string entryCircuitDefinitionDisplayName)
