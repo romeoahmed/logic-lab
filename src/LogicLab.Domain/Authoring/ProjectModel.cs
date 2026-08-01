@@ -183,6 +183,23 @@ public sealed record LogicVectorParameterValue : ComponentParameterValue
     }
 
     public ReadOnlyCollection<LogicValue> Values { get; }
+
+    public bool Equals(LogicVectorParameterValue? other)
+    {
+        return ReferenceEquals(this, other)
+            || other is not null && values.AsSpan().SequenceEqual(other.values);
+    }
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        foreach (var value in values)
+        {
+            hash.Add(value);
+        }
+
+        return hash.ToHashCode();
+    }
 }
 
 public sealed record ComponentParameterBinding(
