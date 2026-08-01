@@ -29,19 +29,7 @@ public sealed class ProjectScalePolicy
         ArgumentException.ThrowIfNullOrEmpty(policyRevision);
         ArgumentNullException.ThrowIfNull(limits);
 
-        if (!StableToken.IsValid(policyId))
-        {
-            throw new ArgumentException(
-                "The Project Scale Policy ID must be a Stable Token.",
-                nameof(policyId));
-        }
-
-        if (!StableToken.IsValid(policyRevision))
-        {
-            throw new ArgumentException(
-                "The Project Scale Policy revision must be a Stable Token.",
-                nameof(policyRevision));
-        }
+        PolicyIdentity.ValidateTokens("Project Scale", policyId, policyRevision);
 
         var dimensions = Enum.GetValues<ProjectScaleDimension>();
         if (limits.Count != dimensions.Length)
@@ -211,5 +199,28 @@ internal static class StableToken
         return value is >= 'A' and <= 'Z'
             or >= 'a' and <= 'z'
             or >= '0' and <= '9';
+    }
+}
+
+internal static class PolicyIdentity
+{
+    public static void ValidateTokens(
+        string policyName,
+        string policyId,
+        string policyRevision)
+    {
+        if (!StableToken.IsValid(policyId))
+        {
+            throw new ArgumentException(
+                $"The {policyName} Policy ID must be a Stable Token.",
+                nameof(policyId));
+        }
+
+        if (!StableToken.IsValid(policyRevision))
+        {
+            throw new ArgumentException(
+                $"The {policyName} Policy revision must be a Stable Token.",
+                nameof(policyRevision));
+        }
     }
 }
