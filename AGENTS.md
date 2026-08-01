@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Logic Lab has completed implementation-plan slices `01` through `05`: `logic-lab.slnx` contains `LogicLab.Domain`, `LogicLab.Engine`, and their test projects. Start with `README.md`, then consult `ARCHITECTURE.md` for ownership, `WORKBENCH.md` for product behavior, `CONTEXT-MAP.md` for domain language, and `docs/specs/dotnet-engineering.md` for build/runtime rules. Detailed material lives under `docs/`: `specs/` defines observable behavior, `contracts/` defines application/browser/HTTP seams, `adr/` records decisions, `domain/` holds bounded-context glossaries, `policies/` owns limits, and `research/` preserves evidence. The root PDFs are standards references, not source assets.
+Logic Lab has completed implementation-plan slices `01` through `06`: `logic-lab.slnx` contains `LogicLab.Domain`, `LogicLab.Engine`, `LogicLab.Application`, `LogicLab.Presentation`, `LogicLab.Web`, and their test projects. Start with `README.md`, then consult `ARCHITECTURE.md` for ownership, `WORKBENCH.md` for product behavior, `CONTEXT-MAP.md` for domain language, and `docs/specs/dotnet-engineering.md` for build/runtime rules. Detailed material lives under `docs/`: `specs/` defines observable behavior, `contracts/` defines application/browser/HTTP seams, `adr/` records decisions, `domain/` holds bounded-context glossaries, `policies/` owns limits, and `research/` preserves evidence. The root PDFs are standards references, not source assets.
 
 As implementation expands, preserve the project seams named in `ARCHITECTURE.md`: `LogicLab.Domain`, `LogicLab.Engine`, `LogicLab.BooleanAnalysis`, `LogicLab.Presentation`, `LogicLab.ProjectFormat`, `LogicLab.Application`, `LogicLab.Infrastructure`, and `LogicLab.Web`. Keep test and benchmark projects separate from production projects.
 
@@ -24,7 +24,7 @@ Use four-space indentation for C#, LF-normalized text, nullable reference types,
 
 Use TUnit on Microsoft Testing Platform with source-generated discovery and awaited TUnit assertions. Use `TUnit.FsCheck` for generative semantic properties, bUnit for Razor projections, `TUnit.Playwright` for browser interaction, and BenchmarkDotNet only for comparative benchmarks. TUnit runs tests concurrently by default: isolate resources first, then use keyed `[NotInParallel]` or `ParallelLimiter<T>` only around a real shared constraint. Name test classes `{Subject}Tests` and tests `Method_Scenario_Outcome`. Match evidence to ownership; UI tests do not prove simulation semantics, retries never conceal deterministic failures, and coverage is supporting telemetry rather than the release gate.
 
-Both executable test projects use the centrally pinned TUnit stack. Do not add xUnit packages, runner configuration, attributes, or assertions, and do not mix test frameworks inside a project.
+All executable test projects use the centrally pinned TUnit stack. Keep bUnit tests in `.cs` files under the ordinary .NET SDK so TUnit and Razor source generators do not need to consume one another's output. Do not add xUnit packages, runner configuration, attributes, or assertions, and do not mix test frameworks inside a project.
 
 ## Commit & Pull Request Guidelines
 

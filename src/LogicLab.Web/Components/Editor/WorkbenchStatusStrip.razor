@@ -1,0 +1,9 @@
+<div class="status-strip" role="status" aria-live="polite">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span>@Message</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Message { get; set; } = "Ready.";
+}
