@@ -30,8 +30,6 @@ public sealed record AuthoringDiagnosticArgument(
 
 public sealed class AuthoringDiagnostic
 {
-    private readonly AuthoringDiagnosticArgument[] arguments;
-
     internal AuthoringDiagnostic(
         string code,
         AuthoringDiagnosticArgument[] arguments,
@@ -39,8 +37,8 @@ public sealed class AuthoringDiagnostic
     {
         Code = code;
         Severity = AuthoringDiagnosticSeverity.Error;
-        this.arguments = (AuthoringDiagnosticArgument[])arguments.Clone();
-        Arguments = Array.AsReadOnly(this.arguments);
+        Arguments = Array.AsReadOnly(
+            (AuthoringDiagnosticArgument[])arguments.Clone());
         Primary = primary;
     }
 
