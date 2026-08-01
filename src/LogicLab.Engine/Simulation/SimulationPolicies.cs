@@ -27,7 +27,9 @@ public sealed class SimulationPolicy
         string policyRevision,
         IReadOnlyList<SimulationLimit> limits)
     {
-        ValidatePolicyIdentity(policyId, policyRevision);
+        ArgumentException.ThrowIfNullOrEmpty(policyId);
+        ArgumentException.ThrowIfNullOrEmpty(policyRevision);
+        PolicyIdentity.ValidateTokens("Simulation", policyId, policyRevision);
         ArgumentNullException.ThrowIfNull(limits);
 
         var dimensions = Enum.GetValues<SimulationDimension>();
@@ -65,28 +67,6 @@ public sealed class SimulationPolicy
     {
         return limits[(int)dimension].Maximum;
     }
-
-    private static void ValidatePolicyIdentity(
-        string policyId,
-        string policyRevision)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(policyId);
-        ArgumentException.ThrowIfNullOrEmpty(policyRevision);
-
-        if (!StableToken.IsValid(policyId))
-        {
-            throw new ArgumentException(
-                "The Simulation Policy ID must be a Stable Token.",
-                nameof(policyId));
-        }
-
-        if (!StableToken.IsValid(policyRevision))
-        {
-            throw new ArgumentException(
-                "The Simulation Policy revision must be a Stable Token.",
-                nameof(policyRevision));
-        }
-    }
 }
 
 public enum TraceDimension
@@ -115,19 +95,7 @@ public sealed class TracePolicy
         ArgumentException.ThrowIfNullOrEmpty(policyRevision);
         ArgumentNullException.ThrowIfNull(limits);
 
-        if (!StableToken.IsValid(policyId))
-        {
-            throw new ArgumentException(
-                "The Trace Policy ID must be a Stable Token.",
-                nameof(policyId));
-        }
-
-        if (!StableToken.IsValid(policyRevision))
-        {
-            throw new ArgumentException(
-                "The Trace Policy revision must be a Stable Token.",
-                nameof(policyRevision));
-        }
+        PolicyIdentity.ValidateTokens("Trace", policyId, policyRevision);
 
         var dimensions = Enum.GetValues<TraceDimension>();
         if (limits.Count != dimensions.Length)
