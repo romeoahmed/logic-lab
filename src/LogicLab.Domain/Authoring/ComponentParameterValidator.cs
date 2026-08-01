@@ -26,12 +26,14 @@ internal static class ComponentParameterValidator
                 continue;
             }
 
-            ValidateValue(
-                contractKey,
+            var rule = GetInvalidValueRule(
                 expected,
                 actual.Value,
-                parameters,
-                diagnostics);
+                parameters);
+            if (rule is not null)
+            {
+                diagnostics.Add(InvalidParameter(contractKey, expected.Id, rule));
+            }
         }
 
         for (var index = availableCount; index < schema.Parameters.Count; index++)
@@ -70,56 +72,36 @@ internal static class ComponentParameterValidator
         return width > 0;
     }
 
-    private static void ValidateValue(
-        ComponentContractKey contractKey,
+    private static string? GetInvalidValueRule(
         ComponentParameterSchema schema,
         ComponentParameterValue? value,
-        ReadOnlyCollection<ComponentParameterBinding> allParameters,
-        List<AuthoringDiagnostic> diagnostics)
+        ReadOnlyCollection<ComponentParameterBinding> allParameters)
     {
-        switch (schema.Kind, value)
+        return (schema.Kind, value) switch
         {
-            case (ComponentParameterKind.PositiveWidth, Unsigned32ParameterValue { Value: > 0 }):
-                return;
-            case (ComponentParameterKind.PositiveWidth, Unsigned32ParameterValue):
-                diagnostics.Add(InvalidParameter(contractKey, schema.Id, "positiveWidth"));
-                return;
-            case (ComponentParameterKind.PositiveWidth, _):
-                diagnostics.Add(InvalidParameter(contractKey, schema.Id, "parameterKind"));
-                return;
-            case (ComponentParameterKind.Choice, ChoiceParameterValue choice):
-                if (!schema.AllowedValues.Contains(choice.Value, StringComparer.Ordinal))
-                {
-                    diagnostics.Add(InvalidParameter(contractKey, schema.Id, "allowedValue"));
-                }
-
-                return;
-            case (ComponentParameterKind.LogicVector, LogicVectorParameterValue vector):
-                ValidateLogicVector(
-                    contractKey,
-                    schema,
-                    vector,
-                    allParameters,
-                    diagnostics);
-                return;
-            default:
-                diagnostics.Add(InvalidParameter(contractKey, schema.Id, "parameterKind"));
-                return;
-        }
+            (ComponentParameterKind.PositiveWidth,
+                Unsigned32ParameterValue { Value: > 0 }) => null,
+            (ComponentParameterKind.PositiveWidth, Unsigned32ParameterValue) =>
+                "positiveWidth",
+            (ComponentParameterKind.Choice, ChoiceParameterValue choice) =>
+                schema.AllowedValues.Contains(choice.Value, StringComparer.Ordinal)
+                    ? null
+                    : "allowedValue",
+            (ComponentParameterKind.LogicVector, LogicVectorParameterValue vector) =>
+                GetInvalidLogicVectorRule(schema, vector, allParameters),
+            _ => "parameterKind",
+        };
     }
 
-    private static void ValidateLogicVector(
-        ComponentContractKey contractKey,
+    private static string? GetInvalidLogicVectorRule(
         ComponentParameterSchema schema,
         LogicVectorParameterValue vector,
-        ReadOnlyCollection<ComponentParameterBinding> allParameters,
-        List<AuthoringDiagnostic> diagnostics)
+        ReadOnlyCollection<ComponentParameterBinding> allParameters)
     {
         if (vector.Values.Count == 0
             || vector.Values.Any(value => value is < LogicValue.Zero or > LogicValue.X))
         {
-            diagnostics.Add(InvalidParameter(contractKey, schema.Id, "logicVectorValue"));
-            return;
+            return "logicVectorValue";
         }
 
         var width = allParameters
@@ -132,10 +114,9 @@ internal static class ComponentParameterValidator
             .Select(value => value.Value)
             .FirstOrDefault();
 
-        if (width == 0 || vector.Values.Count != width)
-        {
-            diagnostics.Add(InvalidParameter(contractKey, schema.Id, "vectorWidth"));
-        }
+        return width == 0 || vector.Values.Count != width
+            ? "vectorWidth"
+            : null;
     }
 
     private static AuthoringDiagnostic InvalidParameter(
