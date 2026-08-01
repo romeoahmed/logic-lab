@@ -224,27 +224,23 @@ public sealed class SourceMap
         CompilationSource source,
         out int ordinal)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        foreach (var entry in Nets)
-        {
-            if (entry.Source.Identity == source.Identity
-                && PathsEqual(entry.Source.HierarchyPath, source.HierarchyPath))
-            {
-                ordinal = entry.Ordinal;
-                return true;
-            }
-        }
-
-        ordinal = default;
-        return false;
+        return TryGetOrdinal(Nets, source, out ordinal);
     }
 
     public bool TryGetDriverOrdinal(
         CompilationSource source,
         out int ordinal)
     {
+        return TryGetOrdinal(Drivers, source, out ordinal);
+    }
+
+    private static bool TryGetOrdinal(
+        ReadOnlyCollection<SourceMapEntry> entries,
+        CompilationSource source,
+        out int ordinal)
+    {
         ArgumentNullException.ThrowIfNull(source);
-        foreach (var entry in Drivers)
+        foreach (var entry in entries)
         {
             if (entry.Source.Identity == source.Identity
                 && PathsEqual(entry.Source.HierarchyPath, source.HierarchyPath))
