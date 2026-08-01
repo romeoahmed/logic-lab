@@ -27,11 +27,20 @@ public partial class Editor
 
     private WorkbenchCommandKind? ActiveCommand => commandExecution.ActiveCommand;
 
-    private WorkbenchViewState ViewState => !IsInteractive || ActiveCommand is not null
-        ? WorkbenchViewState.StaticShell
-        : Projection is null
-            ? WorkbenchViewState.ReadyToCreate
-            : WorkbenchViewState.From(Projection, StimulusIsScheduled);
+    private WorkbenchViewState ViewState
+    {
+        get
+        {
+            if (!IsInteractive || ActiveCommand is not null)
+            {
+                return WorkbenchViewState.StaticShell;
+            }
+
+            return Projection is null
+                ? WorkbenchViewState.ReadyToCreate
+                : WorkbenchViewState.From(Projection, StimulusIsScheduled);
+        }
+    }
 
     private WorkbenchStatusState StatusState => WorkbenchStatusState.From(
         Projection,
