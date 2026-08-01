@@ -213,8 +213,8 @@ public static class SimulationRuntime
         state.DriverValues = [];
         state.NetValues = [];
         state.Probes = [];
-        state.ScheduledBatches.Clear();
-        state.ScheduledAssignmentsByTime.Clear();
+        state.ScheduledBatches = new();
+        state.ScheduledAssignmentsByTime = [];
         state.ScheduledAssignmentCount = 0;
         state.Trace.Clear();
         state.Diagnostics = [];
