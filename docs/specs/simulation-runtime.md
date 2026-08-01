@@ -302,7 +302,7 @@ All address ranges and allocation sizes use checked arithmetic and the active po
 
 Probes bind through stable source identity and Hierarchy Path in the active Compilation Artifact. Trace records only committed transitions by default; optional delta-debug capture has a separate policy and never becomes simulation truth.
 
-Runtime storage is an internal bounded circular sequence of immutable chunks. External callers receive normalized transition segments or an explicitly requested visual summary, never internal chunk bytes. Eviction creates a Trace Gap with the earliest available cursor. A gap is never filled, flattened, or represented as `X`.
+Runtime storage is an internal bounded circular sequence of immutable chunks. External callers receive normalized transition segments or an explicitly requested visual summary, never internal chunk bytes. Eviction creates a Trace Gap with the earliest available cursor. For a transition request without `afterSequence`, every requested Probe must have a retained transition at or before the requested range start; otherwise the result is `TraceRangeUnavailable { Evicted, ... }`, even when another Probe has retained data at that Logical Time. `afterSequence` is a continuation assertion for the exact same ordered Probe IDs whose continuous baseline the caller retained through that sequence; Application must start a new request without it when the Probe set changes. A gap is never filled, flattened, or represented as `X`.
 
 Trace capacity cannot block, fail, or roll back simulation. The oldest sealed storage may be evicted after an atomic Trace batch is published.
 
