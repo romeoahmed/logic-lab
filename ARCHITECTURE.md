@@ -1,14 +1,14 @@
 # Logic Lab Architecture
 
-> Status: implementation in progress; slices 01-04 executable
+> Status: implementation in progress; slices 01-05 executable
 > Target: .NET 10, C# 14, Blazor Web App
-> Last reviewed: 2026-07-31
+> Last reviewed: 2026-08-01
 
 Architecture owns system shape, dependency direction, module seams, fact ownership, deployment shape, and delivery order. Specifications own exact interfaces and observable behavior; contracts own values exchanged at real seams; [Workbench](./WORKBENCH.md) owns product behavior; [Context Map](./CONTEXT-MAP.md) owns domain language.
 
 ## 1. Baseline and product scope
 
-`logic-lab.slnx` contains the first production and test projects. Slice `01` provides the Domain-owned minimum `logiclab.core` schema and the Engine-owned scalar four-state oracle, Conservative Merge, and Net resolution. Slice `02` adds a private packed Logic Vector representation, word-wise scalar-equivalent operations, non-word-aligned slices, Conservative Merge, and per-bit Net resolution evidence. Slice `03` adds Domain-owned immutable Project lineage, Project Genesis, and narrow place, connect, and move editing with typed outcomes and diagnostics. Slice `04` adds deterministic Compilation of the first flat combinational circuit into a sealed Compilation Artifact with immutable Simulation IR, a total Source Map, policy and cancellation evidence, and atomic source-bound rejection. All later modules, adapters, stores, and deployment behavior below remain target design rather than implemented evidence. The [Documentation Map](./docs/README.md) is the authority index.
+`logic-lab.slnx` contains the first production and test projects. Slice `01` provides the Domain-owned minimum `logiclab.core` schema and the Engine-owned scalar four-state oracle, Conservative Merge, and Net resolution. Slice `02` adds a private packed Logic Vector representation, word-wise scalar-equivalent operations, non-word-aligned slices, Conservative Merge, and per-bit Net resolution evidence. Slice `03` adds Domain-owned immutable Project lineage, Project Genesis, and narrow place, connect, and move editing with typed outcomes and diagnostics. Slice `04` adds deterministic Compilation of the first flat combinational circuit into a sealed Compilation Artifact with immutable Simulation IR, a total Source Map, policy and cancellation evidence, and atomic source-bound rejection. Slice `05` adds the first synchronous Simulation Session: time-zero settlement, source-bound initial Probes, stable future Stimulus scheduling, atomic advance and rollback, bounded circular Trace retention, immutable reads, and idempotent close. Modules and behaviors assigned to later implementation-plan slices remain target design rather than implemented evidence. The [Documentation Map](./docs/README.md) is the authority index.
 
 V1 supports:
 

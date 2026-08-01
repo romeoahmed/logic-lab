@@ -10,27 +10,30 @@ public static class SimulationRuntime
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        var work = new OpenWorkAccumulator(
+            checked((ulong)request.Configuration.InitialProbeBindings.Count));
 
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
             ValidateRequest(request, cancellationToken);
             var ir = request.CompilationArtifact.SimulationIr;
-            var workingLayerSlots = checked(
+            work.WorkingLayerSlots = checked(
                 (ulong)ir.Drivers.Count + (ulong)ir.Nets.Count);
-            if (workingLayerSlots > request.SimulationPolicy.Maximum(
+            if (work.WorkingLayerSlots > request.SimulationPolicy.Maximum(
                 SimulationDimension.WorkingLayerSlotCount))
             {
                 return Rejected(
                     request,
+                    work,
                     SimulationFailureReason.SimulationResourceLimit,
                     new SimulationWorkObservation(
                         SimulationWorkPolicy.Simulation,
                         DimensionToken(SimulationDimension.WorkingLayerSlotCount),
-                        workingLayerSlots));
+                        work.WorkingLayerSlots));
             }
 
-            var probes = BindProbes(request, out var probeFailure);
+            var probes = BindProbes(request, work, out var probeFailure);
             if (probeFailure is not null)
             {
                 return probeFailure;
@@ -41,15 +44,14 @@ public static class SimulationRuntime
                 ir,
                 driverValues,
                 request.SimulationPolicy,
-                initialWorkItems: 0,
-                out var workItems,
-                out var frontierItems,
+                work.Settlement,
                 cancellationToken);
             var diagnostics = Array.Empty<SimulationDiagnostic>();
             var trace = new SimulationTraceStore(request.TracePolicy);
             trace.Append(
                 0,
                 probes.Select(probe => (probe, netValues[probe.NetOrdinal])).ToArray());
+            work.Trace = trace;
             cancellationToken.ThrowIfCancellationRequested();
 
             var sessionId = SimulationSessionId.Create();
@@ -68,13 +70,7 @@ public static class SimulationRuntime
                 LogicalTime = 0,
             };
             var handle = new SimulationSessionHandle(state);
-            var evidence = Evidence(
-                request,
-                workItems,
-                frontierItems,
-                workingLayerSlots,
-                probes.Length,
-                trace);
+            var evidence = Evidence(request, work);
             return new SimulationOpened(
                 handle,
                 sessionId,
@@ -90,6 +86,7 @@ public static class SimulationRuntime
         {
             return Rejected(
                 request,
+                work,
                 SimulationFailureReason.SimulationCancelled,
                 policyLimitBreach: null);
         }
@@ -97,6 +94,7 @@ public static class SimulationRuntime
         {
             return Rejected(
                 request,
+                work,
                 SimulationFailureReason.SimulationResourceLimit,
                 Observation(exception.Dimension, exception.Observed));
         }
@@ -104,6 +102,7 @@ public static class SimulationRuntime
         {
             return Rejected(
                 request,
+                work,
                 SimulationFailureReason.SimulationInternalDefect,
                 policyLimitBreach: null);
         }
@@ -215,6 +214,8 @@ public static class SimulationRuntime
         state.NetValues = [];
         state.Probes = [];
         state.ScheduledBatches.Clear();
+        state.ScheduledAssignmentsByTime.Clear();
+        state.ScheduledAssignmentCount = 0;
         state.Trace.Clear();
         state.Diagnostics = [];
         return new SessionClosed(state.SessionId);
@@ -234,7 +235,7 @@ public static class SimulationRuntime
         }
 
         var artifact = state.Artifact!;
-        var normalized = new Dictionary<int, LogicVector>();
+        var normalized = new SortedDictionary<int, LogicVector>();
         foreach (var assignment in batch.Assignments)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -267,13 +268,17 @@ public static class SimulationRuntime
             normalized[driverOrdinal] = assignment.Value;
         }
 
-        foreach (var scheduled in state.ScheduledBatches.Where(
-            item => item.LogicalTime == batch.LogicalTime))
+        state.ScheduledAssignmentsByTime.TryGetValue(
+            batch.LogicalTime,
+            out var assignmentsAtTime);
+        if (assignmentsAtTime is not null)
         {
-            foreach (var assignment in scheduled.Assignments)
+            foreach (var assignment in normalized)
             {
-                if (normalized.TryGetValue(assignment.DriverOrdinal, out var candidate)
-                    && !ValuesEqual(candidate, assignment.Value))
+                if (assignmentsAtTime.TryGetValue(
+                        assignment.Key,
+                        out var existing)
+                    && !ValuesEqual(existing, assignment.Value))
                 {
                     return new StimulusBatchInvalid(
                         state.SessionVersion,
@@ -285,10 +290,7 @@ public static class SimulationRuntime
 
         var batchCount = checked((ulong)state.ScheduledBatches.Count + 1UL);
         var assignmentCount = checked(
-            state.ScheduledBatches.Aggregate(
-                0UL,
-                (count, item) => checked(count + (ulong)item.Assignments.Length))
-            + (ulong)normalized.Count);
+            state.ScheduledAssignmentCount + (ulong)normalized.Count);
         RequireWithinPolicy(
             state.SimulationPolicy,
             SimulationDimension.ScheduledBatchCount,
@@ -299,22 +301,33 @@ public static class SimulationRuntime
             assignmentCount);
 
         var sequence = checked(state.NextStimulusSequence + 1);
+        var scheduledAssignments = new ScheduledStimulusAssignment[normalized.Count];
+        var scheduledAssignmentIndex = 0;
+        foreach (var assignment in normalized)
+        {
+            scheduledAssignments[scheduledAssignmentIndex] =
+                new ScheduledStimulusAssignment(assignment.Key, assignment.Value);
+            scheduledAssignmentIndex++;
+        }
+
         var scheduledBatch = new ScheduledStimulusBatch(
             batch.LogicalTime,
             sequence,
-            normalized
-                .OrderBy(item => item.Key)
-                .Select(item => new ScheduledStimulusAssignment(item.Key, item.Value))
-                .ToArray());
-        cancellationToken.ThrowIfCancellationRequested();
-        state.ScheduledBatches.Add(scheduledBatch);
-        state.ScheduledBatches.Sort(static (left, right) =>
+            scheduledAssignments);
+        var mergedAssignments = assignmentsAtTime is null
+            ? new SortedDictionary<int, LogicVector>()
+            : new SortedDictionary<int, LogicVector>(assignmentsAtTime);
+        foreach (var assignment in normalized)
         {
-            var timeComparison = left.LogicalTime.CompareTo(right.LogicalTime);
-            return timeComparison != 0
-                ? timeComparison
-                : left.StableSequence.CompareTo(right.StableSequence);
-        });
+            mergedAssignments[assignment.Key] = assignment.Value;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        state.ScheduledBatches.Enqueue(
+            scheduledBatch,
+            new ScheduledStimulusPriority(batch.LogicalTime, sequence));
+        state.ScheduledAssignmentsByTime[batch.LogicalTime] = mergedAssignments;
+        state.ScheduledAssignmentCount = assignmentCount;
         state.NextStimulusSequence = sequence;
         state.SessionVersion = checked(state.SessionVersion + 1);
         return new StimulusBatchScheduled(
@@ -334,68 +347,66 @@ public static class SimulationRuntime
                 state.LogicalTime);
         }
 
-        var logicalTime = state.ScheduledBatches[0].LogicalTime;
-        var batches = state.ScheduledBatches
-            .TakeWhile(item => item.LogicalTime == logicalTime)
-            .ToArray();
-        var assignments = batches
-            .SelectMany(batch => batch.Assignments)
-            .GroupBy(assignment => assignment.DriverOrdinal)
-            .OrderBy(group => group.Key)
-            .Select(group => group.First())
-            .ToArray();
+        _ = state.ScheduledBatches.TryPeek(out _, out var nextPriority);
+        var logicalTime = nextPriority.LogicalTime;
+        var assignments = state.ScheduledAssignmentsByTime[logicalTime];
         var driverValues = (LogicVector[])state.DriverValues.Clone();
-        ulong workItems = 0;
+        var settlementWork = new SettlementWork();
         foreach (var assignment in assignments)
         {
             cancellationToken.ThrowIfCancellationRequested();
             CountWork(
                 state.SimulationPolicy,
                 SimulationDimension.AdvanceWorkItemCount,
-                ref workItems);
-            driverValues[assignment.DriverOrdinal] = assignment.Value;
+                ref settlementWork.WorkItems);
+            driverValues[assignment.Key] = assignment.Value;
         }
 
         var netValues = SettleAcyclic(
             state.Artifact!.SimulationIr,
             driverValues,
             state.SimulationPolicy,
-            workItems,
-            out _,
-            out _,
+            settlementWork,
             cancellationToken);
-        var observations = state.Probes
-            .Where(probe => !ValuesEqual(
-                state.NetValues[probe.NetOrdinal],
-                netValues[probe.NetOrdinal]))
-            .Select(probe => new ProbeObservation(
+        var observations = new List<ProbeObservation>(state.Probes.Length);
+        var traceObservations = new List<(ProbeState Probe, LogicVector Value)>(
+            state.Probes.Length);
+        foreach (var probe in state.Probes)
+        {
+            var value = netValues[probe.NetOrdinal];
+            if (ValuesEqual(state.NetValues[probe.NetOrdinal], value))
+            {
+                continue;
+            }
+
+            observations.Add(new ProbeObservation(
                 probe.ProbeId,
                 probe.Source,
-                netValues[probe.NetOrdinal]))
-            .ToArray();
-        var stagedTrace = state.Trace.Clone();
-        stagedTrace.Append(
-            logicalTime,
-            observations.Select(observation =>
-            {
-                var probe = state.Probes.Single(
-                    item => item.ProbeId == observation.ProbeId);
-                return (probe, observation.Value);
-            }).ToArray());
+                value));
+            traceObservations.Add((probe, value));
+        }
+
         var nextVersion = checked(state.SessionVersion + 1);
         cancellationToken.ThrowIfCancellationRequested();
 
-        state.ScheduledBatches.RemoveAll(item => item.LogicalTime == logicalTime);
+        state.Trace.Append(logicalTime, traceObservations);
+        while (state.ScheduledBatches.TryPeek(out _, out var priority)
+            && priority.LogicalTime == logicalTime)
+        {
+            var batch = state.ScheduledBatches.Dequeue();
+            state.ScheduledAssignmentCount -= (ulong)batch.Assignments.Length;
+        }
+
+        _ = state.ScheduledAssignmentsByTime.Remove(logicalTime);
         state.DriverValues = driverValues;
         state.NetValues = netValues;
         state.LogicalTime = logicalTime;
         state.SessionVersion = nextVersion;
-        state.Trace = stagedTrace;
         state.Diagnostics = [];
         return new AdvanceCommitted(
             state.SessionVersion,
             state.LogicalTime,
-            observations,
+            observations.ToArray(),
             state.Diagnostics,
             state.Trace.Cursor);
     }
@@ -439,7 +450,8 @@ public static class SimulationRuntime
 
     private static ProbeState[] BindProbes(
         OpenSimulationRequest request,
-        out SimulationOpenRejected? failure)
+        OpenWorkAccumulator work,
+        out SimulationOpenOutcome? failure)
     {
         var sources = request.Configuration.InitialProbeBindings;
         if ((ulong)sources.Count > request.TracePolicy.Maximum(TraceDimension.ProbeCount))
@@ -450,26 +462,43 @@ public static class SimulationRuntime
                 (ulong)sources.Count);
             failure = Rejected(
                 request,
+                work,
                 SimulationFailureReason.SimulationResourceLimit,
                 breach);
             return [];
         }
 
         var probes = new ProbeState[sources.Count];
-        var netOrdinals = new HashSet<int>();
+        var bindingIndexesByNetOrdinal = new Dictionary<int, int>();
         for (var index = 0; index < sources.Count; index++)
         {
             if (!request.CompilationArtifact.SourceMap.TryGetNetOrdinal(
                     sources[index],
-                    out var netOrdinal)
-                || !netOrdinals.Add(netOrdinal))
+                    out var netOrdinal))
             {
-                failure = Rejected(
+                failure = InvalidInitialProbeBindings(
                     request,
-                    SimulationFailureReason.SimulationInternalDefect,
-                    policyLimitBreach: null);
+                    work,
+                    InitialProbeBindingInvalidRule.UnresolvedSource,
+                    index,
+                    conflictingBindingIndex: null);
                 return [];
             }
+
+            if (bindingIndexesByNetOrdinal.TryGetValue(
+                    netOrdinal,
+                    out var conflictingBindingIndex))
+            {
+                failure = InvalidInitialProbeBindings(
+                    request,
+                    work,
+                    InitialProbeBindingInvalidRule.DuplicateResolvedNet,
+                    index,
+                    conflictingBindingIndex);
+                return [];
+            }
+
+            bindingIndexesByNetOrdinal.Add(netOrdinal, index);
 
             probes[index] = new ProbeState(
                 ProbeId.Create(),
@@ -502,20 +531,16 @@ public static class SimulationRuntime
         SimulationIr ir,
         LogicVector[] driverValues,
         SimulationPolicy policy,
-        ulong initialWorkItems,
-        out ulong workItems,
-        out ulong frontierItems,
+        SettlementWork work,
         CancellationToken cancellationToken)
     {
-        workItems = initialWorkItems;
-        frontierItems = 0;
         var netValues = new LogicVector[ir.Nets.Count];
         for (var netOrdinal = 0; netOrdinal < ir.Nets.Count; netOrdinal++)
         {
             CountWork(
                 policy,
                 SimulationDimension.AdvanceWorkItemCount,
-                ref workItems);
+                ref work.WorkItems);
             netValues[netOrdinal] = ResolveNet(ir, driverValues, netOrdinal);
         }
 
@@ -528,7 +553,7 @@ public static class SimulationRuntime
                 CountWork(
                     policy,
                     SimulationDimension.AdvanceFrontierItemCount,
-                    ref frontierItems);
+                    ref work.FrontierItems);
                 var evaluator = ir.Evaluators[evaluatorOrdinal];
                 Evaluate(evaluator, netValues, driverValues);
                 foreach (var driverOrdinal in evaluator.OutputDriverOrdinals)
@@ -542,7 +567,7 @@ public static class SimulationRuntime
                     CountWork(
                         policy,
                         SimulationDimension.AdvanceWorkItemCount,
-                        ref workItems);
+                        ref work.WorkItems);
                     netValues[netOrdinal.Value] = ResolveNet(
                         ir,
                         driverValues,
@@ -672,6 +697,7 @@ public static class SimulationRuntime
 
     private static SimulationOpenRejected Rejected(
         OpenSimulationRequest request,
+        OpenWorkAccumulator work,
         SimulationFailureReason reason,
         SimulationWorkObservation? policyLimitBreach)
     {
@@ -680,40 +706,55 @@ public static class SimulationRuntime
             [],
             Evidence(
                 request,
-                workItems: 0,
-                frontierItems: 0,
-                workingLayerSlots: 0,
-                probeCount: request.Configuration.InitialProbeBindings.Count,
-                trace: null,
+                work,
                 policyLimitBreach));
+    }
+
+    private static InitialProbeBindingsInvalid InvalidInitialProbeBindings(
+        OpenSimulationRequest request,
+        OpenWorkAccumulator work,
+        InitialProbeBindingInvalidRule rule,
+        int bindingIndex,
+        int? conflictingBindingIndex)
+    {
+        return new InitialProbeBindingsInvalid(
+            rule,
+            bindingIndex,
+            conflictingBindingIndex,
+            [],
+            Evidence(request, work));
     }
 
     private static SimulationWorkEvidence Evidence(
         OpenSimulationRequest request,
-        ulong workItems,
-        ulong frontierItems,
-        ulong workingLayerSlots,
-        int probeCount,
-        SimulationTraceStore? trace,
+        OpenWorkAccumulator work,
         SimulationWorkObservation? policyLimitBreach = null)
     {
         var observed = new[]
         {
             Observation(SimulationDimension.ScheduledBatchCount, 0),
             Observation(SimulationDimension.ScheduledAssignmentCount, 0),
-            Observation(SimulationDimension.AdvanceWorkItemCount, workItems),
-            Observation(SimulationDimension.AdvanceFrontierItemCount, frontierItems),
-            Observation(SimulationDimension.WorkingLayerSlotCount, workingLayerSlots),
+            Observation(
+                SimulationDimension.AdvanceWorkItemCount,
+                work.Settlement.WorkItems),
+            Observation(
+                SimulationDimension.AdvanceFrontierItemCount,
+                work.Settlement.FrontierItems),
+            Observation(
+                SimulationDimension.WorkingLayerSlotCount,
+                work.WorkingLayerSlots),
             Observation(SimulationDimension.TriggerBatchCount, 0),
             Observation(SimulationDimension.ZeroTimeStateCount, 0),
-            Observation(TraceDimension.ProbeCount, (ulong)probeCount),
+            Observation(TraceDimension.ProbeCount, work.ProbeCount),
             Observation(
                 TraceDimension.RetainedTransitionCount,
-                trace?.ObservedTransitionCount ?? 0),
+                work.Trace?.ObservedTransitionCount ?? 0),
             Observation(
                 TraceDimension.SealedChunkCount,
-                trace?.ObservedChunkCount ?? 0),
-            Observation(TraceDimension.RetainedBytes, trace?.ObservedBytes ?? 0),
+                work.Trace?.ObservedChunkCount ?? 0),
+            Observation(
+                TraceDimension.RetainedBytes,
+                work.Trace?.ObservedBytes ?? 0),
             Observation(TraceDimension.DeltaDebugRecordCount, 0),
         };
         return new SimulationWorkEvidence(
@@ -787,6 +828,24 @@ public static class SimulationRuntime
         return exception is OutOfMemoryException
             or StackOverflowException
             or AccessViolationException;
+    }
+
+    private sealed class OpenWorkAccumulator(ulong probeCount)
+    {
+        public SettlementWork Settlement { get; } = new();
+
+        public ulong WorkingLayerSlots { get; set; }
+
+        public ulong ProbeCount { get; } = probeCount;
+
+        public SimulationTraceStore? Trace { get; set; }
+    }
+
+    private sealed class SettlementWork
+    {
+        public ulong WorkItems;
+
+        public ulong FrontierItems;
     }
 
     private sealed class SimulationPolicyLimitException(

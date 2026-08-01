@@ -345,6 +345,39 @@ public sealed record SimulationOpened : SimulationOpenOutcome
     public SimulationWorkEvidence WorkEvidence { get; }
 }
 
+public enum InitialProbeBindingInvalidRule
+{
+    UnresolvedSource,
+    DuplicateResolvedNet,
+}
+
+public sealed record InitialProbeBindingsInvalid : SimulationOpenOutcome
+{
+    internal InitialProbeBindingsInvalid(
+        InitialProbeBindingInvalidRule rule,
+        int bindingIndex,
+        int? conflictingBindingIndex,
+        SimulationDiagnostic[] diagnostics,
+        SimulationWorkEvidence workEvidence)
+    {
+        Rule = rule;
+        BindingIndex = bindingIndex;
+        ConflictingBindingIndex = conflictingBindingIndex;
+        Diagnostics = Array.AsReadOnly((SimulationDiagnostic[])diagnostics.Clone());
+        WorkEvidence = workEvidence;
+    }
+
+    public InitialProbeBindingInvalidRule Rule { get; }
+
+    public int BindingIndex { get; }
+
+    public int? ConflictingBindingIndex { get; }
+
+    public ReadOnlyCollection<SimulationDiagnostic> Diagnostics { get; }
+
+    public SimulationWorkEvidence WorkEvidence { get; }
+}
+
 public sealed record SimulationOpenRejected : SimulationOpenOutcome
 {
     internal SimulationOpenRejected(
