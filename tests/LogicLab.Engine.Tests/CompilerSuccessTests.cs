@@ -42,11 +42,17 @@ public sealed class CompilerSuccessTests
             await Assert.That(succeeded.Evidence.PolicyLimitBreach).IsNull();
             await Assert.That(succeeded.Evidence.ObservedDimensions.Select(row => row.Dimension))
                 .IsEquivalentTo(
-                    Enum.GetValues<ProjectScaleDimension>(),
+                    [
+                        ProjectScaleDimension.DefinitionCount,
+                        ProjectScaleDimension.ElaboratedSlotCount,
+                        ProjectScaleDimension.EntityCount,
+                        ProjectScaleDimension.HierarchyDepth,
+                        ProjectScaleDimension.MemoryCellCount,
+                    ],
                     CollectionOrdering.Matching);
             await Assert.That(succeeded.Evidence.ObservedDimensions.Select(row => row.Observed))
                 .IsEquivalentTo(
-                    [1UL, 5UL, 1UL, 7UL, 0UL],
+                    [1UL, 7UL, 5UL, 1UL, 0UL],
                     CollectionOrdering.Matching);
         }
     }

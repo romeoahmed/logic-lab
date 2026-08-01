@@ -19,14 +19,18 @@ public static class Compiler
         {
             return CompileCore(request, observations, cancellationToken);
         }
-        catch (Exception)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return Reject(request, "compilation_cancelled", [], observations);
+        }
+        catch (Exception exception) when (!IsFatal(exception))
         {
             var diagnostic = new CompilerDiagnostic(
                 "compiler_internal_invariant",
                 [
                     new CompilerDiagnosticArgument(
                         "correlation",
-                        new CompilerStableTokenValue(
+                        new CompilerCorrelationTokenValue(
                             Guid.CreateVersion7().ToString("N"))),
                 ],
                 new CompilerProjectRootLocation(
@@ -44,10 +48,7 @@ public static class Compiler
         Dictionary<ProjectScaleDimension, ulong> observations,
         CancellationToken cancellationToken)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Reject(request, "compilation_cancelled", [], observations);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
 
         var diagnostics = new List<CompilerDiagnostic>();
         ValidateLibrarySnapshot(request, diagnostics);
@@ -64,6 +65,7 @@ public static class Compiler
 
         if (diagnostics.Count != 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             return Reject(
                 request,
                 "compilation_invalid",
@@ -71,28 +73,32 @@ public static class Compiler
                 observations);
         }
 
-        var policyRejection = ObserveInitialDimensions(request, observations);
+        var policyRejection = ObserveInitialDimensions(
+            request,
+            observations,
+            cancellationToken);
         if (policyRejection is not null)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             return policyRejection;
         }
 
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Reject(request, "compilation_cancelled", [], observations);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
 
         var resolvedInstances = ResolveInstances(
             request,
             definition!,
-            diagnostics);
+            diagnostics,
+            cancellationToken);
         var netByTerminal = ValidateTopology(
             request,
             definition!,
             resolvedInstances,
-            diagnostics);
+            diagnostics,
+            cancellationToken);
         if (diagnostics.Count != 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             return Reject(
                 request,
                 "compilation_invalid",
@@ -100,12 +106,24 @@ public static class Compiler
                 observations);
         }
 
-        var driverCount = resolvedInstances.Sum(instance =>
-            instance.Schema.Ports.Count(port => port.Direction == PortDirection.Output));
+        ulong driverCount = 0;
+        foreach (var instance in resolvedInstances)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var port in instance.Schema.Ports)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (port.Direction == PortDirection.Output)
+                {
+                    driverCount = checked(driverCount + 1);
+                }
+            }
+        }
+
         var elaboratedSlotCount = checked(
             (ulong)resolvedInstances.Length
             + (ulong)definition!.Nets.Count
-            + (ulong)driverCount);
+            + driverCount);
         var slotRejection = Observe(
             request,
             ProjectScaleDimension.ElaboratedSlotCount,
@@ -113,6 +131,7 @@ public static class Compiler
             observations);
         if (slotRejection is not null)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             return slotRejection;
         }
 
@@ -123,24 +142,20 @@ public static class Compiler
             observations);
         if (memoryRejection is not null)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             return memoryRejection;
         }
 
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Reject(request, "compilation_cancelled", [], observations);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
 
         var artifact = BuildArtifact(
             request,
             definition!,
             resolvedInstances,
-            netByTerminal);
+            netByTerminal,
+            cancellationToken);
 
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Reject(request, "compilation_cancelled", [], observations);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
 
         return new CompilationSucceeded(
             artifact,
@@ -206,9 +221,20 @@ public static class Compiler
 
     private static CompilationRejected? ObserveInitialDimensions(
         CompilationRequest request,
-        Dictionary<ProjectScaleDimension, ulong> observations)
+        Dictionary<ProjectScaleDimension, ulong> observations,
+        CancellationToken cancellationToken)
     {
         var document = request.ProjectRevision.Document;
+        ulong entityCount = 0;
+        foreach (var definition in document.CircuitDefinitions)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            entityCount = checked(
+                entityCount
+                + (ulong)definition.ComponentInstances.Count
+                + (ulong)definition.Nets.Count);
+        }
+
         var dimensions = new[]
         {
             new ObservedProjectScaleDimension(
@@ -216,8 +242,7 @@ public static class Compiler
                 checked((ulong)document.CircuitDefinitions.Count)),
             new ObservedProjectScaleDimension(
                 ProjectScaleDimension.EntityCount,
-                checked((ulong)document.CircuitDefinitions.Sum(item =>
-                    item.ComponentInstances.Count + item.Nets.Count))),
+                entityCount),
             new ObservedProjectScaleDimension(
                 ProjectScaleDimension.HierarchyDepth,
                 1),
@@ -225,6 +250,7 @@ public static class Compiler
 
         foreach (var dimension in dimensions)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var rejection = Observe(
                 request,
                 dimension.Dimension,
@@ -281,7 +307,8 @@ public static class Compiler
     private static ResolvedInstance[] ResolveInstances(
         CompilationRequest request,
         CircuitDefinition definition,
-        List<CompilerDiagnostic> diagnostics)
+        List<CompilerDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
     {
         var path = new HierarchyPath(request.EntryCircuitDefinitionId, []);
         var instances = definition.ComponentInstances
@@ -290,6 +317,7 @@ public static class Compiler
         var resolved = new List<ResolvedInstance>(instances.Length);
         for (var ordinal = 0; ordinal < instances.Length; ordinal++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var instance = instances[ordinal];
             var schema = request.LibrarySnapshot.ResolveContract(instance.ContractKey);
             if (schema is null)
@@ -339,7 +367,8 @@ public static class Compiler
         CompilationRequest request,
         CircuitDefinition definition,
         ResolvedInstance[] resolvedInstances,
-        List<CompilerDiagnostic> diagnostics)
+        List<CompilerDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
     {
         var path = new HierarchyPath(request.EntryCircuitDefinitionId, []);
         var resolvedById = resolvedInstances.ToDictionary(item => item.Instance.Id);
@@ -350,11 +379,13 @@ public static class Compiler
 
         for (var netOrdinal = 0; netOrdinal < orderedNets.Length; netOrdinal++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var net = orderedNets[netOrdinal];
             foreach (var terminal in net.Terminals.OrderBy(
                 item => item.ComponentInstanceId.Value,
                 StringComparer.Ordinal).ThenBy(item => item.PortId, StringComparer.Ordinal))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (terminal.CircuitDefinitionId != definition.Id
                     || !resolvedById.ContainsKey(terminal.ComponentInstanceId))
                 {
@@ -440,9 +471,11 @@ public static class Compiler
 
         foreach (var resolved in resolvedInstances)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (var port in resolved.Schema.Ports.Where(
                 item => item.Direction == PortDirection.Input))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var terminal = new TerminalKey(resolved.Instance.Id, port.Id);
                 if (!netByTerminal.ContainsKey(terminal))
                 {
@@ -466,8 +499,10 @@ public static class Compiler
         CompilationRequest request,
         CircuitDefinition definition,
         ResolvedInstance[] resolvedInstances,
-        Dictionary<TerminalKey, int> netByTerminal)
+        Dictionary<TerminalKey, int> netByTerminal,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var path = new HierarchyPath(request.EntryCircuitDefinitionId, []);
         var orderedNets = definition.Nets
             .OrderBy(net => net.Id.Value, StringComparer.Ordinal)
@@ -475,15 +510,22 @@ public static class Compiler
         var evaluatorOrdinalById = resolvedInstances.ToDictionary(
             item => item.Instance.Id,
             item => item.Ordinal);
+        var inputTerminals = resolvedInstances
+            .SelectMany(resolved => resolved.Schema.Ports
+                .Where(port => port.Direction == PortDirection.Input)
+                .Select(port => new TerminalKey(resolved.Instance.Id, port.Id)))
+            .ToHashSet();
 
         var drivers = new List<SimulationDriver>();
         var driverSources = new List<SourceMapEntry>();
         var driverByTerminal = new Dictionary<TerminalKey, int>();
         foreach (var resolved in resolvedInstances)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (var port in resolved.Schema.Ports.Where(
                 item => item.Direction == PortDirection.Output))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var terminal = new TerminalKey(resolved.Instance.Id, port.Id);
                 var driverOrdinal = drivers.Count;
                 var width = GetPortWidth(resolved.Instance, port);
@@ -512,6 +554,7 @@ public static class Compiler
         var evaluatorInputSources = new List<EvaluatorInputSourceMapEntry>();
         foreach (var resolved in resolvedInstances)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var inputPorts = resolved.Schema.Ports
                 .Where(port => port.Direction == PortDirection.Input)
                 .ToArray();
@@ -542,6 +585,7 @@ public static class Compiler
                         resolved.Instance.Id)));
             for (var inputOrdinal = 0; inputOrdinal < inputPorts.Length; inputOrdinal++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 evaluatorInputSources.Add(new EvaluatorInputSourceMapEntry(
                     resolved.Ordinal,
                     inputOrdinal,
@@ -558,6 +602,7 @@ public static class Compiler
         var netSources = new SourceMapEntry[orderedNets.Length];
         for (var netOrdinal = 0; netOrdinal < orderedNets.Length; netOrdinal++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var net = orderedNets[netOrdinal];
             var netDrivers = net.Terminals
                 .Select(terminal => new TerminalKey(
@@ -568,7 +613,9 @@ public static class Compiler
                 .Order()
                 .ToArray();
             var receivers = net.Terminals
-                .Where(terminal => IsInputTerminal(terminal, resolvedInstances))
+                .Where(terminal => inputTerminals.Contains(new TerminalKey(
+                    terminal.ComponentInstanceId,
+                    terminal.PortId)))
                 .Select(terminal => evaluatorOrdinalById[terminal.ComponentInstanceId])
                 .Order()
                 .ToArray();
@@ -586,6 +633,7 @@ public static class Compiler
         var fanoutEvaluators = new List<int>();
         for (var netOrdinal = 0; netOrdinal < simulationNets.Length; netOrdinal++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             fanoutOffsets[netOrdinal] = fanoutEvaluators.Count;
             fanoutEvaluators.AddRange(simulationNets[netOrdinal].ReceiverEvaluatorOrdinals);
         }
@@ -596,15 +644,18 @@ public static class Compiler
             .ToArray();
         foreach (var driver in drivers.Where(item => item.NetOrdinal is not null))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (var receiver in simulationNets[driver.NetOrdinal!.Value]
                 .ReceiverEvaluatorOrdinals)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 adjacency[driver.EvaluatorOrdinal].Add(receiver);
             }
         }
 
         var graphPlan = CompilerGraph.CreatePlan(
-            adjacency.Select(edges => edges.ToArray()).ToArray());
+            adjacency.Select(edges => edges.ToArray()).ToArray(),
+            cancellationToken);
         var simulationIr = new SimulationIr(
             evaluators,
             drivers.ToArray(),
@@ -627,7 +678,11 @@ public static class Compiler
             driverSources.ToArray(),
             netSources,
             sccMemberSources);
-        CompilationArtifactValidator.Validate(simulationIr, sourceMap);
+        CompilationArtifactValidator.Validate(
+            simulationIr,
+            sourceMap,
+            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         var key = new CompilationArtifactKey(
             request.ProjectRevision.RevisionId,
             request.EntryCircuitDefinitionId,
@@ -638,17 +693,6 @@ public static class Compiler
             simulationIr,
             sourceMap,
             request.ProjectRevision);
-    }
-
-    private static bool IsInputTerminal(
-        InstanceTerminalReference terminal,
-        ResolvedInstance[] resolvedInstances)
-    {
-        var instance = resolvedInstances.Single(
-            item => item.Instance.Id == terminal.ComponentInstanceId);
-        return instance.Schema.Ports.Any(port =>
-            port.Direction == PortDirection.Input
-            && string.Equals(port.Id, terminal.PortId, StringComparison.Ordinal));
     }
 
     private static LogicVector? GetInitialValue(ResolvedInstance instance)
@@ -767,7 +811,9 @@ public static class Compiler
                 request.Policy.PolicyId,
                 request.Policy.PolicyRevision),
             observations
-                .OrderBy(row => row.Key)
+                .OrderBy(
+                    row => DimensionToken(row.Key),
+                    StringComparer.Ordinal)
                 .Select(row => new ObservedProjectScaleDimension(row.Key, row.Value))
                 .ToArray(),
             breach);
@@ -785,6 +831,13 @@ public static class Compiler
             _ => throw new InvalidOperationException(
                 "The Project Scale Dimension variant is undefined."),
         };
+    }
+
+    private static bool IsFatal(Exception exception)
+    {
+        return exception is OutOfMemoryException
+            or StackOverflowException
+            or AccessViolationException;
     }
 
     private readonly record struct TerminalKey(

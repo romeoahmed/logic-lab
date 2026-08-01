@@ -124,6 +124,8 @@ internal static class CompilerCanonicalizer
                     l.Value.CompareTo(r.Value),
                 (CompilerDigestValue l, CompilerDigestValue r) =>
                     string.CompareOrdinal(l.Value, r.Value),
+                (CompilerCorrelationTokenValue l, CompilerCorrelationTokenValue r) =>
+                    string.CompareOrdinal(l.Value, r.Value),
                 (CompilerContractKeyValue l, CompilerContractKeyValue r) =>
                     CompareContractKeys(l.Value, r.Value),
                 _ => throw new InvalidOperationException(
@@ -188,12 +190,32 @@ internal static class CompilerCanonicalizer
             CompilationSource left,
             CompilationSource right)
         {
+            var locationVariantComparison = CircuitLocationVariant(left.Identity)
+                .CompareTo(CircuitLocationVariant(right.Identity));
+            if (locationVariantComparison != 0)
+            {
+                return locationVariantComparison;
+            }
+
+            var circuitComparison = string.CompareOrdinal(
+                GetCircuitDefinitionId(left.Identity).Value,
+                GetCircuitDefinitionId(right.Identity).Value);
+            if (circuitComparison != 0)
+            {
+                return circuitComparison;
+            }
+
             var pathComparison = CompareHierarchyPaths(
                 left.HierarchyPath,
                 right.HierarchyPath);
-            return pathComparison != 0
-                ? pathComparison
-                : CompareIdentities(left.Identity, right.Identity);
+            if (pathComparison != 0)
+            {
+                return pathComparison;
+            }
+
+            return left.Identity is CircuitRootSourceIdentity
+                ? 0
+                : CompareCircuitEntityIdentities(left.Identity, right.Identity);
         }
 
         private static int CompareHierarchyPaths(
@@ -231,65 +253,89 @@ internal static class CompilerCanonicalizer
             return left.Steps.Count.CompareTo(right.Steps.Count);
         }
 
-        private static int CompareIdentities(
+        private static int CompareCircuitEntityIdentities(
             AuthoredSourceIdentity left,
             AuthoredSourceIdentity right)
         {
-            var kindComparison = IdentityKind(left).CompareTo(IdentityKind(right));
+            var kindComparison = CircuitEntityKind(left)
+                .CompareTo(CircuitEntityKind(right));
             if (kindComparison != 0)
             {
                 return kindComparison;
             }
 
-            return (left, right) switch
+            var entityComparison = string.CompareOrdinal(
+                CircuitEntityId(left),
+                CircuitEntityId(right));
+            if (entityComparison != 0)
             {
-                (CircuitRootSourceIdentity l, CircuitRootSourceIdentity r) =>
-                    string.CompareOrdinal(
-                        l.CircuitDefinitionId.Value,
-                        r.CircuitDefinitionId.Value),
-                (ComponentInstanceSourceIdentity l, ComponentInstanceSourceIdentity r) =>
-                    CompareCircuitThenEntity(
-                        l.CircuitDefinitionId.Value,
-                        l.ComponentInstanceId.Value,
-                        r.CircuitDefinitionId.Value,
-                        r.ComponentInstanceId.Value),
-                (InstancePortSourceIdentity l, InstancePortSourceIdentity r) =>
-                    CompareInstancePorts(l, r),
-                (NetSourceIdentity l, NetSourceIdentity r) =>
-                    CompareCircuitThenEntity(
-                        l.CircuitDefinitionId.Value,
-                        l.NetId.Value,
-                        r.CircuitDefinitionId.Value,
-                        r.NetId.Value),
+                return entityComparison;
+            }
+
+            return CompareOptionalPortIds(
+                (left as InstancePortSourceIdentity)?.PortId,
+                (right as InstancePortSourceIdentity)?.PortId);
+        }
+
+        private static int CircuitLocationVariant(AuthoredSourceIdentity identity)
+        {
+            return identity switch
+            {
+                CircuitRootSourceIdentity => 0,
+                ComponentInstanceSourceIdentity or
+                    InstancePortSourceIdentity or
+                    NetSourceIdentity => 1,
                 _ => throw new InvalidOperationException(
-                    "The circuit Authored Source Identity variant is undefined."),
+                    "The circuit Source Location variant is undefined."),
             };
         }
 
-        private static int CompareInstancePorts(
-            InstancePortSourceIdentity left,
-            InstancePortSourceIdentity right)
+        private static CircuitDefinitionId GetCircuitDefinitionId(
+            AuthoredSourceIdentity identity)
         {
-            var instanceComparison = CompareCircuitThenEntity(
-                left.CircuitDefinitionId.Value,
-                left.ComponentInstanceId.Value,
-                right.CircuitDefinitionId.Value,
-                right.ComponentInstanceId.Value);
-            return instanceComparison != 0
-                ? instanceComparison
-                : string.CompareOrdinal(left.PortId, right.PortId);
+            return identity switch
+            {
+                CircuitRootSourceIdentity source => source.CircuitDefinitionId,
+                ComponentInstanceSourceIdentity source => source.CircuitDefinitionId,
+                InstancePortSourceIdentity source => source.CircuitDefinitionId,
+                NetSourceIdentity source => source.CircuitDefinitionId,
+                _ => throw new InvalidOperationException(
+                    "The circuit Source Identity variant is undefined."),
+            };
         }
 
-        private static int CompareCircuitThenEntity(
-            string leftCircuit,
-            string leftEntity,
-            string rightCircuit,
-            string rightEntity)
+        private static int CircuitEntityKind(AuthoredSourceIdentity identity)
         {
-            var circuitComparison = string.CompareOrdinal(leftCircuit, rightCircuit);
-            return circuitComparison != 0
-                ? circuitComparison
-                : string.CompareOrdinal(leftEntity, rightEntity);
+            return identity switch
+            {
+                ComponentInstanceSourceIdentity or InstancePortSourceIdentity => 0,
+                NetSourceIdentity => 1,
+                _ => throw new InvalidOperationException(
+                    "The circuit entity Source Identity variant is undefined."),
+            };
+        }
+
+        private static string CircuitEntityId(AuthoredSourceIdentity identity)
+        {
+            return identity switch
+            {
+                ComponentInstanceSourceIdentity source =>
+                    source.ComponentInstanceId.Value,
+                InstancePortSourceIdentity source => source.ComponentInstanceId.Value,
+                NetSourceIdentity source => source.NetId.Value,
+                _ => throw new InvalidOperationException(
+                    "The circuit entity Source Identity variant is undefined."),
+            };
+        }
+
+        private static int CompareOptionalPortIds(string? left, string? right)
+        {
+            if (left is null)
+            {
+                return right is null ? 0 : -1;
+            }
+
+            return right is null ? 1 : string.CompareOrdinal(left, right);
         }
 
         private static int CompareContractKeys(
@@ -331,7 +377,8 @@ internal static class CompilerCanonicalizer
                 CompilerStableTokenValue => 0,
                 CompilerUnsignedDecimalValue => 1,
                 CompilerDigestValue => 2,
-                CompilerContractKeyValue => 3,
+                CompilerCorrelationTokenValue => 3,
+                CompilerContractKeyValue => 4,
                 _ => throw new InvalidOperationException(
                     "The Compiler Diagnostic Value variant is undefined."),
             };
@@ -345,19 +392,6 @@ internal static class CompilerCanonicalizer
                 CompilerCircuitLocation => 1,
                 _ => throw new InvalidOperationException(
                     "The Compiler Source Location variant is undefined."),
-            };
-        }
-
-        private static int IdentityKind(AuthoredSourceIdentity identity)
-        {
-            return identity switch
-            {
-                CircuitRootSourceIdentity => 0,
-                ComponentInstanceSourceIdentity => 1,
-                InstancePortSourceIdentity => 2,
-                NetSourceIdentity => 3,
-                _ => throw new InvalidOperationException(
-                    "The circuit Authored Source Identity variant is undefined."),
             };
         }
     }
