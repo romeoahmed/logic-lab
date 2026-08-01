@@ -1,0 +1,98 @@
+.scene {
+    min-height: 25rem;
+    padding: clamp(1rem, 2vw, 1.5rem);
+    border: 1px solid var(--lab-border);
+    border-radius: 1rem;
+    background:
+        linear-gradient(var(--lab-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--lab-grid) 1px, transparent 1px),
+        var(--lab-canvas);
+    background-size: 24px 24px;
+}
+
+.scene-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.scene-heading h2,
+.scene-heading p {
+    margin: 0;
+}
+
+.eyebrow {
+    color: var(--lab-accent);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.scene-count,
+.empty-state,
+.component-card p,
+.connection-list small {
+    color: var(--lab-muted);
+}
+
+.component-list,
+.connection-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.component-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(9rem, 1fr));
+    gap: clamp(0.75rem, 2vw, 2rem);
+}
+
+.component-card {
+    min-height: 9rem;
+    padding: 1rem;
+    border: 1px solid var(--lab-border-strong);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--lab-panel) 92%, transparent);
+    box-shadow: 0 14px 30px rgb(4 12 25 / 10%);
+}
+
+.component-card h3,
+.component-card p {
+    margin-top: 0;
+}
+
+.component-card ul {
+    padding-left: 1.25rem;
+}
+
+.connections-heading {
+    margin: 2rem 0 0.65rem;
+}
+
+.connection-list {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.connection-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.65rem 0.8rem;
+    border-left: 3px solid var(--lab-accent);
+    background: var(--lab-panel);
+}
+
+@media (max-width: 720px) {
+    .component-list {
+        grid-template-columns: 1fr;
+    }
+
+    .scene-heading {
+        align-items: start;
+        flex-direction: column;
+    }
+}

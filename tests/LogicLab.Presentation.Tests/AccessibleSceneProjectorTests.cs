@@ -1,0 +1,128 @@
+using LogicLab.Domain;
+using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
+using LogicLab.Presentation.Scene;
+
+namespace LogicLab.Presentation.Tests;
+
+public sealed class AccessibleSceneProjectorTests
+{
+    private static readonly string[] ExpectedLabels = ["Input", "NOT", "Output"];
+
+    [Test]
+    public async Task Project_CompleteCircuit_ExposesReachableSemanticTopology()
+    {
+        var revision = CreateCompleteCircuit();
+
+        var scene = AccessibleSceneProjector.Project(revision);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(scene.DisplayName).IsEqualTo("Main");
+            await Assert.That(scene.Components).Count().IsEqualTo(3);
+            await Assert.That(scene.Components.Select(item => item.Label))
+                .IsEquivalentTo(ExpectedLabels);
+            await Assert.That(scene.Components.SelectMany(item => item.Ports)).Count()
+                .IsEqualTo(4);
+            await Assert.That(scene.Connections).Count().IsEqualTo(2);
+            await Assert.That(scene.Connections.All(item => item.Terminals.Count == 2))
+                .IsTrue();
+            await Assert.That(scene.Components.All(item =>
+                item.Source.CircuitDefinitionId == scene.CircuitDefinitionId))
+                .IsTrue();
+            await Assert.That(scene.Connections.All(item =>
+                item.Source.CircuitDefinitionId == scene.CircuitDefinitionId))
+                .IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task Project_ComponentMove_PreservesElectricalTerminalMembership()
+    {
+        var revision = CreateCompleteCircuit();
+        var before = AccessibleSceneProjector.Project(revision);
+        var logicNot = revision.Document.EntryCircuitDefinition.ComponentInstances
+            .Single(instance => instance.ContractKey.ContractId == "logic.not");
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new MoveComponentInstancesIntent(
+                revision.Document.EntryCircuitDefinitionId,
+                [new ComponentMove(logicNot.Id, new ComponentPlacement(new GridPoint(20, 10)))])));
+
+        var after = AccessibleSceneProjector.Project(revision);
+
+        await Assert.That(after.Connections.SelectMany(item => item.Terminals))
+            .IsEquivalentTo(before.Connections.SelectMany(item => item.Terminals));
+        await Assert.That(after.Components.Single(item =>
+            item.Source.ComponentInstanceId == logicNot.Id).Placement.Origin)
+            .IsEqualTo(new GridPoint(20, 10));
+    }
+
+    private static ProjectRevision CreateCompleteCircuit()
+    {
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "Presentation fixture",
+            LibrarySnapshot.Core,
+            new SymbolProfileReference(
+                "TeachingMixed",
+                "1.0.0",
+                IndicationConvention.Negation),
+            "Main"))).Revision;
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        revision = Place(revision, "source.input", [
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+            new ComponentParameterBinding(
+                "initialValue",
+                new LogicVectorParameterValue([LogicValue.Zero])),
+        ], new GridPoint(0, 0));
+        var input = Find(revision, "source.input");
+        revision = Place(revision, "logic.not", [
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+        ], new GridPoint(4, 0));
+        var logicNot = Find(revision, "logic.not");
+        revision = Place(revision, "sink.output", [
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+            new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
+        ], new GridPoint(8, 0));
+        var output = Find(revision, "sink.output");
+        revision = Connect(revision,
+            new InstanceTerminalReference(definitionId, input.Id, "Q"),
+            new InstanceTerminalReference(definitionId, logicNot.Id, "A"));
+        return Connect(revision,
+            new InstanceTerminalReference(definitionId, logicNot.Id, "Q"),
+            new InstanceTerminalReference(definitionId, output.Id, "D"));
+    }
+
+    private static ProjectRevision Place(
+        ProjectRevision revision,
+        string contractId,
+        ComponentParameterBinding[] parameters,
+        GridPoint origin)
+    {
+        return Commit(ProjectEditor.Apply(
+            revision,
+            new PlaceComponentInstanceIntent(
+                revision.Document.EntryCircuitDefinitionId,
+                new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
+                parameters,
+                new ComponentPlacement(origin))));
+    }
+
+    private static ProjectRevision Connect(
+        ProjectRevision revision,
+        params InstanceTerminalReference[] terminals)
+    {
+        return Commit(ProjectEditor.Apply(revision, new ConnectTerminalsIntent(terminals)));
+    }
+
+    private static ComponentInstance Find(ProjectRevision revision, string contractId)
+    {
+        return revision.Document.EntryCircuitDefinition.ComponentInstances
+            .Single(instance => instance.ContractKey.ContractId == contractId);
+    }
+
+    private static ProjectRevision Commit(EditOutcome outcome)
+    {
+        return ((EditCommitted)outcome).Revision;
+    }
+}

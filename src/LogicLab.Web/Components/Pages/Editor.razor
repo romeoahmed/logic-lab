@@ -1,0 +1,234 @@
+@page "/editor"
+@rendermode InteractiveServer
+@inject EditorWorkspace Workspace
+
+<PageTitle>Sandbox Workbench</PageTitle>
+
+<div class="workbench-shell">
+    <header class="workbench-heading">
+        <div>
+            <p class="eyebrow">Slice 06 · first vertical tracer</p>
+            <h1>Sandbox Workbench</h1>
+        </div>
+        <p>Author a one-bit input–NOT–output circuit, compile it, then advance one logical step.</p>
+    </header>
+
+    <WorkbenchCommandBar State="ViewState"
+                         OnCreate="CreateProject"
+                         OnAuthor="AuthorCircuit"
+                         OnCompile="Compile"
+                         OnCreateSession="CreateSimulationSession"
+                         OnScheduleStimulus="ScheduleStimulus"
+                         OnStep="Step" />
+
+    <div class="workbench-grid">
+        <AccessibleCircuitScene Scene="Scene" />
+        <ProbePanel Simulation="Projection?.Simulation" />
+    </div>
+
+    <WorkbenchStatusStrip Message="@Status" />
+</div>
+
+@code {
+    private WorkspaceProjection? Projection { get; set; }
+
+    private AccessibleSceneProjection? Scene { get; set; }
+
+    private bool IsInteractive { get; set; }
+
+    private bool StimulusIsScheduled { get; set; }
+
+    private string Status { get; set; } = "Connecting to the interactive workbench…";
+
+    private WorkbenchViewState ViewState => !IsInteractive
+        ? WorkbenchViewState.StaticShell
+        : Projection is null
+            ? WorkbenchViewState.ReadyToCreate
+            : WorkbenchViewState.From(Projection, StimulusIsScheduled);
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && RendererInfo.IsInteractive)
+        {
+            IsInteractive = true;
+            Status = "Ready to create a Sandbox Project.";
+            StateHasChanged();
+        }
+    }
+
+    private void CreateProject()
+    {
+        var outcome = Workspace.Open(
+            new CreateSandbox("Sandbox Project", "Main"),
+            CancellationToken.None);
+        if (outcome is not WorkspaceOpened opened)
+        {
+            Status = $"Project creation rejected: {((WorkspaceOpenRejected)outcome).Code}.";
+            return;
+        }
+
+        Projection = opened.Projection;
+        ProjectScene();
+        Status = "Sandbox Project created. Author the sample circuit.";
+    }
+
+    private void AuthorCircuit()
+    {
+        if (Projection is null)
+        {
+            return;
+        }
+
+        var definitionId = Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
+        if (!Apply(new PlaceComponentInstanceIntent(
+                definitionId,
+                Contract("source.input"),
+                [
+                    new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                    new ComponentParameterBinding(
+                        "initialValue",
+                        new LogicVectorParameterValue([LogicValue.Zero])),
+                ],
+                new ComponentPlacement(new GridPoint(0, 0)),
+                "Input")))
+        {
+            return;
+        }
+
+        var input = Find("source.input");
+        if (!Apply(new PlaceComponentInstanceIntent(
+                definitionId,
+                Contract("logic.not"),
+                [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
+                new ComponentPlacement(new GridPoint(4, 0)),
+                "NOT")))
+        {
+            return;
+        }
+
+        var logicNot = Find("logic.not");
+        if (!Apply(new PlaceComponentInstanceIntent(
+                definitionId,
+                Contract("sink.output"),
+                [
+                    new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                    new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
+                ],
+                new ComponentPlacement(new GridPoint(8, 0)),
+                "Output")))
+        {
+            return;
+        }
+
+        var output = Find("sink.output");
+        if (!Apply(new ConnectTerminalsIntent([
+                Terminal(definitionId, input.Id, "Q"),
+                Terminal(definitionId, logicNot.Id, "A"),
+            ]))
+            || !Apply(new ConnectTerminalsIntent([
+                Terminal(definitionId, logicNot.Id, "Q"),
+                Terminal(definitionId, output.Id, "D"),
+            ])))
+        {
+            return;
+        }
+
+        Status = "Circuit authored. Compile the current Project Revision.";
+    }
+
+    private void Compile()
+    {
+        var outcome = Execute(new RequestCompilation(Projection!.WorkspaceId));
+        Status = outcome is CompilationPublished
+            ? "Compilation Artifact published atomically."
+            : $"Compilation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+    }
+
+    private void CreateSimulationSession()
+    {
+        var outcome = Execute(new CreateSession(Projection!.WorkspaceId));
+        Status = outcome is SimulationSessionCreated
+            ? "Simulation Session created at Logical Time 0."
+            : $"Session creation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+    }
+
+    private void ScheduleStimulus()
+    {
+        var input = Find("source.input");
+        var logicalTime = checked(Projection!.Simulation!.LogicalTime + 1);
+        var outcome = Execute(new ScheduleInputStimulus(
+            Projection.WorkspaceId,
+            logicalTime,
+            [new InputStimulusAssignment(input.Id, [LogicValue.One])]));
+        StimulusIsScheduled = outcome is StimulusScheduled;
+        Status = StimulusIsScheduled
+            ? $"Input 1 scheduled for Logical Time {logicalTime}."
+            : $"Stimulus rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+    }
+
+    private void Step()
+    {
+        var outcome = Execute(new StepSession(Projection!.WorkspaceId));
+        StimulusIsScheduled = false;
+        Status = outcome is SessionStepped stepped
+            ? $"Step committed at Logical Time {stepped.LogicalTime}; output probe is now 0."
+            : $"Step rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+    }
+
+    private bool Apply(EditIntent intent)
+    {
+        var outcome = Execute(new ApplyEdit(Projection!.WorkspaceId, intent));
+        if (outcome is AuthoringCommitted)
+        {
+            return true;
+        }
+
+        Status = $"Authoring rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+        return false;
+    }
+
+    private WorkspaceCommandOutcome Execute(WorkspaceCommand command)
+    {
+        var outcome = Workspace.Execute(command, CancellationToken.None);
+        Refresh();
+        return outcome;
+    }
+
+    private void Refresh()
+    {
+        if (Projection is null)
+        {
+            return;
+        }
+
+        var read = Workspace.Read(Projection.WorkspaceId, CancellationToken.None);
+        Projection = ((ProjectionSnapshot)read).Projection;
+        ProjectScene();
+    }
+
+    private void ProjectScene()
+    {
+        Scene = Projection is null
+            ? null
+            : AccessibleSceneProjector.Project(Projection.ProjectRevision);
+    }
+
+    private ComponentInstance Find(string contractId)
+    {
+        return Projection!.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances
+            .Single(instance => instance.ContractKey.ContractId == contractId);
+    }
+
+    private static ComponentContractKey Contract(string contractId)
+    {
+        return new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId);
+    }
+
+    private static InstanceTerminalReference Terminal(
+        CircuitDefinitionId definitionId,
+        ComponentInstanceId componentId,
+        string portId)
+    {
+        return new InstanceTerminalReference(definitionId, componentId, portId);
+    }
+}

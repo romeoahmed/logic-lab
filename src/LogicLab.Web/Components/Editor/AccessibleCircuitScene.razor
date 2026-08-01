@@ -1,0 +1,64 @@
+@using LogicLab.Presentation.Scene
+
+<section class="scene" aria-labelledby="circuit-scene-heading">
+    <div class="scene-heading">
+        <div>
+            <p class="eyebrow">Accessible semantic scene</p>
+            <h2 id="circuit-scene-heading">@(Scene?.DisplayName ?? "Circuit")</h2>
+        </div>
+        @if (Scene is not null)
+        {
+            <span class="scene-count">@Scene.Components.Count components · @Scene.Connections.Count nets</span>
+        }
+    </div>
+
+    @if (Scene is null)
+    {
+        <p class="empty-state">Create a Sandbox Project to begin.</p>
+    }
+    else if (Scene.Components.Count == 0)
+    {
+        <p class="empty-state">The project is ready. Author the narrow input–NOT–output circuit.</p>
+    }
+    else
+    {
+        <ol class="component-list" aria-label="Circuit components">
+            @foreach (var component in Scene.Components)
+            {
+                <li data-component="@component.Source.ComponentInstanceId.Value">
+                    <article class="component-card">
+                        <h3>@component.Label</h3>
+                        <p>Grid @component.Placement.Origin.X, @component.Placement.Origin.Y</p>
+                        <ul aria-label="@($"{component.Label} ports")">
+                            @foreach (var port in component.Ports)
+                            {
+                                <li><strong>@port.Label</strong> · @port.Direction</li>
+                            }
+                        </ul>
+                    </article>
+                </li>
+            }
+        </ol>
+
+        <h3 class="connections-heading">Connections</h3>
+        <ol class="connection-list" aria-label="Electrical connections">
+            @foreach (var connection in Scene.Connections)
+            {
+                <li data-connection="@connection.Source.NetId.Value">
+                    <span>@TerminalPath(connection)</span>
+                    <small>@connection.Width bit</small>
+                </li>
+            }
+        </ol>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public AccessibleSceneProjection? Scene { get; set; }
+
+    private static string TerminalPath(AccessibleConnectionProjection connection)
+    {
+        return string.Join(" → ", connection.Terminals.Select(terminal => terminal.PortId));
+    }
+}
