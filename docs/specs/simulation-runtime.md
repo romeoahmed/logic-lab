@@ -10,7 +10,7 @@ Simulation Runtime owns opaque mutable Session storage behind this synchronous C
 
 ```text
 Open(OpenSimulationRequest, CancellationToken)
-  -> SimulationOpened | SimulationOpenRejected
+  -> SimulationOpened | InitialProbeBindingsInvalid | SimulationOpenRejected
 
 Execute(SimulationSessionHandle, SimulationCommand, CancellationToken)
   -> SimulationCommandOutcome
@@ -47,6 +47,17 @@ SimulationTraceWindowRequest
 The outcome families are closed:
 
 ```text
+SimulationOpenOutcome =
+    SimulationOpened { ... }
+  | InitialProbeBindingsInvalid {
+      rule: unresolvedSource | duplicateResolvedNet,
+      bindingIndex,
+      conflictingBindingIndex?, Diagnostics[], SimulationWorkEvidence
+    }
+  | SimulationOpenRejected {
+      reason, Diagnostics[], SimulationWorkEvidence
+    }
+
 SimulationCommandOutcome =
     StimulusBatchScheduled {
       SessionVersion, scheduledLogicalTime, stableSequence
@@ -96,7 +107,7 @@ SimulationReadOutcome =
   | SimulationReadFailed { reason, Diagnostics[] }
 ```
 
-`SimulationOpened` contains the new opaque handle, Session ID/version, Compilation Artifact Key, Logical Time, ordered allocated Probe IDs, Trace cursor, ordered Diagnostics, and `SimulationWorkEvidence`. `SimulationOpenRejected` contains one exact failure reason, ordered Diagnostics, and safe `SimulationWorkEvidence` but no handle. Evidence has this exact shape:
+`SimulationOpened` contains the new opaque handle, Session ID/version, Compilation Artifact Key, Logical Time, ordered allocated Probe IDs, Trace cursor, ordered Diagnostics, and `SimulationWorkEvidence`. `InitialProbeBindingsInvalid` reports a caller precondition failure without a handle: `bindingIndex` identifies the unresolved or duplicate binding, and `conflictingBindingIndex` identifies the earlier binding only for `duplicateResolvedNet`. `SimulationOpenRejected` is reserved for one exact Runtime failure reason and also contains no handle. Both failure outcomes contain ordered Diagnostics and safe `SimulationWorkEvidence`. Evidence has this exact shape:
 
 ```text
 SimulationWorkEvidence
@@ -114,7 +125,7 @@ SimulationWorkObservationV1
 
 Observations contain at most one row per `(policy, dimension)`, record the maximum reached before termination, and order all Simulation rows by their policy dimension order before all Trace rows by their policy dimension order. `AdvanceFailed.reason` and `SimulationCommandFailed.reason` are exactly `zero_time_oscillation | simulation_resource_limit | simulation_cancelled | simulation_infrastructure_failure | simulation_internal_defect`; only operations that can settle a candidate can return `zero_time_oscillation`. Their `policyEvidence` is present only for `simulation_resource_limit` and contains the matching policy ID/revision, dimension, and observed work. `SimulationWorkEvidence.policyLimitBreach` follows the same rule for an open rejection and is otherwise null. `SimulationReadFailed.reason` is exactly `simulation_cancelled | simulation_infrastructure_failure | simulation_internal_defect`. Open rejection uses those failure reasons when initial settlement encounters them. Every array is present and non-null, even when empty.
 
-Only the outcome variants valid for the supplied command or query can return. `AdvanceToNextQuiescentBoundary` reports its failures only through `AdvanceFailed`; the other commands report infrastructure/cancellation/defect failure only through `SimulationCommandFailed`. Application maps `StimulusBatchInvalid` and `ProbeBindingsInvalid` to `session_precondition_failed`, `HotSwapIncompatible` to `hot_swap_incompatible`, and the remaining reasons one-to-one through the [Diagnostics V1 reason registry](./diagnostics-v1.md#11-outcome-reason-registry). A family never changes shape according to nullable success data. Application validates and translates the Workspace-owned `SessionConfigurationV1` and `TraceWindowRequest` into the Engine-owned request types above, and translates the result records back to the [Editor Workspace Contract](../contracts/editor-workspace.md#7-trace-transfer); Engine never references Application contract types. Read returns one immutable Session snapshot or normalized Runtime Trace outcome, never Runtime storage. Close is idempotent and releases all handle-owned storage.
+Only the outcome variants valid for the supplied command or query can return. `AdvanceToNextQuiescentBoundary` reports its failures only through `AdvanceFailed`; the other commands report infrastructure/cancellation/defect failure only through `SimulationCommandFailed`. Application maps `InitialProbeBindingsInvalid`, `StimulusBatchInvalid`, and `ProbeBindingsInvalid` to `session_precondition_failed`, `HotSwapIncompatible` to `hot_swap_incompatible`, and the remaining reasons one-to-one through the [Diagnostics V1 reason registry](./diagnostics-v1.md#11-outcome-reason-registry). A family never changes shape according to nullable success data. Application validates and translates the Workspace-owned `SessionConfigurationV1` and `TraceWindowRequest` into the Engine-owned request types above, and translates the result records back to the [Editor Workspace Contract](../contracts/editor-workspace.md#7-trace-transfer); Engine never references Application contract types. Read returns one immutable Session snapshot or normalized Runtime Trace outcome, never Runtime storage. Close is idempotent and releases all handle-owned storage.
 
 A handle is an in-process Runtime value, not a serialized ID, authorization capability, or public seam. Application owns it and must serialize `Open`/`Execute`/`Read`/`Close` per handle through the Session lane; concurrent use of one handle or use after Close violates the interface. Calls on different handles may run concurrently. Runtime creates no tasks, timers, background work queues, or dependency-injection scopes and knows no Run Generation or wall-clock pacing. Application implements Run by scheduling repeated `AdvanceToNextQuiescentBoundary` calls and implements Pause between atomic attempts.
 
@@ -218,6 +229,8 @@ Work limits still protect the host from oversized circuits or implementation def
 ## 3. Session creation and event calendar
 
 `SimulationSessionConfiguration` contains the exact Simulation Policy ID/revision, Trace Policy ID/revision, and ordered initial Probe source bindings. Each binding is stable source identity plus a fully scoped Hierarchy Path; it contains no Probe ID. Opening a Session allocates one fresh Session-scoped Probe ID per source and returns the IDs in source order. Restart opens a new Session, retires every old Probe ID, and allocates a fresh ordered set even when the requested sources are identical. The configuration contains no scheduler algorithm, packed representation, wall-clock pacing, or omitted-state option.
+
+Every initial Probe source must resolve to exactly one Net in the supplied Compilation Artifact, and no two initial bindings may resolve to the same Net. Violations return `InitialProbeBindingsInvalid`; they are caller precondition failures, never Runtime internal defects.
 
 Session creation begins at Logical Time zero:
 
