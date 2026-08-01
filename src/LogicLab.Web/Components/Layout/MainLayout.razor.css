@@ -1,63 +1,62 @@
 .site-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 4.5rem;
-    padding: 0 clamp(1rem, 4vw, 4rem);
-    border-bottom: 1px solid var(--ll-border);
-    background: color-mix(in srgb, var(--ll-bench) 92%, transparent);
-    backdrop-filter: blur(18px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-block-size: 4.5rem;
+  padding: 0 clamp(1rem, 4vw, 4rem);
+  border-bottom: 1px solid var(--ll-border);
+  background: color-mix(in oklab, var(--ll-bench) 92%, transparent);
+  backdrop-filter: blur(18px);
 }
 
 .brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.7rem;
-    color: var(--ll-ink);
-    font-weight: 750;
-    text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: var(--ll-ink);
+  font-weight: 750;
+  text-decoration: none;
 }
 
 .brand-mark {
-    display: grid;
-    width: 2rem;
-    height: 2rem;
-    place-items: center;
-    color: white;
-    background: var(--ll-signal);
-    font-size: 0.75rem;
-    letter-spacing: -0.05em;
+  display: grid;
+  inline-size: 2rem;
+  block-size: 2rem;
+  place-items: center;
+  color: white;
+  background: var(--ll-signal);
+  font-size: 0.75rem;
+  letter-spacing: -0.05em;
 }
 
 .site-header nav a {
-    color: var(--ll-muted);
-    text-decoration: none;
+  color: var(--ll-muted);
+  text-decoration: none;
 }
 
 .site-header nav a:hover,
 .site-header nav a:focus-visible {
-    color: var(--ll-ink);
+  color: var(--ll-ink);
 }
 
 main {
-    min-height: calc(100vh - 4.5rem);
+  min-block-size: calc(100dvh - 4.5rem);
 }
 
 #blazor-error-ui {
-    position: fixed;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    display: none;
-    padding: 0.75rem 1rem;
-    color: #111827;
-    background: #ffe68a;
-    box-shadow: 0 -1px 3px rgb(0 0 0 / 25%);
-    z-index: 1000;
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  display: none;
+  padding: 0.75rem 1rem;
+  color: #111827;
+  background: #ffe68a;
+  box-shadow: 0 -1px 3px rgb(0 0 0 / 25%);
+  z-index: 1000;
 }
 
 #blazor-error-ui .dismiss {
-    position: absolute;
-    right: 0.75rem;
-    cursor: pointer;
+  position: absolute;
+  inset-inline-end: 0.75rem;
+  cursor: pointer;
 }

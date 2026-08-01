@@ -1,55 +1,56 @@
 .workbench-shell {
-    display: grid;
-    gap: 1rem;
-    max-width: 96rem;
-    margin: 0 auto;
-    padding: clamp(1rem, 3vw, 3rem);
+  display: grid;
+  gap: 1rem;
+  max-inline-size: 96rem;
+  margin-block: 0;
+  margin-inline: auto;
+  padding: clamp(1rem, 3vw, 3rem);
 }
 
 .workbench-heading {
-    display: flex;
-    align-items: end;
-    justify-content: space-between;
-    gap: 2rem;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
 }
 
 .workbench-heading h1,
 .workbench-heading p {
-    margin-top: 0;
+  margin-block-start: 0;
 }
 
 .workbench-heading h1 {
-    margin-bottom: 0;
-    font-size: clamp(2.2rem, 5vw, 4.4rem);
-    letter-spacing: -0.055em;
-    line-height: 1;
+  margin-block-end: 0;
+  font-size: clamp(2.2rem, 5vw, 4.4rem);
+  letter-spacing: -0.055em;
+  line-height: 1;
 }
 
 .workbench-heading > p {
-    max-width: 34rem;
-    color: var(--ll-muted);
-    line-height: 1.6;
+  max-inline-size: 34rem;
+  color: var(--ll-muted);
+  line-height: 1.6;
 }
 
 .eyebrow {
-    margin-bottom: 0.65rem;
-    color: var(--ll-signal);
-    font-size: 0.75rem;
-    font-weight: 750;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+  margin-block-end: 0.65rem;
+  color: var(--ll-signal);
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .workbench-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(15rem, 20rem);
-    gap: 1rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 20rem);
+  gap: 1rem;
 }
 
 @media (max-width: 850px) {
-    .workbench-heading,
-    .workbench-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-    }
+  .workbench-heading,
+  .workbench-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
 }

@@ -1,9 +1,11 @@
+using LogicLab.Application.Work;
 using LogicLab.Application.Workspaces;
 using LogicLab.Web.Components;
 using Microsoft.FluentUI.AspNetCore.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddSingleton<WorkCoordinator>();
 builder.Services.AddSingleton<EditorWorkspace>();
 builder.Services.AddFluentUIComponents();
 builder.Services.AddRazorComponents()

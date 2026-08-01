@@ -1,3 +1,4 @@
+using LogicLab.Application.Work;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
@@ -11,6 +12,13 @@ public sealed class EditorWorkspace
 {
     private readonly Lock gate = new();
     private readonly Dictionary<WorkspaceId, WorkspaceState> workspaces = [];
+    private readonly WorkCoordinator workCoordinator;
+
+    public EditorWorkspace(WorkCoordinator workCoordinator)
+    {
+        ArgumentNullException.ThrowIfNull(workCoordinator);
+        this.workCoordinator = workCoordinator;
+    }
 
     public Task<WorkspaceOpenOutcome> OpenAsync(
         OpenWorkspaceRequest request,
@@ -81,34 +89,29 @@ public sealed class EditorWorkspace
             }
         }
 
-        try
+        return command switch
         {
-            await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            return Reject("operation_cancelled");
-        }
-
-        try
-        {
-            return await Task.Run(() => command switch
-            {
-                ApplyEdit apply => Apply(state, apply, cancellationToken),
-                RequestCompilation => Compile(state, cancellationToken),
-                CreateSession => OpenSession(state, cancellationToken),
-                ScheduleInputStimulus schedule => Schedule(
+            ApplyEdit apply => await ExecuteWithGateAsync(
+                state,
+                token => Apply(state, apply, token),
+                cancellationToken).ConfigureAwait(false),
+            RequestCompilation => await workCoordinator.RunCompilationAsync(
+                state.Id,
+                context => ExecuteWithGateAsync(
                     state,
-                    schedule,
-                    cancellationToken),
-                StepSession => Step(state, cancellationToken),
-                _ => Reject("workspace_command_unsupported"),
-            }).ConfigureAwait(false);
-        }
-        finally
-        {
-            state.CommandGate.Release();
-        }
+                    _ => Compile(state, context),
+                    context.CancellationToken),
+                cancellationToken).ConfigureAwait(false),
+            CreateSession or ScheduleInputStimulus or StepSession =>
+                await workCoordinator.RunSessionAsync(
+                    state.Id,
+                    token => ExecuteWithGateAsync(
+                        state,
+                        innerToken => ExecuteSessionCommand(state, command, innerToken),
+                        token),
+                    cancellationToken).ConfigureAwait(false),
+            _ => Reject("workspace_command_unsupported"),
+        };
     }
 
     public async Task<WorkspaceReadOutcome> ReadAsync(
@@ -184,7 +187,7 @@ public sealed class EditorWorkspace
 
     private static WorkspaceCommandOutcome Compile(
         WorkspaceState state,
-        CancellationToken cancellationToken)
+        CompilationWorkContext context)
     {
         if (state.SessionHandle is not null)
         {
@@ -197,7 +200,7 @@ public sealed class EditorWorkspace
                 state.Revision.Document.EntryCircuitDefinitionId,
                 state.Revision.Document.LibrarySnapshot,
                 DevelopmentProjectScalePolicy),
-            cancellationToken);
+            context.CancellationToken);
         if (outcome is CompilationRejected rejected)
         {
             if (string.Equals(
@@ -208,27 +211,82 @@ public sealed class EditorWorkspace
                 return Reject("operation_cancelled");
             }
 
-            state.ProjectionVersion++;
-            state.Artifact = null;
-            state.Compilation = new CompilationProjection(
-                CompilationPublicationStatus.Rejected,
-                null,
-                rejected.Diagnostics.Select(item => item.Code).ToArray());
-            return Reject(
-                "compilation_rejected",
-                state.Compilation.DiagnosticCodes);
+            WorkspaceCommandOutcome? published = null;
+            var diagnosticCodes = rejected.Diagnostics.Select(item => item.Code).ToArray();
+            if (!context.TryPublish(() =>
+                {
+                    state.ProjectionVersion++;
+                    state.Artifact = null;
+                    state.Compilation = new CompilationProjection(
+                        CompilationPublicationStatus.Rejected,
+                        null,
+                        diagnosticCodes);
+                    published = Reject("compilation_rejected", diagnosticCodes);
+                }))
+            {
+                return Reject("operation_cancelled");
+            }
+
+            return published!;
         }
 
         var succeeded = (CompilationSucceeded)outcome;
-        state.ProjectionVersion++;
-        state.Artifact = succeeded.Artifact;
-        state.Compilation = new CompilationProjection(
-            CompilationPublicationStatus.Published,
-            succeeded.Artifact.Key,
-            succeeded.Diagnostics.Select(item => item.Code).ToArray());
-        return new CompilationPublished(
-            succeeded.Artifact.Key,
-            state.ProjectionVersion);
+        WorkspaceCommandOutcome? publication = null;
+        if (!context.TryPublish(() =>
+            {
+                state.ProjectionVersion++;
+                state.Artifact = succeeded.Artifact;
+                state.Compilation = new CompilationProjection(
+                    CompilationPublicationStatus.Published,
+                    succeeded.Artifact.Key,
+                    succeeded.Diagnostics.Select(item => item.Code).ToArray());
+                publication = new CompilationPublished(
+                    succeeded.Artifact.Key,
+                    state.ProjectionVersion);
+            }))
+        {
+            return Reject("operation_cancelled");
+        }
+
+        return publication!;
+    }
+
+    private static WorkspaceCommandOutcome ExecuteSessionCommand(
+        WorkspaceState state,
+        WorkspaceCommand command,
+        CancellationToken cancellationToken)
+    {
+        return command switch
+        {
+            CreateSession => OpenSession(state, cancellationToken),
+            ScheduleInputStimulus schedule => Schedule(state, schedule, cancellationToken),
+            StepSession => Step(state, cancellationToken),
+            _ => Reject("workspace_command_unsupported"),
+        };
+    }
+
+    private static async ValueTask<WorkspaceCommandOutcome> ExecuteWithGateAsync(
+        WorkspaceState state,
+        Func<CancellationToken, WorkspaceCommandOutcome> operation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return Reject("operation_cancelled");
+        }
+
+        try
+        {
+            return operation(cancellationToken);
+        }
+        finally
+        {
+            state.CommandGate.Release();
+        }
     }
 
     private static WorkspaceCommandOutcome OpenSession(
