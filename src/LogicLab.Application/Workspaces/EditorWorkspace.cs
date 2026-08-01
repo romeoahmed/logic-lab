@@ -28,13 +28,17 @@ public sealed class EditorWorkspace
         if (cancellationToken.IsCancellationRequested)
         {
             return Task.FromResult<WorkspaceOpenOutcome>(
-                new WorkspaceOpenRejected("operation_cancelled", []));
+                new WorkspaceOpenRejected(
+                    WorkspaceOutcomeReasons.WorkspaceCancelled,
+                    []));
         }
 
         if (request is not CreateSandbox create)
         {
             return Task.FromResult<WorkspaceOpenOutcome>(
-                new WorkspaceOpenRejected("workspace_request_unsupported", []));
+                new WorkspaceOpenRejected(
+                    WorkspaceOutcomeReasons.WorkspaceInternalDefect,
+                    []));
         }
 
         var genesis = ProjectEditor.Begin(new NewProjectSeed(
@@ -56,7 +60,9 @@ public sealed class EditorWorkspace
         if (cancellationToken.IsCancellationRequested)
         {
             return Task.FromResult<WorkspaceOpenOutcome>(
-                new WorkspaceOpenRejected("operation_cancelled", []));
+                new WorkspaceOpenRejected(
+                    WorkspaceOutcomeReasons.WorkspaceCancelled,
+                    []));
         }
 
         var id = WorkspaceId.Create();
@@ -77,7 +83,7 @@ public sealed class EditorWorkspace
         ArgumentNullException.ThrowIfNull(command);
         if (cancellationToken.IsCancellationRequested)
         {
-            return Reject("operation_cancelled");
+            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
         WorkspaceState state;
@@ -85,7 +91,7 @@ public sealed class EditorWorkspace
         {
             if (!workspaces.TryGetValue(command.WorkspaceId, out state!))
             {
-                return Reject("workspace_not_found");
+                return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
         }
 
@@ -95,12 +101,8 @@ public sealed class EditorWorkspace
                 state,
                 token => Apply(state, apply, token),
                 cancellationToken).ConfigureAwait(false),
-            RequestCompilation => await workCoordinator.RunCompilationAsync(
-                state.Id,
-                context => ExecuteWithGateAsync(
-                    state,
-                    _ => Compile(state, context),
-                    context.CancellationToken),
+            RequestCompilation => await QueueCompilationAsync(
+                state,
                 cancellationToken).ConfigureAwait(false),
             CreateSession or ScheduleInputStimulus or StepSession =>
                 await workCoordinator.RunSessionAsync(
@@ -110,7 +112,7 @@ public sealed class EditorWorkspace
                         innerToken => ExecuteSessionCommand(state, command, innerToken),
                         token),
                     cancellationToken).ConfigureAwait(false),
-            _ => Reject("workspace_command_unsupported"),
+            _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
         };
     }
 
@@ -121,7 +123,7 @@ public sealed class EditorWorkspace
         ArgumentNullException.ThrowIfNull(workspaceId);
         if (cancellationToken.IsCancellationRequested)
         {
-            return new WorkspaceReadRejected("operation_cancelled");
+            return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
         WorkspaceState state;
@@ -129,7 +131,7 @@ public sealed class EditorWorkspace
         {
             if (!workspaces.TryGetValue(workspaceId, out state!))
             {
-                return new WorkspaceReadRejected("workspace_not_found");
+                return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
         }
 
@@ -139,7 +141,7 @@ public sealed class EditorWorkspace
         }
         catch (OperationCanceledException)
         {
-            return new WorkspaceReadRejected("operation_cancelled");
+            return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
         try
@@ -159,19 +161,19 @@ public sealed class EditorWorkspace
     {
         if (cancellationToken.IsCancellationRequested)
         {
-            return Reject("operation_cancelled");
+            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
         if (state.SessionHandle is not null)
         {
-            return Reject("session_active");
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
         var outcome = ProjectEditor.Apply(state.Revision, command.Intent);
         if (outcome is EditRejected rejected)
         {
             return Reject(
-                "authoring_rejected",
+                rejected.Reason,
                 rejected.Diagnostics.Select(item => item.Code));
         }
 
@@ -185,70 +187,124 @@ public sealed class EditorWorkspace
             state.ProjectionVersion);
     }
 
-    private static WorkspaceCommandOutcome Compile(
+    private async Task<WorkspaceCommandOutcome> QueueCompilationAsync(
         WorkspaceState state,
+        CancellationToken cancellationToken)
+    {
+        Task<WorkspaceCommandOutcome> completion;
+        try
+        {
+            await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+        }
+
+        try
+        {
+            var requestedRevision = state.Revision;
+            completion = workCoordinator.RunCompilationAsync(
+                state.Id,
+                context => CompileAsync(state, requestedRevision, context),
+                cancellationToken);
+        }
+        finally
+        {
+            state.CommandGate.Release();
+        }
+
+        return await completion.ConfigureAwait(false);
+    }
+
+    private static async ValueTask<WorkspaceCommandOutcome> CompileAsync(
+        WorkspaceState state,
+        ProjectRevision requestedRevision,
         CompilationWorkContext context)
     {
-        if (state.SessionHandle is not null)
-        {
-            return Reject("session_active");
-        }
-
         var outcome = Compiler.Compile(
             new CompilationRequest(
-                state.Revision,
-                state.Revision.Document.EntryCircuitDefinitionId,
-                state.Revision.Document.LibrarySnapshot,
+                requestedRevision,
+                requestedRevision.Document.EntryCircuitDefinitionId,
+                requestedRevision.Document.LibrarySnapshot,
                 DevelopmentProjectScalePolicy),
             context.CancellationToken);
-        if (outcome is CompilationRejected rejected)
+        if (outcome is CompilationRejected cancelled
+            && string.Equals(
+                cancelled.Reason,
+                "compilation_cancelled",
+                StringComparison.Ordinal))
         {
-            if (string.Equals(
-                    rejected.Reason,
-                    "compilation_cancelled",
-                    StringComparison.Ordinal))
-            {
-                return Reject("operation_cancelled");
-            }
-
-            WorkspaceCommandOutcome? published = null;
-            var diagnosticCodes = rejected.Diagnostics.Select(item => item.Code).ToArray();
-            if (!context.TryPublish(() =>
-                {
-                    state.ProjectionVersion++;
-                    state.Artifact = null;
-                    state.Compilation = new CompilationProjection(
-                        CompilationPublicationStatus.Rejected,
-                        null,
-                        diagnosticCodes);
-                    published = Reject("compilation_rejected", diagnosticCodes);
-                }))
-            {
-                return Reject("operation_cancelled");
-            }
-
-            return published!;
+            return Reject(
+                cancelled.Reason,
+                cancelled.Diagnostics.Select(item => item.Code));
         }
 
-        var succeeded = (CompilationSucceeded)outcome;
-        WorkspaceCommandOutcome? publication = null;
+        try
+        {
+            await state.CommandGate.WaitAsync(context.CancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+        }
+
+        try
+        {
+            if (state.Revision.RevisionId != requestedRevision.RevisionId)
+            {
+                return Reject(WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
+            }
+
+            if (state.SessionHandle is not null)
+            {
+                return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
+            }
+
+            return PublishCompilation(state, outcome, context);
+        }
+        finally
+        {
+            state.CommandGate.Release();
+        }
+    }
+
+    private static WorkspaceCommandOutcome PublishCompilation(
+        WorkspaceState state,
+        CompilationOutcome outcome,
+        CompilationWorkContext context)
+    {
+        WorkspaceCommandOutcome? published = null;
         if (!context.TryPublish(() =>
             {
                 state.ProjectionVersion++;
-                state.Artifact = succeeded.Artifact;
+                if (outcome is CompilationSucceeded succeeded)
+                {
+                    state.Artifact = succeeded.Artifact;
+                    state.Compilation = new CompilationProjection(
+                        CompilationPublicationStatus.Published,
+                        succeeded.Artifact.Key,
+                        succeeded.Diagnostics.Select(item => item.Code).ToArray());
+                    published = new CompilationPublished(
+                        succeeded.Artifact.Key,
+                        state.ProjectionVersion);
+                    return;
+                }
+
+                var rejected = (CompilationRejected)outcome;
+                var diagnosticCodes = rejected.Diagnostics.Select(item => item.Code).ToArray();
+                state.Artifact = null;
                 state.Compilation = new CompilationProjection(
-                    CompilationPublicationStatus.Published,
-                    succeeded.Artifact.Key,
-                    succeeded.Diagnostics.Select(item => item.Code).ToArray());
-                publication = new CompilationPublished(
-                    succeeded.Artifact.Key,
-                    state.ProjectionVersion);
+                    CompilationPublicationStatus.Rejected,
+                    null,
+                    diagnosticCodes);
+                published = Reject(rejected.Reason, diagnosticCodes);
             }))
         {
-            return Reject("operation_cancelled");
+            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
-        return publication!;
+        return published!;
     }
 
     private static WorkspaceCommandOutcome ExecuteSessionCommand(
@@ -261,7 +317,7 @@ public sealed class EditorWorkspace
             CreateSession => OpenSession(state, cancellationToken),
             ScheduleInputStimulus schedule => Schedule(state, schedule, cancellationToken),
             StepSession => Step(state, cancellationToken),
-            _ => Reject("workspace_command_unsupported"),
+            _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
         };
     }
 
@@ -276,7 +332,7 @@ public sealed class EditorWorkspace
         }
         catch (OperationCanceledException)
         {
-            return Reject("operation_cancelled");
+            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
         try
@@ -295,18 +351,18 @@ public sealed class EditorWorkspace
     {
         if (state.SessionHandle is not null)
         {
-            return Reject("session_already_created");
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
         if (state.Artifact is null)
         {
-            return Reject("compilation_required");
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
         var probeSources = OutputProbeSources(state.Revision, state.Artifact);
         if (probeSources.Length == 0)
         {
-            return Reject("output_probe_required");
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
         var outcome = SimulationRuntime.Open(
@@ -319,17 +375,23 @@ public sealed class EditorWorkspace
                 DevelopmentSimulationPolicy,
                 DevelopmentTracePolicy),
             cancellationToken);
-        if (outcome is SimulationOpenRejected
-            {
-                Reason: SimulationFailureReason.SimulationCancelled,
-            })
+        if (outcome is InitialProbeBindingsInvalid invalid)
         {
-            return Reject("operation_cancelled");
+            return Reject(
+                WorkspaceOutcomeReasons.SessionPreconditionFailed,
+                invalid.Diagnostics.Select(item => item.Code));
+        }
+
+        if (outcome is SimulationOpenRejected rejected)
+        {
+            return Reject(
+                WorkspaceOutcomeReasons.FromSimulation(rejected.Reason),
+                rejected.Diagnostics.Select(item => item.Code));
         }
 
         if (outcome is not SimulationOpened opened)
         {
-            return Reject("simulation_open_rejected");
+            return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
 
         var simulation = ReadSimulation(opened.Handle);
@@ -348,12 +410,12 @@ public sealed class EditorWorkspace
     {
         if (state.SessionHandle is null || state.Artifact is null)
         {
-            return Reject("session_required");
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
         if (command.Assignments.Count == 0)
         {
-            return Reject("stimulus_assignment_required");
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
         var assignments = new List<StimulusAssignment>(command.Assignments.Count);
@@ -364,7 +426,7 @@ public sealed class EditorWorkspace
                 || assignment.Value.Count == 0
                 || assignment.Value.Any(value => !Enum.IsDefined(value)))
             {
-                return Reject("session_precondition_failed");
+                return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
             }
 
             var input = definition.ComponentInstances.SingleOrDefault(instance =>
@@ -387,7 +449,7 @@ public sealed class EditorWorkspace
                 || width is null
                 || assignment.Value.Count != checked((int)width.Value))
             {
-                return Reject("session_precondition_failed");
+                return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
             }
 
             var source = state.Artifact.SourceMap.Drivers
@@ -397,7 +459,7 @@ public sealed class EditorWorkspace
                     && string.Equals(port.PortId, "Q", StringComparison.Ordinal));
             if (source is null)
             {
-                return Reject("session_precondition_failed");
+                return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
             }
 
             assignments.Add(new StimulusAssignment(
@@ -410,17 +472,21 @@ public sealed class EditorWorkspace
             new LogicLab.Engine.Simulation.ScheduleStimulusBatch(
                 new StimulusBatch(command.LogicalTime, assignments)),
             cancellationToken);
-        if (outcome is SimulationCommandFailed
-            {
-                Reason: SimulationFailureReason.SimulationCancelled,
-            })
+        if (outcome is StimulusBatchInvalid)
         {
-            return Reject("operation_cancelled");
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
+        }
+
+        if (outcome is SimulationCommandFailed failed)
+        {
+            return Reject(
+                WorkspaceOutcomeReasons.FromSimulation(failed.Reason),
+                failed.Diagnostics.Select(item => item.Code));
         }
 
         if (outcome is not StimulusBatchScheduled scheduled)
         {
-            return Reject("stimulus_rejected");
+            return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
 
         state.Simulation = ReadSimulation(state.SessionHandle);
@@ -436,26 +502,28 @@ public sealed class EditorWorkspace
     {
         if (state.SessionHandle is null)
         {
-            return Reject("session_required");
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
         var outcome = SimulationRuntime.Execute(
             state.SessionHandle,
             new AdvanceToNextQuiescentBoundary(),
             cancellationToken);
-        if (outcome is AdvanceFailed
-            {
-                Reason: SimulationFailureReason.SimulationCancelled,
-            })
+        if (outcome is NoScheduledStimulus)
         {
-            return Reject("operation_cancelled");
+            return Reject(WorkspaceOutcomeReasons.NoScheduledStimulus);
+        }
+
+        if (outcome is AdvanceFailed failed)
+        {
+            return Reject(
+                WorkspaceOutcomeReasons.FromSimulation(failed.Reason),
+                failed.Diagnostics.Select(item => item.Code));
         }
 
         if (outcome is not AdvanceCommitted committed)
         {
-            return outcome is NoScheduledStimulus
-                ? Reject("scheduled_stimulus_required")
-                : Reject("simulation_step_rejected");
+            return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
 
         state.Simulation = ReadSimulation(state.SessionHandle);
