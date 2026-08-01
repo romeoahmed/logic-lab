@@ -165,13 +165,7 @@ public static class ProjectEditor
 
             if (!seenTerminals.Add(terminal))
             {
-                diagnostics.Add(new AuthoringDiagnostic(
-                    "authoring_terminal_already_connected",
-                    [],
-                    new InstancePortSourceIdentity(
-                        terminal.CircuitDefinitionId,
-                        terminal.ComponentInstanceId,
-                        terminal.PortId)));
+                diagnostics.Add(TerminalAlreadyConnected(terminal));
                 continue;
             }
 
@@ -199,13 +193,7 @@ public static class ProjectEditor
 
             if (definition.Nets.Any(net => net.Terminals.Contains(terminal)))
             {
-                diagnostics.Add(new AuthoringDiagnostic(
-                    "authoring_terminal_already_connected",
-                    [],
-                    new InstancePortSourceIdentity(
-                        terminal.CircuitDefinitionId,
-                        terminal.ComponentInstanceId,
-                        terminal.PortId)));
+                diagnostics.Add(TerminalAlreadyConnected(terminal));
             }
         }
 
@@ -348,6 +336,18 @@ public static class ProjectEditor
                     "rule",
                     new StableTokenDiagnosticValue(rule)),
             ]);
+    }
+
+    private static AuthoringDiagnostic TerminalAlreadyConnected(
+        InstanceTerminalReference terminal)
+    {
+        return new AuthoringDiagnostic(
+            "authoring_terminal_already_connected",
+            [],
+            new InstancePortSourceIdentity(
+                terminal.CircuitDefinitionId,
+                terminal.ComponentInstanceId,
+                terminal.PortId));
     }
 
     private static void ValidateDisplayText(
