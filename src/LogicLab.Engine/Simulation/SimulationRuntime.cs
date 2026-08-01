@@ -98,7 +98,7 @@ public static class SimulationRuntime
                 SimulationFailureReason.SimulationResourceLimit,
                 Observation(exception.Dimension, exception.Observed));
         }
-        catch (Exception exception) when (!IsFatal(exception))
+        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
             return Rejected(
                 request,
@@ -154,7 +154,7 @@ public static class SimulationRuntime
                     DimensionToken(exception.Dimension),
                     exception.Observed));
         }
-        catch (Exception exception) when (!IsFatal(exception))
+        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
             return Failure(
                 state,
@@ -191,7 +191,7 @@ public static class SimulationRuntime
                 SimulationFailureReason.SimulationCancelled,
                 []);
         }
-        catch (Exception exception) when (!IsFatal(exception))
+        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
             return new SimulationReadFailed(
                 SimulationFailureReason.SimulationInternalDefect,
@@ -301,14 +301,11 @@ public static class SimulationRuntime
             assignmentCount);
 
         var sequence = checked(state.NextStimulusSequence + 1);
-        var scheduledAssignments = new ScheduledStimulusAssignment[normalized.Count];
-        var scheduledAssignmentIndex = 0;
-        foreach (var assignment in normalized)
-        {
-            scheduledAssignments[scheduledAssignmentIndex] =
-                new ScheduledStimulusAssignment(assignment.Key, assignment.Value);
-            scheduledAssignmentIndex++;
-        }
+        var scheduledAssignments = normalized
+            .Select(assignment => new ScheduledStimulusAssignment(
+                assignment.Key,
+                assignment.Value))
+            .ToArray();
 
         var scheduledBatch = new ScheduledStimulusBatch(
             batch.LogicalTime,
@@ -415,22 +412,16 @@ public static class SimulationRuntime
         OpenSimulationRequest request,
         CancellationToken cancellationToken)
     {
-        if (!string.Equals(
+        if (!PolicyMatches(
                 request.Configuration.SimulationPolicy.PolicyId,
-                request.SimulationPolicy.PolicyId,
-                StringComparison.Ordinal)
-            || !string.Equals(
                 request.Configuration.SimulationPolicy.PolicyRevision,
-                request.SimulationPolicy.PolicyRevision,
-                StringComparison.Ordinal)
-            || !string.Equals(
+                request.SimulationPolicy.PolicyId,
+                request.SimulationPolicy.PolicyRevision)
+            || !PolicyMatches(
                 request.Configuration.TracePolicy.PolicyId,
-                request.TracePolicy.PolicyId,
-                StringComparison.Ordinal)
-            || !string.Equals(
                 request.Configuration.TracePolicy.PolicyRevision,
-                request.TracePolicy.PolicyRevision,
-                StringComparison.Ordinal))
+                request.TracePolicy.PolicyId,
+                request.TracePolicy.PolicyRevision))
         {
             throw new InvalidOperationException(
                 "Resolved policies do not match the Session configuration.");
@@ -823,11 +814,17 @@ public static class SimulationRuntime
         }
     }
 
-    private static bool IsFatal(Exception exception)
+    private static bool PolicyMatches(
+        string configuredId,
+        string configuredRevision,
+        string resolvedId,
+        string resolvedRevision)
     {
-        return exception is OutOfMemoryException
-            or StackOverflowException
-            or AccessViolationException;
+        return string.Equals(configuredId, resolvedId, StringComparison.Ordinal)
+            && string.Equals(
+                configuredRevision,
+                resolvedRevision,
+                StringComparison.Ordinal);
     }
 
     private sealed class OpenWorkAccumulator(ulong probeCount)
