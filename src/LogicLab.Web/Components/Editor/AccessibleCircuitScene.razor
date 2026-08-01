@@ -25,14 +25,14 @@
         <ol class="component-list" aria-label="Circuit components">
             @foreach (var component in Scene.Components)
             {
-                <li data-component="@component.Source.ComponentInstanceId.Value">
+                <li @key="component.Source" data-component="@component.Source.ComponentInstanceId.Value">
                     <article class="component-card">
                         <h3>@component.Label</h3>
                         <p>Grid @component.Placement.Origin.X, @component.Placement.Origin.Y</p>
                         <ul aria-label="@($"{component.Label} ports")">
                             @foreach (var port in component.Ports)
                             {
-                                <li><strong>@port.Label</strong> · @port.Direction</li>
+                                <li @key="port.Source"><strong>@port.Label</strong> · @port.Direction</li>
                             }
                         </ul>
                     </article>
@@ -44,7 +44,7 @@
         <ol class="connection-list" aria-label="Electrical connections">
             @foreach (var connection in Scene.Connections)
             {
-                <li data-connection="@connection.Source.NetId.Value">
+                <li @key="connection.Source" data-connection="@connection.Source.NetId.Value">
                     <span>@TerminalPath(connection)</span>
                     <small>@connection.Width bit</small>
                 </li>

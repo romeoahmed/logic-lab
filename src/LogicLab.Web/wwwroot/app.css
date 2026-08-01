@@ -1,58 +1,58 @@
 :root {
-    color-scheme: light;
-    --ll-bench: #E7EEF1;
-    --ll-panel: #F7FAFB;
-    --ll-canvas: #FFFFFF;
-    --ll-ink: #172A33;
-    --ll-muted: #536871;
-    --ll-signal: #08788C;
-    --ll-transition: #A85D00;
-    --ll-unknown: #7053A5;
-    --ll-danger: #B4232C;
-    --ll-grid: rgb(23 42 51 / 8%);
-    --ll-border: #B8C7CE;
-    --ll-border-strong: #8299A3;
-    --ll-signal-soft: rgb(8 120 140 / 10%);
-    font-family: "Atkinson Hyperlegible Next", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
+  color-scheme: light;
+  --ll-bench: #e7eef1;
+  --ll-panel: #f7fafb;
+  --ll-canvas: #ffffff;
+  --ll-ink: #172a33;
+  --ll-muted: #536871;
+  --ll-signal: #08788c;
+  --ll-transition: #a85d00;
+  --ll-unknown: #7053a5;
+  --ll-danger: #b4232c;
+  --ll-grid: rgb(23 42 51 / 8%);
+  --ll-border: #b8c7ce;
+  --ll-border-strong: #8299a3;
+  --ll-signal-soft: rgb(8 120 140 / 10%);
+  font-family: "Atkinson Hyperlegible Next", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
 }
 
 * {
-    box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 html {
-    min-width: 320px;
-    background: var(--ll-bench);
+  min-inline-size: 320px;
+  background: var(--ll-bench);
 }
 
 body {
-    margin: 0;
-    color: var(--ll-ink) !important;
-    background-color: var(--ll-bench) !important;
+  margin: 0;
+  color: var(--ll-ink) !important;
+  background-color: var(--ll-bench) !important;
 }
 
 button,
 input,
 select,
 textarea {
-    font: inherit;
+  font: inherit;
 }
 
 :focus-visible {
-    outline: 3px solid var(--ll-signal);
-    outline-offset: 3px;
+  outline: 3px solid var(--ll-signal);
+  outline-offset: 3px;
 }
 
 h1:focus {
-    outline: none;
+  outline: none;
 }
 
 .blazor-error-boundary {
-    padding: 1rem;
-    color: white;
-    background: #9f2d2d;
+  padding: 1rem;
+  color: white;
+  background: #9f2d2d;
 }
 
 .blazor-error-boundary::after {
-    content: "An error has occurred.";
+  content: "An error has occurred.";
 }

@@ -1,3 +1,4 @@
+using LogicLab.Application.Work;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
@@ -10,7 +11,8 @@ public sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_ValidNarrowCircuit_ObservesProbeAcrossOneStep()
     {
-        var workspace = new EditorWorkspace();
+        await using var coordinator = new WorkCoordinator();
+        var workspace = new EditorWorkspace(coordinator);
         var opened = await Open(workspace);
         var revision = opened.Projection.ProjectRevision;
         var definitionId = revision.Document.EntryCircuitDefinitionId;
@@ -99,7 +101,8 @@ public sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_IncompleteCircuit_DoesNotPublishArtifactOrCreateSession()
     {
-        var workspace = new EditorWorkspace();
+        await using var coordinator = new WorkCoordinator();
+        var workspace = new EditorWorkspace(coordinator);
         var opened = await Open(workspace);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
         await Apply(workspace, opened.WorkspaceId, Place(
@@ -134,7 +137,8 @@ public sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_CancelledCompilation_DoesNotChangeProjection()
     {
-        var workspace = new EditorWorkspace();
+        await using var coordinator = new WorkCoordinator();
+        var workspace = new EditorWorkspace(coordinator);
         var opened = await Open(workspace);
         var before = await Read(workspace, opened.WorkspaceId);
         using var cancellation = new CancellationTokenSource();
@@ -160,7 +164,8 @@ public sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_EmptyInputStimulus_ReturnsClosedPreconditionRejection()
     {
-        var workspace = new EditorWorkspace();
+        await using var coordinator = new WorkCoordinator();
+        var workspace = new EditorWorkspace(coordinator);
         var (opened, input) = await OpenInputOutputSession(workspace);
 
         var outcome = await workspace.DispatchAsync(
@@ -178,7 +183,8 @@ public sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_WrongWidthInputStimulus_ReturnsClosedPreconditionRejection()
     {
-        var workspace = new EditorWorkspace();
+        await using var coordinator = new WorkCoordinator();
+        var workspace = new EditorWorkspace(coordinator);
         var (opened, input) = await OpenInputOutputSession(workspace);
 
         var outcome = await workspace.DispatchAsync(

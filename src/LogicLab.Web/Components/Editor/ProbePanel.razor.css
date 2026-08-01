@@ -1,42 +1,42 @@
 .probe-panel {
-    padding: 1rem;
-    border: 1px solid var(--ll-border);
-    background: var(--ll-panel);
+  padding: 1rem;
+  border: 1px solid var(--ll-border);
+  background: var(--ll-panel);
 }
 
 .probe-panel h2,
 .probe-panel p {
-    margin-top: 0;
+  margin-block-start: 0;
 }
 
 .eyebrow {
-    margin-bottom: 0.2rem;
-    color: var(--ll-signal);
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+  margin-block-end: 0.2rem;
+  color: var(--ll-signal);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .probe-panel dl div,
 .probe-panel li {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .probe-panel dd {
-    margin: 0;
-    font-variant-numeric: tabular-nums;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .probe-panel ul {
-    list-style: none;
-    padding: 0;
+  list-style: none;
+  padding: 0;
 }
 
 .probe-panel li {
-    margin-top: 1rem;
-    padding: 0.8rem;
-    background: var(--ll-signal-soft);
+  margin-block-start: 1rem;
+  padding: 0.8rem;
+  background: var(--ll-signal-soft);
 }
