@@ -31,6 +31,63 @@ public sealed class WorkbenchComponentTests
     }
 
     [Test]
+    public async Task WorkbenchCommandBar_ActiveCommand_DisablesEveryCommand()
+    {
+        using var context = CreateContext();
+
+        var rendered = context.Render<WorkbenchCommandBar>(parameters => parameters
+            .Add(component => component.State, WorkbenchViewState.CircuitReady)
+            .Add(component => component.ActiveCommand, WorkbenchCommandKind.Compile));
+
+        foreach (var command in new[]
+                 {
+                     "create", "author", "compile", "session", "stimulus", "step",
+                 })
+        {
+            await Assert.That(IsDisabled(rendered, command)).IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task WorkbenchCommandExecution_RunAsyncWhileBusy_InvokesOnlyFirstCommand()
+    {
+        var execution = new WorkbenchCommandExecution();
+        var firstStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var invocationCount = 0;
+
+        var first = execution.RunAsync(
+            WorkbenchCommandKind.Author,
+            async () =>
+            {
+                invocationCount++;
+                firstStarted.SetResult();
+                await releaseFirst.Task;
+            });
+        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await execution.RunAsync(
+            WorkbenchCommandKind.Compile,
+            () =>
+            {
+                invocationCount++;
+                return Task.CompletedTask;
+            });
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(invocationCount).IsEqualTo(1);
+            await Assert.That(execution.ActiveCommand).IsEqualTo(WorkbenchCommandKind.Author);
+        }
+
+        releaseFirst.SetResult();
+        await first;
+        await Assert.That(execution.ActiveCommand).IsNull();
+    }
+
+    [Test]
     public async Task AccessibleCircuitScene_CompleteCircuit_RendersReachableTopology()
     {
         using var context = CreateContext();
