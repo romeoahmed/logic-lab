@@ -40,7 +40,15 @@ internal sealed class SimulationSessionState
 
     public ulong NextStimulusSequence { get; set; }
 
-    public List<ScheduledStimulusBatch> ScheduledBatches { get; } = [];
+    public PriorityQueue<ScheduledStimulusBatch, ScheduledStimulusPriority>
+        ScheduledBatches
+    { get; } = new();
+
+    public Dictionary<ulong, SortedDictionary<int, LogicVector>>
+        ScheduledAssignmentsByTime
+    { get; } = [];
+
+    public ulong ScheduledAssignmentCount { get; set; }
 }
 
 internal sealed record ProbeState(
@@ -57,11 +65,27 @@ internal sealed record ScheduledStimulusBatch(
     ulong StableSequence,
     ScheduledStimulusAssignment[] Assignments);
 
+internal readonly record struct ScheduledStimulusPriority(
+    ulong LogicalTime,
+    ulong StableSequence) : IComparable<ScheduledStimulusPriority>
+{
+    public int CompareTo(ScheduledStimulusPriority other)
+    {
+        var timeComparison = LogicalTime.CompareTo(other.LogicalTime);
+        return timeComparison != 0
+            ? timeComparison
+            : StableSequence.CompareTo(other.StableSequence);
+    }
+}
+
 internal sealed class SimulationTraceStore
 {
     private const ulong TransitionBaseBytes = 48;
+    private const int InitialChunkCapacity = 4;
     private readonly TracePolicy policy;
-    private readonly List<TraceChunk> chunks = [];
+    private TraceChunk?[] chunks = new TraceChunk?[InitialChunkCapacity];
+    private int head;
+    private int chunkCount;
     private ulong retainedBytes;
     private ulong retainedTransitionCount;
     private bool hasEvicted;
@@ -69,28 +93,6 @@ internal sealed class SimulationTraceStore
     public SimulationTraceStore(TracePolicy policy)
     {
         this.policy = policy;
-    }
-
-    private SimulationTraceStore(
-        TracePolicy policy,
-        IEnumerable<TraceChunk> chunks,
-        ulong retainedBytes,
-        ulong retainedTransitionCount,
-        ulong latestSequence,
-        ulong observedBytes,
-        ulong observedTransitionCount,
-        ulong observedChunkCount,
-        bool hasEvicted)
-    {
-        this.policy = policy;
-        this.chunks.AddRange(chunks);
-        this.retainedBytes = retainedBytes;
-        this.retainedTransitionCount = retainedTransitionCount;
-        LatestSequence = latestSequence;
-        ObservedBytes = observedBytes;
-        ObservedTransitionCount = observedTransitionCount;
-        ObservedChunkCount = observedChunkCount;
-        this.hasEvicted = hasEvicted;
     }
 
     public ulong LatestSequence { get; private set; }
@@ -101,9 +103,9 @@ internal sealed class SimulationTraceStore
 
     public ulong ObservedChunkCount { get; private set; }
 
-    public ulong EarliestAvailableSequence => chunks.Count == 0
+    public ulong EarliestAvailableSequence => chunkCount == 0
         ? checked(LatestSequence + 1)
-        : chunks[0].Transitions[0].Sequence;
+        : ChunkAt(0).Transitions[0].Sequence;
 
     public TraceCursor Cursor => new(
         EarliestAvailableSequence,
@@ -118,13 +120,14 @@ internal sealed class SimulationTraceStore
             return;
         }
 
+        var nextLatestSequence = checked(
+            LatestSequence + (ulong)observations.Count);
         var transitions = new TraceTransition[observations.Count];
         ulong bytes = 0;
         for (var index = 0; index < observations.Count; index++)
         {
             var observation = observations[index];
-            var sequence = checked(LatestSequence + 1);
-            LatestSequence = sequence;
+            var sequence = checked(LatestSequence + (ulong)index + 1UL);
             transitions[index] = new TraceTransition(
                 sequence,
                 observation.Probe.ProbeId,
@@ -133,35 +136,33 @@ internal sealed class SimulationTraceStore
             bytes = checked(bytes + TransitionBytes(observation.Value));
         }
 
-        chunks.Add(new TraceChunk(transitions, bytes));
-        retainedTransitionCount = checked(
+        var nextRetainedTransitionCount = checked(
             retainedTransitionCount + (ulong)transitions.Length);
-        retainedBytes = checked(retainedBytes + bytes);
-        ObservedTransitionCount = Math.Max(
+        var nextRetainedBytes = checked(retainedBytes + bytes);
+        var nextObservedTransitionCount = Math.Max(
             ObservedTransitionCount,
-            retainedTransitionCount);
-        ObservedBytes = Math.Max(ObservedBytes, retainedBytes);
-        ObservedChunkCount = Math.Max(ObservedChunkCount, (ulong)chunks.Count);
-        EvictToPolicy();
-    }
-
-    public SimulationTraceStore Clone()
-    {
-        return new SimulationTraceStore(
-            policy,
-            chunks,
-            retainedBytes,
-            retainedTransitionCount,
-            LatestSequence,
-            ObservedBytes,
-            ObservedTransitionCount,
+            nextRetainedTransitionCount);
+        var nextObservedBytes = Math.Max(ObservedBytes, nextRetainedBytes);
+        var nextObservedChunkCount = Math.Max(
             ObservedChunkCount,
-            hasEvicted);
+            checked((ulong)chunkCount + 1UL));
+        EnsureCapacity(checked(chunkCount + 1));
+
+        Enqueue(new TraceChunk(transitions, bytes));
+        LatestSequence = nextLatestSequence;
+        retainedTransitionCount = nextRetainedTransitionCount;
+        retainedBytes = nextRetainedBytes;
+        ObservedTransitionCount = nextObservedTransitionCount;
+        ObservedBytes = nextObservedBytes;
+        ObservedChunkCount = nextObservedChunkCount;
+        EvictToPolicy();
     }
 
     public void Clear()
     {
-        chunks.Clear();
+        Array.Clear(chunks);
+        head = 0;
+        chunkCount = 0;
         retainedBytes = 0;
         retainedTransitionCount = 0;
         hasEvicted = false;
@@ -172,9 +173,9 @@ internal sealed class SimulationTraceStore
         var earliest = EarliestAvailableSequence;
         var startsBeforeRetainedTrace = request.AfterSequence is null
             && hasEvicted
-            && (chunks.Count == 0
+            && (chunkCount == 0
                 || request.Range.StartInclusive
-                    < chunks[0].Transitions[0].LogicalTime);
+                    < ChunkAt(0).Transitions[0].LogicalTime);
         var sequenceWasEvicted = request.AfterSequence is { } afterSequence
             && afterSequence < earliest - 1;
         if (startsBeforeRetainedTrace || sequenceWasEvicted)
@@ -186,17 +187,24 @@ internal sealed class SimulationTraceStore
         }
 
         var requestedIds = request.ProbeIds.ToHashSet();
-        var transitions = chunks
-            .SelectMany(chunk => chunk.Transitions)
-            .Where(transition =>
-                requestedIds.Contains(transition.ProbeId)
-                && transition.LogicalTime >= request.Range.StartInclusive
-                && transition.LogicalTime < request.Range.EndExclusive
-                && (request.AfterSequence is null
-                    || transition.Sequence > request.AfterSequence.Value))
-            .ToArray();
+        var transitions = new List<TraceTransition>();
+        for (var chunkOffset = 0; chunkOffset < chunkCount; chunkOffset++)
+        {
+            foreach (var transition in ChunkAt(chunkOffset).Transitions)
+            {
+                if (requestedIds.Contains(transition.ProbeId)
+                    && transition.LogicalTime >= request.Range.StartInclusive
+                    && transition.LogicalTime < request.Range.EndExclusive
+                    && (request.AfterSequence is null
+                        || transition.Sequence > request.AfterSequence.Value))
+                {
+                    transitions.Add(transition);
+                }
+            }
+        }
+
         return new TraceTransitionsAvailable(
-            transitions,
+            transitions.ToArray(),
             request.Range,
             earliest,
             LatestSequence);
@@ -211,19 +219,67 @@ internal sealed class SimulationTraceStore
 
     private void EvictToPolicy()
     {
-        while (chunks.Count != 0
+        while (chunkCount != 0
             && (retainedTransitionCount
                     > policy.Maximum(TraceDimension.RetainedTransitionCount)
-                || (ulong)chunks.Count
+                || (ulong)chunkCount
                     > policy.Maximum(TraceDimension.SealedChunkCount)
                 || retainedBytes > policy.Maximum(TraceDimension.RetainedBytes)))
         {
-            var removed = chunks[0];
-            chunks.RemoveAt(0);
+            var removed = Dequeue();
             hasEvicted = true;
             retainedTransitionCount -= (ulong)removed.Transitions.Length;
             retainedBytes -= removed.Bytes;
         }
+    }
+
+    private TraceChunk ChunkAt(int offset)
+    {
+        return chunks[(head + offset) % chunks.Length]!;
+    }
+
+    private void Enqueue(TraceChunk chunk)
+    {
+        var tail = (head + chunkCount) % chunks.Length;
+        chunks[tail] = chunk;
+        chunkCount++;
+    }
+
+    private TraceChunk Dequeue()
+    {
+        var chunk = chunks[head]!;
+        chunks[head] = null;
+        head = (head + 1) % chunks.Length;
+        chunkCount--;
+        if (chunkCount == 0)
+        {
+            head = 0;
+        }
+
+        return chunk;
+    }
+
+    private void EnsureCapacity(int requiredCapacity)
+    {
+        if (requiredCapacity <= chunks.Length)
+        {
+            return;
+        }
+
+        var newCapacity = checked(chunks.Length * 2);
+        while (newCapacity < requiredCapacity)
+        {
+            newCapacity = checked(newCapacity * 2);
+        }
+
+        var expanded = new TraceChunk?[newCapacity];
+        for (var index = 0; index < chunkCount; index++)
+        {
+            expanded[index] = ChunkAt(index);
+        }
+
+        chunks = expanded;
+        head = 0;
     }
 
     private sealed record TraceChunk(
