@@ -239,6 +239,25 @@ public sealed class SourceMap
         return false;
     }
 
+    public bool TryGetDriverOrdinal(
+        CompilationSource source,
+        out int ordinal)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        foreach (var entry in Drivers)
+        {
+            if (entry.Source.Identity == source.Identity
+                && PathsEqual(entry.Source.HierarchyPath, source.HierarchyPath))
+            {
+                ordinal = entry.Ordinal;
+                return true;
+            }
+        }
+
+        ordinal = default;
+        return false;
+    }
+
     private static bool PathsEqual(HierarchyPath left, HierarchyPath right)
     {
         return left.EntryCircuitDefinitionId == right.EntryCircuitDefinitionId

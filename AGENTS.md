@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Logic Lab has completed implementation-plan slices `01` through `04`: `logic-lab.slnx` contains `LogicLab.Domain`, `LogicLab.Engine`, and their test projects. Start with `README.md`, then consult `ARCHITECTURE.md` for ownership, `WORKBENCH.md` for product behavior, `CONTEXT-MAP.md` for domain language, and `docs/specs/dotnet-engineering.md` for build/runtime rules. Detailed material lives under `docs/`: `specs/` defines observable behavior, `contracts/` defines application/browser/HTTP seams, `adr/` records decisions, `domain/` holds bounded-context glossaries, `policies/` owns limits, and `research/` preserves evidence. The root PDFs are standards references, not source assets.
+Logic Lab has completed implementation-plan slices `01` through `05`: `logic-lab.slnx` contains `LogicLab.Domain`, `LogicLab.Engine`, and their test projects. Start with `README.md`, then consult `ARCHITECTURE.md` for ownership, `WORKBENCH.md` for product behavior, `CONTEXT-MAP.md` for domain language, and `docs/specs/dotnet-engineering.md` for build/runtime rules. Detailed material lives under `docs/`: `specs/` defines observable behavior, `contracts/` defines application/browser/HTTP seams, `adr/` records decisions, `domain/` holds bounded-context glossaries, `policies/` owns limits, and `research/` preserves evidence. The root PDFs are standards references, not source assets.
 
 As implementation expands, preserve the project seams named in `ARCHITECTURE.md`: `LogicLab.Domain`, `LogicLab.Engine`, `LogicLab.BooleanAnalysis`, `LogicLab.Presentation`, `LogicLab.ProjectFormat`, `LogicLab.Application`, `LogicLab.Infrastructure`, and `LogicLab.Web`. Keep test and benchmark projects separate from production projects.
 
