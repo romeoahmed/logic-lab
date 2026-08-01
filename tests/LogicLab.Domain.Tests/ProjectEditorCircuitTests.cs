@@ -170,6 +170,79 @@ public sealed class ProjectEditorCircuitTests
     }
 
     [Test]
+    public async Task Apply_DuplicateWidthBinding_RejectsWithoutException()
+    {
+        var genesis = BeginProject();
+        var intent = new PlaceComponentInstanceIntent(
+            genesis.Document.EntryCircuitDefinition.Id,
+            new ComponentContractKey("logiclab.core", "source.input"),
+            [
+                new ComponentParameterBinding(
+                    "width",
+                    new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding(
+                    "initialValue",
+                    new LogicVectorParameterValue([LogicValue.Zero])),
+                new ComponentParameterBinding(
+                    "width",
+                    new Unsigned32ParameterValue(2)),
+            ],
+            new ComponentPlacement(new GridPoint(0, 0)));
+
+        var outcome = ProjectEditor.Apply(genesis, intent);
+
+        await Assert.That(outcome).IsTypeOf<EditRejected>();
+        var rejected = (EditRejected)outcome;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
+                .IsEquivalentTo(
+                    ["authoring_invalid_parameter"],
+                    CollectionOrdering.Matching);
+            await Assert.That(genesis.Document.EntryCircuitDefinition.ComponentInstances)
+                .IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task Apply_InvalidExtraParameterId_UsesSafeDiagnosticToken()
+    {
+        var genesis = BeginProject();
+        var contractKey = new ComponentContractKey("logiclab.core", "logic.not");
+        var intent = new PlaceComponentInstanceIntent(
+            genesis.Document.EntryCircuitDefinition.Id,
+            contractKey,
+            [
+                new ComponentParameterBinding(
+                    "width",
+                    new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding(
+                    "unsafe parameter",
+                    new Unsigned32ParameterValue(1)),
+            ],
+            new ComponentPlacement(new GridPoint(0, 0)));
+
+        var outcome = ProjectEditor.Apply(genesis, intent);
+
+        await Assert.That(outcome).IsTypeOf<EditRejected>();
+        var rejected = (EditRejected)outcome;
+        await Assert.That(rejected.Diagnostics[0].Arguments)
+            .IsEquivalentTo(
+                [
+                    new AuthoringDiagnosticArgument(
+                        "contractKey",
+                        new ContractKeyDiagnosticValue(contractKey)),
+                    new AuthoringDiagnosticArgument(
+                        "parameterId",
+                        new StableTokenDiagnosticValue("invalid")),
+                    new AuthoringDiagnosticArgument(
+                        "rule",
+                        new StableTokenDiagnosticValue("unknownParameter")),
+                ],
+                CollectionOrdering.Matching);
+    }
+
+    [Test]
     [Arguments("zeroWidth", "positiveWidth")]
     [Arguments("wrongKind", "parameterKind")]
     [Arguments("zInitialValue", "logicVectorValue")]
@@ -377,6 +450,43 @@ public sealed class ProjectEditorCircuitTests
                     CollectionOrdering.Matching);
             await Assert.That(originalDefinition.FindComponentInstance(circuit.Input.Id)!.Placement.Origin)
                 .IsEqualTo(new GridPoint(0, 0));
+        }
+    }
+
+    [Test]
+    public async Task Apply_InvalidMovePermutations_ReportCanonicalDeduplicatedDiagnostics()
+    {
+        var circuit = await CreatePlacedCircuit();
+        var firstOtherCircuit = await CreatePlacedCircuit();
+        var secondOtherCircuit = await CreatePlacedCircuit();
+        var definitionId = circuit.Revision.Document.EntryCircuitDefinition.Id;
+        var existingMove = new ComponentMove(
+            circuit.Input.Id,
+            new ComponentPlacement(new GridPoint(10, 10)));
+        var firstMissingMove = new ComponentMove(
+            firstOtherCircuit.Input.Id,
+            new ComponentPlacement(new GridPoint(20, 20)));
+        var secondMissingMove = new ComponentMove(
+            secondOtherCircuit.Input.Id,
+            new ComponentPlacement(new GridPoint(30, 30)));
+        var permutations = new ComponentMove[][]
+        {
+            [firstMissingMove, existingMove, existingMove, secondMissingMove],
+            [existingMove, existingMove, secondMissingMove, firstMissingMove],
+        };
+
+        foreach (var moves in permutations)
+        {
+            var outcome = ProjectEditor.Apply(
+                circuit.Revision,
+                new MoveComponentInstancesIntent(definitionId, moves));
+
+            await Assert.That(outcome).IsTypeOf<EditRejected>();
+            var rejected = (EditRejected)outcome;
+            await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
+                .IsEquivalentTo(
+                    ["authoring_duplicate_id", "authoring_missing_reference"],
+                    CollectionOrdering.Matching);
         }
     }
 

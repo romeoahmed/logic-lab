@@ -87,6 +87,7 @@ public sealed class ProjectEditorLineageTests
 
         var finalDefinition = moved.Document.EntryCircuitDefinition;
         var finalFirstNet = finalDefinition.FindNet(firstNet.Id);
+        Assert.NotNull(finalFirstNet);
 
         using (Assert.Multiple())
         {
@@ -111,8 +112,7 @@ public sealed class ProjectEditorLineageTests
                         .OrderBy(id => id.Value, StringComparer.Ordinal)
                         .ToArray(),
                     CollectionOrdering.Matching);
-            await Assert.That(finalFirstNet).IsNotNull();
-            await Assert.That(finalFirstNet!.Terminals)
+            await Assert.That(finalFirstNet.Terminals)
                 .IsEquivalentTo(firstNet.Terminals, CollectionOrdering.Matching);
             await Assert.That(
                     finalDefinition.FindComponentInstance(input.Id)!.Placement.Origin)
