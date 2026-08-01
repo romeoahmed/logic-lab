@@ -42,7 +42,8 @@ public sealed class WorkCoordinator : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(operation);
         if (cancellationToken.IsCancellationRequested)
         {
-            return Task.FromResult<WorkspaceCommandOutcome>(Reject("operation_cancelled"));
+            return Task.FromResult<WorkspaceCommandOutcome>(
+                Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
         }
 
         CompilationWorkItem item;
@@ -52,7 +53,7 @@ public sealed class WorkCoordinator : IAsyncDisposable
             if (isDisposed)
             {
                 return Task.FromResult<WorkspaceCommandOutcome>(
-                    Reject("work_coordinator_stopping"));
+                    Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
             }
 
             item = new CompilationWorkItem(
@@ -64,14 +65,18 @@ public sealed class WorkCoordinator : IAsyncDisposable
             {
                 item.Dispose();
                 return Task.FromResult<WorkspaceCommandOutcome>(
-                    Reject("compilation_queue_full"));
+                    Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected));
             }
 
             _ = latestCompilations.TryGetValue(workspaceId, out previous);
             latestCompilations[workspaceId] = item;
+            if (previous is not null && !previous.TryMarkSuperseded())
+            {
+                previous = null;
+            }
         }
 
-        previous?.Supersede();
+        previous?.CancelSuperseded();
         return item.Completion.Task;
     }
 
@@ -84,7 +89,8 @@ public sealed class WorkCoordinator : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(operation);
         if (cancellationToken.IsCancellationRequested)
         {
-            return Task.FromResult<WorkspaceCommandOutcome>(Reject("operation_cancelled"));
+            return Task.FromResult<WorkspaceCommandOutcome>(
+                Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
         }
 
         SessionWorkItem item;
@@ -93,7 +99,7 @@ public sealed class WorkCoordinator : IAsyncDisposable
             if (isDisposed)
             {
                 return Task.FromResult<WorkspaceCommandOutcome>(
-                    Reject("work_coordinator_stopping"));
+                    Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
             }
 
             item = new SessionWorkItem(
@@ -105,7 +111,7 @@ public sealed class WorkCoordinator : IAsyncDisposable
             {
                 item.Dispose();
                 return Task.FromResult<WorkspaceCommandOutcome>(
-                    Reject("session_queue_full"));
+                    Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected));
             }
         }
 
@@ -153,13 +159,14 @@ public sealed class WorkCoordinator : IAsyncDisposable
                     item.CancellationToken);
                 var outcome = await item.Operation(context).ConfigureAwait(false);
                 item.Completion.TrySetResult(
-                    item.CancellationToken.IsCancellationRequested && !item.WasPublished
-                        ? CancellationOutcome(item)
+                    (item.IsSuperseded || item.CancellationToken.IsCancellationRequested)
+                    && !item.WasPublished
+                        ? CancellationOutcome()
                         : outcome);
             }
             catch (OperationCanceledException) when (item.CancellationToken.IsCancellationRequested)
             {
-                item.Completion.TrySetResult(CancellationOutcome(item));
+                item.Completion.TrySetResult(CancellationOutcome());
             }
             catch (Exception exception)
             {
@@ -192,9 +199,8 @@ public sealed class WorkCoordinator : IAsyncDisposable
             }
             catch (OperationCanceledException) when (item.CancellationToken.IsCancellationRequested)
             {
-                item.Completion.TrySetResult(item.CallerCancellationToken.IsCancellationRequested
-                    ? Reject("operation_cancelled")
-                    : Reject("work_coordinator_stopping"));
+                item.Completion.TrySetResult(
+                    Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
             }
             catch (Exception exception)
             {
@@ -225,16 +231,9 @@ public sealed class WorkCoordinator : IAsyncDisposable
         }
     }
 
-    private static WorkspaceCommandRejected CancellationOutcome(CompilationWorkItem item)
+    private static WorkspaceCommandRejected CancellationOutcome()
     {
-        if (item.IsSuperseded)
-        {
-            return Reject("compilation_superseded");
-        }
-
-        return item.CallerCancellationToken.IsCancellationRequested
-            ? Reject("operation_cancelled")
-            : Reject("work_coordinator_stopping");
+        return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
     }
 
     private static WorkspaceCommandRejected Reject(string code)
@@ -244,7 +243,8 @@ public sealed class WorkCoordinator : IAsyncDisposable
 
     private abstract class WorkItem : IDisposable
     {
-        private readonly CancellationTokenSource cancellation;
+        private readonly Lock cancellationGate = new();
+        private CancellationTokenSource? cancellation;
 
         protected WorkItem(
             WorkspaceId workspaceId,
@@ -252,24 +252,35 @@ public sealed class WorkCoordinator : IAsyncDisposable
             CancellationToken stoppingToken)
         {
             WorkspaceId = workspaceId;
-            CallerCancellationToken = callerCancellationToken;
             cancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 callerCancellationToken,
                 stoppingToken);
+            CancellationToken = cancellation.Token;
         }
 
         public WorkspaceId WorkspaceId { get; }
 
-        public CancellationToken CallerCancellationToken { get; }
-
-        public CancellationToken CancellationToken => cancellation.Token;
+        public CancellationToken CancellationToken { get; }
 
         public TaskCompletionSource<WorkspaceCommandOutcome> Completion { get; } = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        protected void Cancel() => cancellation.Cancel();
+        protected void Cancel()
+        {
+            lock (cancellationGate)
+            {
+                cancellation?.Cancel();
+            }
+        }
 
-        public void Dispose() => cancellation.Dispose();
+        public void Dispose()
+        {
+            lock (cancellationGate)
+            {
+                cancellation?.Dispose();
+                cancellation = null;
+            }
+        }
     }
 
     private sealed class CompilationWorkItem(
@@ -289,14 +300,19 @@ public sealed class WorkCoordinator : IAsyncDisposable
 
         public bool WasPublished => Volatile.Read(ref wasPublished) != 0;
 
-        public void Supersede()
+        public bool TryMarkSuperseded()
         {
             if (WasPublished)
             {
-                return;
+                return false;
             }
 
             Volatile.Write(ref isSuperseded, 1);
+            return true;
+        }
+
+        public void CancelSuperseded()
+        {
             Cancel();
         }
 
