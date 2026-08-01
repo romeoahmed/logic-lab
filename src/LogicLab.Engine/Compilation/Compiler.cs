@@ -1,0 +1,800 @@
+using LogicLab.Domain;
+using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
+
+namespace LogicLab.Engine.Compilation;
+
+public static class Compiler
+{
+    public const string SemanticVersion = "logiclab.compiler.flat-v1";
+
+    public static CompilationOutcome Compile(
+        CompilationRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var observations = new Dictionary<ProjectScaleDimension, ulong>();
+        try
+        {
+            return CompileCore(request, observations, cancellationToken);
+        }
+        catch (Exception)
+        {
+            var diagnostic = new CompilerDiagnostic(
+                "compiler_internal_invariant",
+                [
+                    new CompilerDiagnosticArgument(
+                        "correlation",
+                        new CompilerStableTokenValue(
+                            Guid.CreateVersion7().ToString("N"))),
+                ],
+                new CompilerProjectRootLocation(
+                    request.ProjectRevision.Document.ProjectId));
+            return Reject(
+                request,
+                "compilation_internal_defect",
+                [diagnostic],
+                observations);
+        }
+    }
+
+    private static CompilationOutcome CompileCore(
+        CompilationRequest request,
+        Dictionary<ProjectScaleDimension, ulong> observations,
+        CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Reject(request, "compilation_cancelled", [], observations);
+        }
+
+        var diagnostics = new List<CompilerDiagnostic>();
+        ValidateLibrarySnapshot(request, diagnostics);
+        var definition = request.ProjectRevision.Document.FindCircuitDefinition(
+            request.EntryCircuitDefinitionId);
+        if (definition is null)
+        {
+            diagnostics.Add(new CompilerDiagnostic(
+                "compiler_entry_definition_missing",
+                [],
+                new CompilerProjectRootLocation(
+                    request.ProjectRevision.Document.ProjectId)));
+        }
+
+        if (diagnostics.Count != 0)
+        {
+            return Reject(
+                request,
+                "compilation_invalid",
+                CompilerCanonicalizer.Diagnostics(diagnostics),
+                observations);
+        }
+
+        var policyRejection = ObserveInitialDimensions(request, observations);
+        if (policyRejection is not null)
+        {
+            return policyRejection;
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Reject(request, "compilation_cancelled", [], observations);
+        }
+
+        var resolvedInstances = ResolveInstances(
+            request,
+            definition!,
+            diagnostics);
+        var netByTerminal = ValidateTopology(
+            request,
+            definition!,
+            resolvedInstances,
+            diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return Reject(
+                request,
+                "compilation_invalid",
+                CompilerCanonicalizer.Diagnostics(diagnostics),
+                observations);
+        }
+
+        var driverCount = resolvedInstances.Sum(instance =>
+            instance.Schema.Ports.Count(port => port.Direction == PortDirection.Output));
+        var elaboratedSlotCount = checked(
+            (ulong)resolvedInstances.Length
+            + (ulong)definition!.Nets.Count
+            + (ulong)driverCount);
+        var slotRejection = Observe(
+            request,
+            ProjectScaleDimension.ElaboratedSlotCount,
+            elaboratedSlotCount,
+            observations);
+        if (slotRejection is not null)
+        {
+            return slotRejection;
+        }
+
+        var memoryRejection = Observe(
+            request,
+            ProjectScaleDimension.MemoryCellCount,
+            0,
+            observations);
+        if (memoryRejection is not null)
+        {
+            return memoryRejection;
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Reject(request, "compilation_cancelled", [], observations);
+        }
+
+        var artifact = BuildArtifact(
+            request,
+            definition!,
+            resolvedInstances,
+            netByTerminal);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Reject(request, "compilation_cancelled", [], observations);
+        }
+
+        return new CompilationSucceeded(
+            artifact,
+            [],
+            CreateEvidence(request, observations, null));
+    }
+
+    private static void ValidateLibrarySnapshot(
+        CompilationRequest request,
+        List<CompilerDiagnostic> diagnostics)
+    {
+        var expected = request.ProjectRevision.Document.LibrarySnapshot;
+        var actual = request.LibrarySnapshot;
+        var primary = new CompilerProjectRootLocation(
+            request.ProjectRevision.Document.ProjectId);
+
+        if (!string.Equals(
+                expected.LibraryId,
+                actual.LibraryId,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                expected.Version,
+                actual.Version,
+                StringComparison.Ordinal))
+        {
+            diagnostics.Add(new CompilerDiagnostic(
+                "compiler_library_version_mismatch",
+                [
+                    new CompilerDiagnosticArgument(
+                        "libraryId",
+                        new CompilerStableTokenValue(expected.LibraryId)),
+                    new CompilerDiagnosticArgument(
+                        "expectedVersion",
+                        new CompilerStableTokenValue(expected.Version)),
+                    new CompilerDiagnosticArgument(
+                        "actualVersion",
+                        new CompilerStableTokenValue(actual.Version)),
+                ],
+                primary));
+        }
+
+        if (!string.Equals(
+                expected.ContentDigest,
+                actual.ContentDigest,
+                StringComparison.Ordinal))
+        {
+            diagnostics.Add(new CompilerDiagnostic(
+                "compiler_library_digest_mismatch",
+                [
+                    new CompilerDiagnosticArgument(
+                        "libraryId",
+                        new CompilerStableTokenValue(expected.LibraryId)),
+                    new CompilerDiagnosticArgument(
+                        "expected",
+                        new CompilerDigestValue(expected.ContentDigest)),
+                    new CompilerDiagnosticArgument(
+                        "actual",
+                        new CompilerDigestValue(actual.ContentDigest)),
+                ],
+                primary));
+        }
+    }
+
+    private static CompilationRejected? ObserveInitialDimensions(
+        CompilationRequest request,
+        Dictionary<ProjectScaleDimension, ulong> observations)
+    {
+        var document = request.ProjectRevision.Document;
+        var dimensions = new[]
+        {
+            new ObservedProjectScaleDimension(
+                ProjectScaleDimension.DefinitionCount,
+                checked((ulong)document.CircuitDefinitions.Count)),
+            new ObservedProjectScaleDimension(
+                ProjectScaleDimension.EntityCount,
+                checked((ulong)document.CircuitDefinitions.Sum(item =>
+                    item.ComponentInstances.Count + item.Nets.Count))),
+            new ObservedProjectScaleDimension(
+                ProjectScaleDimension.HierarchyDepth,
+                1),
+        };
+
+        foreach (var dimension in dimensions)
+        {
+            var rejection = Observe(
+                request,
+                dimension.Dimension,
+                dimension.Observed,
+                observations);
+            if (rejection is not null)
+            {
+                return rejection;
+            }
+        }
+
+        return null;
+    }
+
+    private static CompilationRejected? Observe(
+        CompilationRequest request,
+        ProjectScaleDimension dimension,
+        ulong observed,
+        Dictionary<ProjectScaleDimension, ulong> observations)
+    {
+        observations[dimension] = observed;
+        if (observed <= request.Policy.Maximum(dimension))
+        {
+            return null;
+        }
+
+        var breach = new ObservedProjectScaleDimension(dimension, observed);
+        var diagnostic = new CompilerDiagnostic(
+            "compiler_policy_exhausted",
+            [
+                new CompilerDiagnosticArgument(
+                    "policyId",
+                    new CompilerStableTokenValue(request.Policy.PolicyId)),
+                new CompilerDiagnosticArgument(
+                    "policyRevision",
+                    new CompilerStableTokenValue(request.Policy.PolicyRevision)),
+                new CompilerDiagnosticArgument(
+                    "dimension",
+                    new CompilerStableTokenValue(DimensionToken(dimension))),
+                new CompilerDiagnosticArgument(
+                    "observed",
+                    new CompilerUnsignedDecimalValue(observed)),
+            ],
+            new CompilerProjectRootLocation(
+                request.ProjectRevision.Document.ProjectId));
+        return Reject(
+            request,
+            "compilation_policy_exhausted",
+            [diagnostic],
+            observations,
+            breach);
+    }
+
+    private static ResolvedInstance[] ResolveInstances(
+        CompilationRequest request,
+        CircuitDefinition definition,
+        List<CompilerDiagnostic> diagnostics)
+    {
+        var path = new HierarchyPath(request.EntryCircuitDefinitionId, []);
+        var instances = definition.ComponentInstances
+            .OrderBy(instance => instance.Id.Value, StringComparer.Ordinal)
+            .ToArray();
+        var resolved = new List<ResolvedInstance>(instances.Length);
+        for (var ordinal = 0; ordinal < instances.Length; ordinal++)
+        {
+            var instance = instances[ordinal];
+            var schema = request.LibrarySnapshot.ResolveContract(instance.ContractKey);
+            if (schema is null)
+            {
+                diagnostics.Add(new CompilerDiagnostic(
+                    "compiler_contract_unresolved",
+                    [
+                        new CompilerDiagnosticArgument(
+                            "contractKey",
+                            new CompilerContractKeyValue(instance.ContractKey)),
+                    ],
+                    CircuitLocation(
+                        path,
+                        new ComponentInstanceSourceIdentity(definition.Id, instance.Id))));
+                continue;
+            }
+
+            if (!TryGetEvaluatorKind(instance.ContractKey, out var kind)
+                || !TryGetInstanceWidth(instance, schema, out var width))
+            {
+                diagnostics.Add(new CompilerDiagnostic(
+                    "compiler_parameter_schema_mismatch",
+                    [
+                        new CompilerDiagnosticArgument(
+                            "contractKey",
+                            new CompilerContractKeyValue(instance.ContractKey)),
+                        new CompilerDiagnosticArgument(
+                            "parameterId",
+                            new CompilerStableTokenValue("width")),
+                        new CompilerDiagnosticArgument(
+                            "rule",
+                            new CompilerStableTokenValue("flatCompilerContract")),
+                    ],
+                    CircuitLocation(
+                        path,
+                        new ComponentInstanceSourceIdentity(definition.Id, instance.Id))));
+                continue;
+            }
+
+            resolved.Add(new ResolvedInstance(ordinal, instance, schema, kind, width));
+        }
+
+        return resolved.ToArray();
+    }
+
+    private static Dictionary<TerminalKey, int> ValidateTopology(
+        CompilationRequest request,
+        CircuitDefinition definition,
+        ResolvedInstance[] resolvedInstances,
+        List<CompilerDiagnostic> diagnostics)
+    {
+        var path = new HierarchyPath(request.EntryCircuitDefinitionId, []);
+        var resolvedById = resolvedInstances.ToDictionary(item => item.Instance.Id);
+        var orderedNets = definition.Nets
+            .OrderBy(net => net.Id.Value, StringComparer.Ordinal)
+            .ToArray();
+        var netByTerminal = new Dictionary<TerminalKey, int>();
+
+        for (var netOrdinal = 0; netOrdinal < orderedNets.Length; netOrdinal++)
+        {
+            var net = orderedNets[netOrdinal];
+            foreach (var terminal in net.Terminals.OrderBy(
+                item => item.ComponentInstanceId.Value,
+                StringComparer.Ordinal).ThenBy(item => item.PortId, StringComparer.Ordinal))
+            {
+                if (terminal.CircuitDefinitionId != definition.Id
+                    || !resolvedById.ContainsKey(terminal.ComponentInstanceId))
+                {
+                    var authoredInstance = definition.FindComponentInstance(
+                        terminal.ComponentInstanceId);
+                    diagnostics.Add(new CompilerDiagnostic(
+                        "compiler_port_unresolved",
+                        [
+                            new CompilerDiagnosticArgument(
+                                "contractKey",
+                                new CompilerContractKeyValue(
+                                    authoredInstance?.ContractKey
+                                        ?? new ComponentContractKey(
+                                            CoreLibrarySchema.LibraryId,
+                                            "unresolved"))),
+                            new CompilerDiagnosticArgument(
+                                "portId",
+                                new CompilerStableTokenValue(
+                                    StableToken.IsValid(terminal.PortId)
+                                        ? terminal.PortId
+                                        : "invalid")),
+                        ],
+                        CircuitLocation(
+                            path,
+                            new NetSourceIdentity(definition.Id, net.Id))));
+                    continue;
+                }
+
+                var resolved = resolvedById[terminal.ComponentInstanceId];
+
+                var port = resolved.Schema.Ports.SingleOrDefault(candidate =>
+                    string.Equals(candidate.Id, terminal.PortId, StringComparison.Ordinal));
+                if (port is null
+                    || !TryGetPortWidth(resolved.Instance, port, out var portWidth))
+                {
+                    diagnostics.Add(new CompilerDiagnostic(
+                        "compiler_port_unresolved",
+                        [
+                            new CompilerDiagnosticArgument(
+                                "contractKey",
+                                new CompilerContractKeyValue(resolved.Instance.ContractKey)),
+                            new CompilerDiagnosticArgument(
+                                "portId",
+                                new CompilerStableTokenValue(
+                                    StableToken.IsValid(terminal.PortId)
+                                        ? terminal.PortId
+                                        : "invalid")),
+                        ],
+                        CircuitLocation(
+                            path,
+                            new InstancePortSourceIdentity(
+                                definition.Id,
+                                terminal.ComponentInstanceId,
+                                terminal.PortId))));
+                    continue;
+                }
+
+                if (portWidth != net.Width)
+                {
+                    diagnostics.Add(new CompilerDiagnostic(
+                        "compiler_width_mismatch",
+                        [
+                            new CompilerDiagnosticArgument(
+                                "expected",
+                                new CompilerUnsignedDecimalValue(portWidth)),
+                            new CompilerDiagnosticArgument(
+                                "actual",
+                                new CompilerUnsignedDecimalValue(net.Width)),
+                        ],
+                        CircuitLocation(
+                            path,
+                            new InstancePortSourceIdentity(
+                                definition.Id,
+                                terminal.ComponentInstanceId,
+                                terminal.PortId))));
+                }
+
+                netByTerminal.TryAdd(
+                    new TerminalKey(terminal.ComponentInstanceId, terminal.PortId),
+                    netOrdinal);
+            }
+        }
+
+        foreach (var resolved in resolvedInstances)
+        {
+            foreach (var port in resolved.Schema.Ports.Where(
+                item => item.Direction == PortDirection.Input))
+            {
+                var terminal = new TerminalKey(resolved.Instance.Id, port.Id);
+                if (!netByTerminal.ContainsKey(terminal))
+                {
+                    diagnostics.Add(new CompilerDiagnostic(
+                        "compiler_required_terminal_unconnected",
+                        [],
+                        CircuitLocation(
+                            path,
+                            new InstancePortSourceIdentity(
+                                definition.Id,
+                                resolved.Instance.Id,
+                                port.Id))));
+                }
+            }
+        }
+
+        return netByTerminal;
+    }
+
+    private static CompilationArtifact BuildArtifact(
+        CompilationRequest request,
+        CircuitDefinition definition,
+        ResolvedInstance[] resolvedInstances,
+        Dictionary<TerminalKey, int> netByTerminal)
+    {
+        var path = new HierarchyPath(request.EntryCircuitDefinitionId, []);
+        var orderedNets = definition.Nets
+            .OrderBy(net => net.Id.Value, StringComparer.Ordinal)
+            .ToArray();
+        var evaluatorOrdinalById = resolvedInstances.ToDictionary(
+            item => item.Instance.Id,
+            item => item.Ordinal);
+
+        var drivers = new List<SimulationDriver>();
+        var driverSources = new List<SourceMapEntry>();
+        var driverByTerminal = new Dictionary<TerminalKey, int>();
+        foreach (var resolved in resolvedInstances)
+        {
+            foreach (var port in resolved.Schema.Ports.Where(
+                item => item.Direction == PortDirection.Output))
+            {
+                var terminal = new TerminalKey(resolved.Instance.Id, port.Id);
+                var driverOrdinal = drivers.Count;
+                var width = GetPortWidth(resolved.Instance, port);
+                drivers.Add(new SimulationDriver(
+                    driverOrdinal,
+                    resolved.Ordinal,
+                    netByTerminal.GetValueOrDefault(terminal, -1) is var netOrdinal
+                        && netOrdinal >= 0
+                            ? netOrdinal
+                            : null,
+                    width));
+                driverByTerminal.Add(terminal, driverOrdinal);
+                driverSources.Add(new SourceMapEntry(
+                    driverOrdinal,
+                    Source(
+                        path,
+                        new InstancePortSourceIdentity(
+                            definition.Id,
+                            resolved.Instance.Id,
+                            port.Id))));
+            }
+        }
+
+        var evaluators = new SimulationEvaluator[resolvedInstances.Length];
+        var evaluatorSources = new SourceMapEntry[resolvedInstances.Length];
+        var evaluatorInputSources = new List<EvaluatorInputSourceMapEntry>();
+        foreach (var resolved in resolvedInstances)
+        {
+            var inputPorts = resolved.Schema.Ports
+                .Where(port => port.Direction == PortDirection.Input)
+                .ToArray();
+            var outputPorts = resolved.Schema.Ports
+                .Where(port => port.Direction == PortDirection.Output)
+                .ToArray();
+            var inputNets = inputPorts
+                .Select(port => netByTerminal[
+                    new TerminalKey(resolved.Instance.Id, port.Id)])
+                .ToArray();
+            var outputDrivers = outputPorts
+                .Select(port => driverByTerminal[
+                    new TerminalKey(resolved.Instance.Id, port.Id)])
+                .ToArray();
+            evaluators[resolved.Ordinal] = new SimulationEvaluator(
+                resolved.Ordinal,
+                resolved.Kind,
+                resolved.Width,
+                inputNets,
+                outputDrivers,
+                GetInitialValue(resolved));
+            evaluatorSources[resolved.Ordinal] = new SourceMapEntry(
+                resolved.Ordinal,
+                Source(
+                    path,
+                    new ComponentInstanceSourceIdentity(
+                        definition.Id,
+                        resolved.Instance.Id)));
+            for (var inputOrdinal = 0; inputOrdinal < inputPorts.Length; inputOrdinal++)
+            {
+                evaluatorInputSources.Add(new EvaluatorInputSourceMapEntry(
+                    resolved.Ordinal,
+                    inputOrdinal,
+                    Source(
+                        path,
+                        new InstancePortSourceIdentity(
+                            definition.Id,
+                            resolved.Instance.Id,
+                            inputPorts[inputOrdinal].Id))));
+            }
+        }
+
+        var simulationNets = new SimulationNet[orderedNets.Length];
+        var netSources = new SourceMapEntry[orderedNets.Length];
+        for (var netOrdinal = 0; netOrdinal < orderedNets.Length; netOrdinal++)
+        {
+            var net = orderedNets[netOrdinal];
+            var netDrivers = net.Terminals
+                .Select(terminal => new TerminalKey(
+                    terminal.ComponentInstanceId,
+                    terminal.PortId))
+                .Where(driverByTerminal.ContainsKey)
+                .Select(terminal => driverByTerminal[terminal])
+                .Order()
+                .ToArray();
+            var receivers = net.Terminals
+                .Where(terminal => IsInputTerminal(terminal, resolvedInstances))
+                .Select(terminal => evaluatorOrdinalById[terminal.ComponentInstanceId])
+                .Order()
+                .ToArray();
+            simulationNets[netOrdinal] = new SimulationNet(
+                netOrdinal,
+                net.Width,
+                netDrivers,
+                receivers);
+            netSources[netOrdinal] = new SourceMapEntry(
+                netOrdinal,
+                Source(path, new NetSourceIdentity(definition.Id, net.Id)));
+        }
+
+        var fanoutOffsets = new int[simulationNets.Length + 1];
+        var fanoutEvaluators = new List<int>();
+        for (var netOrdinal = 0; netOrdinal < simulationNets.Length; netOrdinal++)
+        {
+            fanoutOffsets[netOrdinal] = fanoutEvaluators.Count;
+            fanoutEvaluators.AddRange(simulationNets[netOrdinal].ReceiverEvaluatorOrdinals);
+        }
+
+        fanoutOffsets[^1] = fanoutEvaluators.Count;
+        var adjacency = Enumerable.Range(0, evaluators.Length)
+            .Select(_ => new SortedSet<int>())
+            .ToArray();
+        foreach (var driver in drivers.Where(item => item.NetOrdinal is not null))
+        {
+            foreach (var receiver in simulationNets[driver.NetOrdinal!.Value]
+                .ReceiverEvaluatorOrdinals)
+            {
+                adjacency[driver.EvaluatorOrdinal].Add(receiver);
+            }
+        }
+
+        var graphPlan = CompilerGraph.CreatePlan(
+            adjacency.Select(edges => edges.ToArray()).ToArray());
+        var simulationIr = new SimulationIr(
+            evaluators,
+            drivers.ToArray(),
+            simulationNets,
+            fanoutOffsets,
+            fanoutEvaluators.ToArray(),
+            graphPlan.Components,
+            graphPlan.CondensationOrder);
+        var sccMemberSources = graphPlan.Components
+            .SelectMany(component => component.EvaluatorOrdinals.Select(
+                evaluatorOrdinal =>
+                    new StronglyConnectedComponentMemberSourceMapEntry(
+                        component.Ordinal,
+                        evaluatorOrdinal,
+                        evaluatorSources[evaluatorOrdinal].Source)))
+            .ToArray();
+        var sourceMap = new SourceMap(
+            evaluatorSources,
+            evaluatorInputSources.ToArray(),
+            driverSources.ToArray(),
+            netSources,
+            sccMemberSources);
+        CompilationArtifactValidator.Validate(simulationIr, sourceMap);
+        var key = new CompilationArtifactKey(
+            request.ProjectRevision.RevisionId,
+            request.EntryCircuitDefinitionId,
+            request.LibrarySnapshot.Fingerprint,
+            SemanticVersion);
+        return new CompilationArtifact(
+            key,
+            simulationIr,
+            sourceMap,
+            request.ProjectRevision);
+    }
+
+    private static bool IsInputTerminal(
+        InstanceTerminalReference terminal,
+        ResolvedInstance[] resolvedInstances)
+    {
+        var instance = resolvedInstances.Single(
+            item => item.Instance.Id == terminal.ComponentInstanceId);
+        return instance.Schema.Ports.Any(port =>
+            port.Direction == PortDirection.Input
+            && string.Equals(port.Id, terminal.PortId, StringComparison.Ordinal));
+    }
+
+    private static LogicVector? GetInitialValue(ResolvedInstance instance)
+    {
+        if (instance.Kind != SimulationEvaluatorKind.InputSource)
+        {
+            return null;
+        }
+
+        var values = instance.Instance.Parameters
+            .Single(binding => string.Equals(
+                binding.ParameterId,
+                "initialValue",
+                StringComparison.Ordinal))
+            .Value as LogicVectorParameterValue;
+        return new LogicVector(values!.Values);
+    }
+
+    private static bool TryGetEvaluatorKind(
+        ComponentContractKey key,
+        out SimulationEvaluatorKind kind)
+    {
+        kind = key.ContractId switch
+        {
+            "source.input" => SimulationEvaluatorKind.InputSource,
+            "logic.not" => SimulationEvaluatorKind.LogicNot,
+            "sink.output" => SimulationEvaluatorKind.OutputSink,
+            _ => default,
+        };
+        return key.ContractId is "source.input" or "logic.not" or "sink.output";
+    }
+
+    private static bool TryGetInstanceWidth(
+        ComponentInstance instance,
+        ComponentContractSchema schema,
+        out uint width)
+    {
+        width = 0;
+        if (schema.Ports.Count == 0
+            || !TryGetPortWidth(instance, schema.Ports[0], out width))
+        {
+            return false;
+        }
+
+        var expectedWidth = width;
+        return schema.Ports.All(port =>
+            TryGetPortWidth(instance, port, out var portWidth)
+            && portWidth == expectedWidth);
+    }
+
+    private static uint GetPortWidth(
+        ComponentInstance instance,
+        ComponentPortSchema port)
+    {
+        return TryGetPortWidth(instance, port, out var width)
+            ? width
+            : throw new InvalidOperationException(
+                "A validated Component Port has no positive width.");
+    }
+
+    private static bool TryGetPortWidth(
+        ComponentInstance instance,
+        ComponentPortSchema port,
+        out uint width)
+    {
+        width = instance.Parameters
+            .Where(binding => string.Equals(
+                binding.ParameterId,
+                port.WidthParameterId,
+                StringComparison.Ordinal))
+            .Select(binding => binding.Value)
+            .OfType<Unsigned32ParameterValue>()
+            .Select(value => value.Value)
+            .SingleOrDefault();
+        return width > 0;
+    }
+
+    private static CompilationSource Source(
+        HierarchyPath path,
+        AuthoredSourceIdentity identity)
+    {
+        return new CompilationSource(identity, path);
+    }
+
+    private static CompilerCircuitLocation CircuitLocation(
+        HierarchyPath path,
+        AuthoredSourceIdentity identity)
+    {
+        return new CompilerCircuitLocation(Source(path, identity));
+    }
+
+    private static CompilationRejected Reject(
+        CompilationRequest request,
+        string reason,
+        CompilerDiagnostic[] diagnostics,
+        Dictionary<ProjectScaleDimension, ulong> observations,
+        ObservedProjectScaleDimension? breach = null)
+    {
+        return new CompilationRejected(
+            reason,
+            diagnostics,
+            CreateEvidence(request, observations, breach));
+    }
+
+    private static CompilationEvidence CreateEvidence(
+        CompilationRequest request,
+        Dictionary<ProjectScaleDimension, ulong> observations,
+        ObservedProjectScaleDimension? breach)
+    {
+        return new CompilationEvidence(
+            request.ProjectRevision.RevisionId,
+            request.EntryCircuitDefinitionId,
+            request.LibrarySnapshot.Fingerprint,
+            SemanticVersion,
+            new CompilationPolicyReference(
+                request.Policy.PolicyId,
+                request.Policy.PolicyRevision),
+            observations
+                .OrderBy(row => row.Key)
+                .Select(row => new ObservedProjectScaleDimension(row.Key, row.Value))
+                .ToArray(),
+            breach);
+    }
+
+    private static string DimensionToken(ProjectScaleDimension dimension)
+    {
+        return dimension switch
+        {
+            ProjectScaleDimension.DefinitionCount => "definition_count",
+            ProjectScaleDimension.EntityCount => "entity_count",
+            ProjectScaleDimension.HierarchyDepth => "hierarchy_depth",
+            ProjectScaleDimension.ElaboratedSlotCount => "elaborated_slot_count",
+            ProjectScaleDimension.MemoryCellCount => "memory_cell_count",
+            _ => throw new InvalidOperationException(
+                "The Project Scale Dimension variant is undefined."),
+        };
+    }
+
+    private readonly record struct TerminalKey(
+        ComponentInstanceId ComponentInstanceId,
+        string PortId);
+
+    private sealed record ResolvedInstance(
+        int Ordinal,
+        ComponentInstance Instance,
+        ComponentContractSchema Schema,
+        SimulationEvaluatorKind Kind,
+        uint Width);
+}
