@@ -42,11 +42,11 @@ internal sealed class SimulationSessionState
 
     public PriorityQueue<ScheduledStimulusBatch, ScheduledStimulusPriority>
         ScheduledBatches
-    { get; } = new();
+    { get; set; } = new();
 
     public Dictionary<ulong, SortedDictionary<int, LogicVector>>
         ScheduledAssignmentsByTime
-    { get; } = [];
+    { get; set; } = [];
 
     public ulong ScheduledAssignmentCount { get; set; }
 }
@@ -160,25 +160,30 @@ internal sealed class SimulationTraceStore
 
     public void Clear()
     {
-        Array.Clear(chunks);
+        chunks = new TraceChunk?[InitialChunkCapacity];
         head = 0;
         chunkCount = 0;
         retainedBytes = 0;
         retainedTransitionCount = 0;
         hasEvicted = false;
+        LatestSequence = 0;
+        ObservedBytes = 0;
+        ObservedTransitionCount = 0;
+        ObservedChunkCount = 0;
     }
 
     public SimulationReadOutcome Read(SimulationTraceWindowRequest request)
     {
         var earliest = EarliestAvailableSequence;
-        var startsBeforeRetainedTrace = request.AfterSequence is null
+        var requestedIds = request.ProbeIds.ToHashSet();
+        var requestedBaselineWasEvicted = request.AfterSequence is null
             && hasEvicted
-            && (chunkCount == 0
-                || request.Range.StartInclusive
-                    < ChunkAt(0).Transitions[0].LogicalTime);
+            && !HasBaselineAtOrBefore(
+                requestedIds,
+                request.Range.StartInclusive);
         var sequenceWasEvicted = request.AfterSequence is { } afterSequence
             && afterSequence < earliest - 1;
-        if (startsBeforeRetainedTrace || sequenceWasEvicted)
+        if (requestedBaselineWasEvicted || sequenceWasEvicted)
         {
             return new TraceRangeUnavailable(
                 TraceRangeUnavailableReason.Evicted,
@@ -186,7 +191,6 @@ internal sealed class SimulationTraceStore
                 LatestSequence);
         }
 
-        var requestedIds = request.ProbeIds.ToHashSet();
         var transitions = new List<TraceTransition>();
         for (var chunkOffset = 0; chunkOffset < chunkCount; chunkOffset++)
         {
@@ -208,6 +212,30 @@ internal sealed class SimulationTraceStore
             request.Range,
             earliest,
             LatestSequence);
+    }
+
+    private bool HasBaselineAtOrBefore(
+        HashSet<ProbeId> requestedIds,
+        ulong logicalTime)
+    {
+        var probesWithoutBaseline = new HashSet<ProbeId>(requestedIds);
+        for (var chunkOffset = 0; chunkOffset < chunkCount; chunkOffset++)
+        {
+            foreach (var transition in ChunkAt(chunkOffset).Transitions)
+            {
+                if (transition.LogicalTime <= logicalTime)
+                {
+                    _ = probesWithoutBaseline.Remove(transition.ProbeId);
+                }
+            }
+
+            if (probesWithoutBaseline.Count == 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static ulong TransitionBytes(LogicVector value)
