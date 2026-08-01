@@ -65,7 +65,7 @@ public sealed class ProjectScalePolicy
 
         PolicyId = policyId;
         PolicyRevision = policyRevision;
-        Limits = Array.AsReadOnly((ProjectScaleLimit[])this.limits.Clone());
+        Limits = Array.AsReadOnly(this.limits);
     }
 
     public string PolicyId { get; }
@@ -117,8 +117,6 @@ public sealed record ObservedProjectScaleDimension(
 
 public sealed class CompilationEvidence
 {
-    private readonly ObservedProjectScaleDimension[] observedDimensions;
-
     internal CompilationEvidence(
         ProjectRevisionId requestedProjectRevisionId,
         CircuitDefinitionId requestedEntryCircuitDefinitionId,
@@ -133,9 +131,8 @@ public sealed class CompilationEvidence
         LibrarySnapshotFingerprint = librarySnapshotFingerprint;
         CompilerSemanticVersion = compilerSemanticVersion;
         Policy = policy;
-        this.observedDimensions =
-            (ObservedProjectScaleDimension[])observedDimensions.Clone();
-        ObservedDimensions = Array.AsReadOnly(this.observedDimensions);
+        ObservedDimensions = Array.AsReadOnly(
+            (ObservedProjectScaleDimension[])observedDimensions.Clone());
         PolicyLimitBreach = policyLimitBreach;
     }
 

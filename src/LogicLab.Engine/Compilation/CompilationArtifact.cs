@@ -18,9 +18,6 @@ public enum SimulationEvaluatorKind
 
 public sealed class SimulationEvaluator
 {
-    private readonly int[] inputNetOrdinals;
-    private readonly int[] outputDriverOrdinals;
-
     internal SimulationEvaluator(
         int ordinal,
         SimulationEvaluatorKind kind,
@@ -32,10 +29,8 @@ public sealed class SimulationEvaluator
         Ordinal = ordinal;
         Kind = kind;
         Width = width;
-        this.inputNetOrdinals = (int[])inputNetOrdinals.Clone();
-        this.outputDriverOrdinals = (int[])outputDriverOrdinals.Clone();
-        InputNetOrdinals = Array.AsReadOnly(this.inputNetOrdinals);
-        OutputDriverOrdinals = Array.AsReadOnly(this.outputDriverOrdinals);
+        InputNetOrdinals = Array.AsReadOnly((int[])inputNetOrdinals.Clone());
+        OutputDriverOrdinals = Array.AsReadOnly((int[])outputDriverOrdinals.Clone());
         InitialValue = initialValue;
     }
 
@@ -60,9 +55,6 @@ public sealed record SimulationDriver(
 
 public sealed class SimulationNet
 {
-    private readonly int[] driverOrdinals;
-    private readonly int[] receiverEvaluatorOrdinals;
-
     internal SimulationNet(
         int ordinal,
         uint width,
@@ -71,10 +63,9 @@ public sealed class SimulationNet
     {
         Ordinal = ordinal;
         Width = width;
-        this.driverOrdinals = (int[])driverOrdinals.Clone();
-        this.receiverEvaluatorOrdinals = (int[])receiverEvaluatorOrdinals.Clone();
-        DriverOrdinals = Array.AsReadOnly(this.driverOrdinals);
-        ReceiverEvaluatorOrdinals = Array.AsReadOnly(this.receiverEvaluatorOrdinals);
+        DriverOrdinals = Array.AsReadOnly((int[])driverOrdinals.Clone());
+        ReceiverEvaluatorOrdinals = Array.AsReadOnly(
+            (int[])receiverEvaluatorOrdinals.Clone());
     }
 
     public int Ordinal { get; }
@@ -88,16 +79,13 @@ public sealed class SimulationNet
 
 public sealed class CombinationalStronglyConnectedComponent
 {
-    private readonly int[] evaluatorOrdinals;
-
     internal CombinationalStronglyConnectedComponent(
         int ordinal,
         int[] evaluatorOrdinals,
         bool isCyclic)
     {
         Ordinal = ordinal;
-        this.evaluatorOrdinals = (int[])evaluatorOrdinals.Clone();
-        EvaluatorOrdinals = Array.AsReadOnly(this.evaluatorOrdinals);
+        EvaluatorOrdinals = Array.AsReadOnly((int[])evaluatorOrdinals.Clone());
         IsCyclic = isCyclic;
     }
 
@@ -110,14 +98,6 @@ public sealed class CombinationalStronglyConnectedComponent
 
 public sealed class SimulationIr
 {
-    private readonly SimulationEvaluator[] evaluators;
-    private readonly SimulationDriver[] drivers;
-    private readonly SimulationNet[] nets;
-    private readonly int[] fanoutOffsets;
-    private readonly int[] fanoutEvaluatorOrdinals;
-    private readonly CombinationalStronglyConnectedComponent[] stronglyConnectedComponents;
-    private readonly int[] condensationOrder;
-
     internal SimulationIr(
         SimulationEvaluator[] evaluators,
         SimulationDriver[] drivers,
@@ -127,21 +107,16 @@ public sealed class SimulationIr
         CombinationalStronglyConnectedComponent[] stronglyConnectedComponents,
         int[] condensationOrder)
     {
-        this.evaluators = (SimulationEvaluator[])evaluators.Clone();
-        this.drivers = (SimulationDriver[])drivers.Clone();
-        this.nets = (SimulationNet[])nets.Clone();
-        this.fanoutOffsets = (int[])fanoutOffsets.Clone();
-        this.fanoutEvaluatorOrdinals = (int[])fanoutEvaluatorOrdinals.Clone();
-        this.stronglyConnectedComponents =
-            (CombinationalStronglyConnectedComponent[])stronglyConnectedComponents.Clone();
-        this.condensationOrder = (int[])condensationOrder.Clone();
-        Evaluators = Array.AsReadOnly(this.evaluators);
-        Drivers = Array.AsReadOnly(this.drivers);
-        Nets = Array.AsReadOnly(this.nets);
-        FanoutOffsets = Array.AsReadOnly(this.fanoutOffsets);
-        FanoutEvaluatorOrdinals = Array.AsReadOnly(this.fanoutEvaluatorOrdinals);
-        StronglyConnectedComponents = Array.AsReadOnly(this.stronglyConnectedComponents);
-        CondensationOrder = Array.AsReadOnly(this.condensationOrder);
+        Evaluators = Array.AsReadOnly((SimulationEvaluator[])evaluators.Clone());
+        Drivers = Array.AsReadOnly((SimulationDriver[])drivers.Clone());
+        Nets = Array.AsReadOnly((SimulationNet[])nets.Clone());
+        FanoutOffsets = Array.AsReadOnly((int[])fanoutOffsets.Clone());
+        FanoutEvaluatorOrdinals = Array.AsReadOnly(
+            (int[])fanoutEvaluatorOrdinals.Clone());
+        StronglyConnectedComponents = Array.AsReadOnly(
+            (CombinationalStronglyConnectedComponent[])
+            stronglyConnectedComponents.Clone());
+        CondensationOrder = Array.AsReadOnly((int[])condensationOrder.Clone());
     }
 
     public ReadOnlyCollection<SimulationEvaluator> Evaluators { get; }
@@ -167,8 +142,6 @@ public sealed record HierarchyPathStep(
 
 public sealed class HierarchyPath
 {
-    private readonly HierarchyPathStep[] steps;
-
     public HierarchyPath(
         CircuitDefinitionId entryCircuitDefinitionId,
         IReadOnlyList<HierarchyPathStep> steps)
@@ -176,8 +149,7 @@ public sealed class HierarchyPath
         ArgumentNullException.ThrowIfNull(entryCircuitDefinitionId);
         ArgumentNullException.ThrowIfNull(steps);
         EntryCircuitDefinitionId = entryCircuitDefinitionId;
-        this.steps = steps.ToArray();
-        Steps = Array.AsReadOnly(this.steps);
+        Steps = Array.AsReadOnly(steps.ToArray());
     }
 
     public CircuitDefinitionId EntryCircuitDefinitionId { get; }
@@ -218,13 +190,6 @@ public sealed record StronglyConnectedComponentMemberSourceMapEntry(
 
 public sealed class SourceMap
 {
-    private readonly SourceMapEntry[] evaluators;
-    private readonly EvaluatorInputSourceMapEntry[] evaluatorInputs;
-    private readonly SourceMapEntry[] drivers;
-    private readonly SourceMapEntry[] nets;
-    private readonly StronglyConnectedComponentMemberSourceMapEntry[]
-        stronglyConnectedComponentMembers;
-
     internal SourceMap(
         SourceMapEntry[] evaluators,
         EvaluatorInputSourceMapEntry[] evaluatorInputs,
@@ -233,19 +198,14 @@ public sealed class SourceMap
         StronglyConnectedComponentMemberSourceMapEntry[]
             stronglyConnectedComponentMembers)
     {
-        this.evaluators = (SourceMapEntry[])evaluators.Clone();
-        this.evaluatorInputs = (EvaluatorInputSourceMapEntry[])evaluatorInputs.Clone();
-        this.drivers = (SourceMapEntry[])drivers.Clone();
-        this.nets = (SourceMapEntry[])nets.Clone();
-        this.stronglyConnectedComponentMembers =
+        Evaluators = Array.AsReadOnly((SourceMapEntry[])evaluators.Clone());
+        EvaluatorInputs = Array.AsReadOnly(
+            (EvaluatorInputSourceMapEntry[])evaluatorInputs.Clone());
+        Drivers = Array.AsReadOnly((SourceMapEntry[])drivers.Clone());
+        Nets = Array.AsReadOnly((SourceMapEntry[])nets.Clone());
+        StronglyConnectedComponentMembers = Array.AsReadOnly(
             (StronglyConnectedComponentMemberSourceMapEntry[])
-            stronglyConnectedComponentMembers.Clone();
-        Evaluators = Array.AsReadOnly(this.evaluators);
-        EvaluatorInputs = Array.AsReadOnly(this.evaluatorInputs);
-        Drivers = Array.AsReadOnly(this.drivers);
-        Nets = Array.AsReadOnly(this.nets);
-        StronglyConnectedComponentMembers =
-            Array.AsReadOnly(this.stronglyConnectedComponentMembers);
+            stronglyConnectedComponentMembers.Clone());
     }
 
     public ReadOnlyCollection<SourceMapEntry> Evaluators { get; }
@@ -265,7 +225,7 @@ public sealed class SourceMap
         out int ordinal)
     {
         ArgumentNullException.ThrowIfNull(source);
-        foreach (var entry in nets)
+        foreach (var entry in Nets)
         {
             if (entry.Source.Identity == source.Identity
                 && PathsEqual(entry.Source.HierarchyPath, source.HierarchyPath))
