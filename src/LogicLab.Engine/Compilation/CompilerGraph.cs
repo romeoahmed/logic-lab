@@ -11,6 +11,26 @@ internal static class CompilerGraph
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var memberSets = FindComponentMembers(adjacency, cancellationToken);
+        var (components, componentByEvaluator) = CreateComponents(
+            adjacency,
+            memberSets,
+            cancellationToken);
+        var condensationOrder = CreateCondensationOrder(
+            adjacency,
+            componentByEvaluator,
+            components.Length,
+            cancellationToken);
+
+        return new StronglyConnectedComponentPlan(
+            components,
+            condensationOrder);
+    }
+
+    private static List<int[]> FindComponentMembers(
+        int[][] adjacency,
+        CancellationToken cancellationToken)
+    {
         var finishOrder = ComputeFinishOrder(adjacency, cancellationToken);
         var reverse = Reverse(adjacency, cancellationToken);
         var assigned = new bool[adjacency.Length];
@@ -49,6 +69,16 @@ internal static class CompilerGraph
         }
 
         memberSets.Sort(static (left, right) => left[0].CompareTo(right[0]));
+        return memberSets;
+    }
+
+    private static (
+        CombinationalStronglyConnectedComponent[] Components,
+        int[] ComponentByEvaluator) CreateComponents(
+        int[][] adjacency,
+        List<int[]> memberSets,
+        CancellationToken cancellationToken)
+    {
         var componentByEvaluator = new int[adjacency.Length];
         var components = new CombinationalStronglyConnectedComponent[memberSets.Count];
         for (var componentOrdinal = 0;
@@ -71,10 +101,19 @@ internal static class CompilerGraph
                 isCyclic);
         }
 
-        var condensationAdjacency = Enumerable.Range(0, components.Length)
+        return (components, componentByEvaluator);
+    }
+
+    private static int[] CreateCondensationOrder(
+        int[][] adjacency,
+        int[] componentByEvaluator,
+        int componentCount,
+        CancellationToken cancellationToken)
+    {
+        var condensationAdjacency = Enumerable.Range(0, componentCount)
             .Select(_ => new SortedSet<int>())
             .ToArray();
-        var indegree = new int[components.Length];
+        var indegree = new int[componentCount];
         for (var source = 0; source < adjacency.Length; source++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -92,8 +131,8 @@ internal static class CompilerGraph
         }
 
         var ready = new SortedSet<int>(
-            Enumerable.Range(0, components.Length).Where(index => indegree[index] == 0));
-        var condensationOrder = new List<int>(components.Length);
+            Enumerable.Range(0, componentCount).Where(index => indegree[index] == 0));
+        var condensationOrder = new List<int>(componentCount);
         while (ready.Count != 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -111,9 +150,7 @@ internal static class CompilerGraph
             }
         }
 
-        return new StronglyConnectedComponentPlan(
-            components,
-            condensationOrder.ToArray());
+        return condensationOrder.ToArray();
     }
 
     private static List<int> ComputeFinishOrder(
