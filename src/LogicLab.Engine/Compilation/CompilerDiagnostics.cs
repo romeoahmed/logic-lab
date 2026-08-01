@@ -50,9 +50,6 @@ public sealed record CompilerCircuitLocation(CompilationSource Source)
 
 public sealed class CompilerDiagnostic
 {
-    private readonly CompilerDiagnosticArgument[] arguments;
-    private readonly CompilerSourceLocation[] related;
-
     internal CompilerDiagnostic(
         string code,
         CompilerDiagnosticArgument[] arguments,
@@ -61,11 +58,11 @@ public sealed class CompilerDiagnostic
     {
         Code = code;
         Severity = CompilerDiagnosticSeverity.Error;
-        this.arguments = (CompilerDiagnosticArgument[])arguments.Clone();
-        this.related = related is null ? [] : (CompilerSourceLocation[])related.Clone();
-        Arguments = Array.AsReadOnly(this.arguments);
+        Arguments = Array.AsReadOnly(
+            (CompilerDiagnosticArgument[])arguments.Clone());
         Primary = primary;
-        Related = Array.AsReadOnly(this.related);
+        Related = Array.AsReadOnly(
+            related is null ? [] : (CompilerSourceLocation[])related.Clone());
     }
 
     public string Code { get; }

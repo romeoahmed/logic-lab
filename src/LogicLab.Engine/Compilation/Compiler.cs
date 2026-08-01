@@ -387,7 +387,9 @@ public static class Compiler
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (terminal.CircuitDefinitionId != definition.Id
-                    || !resolvedById.ContainsKey(terminal.ComponentInstanceId))
+                    || !resolvedById.TryGetValue(
+                        terminal.ComponentInstanceId,
+                        out var resolved))
                 {
                     var authoredInstance = definition.FindComponentInstance(
                         terminal.ComponentInstanceId);
@@ -413,8 +415,6 @@ public static class Compiler
                             new NetSourceIdentity(definition.Id, net.Id))));
                     continue;
                 }
-
-                var resolved = resolvedById[terminal.ComponentInstanceId];
 
                 var port = resolved.Schema.Ports.SingleOrDefault(candidate =>
                     string.Equals(candidate.Id, terminal.PortId, StringComparison.Ordinal));
@@ -516,6 +516,85 @@ public static class Compiler
                 .Select(port => new TerminalKey(resolved.Instance.Id, port.Id)))
             .ToHashSet();
 
+        var (drivers, driverSources, driverByTerminal) = BuildDrivers(
+            path,
+            definition,
+            resolvedInstances,
+            netByTerminal,
+            cancellationToken);
+        var (evaluators, evaluatorSources, evaluatorInputSources) = BuildEvaluators(
+            path,
+            definition,
+            resolvedInstances,
+            netByTerminal,
+            driverByTerminal,
+            cancellationToken);
+        var (simulationNets, netSources) = BuildNets(
+            path,
+            definition,
+            orderedNets,
+            evaluatorOrdinalById,
+            inputTerminals,
+            driverByTerminal,
+            cancellationToken);
+        var (fanoutOffsets, fanoutEvaluators) = BuildFanout(
+            simulationNets,
+            cancellationToken);
+        var adjacency = BuildEvaluatorAdjacency(
+            evaluators.Length,
+            drivers,
+            simulationNets,
+            cancellationToken);
+        var graphPlan = CompilerGraph.CreatePlan(adjacency, cancellationToken);
+        var simulationIr = new SimulationIr(
+            evaluators,
+            drivers,
+            simulationNets,
+            fanoutOffsets,
+            fanoutEvaluators,
+            graphPlan.Components,
+            graphPlan.CondensationOrder);
+        var sccMemberSources = graphPlan.Components
+            .SelectMany(component => component.EvaluatorOrdinals.Select(
+                evaluatorOrdinal =>
+                    new StronglyConnectedComponentMemberSourceMapEntry(
+                        component.Ordinal,
+                        evaluatorOrdinal,
+                        evaluatorSources[evaluatorOrdinal].Source)))
+            .ToArray();
+        var sourceMap = new SourceMap(
+            evaluatorSources,
+            evaluatorInputSources,
+            driverSources,
+            netSources,
+            sccMemberSources);
+        CompilationArtifactValidator.Validate(
+            simulationIr,
+            sourceMap,
+            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var key = new CompilationArtifactKey(
+            request.ProjectRevision.RevisionId,
+            request.EntryCircuitDefinitionId,
+            request.LibrarySnapshot.Fingerprint,
+            SemanticVersion);
+        return new CompilationArtifact(
+            key,
+            simulationIr,
+            sourceMap,
+            request.ProjectRevision);
+    }
+
+    private static (
+        SimulationDriver[] Drivers,
+        SourceMapEntry[] Sources,
+        Dictionary<TerminalKey, int> OrdinalByTerminal) BuildDrivers(
+        HierarchyPath path,
+        CircuitDefinition definition,
+        ResolvedInstance[] resolvedInstances,
+        Dictionary<TerminalKey, int> netByTerminal,
+        CancellationToken cancellationToken)
+    {
         var drivers = new List<SimulationDriver>();
         var driverSources = new List<SourceMapEntry>();
         var driverByTerminal = new Dictionary<TerminalKey, int>();
@@ -529,13 +608,15 @@ public static class Compiler
                 var terminal = new TerminalKey(resolved.Instance.Id, port.Id);
                 var driverOrdinal = drivers.Count;
                 var width = GetPortWidth(resolved.Instance, port);
+                int? netOrdinal = netByTerminal.TryGetValue(
+                    terminal,
+                    out var connectedNetOrdinal)
+                    ? connectedNetOrdinal
+                    : null;
                 drivers.Add(new SimulationDriver(
                     driverOrdinal,
                     resolved.Ordinal,
-                    netByTerminal.GetValueOrDefault(terminal, -1) is var netOrdinal
-                        && netOrdinal >= 0
-                            ? netOrdinal
-                            : null,
+                    netOrdinal,
                     width));
                 driverByTerminal.Add(terminal, driverOrdinal);
                 driverSources.Add(new SourceMapEntry(
@@ -549,6 +630,20 @@ public static class Compiler
             }
         }
 
+        return (drivers.ToArray(), driverSources.ToArray(), driverByTerminal);
+    }
+
+    private static (
+        SimulationEvaluator[] Evaluators,
+        SourceMapEntry[] Sources,
+        EvaluatorInputSourceMapEntry[] InputSources) BuildEvaluators(
+        HierarchyPath path,
+        CircuitDefinition definition,
+        ResolvedInstance[] resolvedInstances,
+        Dictionary<TerminalKey, int> netByTerminal,
+        Dictionary<TerminalKey, int> driverByTerminal,
+        CancellationToken cancellationToken)
+    {
         var evaluators = new SimulationEvaluator[resolvedInstances.Length];
         var evaluatorSources = new SourceMapEntry[resolvedInstances.Length];
         var evaluatorInputSources = new List<EvaluatorInputSourceMapEntry>();
@@ -598,6 +693,20 @@ public static class Compiler
             }
         }
 
+        return (evaluators, evaluatorSources, evaluatorInputSources.ToArray());
+    }
+
+    private static (
+        SimulationNet[] Nets,
+        SourceMapEntry[] Sources) BuildNets(
+        HierarchyPath path,
+        CircuitDefinition definition,
+        Net[] orderedNets,
+        Dictionary<ComponentInstanceId, int> evaluatorOrdinalById,
+        HashSet<TerminalKey> inputTerminals,
+        Dictionary<TerminalKey, int> driverByTerminal,
+        CancellationToken cancellationToken)
+    {
         var simulationNets = new SimulationNet[orderedNets.Length];
         var netSources = new SourceMapEntry[orderedNets.Length];
         for (var netOrdinal = 0; netOrdinal < orderedNets.Length; netOrdinal++)
@@ -629,6 +738,15 @@ public static class Compiler
                 Source(path, new NetSourceIdentity(definition.Id, net.Id)));
         }
 
+        return (simulationNets, netSources);
+    }
+
+    private static (
+        int[] Offsets,
+        int[] EvaluatorOrdinals) BuildFanout(
+        SimulationNet[] simulationNets,
+        CancellationToken cancellationToken)
+    {
         var fanoutOffsets = new int[simulationNets.Length + 1];
         var fanoutEvaluators = new List<int>();
         for (var netOrdinal = 0; netOrdinal < simulationNets.Length; netOrdinal++)
@@ -639,7 +757,16 @@ public static class Compiler
         }
 
         fanoutOffsets[^1] = fanoutEvaluators.Count;
-        var adjacency = Enumerable.Range(0, evaluators.Length)
+        return (fanoutOffsets, fanoutEvaluators.ToArray());
+    }
+
+    private static int[][] BuildEvaluatorAdjacency(
+        int evaluatorCount,
+        SimulationDriver[] drivers,
+        SimulationNet[] simulationNets,
+        CancellationToken cancellationToken)
+    {
+        var adjacency = Enumerable.Range(0, evaluatorCount)
             .Select(_ => new SortedSet<int>())
             .ToArray();
         foreach (var driver in drivers.Where(item => item.NetOrdinal is not null))
@@ -653,46 +780,7 @@ public static class Compiler
             }
         }
 
-        var graphPlan = CompilerGraph.CreatePlan(
-            adjacency.Select(edges => edges.ToArray()).ToArray(),
-            cancellationToken);
-        var simulationIr = new SimulationIr(
-            evaluators,
-            drivers.ToArray(),
-            simulationNets,
-            fanoutOffsets,
-            fanoutEvaluators.ToArray(),
-            graphPlan.Components,
-            graphPlan.CondensationOrder);
-        var sccMemberSources = graphPlan.Components
-            .SelectMany(component => component.EvaluatorOrdinals.Select(
-                evaluatorOrdinal =>
-                    new StronglyConnectedComponentMemberSourceMapEntry(
-                        component.Ordinal,
-                        evaluatorOrdinal,
-                        evaluatorSources[evaluatorOrdinal].Source)))
-            .ToArray();
-        var sourceMap = new SourceMap(
-            evaluatorSources,
-            evaluatorInputSources.ToArray(),
-            driverSources.ToArray(),
-            netSources,
-            sccMemberSources);
-        CompilationArtifactValidator.Validate(
-            simulationIr,
-            sourceMap,
-            cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        var key = new CompilationArtifactKey(
-            request.ProjectRevision.RevisionId,
-            request.EntryCircuitDefinitionId,
-            request.LibrarySnapshot.Fingerprint,
-            SemanticVersion);
-        return new CompilationArtifact(
-            key,
-            simulationIr,
-            sourceMap,
-            request.ProjectRevision);
+        return adjacency.Select(edges => edges.ToArray()).ToArray();
     }
 
     private static LogicVector? GetInitialValue(ResolvedInstance instance)
@@ -715,14 +803,21 @@ public static class Compiler
         ComponentContractKey key,
         out SimulationEvaluatorKind kind)
     {
-        kind = key.ContractId switch
+        switch (key.ContractId)
         {
-            "source.input" => SimulationEvaluatorKind.InputSource,
-            "logic.not" => SimulationEvaluatorKind.LogicNot,
-            "sink.output" => SimulationEvaluatorKind.OutputSink,
-            _ => default,
-        };
-        return key.ContractId is "source.input" or "logic.not" or "sink.output";
+            case "source.input":
+                kind = SimulationEvaluatorKind.InputSource;
+                return true;
+            case "logic.not":
+                kind = SimulationEvaluatorKind.LogicNot;
+                return true;
+            case "sink.output":
+                kind = SimulationEvaluatorKind.OutputSink;
+                return true;
+            default:
+                kind = default;
+                return false;
+        }
     }
 
     private static bool TryGetInstanceWidth(
