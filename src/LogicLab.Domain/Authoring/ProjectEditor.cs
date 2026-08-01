@@ -102,7 +102,7 @@ public static class ProjectEditor
             diagnostics.Add(InvalidCoordinate("placement", "orientation"));
         }
 
-        var schema = revision.Document.LibrarySnapshot.FindContract(intent.ContractKey);
+        var schema = revision.Document.LibrarySnapshot.ResolveContract(intent.ContractKey);
         if (schema is null)
         {
             diagnostics.Add(MissingReference("componentContract"));
@@ -182,7 +182,7 @@ public static class ProjectEditor
                 continue;
             }
 
-            var schema = revision.Document.LibrarySnapshot.FindContract(instance.ContractKey);
+            var schema = revision.Document.LibrarySnapshot.ResolveContract(instance.ContractKey);
             var port = schema?.Ports.SingleOrDefault(
                 candidate => string.Equals(
                     candidate.Id,

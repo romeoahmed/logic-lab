@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using LogicLab.Domain.Components;
 
 namespace LogicLab.Domain.Authoring;
@@ -25,21 +27,29 @@ internal static class SymbolProfileCatalog
 
 public sealed class LibrarySnapshot
 {
-    private LibrarySnapshot(string libraryId, string version)
+    private LibrarySnapshot(string libraryId, string version, string contentDigest)
     {
         LibraryId = libraryId;
         Version = version;
+        ContentDigest = contentDigest;
+        Fingerprint = Convert.ToHexStringLower(SHA256.HashData(
+            Encoding.UTF8.GetBytes($"{libraryId}\n{version}\n{contentDigest}\n")));
     }
 
     public static LibrarySnapshot Core { get; } = new(
         CoreLibrarySchema.LibraryId,
-        CoreLibrarySchema.Version);
+        CoreLibrarySchema.Version,
+        CoreLibrarySchema.ContentDigest);
 
     public string LibraryId { get; }
 
     public string Version { get; }
 
-    internal ComponentContractSchema? FindContract(ComponentContractKey key)
+    public string ContentDigest { get; }
+
+    public string Fingerprint { get; }
+
+    public ComponentContractSchema? ResolveContract(ComponentContractKey key)
     {
         return string.Equals(key.LibraryId, LibraryId, StringComparison.Ordinal)
             ? CoreLibrarySchema.FindContract(key)
