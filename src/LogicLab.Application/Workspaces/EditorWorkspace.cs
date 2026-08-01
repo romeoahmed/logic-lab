@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LogicLab.Application.Work;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
@@ -86,13 +87,10 @@ public sealed class EditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
-        WorkspaceState state;
-        lock (gate)
+        var state = FindWorkspace(command.WorkspaceId);
+        if (state is null)
         {
-            if (!workspaces.TryGetValue(command.WorkspaceId, out state!))
-            {
-                return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
-            }
+            return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
         }
 
         return command switch
@@ -126,13 +124,10 @@ public sealed class EditorWorkspace
             return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
-        WorkspaceState state;
-        lock (gate)
+        var state = FindWorkspace(workspaceId);
+        if (state is null)
         {
-            if (!workspaces.TryGetValue(workspaceId, out state!))
-            {
-                return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceNotFound);
-            }
+            return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceNotFound);
         }
 
         try
@@ -349,17 +344,13 @@ public sealed class EditorWorkspace
         WorkspaceState state,
         CancellationToken cancellationToken)
     {
-        if (state.SessionHandle is not null)
+        var artifact = state.Artifact;
+        if (state.SessionHandle is not null || artifact is null)
         {
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
-        if (state.Artifact is null)
-        {
-            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
-        }
-
-        var probeSources = OutputProbeSources(state.Revision, state.Artifact);
+        var probeSources = OutputProbeSources(state.Revision, artifact);
         if (probeSources.Length == 0)
         {
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
@@ -367,7 +358,7 @@ public sealed class EditorWorkspace
 
         var outcome = SimulationRuntime.Open(
             new OpenSimulationRequest(
-                state.Artifact,
+                artifact,
                 new SimulationSessionConfiguration(
                     new SimulationPolicyReference("workbench-simulation", "1"),
                     new TracePolicyReference("workbench-trace", "1"),
@@ -408,7 +399,9 @@ public sealed class EditorWorkspace
         ScheduleInputStimulus command,
         CancellationToken cancellationToken)
     {
-        if (state.SessionHandle is null || state.Artifact is null)
+        var sessionHandle = state.SessionHandle;
+        var artifact = state.Artifact;
+        if (sessionHandle is null || artifact is null)
         {
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
@@ -422,53 +415,20 @@ public sealed class EditorWorkspace
         var definition = state.Revision.Document.EntryCircuitDefinition;
         foreach (var assignment in command.Assignments)
         {
-            if (assignment is null
-                || assignment.Value.Count == 0
-                || assignment.Value.Any(value => !Enum.IsDefined(value)))
+            if (!TryCreateStimulusAssignment(
+                    artifact,
+                    definition,
+                    assignment,
+                    out var stimulusAssignment))
             {
                 return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
             }
 
-            var input = definition.ComponentInstances.SingleOrDefault(instance =>
-                instance.Id == assignment.InputComponentInstanceId);
-            var width = input?.Parameters
-                .SingleOrDefault(parameter => string.Equals(
-                    parameter.ParameterId,
-                    "width",
-                    StringComparison.Ordinal))
-                ?.Value as Unsigned32ParameterValue;
-            if (input is null
-                || !string.Equals(
-                    input.ContractKey.LibraryId,
-                    CoreLibrarySchema.LibraryId,
-                    StringComparison.Ordinal)
-                || !string.Equals(
-                    input.ContractKey.ContractId,
-                    "source.input",
-                    StringComparison.Ordinal)
-                || width is null
-                || assignment.Value.Count != checked((int)width.Value))
-            {
-                return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
-            }
-
-            var source = state.Artifact.SourceMap.Drivers
-                .Select(item => item.Source)
-                .SingleOrDefault(item => item.Identity is InstancePortSourceIdentity port
-                    && port.ComponentInstanceId == assignment.InputComponentInstanceId
-                    && string.Equals(port.PortId, "Q", StringComparison.Ordinal));
-            if (source is null)
-            {
-                return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
-            }
-
-            assignments.Add(new StimulusAssignment(
-                source,
-                new LogicVector(assignment.Value)));
+            assignments.Add(stimulusAssignment);
         }
 
         var outcome = SimulationRuntime.Execute(
-            state.SessionHandle,
+            sessionHandle,
             new LogicLab.Engine.Simulation.ScheduleStimulusBatch(
                 new StimulusBatch(command.LogicalTime, assignments)),
             cancellationToken);
@@ -489,7 +449,7 @@ public sealed class EditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
 
-        state.Simulation = ReadSimulation(state.SessionHandle);
+        state.Simulation = ReadSimulation(sessionHandle);
         state.ProjectionVersion++;
         return new StimulusScheduled(
             scheduled.ScheduledLogicalTime,
@@ -555,6 +515,64 @@ public sealed class EditorWorkspace
             .ToArray();
     }
 
+    private static bool TryCreateStimulusAssignment(
+        CompilationArtifact artifact,
+        CircuitDefinition definition,
+        InputStimulusAssignment? assignment,
+        [NotNullWhen(true)] out StimulusAssignment? stimulusAssignment)
+    {
+        stimulusAssignment = null;
+        if (assignment is null
+            || assignment.Value.Count == 0
+            || assignment.Value.Any(value => !Enum.IsDefined(value)))
+        {
+            return false;
+        }
+
+        var input = definition.ComponentInstances.SingleOrDefault(instance =>
+            instance.Id == assignment.InputComponentInstanceId);
+        var width = input?.Parameters
+            .SingleOrDefault(parameter => string.Equals(
+                parameter.ParameterId,
+                "width",
+                StringComparison.Ordinal))
+            ?.Value as Unsigned32ParameterValue;
+        if (input is null
+            || !IsInputSource(input)
+            || width is null
+            || assignment.Value.Count != checked((int)width.Value))
+        {
+            return false;
+        }
+
+        var source = artifact.SourceMap.Drivers
+            .SingleOrDefault(item => item.Source.Identity is InstancePortSourceIdentity port
+                && port.ComponentInstanceId == assignment.InputComponentInstanceId
+                && string.Equals(port.PortId, "Q", StringComparison.Ordinal))
+            ?.Source;
+        if (source is null)
+        {
+            return false;
+        }
+
+        stimulusAssignment = new StimulusAssignment(
+            source,
+            new LogicVector(assignment.Value));
+        return true;
+    }
+
+    private static bool IsInputSource(ComponentInstance instance)
+    {
+        return string.Equals(
+                instance.ContractKey.LibraryId,
+                CoreLibrarySchema.LibraryId,
+                StringComparison.Ordinal)
+            && string.Equals(
+                instance.ContractKey.ContractId,
+                "source.input",
+                StringComparison.Ordinal);
+    }
+
     private static SimulationProjection ReadSimulation(SimulationSessionHandle handle)
     {
         var outcome = SimulationRuntime.Read(
@@ -590,6 +608,14 @@ public sealed class EditorWorkspace
             state.Revision,
             state.Compilation,
             state.Simulation);
+    }
+
+    private WorkspaceState? FindWorkspace(WorkspaceId workspaceId)
+    {
+        lock (gate)
+        {
+            return workspaces.GetValueOrDefault(workspaceId);
+        }
     }
 
     private static WorkspaceCommandRejected Reject(
