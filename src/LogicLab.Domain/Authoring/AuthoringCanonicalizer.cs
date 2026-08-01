@@ -174,7 +174,7 @@ internal static class AuthoringCanonicalizer
                 return 1;
             }
 
-            var kindComparison = KindOrder(left).CompareTo(KindOrder(right));
+            var kindComparison = LocationVariant(left).CompareTo(LocationVariant(right));
             if (kindComparison != 0)
             {
                 return kindComparison;
@@ -188,63 +188,98 @@ internal static class AuthoringCanonicalizer
                     string.CompareOrdinal(
                         l.CircuitDefinitionId.Value,
                         r.CircuitDefinitionId.Value),
-                (ComponentInstanceSourceIdentity l, ComponentInstanceSourceIdentity r) =>
-                    CompareCircuitThenEntity(
-                        l.CircuitDefinitionId.Value,
-                        l.ComponentInstanceId.Value,
-                        r.CircuitDefinitionId.Value,
-                        r.ComponentInstanceId.Value),
-                (InstancePortSourceIdentity l, InstancePortSourceIdentity r) =>
-                    CompareInstancePorts(l, r),
-                (NetSourceIdentity l, NetSourceIdentity r) =>
-                    CompareCircuitThenEntity(
-                        l.CircuitDefinitionId.Value,
-                        l.NetId.Value,
-                        r.CircuitDefinitionId.Value,
-                        r.NetId.Value),
-                _ => throw new InvalidOperationException(
-                    "The Authored Source Identity variant is undefined."),
+                _ => CompareCircuitEntities(left, right),
             };
         }
 
-        private static int KindOrder(AuthoredSourceIdentity identity)
+        private static int LocationVariant(AuthoredSourceIdentity identity)
         {
             return identity switch
             {
                 ProjectRootSourceIdentity => 0,
                 CircuitRootSourceIdentity => 1,
-                ComponentInstanceSourceIdentity => 2,
-                InstancePortSourceIdentity => 3,
-                NetSourceIdentity => 4,
+                ComponentInstanceSourceIdentity or
+                    InstancePortSourceIdentity or
+                    NetSourceIdentity => 2,
                 _ => throw new InvalidOperationException(
                     "The Authored Source Identity variant is undefined."),
             };
         }
 
-        private static int CompareCircuitThenEntity(
-            string leftCircuit,
-            string leftEntity,
-            string rightCircuit,
-            string rightEntity)
+        private static int CompareCircuitEntities(
+            AuthoredSourceIdentity left,
+            AuthoredSourceIdentity right)
         {
-            var circuitComparison = string.CompareOrdinal(leftCircuit, rightCircuit);
-            return circuitComparison != 0
-                ? circuitComparison
-                : string.CompareOrdinal(leftEntity, rightEntity);
-        }
+            var circuitComparison = string.CompareOrdinal(
+                GetCircuitDefinitionId(left).Value,
+                GetCircuitDefinitionId(right).Value);
+            if (circuitComparison != 0)
+            {
+                return circuitComparison;
+            }
 
-        private static int CompareInstancePorts(
-            InstancePortSourceIdentity left,
-            InstancePortSourceIdentity right)
-        {
-            var entityComparison = CompareCircuitThenEntity(
-                left.CircuitDefinitionId.Value,
-                left.ComponentInstanceId.Value,
-                right.CircuitDefinitionId.Value,
-                right.ComponentInstanceId.Value);
+            var kindComparison = CircuitEntityKind(left)
+                .CompareTo(CircuitEntityKind(right));
+            if (kindComparison != 0)
+            {
+                return kindComparison;
+            }
+
+            var entityComparison = string.CompareOrdinal(
+                CircuitEntityId(left),
+                CircuitEntityId(right));
             return entityComparison != 0
                 ? entityComparison
-                : string.CompareOrdinal(left.PortId, right.PortId);
+                : CompareOptionalPortIds(
+                    (left as InstancePortSourceIdentity)?.PortId,
+                    (right as InstancePortSourceIdentity)?.PortId);
+        }
+
+        private static CircuitDefinitionId GetCircuitDefinitionId(
+            AuthoredSourceIdentity identity)
+        {
+            return identity switch
+            {
+                ComponentInstanceSourceIdentity source => source.CircuitDefinitionId,
+                InstancePortSourceIdentity source => source.CircuitDefinitionId,
+                NetSourceIdentity source => source.CircuitDefinitionId,
+                _ => throw new InvalidOperationException(
+                    "The circuit Source Identity variant is undefined."),
+            };
+        }
+
+        private static int CircuitEntityKind(AuthoredSourceIdentity identity)
+        {
+            return identity switch
+            {
+                ComponentInstanceSourceIdentity or InstancePortSourceIdentity => 0,
+                NetSourceIdentity => 1,
+                _ => throw new InvalidOperationException(
+                    "The circuit entity Source Identity variant is undefined."),
+            };
+        }
+
+        private static string CircuitEntityId(AuthoredSourceIdentity identity)
+        {
+            return identity switch
+            {
+                ComponentInstanceSourceIdentity source =>
+                    source.ComponentInstanceId.Value,
+                InstancePortSourceIdentity source => source.ComponentInstanceId.Value,
+                NetSourceIdentity source => source.NetId.Value,
+                _ => throw new InvalidOperationException(
+                    "The circuit entity Source Identity variant is undefined."),
+            };
+        }
+
+        private static int CompareOptionalPortIds(string? left, string? right)
+        {
+            if (left is null)
+            {
+                return right is null ? 0 : -1;
+            }
+
+            return right is null ? 1 : string.CompareOrdinal(left, right);
         }
     }
 }

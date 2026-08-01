@@ -2,22 +2,42 @@ namespace LogicLab.Engine.Compilation;
 
 internal static class CompilationArtifactValidator
 {
-    public static void Validate(SimulationIr ir, SourceMap sourceMap)
+    public static void Validate(
+        SimulationIr ir,
+        SourceMap sourceMap,
+        CancellationToken cancellationToken)
     {
-        RequireDenseOrdinals(ir.Evaluators.Select(item => item.Ordinal), "evaluator");
-        RequireDenseOrdinals(ir.Drivers.Select(item => item.Ordinal), "Driver");
-        RequireDenseOrdinals(ir.Nets.Select(item => item.Ordinal), "Net");
+        cancellationToken.ThrowIfCancellationRequested();
+        RequireDenseOrdinals(
+            ir.Evaluators.Select(item => item.Ordinal),
+            "evaluator",
+            cancellationToken);
+        RequireDenseOrdinals(
+            ir.Drivers.Select(item => item.Ordinal),
+            "Driver",
+            cancellationToken);
+        RequireDenseOrdinals(
+            ir.Nets.Select(item => item.Ordinal),
+            "Net",
+            cancellationToken);
         RequireDenseOrdinals(
             ir.StronglyConnectedComponents.Select(item => item.Ordinal),
-            "SCC");
+            "SCC",
+            cancellationToken);
 
         foreach (var evaluator in ir.Evaluators)
         {
-            RequireInBounds(evaluator.InputNetOrdinals, ir.Nets.Count, "evaluator input Net");
+            cancellationToken.ThrowIfCancellationRequested();
+            RequireInBounds(
+                evaluator.InputNetOrdinals,
+                ir.Nets.Count,
+                "evaluator input Net",
+                cancellationToken);
             RequireInBounds(
                 evaluator.OutputDriverOrdinals,
                 ir.Drivers.Count,
-                "evaluator output Driver");
+                "evaluator output Driver",
+                cancellationToken);
             if (evaluator.OutputDriverOrdinals.Any(
                 ordinal => ir.Drivers[ordinal].EvaluatorOrdinal != evaluator.Ordinal))
             {
@@ -27,6 +47,7 @@ internal static class CompilationArtifactValidator
 
         foreach (var driver in ir.Drivers)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             RequireInBounds(driver.EvaluatorOrdinal, ir.Evaluators.Count, "Driver evaluator");
             if (driver.NetOrdinal is { } netOrdinal)
             {
@@ -40,11 +61,17 @@ internal static class CompilationArtifactValidator
 
         foreach (var net in ir.Nets)
         {
-            RequireInBounds(net.DriverOrdinals, ir.Drivers.Count, "Net Driver");
+            cancellationToken.ThrowIfCancellationRequested();
+            RequireInBounds(
+                net.DriverOrdinals,
+                ir.Drivers.Count,
+                "Net Driver",
+                cancellationToken);
             RequireInBounds(
                 net.ReceiverEvaluatorOrdinals,
                 ir.Evaluators.Count,
-                "Net receiver evaluator");
+                "Net receiver evaluator",
+                cancellationToken);
             if (net.DriverOrdinals.Any(
                 ordinal => ir.Drivers[ordinal].NetOrdinal != net.Ordinal))
             {
@@ -52,12 +79,14 @@ internal static class CompilationArtifactValidator
             }
         }
 
-        ValidateFanout(ir);
-        ValidateStronglyConnectedComponents(ir);
-        ValidateSourceMap(ir, sourceMap);
+        ValidateFanout(ir, cancellationToken);
+        ValidateStronglyConnectedComponents(ir, cancellationToken);
+        ValidateSourceMap(ir, sourceMap, cancellationToken);
     }
 
-    private static void ValidateFanout(SimulationIr ir)
+    private static void ValidateFanout(
+        SimulationIr ir,
+        CancellationToken cancellationToken)
     {
         if (ir.FanoutOffsets.Count != ir.Nets.Count + 1
             || ir.FanoutOffsets[0] != 0
@@ -68,6 +97,7 @@ internal static class CompilationArtifactValidator
 
         for (var netOrdinal = 0; netOrdinal < ir.Nets.Count; netOrdinal++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var start = ir.FanoutOffsets[netOrdinal];
             var end = ir.FanoutOffsets[netOrdinal + 1];
             if (start > end)
@@ -83,8 +113,11 @@ internal static class CompilationArtifactValidator
         }
     }
 
-    private static void ValidateStronglyConnectedComponents(SimulationIr ir)
+    private static void ValidateStronglyConnectedComponents(
+        SimulationIr ir,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var memberships = ir.StronglyConnectedComponents
             .SelectMany(component => component.EvaluatorOrdinals.Select(
                 evaluator => (Component: component.Ordinal, Evaluator: evaluator)))
@@ -92,7 +125,8 @@ internal static class CompilationArtifactValidator
         RequireInBounds(
             memberships.Select(item => item.Evaluator),
             ir.Evaluators.Count,
-            "SCC evaluator");
+            "SCC evaluator",
+            cancellationToken);
         if (!memberships.Select(item => item.Evaluator).Order().SequenceEqual(
                 Enumerable.Range(0, ir.Evaluators.Count)))
         {
@@ -113,10 +147,12 @@ internal static class CompilationArtifactValidator
             .ToDictionary(item => item.Component, item => item.Order);
         foreach (var driver in ir.Drivers.Where(item => item.NetOrdinal is not null))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var sourceComponent = componentByEvaluator[driver.EvaluatorOrdinal];
             foreach (var receiver in ir.Nets[driver.NetOrdinal!.Value]
                 .ReceiverEvaluatorOrdinals)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var destinationComponent = componentByEvaluator[receiver];
                 if (sourceComponent != destinationComponent
                     && orderByComponent[sourceComponent] >= orderByComponent[destinationComponent])
@@ -127,8 +163,12 @@ internal static class CompilationArtifactValidator
         }
     }
 
-    private static void ValidateSourceMap(SimulationIr ir, SourceMap sourceMap)
+    private static void ValidateSourceMap(
+        SimulationIr ir,
+        SourceMap sourceMap,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (sourceMap.Evaluators.Count != ir.Evaluators.Count
             || sourceMap.Drivers.Count != ir.Drivers.Count
             || sourceMap.Nets.Count != ir.Nets.Count)
@@ -138,18 +178,22 @@ internal static class CompilationArtifactValidator
 
         RequireDenseOrdinals(
             sourceMap.Evaluators.Select(item => item.Ordinal),
-            "Source Map evaluator");
+            "Source Map evaluator",
+            cancellationToken);
         RequireDenseOrdinals(
             sourceMap.Drivers.Select(item => item.Ordinal),
-            "Source Map Driver");
+            "Source Map Driver",
+            cancellationToken);
         RequireDenseOrdinals(
             sourceMap.Nets.Select(item => item.Ordinal),
-            "Source Map Net");
+            "Source Map Net",
+            cancellationToken);
 
         var expectedInputs = ir.Evaluators
             .SelectMany(evaluator => Enumerable.Range(0, evaluator.InputNetOrdinals.Count)
                 .Select(input => (Evaluator: evaluator.Ordinal, Input: input)))
             .ToArray();
+        cancellationToken.ThrowIfCancellationRequested();
         var actualInputs = sourceMap.EvaluatorInputs
             .Select(item => (Evaluator: item.EvaluatorOrdinal, Input: item.InputOrdinal))
             .ToArray();
@@ -162,6 +206,7 @@ internal static class CompilationArtifactValidator
             .SelectMany(component => component.EvaluatorOrdinals.Select(
                 evaluator => (Component: component.Ordinal, Evaluator: evaluator)))
             .ToArray();
+        cancellationToken.ThrowIfCancellationRequested();
         var actualMembers = sourceMap.StronglyConnectedComponentMembers
             .Select(item => (
                 Component: item.StronglyConnectedComponentOrdinal,
@@ -175,23 +220,35 @@ internal static class CompilationArtifactValidator
 
     private static void RequireDenseOrdinals(
         IEnumerable<int> ordinals,
-        string family)
+        string family,
+        CancellationToken cancellationToken)
     {
-        var actual = ordinals.ToArray();
-        if (!actual.SequenceEqual(Enumerable.Range(0, actual.Length)))
+        var expected = 0;
+        foreach (var ordinal in ordinals)
         {
-            Invalid($"The {family} ordinals are not dense and zero-based.");
+            cancellationToken.ThrowIfCancellationRequested();
+            if (ordinal != expected)
+            {
+                Invalid($"The {family} ordinals are not dense and zero-based.");
+            }
+
+            expected = checked(expected + 1);
         }
     }
 
     private static void RequireInBounds(
         IEnumerable<int> ordinals,
         int count,
-        string family)
+        string family,
+        CancellationToken cancellationToken)
     {
-        if (ordinals.Any(ordinal => ordinal < 0 || ordinal >= count))
+        foreach (var ordinal in ordinals)
         {
-            Invalid($"A {family} ordinal is out of bounds.");
+            cancellationToken.ThrowIfCancellationRequested();
+            if (ordinal < 0 || ordinal >= count)
+            {
+                Invalid($"A {family} ordinal is out of bounds.");
+            }
         }
     }
 
