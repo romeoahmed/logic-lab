@@ -413,7 +413,7 @@ public static class ProjectEditor
             .Select(binding => binding.Value)
             .OfType<Unsigned32ParameterValue>()
             .Select(value => value.Value)
-            .SingleOrDefault();
+            .FirstOrDefault();
 
         if (width == 0 || vector.Values.Count != width)
         {
@@ -444,17 +444,8 @@ public static class ProjectEditor
     {
         return new EditCommitted(
             revision,
-            Canonicalize(changedSources),
+            changedSources,
             []);
-    }
-
-    private static AuthoredSourceIdentity[] Canonicalize(
-        IEnumerable<AuthoredSourceIdentity> sources)
-    {
-        return sources
-            .Distinct()
-            .OrderBy(source => source, AuthoredSourceIdentityComparer.Instance)
-            .ToArray();
     }
 
     private static EditRejected Reject(params AuthoringDiagnostic[] diagnostics)
@@ -486,7 +477,8 @@ public static class ProjectEditor
                     new ContractKeyDiagnosticValue(contractKey)),
                 new AuthoringDiagnosticArgument(
                     "parameterId",
-                    new StableTokenDiagnosticValue(parameterId)),
+                    new StableTokenDiagnosticValue(
+                        IsStableToken(parameterId) ? parameterId : "invalid")),
                 new AuthoringDiagnosticArgument(
                     "rule",
                     new StableTokenDiagnosticValue(rule)),
@@ -505,102 +497,6 @@ public static class ProjectEditor
                     "rule",
                     new StableTokenDiagnosticValue(rule)),
             ]);
-    }
-
-    private sealed class AuthoredSourceIdentityComparer
-        : IComparer<AuthoredSourceIdentity>
-    {
-        public static AuthoredSourceIdentityComparer Instance { get; } = new();
-
-        public int Compare(AuthoredSourceIdentity? left, AuthoredSourceIdentity? right)
-        {
-            if (ReferenceEquals(left, right))
-            {
-                return 0;
-            }
-
-            if (left is null)
-            {
-                return -1;
-            }
-
-            if (right is null)
-            {
-                return 1;
-            }
-
-            var kindComparison = KindOrder(left).CompareTo(KindOrder(right));
-            if (kindComparison != 0)
-            {
-                return kindComparison;
-            }
-
-            return (left, right) switch
-            {
-                (ProjectRootSourceIdentity l, ProjectRootSourceIdentity r) =>
-                    string.CompareOrdinal(l.ProjectId.Value, r.ProjectId.Value),
-                (CircuitRootSourceIdentity l, CircuitRootSourceIdentity r) =>
-                    string.CompareOrdinal(
-                        l.CircuitDefinitionId.Value,
-                        r.CircuitDefinitionId.Value),
-                (ComponentInstanceSourceIdentity l, ComponentInstanceSourceIdentity r) =>
-                    CompareCircuitThenEntity(
-                        l.CircuitDefinitionId.Value,
-                        l.ComponentInstanceId.Value,
-                        r.CircuitDefinitionId.Value,
-                        r.ComponentInstanceId.Value),
-                (InstancePortSourceIdentity l, InstancePortSourceIdentity r) =>
-                    CompareInstancePorts(l, r),
-                (NetSourceIdentity l, NetSourceIdentity r) =>
-                    CompareCircuitThenEntity(
-                        l.CircuitDefinitionId.Value,
-                        l.NetId.Value,
-                        r.CircuitDefinitionId.Value,
-                        r.NetId.Value),
-                _ => throw new InvalidOperationException(
-                    "The Authored Source Identity variant is undefined."),
-            };
-        }
-
-        private static int KindOrder(AuthoredSourceIdentity identity)
-        {
-            return identity switch
-            {
-                ProjectRootSourceIdentity => 0,
-                CircuitRootSourceIdentity => 1,
-                ComponentInstanceSourceIdentity => 2,
-                InstancePortSourceIdentity => 3,
-                NetSourceIdentity => 4,
-                _ => throw new InvalidOperationException(
-                    "The Authored Source Identity variant is undefined."),
-            };
-        }
-
-        private static int CompareCircuitThenEntity(
-            string leftCircuit,
-            string leftEntity,
-            string rightCircuit,
-            string rightEntity)
-        {
-            var circuitComparison = string.CompareOrdinal(leftCircuit, rightCircuit);
-            return circuitComparison != 0
-                ? circuitComparison
-                : string.CompareOrdinal(leftEntity, rightEntity);
-        }
-
-        private static int CompareInstancePorts(
-            InstancePortSourceIdentity left,
-            InstancePortSourceIdentity right)
-        {
-            var entityComparison = CompareCircuitThenEntity(
-                left.CircuitDefinitionId.Value,
-                left.ComponentInstanceId.Value,
-                right.CircuitDefinitionId.Value,
-                right.ComponentInstanceId.Value);
-            return entityComparison != 0
-                ? entityComparison
-                : string.CompareOrdinal(left.PortId, right.PortId);
-        }
     }
 
     private static void ValidateDisplayText(
@@ -667,9 +563,7 @@ public static class ProjectEditor
         List<AuthoringDiagnostic> diagnostics)
     {
         if (symbolProfile is not null
-            && IsStableName(symbolProfile.Id)
-            && IsStableVersion(symbolProfile.Version)
-            && Enum.IsDefined(symbolProfile.IndicationConvention))
+            && SymbolProfileCatalog.Contains(symbolProfile))
         {
             return;
         }
@@ -706,6 +600,13 @@ public static class ProjectEditor
     private static bool IsStableVersion(string? value)
     {
         return value is { Length: >= 1 and <= 64 }
+            && IsAsciiLetterOrDigit(value[0])
+            && value.All(IsStableNameCharacter);
+    }
+
+    private static bool IsStableToken(string? value)
+    {
+        return value is { Length: >= 1 and <= 96 }
             && IsAsciiLetterOrDigit(value[0])
             && value.All(IsStableNameCharacter);
     }

@@ -94,7 +94,7 @@ public sealed record ProjectGenesisCommitted : ProjectGenesisOutcome
     {
         Revision = revision;
         ChangedSources = Array.AsReadOnly(
-            (AuthoredSourceIdentity[])changedSources.Clone());
+            AuthoringCanonicalizer.Sources(changedSources));
     }
 
     public ProjectRevision Revision { get; }
@@ -113,7 +113,7 @@ public sealed record ProjectGenesisRejected : ProjectGenesisOutcome
     internal ProjectGenesisRejected(AuthoringDiagnostic[] diagnostics)
     {
         Diagnostics = Array.AsReadOnly(
-            (AuthoringDiagnostic[])diagnostics.Clone());
+            AuthoringCanonicalizer.Diagnostics(diagnostics));
     }
 
     public ReadOnlyCollection<AuthoringDiagnostic> Diagnostics { get; }
@@ -137,9 +137,9 @@ public sealed record EditCommitted : EditOutcome
     {
         Revision = revision;
         ChangedSources = Array.AsReadOnly(
-            (AuthoredSourceIdentity[])changedSources.Clone());
+            AuthoringCanonicalizer.Sources(changedSources));
         RemovedSources = Array.AsReadOnly(
-            (AuthoredSourceIdentity[])removedSources.Clone());
+            AuthoringCanonicalizer.Sources(removedSources));
     }
 
     public ProjectRevision Revision { get; }
@@ -157,7 +157,7 @@ public sealed record EditRejected : EditOutcome
     internal EditRejected(AuthoringDiagnostic[] diagnostics)
     {
         Diagnostics = Array.AsReadOnly(
-            (AuthoringDiagnostic[])diagnostics.Clone());
+            AuthoringCanonicalizer.Diagnostics(diagnostics));
     }
 
     public ReadOnlyCollection<AuthoringDiagnostic> Diagnostics { get; }
