@@ -419,21 +419,27 @@ public static class ProjectEditor
             return;
         }
 
+        var profileId = "missing";
+        var profileVersion = "missing";
+        if (symbolProfile is not null)
+        {
+            profileId = IsStableName(symbolProfile.Id)
+                ? symbolProfile.Id
+                : "invalid";
+            profileVersion = IsStableVersion(symbolProfile.Version)
+                ? symbolProfile.Version
+                : "invalid";
+        }
+
         diagnostics.Add(new AuthoringDiagnostic(
             "authoring_symbol_profile_unresolved",
             [
                 new AuthoringDiagnosticArgument(
                     "profileId",
-                    new StableTokenDiagnosticValue(symbolProfile is null
-                        ? "missing"
-                        : IsStableName(symbolProfile.Id) ? symbolProfile.Id : "invalid")),
+                    new StableTokenDiagnosticValue(profileId)),
                 new AuthoringDiagnosticArgument(
                     "profileVersion",
-                    new StableTokenDiagnosticValue(symbolProfile is null
-                        ? "missing"
-                        : IsStableVersion(symbolProfile.Version)
-                            ? symbolProfile.Version
-                            : "invalid")),
+                    new StableTokenDiagnosticValue(profileVersion)),
             ]));
     }
 

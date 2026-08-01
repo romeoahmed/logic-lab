@@ -253,8 +253,6 @@ public sealed record InstanceTerminalReference(
 
 public sealed class Net
 {
-    private readonly InstanceTerminalReference[] terminals;
-
     internal Net(
         NetId id,
         uint width,
@@ -262,8 +260,8 @@ public sealed class Net
     {
         Id = id;
         Width = width;
-        this.terminals = (InstanceTerminalReference[])terminals.Clone();
-        Terminals = Array.AsReadOnly(this.terminals);
+        Terminals = Array.AsReadOnly(
+            (InstanceTerminalReference[])terminals.Clone());
     }
 
     public NetId Id { get; }
