@@ -9,7 +9,9 @@ public sealed record SimulationPolicyReference
 {
     public SimulationPolicyReference(string policyId, string policyRevision)
     {
-        ValidatePolicyReference(policyId, policyRevision);
+        ArgumentException.ThrowIfNullOrEmpty(policyId);
+        ArgumentException.ThrowIfNullOrEmpty(policyRevision);
+        PolicyIdentity.ValidateTokens("Simulation", policyId, policyRevision);
         PolicyId = policyId;
         PolicyRevision = policyRevision;
     }
@@ -17,27 +19,6 @@ public sealed record SimulationPolicyReference
     public string PolicyId { get; }
 
     public string PolicyRevision { get; }
-
-    private static void ValidatePolicyReference(
-        string policyId,
-        string policyRevision)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(policyId);
-        ArgumentException.ThrowIfNullOrEmpty(policyRevision);
-        if (!StableToken.IsValid(policyId))
-        {
-            throw new ArgumentException(
-                "The Simulation Policy ID must be a Stable Token.",
-                nameof(policyId));
-        }
-
-        if (!StableToken.IsValid(policyRevision))
-        {
-            throw new ArgumentException(
-                "The Simulation Policy revision must be a Stable Token.",
-                nameof(policyRevision));
-        }
-    }
 }
 
 public sealed record TracePolicyReference
@@ -46,19 +27,7 @@ public sealed record TracePolicyReference
     {
         ArgumentException.ThrowIfNullOrEmpty(policyId);
         ArgumentException.ThrowIfNullOrEmpty(policyRevision);
-        if (!StableToken.IsValid(policyId))
-        {
-            throw new ArgumentException(
-                "The Trace Policy ID must be a Stable Token.",
-                nameof(policyId));
-        }
-
-        if (!StableToken.IsValid(policyRevision))
-        {
-            throw new ArgumentException(
-                "The Trace Policy revision must be a Stable Token.",
-                nameof(policyRevision));
-        }
+        PolicyIdentity.ValidateTokens("Trace", policyId, policyRevision);
 
         PolicyId = policyId;
         PolicyRevision = policyRevision;

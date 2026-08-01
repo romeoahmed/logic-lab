@@ -127,11 +127,9 @@ public static class ProjectEditor
             intent.Placement,
             intent.DisplayName);
         var updatedDefinition = definition.AddComponentInstance(instance);
-        var document = revision.Document.ReplaceCircuitDefinition(updatedDefinition);
-        var committedRevision = new ProjectRevision(ProjectRevisionId.Create(), document);
-
         return Commit(
-            committedRevision,
+            revision,
+            updatedDefinition,
             [new ComponentInstanceSourceIdentity(definition.Id, instance.Id)]);
     }
 
@@ -220,8 +218,6 @@ public static class ProjectEditor
 
         var net = new Net(NetId.Create(), widths[0], intent.Terminals.ToArray());
         var updatedDefinition = definition.AddNet(net);
-        var document = revision.Document.ReplaceCircuitDefinition(updatedDefinition);
-        var committedRevision = new ProjectRevision(ProjectRevisionId.Create(), document);
         var changedSources = intent.Terminals
             .Select(terminal => (AuthoredSourceIdentity)new InstancePortSourceIdentity(
                 terminal.CircuitDefinitionId,
@@ -230,7 +226,7 @@ public static class ProjectEditor
             .Append(new NetSourceIdentity(definition.Id, net.Id))
             .ToArray();
 
-        return Commit(committedRevision, changedSources);
+        return Commit(revision, updatedDefinition, changedSources);
     }
 
     private static EditOutcome ApplyMove(
@@ -288,20 +284,21 @@ public static class ProjectEditor
         }
 
         var updatedDefinition = definition.ReplaceComponentInstances(replacements.ToArray());
-        var document = revision.Document.ReplaceCircuitDefinition(updatedDefinition);
-        var committedRevision = new ProjectRevision(ProjectRevisionId.Create(), document);
         var changedSources = replacements
             .Select(instance => (AuthoredSourceIdentity)new ComponentInstanceSourceIdentity(
                 definition.Id,
                 instance.Id))
             .ToArray();
-        return Commit(committedRevision, changedSources);
+        return Commit(revision, updatedDefinition, changedSources);
     }
 
     private static EditCommitted Commit(
-        ProjectRevision revision,
+        ProjectRevision previousRevision,
+        CircuitDefinition updatedDefinition,
         AuthoredSourceIdentity[] changedSources)
     {
+        var document = previousRevision.Document.ReplaceCircuitDefinition(updatedDefinition);
+        var revision = new ProjectRevision(ProjectRevisionId.Create(), document);
         return new EditCommitted(
             revision,
             changedSources,
