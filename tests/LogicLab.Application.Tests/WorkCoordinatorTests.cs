@@ -7,7 +7,7 @@ namespace LogicLab.Application.Tests;
 public sealed class WorkCoordinatorTests
 {
     [Test]
-    public async Task RunSessionAsync_AfterDisposal_ReturnsStoppingRejection()
+    public async Task RunSessionAsync_AfterDisposal_ReturnsCancellationRejection()
     {
         var coordinator = new WorkCoordinator();
         await coordinator.DisposeAsync();
@@ -20,7 +20,7 @@ public sealed class WorkCoordinatorTests
 
         await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
         await Assert.That(((WorkspaceCommandRejected)outcome).Code)
-            .IsEqualTo("work_coordinator_stopping");
+            .IsEqualTo("workspace_cancelled");
     }
 
     [Test]
@@ -64,7 +64,7 @@ public sealed class WorkCoordinatorTests
 
         await Assert.That(rejected).IsTypeOf<WorkspaceCommandRejected>();
         await Assert.That(((WorkspaceCommandRejected)rejected).Code)
-            .IsEqualTo("session_queue_full");
+            .IsEqualTo("workspace_admission_rejected");
         await Assert.That(executionOrder)
             .IsEquivalentTo([1], CollectionOrdering.Matching);
 
@@ -76,13 +76,15 @@ public sealed class WorkCoordinatorTests
     }
 
     [Test]
-    public async Task RunCompilationAsync_NewerRequest_SupersedesOlderPublication()
+    public async Task RunCompilationAsync_NewerRequest_SupersedesNonCooperativeOlderPublication()
     {
         await using var coordinator = new WorkCoordinator(
             compilationQueueCapacity: 2,
             sessionQueueCapacity: 1);
         var workspaceId = WorkspaceId.Create();
         var firstStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var firstPublished = false;
         var secondPublished = false;
@@ -92,7 +94,7 @@ public sealed class WorkCoordinatorTests
             async context =>
             {
                 firstStarted.SetResult();
-                await Task.Delay(Timeout.InfiniteTimeSpan, context.CancellationToken);
+                await releaseFirst.Task;
                 _ = context.TryPublish(() => firstPublished = true);
                 return Completed("first_completed");
             },
@@ -110,6 +112,7 @@ public sealed class WorkCoordinatorTests
             },
             CancellationToken.None);
 
+        releaseFirst.SetResult();
         var firstOutcome = await first;
         var secondOutcome = await second;
 
@@ -117,7 +120,7 @@ public sealed class WorkCoordinatorTests
         using (Assert.Multiple())
         {
             await Assert.That(((WorkspaceCommandRejected)firstOutcome).Code)
-                .IsEqualTo("compilation_superseded");
+                .IsEqualTo("workspace_cancelled");
             await Assert.That(secondOutcome).IsEqualTo(Completed("second_completed"));
             await Assert.That(firstPublished).IsFalse();
             await Assert.That(secondPublished).IsTrue();

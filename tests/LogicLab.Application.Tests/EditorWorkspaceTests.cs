@@ -124,9 +124,9 @@ public sealed class EditorWorkspaceTests
         using (Assert.Multiple())
         {
             await Assert.That(((WorkspaceCommandRejected)compilation).Code)
-                .IsEqualTo("compilation_rejected");
+                .IsEqualTo("compilation_invalid");
             await Assert.That(((WorkspaceCommandRejected)session).Code)
-                .IsEqualTo("compilation_required");
+                .IsEqualTo("session_precondition_failed");
             await Assert.That(projection.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.Rejected);
             await Assert.That(projection.Compilation.ArtifactKey).IsNull();
@@ -153,11 +153,82 @@ public sealed class EditorWorkspaceTests
         using (Assert.Multiple())
         {
             await Assert.That(((WorkspaceCommandRejected)outcome).Code)
-                .IsEqualTo("operation_cancelled");
+                .IsEqualTo("workspace_cancelled");
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
             await Assert.That(after.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.NotRequested);
             await Assert.That(after.Compilation.ArtifactKey).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_QueuedCompilationAfterEdit_DoesNotPublishDifferentRevision()
+    {
+        await using var coordinator = new WorkCoordinator();
+        var blockerStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseBlocker = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var blocker = coordinator.RunCompilationAsync(
+            WorkspaceId.Create(),
+            async context =>
+            {
+                blockerStarted.SetResult();
+                await releaseBlocker.Task.WaitAsync(context.CancellationToken);
+                return new WorkspaceCommandRejected("workspace_cancelled", []);
+            },
+            CancellationToken.None);
+        await blockerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var workspace = new EditorWorkspace(coordinator);
+        var opened = await Open(workspace);
+        var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
+        await Apply(workspace, opened.WorkspaceId, Place(
+            definitionId,
+            "source.input",
+            [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding(
+                    "initialValue",
+                    new LogicVectorParameterValue([LogicValue.Zero])),
+            ],
+            new GridPoint(0, 0)));
+        var input = await FindByContract(workspace, opened.WorkspaceId, "source.input");
+        await Apply(workspace, opened.WorkspaceId, Place(
+            definitionId,
+            "sink.output",
+            [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
+            ],
+            new GridPoint(4, 0)));
+        var output = await FindByContract(workspace, opened.WorkspaceId, "sink.output");
+
+        var compilation = workspace.DispatchAsync(
+            new RequestCompilation(opened.WorkspaceId),
+            CancellationToken.None);
+        await Apply(workspace, opened.WorkspaceId, new ConnectTerminalsIntent(
+            [
+                Terminal(definitionId, input, "Q"),
+                Terminal(definitionId, output, "D"),
+            ]));
+        var edited = await Read(workspace, opened.WorkspaceId);
+
+        releaseBlocker.SetResult();
+        _ = await blocker;
+        var outcome = await compilation;
+        var afterCompilation = await Read(workspace, opened.WorkspaceId);
+
+        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        using (Assert.Multiple())
+        {
+            await Assert.That(((WorkspaceCommandRejected)outcome).Code)
+                .IsEqualTo("project_revision_precondition_failed");
+            await Assert.That(afterCompilation.ProjectRevision.RevisionId)
+                .IsEqualTo(edited.ProjectRevision.RevisionId);
+            await Assert.That(afterCompilation.Compilation.Status)
+                .IsEqualTo(CompilationPublicationStatus.NotRequested);
+            await Assert.That(afterCompilation.Compilation.ArtifactKey).IsNull();
         }
     }
 
@@ -197,6 +268,22 @@ public sealed class EditorWorkspaceTests
         await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
         await Assert.That(((WorkspaceCommandRejected)outcome).Code)
             .IsEqualTo("session_precondition_failed");
+    }
+
+    [Test]
+    public async Task DispatchAsync_StepWithoutScheduledStimulus_ReturnsSimulationReason()
+    {
+        await using var coordinator = new WorkCoordinator();
+        var workspace = new EditorWorkspace(coordinator);
+        var (opened, _) = await OpenInputOutputSession(workspace);
+
+        var outcome = await workspace.DispatchAsync(
+            new StepSession(opened.WorkspaceId),
+            CancellationToken.None);
+
+        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        await Assert.That(((WorkspaceCommandRejected)outcome).Code)
+            .IsEqualTo("no_scheduled_stimulus");
     }
 
     private static async Task<(WorkspaceOpened Opened, ComponentInstance Input)>
