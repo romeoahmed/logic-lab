@@ -1,12 +1,11 @@
 .scene {
     min-height: 25rem;
     padding: clamp(1rem, 2vw, 1.5rem);
-    border: 1px solid var(--lab-border);
-    border-radius: 1rem;
+    border: 1px solid var(--ll-border);
     background:
-        linear-gradient(var(--lab-grid) 1px, transparent 1px),
-        linear-gradient(90deg, var(--lab-grid) 1px, transparent 1px),
-        var(--lab-canvas);
+        linear-gradient(var(--ll-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--ll-grid) 1px, transparent 1px),
+        var(--ll-canvas);
     background-size: 24px 24px;
 }
 
@@ -24,7 +23,7 @@
 }
 
 .eyebrow {
-    color: var(--lab-accent);
+    color: var(--ll-signal);
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.12em;
@@ -35,7 +34,7 @@
 .empty-state,
 .component-card p,
 .connection-list small {
-    color: var(--lab-muted);
+    color: var(--ll-muted);
 }
 
 .component-list,
@@ -54,10 +53,8 @@
 .component-card {
     min-height: 9rem;
     padding: 1rem;
-    border: 1px solid var(--lab-border-strong);
-    border-radius: 0.75rem;
-    background: color-mix(in srgb, var(--lab-panel) 92%, transparent);
-    box-shadow: 0 14px 30px rgb(4 12 25 / 10%);
+    border: 1px solid var(--ll-border-strong);
+    background: var(--ll-panel);
 }
 
 .component-card h3,
@@ -82,8 +79,8 @@
     display: flex;
     justify-content: space-between;
     padding: 0.65rem 0.8rem;
-    border-left: 3px solid var(--lab-accent);
-    background: var(--lab-panel);
+    border-left: 3px solid var(--ll-signal);
+    background: var(--ll-panel);
 }
 
 @media (max-width: 720px) {

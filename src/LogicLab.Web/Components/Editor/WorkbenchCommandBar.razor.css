@@ -3,7 +3,6 @@
     flex-wrap: wrap;
     gap: 0.65rem;
     padding: 0.85rem;
-    border: 1px solid var(--lab-border);
-    border-radius: 0.8rem;
-    background: var(--lab-panel);
+    border: 1px solid var(--ll-border);
+    background: var(--ll-panel);
 }

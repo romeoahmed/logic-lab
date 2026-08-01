@@ -1,16 +1,19 @@
 :root {
-    color-scheme: dark;
-    --lab-bg: #07111f;
-    --lab-panel: #101d2f;
-    --lab-canvas: #0b1729;
-    --lab-grid: rgb(112 148 184 / 9%);
-    --lab-text: #edf5ff;
-    --lab-muted: #9eb0c4;
-    --lab-border: #263a50;
-    --lab-border-strong: #3a5875;
-    --lab-accent: #72f1d0;
-    --lab-accent-soft: rgb(114 241 208 / 12%);
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color-scheme: light;
+    --ll-bench: #E7EEF1;
+    --ll-panel: #F7FAFB;
+    --ll-canvas: #FFFFFF;
+    --ll-ink: #172A33;
+    --ll-muted: #536871;
+    --ll-signal: #08788C;
+    --ll-transition: #A85D00;
+    --ll-unknown: #7053A5;
+    --ll-danger: #B4232C;
+    --ll-grid: rgb(23 42 51 / 8%);
+    --ll-border: #B8C7CE;
+    --ll-border-strong: #8299A3;
+    --ll-signal-soft: rgb(8 120 140 / 10%);
+    font-family: "Atkinson Hyperlegible Next", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
 }
 
 * {
@@ -19,13 +22,13 @@
 
 html {
     min-width: 320px;
-    background: var(--lab-bg);
+    background: var(--ll-bench);
 }
 
 body {
     margin: 0;
-    color: var(--lab-text);
-    background: var(--lab-bg);
+    color: var(--ll-ink) !important;
+    background-color: var(--ll-bench) !important;
 }
 
 button,
@@ -36,7 +39,7 @@ textarea {
 }
 
 :focus-visible {
-    outline: 3px solid var(--lab-accent);
+    outline: 3px solid var(--ll-signal);
     outline-offset: 3px;
 }
 
