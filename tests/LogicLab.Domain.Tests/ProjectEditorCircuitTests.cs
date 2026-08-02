@@ -279,7 +279,7 @@ public sealed class ProjectEditorCircuitTests
     }
 
     [Test]
-    public async Task Apply_ConnectAlreadyConnectedTerminal_RejectsWithoutRevision()
+    public async Task Apply_ConnectOneExistingAndOneUnconnectedTerminal_ExtendsExistingNet()
     {
         var circuit = await CreatePlacedCircuit();
         var definitionId = circuit.Revision.Document.EntryCircuitDefinition.Id;
@@ -291,24 +291,23 @@ public sealed class ProjectEditorCircuitTests
                     Terminal(definitionId, circuit.LogicNot, "A"),
                 ])));
 
-        var outcome = ProjectEditor.Apply(
+        var committed = Commit(ProjectEditor.Apply(
             connected.Revision,
             new ConnectTerminalsIntent(
                 [
                     Terminal(definitionId, circuit.Input, "Q"),
                     Terminal(definitionId, circuit.Output, "D"),
-                ]));
+                ])));
+        var originalNet = connected.Revision.Document.EntryCircuitDefinition.Nets.Single();
+        var updatedNet = committed.Revision.Document.EntryCircuitDefinition.Nets.Single();
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
-                .IsEquivalentTo(
-                    ["authoring_terminal_already_connected"],
-                    CollectionOrdering.Matching);
+            await Assert.That(updatedNet.Id).IsEqualTo(originalNet.Id);
+            await Assert.That(updatedNet.Terminals).Count().IsEqualTo(3);
             await Assert.That(connected.Revision.Document.EntryCircuitDefinition.Nets)
                 .Count().IsEqualTo(1);
+            await Assert.That(originalNet.Terminals).Count().IsEqualTo(2);
         }
     }
 

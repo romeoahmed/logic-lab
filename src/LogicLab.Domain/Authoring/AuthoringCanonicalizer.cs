@@ -200,7 +200,9 @@ internal static class AuthoringCanonicalizer
                 CircuitRootSourceIdentity => 1,
                 ComponentInstanceSourceIdentity or
                     InstancePortSourceIdentity or
-                    NetSourceIdentity => 2,
+                    NetSourceIdentity or
+                    JunctionSourceIdentity or
+                    WireGeometrySourceIdentity => 2,
                 _ => throw new InvalidOperationException(
                     "The Authored Source Identity variant is undefined."),
             };
@@ -243,6 +245,8 @@ internal static class AuthoringCanonicalizer
                 ComponentInstanceSourceIdentity source => source.CircuitDefinitionId,
                 InstancePortSourceIdentity source => source.CircuitDefinitionId,
                 NetSourceIdentity source => source.CircuitDefinitionId,
+                JunctionSourceIdentity source => source.CircuitDefinitionId,
+                WireGeometrySourceIdentity source => source.CircuitDefinitionId,
                 _ => throw new InvalidOperationException(
                     "The circuit Source Identity variant is undefined."),
             };
@@ -254,6 +258,8 @@ internal static class AuthoringCanonicalizer
             {
                 ComponentInstanceSourceIdentity or InstancePortSourceIdentity => 0,
                 NetSourceIdentity => 1,
+                JunctionSourceIdentity => 2,
+                WireGeometrySourceIdentity => 3,
                 _ => throw new InvalidOperationException(
                     "The circuit entity Source Identity variant is undefined."),
             };
@@ -267,6 +273,8 @@ internal static class AuthoringCanonicalizer
                     source.ComponentInstanceId.Value,
                 InstancePortSourceIdentity source => source.ComponentInstanceId.Value,
                 NetSourceIdentity source => source.NetId.Value,
+                JunctionSourceIdentity source => source.JunctionId.Value,
+                WireGeometrySourceIdentity source => source.WireGeometryId.Value,
                 _ => throw new InvalidOperationException(
                     "The circuit entity Source Identity variant is undefined."),
             };
