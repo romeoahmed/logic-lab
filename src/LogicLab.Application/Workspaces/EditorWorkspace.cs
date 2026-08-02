@@ -6,19 +6,39 @@ using LogicLab.Domain.Components;
 using LogicLab.Engine;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
+using Microsoft.Extensions.Logging;
 
 namespace LogicLab.Application.Workspaces;
 
-public sealed class EditorWorkspace
+internal sealed partial class EditorWorkspace : IEditorWorkspace
 {
     private readonly Lock gate = new();
     private readonly Dictionary<WorkspaceId, WorkspaceState> workspaces = [];
     private readonly WorkCoordinator workCoordinator;
+    private readonly WorkspacePolicy workspacePolicy;
+    private readonly TimeProvider timeProvider;
+    private readonly WorkspaceModuleOperations operations;
+    private readonly ILogger<EditorWorkspace> logger;
+    private int workspaceReservations;
+    private bool isDisposed;
 
-    public EditorWorkspace(WorkCoordinator workCoordinator)
+    public EditorWorkspace(
+        WorkCoordinator workCoordinator,
+        WorkspacePolicy workspacePolicy,
+        TimeProvider timeProvider,
+        WorkspaceModuleOperations operations,
+        ILogger<EditorWorkspace> logger)
     {
         ArgumentNullException.ThrowIfNull(workCoordinator);
+        ArgumentNullException.ThrowIfNull(workspacePolicy);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(operations);
+        ArgumentNullException.ThrowIfNull(logger);
         this.workCoordinator = workCoordinator;
+        this.workspacePolicy = workspacePolicy;
+        this.timeProvider = timeProvider;
+        this.operations = operations;
+        this.logger = logger;
     }
 
     public Task<WorkspaceOpenOutcome> OpenAsync(
@@ -42,39 +62,69 @@ public sealed class EditorWorkspace
                     []));
         }
 
-        var genesis = ProjectEditor.Begin(new NewProjectSeed(
-            create.ProjectDisplayName,
-            LibrarySnapshot.Core,
-            new SymbolProfileReference(
-                "TeachingMixed",
-                "1.0.0",
-                IndicationConvention.Negation),
-            create.EntryCircuitDefinitionDisplayName));
-        if (genesis is ProjectGenesisRejected rejected)
-        {
-            return Task.FromResult<WorkspaceOpenOutcome>(new WorkspaceOpenRejected(
-                    rejected.Reason,
-                    rejected.Diagnostics.Select(item => item.Code).ToArray()));
-        }
-
-        var committed = (ProjectGenesisCommitted)genesis;
-        if (cancellationToken.IsCancellationRequested)
+        var rejectionReason = ReserveWorkspace(out var retired);
+        RetireAll(retired);
+        if (rejectionReason is not null)
         {
             return Task.FromResult<WorkspaceOpenOutcome>(
-                new WorkspaceOpenRejected(
-                    WorkspaceOutcomeReasons.WorkspaceCancelled,
-                    []));
+                new WorkspaceOpenRejected(rejectionReason, []));
         }
 
-        var id = WorkspaceId.Create();
-        var state = new WorkspaceState(id, committed.Revision);
-        lock (gate)
+        var hasReservation = true;
+        try
         {
-            workspaces.Add(id, state);
-        }
+            var genesis = ProjectEditor.Begin(new NewProjectSeed(
+                create.ProjectDisplayName,
+                LibrarySnapshot.Core,
+                new SymbolProfileReference(
+                    "TeachingMixed",
+                    "1.0.0",
+                    IndicationConvention.Negation),
+                create.EntryCircuitDefinitionDisplayName));
+            if (genesis is ProjectGenesisRejected rejected)
+            {
+                return Task.FromResult<WorkspaceOpenOutcome>(new WorkspaceOpenRejected(
+                        rejected.Reason,
+                        rejected.Diagnostics.Select(item => item.Code).ToArray()));
+            }
 
-        return Task.FromResult<WorkspaceOpenOutcome>(
-            new WorkspaceOpened(id, Project(state)));
+            var committed = (ProjectGenesisCommitted)genesis;
+            var id = WorkspaceId.Create();
+            var state = new WorkspaceState(
+                id,
+                committed.Revision,
+                timeProvider.GetUtcNow());
+            lock (gate)
+            {
+                workspaceReservations--;
+                hasReservation = false;
+                if (isDisposed || cancellationToken.IsCancellationRequested)
+                {
+                    rejectionReason = WorkspaceOutcomeReasons.WorkspaceCancelled;
+                }
+                else
+                {
+                    workspaces.Add(id, state);
+                }
+            }
+
+            if (rejectionReason is not null)
+            {
+                state.CommandGate.Dispose();
+                return Task.FromResult<WorkspaceOpenOutcome>(
+                    new WorkspaceOpenRejected(rejectionReason, []));
+            }
+
+            return Task.FromResult<WorkspaceOpenOutcome>(
+                new WorkspaceOpened(id, Project(state)));
+        }
+        finally
+        {
+            if (hasReservation)
+            {
+                ReleaseWorkspaceReservation();
+            }
+        }
     }
 
     public async Task<WorkspaceCommandOutcome> DispatchAsync(
@@ -87,12 +137,14 @@ public sealed class EditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
-        var state = FindWorkspace(command.WorkspaceId);
-        if (state is null)
+        var acquisition = AcquireWorkspace(command.WorkspaceId);
+        if (acquisition.Lease is null)
         {
-            return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
+            return Reject(acquisition.RejectionReason!);
         }
 
+        using var lease = acquisition.Lease;
+        var state = lease.State;
         return command switch
         {
             ApplyEdit apply => await ExecuteWithGateAsync(
@@ -110,6 +162,10 @@ public sealed class EditorWorkspace
                         innerToken => ExecuteSessionCommand(state, command, innerToken),
                         token),
                     cancellationToken).ConfigureAwait(false),
+            CloseWorkspace => await ExecuteWithGateAsync(
+                state,
+                token => Close(state, token),
+                cancellationToken).ConfigureAwait(false),
             _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
         };
     }
@@ -124,12 +180,14 @@ public sealed class EditorWorkspace
             return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
-        var state = FindWorkspace(workspaceId);
-        if (state is null)
+        var acquisition = AcquireWorkspace(workspaceId);
+        if (acquisition.Lease is null)
         {
-            return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceNotFound);
+            return new WorkspaceReadRejected(acquisition.RejectionReason!);
         }
 
+        using var lease = acquisition.Lease;
+        var state = lease.State;
         try
         {
             await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -141,6 +199,11 @@ public sealed class EditorWorkspace
 
         try
         {
+            if (state.IsRetired)
+            {
+                return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceNotFound);
+            }
+
             return new ProjectionSnapshot(Project(state));
         }
         finally
@@ -198,6 +261,11 @@ public sealed class EditorWorkspace
 
         try
         {
+            if (state.IsRetired)
+            {
+                return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
+            }
+
             var requestedRevision = state.Revision;
             completion = workCoordinator.RunCompilationAsync(
                 state.Id,
@@ -212,12 +280,12 @@ public sealed class EditorWorkspace
         return await completion.ConfigureAwait(false);
     }
 
-    private static async ValueTask<WorkspaceCommandOutcome> CompileAsync(
+    private async ValueTask<WorkspaceCommandOutcome> CompileAsync(
         WorkspaceState state,
         ProjectRevision requestedRevision,
         CompilationWorkContext context)
     {
-        var outcome = Compiler.Compile(
+        var outcome = operations.Compile(
             new CompilationRequest(
                 requestedRevision,
                 requestedRevision.Document.EntryCircuitDefinitionId,
@@ -246,6 +314,11 @@ public sealed class EditorWorkspace
 
         try
         {
+            if (state.IsRetired)
+            {
+                return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
+            }
+
             if (state.Revision.RevisionId != requestedRevision.RevisionId)
             {
                 return Reject(WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
@@ -302,7 +375,7 @@ public sealed class EditorWorkspace
         return published!;
     }
 
-    private static WorkspaceCommandOutcome ExecuteSessionCommand(
+    private WorkspaceCommandOutcome ExecuteSessionCommand(
         WorkspaceState state,
         WorkspaceCommand command,
         CancellationToken cancellationToken)
@@ -332,6 +405,11 @@ public sealed class EditorWorkspace
 
         try
         {
+            if (state.IsRetired)
+            {
+                return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
+            }
+
             return operation(cancellationToken);
         }
         finally
@@ -340,7 +418,7 @@ public sealed class EditorWorkspace
         }
     }
 
-    private static WorkspaceCommandOutcome OpenSession(
+    private WorkspaceCommandOutcome OpenSession(
         WorkspaceState state,
         CancellationToken cancellationToken)
     {
@@ -356,7 +434,7 @@ public sealed class EditorWorkspace
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
-        var outcome = SimulationRuntime.Open(
+        var outcome = operations.OpenSimulation(
             new OpenSimulationRequest(
                 artifact,
                 new SimulationSessionConfiguration(
@@ -394,7 +472,7 @@ public sealed class EditorWorkspace
             state.ProjectionVersion);
     }
 
-    private static WorkspaceCommandOutcome Schedule(
+    private WorkspaceCommandOutcome Schedule(
         WorkspaceState state,
         ScheduleInputStimulus command,
         CancellationToken cancellationToken)
@@ -427,7 +505,7 @@ public sealed class EditorWorkspace
             assignments.Add(stimulusAssignment);
         }
 
-        var outcome = SimulationRuntime.Execute(
+        var outcome = operations.ExecuteSimulation(
             sessionHandle,
             new LogicLab.Engine.Simulation.ScheduleStimulusBatch(
                 new StimulusBatch(command.LogicalTime, assignments)),
@@ -456,7 +534,7 @@ public sealed class EditorWorkspace
             state.ProjectionVersion);
     }
 
-    private static WorkspaceCommandOutcome Step(
+    private WorkspaceCommandOutcome Step(
         WorkspaceState state,
         CancellationToken cancellationToken)
     {
@@ -465,7 +543,7 @@ public sealed class EditorWorkspace
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
-        var outcome = SimulationRuntime.Execute(
+        var outcome = operations.ExecuteSimulation(
             state.SessionHandle,
             new AdvanceToNextQuiescentBoundary(),
             cancellationToken);
@@ -573,9 +651,9 @@ public sealed class EditorWorkspace
                 StringComparison.Ordinal);
     }
 
-    private static SimulationProjection ReadSimulation(SimulationSessionHandle handle)
+    private SimulationProjection ReadSimulation(SimulationSessionHandle handle)
     {
-        var outcome = SimulationRuntime.Read(
+        var outcome = operations.ReadSimulation(
             handle,
             new ReadSessionSnapshot(),
             CancellationToken.None);
@@ -608,14 +686,6 @@ public sealed class EditorWorkspace
             state.Revision,
             state.Compilation,
             state.Simulation);
-    }
-
-    private WorkspaceState? FindWorkspace(WorkspaceId workspaceId)
-    {
-        lock (gate)
-        {
-            return workspaces.GetValueOrDefault(workspaceId);
-        }
     }
 
     private static WorkspaceCommandRejected Reject(
@@ -664,23 +734,4 @@ public sealed class EditorWorkspace
             new TraceLimit(TraceDimension.RetainedBytes, 100_000_000),
             new TraceLimit(TraceDimension.DeltaDebugRecordCount, 1),
         ]);
-
-    private sealed class WorkspaceState(WorkspaceId id, ProjectRevision revision)
-    {
-        public WorkspaceId Id { get; } = id;
-
-        public ulong ProjectionVersion { get; set; } = 1;
-
-        public ProjectRevision Revision { get; set; } = revision;
-
-        public CompilationArtifact? Artifact { get; set; }
-
-        public CompilationProjection Compilation { get; set; } = NotRequestedCompilation();
-
-        public SimulationSessionHandle? SessionHandle { get; set; }
-
-        public SimulationProjection? Simulation { get; set; }
-
-        public SemaphoreSlim CommandGate { get; } = new(1, 1);
-    }
 }

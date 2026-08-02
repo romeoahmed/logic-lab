@@ -1,4 +1,3 @@
-using LogicLab.Application.Work;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
@@ -11,8 +10,7 @@ public sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_ValidNarrowCircuit_ObservesProbeAcrossOneStep()
     {
-        await using var coordinator = new WorkCoordinator();
-        var workspace = new EditorWorkspace(coordinator);
+        await using var workspace = EditorWorkspaceFactory.Create();
         var opened = await Open(workspace);
         var revision = opened.Projection.ProjectRevision;
         var definitionId = revision.Document.EntryCircuitDefinitionId;
@@ -101,8 +99,7 @@ public sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_IncompleteCircuit_DoesNotPublishArtifactOrCreateSession()
     {
-        await using var coordinator = new WorkCoordinator();
-        var workspace = new EditorWorkspace(coordinator);
+        await using var workspace = EditorWorkspaceFactory.Create();
         var opened = await Open(workspace);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
         await Apply(workspace, opened.WorkspaceId, Place(
@@ -137,8 +134,7 @@ public sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_CancelledCompilation_DoesNotChangeProjection()
     {
-        await using var coordinator = new WorkCoordinator();
-        var workspace = new EditorWorkspace(coordinator);
+        await using var workspace = EditorWorkspaceFactory.Create();
         var opened = await Open(workspace);
         var before = await Read(workspace, opened.WorkspaceId);
         using var cancellation = new CancellationTokenSource();
@@ -162,25 +158,23 @@ public sealed class EditorWorkspaceTests
     }
 
     [Test]
-    public async Task DispatchAsync_QueuedCompilationAfterEdit_DoesNotPublishDifferentRevision()
+    public async Task DispatchAsync_EditDuringQueuedCompilation_DoesNotPublishDifferentRevision()
     {
-        await using var coordinator = new WorkCoordinator();
-        var blockerStarted = new TaskCompletionSource(
+        var compilationStarted = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseBlocker = new TaskCompletionSource(
+        var releaseCompilation = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        var blocker = coordinator.RunCompilationAsync(
-            WorkspaceId.Create(),
-            async context =>
+        var operations = WorkspaceModuleOperations.Production with
+        {
+            Compile = (request, cancellationToken) =>
             {
-                blockerStarted.SetResult();
-                await releaseBlocker.Task.WaitAsync(context.CancellationToken);
-                return new WorkspaceCommandRejected("workspace_cancelled", []);
+                compilationStarted.TrySetResult();
+                releaseCompilation.Task.GetAwaiter().GetResult();
+                return LogicLab.Engine.Compilation.Compiler.Compile(request, cancellationToken);
             },
-            CancellationToken.None);
-        await blockerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        var workspace = new EditorWorkspace(coordinator);
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations: operations);
         var opened = await Open(workspace);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
         await Apply(workspace, opened.WorkspaceId, Place(
@@ -207,6 +201,7 @@ public sealed class EditorWorkspaceTests
         var compilation = workspace.DispatchAsync(
             new RequestCompilation(opened.WorkspaceId),
             CancellationToken.None);
+        await compilationStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Apply(workspace, opened.WorkspaceId, new ConnectTerminalsIntent(
             [
                 Terminal(definitionId, input, "Q"),
@@ -214,8 +209,7 @@ public sealed class EditorWorkspaceTests
             ]));
         var edited = await Read(workspace, opened.WorkspaceId);
 
-        releaseBlocker.SetResult();
-        _ = await blocker;
+        releaseCompilation.SetResult();
         var outcome = await compilation;
         var afterCompilation = await Read(workspace, opened.WorkspaceId);
 
@@ -235,8 +229,7 @@ public sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_EmptyInputStimulus_ReturnsClosedPreconditionRejection()
     {
-        await using var coordinator = new WorkCoordinator();
-        var workspace = new EditorWorkspace(coordinator);
+        await using var workspace = EditorWorkspaceFactory.Create();
         var (opened, input) = await OpenInputOutputSession(workspace);
 
         var outcome = await workspace.DispatchAsync(
@@ -254,8 +247,7 @@ public sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_WrongWidthInputStimulus_ReturnsClosedPreconditionRejection()
     {
-        await using var coordinator = new WorkCoordinator();
-        var workspace = new EditorWorkspace(coordinator);
+        await using var workspace = EditorWorkspaceFactory.Create();
         var (opened, input) = await OpenInputOutputSession(workspace);
 
         var outcome = await workspace.DispatchAsync(
@@ -273,8 +265,7 @@ public sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_StepWithoutScheduledStimulus_ReturnsSimulationReason()
     {
-        await using var coordinator = new WorkCoordinator();
-        var workspace = new EditorWorkspace(coordinator);
+        await using var workspace = EditorWorkspaceFactory.Create();
         var (opened, _) = await OpenInputOutputSession(workspace);
 
         var outcome = await workspace.DispatchAsync(
@@ -286,8 +277,40 @@ public sealed class EditorWorkspaceTests
             .IsEqualTo("no_scheduled_stimulus");
     }
 
+    [Test]
+    public async Task DispatchAsync_ConcurrentSessionSteps_SerializeInAdmissionOrder()
+    {
+        await using var workspace = EditorWorkspaceFactory.Create();
+        var (opened, input) = await OpenInputOutputSession(workspace);
+        var scheduled = await workspace.DispatchAsync(
+            new ScheduleInputStimulus(
+                opened.WorkspaceId,
+                1,
+                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+            CancellationToken.None);
+
+        var first = workspace.DispatchAsync(
+            new StepSession(opened.WorkspaceId),
+            CancellationToken.None);
+        var second = workspace.DispatchAsync(
+            new StepSession(opened.WorkspaceId),
+            CancellationToken.None);
+        var outcomes = await Task.WhenAll(first, second);
+        var projection = await Read(workspace, opened.WorkspaceId);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
+            await Assert.That(outcomes[0]).IsTypeOf<SessionStepped>();
+            await Assert.That(outcomes[1]).IsTypeOf<WorkspaceCommandRejected>();
+            await Assert.That(((WorkspaceCommandRejected)outcomes[1]).Code)
+                .IsEqualTo("no_scheduled_stimulus");
+            await Assert.That(projection.Simulation!.LogicalTime).IsEqualTo(1UL);
+        }
+    }
+
     private static async Task<(WorkspaceOpened Opened, ComponentInstance Input)>
-        OpenInputOutputSession(EditorWorkspace workspace)
+        OpenInputOutputSession(IEditorWorkspace workspace)
     {
         var opened = await Open(workspace);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
@@ -325,7 +348,7 @@ public sealed class EditorWorkspaceTests
         return (opened, input);
     }
 
-    private static async Task<WorkspaceOpened> Open(EditorWorkspace workspace)
+    private static async Task<WorkspaceOpened> Open(IEditorWorkspace workspace)
     {
         var outcome = await workspace.OpenAsync(
             new CreateSandbox("Test project", "Main"),
@@ -335,7 +358,7 @@ public sealed class EditorWorkspaceTests
     }
 
     private static async Task Apply(
-        EditorWorkspace workspace,
+        IEditorWorkspace workspace,
         WorkspaceId workspaceId,
         EditIntent intent)
     {
@@ -346,7 +369,7 @@ public sealed class EditorWorkspaceTests
     }
 
     private static async Task<WorkspaceProjection> Read(
-        EditorWorkspace workspace,
+        IEditorWorkspace workspace,
         WorkspaceId workspaceId)
     {
         var outcome = await workspace.ReadAsync(workspaceId, CancellationToken.None);
@@ -354,7 +377,7 @@ public sealed class EditorWorkspaceTests
     }
 
     private static async Task<ComponentInstance> FindByContract(
-        EditorWorkspace workspace,
+        IEditorWorkspace workspace,
         WorkspaceId workspaceId,
         string contractId)
     {

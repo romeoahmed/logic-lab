@@ -1,9 +1,13 @@
 using Bunit;
+using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Scene;
 using LogicLab.Web.Components.Editor;
+using LogicLab.Web.Components.Pages;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
 
@@ -17,7 +21,7 @@ public sealed class WorkbenchComponentTests
         using var context = CreateContext();
 
         var rendered = context.Render<WorkbenchCommandBar>(parameters => parameters
-            .Add(component => component.State, WorkbenchViewState.EmptyProject));
+            .Add(component => component.CanAuthor, true));
 
         using (Assert.Multiple())
         {
@@ -36,8 +40,8 @@ public sealed class WorkbenchComponentTests
         using var context = CreateContext();
 
         var rendered = context.Render<WorkbenchCommandBar>(parameters => parameters
-            .Add(component => component.State, WorkbenchViewState.CircuitReady)
-            .Add(component => component.ActiveCommand, WorkbenchCommandKind.Compile));
+            .Add(component => component.CanCompile, true)
+            .Add(component => component.ActiveCommand, "compile"));
 
         foreach (var command in new[]
                  {
@@ -49,42 +53,141 @@ public sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task WorkbenchCommandExecution_RunAsyncWhileBusy_InvokesOnlyFirstCommand()
+    public async Task Editor_CreateWhileBusy_DisablesCommandsAndIgnoresSecondClick()
     {
-        var execution = new WorkbenchCommandExecution();
-        var firstStarted = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseFirst = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var invocationCount = 0;
-
-        var first = execution.RunAsync(
-            WorkbenchCommandKind.Author,
-            async () =>
+        using var context = CreateContext();
+        await using var workspace = new BlockingWorkspace();
+        context.Services.AddSingleton<IEditorWorkspace>(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var rendered = context.Render<Editor>();
+        rendered.WaitForAssertion(() =>
+        {
+            if (IsDisabled(rendered, "create"))
             {
-                invocationCount++;
-                firstStarted.SetResult();
-                await releaseFirst.Task;
-            });
-        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                throw new InvalidOperationException(
+                    "Create must be enabled after interactivity.");
+            }
+        });
 
-        await execution.RunAsync(
-            WorkbenchCommandKind.Compile,
-            () =>
+        var firstClick = rendered.Find("[data-command='create']")
+            .ClickAsync(new MouseEventArgs());
+        await workspace.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        rendered.WaitForAssertion(() =>
+        {
+            if (!IsDisabled(rendered, "author"))
             {
-                invocationCount++;
-                return Task.CompletedTask;
-            });
+                throw new InvalidOperationException("Commands must be disabled while busy.");
+            }
+        });
+
+        try
+        {
+            await rendered.Find("[data-command='compile']")
+                .TriggerEventAsync("onclick", new MouseEventArgs());
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(workspace.OpenCount).IsEqualTo(1);
+                foreach (var command in new[]
+                         {
+                             "create", "author", "compile", "session", "stimulus", "step",
+                         })
+                {
+                    await Assert.That(IsDisabled(rendered, command)).IsTrue();
+                }
+            }
+        }
+        finally
+        {
+            workspace.Release();
+        }
+
+        await firstClick;
+        rendered.WaitForAssertion(() =>
+        {
+            if (IsDisabled(rendered, "author"))
+            {
+                throw new InvalidOperationException("Author must be restored after creation.");
+            }
+        });
+        await Assert.That(workspace.OpenCount).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task Editor_WorkspaceFailure_RemainsInteractiveAndAcceptsNextCommand()
+    {
+        using var context = CreateContext();
+        await using var workspace = new RecoveringWorkspace();
+        context.Services.AddSingleton<IEditorWorkspace>(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var rendered = context.Render<Editor>();
+        rendered.WaitForElement("[data-command='create']:not([disabled])");
+
+        await rendered.Find("[data-command='create']")
+            .ClickAsync(new MouseEventArgs());
 
         using (Assert.Multiple())
         {
-            await Assert.That(invocationCount).IsEqualTo(1);
-            await Assert.That(execution.ActiveCommand).IsEqualTo(WorkbenchCommandKind.Author);
+            await Assert.That(rendered.Find("[role='status']").TextContent)
+                .Contains("workspace_internal_defect");
+            await Assert.That(rendered.Markup).DoesNotContain("sensitive compiler detail");
+            await Assert.That(IsDisabled(rendered, "create")).IsFalse();
         }
 
-        releaseFirst.SetResult();
-        await first;
-        await Assert.That(execution.ActiveCommand).IsNull();
+        await rendered.Find("[data-command='create']")
+            .ClickAsync(new MouseEventArgs());
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(workspace.OpenCount).IsEqualTo(2);
+            await Assert.That(rendered.Find("[role='status']").TextContent)
+                .Contains("Sandbox Project created");
+            await Assert.That(IsDisabled(rendered, "author")).IsFalse();
+        }
+    }
+
+    [Test]
+    public async Task Editor_AuthorWhileBusy_KeepsNewlyAvailableCompileCommandDisabled()
+    {
+        using var context = CreateContext();
+        await using var workspace = new BlockingAuthorWorkspace();
+        context.Services.AddSingleton<IEditorWorkspace>(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var rendered = context.Render<Editor>();
+        rendered.WaitForElement("[data-command='create']:not([disabled])");
+        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
+
+        var authoring = rendered.Find("[data-command='author']")
+            .ClickAsync(new MouseEventArgs());
+        await workspace.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            rendered.WaitForAssertion(() =>
+            {
+                if (!IsDisabled(rendered, "compile"))
+                {
+                    throw new InvalidOperationException(
+                        "Compile must stay disabled while authoring.");
+                }
+            });
+
+            await rendered.Find("[data-command='compile']")
+                .TriggerEventAsync("onclick", new MouseEventArgs());
+            await Assert.That(workspace.DispatchCount).IsEqualTo(2);
+        }
+        finally
+        {
+            workspace.Release();
+        }
+
+        await authoring;
+        rendered.WaitForAssertion(() =>
+        {
+            if (IsDisabled(rendered, "compile"))
+            {
+                throw new InvalidOperationException("Compile must be restored after authoring.");
+            }
+        });
     }
 
     [Test]
@@ -138,16 +241,21 @@ public sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task WorkbenchStatusState_InteractiveWithoutProject_ReportsConnected()
+    public async Task WorkbenchStatusStrip_InteractiveWithoutProject_ReportsConnected()
     {
-        var state = WorkbenchStatusState.From(projection: null, isInteractive: true);
+        using var context = CreateContext();
+        var rendered = context.Render<WorkbenchStatusStrip>(parameters => parameters
+            .Add(component => component.IsConnected, true)
+            .Add(component => component.Message, "Ready."));
 
         using (Assert.Multiple())
         {
-            await Assert.That(state.IsConnected).IsTrue();
-            await Assert.That(state.Connection).IsEqualTo("Connected");
-            await Assert.That(state.Compilation).IsEqualTo("Not requested");
-            await Assert.That(state.LogicalTime).IsEqualTo("—");
+            await Assert.That(rendered.Find("[data-status='connection']").TextContent)
+                .Contains("Connected");
+            await Assert.That(rendered.Find("[data-status='compilation']").TextContent)
+                .Contains("Not requested");
+            await Assert.That(rendered.Find("[data-status='logical-time']").TextContent)
+                .Contains("—");
         }
     }
 
@@ -158,7 +266,10 @@ public sealed class WorkbenchComponentTests
         return context;
     }
 
-    private static bool IsDisabled(IRenderedComponent<WorkbenchCommandBar> rendered, string command)
+    private static bool IsDisabled<TComponent>(
+        IRenderedComponent<TComponent> rendered,
+        string command)
+        where TComponent : IComponent
     {
         return rendered.Find($"[data-command='{command}']").HasAttribute("disabled");
     }
@@ -229,5 +340,129 @@ public sealed class WorkbenchComponentTests
     private static ProjectRevision Commit(EditOutcome outcome)
     {
         return ((EditCommitted)outcome).Revision;
+    }
+
+    private sealed class BlockingWorkspace : IEditorWorkspace
+    {
+        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create();
+        private readonly TaskCompletionSource release = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource started = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private int openCount;
+
+        public Task Started => started.Task;
+
+        public int OpenCount => Volatile.Read(ref openCount);
+
+        public async Task<WorkspaceOpenOutcome> OpenAsync(
+            OpenWorkspaceRequest request,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref openCount);
+            started.TrySetResult();
+            await release.Task.WaitAsync(cancellationToken);
+            return await inner.OpenAsync(request, cancellationToken);
+        }
+
+        public Task<WorkspaceCommandOutcome> DispatchAsync(
+            WorkspaceCommand command,
+            CancellationToken cancellationToken)
+        {
+            return inner.DispatchAsync(command, cancellationToken);
+        }
+
+        public Task<WorkspaceReadOutcome> ReadAsync(
+            WorkspaceId workspaceId,
+            CancellationToken cancellationToken)
+        {
+            return inner.ReadAsync(workspaceId, cancellationToken);
+        }
+
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
+
+        public void Release() => release.TrySetResult();
+    }
+
+    private sealed class RecoveringWorkspace : IEditorWorkspace
+    {
+        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create();
+        private int openCount;
+
+        public int OpenCount => Volatile.Read(ref openCount);
+
+        public Task<WorkspaceOpenOutcome> OpenAsync(
+            OpenWorkspaceRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref openCount) == 1)
+            {
+                return Task.FromResult<WorkspaceOpenOutcome>(
+                    new WorkspaceOpenRejected("workspace_internal_defect", []));
+            }
+
+            return inner.OpenAsync(request, cancellationToken);
+        }
+
+        public Task<WorkspaceCommandOutcome> DispatchAsync(
+            WorkspaceCommand command,
+            CancellationToken cancellationToken)
+        {
+            return inner.DispatchAsync(command, cancellationToken);
+        }
+
+        public Task<WorkspaceReadOutcome> ReadAsync(
+            WorkspaceId workspaceId,
+            CancellationToken cancellationToken)
+        {
+            return inner.ReadAsync(workspaceId, cancellationToken);
+        }
+
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
+    }
+
+    private sealed class BlockingAuthorWorkspace : IEditorWorkspace
+    {
+        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create();
+        private readonly TaskCompletionSource release = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource started = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private int dispatchCount;
+
+        public Task Started => started.Task;
+
+        public int DispatchCount => Volatile.Read(ref dispatchCount);
+
+        public Task<WorkspaceOpenOutcome> OpenAsync(
+            OpenWorkspaceRequest request,
+            CancellationToken cancellationToken)
+        {
+            return inner.OpenAsync(request, cancellationToken);
+        }
+
+        public async Task<WorkspaceCommandOutcome> DispatchAsync(
+            WorkspaceCommand command,
+            CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref dispatchCount) == 2)
+            {
+                started.TrySetResult();
+                await release.Task.WaitAsync(cancellationToken);
+            }
+
+            return await inner.DispatchAsync(command, cancellationToken);
+        }
+
+        public Task<WorkspaceReadOutcome> ReadAsync(
+            WorkspaceId workspaceId,
+            CancellationToken cancellationToken)
+        {
+            return inner.ReadAsync(workspaceId, cancellationToken);
+        }
+
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
+
+        public void Release() => release.TrySetResult();
     }
 }

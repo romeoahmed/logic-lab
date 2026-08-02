@@ -1,28 +1,30 @@
+@using System.Globalization
+
 <div class="status-strip">
     <dl class="status-facts" aria-label="Workbench status">
         <div data-status="connection">
             <dt>Connection</dt>
-            <dd><span class="@StatusDotClass" aria-hidden="true"></span>@State.Connection</dd>
+            <dd><span class="@StatusDotClass" aria-hidden="true"></span>@Connection</dd>
         </div>
         <div data-status="logical-time">
             <dt>Logical time</dt>
-            <dd>@State.LogicalTime</dd>
+            <dd>@LogicalTime</dd>
         </div>
         <div data-status="quiescence">
             <dt>Quiescence</dt>
-            <dd>@State.Quiescence</dd>
+            <dd>@Quiescence</dd>
         </div>
         <div data-status="trace">
             <dt>Trace range</dt>
-            <dd>@State.TraceRange</dd>
+            <dd>@TraceRange</dd>
         </div>
         <div data-status="compilation">
             <dt>Compilation</dt>
-            <dd>@State.Compilation</dd>
+            <dd>@Compilation</dd>
         </div>
         <div data-status="save">
             <dt>Save</dt>
-            <dd>@State.Save</dd>
+            <dd>Sandbox · memory only</dd>
         </div>
     </dl>
     <p class="status-message" role="status" aria-live="polite">@Message</p>
@@ -30,12 +32,35 @@
 
 @code {
     [Parameter]
-    public WorkbenchStatusState State { get; set; } = WorkbenchStatusState.StaticShell;
+    public WorkspaceProjection? Projection { get; set; }
+
+    [Parameter]
+    public bool IsConnected { get; set; }
 
     [Parameter, EditorRequired]
     public string Message { get; set; } = "Ready.";
 
-    private string StatusDotClass => State.IsConnected
+    private string Connection => IsConnected ? "Connected" : "Connecting";
+
+    private string LogicalTime => Projection?.Simulation?.LogicalTime
+        .ToString(CultureInfo.InvariantCulture) ?? "—";
+
+    private string Quiescence => Projection?.Simulation is null ? "Unavailable" : "Quiescent";
+
+    private string TraceRange => Projection?.Simulation is not { } simulation
+        ? "Unavailable"
+        : string.Create(
+            CultureInfo.InvariantCulture,
+            $"{simulation.TraceCursor.EarliestAvailableSequence}–{simulation.TraceCursor.LatestSequence}");
+
+    private string Compilation => Projection?.Compilation.Status switch
+    {
+        CompilationPublicationStatus.Published => "Published",
+        CompilationPublicationStatus.Rejected => "Rejected",
+        _ => "Not requested",
+    };
+
+    private string StatusDotClass => IsConnected
         ? "status-dot is-connected"
         : "status-dot is-connecting";
 }

@@ -11,5 +11,6 @@
   <ItemGroup>
     <PackageReference Include="bunit" />
     <PackageReference Include="TUnit" />
+    <PackageReference Include="TUnit.AspNetCore" />
   </ItemGroup>
 </Project>

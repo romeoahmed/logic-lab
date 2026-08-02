@@ -10,10 +10,8 @@ namespace LogicLab.Web.Components.Pages;
 
 public partial class Editor
 {
-    private readonly WorkbenchCommandExecution commandExecution = new();
-
     [Inject]
-    private EditorWorkspace Workspace { get; set; } = null!;
+    private IEditorWorkspace Workspace { get; set; } = null!;
 
     private WorkspaceProjection? Projection { get; set; }
 
@@ -25,26 +23,35 @@ public partial class Editor
 
     private string Status { get; set; } = "Connecting to the interactive workbench…";
 
-    private WorkbenchCommandKind? ActiveCommand => commandExecution.ActiveCommand;
+    private string? ActiveCommand { get; set; }
 
-    private WorkbenchViewState ViewState
-    {
-        get
-        {
-            if (!IsInteractive || ActiveCommand is not null)
-            {
-                return WorkbenchViewState.StaticShell;
-            }
+    private bool CommandsAvailable => IsInteractive;
 
-            return Projection is null
-                ? WorkbenchViewState.ReadyToCreate
-                : WorkbenchViewState.From(Projection, StimulusIsScheduled);
-        }
-    }
+    private bool CanCreate => CommandsAvailable && Projection is null;
 
-    private WorkbenchStatusState StatusState => WorkbenchStatusState.From(
-        Projection,
-        IsInteractive);
+    private bool CanAuthor => CommandsAvailable
+        && Projection is not null
+        && Projection.Simulation is null
+        && Projection.Compilation.Status is not CompilationPublicationStatus.Published
+        && Projection.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances.Count == 0;
+
+    private bool CanCompile => CommandsAvailable
+        && Projection is not null
+        && Projection.Simulation is null
+        && Projection.Compilation.Status is not CompilationPublicationStatus.Published
+        && Projection.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances.Count > 0;
+
+    private bool CanCreateSession => CommandsAvailable
+        && Projection?.Simulation is null
+        && Projection?.Compilation.Status is CompilationPublicationStatus.Published;
+
+    private bool CanScheduleStimulus => CommandsAvailable
+        && Projection?.Simulation is not null
+        && !StimulusIsScheduled;
+
+    private bool CanStep => CommandsAvailable
+        && Projection?.Simulation is not null
+        && StimulusIsScheduled;
 
     protected override void OnAfterRender(bool firstRender)
     {
@@ -56,9 +63,23 @@ public partial class Editor
         }
     }
 
-    private Task RunCommandAsync(WorkbenchCommandKind command, Func<Task> operation)
+    private async Task RunCommandAsync(string command, Func<Task> operation)
     {
-        return commandExecution.RunAsync(command, operation);
+        ArgumentNullException.ThrowIfNull(operation);
+        if (ActiveCommand is not null)
+        {
+            return;
+        }
+
+        ActiveCommand = command;
+        try
+        {
+            await operation();
+        }
+        finally
+        {
+            ActiveCommand = null;
+        }
     }
 
     private async Task CreateProject()
