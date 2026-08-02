@@ -1,6 +1,6 @@
 # Documentation Map
 
-Logic Lab has a closed V1 design baseline and an executable Phase A tracer. Read each document according to its authority and subject; use the readiness table below for implementation status rather than inferring delivery from a normative specification.
+Logic Lab has a closed V1 design baseline, an executable Phase A tracer, and explicit-topology authoring from slice `07`. Read each document according to its authority and subject; use the readiness table below for implementation status rather than inferring delivery from a normative specification.
 
 ## Authority by subject
 
@@ -48,18 +48,18 @@ There is no generic “narrower file wins” rule. A specification defines curre
 
 ## Development readiness
 
-Phase A items `01` through `06` are complete and verified. The application is not V1-complete or qualified for production release.
+Implementation-plan items `01` through `07` are complete and verified. The application is not V1-complete or qualified for production release.
 
 | Area | Specification state | Executable evidence | Remaining evidence |
 |---|---|---|---|
-| authoring, Compilation, Simulation, analysis, format, diagnostics, symbols | closed V1 behavior and Module interfaces | Phase A immutable lineage, flat combinational Compilation, atomic Simulation Session, diagnostics, scalar oracle, and packed differential path | topology/runtime breadth, Boolean Analysis, Project Format, TeachingMixed symbols, and their conformance suites |
+| authoring, Compilation, Simulation, analysis, format, diagnostics, symbols | closed V1 behavior and Module interfaces | immutable lineage, explicit Net/Junction/Wire Geometry editing, flat combinational Compilation, atomic Simulation Session, diagnostics, scalar oracle, and packed differential path | hierarchy and contract/runtime breadth, Boolean Analysis, Project Format, TeachingMixed symbols, and their conformance suites |
 | Workspace, Durable Project catalog, persistence, concurrency, browser messages | closed commands, keyset paging, queries, preconditions, outcomes, and transfer values | Sandbox create/author/compile/session/stimulus/step/close path, bounded admission, lifecycle fencing, and typed failure evidence | recoverable history/idempotency, durable catalog, Infrastructure, transfer, full work lanes, and integration evidence |
-| Blazor host and Canvas/waveform runtime | closed ownership, lifecycle, rendering, input, localization, security, and failure rules | per-page Interactive Server `/editor`, accessible Scene projection, component tests, host integration, and security-header tests | Canvas/waveform adapters, browser workflow suite, supported-browser matrix, corpus traces, and load/security qualification |
+| Blazor host and Canvas/waveform runtime | closed ownership, lifecycle, rendering, input, localization, security, and failure rules | per-page Interactive Server `/editor`, accessible explicit-topology Scene projection, component tests, host integration, and security-header tests | Canvas/waveform adapters, browser workflow suite, supported-browser matrix, corpus traces, and load/security qualification |
 | .NET engineering and dependency supply chain | SDK feature band, central build/analyzer/package/audit policy, TUnit/MTP, execution/DI/JSON/telemetry/publication rules | five production projects, five executable test projects, one comparative benchmark project, application-root locks, locked restore, warning-clean build, format, and whole-solution test gates | later slice projects and locks, CI publication, architecture automation, and provider qualification |
 | policies and capacity | dimensions and failure semantics are closed | provisional Phase A Simulation, Trace, Scheduling, and Workspace policy snapshots exercise bounded failure paths | calibrated values tied to a versioned corpus and deployment profile |
 | production operations | required readiness, shutdown, key, migration, proxy, and observability behavior is closed | development-host lifecycle and security-header integration evidence | provider-specific TLS, secrets, backup/restore, telemetry, alert, and runbook evidence |
 
-The latest recorded Phase A gate on 2026-08-02 passed locked restore, formatting, warning-clean build, all 376 discovered TUnit tests, whitespace validation, and the complete `/editor` tracer workflow. Do not describe the application as release-ready until the remaining evidence rows are complete.
+The latest recorded gate on 2026-08-02 passed locked restore, formatting, warning-clean build, all 398 discovered TUnit tests, whitespace validation, the complete `/editor` tracer workflow, and explicit-topology authoring across Domain, Engine, Application, Presentation, and Web. Do not describe the application as release-ready until the remaining evidence rows are complete.
 
 ## Executable evidence
 
