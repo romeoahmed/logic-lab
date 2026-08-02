@@ -4,9 +4,9 @@ using LogicLab.Domain.Components;
 
 namespace LogicLab.Engine.Compilation;
 
-public static class Compiler
+public static partial class Compiler
 {
-    public const string SemanticVersion = "logiclab.compiler.flat-v1";
+    public const string SemanticVersion = "logiclab.compiler.hierarchy-v1";
 
     public static CompilationOutcome Compile(
         CompilationRequest request,
@@ -83,6 +83,26 @@ public static class Compiler
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (HasHierarchy(request.ProjectRevision.Document))
+        {
+            return CompileHierarchy(
+                request,
+                definition,
+                observations,
+                cancellationToken);
+        }
+
+        var hierarchyRejection = Observe(
+            request,
+            ProjectScaleDimension.HierarchyDepth,
+            1,
+            observations);
+        if (hierarchyRejection is not null)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return hierarchyRejection;
+        }
 
         var resolvedInstances = ResolveInstances(
             request,
@@ -226,8 +246,11 @@ public static class Compiler
             cancellationToken.ThrowIfCancellationRequested();
             entityCount = checked(
                 entityCount
+                + (ulong)definition.Ports.Count
                 + (ulong)definition.ComponentInstances.Count
-                + (ulong)definition.Nets.Count);
+                + (ulong)definition.Nets.Count
+                + (ulong)definition.Junctions.Count
+                + (ulong)definition.WireGeometries.Count);
         }
 
         var dimensions = new[]
@@ -238,9 +261,6 @@ public static class Compiler
             new ObservedProjectScaleDimension(
                 ProjectScaleDimension.EntityCount,
                 entityCount),
-            new ObservedProjectScaleDimension(
-                ProjectScaleDimension.HierarchyDepth,
-                1),
         };
 
         foreach (var dimension in dimensions)
@@ -314,7 +334,8 @@ public static class Compiler
         {
             cancellationToken.ThrowIfCancellationRequested();
             var instance = instances[ordinal];
-            var schema = request.LibrarySnapshot.ResolveContract(instance.ContractKey);
+            var contractKey = ((LibraryComponentTarget)instance.Target).ContractKey;
+            var schema = request.LibrarySnapshot.ResolveContract(contractKey);
             if (schema is null)
             {
                 diagnostics.Add(new CompilerDiagnostic(
@@ -322,7 +343,7 @@ public static class Compiler
                     [
                         new CompilerDiagnosticArgument(
                             "contractKey",
-                            new CompilerContractKeyValue(instance.ContractKey)),
+                            new CompilerContractKeyValue(contractKey)),
                     ],
                     CircuitLocation(
                         path,
@@ -330,7 +351,7 @@ public static class Compiler
                 continue;
             }
 
-            if (!TryGetEvaluatorKind(instance.ContractKey, out var kind)
+            if (!TryGetEvaluatorKind(contractKey, out var kind)
                 || !TryGetInstanceWidth(instance, schema, out var width))
             {
                 diagnostics.Add(new CompilerDiagnostic(
@@ -338,7 +359,7 @@ public static class Compiler
                     [
                         new CompilerDiagnosticArgument(
                             "contractKey",
-                            new CompilerContractKeyValue(instance.ContractKey)),
+                            new CompilerContractKeyValue(contractKey)),
                         new CompilerDiagnosticArgument(
                             "parameterId",
                             new CompilerStableTokenValue("width")),
@@ -352,7 +373,13 @@ public static class Compiler
                 continue;
             }
 
-            resolved.Add(new ResolvedInstance(ordinal, instance, schema, kind, width));
+            resolved.Add(new ResolvedInstance(
+                ordinal,
+                instance,
+                contractKey,
+                schema,
+                kind,
+                width));
         }
 
         return resolved.ToArray();
@@ -376,7 +403,9 @@ public static class Compiler
         {
             cancellationToken.ThrowIfCancellationRequested();
             var net = orderedNets[netOrdinal];
-            foreach (var terminal in net.Terminals.OrderBy(
+            foreach (var terminal in net.Terminals
+                .OfType<InstanceTerminalReference>()
+                .OrderBy(
                 item => item.ComponentInstanceId.Value,
                 StringComparer.Ordinal).ThenBy(item => item.PortId, StringComparer.Ordinal))
             {
@@ -394,8 +423,9 @@ public static class Compiler
                             new CompilerDiagnosticArgument(
                                 "contractKey",
                                 new CompilerContractKeyValue(
-                                    authoredInstance?.ContractKey
-                                        ?? new ComponentContractKey(
+                                    authoredInstance?.Target is LibraryComponentTarget library
+                                        ? library.ContractKey
+                                        : new ComponentContractKey(
                                             CoreLibrarySchema.LibraryId,
                                             "unresolved"))),
                             new CompilerDiagnosticArgument(
@@ -421,7 +451,7 @@ public static class Compiler
                         [
                             new CompilerDiagnosticArgument(
                                 "contractKey",
-                                new CompilerContractKeyValue(resolved.Instance.ContractKey)),
+                                new CompilerContractKeyValue(resolved.ContractKey)),
                             new CompilerDiagnosticArgument(
                                 "portId",
                                 new CompilerStableTokenValue(
@@ -709,6 +739,7 @@ public static class Compiler
             cancellationToken.ThrowIfCancellationRequested();
             var net = orderedNets[netOrdinal];
             var netDrivers = net.Terminals
+                .OfType<InstanceTerminalReference>()
                 .Select(terminal => new TerminalKey(
                     terminal.ComponentInstanceId,
                     terminal.PortId))
@@ -717,6 +748,7 @@ public static class Compiler
                 .Order()
                 .ToArray();
             var receivers = net.Terminals
+                .OfType<InstanceTerminalReference>()
                 .Where(terminal => inputTerminals.Contains(new TerminalKey(
                     terminal.ComponentInstanceId,
                     terminal.PortId)))
@@ -935,6 +967,14 @@ public static class Compiler
         };
     }
 
+    private static bool HasHierarchy(ProjectDocument document)
+    {
+        return document.CircuitDefinitions.Any(definition =>
+            definition.Ports.Count != 0
+            || definition.ComponentInstances.Any(instance =>
+                instance.Target is CircuitDefinitionComponentTarget));
+    }
+
     private readonly record struct TerminalKey(
         ComponentInstanceId ComponentInstanceId,
         string PortId);
@@ -942,6 +982,7 @@ public static class Compiler
     private sealed record ResolvedInstance(
         int Ordinal,
         ComponentInstance Instance,
+        ComponentContractKey ContractKey,
         ComponentContractSchema Schema,
         SimulationEvaluatorKind Kind,
         uint Width);

@@ -188,6 +188,11 @@ internal static class CompilationArtifactValidator
             sourceMap.Nets.Select(item => item.Ordinal),
             "Source Map Net",
             cancellationToken);
+        RequireInBounds(
+            sourceMap.NetAliases.Select(item => item.Ordinal),
+            ir.Nets.Count,
+            "Source Map Net alias",
+            cancellationToken);
 
         var expectedInputs = ir.Evaluators
             .SelectMany(evaluator => Enumerable.Range(0, evaluator.InputNetOrdinals.Count)

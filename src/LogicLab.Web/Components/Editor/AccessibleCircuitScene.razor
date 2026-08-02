@@ -16,12 +16,28 @@
     {
         <p class="empty-state">Create a Sandbox Project to begin.</p>
     }
-    else if (Scene.Components.Count == 0)
+    else if (Scene.Components.Count == 0
+        && Scene.DefinitionPorts.Count == 0
+        && Scene.Connections.Count == 0)
     {
         <p class="empty-state">The project is ready. Author the narrow input–NOT–output circuit.</p>
     }
     else
     {
+        @if (Scene.DefinitionPorts.Count != 0)
+        {
+            <h3 class="definition-ports-heading">Definition ports</h3>
+            <ul class="definition-port-list" aria-label="Circuit Definition ports">
+                @foreach (var port in Scene.DefinitionPorts)
+                {
+                    <li @key="port.Source"
+                        data-definition-port="@port.Source.DefinitionPortId.Value">
+                        <strong>@port.Label</strong> · @port.Direction · @port.Width bit
+                    </li>
+                }
+            </ul>
+        }
+
         <ol class="component-list" aria-label="Circuit components">
             @foreach (var component in Scene.Components)
             {
@@ -46,7 +62,7 @@
             {
                 <li @key="connection.Source" data-connection="@connection.Source.NetId.Value">
                     <div class="connection-summary">
-                        <span>@TerminalPath(connection)</span>
+                        <span>@TerminalPath(Scene, connection)</span>
                         <small>@connection.Width bit</small>
                     </div>
                     @if (connection.Junctions.Count != 0 || connection.WireGeometries.Count != 0)
@@ -76,9 +92,24 @@
     [Parameter]
     public AccessibleSceneProjection? Scene { get; set; }
 
-    private static string TerminalPath(AccessibleConnectionProjection connection)
+    private static string TerminalPath(
+        AccessibleSceneProjection scene,
+        AccessibleConnectionProjection connection)
     {
-        return string.Join(" → ", connection.Terminals.Select(terminal => terminal.PortId));
+        return string.Join(" → ", connection.Terminals.Select(terminal => terminal switch
+        {
+            DefinitionTerminalReference definition => scene.DefinitionPorts.Single(port =>
+                port.Source.DefinitionPortId == definition.DefinitionPortId).Label,
+            InstanceTerminalReference instance => scene.Components
+                .Single(component =>
+                    component.Source.ComponentInstanceId == instance.ComponentInstanceId)
+                .Ports.Single(port => string.Equals(
+                    port.Source.PortId,
+                    instance.PortId,
+                    StringComparison.Ordinal)).Label,
+            _ => throw new InvalidOperationException(
+                "The Terminal Reference variant is undefined."),
+        }));
     }
 
     private static string WireRouteLabel(WireRoute route)

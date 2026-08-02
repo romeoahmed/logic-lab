@@ -196,13 +196,16 @@ public sealed class SourceMap
         SourceMapEntry[] drivers,
         SourceMapEntry[] nets,
         StronglyConnectedComponentMemberSourceMapEntry[]
-            stronglyConnectedComponentMembers)
+            stronglyConnectedComponentMembers,
+        SourceMapEntry[]? netAliases = null)
     {
         Evaluators = Array.AsReadOnly((SourceMapEntry[])evaluators.Clone());
         EvaluatorInputs = Array.AsReadOnly(
             (EvaluatorInputSourceMapEntry[])evaluatorInputs.Clone());
         Drivers = Array.AsReadOnly((SourceMapEntry[])drivers.Clone());
         Nets = Array.AsReadOnly((SourceMapEntry[])nets.Clone());
+        NetAliases = Array.AsReadOnly(
+            netAliases is null ? [] : (SourceMapEntry[])netAliases.Clone());
         StronglyConnectedComponentMembers = Array.AsReadOnly(
             (StronglyConnectedComponentMemberSourceMapEntry[])
             stronglyConnectedComponentMembers.Clone());
@@ -216,6 +219,8 @@ public sealed class SourceMap
 
     public ReadOnlyCollection<SourceMapEntry> Nets { get; }
 
+    public ReadOnlyCollection<SourceMapEntry> NetAliases { get; }
+
     public ReadOnlyCollection<StronglyConnectedComponentMemberSourceMapEntry>
         StronglyConnectedComponentMembers
     { get; }
@@ -224,7 +229,8 @@ public sealed class SourceMap
         CompilationSource source,
         out int ordinal)
     {
-        return TryGetOrdinal(Nets, source, out ordinal);
+        return TryGetOrdinal(Nets, source, out ordinal)
+            || TryGetOrdinal(NetAliases, source, out ordinal);
     }
 
     public bool TryGetDriverOrdinal(

@@ -22,12 +22,14 @@ public sealed class WorkbenchComponentTests
         using var context = CreateContext();
 
         var rendered = context.Render<WorkbenchCommandBar>(parameters => parameters
-            .Add(component => component.CanAuthor, true));
+            .Add(component => component.CanAuthor, true)
+            .Add(component => component.CanAuthorHierarchy, true));
 
         using (Assert.Multiple())
         {
             await Assert.That(IsDisabled(rendered, "create")).IsTrue();
             await Assert.That(IsDisabled(rendered, "author")).IsFalse();
+            await Assert.That(IsDisabled(rendered, "author-hierarchy")).IsFalse();
             await Assert.That(IsDisabled(rendered, "compile")).IsTrue();
             await Assert.That(IsDisabled(rendered, "session")).IsTrue();
             await Assert.That(IsDisabled(rendered, "stimulus")).IsTrue();
@@ -46,7 +48,8 @@ public sealed class WorkbenchComponentTests
 
         foreach (var command in new[]
                  {
-                     "create", "author", "compile", "session", "stimulus", "step",
+                     "create", "author", "author-hierarchy", "compile", "session",
+                     "stimulus", "step",
                  })
         {
             await Assert.That(IsDisabled(rendered, command)).IsTrue();
@@ -121,7 +124,8 @@ public sealed class WorkbenchComponentTests
                 await Assert.That(workspace.OpenCount).IsEqualTo(1);
                 foreach (var command in new[]
                          {
-                             "create", "author", "compile", "session", "stimulus", "step",
+                             "create", "author", "author-hierarchy", "compile", "session",
+                             "stimulus", "step",
                          })
                 {
                     await Assert.That(IsDisabled(rendered, command)).IsTrue();
@@ -314,6 +318,67 @@ public sealed class WorkbenchComponentTests
     }
 
     [Test]
+    public async Task Editor_HierarchyCommands_NavigateDefinitionsAndCompileEntryOccurrence()
+    {
+        using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        context.Services.AddSingleton<IEditorWorkspace>(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var rendered = context.Render<Editor>();
+        rendered.WaitForElement("[data-command='create']:not([disabled])");
+        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
+        await rendered.Find("[data-command='author-hierarchy']")
+            .ClickAsync(new MouseEventArgs());
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.FindAll("[data-definition]")).Count().IsEqualTo(2);
+            await Assert.That(rendered.FindAll("[data-entry-marker]")).Count().IsEqualTo(1);
+            await Assert.That(rendered.FindAll("[data-component]")).Count().IsEqualTo(3);
+            await Assert.That(rendered.Find("[data-hierarchy-breadcrumb]").TextContent)
+                .Contains("Main");
+        }
+
+        await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.Find("[data-hierarchy-breadcrumb]").TextContent)
+                .Contains("Inverter");
+            await Assert.That(rendered.FindAll("[data-definition-port]")).Count()
+                .IsEqualTo(2);
+            await Assert.That(rendered.FindAll("[data-component]")).Count().IsEqualTo(1);
+            await Assert.That(rendered.Markup).Contains("A → A");
+            await Assert.That(rendered.Markup).Contains("Q → Q");
+            await Assert.That(rendered.FindAll("[data-command='hierarchy-back']")).Count()
+                .IsEqualTo(1);
+        }
+
+        await rendered.Find("[data-command='set-entry']").ClickAsync(new MouseEventArgs());
+        await Assert.That(rendered.Find("[data-entry-marker]").ParentElement!.TextContent)
+            .Contains("Inverter");
+        var mainTab = rendered.FindAll("[data-definition]")
+            .Single(element => element.TextContent.Contains("Main", StringComparison.Ordinal));
+        await mainTab.ClickAsync(new MouseEventArgs());
+        await Assert.That(rendered.FindAll("[data-enter-instance]")).IsEmpty();
+        await rendered.Find("[data-command='set-entry']").ClickAsync(new MouseEventArgs());
+        await Assert.That(rendered.Find("[data-entry-marker]").ParentElement!.TextContent)
+            .Contains("Main");
+
+        await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
+        await rendered.Find("[data-command='hierarchy-back']")
+            .ClickAsync(new MouseEventArgs());
+        await rendered.Find("[data-command='compile']").ClickAsync(new MouseEventArgs());
+        await rendered.Find("[data-command='session']").ClickAsync(new MouseEventArgs());
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.Find("[role='status']").TextContent)
+                .Contains("Simulation Session created");
+            await Assert.That(rendered.FindAll("[data-probe]")).Count().IsEqualTo(1);
+        }
+    }
+
+    [Test]
     public async Task Editor_CreateSampleTopologyPartitions_ComponentCreationOrder_DoesNotChangeElectricalPairs()
     {
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
@@ -361,8 +426,10 @@ public sealed class WorkbenchComponentTests
             .Select(partition => string.Join(
                 "|",
                 partition.Terminals
+                    .OfType<InstanceTerminalReference>()
                     .Select(terminal =>
-                        $"{definition.FindComponentInstance(terminal.ComponentInstanceId)!.ContractKey.ContractId}.{terminal.PortId}")
+                        $"{((LibraryComponentTarget)definition.FindComponentInstance(
+                            terminal.ComponentInstanceId)!.Target).ContractKey.ContractId}.{terminal.PortId}")
                     .Order(StringComparer.Ordinal)))
             .ToArray();
 
@@ -584,7 +651,8 @@ public sealed class WorkbenchComponentTests
     private static ComponentInstance Find(ProjectRevision revision, string contractId)
     {
         return revision.Document.EntryCircuitDefinition.ComponentInstances
-            .Single(instance => instance.ContractKey.ContractId == contractId);
+            .Single(instance => instance.Target is LibraryComponentTarget library
+                && library.ContractKey.ContractId == contractId);
     }
 
     private static ProjectRevision Commit(EditOutcome outcome)
