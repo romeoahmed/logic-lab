@@ -57,44 +57,36 @@ internal sealed partial class EditorWorkspace
 
     private WorkspaceAcquisition AcquireWorkspace(WorkspaceId workspaceId)
     {
-        WorkspaceState? expired = null;
-        WorkspaceLease? lease = null;
-        string? rejectionReason = null;
+        WorkspaceState expired;
         lock (gate)
         {
             if (isDisposed)
             {
-                rejectionReason = WorkspaceOutcomeReasons.WorkspaceCancelled;
+                return WorkspaceAcquisition.Rejected(
+                    WorkspaceOutcomeReasons.WorkspaceCancelled);
             }
-            else if (!workspaces.TryGetValue(workspaceId, out var state))
+
+            if (!workspaces.TryGetValue(workspaceId, out var state))
             {
-                rejectionReason = WorkspaceOutcomeReasons.WorkspaceNotFound;
+                return WorkspaceAcquisition.Rejected(
+                    WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
-            else
+
+            var now = timeProvider.GetUtcNow();
+            if (state.LeaseCount != 0 || !IsExpired(state, now))
             {
-                var now = timeProvider.GetUtcNow();
-                if (state.LeaseCount == 0 && IsExpired(state, now))
-                {
-                    workspaces.Remove(workspaceId);
-                    state.IsRetired = true;
-                    expired = state;
-                    rejectionReason = WorkspaceOutcomeReasons.WorkspaceExpired;
-                }
-                else
-                {
-                    state.LeaseCount++;
-                    state.LastAccessUtc = now;
-                    lease = new WorkspaceLease(this, state);
-                }
+                state.LeaseCount++;
+                state.LastAccessUtc = now;
+                return WorkspaceAcquisition.Acquired(new WorkspaceLease(this, state));
             }
+
+            workspaces.Remove(workspaceId);
+            state.IsRetired = true;
+            expired = state;
         }
 
-        if (expired is not null)
-        {
-            Retire(expired);
-        }
-
-        return new WorkspaceAcquisition(lease, rejectionReason);
+        Retire(expired);
+        return WorkspaceAcquisition.Rejected(WorkspaceOutcomeReasons.WorkspaceExpired);
     }
 
     private string? ReserveWorkspace(out List<WorkspaceState> retired)
@@ -148,7 +140,7 @@ internal sealed partial class EditorWorkspace
 
     private void Release(WorkspaceState state)
     {
-        var shouldRetire = false;
+        bool shouldRetire;
         lock (gate)
         {
             state.LeaseCount--;
@@ -265,5 +257,12 @@ internal sealed partial class EditorWorkspace
 
     private readonly record struct WorkspaceAcquisition(
         WorkspaceLease? Lease,
-        string? RejectionReason);
+        string? RejectionReason)
+    {
+        public static WorkspaceAcquisition Acquired(WorkspaceLease lease)
+            => new(lease, null);
+
+        public static WorkspaceAcquisition Rejected(string reason)
+            => new(null, reason);
+    }
 }

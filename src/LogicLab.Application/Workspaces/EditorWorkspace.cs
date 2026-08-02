@@ -582,11 +582,25 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
 
-        var observedProbes = committed.ObservedProbePatch.ToDictionary(
+        state.Simulation = new SimulationProjection(
+            simulation.SessionId,
+            committed.SessionVersion,
+            committed.LogicalTime,
+            committed.TraceCursor,
+            ApplyProbePatch(simulation.Probes, committed.ObservedProbePatch));
+        state.ProjectionVersion++;
+        return new SessionStepped(committed.LogicalTime, state.ProjectionVersion);
+    }
+
+    private static ProbeProjection[] ApplyProbePatch(
+        IEnumerable<ProbeProjection> probes,
+        IEnumerable<ProbeObservation> observations)
+    {
+        var observationsByProbe = observations.ToDictionary(
             observation => observation.ProbeId);
-        var probes = simulation.Probes.Select(probe =>
+        return probes.Select(probe =>
         {
-            if (!observedProbes.TryGetValue(probe.ProbeId, out var observation))
+            if (!observationsByProbe.TryGetValue(probe.ProbeId, out var observation))
             {
                 return probe;
             }
@@ -596,14 +610,6 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 observation.Source.Identity,
                 Values(observation.Value));
         }).ToArray();
-        state.Simulation = new SimulationProjection(
-            simulation.SessionId,
-            committed.SessionVersion,
-            committed.LogicalTime,
-            committed.TraceCursor,
-            probes);
-        state.ProjectionVersion++;
-        return new SessionStepped(committed.LogicalTime, state.ProjectionVersion);
     }
 
     private static CompilationSource[] OutputProbeSources(
