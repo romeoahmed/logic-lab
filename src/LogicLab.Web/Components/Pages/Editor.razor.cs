@@ -17,6 +17,10 @@ public partial class Editor
 
     private AccessibleSceneProjection? Scene { get; set; }
 
+    private CircuitDefinitionId? SelectedDefinitionId { get; set; }
+
+    private List<HierarchyNavigationStep> HierarchyNavigation { get; } = [];
+
     private bool IsInteractive { get; set; }
 
     private bool StimulusIsScheduled { get; set; }
@@ -34,6 +38,18 @@ public partial class Editor
         && Projection.Simulation is null
         && Projection.Compilation.Status is not CompilationPublicationStatus.Published
         && Projection.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances.Count == 0;
+
+    private bool CanAuthorHierarchy => CanAuthor;
+
+    private bool CanSetEntryDefinition => CommandsAvailable
+        && ActiveCommand is null
+        && Projection?.Simulation is null;
+
+    private bool CanEnterDefinitionInstances => Projection is not null
+        && SelectedDefinitionId is not null
+        && (HierarchyNavigation.Count != 0
+            || SelectedDefinitionId == Projection.ProjectRevision.Document
+                .EntryCircuitDefinitionId);
 
     private bool CanCompile => CommandsAvailable
         && Projection is not null
@@ -94,6 +110,9 @@ public partial class Editor
         }
 
         Projection = opened.Projection;
+        SelectedDefinitionId = opened.Projection.ProjectRevision.Document
+            .EntryCircuitDefinitionId;
+        HierarchyNavigation.Clear();
         ProjectScene();
         Status = "Sandbox Project created. Author the sample circuit.";
     }
@@ -237,21 +256,38 @@ public partial class Editor
 
         Projection = null;
         Scene = null;
+        SelectedDefinitionId = null;
+        HierarchyNavigation.Clear();
         StimulusIsScheduled = false;
         RouteDraftActive = false;
     }
 
     private void ProjectScene()
     {
-        Scene = Projection is null
-            ? null
-            : AccessibleSceneProjector.Project(Projection.ProjectRevision);
+        if (Projection is null)
+        {
+            Scene = null;
+            return;
+        }
+
+        var document = Projection.ProjectRevision.Document;
+        if (SelectedDefinitionId is null
+            || document.FindCircuitDefinition(SelectedDefinitionId) is null)
+        {
+            SelectedDefinitionId = document.EntryCircuitDefinitionId;
+            HierarchyNavigation.Clear();
+        }
+
+        Scene = AccessibleSceneProjector.Project(
+            Projection.ProjectRevision,
+            SelectedDefinitionId);
     }
 
     private ComponentInstance Find(string contractId)
     {
         return Projection!.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances
-            .Single(instance => instance.ContractKey.ContractId == contractId);
+            .Single(instance => instance.Target is LibraryComponentTarget library
+                && library.ContractKey.ContractId == contractId);
     }
 
     private static ComponentContractKey Contract(string contractId)

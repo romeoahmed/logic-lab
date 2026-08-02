@@ -148,7 +148,8 @@ internal sealed record CompilerTestCircuit(
         string contractId)
     {
         return revision.Document.EntryCircuitDefinition.ComponentInstances
-            .Single(instance => instance.ContractKey.ContractId == contractId);
+            .Single(instance => instance.Target is LibraryComponentTarget library
+                && library.ContractKey.ContractId == contractId);
     }
 
     private static InstanceTerminalReference Terminal(

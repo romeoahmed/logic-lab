@@ -282,6 +282,7 @@ internal static class CompilerCanonicalizer
             return identity switch
             {
                 CircuitRootSourceIdentity => 0,
+                DefinitionPortSourceIdentity or
                 ComponentInstanceSourceIdentity or
                     InstancePortSourceIdentity or
                     NetSourceIdentity => 1,
@@ -296,6 +297,7 @@ internal static class CompilerCanonicalizer
             return identity switch
             {
                 CircuitRootSourceIdentity source => source.CircuitDefinitionId,
+                DefinitionPortSourceIdentity source => source.CircuitDefinitionId,
                 ComponentInstanceSourceIdentity source => source.CircuitDefinitionId,
                 InstancePortSourceIdentity source => source.CircuitDefinitionId,
                 NetSourceIdentity source => source.CircuitDefinitionId,
@@ -308,8 +310,9 @@ internal static class CompilerCanonicalizer
         {
             return identity switch
             {
-                ComponentInstanceSourceIdentity or InstancePortSourceIdentity => 0,
-                NetSourceIdentity => 1,
+                DefinitionPortSourceIdentity => 0,
+                ComponentInstanceSourceIdentity or InstancePortSourceIdentity => 1,
+                NetSourceIdentity => 2,
                 _ => throw new InvalidOperationException(
                     "The circuit entity Source Identity variant is undefined."),
             };
@@ -319,6 +322,7 @@ internal static class CompilerCanonicalizer
         {
             return identity switch
             {
+                DefinitionPortSourceIdentity source => source.DefinitionPortId.Value,
                 ComponentInstanceSourceIdentity source =>
                     source.ComponentInstanceId.Value,
                 InstancePortSourceIdentity source => source.ComponentInstanceId.Value,
@@ -358,6 +362,7 @@ internal static class CompilerCanonicalizer
                     "compiler_library_version_mismatch" or
                     "compiler_library_digest_mismatch" => 0,
                 "compiler_contract_unresolved" or
+                    "compiler_hierarchy_recursion" or
                     "compiler_parameter_schema_mismatch" or
                     "compiler_port_unresolved" => 1,
                 "compiler_required_terminal_unconnected" or

@@ -2,12 +2,16 @@ using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Scene;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Presentation.Tests;
 
 public sealed class AccessibleSceneProjectorTests
 {
     private static readonly string[] ExpectedLabels = ["Input", "NOT", "Output"];
+    private static readonly string[] ExpectedDefinitionPortLabels = ["A", "Q"];
+    private static readonly PortDirection[] ExpectedDefinitionPortDirections =
+        [PortDirection.Input, PortDirection.Output];
 
     [Test]
     public async Task Project_CompleteCircuit_ExposesReachableSemanticTopology()
@@ -42,7 +46,8 @@ public sealed class AccessibleSceneProjectorTests
         var revision = CreateCompleteCircuit();
         var before = AccessibleSceneProjector.Project(revision);
         var logicNot = revision.Document.EntryCircuitDefinition.ComponentInstances
-            .Single(instance => instance.ContractKey.ContractId == "logic.not");
+            .Single(instance => instance.Target is LibraryComponentTarget library
+                && library.ContractKey.ContractId == "logic.not");
         revision = Commit(ProjectEditor.Apply(
             revision,
             new MoveComponentInstancesIntent(
@@ -94,6 +99,64 @@ public sealed class AccessibleSceneProjectorTests
             await Assert.That(connection.WireGeometries.Any(
                 item => item.Route is UnroutedWireRoute)).IsTrue();
             await Assert.That(connection.Terminals).Count().IsEqualTo(2);
+        }
+    }
+
+    [Test]
+    public async Task Project_SelectedDefinition_ExposesBoundaryPortsAndDefinitionInstance()
+    {
+        var revision = CreateCompleteCircuit();
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new CreateCircuitDefinitionIntent(
+                "Inverter",
+                [
+                    new DefinitionPortDeclaration(
+                        "A",
+                        PortDirection.Input,
+                        1,
+                        new DefinitionPortPlacement(
+                            new GridPoint(0, 2),
+                            CardinalDirection.West)),
+                    new DefinitionPortDeclaration(
+                        "Q",
+                        PortDirection.Output,
+                        1,
+                        new DefinitionPortPlacement(
+                            new GridPoint(8, 2),
+                            CardinalDirection.East)),
+                ])));
+        var child = revision.Document.CircuitDefinitions.Single(definition =>
+            definition.DisplayName == "Inverter");
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new PlaceComponentInstanceIntent(
+                revision.Document.EntryCircuitDefinitionId,
+                new CircuitDefinitionComponentTarget(child.Id),
+                [],
+                new ComponentPlacement(new GridPoint(12, 0)),
+                "Nested inverter")));
+
+        var childScene = AccessibleSceneProjector.Project(revision, child.Id);
+        var mainScene = AccessibleSceneProjector.Project(
+            revision,
+            revision.Document.EntryCircuitDefinitionId);
+        var call = mainScene.Components.Single(component =>
+            component.Label == "Nested inverter");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(childScene.CircuitDefinitionId).IsEqualTo(child.Id);
+            await Assert.That(childScene.DefinitionPorts.Select(port => port.Label))
+                .IsEquivalentTo(
+                    ExpectedDefinitionPortLabels,
+                    CollectionOrdering.Matching);
+            await Assert.That(call.Ports.Select(port => port.Label))
+                .IsEquivalentTo(
+                    ExpectedDefinitionPortLabels,
+                    CollectionOrdering.Matching);
+            await Assert.That(call.Ports.Select(port => port.Direction))
+                .IsEquivalentTo(ExpectedDefinitionPortDirections);
         }
     }
 
@@ -157,7 +220,8 @@ public sealed class AccessibleSceneProjectorTests
     private static ComponentInstance Find(ProjectRevision revision, string contractId)
     {
         return revision.Document.EntryCircuitDefinition.ComponentInstances
-            .Single(instance => instance.ContractKey.ContractId == contractId);
+            .Single(instance => instance.Target is LibraryComponentTarget library
+                && library.ContractKey.ContractId == contractId);
     }
 
     private static ProjectRevision Commit(EditOutcome outcome)

@@ -45,6 +45,21 @@ public sealed record CircuitDefinitionId
     }
 }
 
+public sealed record DefinitionPortId
+{
+    internal DefinitionPortId(string value)
+    {
+        Value = value;
+    }
+
+    public string Value { get; }
+
+    internal static DefinitionPortId Create()
+    {
+        return new DefinitionPortId(Guid.CreateVersion7().ToString("N"));
+    }
+}
+
 public sealed record ComponentInstanceId
 {
     internal ComponentInstanceId(string value)

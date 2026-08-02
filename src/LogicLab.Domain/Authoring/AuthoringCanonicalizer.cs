@@ -198,7 +198,8 @@ internal static class AuthoringCanonicalizer
             {
                 ProjectRootSourceIdentity => 0,
                 CircuitRootSourceIdentity => 1,
-                ComponentInstanceSourceIdentity or
+                DefinitionPortSourceIdentity or
+                    ComponentInstanceSourceIdentity or
                     InstancePortSourceIdentity or
                     NetSourceIdentity or
                     JunctionSourceIdentity or
@@ -242,6 +243,7 @@ internal static class AuthoringCanonicalizer
         {
             return identity switch
             {
+                DefinitionPortSourceIdentity source => source.CircuitDefinitionId,
                 ComponentInstanceSourceIdentity source => source.CircuitDefinitionId,
                 InstancePortSourceIdentity source => source.CircuitDefinitionId,
                 NetSourceIdentity source => source.CircuitDefinitionId,
@@ -256,10 +258,11 @@ internal static class AuthoringCanonicalizer
         {
             return identity switch
             {
-                ComponentInstanceSourceIdentity or InstancePortSourceIdentity => 0,
-                NetSourceIdentity => 1,
-                JunctionSourceIdentity => 2,
-                WireGeometrySourceIdentity => 3,
+                DefinitionPortSourceIdentity => 0,
+                ComponentInstanceSourceIdentity or InstancePortSourceIdentity => 1,
+                NetSourceIdentity => 2,
+                JunctionSourceIdentity => 3,
+                WireGeometrySourceIdentity => 4,
                 _ => throw new InvalidOperationException(
                     "The circuit entity Source Identity variant is undefined."),
             };
@@ -269,6 +272,7 @@ internal static class AuthoringCanonicalizer
         {
             return identity switch
             {
+                DefinitionPortSourceIdentity source => source.DefinitionPortId.Value,
                 ComponentInstanceSourceIdentity source =>
                     source.ComponentInstanceId.Value,
                 InstancePortSourceIdentity source => source.ComponentInstanceId.Value,
