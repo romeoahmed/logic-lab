@@ -77,6 +77,14 @@ public sealed record NetSourceIdentity(
     CircuitDefinitionId CircuitDefinitionId,
     NetId NetId) : AuthoredSourceIdentity;
 
+public sealed record JunctionSourceIdentity(
+    CircuitDefinitionId CircuitDefinitionId,
+    JunctionId JunctionId) : AuthoredSourceIdentity;
+
+public sealed record WireGeometrySourceIdentity(
+    CircuitDefinitionId CircuitDefinitionId,
+    WireGeometryId WireGeometryId) : AuthoredSourceIdentity;
+
 public abstract record ProjectGenesisOutcome
 {
     private protected ProjectGenesisOutcome()

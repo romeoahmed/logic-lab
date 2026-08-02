@@ -3,7 +3,7 @@ using LogicLab.Domain.Components;
 
 namespace LogicLab.Domain.Authoring;
 
-public static class ProjectEditor
+public static partial class ProjectEditor
 {
     public static ProjectGenesisOutcome Begin(ProjectSeed seed)
     {
@@ -25,6 +25,17 @@ public static class ProjectEditor
         {
             PlaceComponentInstanceIntent place => ApplyPlace(revision, place),
             ConnectTerminalsIntent connect => ApplyConnect(revision, connect),
+            MergeNetsIntent merge => ApplyMergeNets(revision, merge),
+            SplitNetIntent split => ApplySplitNet(revision, split),
+            AddJunctionIntent addJunction => ApplyAddJunction(revision, addJunction),
+            RemoveJunctionIntent removeJunction =>
+                ApplyRemoveJunction(revision, removeJunction),
+            AddWireGeometryIntent addWireGeometry =>
+                ApplyAddWireGeometry(revision, addWireGeometry),
+            SetWireGeometryIntent setWireGeometry =>
+                ApplySetWireGeometry(revision, setWireGeometry),
+            RemoveWireGeometryIntent removeWireGeometry =>
+                ApplyRemoveWireGeometry(revision, removeWireGeometry),
             MoveComponentInstancesIntent move => ApplyMove(revision, move),
             _ => throw new InvalidOperationException("The Edit Intent variant is undefined."),
         };
@@ -137,96 +148,7 @@ public static class ProjectEditor
         ProjectRevision revision,
         ConnectTerminalsIntent intent)
     {
-        if (intent.Terminals.Count < 2)
-        {
-            return Reject(MissingReference("electricalEndpoint"));
-        }
-
-        var circuitDefinitionId = intent.Terminals[0].CircuitDefinitionId;
-        var definition = revision.Document.FindCircuitDefinition(circuitDefinitionId);
-        if (definition is null)
-        {
-            return Reject(MissingReference("circuitDefinition"));
-        }
-
-        var diagnostics = new List<AuthoringDiagnostic>();
-        var widths = new List<uint>(intent.Terminals.Count);
-        var seenTerminals = new HashSet<InstanceTerminalReference>();
-
-        foreach (var terminal in intent.Terminals)
-        {
-            if (terminal.CircuitDefinitionId != circuitDefinitionId)
-            {
-                diagnostics.Add(MissingReference("terminalScope"));
-                continue;
-            }
-
-            if (!seenTerminals.Add(terminal))
-            {
-                diagnostics.Add(TerminalAlreadyConnected(terminal));
-                continue;
-            }
-
-            var instance = definition.FindComponentInstance(terminal.ComponentInstanceId);
-            if (instance is null)
-            {
-                diagnostics.Add(MissingReference("componentInstance"));
-                continue;
-            }
-
-            var schema = revision.Document.LibrarySnapshot.ResolveContract(instance.ContractKey);
-            var port = schema?.Ports.SingleOrDefault(
-                candidate => string.Equals(
-                    candidate.Id,
-                    terminal.PortId,
-                    StringComparison.Ordinal));
-            if (port is null
-                || !ComponentParameterValidator.TryGetPortWidth(instance, port, out var width))
-            {
-                diagnostics.Add(MissingReference("instancePort"));
-                continue;
-            }
-
-            widths.Add(width);
-
-            if (definition.Nets.Any(net => net.Terminals.Contains(terminal)))
-            {
-                diagnostics.Add(TerminalAlreadyConnected(terminal));
-            }
-        }
-
-        if (diagnostics.Count == 0
-            && widths.Skip(1).Any(width => width != widths[0]))
-        {
-            diagnostics.Add(new AuthoringDiagnostic(
-                "authoring_width_mismatch",
-                [
-                    new AuthoringDiagnosticArgument(
-                        "expected",
-                        new UnsignedDecimalDiagnosticValue(widths[0])),
-                    new AuthoringDiagnosticArgument(
-                        "actual",
-                        new UnsignedDecimalDiagnosticValue(
-                            widths.First(width => width != widths[0]))),
-                ]));
-        }
-
-        if (diagnostics.Count != 0)
-        {
-            return new EditRejected(diagnostics.ToArray());
-        }
-
-        var net = new Net(NetId.Create(), widths[0], intent.Terminals.ToArray());
-        var updatedDefinition = definition.AddNet(net);
-        var changedSources = intent.Terminals
-            .Select(terminal => (AuthoredSourceIdentity)new InstancePortSourceIdentity(
-                terminal.CircuitDefinitionId,
-                terminal.ComponentInstanceId,
-                terminal.PortId))
-            .Append(new NetSourceIdentity(definition.Id, net.Id))
-            .ToArray();
-
-        return Commit(revision, updatedDefinition, changedSources);
+        return ApplyConnectTopology(revision, intent);
     }
 
     private static EditOutcome ApplyMove(
@@ -295,14 +217,15 @@ public static class ProjectEditor
     private static EditCommitted Commit(
         ProjectRevision previousRevision,
         CircuitDefinition updatedDefinition,
-        AuthoredSourceIdentity[] changedSources)
+        AuthoredSourceIdentity[] changedSources,
+        AuthoredSourceIdentity[]? removedSources = null)
     {
         var document = previousRevision.Document.ReplaceCircuitDefinition(updatedDefinition);
         var revision = new ProjectRevision(ProjectRevisionId.Create(), document);
         return new EditCommitted(
             revision,
             changedSources,
-            []);
+            removedSources ?? []);
     }
 
     private static EditRejected Reject(params AuthoringDiagnostic[] diagnostics)

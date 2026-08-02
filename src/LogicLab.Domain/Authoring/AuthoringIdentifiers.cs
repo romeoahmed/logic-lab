@@ -74,3 +74,33 @@ public sealed record NetId
         return new NetId(Guid.CreateVersion7().ToString("N"));
     }
 }
+
+public sealed record JunctionId
+{
+    internal JunctionId(string value)
+    {
+        Value = value;
+    }
+
+    public string Value { get; }
+
+    internal static JunctionId Create()
+    {
+        return new JunctionId(Guid.CreateVersion7().ToString("N"));
+    }
+}
+
+public sealed record WireGeometryId
+{
+    internal WireGeometryId(string value)
+    {
+        Value = value;
+    }
+
+    public string Value { get; }
+
+    internal static WireGeometryId Create()
+    {
+        return new WireGeometryId(Guid.CreateVersion7().ToString("N"));
+    }
+}
