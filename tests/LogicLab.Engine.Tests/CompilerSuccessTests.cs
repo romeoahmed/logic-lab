@@ -58,6 +58,45 @@ public sealed class CompilerSuccessTests
     }
 
     [Test]
+    public async Task Compile_ExplicitJunctionAndWireGeometry_UsesOnlyElectricalMembership()
+    {
+        var circuit = CompilerTestCircuit.CreateComplete();
+        var definition = circuit.Revision.Document.EntryCircuitDefinition;
+        var authored = CompilerTestCircuit.Commit(ProjectEditor.Apply(
+            circuit.Revision,
+            new AddJunctionIntent(
+                definition.Id,
+                circuit.InputNet.Id,
+                new GridPoint(2, 1),
+                [
+                    new OrthogonalWireRoute(
+                        [new GridPoint(0, 0), new GridPoint(0, 1), new GridPoint(4, 1)]),
+                    new OrthogonalWireRoute(
+                        [new GridPoint(2, -1), new GridPoint(2, 2)]),
+                ],
+                [],
+                [])));
+
+        var outcome = Compiler.Compile(
+            CompilerTestCircuit.Request(authored),
+            CancellationToken.None);
+
+        await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
+        var succeeded = (CompilationSucceeded)outcome;
+        using (Assert.Multiple())
+        {
+            await Assert.That(succeeded.Artifact.SimulationIr.Nets).Count().IsEqualTo(2);
+            await Assert.That(succeeded.Artifact.SourceMap.Nets.Select(item =>
+                    ((NetSourceIdentity)item.Source.Identity).NetId))
+                .IsEquivalentTo(definition.Nets.Select(net => net.Id));
+            await Assert.That(authored.Document.EntryCircuitDefinition.Junctions)
+                .Count().IsEqualTo(1);
+            await Assert.That(authored.Document.EntryCircuitDefinition.WireGeometries)
+                .Count().IsEqualTo(2);
+        }
+    }
+
+    [Test]
     public async Task Compile_CompleteFlatInverter_ProducesDenseInBoundsSimulationIr()
     {
         var circuit = CompilerTestCircuit.CreateComplete();

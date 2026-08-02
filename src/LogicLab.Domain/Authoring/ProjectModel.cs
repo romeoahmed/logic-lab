@@ -92,19 +92,36 @@ public sealed class CircuitDefinition
 {
     private readonly ComponentInstance[] componentInstances;
     private readonly Net[] nets;
+    private readonly Junction[] junctions;
+    private readonly WireGeometry[] wireGeometries;
 
     internal CircuitDefinition(
         CircuitDefinitionId id,
         string displayName,
         ComponentInstance[] componentInstances,
         Net[] nets)
+        : this(id, displayName, componentInstances, nets, [], [])
+    {
+    }
+
+    internal CircuitDefinition(
+        CircuitDefinitionId id,
+        string displayName,
+        ComponentInstance[] componentInstances,
+        Net[] nets,
+        Junction[] junctions,
+        WireGeometry[] wireGeometries)
     {
         Id = id;
         DisplayName = displayName;
         this.componentInstances = (ComponentInstance[])componentInstances.Clone();
         this.nets = (Net[])nets.Clone();
+        this.junctions = (Junction[])junctions.Clone();
+        this.wireGeometries = (WireGeometry[])wireGeometries.Clone();
         ComponentInstances = Array.AsReadOnly(this.componentInstances);
         Nets = Array.AsReadOnly(this.nets);
+        Junctions = Array.AsReadOnly(this.junctions);
+        WireGeometries = Array.AsReadOnly(this.wireGeometries);
     }
 
     public CircuitDefinitionId Id { get; }
@@ -114,6 +131,10 @@ public sealed class CircuitDefinition
     public ReadOnlyCollection<ComponentInstance> ComponentInstances { get; }
 
     public ReadOnlyCollection<Net> Nets { get; }
+
+    public ReadOnlyCollection<Junction> Junctions { get; }
+
+    public ReadOnlyCollection<WireGeometry> WireGeometries { get; }
 
     public ComponentInstance? FindComponentInstance(ComponentInstanceId id)
     {
@@ -127,6 +148,18 @@ public sealed class CircuitDefinition
         return Array.Find(nets, net => net.Id == id);
     }
 
+    public Junction? FindJunction(JunctionId id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return Array.Find(junctions, junction => junction.Id == id);
+    }
+
+    public WireGeometry? FindWireGeometry(WireGeometryId id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return Array.Find(wireGeometries, geometry => geometry.Id == id);
+    }
+
     internal CircuitDefinition AddComponentInstance(ComponentInstance instance)
     {
         var instances = new ComponentInstance[componentInstances.Length + 1];
@@ -136,7 +169,13 @@ public sealed class CircuitDefinition
             instances,
             static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
 
-        return new CircuitDefinition(Id, DisplayName, instances, nets);
+        return new CircuitDefinition(
+            Id,
+            DisplayName,
+            instances,
+            nets,
+            junctions,
+            wireGeometries);
     }
 
     internal CircuitDefinition ReplaceComponentInstances(ComponentInstance[] replacements)
@@ -145,7 +184,13 @@ public sealed class CircuitDefinition
         var instances = componentInstances
             .Select(instance => replacementById.GetValueOrDefault(instance.Id, instance))
             .ToArray();
-        return new CircuitDefinition(Id, DisplayName, instances, nets);
+        return new CircuitDefinition(
+            Id,
+            DisplayName,
+            instances,
+            nets,
+            junctions,
+            wireGeometries);
     }
 
     internal CircuitDefinition AddNet(Net net)
@@ -156,7 +201,36 @@ public sealed class CircuitDefinition
         Array.Sort(
             updatedNets,
             static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
-        return new CircuitDefinition(Id, DisplayName, componentInstances, updatedNets);
+        return new CircuitDefinition(
+            Id,
+            DisplayName,
+            componentInstances,
+            updatedNets,
+            junctions,
+            wireGeometries);
+    }
+
+    internal CircuitDefinition WithTopology(
+        Net[] updatedNets,
+        Junction[] updatedJunctions,
+        WireGeometry[] updatedWireGeometries)
+    {
+        Array.Sort(
+            updatedNets,
+            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
+        Array.Sort(
+            updatedJunctions,
+            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
+        Array.Sort(
+            updatedWireGeometries,
+            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
+        return new CircuitDefinition(
+            Id,
+            DisplayName,
+            componentInstances,
+            updatedNets,
+            updatedJunctions,
+            updatedWireGeometries);
     }
 }
 
@@ -257,11 +331,21 @@ public sealed class Net
         NetId id,
         uint width,
         InstanceTerminalReference[] terminals)
+        : this(id, width, terminals, [])
+    {
+    }
+
+    internal Net(
+        NetId id,
+        uint width,
+        InstanceTerminalReference[] terminals,
+        JunctionId[] junctionIds)
     {
         Id = id;
         Width = width;
         Terminals = Array.AsReadOnly(
             (InstanceTerminalReference[])terminals.Clone());
+        JunctionIds = Array.AsReadOnly((JunctionId[])junctionIds.Clone());
     }
 
     public NetId Id { get; }
@@ -269,4 +353,60 @@ public sealed class Net
     public uint Width { get; }
 
     public ReadOnlyCollection<InstanceTerminalReference> Terminals { get; }
+
+    public ReadOnlyCollection<JunctionId> JunctionIds { get; }
+
+    internal Net WithMembership(
+        InstanceTerminalReference[] terminals,
+        JunctionId[] junctionIds)
+    {
+        return new Net(Id, Width, terminals, junctionIds);
+    }
+}
+
+public sealed class Junction
+{
+    internal Junction(JunctionId id, NetId netId, GridPoint position)
+    {
+        Id = id;
+        NetId = netId;
+        Position = position;
+    }
+
+    public JunctionId Id { get; }
+
+    public NetId NetId { get; }
+
+    public GridPoint Position { get; }
+
+    internal Junction WithNet(NetId netId)
+    {
+        return new Junction(Id, netId, Position);
+    }
+}
+
+public sealed class WireGeometry
+{
+    internal WireGeometry(WireGeometryId id, NetId netId, WireRoute route)
+    {
+        Id = id;
+        NetId = netId;
+        Route = route;
+    }
+
+    public WireGeometryId Id { get; }
+
+    public NetId NetId { get; }
+
+    public WireRoute Route { get; }
+
+    internal WireGeometry WithNet(NetId netId)
+    {
+        return new WireGeometry(Id, netId, Route);
+    }
+
+    internal WireGeometry WithRoute(WireRoute route)
+    {
+        return new WireGeometry(Id, NetId, route);
+    }
 }
