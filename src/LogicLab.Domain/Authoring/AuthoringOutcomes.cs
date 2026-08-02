@@ -64,6 +64,10 @@ public sealed record ProjectRootSourceIdentity(ProjectId ProjectId)
 public sealed record CircuitRootSourceIdentity(CircuitDefinitionId CircuitDefinitionId)
     : AuthoredSourceIdentity;
 
+public sealed record DefinitionPortSourceIdentity(
+    CircuitDefinitionId CircuitDefinitionId,
+    DefinitionPortId DefinitionPortId) : AuthoredSourceIdentity;
+
 public sealed record ComponentInstanceSourceIdentity(
     CircuitDefinitionId CircuitDefinitionId,
     ComponentInstanceId ComponentInstanceId) : AuthoredSourceIdentity;

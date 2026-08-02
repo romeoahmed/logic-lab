@@ -7,7 +7,27 @@ public static class AccessibleSceneProjector
     public static AccessibleSceneProjection Project(ProjectRevision revision)
     {
         ArgumentNullException.ThrowIfNull(revision);
-        var definition = revision.Document.EntryCircuitDefinition;
+        return Project(revision, revision.Document.EntryCircuitDefinitionId);
+    }
+
+    public static AccessibleSceneProjection Project(
+        ProjectRevision revision,
+        CircuitDefinitionId circuitDefinitionId)
+    {
+        ArgumentNullException.ThrowIfNull(revision);
+        ArgumentNullException.ThrowIfNull(circuitDefinitionId);
+        var definition = revision.Document.FindCircuitDefinition(circuitDefinitionId)
+            ?? throw new ArgumentException(
+                "The selected Circuit Definition does not exist in the Project Revision.",
+                nameof(circuitDefinitionId));
+        var definitionPorts = definition.Ports
+            .Select(port => new AccessibleDefinitionPortProjection(
+                new DefinitionPortSourceIdentity(definition.Id, port.Id),
+                port.DisplayName,
+                port.Direction,
+                port.Width,
+                port.Placement))
+            .ToArray();
         var components = definition.ComponentInstances
             .Select(instance => ProjectComponent(revision, definition.Id, instance))
             .OrderBy(item => item.Placement.Origin.X)
@@ -22,6 +42,7 @@ public static class AccessibleSceneProjector
         return new AccessibleSceneProjection(
             definition.Id,
             definition.DisplayName,
+            definitionPorts,
             components,
             connections);
     }
@@ -60,7 +81,37 @@ public static class AccessibleSceneProjector
         CircuitDefinitionId definitionId,
         ComponentInstance instance)
     {
-        var schema = revision.Document.LibrarySnapshot.ResolveContract(instance.ContractKey)
+        var (label, ports) = instance.Target switch
+        {
+            LibraryComponentTarget library => ProjectLibraryComponent(
+                revision,
+                definitionId,
+                instance,
+                library),
+            CircuitDefinitionComponentTarget definition => ProjectDefinitionComponent(
+                revision,
+                definitionId,
+                instance,
+                definition),
+            _ => throw new InvalidOperationException(
+                "The Component Target variant is undefined."),
+        };
+
+        return new AccessibleComponentProjection(
+            new ComponentInstanceSourceIdentity(definitionId, instance.Id),
+            label,
+            instance.Placement,
+            ports);
+    }
+
+    private static (string Label, AccessiblePortProjection[] Ports)
+        ProjectLibraryComponent(
+            ProjectRevision revision,
+            CircuitDefinitionId definitionId,
+            ComponentInstance instance,
+            LibraryComponentTarget target)
+    {
+        var schema = revision.Document.LibrarySnapshot.ResolveContract(target.ContractKey)
             ?? throw new InvalidOperationException(
                 "The authored component contract is absent from the pinned Library Snapshot.");
         var ports = schema.Ports
@@ -69,12 +120,32 @@ public static class AccessibleSceneProjector
                 port.Id,
                 port.Direction))
             .ToArray();
-
-        return new AccessibleComponentProjection(
-            new ComponentInstanceSourceIdentity(definitionId, instance.Id),
-            instance.DisplayName ?? ContractLabel(instance.ContractKey.ContractId),
-            instance.Placement,
+        return (
+            instance.DisplayName ?? ContractLabel(target.ContractKey.ContractId),
             ports);
+    }
+
+    private static (string Label, AccessiblePortProjection[] Ports)
+        ProjectDefinitionComponent(
+            ProjectRevision revision,
+            CircuitDefinitionId definitionId,
+            ComponentInstance instance,
+            CircuitDefinitionComponentTarget target)
+    {
+        var targetDefinition = revision.Document.FindCircuitDefinition(
+            target.CircuitDefinitionId)
+            ?? throw new InvalidOperationException(
+                "The authored Circuit Definition target is absent from the Project Revision.");
+        var ports = targetDefinition.Ports
+            .Select(port => new AccessiblePortProjection(
+                new InstancePortSourceIdentity(
+                    definitionId,
+                    instance.Id,
+                    port.Id.Value),
+                port.DisplayName,
+                port.Direction))
+            .ToArray();
+        return (instance.DisplayName ?? targetDefinition.DisplayName, ports);
     }
 
     private static string ContractLabel(string contractId)

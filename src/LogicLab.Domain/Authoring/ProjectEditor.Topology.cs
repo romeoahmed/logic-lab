@@ -101,10 +101,7 @@ public static partial class ProjectEditor
             && intent.RouteReplacements.Count == 0)
         {
             var canonicalTerminal = intent.Terminals
-                .OrderBy(
-                    terminal => terminal.ComponentInstanceId.Value,
-                    StringComparer.Ordinal)
-                .ThenBy(terminal => terminal.PortId, StringComparer.Ordinal)
+                .OrderBy(TerminalKey, StringComparer.Ordinal)
                 .First();
             return Reject(TerminalAlreadyConnected(canonicalTerminal));
         }
@@ -628,11 +625,11 @@ public static partial class ProjectEditor
         ProjectRevision revision,
         CircuitDefinition definition,
         CircuitDefinitionId circuitDefinitionId,
-        ReadOnlyCollection<InstanceTerminalReference> terminals,
+        ReadOnlyCollection<AuthoredTerminalReference> terminals,
         List<AuthoringDiagnostic> diagnostics)
     {
         var validated = new List<ValidatedTerminal>(terminals.Count);
-        var seenTerminals = new HashSet<InstanceTerminalReference>();
+        var seenTerminals = new HashSet<AuthoredTerminalReference>();
         foreach (var terminal in terminals)
         {
             if (terminal.CircuitDefinitionId != circuitDefinitionId)
@@ -647,22 +644,19 @@ public static partial class ProjectEditor
                 continue;
             }
 
-            var instance = definition.FindComponentInstance(terminal.ComponentInstanceId);
-            if (instance is null)
+            if (!TryGetTerminalWidth(
+                    revision.Document,
+                    definition,
+                    terminal,
+                    out var width))
             {
-                diagnostics.Add(MissingReference("componentInstance"));
-                continue;
-            }
-
-            var schema = revision.Document.LibrarySnapshot.ResolveContract(instance.ContractKey);
-            var port = schema?.Ports.SingleOrDefault(candidate => string.Equals(
-                candidate.Id,
-                terminal.PortId,
-                StringComparison.Ordinal));
-            if (port is null
-                || !ComponentParameterValidator.TryGetPortWidth(instance, port, out var width))
-            {
-                diagnostics.Add(MissingReference("instancePort"));
+                diagnostics.Add(MissingReference(terminal switch
+                {
+                    DefinitionTerminalReference => "definitionPort",
+                    InstanceTerminalReference => "instancePort",
+                    _ => throw new InvalidOperationException(
+                        "The Terminal Reference variant is undefined."),
+                }));
                 continue;
             }
 
@@ -672,6 +666,59 @@ public static partial class ProjectEditor
         }
 
         return validated.ToArray();
+    }
+
+    private static bool TryGetTerminalWidth(
+        ProjectDocument document,
+        CircuitDefinition definition,
+        AuthoredTerminalReference terminal,
+        out uint width)
+    {
+        width = 0;
+        switch (terminal)
+        {
+            case DefinitionTerminalReference definitionTerminal:
+                var definitionPort = definition.FindPort(
+                    definitionTerminal.DefinitionPortId);
+                width = definitionPort?.Width ?? 0;
+                return definitionPort is not null;
+            case InstanceTerminalReference instanceTerminal:
+                var instance = definition.FindComponentInstance(
+                    instanceTerminal.ComponentInstanceId);
+                if (instance is null)
+                {
+                    return false;
+                }
+
+                switch (instance.Target)
+                {
+                    case LibraryComponentTarget library:
+                        var schema = document.LibrarySnapshot.ResolveContract(
+                            library.ContractKey);
+                        var componentPort = schema?.Ports.SingleOrDefault(candidate =>
+                            string.Equals(
+                                candidate.Id,
+                                instanceTerminal.PortId,
+                                StringComparison.Ordinal));
+                        return componentPort is not null
+                            && ComponentParameterValidator.TryGetPortWidth(
+                                instance,
+                                componentPort,
+                                out width);
+                    case CircuitDefinitionComponentTarget definitionTarget:
+                        var target = document.FindCircuitDefinition(
+                            definitionTarget.CircuitDefinitionId);
+                        var targetPort = target?.FindPort(instanceTerminal.PortId);
+                        width = targetPort?.Width ?? 0;
+                        return targetPort is not null;
+                    default:
+                        throw new InvalidOperationException(
+                            "The Component Target variant is undefined.");
+                }
+            default:
+                throw new InvalidOperationException(
+                    "The Terminal Reference variant is undefined.");
+        }
     }
 
     private static void ValidateCompatibleWidths(
@@ -839,13 +886,36 @@ public static partial class ProjectEditor
         return added;
     }
 
-    private static InstancePortSourceIdentity TerminalSource(
-        InstanceTerminalReference terminal)
+    private static AuthoredSourceIdentity TerminalSource(
+        AuthoredTerminalReference terminal)
     {
-        return new InstancePortSourceIdentity(
-            terminal.CircuitDefinitionId,
-            terminal.ComponentInstanceId,
-            terminal.PortId);
+        return terminal switch
+        {
+            DefinitionTerminalReference definition =>
+                new DefinitionPortSourceIdentity(
+                    definition.CircuitDefinitionId,
+                    definition.DefinitionPortId),
+            InstanceTerminalReference instance =>
+                new InstancePortSourceIdentity(
+                    instance.CircuitDefinitionId,
+                    instance.ComponentInstanceId,
+                    instance.PortId),
+            _ => throw new InvalidOperationException(
+                "The Terminal Reference variant is undefined."),
+        };
+    }
+
+    private static string TerminalKey(AuthoredTerminalReference terminal)
+    {
+        return terminal switch
+        {
+            DefinitionTerminalReference definition =>
+                $"0\0{definition.DefinitionPortId.Value}",
+            InstanceTerminalReference instance =>
+                $"1\0{instance.ComponentInstanceId.Value}\0{instance.PortId}",
+            _ => throw new InvalidOperationException(
+                "The Terminal Reference variant is undefined."),
+        };
     }
 
     private static AuthoringDiagnostic DuplicateId(string entityKind)
@@ -896,7 +966,7 @@ public static partial class ProjectEditor
     }
 
     private sealed record ValidatedTerminal(
-        InstanceTerminalReference Reference,
+        AuthoredTerminalReference Reference,
         uint Width,
         Net? Net);
 

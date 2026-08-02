@@ -117,7 +117,7 @@ public static partial class ProjectEditor
             .Where(geometry => geometry.NetId == net.Id)
             .Select(geometry => geometry.Id)
             .ToHashSet();
-        var seenTerminals = new HashSet<InstanceTerminalReference>();
+        var seenTerminals = new HashSet<AuthoredTerminalReference>();
         var seenJunctionIds = new HashSet<JunctionId>();
         var seenWireGeometryIds = new HashSet<WireGeometryId>();
 
@@ -190,10 +190,9 @@ public static partial class ProjectEditor
         if (partition.Terminals.Count != 0)
         {
             var terminal = partition.Terminals
-                .OrderBy(item => item.ComponentInstanceId.Value, StringComparer.Ordinal)
-                .ThenBy(item => item.PortId, StringComparer.Ordinal)
+                .OrderBy(TerminalKey, StringComparer.Ordinal)
                 .First();
-            return $"0\0{terminal.ComponentInstanceId.Value}\0{terminal.PortId}";
+            return $"0\0{TerminalKey(terminal)}";
         }
 
         if (partition.JunctionIds.Count != 0)

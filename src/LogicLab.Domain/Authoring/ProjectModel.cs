@@ -86,10 +86,41 @@ public sealed class ProjectDocument
             EntryCircuitDefinitionId,
             definitions);
     }
+
+    internal ProjectDocument AddCircuitDefinition(CircuitDefinition definition)
+    {
+        var definitions = new CircuitDefinition[circuitDefinitions.Length + 1];
+        circuitDefinitions.CopyTo(definitions, 0);
+        definitions[^1] = definition;
+        Array.Sort(
+            definitions,
+            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
+
+        return new ProjectDocument(
+            ProjectId,
+            DisplayName,
+            LibrarySnapshot,
+            SymbolProfile,
+            EntryCircuitDefinitionId,
+            definitions);
+    }
+
+    internal ProjectDocument WithEntryCircuitDefinition(
+        CircuitDefinitionId entryCircuitDefinitionId)
+    {
+        return new ProjectDocument(
+            ProjectId,
+            DisplayName,
+            LibrarySnapshot,
+            SymbolProfile,
+            entryCircuitDefinitionId,
+            circuitDefinitions);
+    }
 }
 
 public sealed class CircuitDefinition
 {
+    private readonly DefinitionPort[] ports;
     private readonly ComponentInstance[] componentInstances;
     private readonly Net[] nets;
     private readonly Junction[] junctions;
@@ -100,13 +131,14 @@ public sealed class CircuitDefinition
         string displayName,
         ComponentInstance[] componentInstances,
         Net[] nets)
-        : this(id, displayName, componentInstances, nets, [], [])
+        : this(id, displayName, [], componentInstances, nets, [], [])
     {
     }
 
     internal CircuitDefinition(
         CircuitDefinitionId id,
         string displayName,
+        DefinitionPort[] ports,
         ComponentInstance[] componentInstances,
         Net[] nets,
         Junction[] junctions,
@@ -114,10 +146,12 @@ public sealed class CircuitDefinition
     {
         Id = id;
         DisplayName = displayName;
+        this.ports = (DefinitionPort[])ports.Clone();
         this.componentInstances = (ComponentInstance[])componentInstances.Clone();
         this.nets = (Net[])nets.Clone();
         this.junctions = (Junction[])junctions.Clone();
         this.wireGeometries = (WireGeometry[])wireGeometries.Clone();
+        Ports = Array.AsReadOnly(this.ports);
         ComponentInstances = Array.AsReadOnly(this.componentInstances);
         Nets = Array.AsReadOnly(this.nets);
         Junctions = Array.AsReadOnly(this.junctions);
@@ -127,6 +161,8 @@ public sealed class CircuitDefinition
     public CircuitDefinitionId Id { get; }
 
     public string DisplayName { get; }
+
+    public ReadOnlyCollection<DefinitionPort> Ports { get; }
 
     public ReadOnlyCollection<ComponentInstance> ComponentInstances { get; }
 
@@ -160,6 +196,20 @@ public sealed class CircuitDefinition
         return Array.Find(wireGeometries, geometry => geometry.Id == id);
     }
 
+    public DefinitionPort? FindPort(DefinitionPortId id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return Array.Find(ports, port => port.Id == id);
+    }
+
+    public DefinitionPort? FindPort(string id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return Array.Find(
+            ports,
+            port => string.Equals(port.Id.Value, id, StringComparison.Ordinal));
+    }
+
     internal CircuitDefinition AddComponentInstance(ComponentInstance instance)
     {
         var instances = new ComponentInstance[componentInstances.Length + 1];
@@ -172,6 +222,7 @@ public sealed class CircuitDefinition
         return new CircuitDefinition(
             Id,
             DisplayName,
+            ports,
             instances,
             nets,
             junctions,
@@ -187,6 +238,7 @@ public sealed class CircuitDefinition
         return new CircuitDefinition(
             Id,
             DisplayName,
+            ports,
             instances,
             nets,
             junctions,
@@ -204,6 +256,7 @@ public sealed class CircuitDefinition
         return new CircuitDefinition(
             Id,
             DisplayName,
+            ports,
             componentInstances,
             updatedNets,
             junctions,
@@ -227,11 +280,39 @@ public sealed class CircuitDefinition
         return new CircuitDefinition(
             Id,
             DisplayName,
+            ports,
             componentInstances,
             updatedNets,
             updatedJunctions,
             updatedWireGeometries);
     }
+}
+
+public sealed class DefinitionPort
+{
+    internal DefinitionPort(
+        DefinitionPortId id,
+        string displayName,
+        PortDirection direction,
+        uint width,
+        DefinitionPortPlacement placement)
+    {
+        Id = id;
+        DisplayName = displayName;
+        Direction = direction;
+        Width = width;
+        Placement = placement;
+    }
+
+    public DefinitionPortId Id { get; }
+
+    public string DisplayName { get; }
+
+    public PortDirection Direction { get; }
+
+    public uint Width { get; }
+
+    public DefinitionPortPlacement Placement { get; }
 }
 
 public abstract record ComponentParameterValue
@@ -286,13 +367,13 @@ public sealed class ComponentInstance
 
     internal ComponentInstance(
         ComponentInstanceId id,
-        ComponentContractKey contractKey,
+        ComponentTarget target,
         ComponentParameterBinding[] parameters,
         ComponentPlacement placement,
         string? displayName)
     {
         Id = id;
-        ContractKey = contractKey;
+        Target = target;
         this.parameters = (ComponentParameterBinding[])parameters.Clone();
         Parameters = Array.AsReadOnly(this.parameters);
         Placement = placement;
@@ -301,7 +382,7 @@ public sealed class ComponentInstance
 
     public ComponentInstanceId Id { get; }
 
-    public ComponentContractKey ContractKey { get; }
+    public ComponentTarget Target { get; }
 
     public ReadOnlyCollection<ComponentParameterBinding> Parameters { get; }
 
@@ -313,30 +394,25 @@ public sealed class ComponentInstance
     {
         return new ComponentInstance(
             Id,
-            ContractKey,
+            Target,
             parameters,
             placement,
             DisplayName);
     }
 }
 
-public sealed record InstanceTerminalReference(
-    CircuitDefinitionId CircuitDefinitionId,
-    ComponentInstanceId ComponentInstanceId,
-    string PortId);
-
 public sealed class Net
 {
     internal Net(
         NetId id,
         uint width,
-        InstanceTerminalReference[] terminals,
+        AuthoredTerminalReference[] terminals,
         JunctionId[] junctionIds)
     {
         Id = id;
         Width = width;
         Terminals = Array.AsReadOnly(
-            (InstanceTerminalReference[])terminals.Clone());
+            (AuthoredTerminalReference[])terminals.Clone());
         JunctionIds = Array.AsReadOnly((JunctionId[])junctionIds.Clone());
     }
 
@@ -344,12 +420,12 @@ public sealed class Net
 
     public uint Width { get; }
 
-    public ReadOnlyCollection<InstanceTerminalReference> Terminals { get; }
+    public ReadOnlyCollection<AuthoredTerminalReference> Terminals { get; }
 
     public ReadOnlyCollection<JunctionId> JunctionIds { get; }
 
     internal Net WithMembership(
-        InstanceTerminalReference[] terminals,
+        AuthoredTerminalReference[] terminals,
         JunctionId[] junctionIds)
     {
         return new Net(Id, Width, terminals, junctionIds);

@@ -191,7 +191,9 @@ public sealed class ProjectEditorTopologyTests
     {
         var topology = CreateMergedTopology();
         var definition = topology.Revision.Document.EntryCircuitDefinition;
-        var terminals = topology.Net.Terminals.ToArray();
+        var terminals = topology.Net.Terminals
+            .OfType<InstanceTerminalReference>()
+            .ToArray();
         var lowest = terminals
             .OrderBy(terminal => terminal.ComponentInstanceId.Value, StringComparer.Ordinal)
             .ThenBy(terminal => terminal.PortId, StringComparer.Ordinal)
@@ -717,7 +719,8 @@ public sealed class ProjectEditorTopologyTests
                 parameters,
                 new ComponentPlacement(origin))));
         var instance = committed.Revision.Document.EntryCircuitDefinition.ComponentInstances
-            .Single(item => item.ContractKey.ContractId == contractId);
+            .Single(item => item.Target is LibraryComponentTarget library
+                && library.ContractKey.ContractId == contractId);
         return (committed.Revision, instance);
     }
 

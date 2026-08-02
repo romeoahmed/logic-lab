@@ -22,7 +22,7 @@
         <ul aria-label="Observed probes">
             @foreach (var probe in Simulation.Probes)
             {
-                <li @key="probe.ProbeId">
+                <li @key="probe.ProbeId" data-probe="@probe.ProbeId.Value">
                     <span>Output</span>
                     <strong>@Format(probe.Value)</strong>
                 </li>

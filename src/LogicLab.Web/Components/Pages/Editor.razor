@@ -6,14 +6,15 @@
 <div class="workbench-shell">
     <header class="workbench-heading">
         <div>
-            <p class="eyebrow">Slice 07 · explicit topology</p>
+            <p class="eyebrow">Slice 08 · hierarchy</p>
             <h1>Sandbox Workbench</h1>
         </div>
-        <p>Author a one-bit circuit, edit its explicit topology, compile it, then advance one logical step.</p>
+        <p>Create Circuit Definitions, navigate occurrences, choose an entry, compile, and simulate.</p>
     </header>
 
     <WorkbenchCommandBar CanCreate="CanCreate"
                          CanAuthor="CanAuthor"
+                         CanAuthorHierarchy="CanAuthorHierarchy"
                          CanCompile="CanCompile"
                          CanCreateSession="CanCreateSession"
                          CanScheduleStimulus="CanScheduleStimulus"
@@ -21,10 +22,22 @@
                          ActiveCommand="@WorkbenchActiveCommand"
                          OnCreate="@(() => RunCommandAsync("create", CreateProject))"
                          OnAuthor="@(() => RunCommandAsync("author", AuthorCircuit))"
+                         OnAuthorHierarchy="@(() => RunCommandAsync("author-hierarchy", AuthorHierarchy))"
                          OnCompile="@(() => RunCommandAsync("compile", Compile))"
                          OnCreateSession="@(() => RunCommandAsync("session", CreateSimulationSession))"
                          OnScheduleStimulus="@(() => RunCommandAsync("stimulus", ScheduleStimulus))"
                          OnStep="@(() => RunCommandAsync("step", Step))" />
+
+    <DefinitionNavigator Document="Projection?.ProjectRevision.Document"
+                         SelectedDefinitionId="SelectedDefinitionId"
+                         Breadcrumbs="Breadcrumbs"
+                         IsOccurrence="@(HierarchyNavigation.Count != 0)"
+                         CanSetEntry="CanSetEntryDefinition"
+                         CanEnterOccurrences="CanEnterDefinitionInstances"
+                         OnSelect="SelectDefinition"
+                         OnSetEntry="SetEntryDefinition"
+                         OnEnter="EnterDefinitionInstance"
+                         OnBack="LeaveDefinitionInstance" />
 
     <TopologyCommandBar CanMerge="CanMergeTopology"
                         CanSplit="CanSplitTopology"

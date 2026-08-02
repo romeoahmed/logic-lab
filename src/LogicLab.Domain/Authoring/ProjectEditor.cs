@@ -23,6 +23,10 @@ public static partial class ProjectEditor
 
         return intent switch
         {
+            CreateCircuitDefinitionIntent createDefinition =>
+                ApplyCreateDefinition(revision, createDefinition),
+            SetEntryCircuitDefinitionIntent setEntry =>
+                ApplySetEntryDefinition(revision, setEntry),
             PlaceComponentInstanceIntent place => ApplyPlace(revision, place),
             ConnectTerminalsIntent connect => ApplyConnectTopology(revision, connect),
             MergeNetsIntent merge => ApplyMergeNets(revision, merge),
@@ -39,6 +43,79 @@ public static partial class ProjectEditor
             MoveComponentInstancesIntent move => ApplyMove(revision, move),
             _ => throw new InvalidOperationException("The Edit Intent variant is undefined."),
         };
+    }
+
+    private static EditOutcome ApplyCreateDefinition(
+        ProjectRevision revision,
+        CreateCircuitDefinitionIntent intent)
+    {
+        var diagnostics = new List<AuthoringDiagnostic>();
+        ValidateDisplayText(intent.DisplayName, "displayName", diagnostics);
+        foreach (var declaration in intent.Ports)
+        {
+            ValidateDisplayText(declaration.DisplayName, "portDisplayName", diagnostics);
+            if (!Enum.IsDefined(declaration.Direction))
+            {
+                diagnostics.Add(MissingReference("portDirection"));
+            }
+
+            if (declaration.Width == 0)
+            {
+                diagnostics.Add(InvalidWidth(declaration.Width));
+            }
+
+            if (!Enum.IsDefined(declaration.Placement.Facing))
+            {
+                diagnostics.Add(InvalidCoordinate("definitionPortPlacement", "facing"));
+            }
+        }
+
+        if (diagnostics.Count != 0)
+        {
+            return new EditRejected(diagnostics.ToArray());
+        }
+
+        var definitionId = CircuitDefinitionId.Create();
+        var ports = intent.Ports.Select(declaration => new DefinitionPort(
+            DefinitionPortId.Create(),
+            declaration.DisplayName,
+            declaration.Direction,
+            declaration.Width,
+            declaration.Placement)).ToArray();
+        var definition = new CircuitDefinition(
+            definitionId,
+            intent.DisplayName,
+            ports,
+            [],
+            [],
+            [],
+            []);
+        var document = revision.Document.AddCircuitDefinition(definition);
+        var changedSources = ports
+            .Select(port => (AuthoredSourceIdentity)new DefinitionPortSourceIdentity(
+                definitionId,
+                port.Id))
+            .Prepend(new CircuitRootSourceIdentity(definitionId))
+            .ToArray();
+        return Commit(revision, document, changedSources);
+    }
+
+    private static EditOutcome ApplySetEntryDefinition(
+        ProjectRevision revision,
+        SetEntryCircuitDefinitionIntent intent)
+    {
+        ArgumentNullException.ThrowIfNull(intent.CircuitDefinitionId);
+        if (revision.Document.FindCircuitDefinition(intent.CircuitDefinitionId) is null)
+        {
+            return Reject(MissingReference("circuitDefinition"));
+        }
+
+        var document = revision.Document.WithEntryCircuitDefinition(
+            intent.CircuitDefinitionId);
+        return Commit(
+            revision,
+            document,
+            [new ProjectRootSourceIdentity(document.ProjectId)]);
     }
 
     private static ProjectGenesisOutcome BeginNewProject(NewProjectSeed seed)
@@ -113,17 +190,54 @@ public static partial class ProjectEditor
             diagnostics.Add(InvalidCoordinate("placement", "orientation"));
         }
 
-        var schema = revision.Document.LibrarySnapshot.ResolveContract(intent.ContractKey);
-        if (schema is null)
+        switch (intent.Target)
         {
-            diagnostics.Add(MissingReference("componentContract"));
-        }
-        else
-        {
-            diagnostics.AddRange(ComponentParameterValidator.Validate(
-                intent.ContractKey,
-                schema,
-                intent.Parameters));
+            case LibraryComponentTarget library:
+                var schema = revision.Document.LibrarySnapshot.ResolveContract(
+                    library.ContractKey);
+                if (schema is null)
+                {
+                    diagnostics.Add(MissingReference("componentContract"));
+                }
+                else
+                {
+                    diagnostics.AddRange(ComponentParameterValidator.Validate(
+                        library.ContractKey,
+                        schema,
+                        intent.Parameters));
+                }
+
+                break;
+            case CircuitDefinitionComponentTarget definitionTarget:
+                if (revision.Document.FindCircuitDefinition(
+                        definitionTarget.CircuitDefinitionId) is null)
+                {
+                    diagnostics.Add(MissingReference("circuitDefinitionTarget"));
+                }
+
+                if (intent.Parameters.Count != 0)
+                {
+                    diagnostics.Add(new AuthoringDiagnostic(
+                        "authoring_invalid_parameter",
+                        [
+                            new AuthoringDiagnosticArgument(
+                                "contractKey",
+                                new ContractKeyDiagnosticValue(new ComponentContractKey(
+                                    "logiclab.project",
+                                    definitionTarget.CircuitDefinitionId.Value))),
+                            new AuthoringDiagnosticArgument(
+                                "parameterId",
+                                new StableTokenDiagnosticValue("unexpected")),
+                            new AuthoringDiagnosticArgument(
+                                "rule",
+                                new StableTokenDiagnosticValue("definitionParametersEmpty")),
+                        ]));
+                }
+
+                break;
+            default:
+                throw new InvalidOperationException(
+                    "The Component Target variant is undefined.");
         }
 
         if (diagnostics.Count != 0)
@@ -133,7 +247,7 @@ public static partial class ProjectEditor
 
         var instance = new ComponentInstance(
             ComponentInstanceId.Create(),
-            intent.ContractKey,
+            intent.Target,
             intent.Parameters.ToArray(),
             intent.Placement,
             intent.DisplayName);
@@ -208,6 +322,15 @@ public static partial class ProjectEditor
         AuthoredSourceIdentity[]? removedSources = null)
     {
         var document = previousRevision.Document.ReplaceCircuitDefinition(updatedDefinition);
+        return Commit(previousRevision, document, changedSources, removedSources);
+    }
+
+    private static EditCommitted Commit(
+        ProjectRevision previousRevision,
+        ProjectDocument document,
+        AuthoredSourceIdentity[] changedSources,
+        AuthoredSourceIdentity[]? removedSources = null)
+    {
         var revision = new ProjectRevision(ProjectRevisionId.Create(), document);
         return new EditCommitted(
             revision,
@@ -246,15 +369,23 @@ public static partial class ProjectEditor
     }
 
     private static AuthoringDiagnostic TerminalAlreadyConnected(
-        InstanceTerminalReference terminal)
+        AuthoredTerminalReference terminal)
     {
         return new AuthoringDiagnostic(
             "authoring_terminal_already_connected",
             [],
-            new InstancePortSourceIdentity(
-                terminal.CircuitDefinitionId,
-                terminal.ComponentInstanceId,
-                terminal.PortId));
+            TerminalSource(terminal));
+    }
+
+    private static AuthoringDiagnostic InvalidWidth(uint actual)
+    {
+        return new AuthoringDiagnostic(
+            "authoring_invalid_width",
+            [
+                new AuthoringDiagnosticArgument(
+                    "actual",
+                    new UnsignedDecimalDiagnosticValue(actual)),
+            ]);
     }
 
     private static void ValidateDisplayText(

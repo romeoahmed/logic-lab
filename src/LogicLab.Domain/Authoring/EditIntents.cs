@@ -10,6 +10,26 @@ public abstract record EditIntent
     }
 }
 
+public sealed record CreateCircuitDefinitionIntent : EditIntent
+{
+    public CreateCircuitDefinitionIntent(
+        string displayName,
+        IReadOnlyList<DefinitionPortDeclaration> ports)
+    {
+        ArgumentNullException.ThrowIfNull(displayName);
+        ArgumentNullException.ThrowIfNull(ports);
+        DisplayName = displayName;
+        Ports = Array.AsReadOnly(ports.ToArray());
+    }
+
+    public string DisplayName { get; }
+
+    public ReadOnlyCollection<DefinitionPortDeclaration> Ports { get; }
+}
+
+public sealed record SetEntryCircuitDefinitionIntent(
+    CircuitDefinitionId CircuitDefinitionId) : EditIntent;
+
 public sealed record PlaceComponentInstanceIntent : EditIntent
 {
     public PlaceComponentInstanceIntent(
@@ -18,11 +38,27 @@ public sealed record PlaceComponentInstanceIntent : EditIntent
         IReadOnlyList<ComponentParameterBinding> parameters,
         ComponentPlacement placement,
         string? displayName = null)
+        : this(
+            circuitDefinitionId,
+            new LibraryComponentTarget(contractKey),
+            parameters,
+            placement,
+            displayName)
+    {
+    }
+
+    public PlaceComponentInstanceIntent(
+        CircuitDefinitionId circuitDefinitionId,
+        ComponentTarget target,
+        IReadOnlyList<ComponentParameterBinding> parameters,
+        ComponentPlacement placement,
+        string? displayName = null)
     {
         ArgumentNullException.ThrowIfNull(circuitDefinitionId);
+        ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(parameters);
         CircuitDefinitionId = circuitDefinitionId;
-        ContractKey = contractKey;
+        Target = target;
         Parameters = Array.AsReadOnly(parameters.ToArray());
         Placement = placement;
         DisplayName = displayName;
@@ -30,7 +66,7 @@ public sealed record PlaceComponentInstanceIntent : EditIntent
 
     public CircuitDefinitionId CircuitDefinitionId { get; }
 
-    public ComponentContractKey ContractKey { get; }
+    public ComponentTarget Target { get; }
 
     public ReadOnlyCollection<ComponentParameterBinding> Parameters { get; }
 
@@ -41,13 +77,13 @@ public sealed record PlaceComponentInstanceIntent : EditIntent
 
 public sealed record ConnectTerminalsIntent : EditIntent
 {
-    public ConnectTerminalsIntent(IReadOnlyList<InstanceTerminalReference> terminals)
+    public ConnectTerminalsIntent(IReadOnlyList<AuthoredTerminalReference> terminals)
         : this(terminals, null, [], [], [])
     {
     }
 
     public ConnectTerminalsIntent(
-        IReadOnlyList<InstanceTerminalReference> terminals,
+        IReadOnlyList<AuthoredTerminalReference> terminals,
         NetId? destinationNetId,
         IReadOnlyList<GridPoint> newJunctionPositions,
         IReadOnlyList<WireRoute> routeAdditions,
@@ -64,7 +100,7 @@ public sealed record ConnectTerminalsIntent : EditIntent
         RouteReplacements = Array.AsReadOnly(routeReplacements.ToArray());
     }
 
-    public ReadOnlyCollection<InstanceTerminalReference> Terminals { get; }
+    public ReadOnlyCollection<AuthoredTerminalReference> Terminals { get; }
 
     public NetId? DestinationNetId { get; }
 
@@ -93,7 +129,7 @@ public sealed record WireGeometryReplacement
 public sealed record NetPartition
 {
     public NetPartition(
-        IReadOnlyList<InstanceTerminalReference> terminals,
+        IReadOnlyList<AuthoredTerminalReference> terminals,
         IReadOnlyList<JunctionId> junctionIds,
         IReadOnlyList<WireGeometryId> wireGeometryIds)
     {
@@ -105,7 +141,7 @@ public sealed record NetPartition
         WireGeometryIds = Array.AsReadOnly(wireGeometryIds.ToArray());
     }
 
-    public ReadOnlyCollection<InstanceTerminalReference> Terminals { get; }
+    public ReadOnlyCollection<AuthoredTerminalReference> Terminals { get; }
 
     public ReadOnlyCollection<JunctionId> JunctionIds { get; }
 

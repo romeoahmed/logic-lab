@@ -1,0 +1,114 @@
+<section class="definition-navigator" aria-label="Circuit Definition navigation">
+    @if (Document is null || SelectedDefinitionId is null)
+    {
+        <p>No Circuit Definitions are open.</p>
+    }
+    else
+    {
+        <div class="definition-tabs" role="tablist" aria-label="Open Circuit Definitions">
+            @foreach (var definition in Document.CircuitDefinitions
+                .OrderBy(item => item.DisplayName, StringComparer.Ordinal)
+                .ThenBy(item => item.Id.Value, StringComparer.Ordinal))
+            {
+                <button @key="definition.Id"
+                        type="button"
+                        role="tab"
+                        data-definition="@definition.Id.Value"
+                        aria-selected="@(definition.Id == SelectedDefinitionId)"
+                        @onclick="@(() => OnSelect.InvokeAsync(definition.Id))">
+                    @definition.DisplayName
+                    @if (definition.Id == Document.EntryCircuitDefinitionId)
+                    {
+                        <span data-entry-marker title="Entry Circuit Definition">Entry</span>
+                    }
+                </button>
+            }
+        </div>
+
+        <div class="hierarchy-row">
+            <nav aria-label="Hierarchy path">
+                <ol data-hierarchy-breadcrumb>
+                    @foreach (var breadcrumb in Breadcrumbs)
+                    {
+                        <li @key="breadcrumb.Key">@breadcrumb.Label</li>
+                    }
+                </ol>
+            </nav>
+            <span class="view-kind">@(IsOccurrence ? "Elaborated occurrence" : "Definition view")</span>
+            @if (IsOccurrence)
+            {
+                <button type="button"
+                        data-command="hierarchy-back"
+                        @onclick="OnBack">Back</button>
+            }
+            @if (SelectedDefinitionId != Document.EntryCircuitDefinitionId)
+            {
+                <button type="button"
+                        data-command="set-entry"
+                        disabled="@(!CanSetEntry)"
+                        @onclick="@(() => OnSetEntry.InvokeAsync(SelectedDefinitionId))">
+                    Set as entry
+                </button>
+            }
+        </div>
+
+        @if (CanEnterOccurrences && SelectedDefinition is { } selected)
+        {
+            var calls = selected.ComponentInstances
+                .Where(instance => instance.Target is CircuitDefinitionComponentTarget)
+                .OrderBy(instance => instance.Id.Value, StringComparer.Ordinal)
+                .ToArray();
+            @if (calls.Length != 0)
+            {
+                <div class="occurrence-links" role="group" aria-label="Child occurrences">
+                    @foreach (var call in calls)
+                    {
+                        <button @key="call.Id"
+                                type="button"
+                                data-enter-instance="@call.Id.Value"
+                                @onclick="@(() => OnEnter.InvokeAsync(call.Id))">
+                            Enter @(call.DisplayName ?? "Circuit Definition instance")
+                        </button>
+                    }
+                </div>
+            }
+        }
+    }
+</section>
+
+@code {
+    [Parameter]
+    public ProjectDocument? Document { get; set; }
+
+    [Parameter]
+    public CircuitDefinitionId? SelectedDefinitionId { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<HierarchyBreadcrumbItem> Breadcrumbs { get; set; } = [];
+
+    [Parameter]
+    public bool IsOccurrence { get; set; }
+
+    [Parameter]
+    public bool CanSetEntry { get; set; }
+
+    [Parameter]
+    public bool CanEnterOccurrences { get; set; }
+
+    [Parameter]
+    public EventCallback<CircuitDefinitionId> OnSelect { get; set; }
+
+    [Parameter]
+    public EventCallback<CircuitDefinitionId> OnSetEntry { get; set; }
+
+    [Parameter]
+    public EventCallback<ComponentInstanceId> OnEnter { get; set; }
+
+    [Parameter]
+    public EventCallback OnBack { get; set; }
+
+    private CircuitDefinition? SelectedDefinition =>
+        Document is null || SelectedDefinitionId is null
+            ? null
+            : Document.FindCircuitDefinition(SelectedDefinitionId);
+}

@@ -618,11 +618,12 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     {
         var definition = revision.Document.EntryCircuitDefinition;
         var outputIds = definition.ComponentInstances
-            .Where(instance => instance.ContractKey.ContractId == "sink.output")
+            .Where(instance => instance.Target is LibraryComponentTarget library
+                && library.ContractKey.ContractId == "sink.output")
             .Select(instance => instance.Id)
             .ToHashSet();
         var netIds = definition.Nets
-            .Where(net => net.Terminals.Any(terminal =>
+            .Where(net => net.Terminals.OfType<InstanceTerminalReference>().Any(terminal =>
                 outputIds.Contains(terminal.ComponentInstanceId)
                 && string.Equals(terminal.PortId, "D", StringComparison.Ordinal)))
             .Select(net => net.Id)
@@ -684,12 +685,13 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
     private static bool IsInputSource(ComponentInstance instance)
     {
-        return string.Equals(
-                instance.ContractKey.LibraryId,
+        return instance.Target is LibraryComponentTarget library
+            && string.Equals(
+                library.ContractKey.LibraryId,
                 CoreLibrarySchema.LibraryId,
                 StringComparison.Ordinal)
             && string.Equals(
-                instance.ContractKey.ContractId,
+                library.ContractKey.ContractId,
                 "source.input",
                 StringComparison.Ordinal);
     }
