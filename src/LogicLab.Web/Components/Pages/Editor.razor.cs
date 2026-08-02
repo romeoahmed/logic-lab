@@ -228,8 +228,16 @@ public partial class Editor
         }
 
         var read = await Workspace.ReadAsync(Projection.WorkspaceId, CancellationToken.None);
-        Projection = ((ProjectionSnapshot)read).Projection;
-        ProjectScene();
+        if (read is ProjectionSnapshot snapshot)
+        {
+            Projection = snapshot.Projection;
+            ProjectScene();
+            return;
+        }
+
+        Projection = null;
+        Scene = null;
+        StimulusIsScheduled = false;
     }
 
     private void ProjectScene()
