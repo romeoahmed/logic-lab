@@ -1,6 +1,6 @@
 @using Microsoft.FluentUI.AspNetCore.Components
 
-<nav class="command-bar" aria-label="Workbench commands">
+<div class="command-bar" role="group" aria-label="Workbench commands">
     <FluentButton data-command="create"
                   Appearance="ButtonAppearance.Primary"
                   Disabled="@(!CanCreate || IsBusy)"
@@ -27,7 +27,7 @@
                   Disabled="@(!CanStep || IsBusy)"
                   Loading="@(ActiveCommand is "step")"
                   OnClick="OnStep">Step</FluentButton>
-</nav>
+</div>
 
 @code {
     [Parameter]
