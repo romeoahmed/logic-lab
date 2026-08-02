@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/LogicLab.Engine.Benchmarks/LogicLab.Engine.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/LogicLab.Application/LogicLab.Application.csproj" />
     <Project Path="src/LogicLab.Domain/LogicLab.Domain.csproj" />
