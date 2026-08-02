@@ -16,10 +16,7 @@ public static class AccessibleSceneProjector
             .ToArray();
         var connections = definition.Nets
             .OrderBy(net => net.Id.Value, StringComparer.Ordinal)
-            .Select(net => new AccessibleConnectionProjection(
-                new NetSourceIdentity(definition.Id, net.Id),
-                net.Width,
-                net.Terminals))
+            .Select(net => ProjectConnection(definition, net))
             .ToArray();
 
         return new AccessibleSceneProjection(
@@ -27,6 +24,35 @@ public static class AccessibleSceneProjector
             definition.DisplayName,
             components,
             connections);
+    }
+
+    private static AccessibleConnectionProjection ProjectConnection(
+        CircuitDefinition definition,
+        Net net)
+    {
+        var netSource = new NetSourceIdentity(definition.Id, net.Id);
+        var junctions = definition.Junctions
+            .Where(junction => junction.NetId == net.Id)
+            .OrderBy(junction => junction.Id.Value, StringComparer.Ordinal)
+            .Select(junction => new AccessibleJunctionProjection(
+                new JunctionSourceIdentity(definition.Id, junction.Id),
+                netSource,
+                junction.Position))
+            .ToArray();
+        var wireGeometries = definition.WireGeometries
+            .Where(geometry => geometry.NetId == net.Id)
+            .OrderBy(geometry => geometry.Id.Value, StringComparer.Ordinal)
+            .Select(geometry => new AccessibleWireGeometryProjection(
+                new WireGeometrySourceIdentity(definition.Id, geometry.Id),
+                netSource,
+                geometry.Route))
+            .ToArray();
+        return new AccessibleConnectionProjection(
+            netSource,
+            net.Width,
+            net.Terminals,
+            junctions,
+            wireGeometries);
     }
 
     private static AccessibleComponentProjection ProjectComponent(

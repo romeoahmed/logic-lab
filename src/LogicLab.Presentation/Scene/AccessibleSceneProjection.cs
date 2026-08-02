@@ -9,6 +9,16 @@ public sealed record AccessiblePortProjection(
     string Label,
     PortDirection Direction);
 
+public sealed record AccessibleJunctionProjection(
+    JunctionSourceIdentity Source,
+    NetSourceIdentity NetSource,
+    GridPoint Point);
+
+public sealed record AccessibleWireGeometryProjection(
+    WireGeometrySourceIdentity Source,
+    NetSourceIdentity NetSource,
+    WireRoute Route);
+
 public sealed record AccessibleComponentProjection
 {
     public AccessibleComponentProjection(
@@ -38,10 +48,26 @@ public sealed record AccessibleConnectionProjection
         NetSourceIdentity source,
         uint width,
         IReadOnlyList<InstanceTerminalReference> terminals)
+        : this(source, width, terminals, [], [])
     {
+    }
+
+    public AccessibleConnectionProjection(
+        NetSourceIdentity source,
+        uint width,
+        IReadOnlyList<InstanceTerminalReference> terminals,
+        IReadOnlyList<AccessibleJunctionProjection> junctions,
+        IReadOnlyList<AccessibleWireGeometryProjection> wireGeometries)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(terminals);
+        ArgumentNullException.ThrowIfNull(junctions);
+        ArgumentNullException.ThrowIfNull(wireGeometries);
         Source = source;
         Width = width;
         Terminals = Array.AsReadOnly(terminals.ToArray());
+        Junctions = Array.AsReadOnly(junctions.ToArray());
+        WireGeometries = Array.AsReadOnly(wireGeometries.ToArray());
     }
 
     public NetSourceIdentity Source { get; }
@@ -49,6 +75,10 @@ public sealed record AccessibleConnectionProjection
     public uint Width { get; }
 
     public ReadOnlyCollection<InstanceTerminalReference> Terminals { get; }
+
+    public ReadOnlyCollection<AccessibleJunctionProjection> Junctions { get; }
+
+    public ReadOnlyCollection<AccessibleWireGeometryProjection> WireGeometries { get; }
 }
 
 public sealed record AccessibleSceneProjection
