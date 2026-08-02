@@ -98,6 +98,9 @@ public sealed record ScheduleInputStimulus : WorkspaceCommand
 public sealed record StepSession(WorkspaceId WorkspaceId)
     : WorkspaceCommand(WorkspaceId);
 
+public sealed record CloseWorkspace(WorkspaceId WorkspaceId)
+    : WorkspaceCommand(WorkspaceId);
+
 public abstract record WorkspaceCommandOutcome
 {
     private protected WorkspaceCommandOutcome()
@@ -124,6 +127,8 @@ public sealed record StimulusScheduled(
 public sealed record SessionStepped(
     ulong LogicalTime,
     ulong ProjectionVersion) : WorkspaceCommandOutcome;
+
+public sealed record WorkspaceClosed(WorkspaceId WorkspaceId) : WorkspaceCommandOutcome;
 
 public sealed record WorkspaceCommandRejected : WorkspaceCommandOutcome
 {

@@ -133,6 +133,7 @@ typed command payload
 | `Undo`, `Redo` | none | Authoring |
 | `SaveDurable` | none | Durable Save |
 | `ClaimSandbox` | requested Durable Display Name | Claim |
+| `CloseWorkspace` | none | current attachment |
 | `RequestCompilation` | entry Circuit Definition ID | Compilation |
 | `CreateSession` | `SessionConfigurationV1` and target Compilation Artifact Key | Session Creation |
 | `RestartSession` | `SessionConfigurationV1` | Session Mutation |
@@ -172,6 +173,7 @@ Claimed { DurableProjectId, DurableVersion, ProjectRevisionId }
 SessionCreated { SessionId, SessionVersion, CompilationArtifactKey, LogicalTime, TraceCursor, ordered ProbeIds[] }
 SessionRestarted { previousSessionId, SessionId, SessionVersion, CompilationArtifactKey, LogicalTime, TraceCursor, ordered ProbeIds[] }
 SessionClosed { SessionId, ProjectionVersion }
+WorkspaceClosed { WorkspaceId }
 RunStarted { RunGeneration, SessionVersion }
 StimulusScheduled { SessionVersion, LogicalTime, stableSequence }
 ProbesReplaced { SessionVersion, ordered ProbeIds[] }

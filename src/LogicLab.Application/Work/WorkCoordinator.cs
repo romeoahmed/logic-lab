@@ -1,34 +1,31 @@
 using System.Threading.Channels;
 using LogicLab.Application.Workspaces;
+using Microsoft.Extensions.Logging;
 
 namespace LogicLab.Application.Work;
 
-public sealed class WorkCoordinator : IAsyncDisposable
+internal sealed partial class WorkCoordinator : IAsyncDisposable
 {
-    private const int DefaultCompilationQueueCapacity = 16;
-    private const int DefaultSessionQueueCapacity = 64;
-
     private readonly Lock gate = new();
     private readonly CancellationTokenSource stopping = new();
     private readonly Channel<CompilationWorkItem> compilationQueue;
     private readonly Channel<SessionWorkItem> sessionQueue;
+    private readonly ILogger<WorkCoordinator> logger;
     private readonly Dictionary<WorkspaceId, CompilationWorkItem> latestCompilations = [];
     private readonly Task compilationWorker;
     private readonly Task sessionWorker;
     private bool isDisposed;
 
-    public WorkCoordinator()
-        : this(DefaultCompilationQueueCapacity, DefaultSessionQueueCapacity)
+    public WorkCoordinator(
+        SchedulingPolicy policy,
+        ILogger<WorkCoordinator> logger)
     {
-    }
+        ArgumentNullException.ThrowIfNull(policy);
+        ArgumentNullException.ThrowIfNull(logger);
 
-    internal WorkCoordinator(int compilationQueueCapacity, int sessionQueueCapacity)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(compilationQueueCapacity);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sessionQueueCapacity);
-
-        compilationQueue = CreateQueue<CompilationWorkItem>(compilationQueueCapacity);
-        sessionQueue = CreateQueue<SessionWorkItem>(sessionQueueCapacity);
+        this.logger = logger;
+        compilationQueue = CreateQueue<CompilationWorkItem>(policy.CompilationQueueCapacity);
+        sessionQueue = CreateQueue<SessionWorkItem>(policy.SessionQueueCapacity);
         compilationWorker = ConsumeCompilationsAsync();
         sessionWorker = ConsumeSessionsAsync();
     }
@@ -168,9 +165,9 @@ public sealed class WorkCoordinator : IAsyncDisposable
             {
                 item.Completion.TrySetResult(CancellationOutcome());
             }
-            catch (Exception exception)
+            catch (Exception exception) when (!IsFatal(exception))
             {
-                item.Completion.TrySetException(exception);
+                item.Completion.TrySetResult(FailureOutcome(exception, "compilation"));
             }
             finally
             {
@@ -202,9 +199,9 @@ public sealed class WorkCoordinator : IAsyncDisposable
                 item.Completion.TrySetResult(
                     Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
             }
-            catch (Exception exception)
+            catch (Exception exception) when (!IsFatal(exception))
             {
-                item.Completion.TrySetException(exception);
+                item.Completion.TrySetResult(FailureOutcome(exception, "session"));
             }
             finally
             {
@@ -240,6 +237,34 @@ public sealed class WorkCoordinator : IAsyncDisposable
     {
         return new WorkspaceCommandRejected(code, []);
     }
+
+    private WorkspaceCommandRejected FailureOutcome(Exception exception, string lane)
+    {
+        var code = exception is IOException or TimeoutException
+            ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
+            : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
+        var correlation = Guid.CreateVersion7().ToString("N");
+        LogWorkFailure(logger, exception, correlation, lane, code);
+        return Reject(code);
+    }
+
+    private static bool IsFatal(Exception exception)
+    {
+        return exception is OutOfMemoryException
+            or StackOverflowException
+            or AccessViolationException;
+    }
+
+    [LoggerMessage(
+        EventId = 1001,
+        Level = LogLevel.Error,
+        Message = "Workspace work failed with correlation {Correlation}, lane {Lane}, and outcome {OutcomeCode}.")]
+    private static partial void LogWorkFailure(
+        ILogger logger,
+        Exception exception,
+        string correlation,
+        string lane,
+        string outcomeCode);
 
     private abstract class WorkItem : IDisposable
     {
