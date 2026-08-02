@@ -330,14 +330,6 @@ public sealed class Net
     internal Net(
         NetId id,
         uint width,
-        InstanceTerminalReference[] terminals)
-        : this(id, width, terminals, [])
-    {
-    }
-
-    internal Net(
-        NetId id,
-        uint width,
         InstanceTerminalReference[] terminals,
         JunctionId[] junctionIds)
     {

@@ -2,86 +2,26 @@ namespace LogicLab.Domain.Authoring;
 
 public static partial class ProjectEditor
 {
-    private static bool TryBuildPartitions(
+    private static PartitionBuildResult? BuildPartitions(
         CircuitDefinition definition,
         Net net,
         IReadOnlyList<PartitionBuildRequest> requests,
         int minimumPartitionCount,
-        List<AuthoringDiagnostic> diagnostics,
-        out CircuitDefinition? updatedDefinition,
-        out AuthoredSourceIdentity[]? changedSources)
+        List<AuthoringDiagnostic> diagnostics)
     {
-        updatedDefinition = null;
-        changedSources = null;
-        if (requests.Count < minimumPartitionCount)
+        if (!ValidatePartitions(
+            definition,
+            net,
+            requests,
+            minimumPartitionCount,
+            diagnostics))
         {
-            diagnostics.Add(InvalidSplit("partitionCount"));
-            return false;
-        }
-
-        var originalTerminals = net.Terminals.ToHashSet();
-        var originalJunctionIds = net.JunctionIds.ToHashSet();
-        var originalWireGeometryIds = definition.WireGeometries
-            .Where(geometry => geometry.NetId == net.Id)
-            .Select(geometry => geometry.Id)
-            .ToHashSet();
-        var seenTerminals = new HashSet<InstanceTerminalReference>();
-        var seenJunctionIds = new HashSet<JunctionId>();
-        var seenWireGeometryIds = new HashSet<WireGeometryId>();
-
-        foreach (var request in requests)
-        {
-            var membership = request.Membership;
-            if (membership.Terminals.Count == 0
-                && membership.JunctionIds.Count == 0
-                && membership.WireGeometryIds.Count == 0
-                && request.RouteAdditions.Count == 0)
-            {
-                diagnostics.Add(InvalidSplit("emptyPartition"));
-            }
-
-            if (requests.Count > 1
-                && membership.Terminals.Count == 0
-                && membership.JunctionIds.Count == 0
-                && membership.WireGeometryIds.Count == 0)
-            {
-                diagnostics.Add(InvalidSplit("emptyExistingMembership"));
-            }
-
-            ValidatePartitionMembers(
-                membership.Terminals,
-                originalTerminals,
-                seenTerminals,
-                diagnostics);
-            ValidatePartitionMembers(
-                membership.JunctionIds,
-                originalJunctionIds,
-                seenJunctionIds,
-                diagnostics);
-            ValidatePartitionMembers(
-                membership.WireGeometryIds,
-                originalWireGeometryIds,
-                seenWireGeometryIds,
-                diagnostics);
-            ValidateRoutes(request.RouteAdditions, diagnostics);
-        }
-
-        if (!seenTerminals.SetEquals(originalTerminals)
-            || !seenJunctionIds.SetEquals(originalJunctionIds)
-            || !seenWireGeometryIds.SetEquals(originalWireGeometryIds))
-        {
-            diagnostics.Add(InvalidSplit("incompleteMembership"));
-        }
-
-        if (diagnostics.Count != 0)
-        {
-            return false;
+            return null;
         }
 
         var orderedRequests = requests
             .OrderBy(request => PartitionKey(request.Membership), StringComparer.Ordinal)
             .ToArray();
-        var netByTerminal = new Dictionary<InstanceTerminalReference, NetId>();
         var netByJunction = new Dictionary<JunctionId, NetId>();
         var netByGeometry = new Dictionary<WireGeometryId, NetId>();
         var newNets = new List<Net>(orderedRequests.Length);
@@ -104,11 +44,6 @@ public static partial class ProjectEditor
                 net.Width,
                 authoredTerminals,
                 authoredJunctionIds));
-
-            foreach (var terminal in authoredTerminals)
-            {
-                netByTerminal.Add(terminal, assignedNetId);
-            }
 
             foreach (var junctionId in authoredJunctionIds)
             {
@@ -140,18 +75,18 @@ public static partial class ProjectEditor
                 : geometry)
             .Concat(newGeometries)
             .ToArray();
-        updatedDefinition = definition.WithTopology(
+        var updatedDefinition = definition.WithTopology(
             definition.Nets
                 .Where(item => item.Id != net.Id)
                 .Concat(newNets)
                 .ToArray(),
             updatedJunctions,
             updatedGeometries);
-        changedSources = newNets
+        var changedSources = newNets
             .Select(item => (AuthoredSourceIdentity)new NetSourceIdentity(
                 definition.Id,
                 item.Id))
-            .Concat(netByTerminal.Keys.Select(TerminalSource))
+            .Concat(newNets.SelectMany(net => net.Terminals).Select(TerminalSource))
             .Concat(netByJunction.Keys.Select(id => (AuthoredSourceIdentity)
                 new JunctionSourceIdentity(definition.Id, id)))
             .Concat(netByGeometry.Keys
@@ -160,7 +95,74 @@ public static partial class ProjectEditor
                     definition.Id,
                     id)))
             .ToArray();
-        return true;
+        return new PartitionBuildResult(updatedDefinition, changedSources);
+    }
+
+    private static bool ValidatePartitions(
+        CircuitDefinition definition,
+        Net net,
+        IReadOnlyList<PartitionBuildRequest> requests,
+        int minimumPartitionCount,
+        List<AuthoringDiagnostic> diagnostics)
+    {
+        if (requests.Count < minimumPartitionCount)
+        {
+            diagnostics.Add(InvalidSplit("partitionCount"));
+            return false;
+        }
+
+        var originalTerminals = net.Terminals.ToHashSet();
+        var originalJunctionIds = net.JunctionIds.ToHashSet();
+        var originalWireGeometryIds = definition.WireGeometries
+            .Where(geometry => geometry.NetId == net.Id)
+            .Select(geometry => geometry.Id)
+            .ToHashSet();
+        var seenTerminals = new HashSet<InstanceTerminalReference>();
+        var seenJunctionIds = new HashSet<JunctionId>();
+        var seenWireGeometryIds = new HashSet<WireGeometryId>();
+
+        foreach (var request in requests)
+        {
+            var membership = request.Membership;
+            var hasExistingMembership = membership.Terminals.Count != 0
+                || membership.JunctionIds.Count != 0
+                || membership.WireGeometryIds.Count != 0;
+            if (!hasExistingMembership && request.RouteAdditions.Count == 0)
+            {
+                diagnostics.Add(InvalidSplit("emptyPartition"));
+            }
+
+            if (requests.Count > 1 && !hasExistingMembership)
+            {
+                diagnostics.Add(InvalidSplit("emptyExistingMembership"));
+            }
+
+            ValidatePartitionMembers(
+                membership.Terminals,
+                originalTerminals,
+                seenTerminals,
+                diagnostics);
+            ValidatePartitionMembers(
+                membership.JunctionIds,
+                originalJunctionIds,
+                seenJunctionIds,
+                diagnostics);
+            ValidatePartitionMembers(
+                membership.WireGeometryIds,
+                originalWireGeometryIds,
+                seenWireGeometryIds,
+                diagnostics);
+            ValidateRoutes(request.RouteAdditions, diagnostics);
+        }
+
+        if (!seenTerminals.SetEquals(originalTerminals)
+            || !seenJunctionIds.SetEquals(originalJunctionIds)
+            || !seenWireGeometryIds.SetEquals(originalWireGeometryIds))
+        {
+            diagnostics.Add(InvalidSplit("incompleteMembership"));
+        }
+
+        return diagnostics.Count == 0;
     }
 
     private static void ValidatePartitionMembers<T>(
@@ -210,4 +212,8 @@ public static partial class ProjectEditor
     private sealed record PartitionBuildRequest(
         NetPartition Membership,
         IReadOnlyList<WireRoute> RouteAdditions);
+
+    private sealed record PartitionBuildResult(
+        CircuitDefinition Definition,
+        AuthoredSourceIdentity[] ChangedSources);
 }
