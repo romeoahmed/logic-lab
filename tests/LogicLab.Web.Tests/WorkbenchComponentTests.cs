@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
@@ -49,6 +50,36 @@ public sealed class WorkbenchComponentTests
                  })
         {
             await Assert.That(IsDisabled(rendered, command)).IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task WorkbenchCommandBar_Commands_UseLabelledGroupSemantics()
+    {
+        using var context = CreateContext();
+
+        var rendered = context.Render<WorkbenchCommandBar>();
+        var group = rendered.Find("[role='group'][aria-label='Workbench commands']");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(group.TagName).IsEqualTo("DIV");
+            await Assert.That(rendered.FindAll("nav")).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task TopologyCommandBar_Commands_UseLabelledGroupSemantics()
+    {
+        using var context = CreateContext();
+
+        var rendered = context.Render<TopologyCommandBar>();
+        var group = rendered.Find("[role='group'][aria-label='Topology commands']");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(group.TagName).IsEqualTo("DIV");
+            await Assert.That(rendered.FindAll("nav")).IsEmpty();
         }
     }
 
@@ -280,6 +311,64 @@ public sealed class WorkbenchComponentTests
         await rendered.Find("[data-command='compile']").ClickAsync(new MouseEventArgs());
         await Assert.That(rendered.Find("[role='status']").TextContent)
             .Contains("Compilation Artifact published");
+    }
+
+    [Test]
+    public async Task Editor_CreateSampleTopologyPartitions_ComponentCreationOrder_DoesNotChangeElectricalPairs()
+    {
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "Reverse-order fixture",
+            LibrarySnapshot.Core,
+            new SymbolProfileReference(
+                "TeachingMixed",
+                "1.0.0",
+                IndicationConvention.Negation),
+            "Main"))).Revision;
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        revision = Place(revision, "sink.output", [
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+            new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
+        ], new GridPoint(8, 0));
+        revision = Place(revision, "logic.not", [
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+        ], new GridPoint(4, 0));
+        revision = Place(revision, "source.input", [
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+            new ComponentParameterBinding(
+                "initialValue",
+                new LogicVectorParameterValue([LogicValue.Zero])),
+        ], new GridPoint(0, 0));
+        var input = Find(revision, "source.input");
+        var logicNot = Find(revision, "logic.not");
+        var output = Find(revision, "sink.output");
+        revision = Connect(revision,
+            new InstanceTerminalReference(definitionId, input.Id, "Q"),
+            new InstanceTerminalReference(definitionId, logicNot.Id, "A"));
+        revision = Connect(revision,
+            new InstanceTerminalReference(definitionId, logicNot.Id, "Q"),
+            new InstanceTerminalReference(definitionId, output.Id, "D"));
+        var beforeMerge = revision.Document.EntryCircuitDefinition;
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new MergeNetsIntent(
+                definitionId,
+                beforeMerge.Nets[0].Id,
+                [beforeMerge.Nets[1].Id])));
+        var definition = revision.Document.EntryCircuitDefinition;
+
+        var partitions = Editor.CreateSampleTopologyPartitions(definition, definition.Nets.Single());
+        var actualPairs = partitions
+            .Select(partition => string.Join(
+                "|",
+                partition.Terminals
+                    .Select(terminal =>
+                        $"{definition.FindComponentInstance(terminal.ComponentInstanceId)!.ContractKey.ContractId}.{terminal.PortId}")
+                    .Order(StringComparer.Ordinal)))
+            .ToArray();
+
+        await Assert.That(actualPairs).IsEquivalentTo(
+            ["logic.not.A|source.input.Q", "logic.not.Q|sink.output.D"],
+            CollectionOrdering.Matching);
     }
 
     [Test]
