@@ -3,38 +3,53 @@
 <nav class="command-bar" aria-label="Workbench commands">
     <FluentButton data-command="create"
                   Appearance="ButtonAppearance.Primary"
-                  Disabled="@(!EffectiveState.CanCreate)"
-                  Loading="@(ActiveCommand is WorkbenchCommandKind.Create)"
+                  Disabled="@(!CanCreate || IsBusy)"
+                  Loading="@(ActiveCommand is "create")"
                   OnClick="OnCreate">Create Sandbox Project</FluentButton>
     <FluentButton data-command="author"
-                  Disabled="@(!EffectiveState.CanAuthor)"
-                  Loading="@(ActiveCommand is WorkbenchCommandKind.Author)"
+                  Disabled="@(!CanAuthor || IsBusy)"
+                  Loading="@(ActiveCommand is "author")"
                   OnClick="OnAuthor">Author circuit</FluentButton>
     <FluentButton data-command="compile"
-                  Disabled="@(!EffectiveState.CanCompile)"
-                  Loading="@(ActiveCommand is WorkbenchCommandKind.Compile)"
+                  Disabled="@(!CanCompile || IsBusy)"
+                  Loading="@(ActiveCommand is "compile")"
                   OnClick="OnCompile">Compile</FluentButton>
     <FluentButton data-command="session"
-                  Disabled="@(!EffectiveState.CanCreateSession)"
-                  Loading="@(ActiveCommand is WorkbenchCommandKind.CreateSession)"
+                  Disabled="@(!CanCreateSession || IsBusy)"
+                  Loading="@(ActiveCommand is "session")"
                   OnClick="OnCreateSession">Create Session</FluentButton>
     <FluentButton data-command="stimulus"
-                  Disabled="@(!EffectiveState.CanScheduleStimulus)"
-                  Loading="@(ActiveCommand is WorkbenchCommandKind.ScheduleStimulus)"
+                  Disabled="@(!CanScheduleStimulus || IsBusy)"
+                  Loading="@(ActiveCommand is "stimulus")"
                   OnClick="OnScheduleStimulus">Set input to 1</FluentButton>
     <FluentButton data-command="step"
                   Appearance="ButtonAppearance.Primary"
-                  Disabled="@(!EffectiveState.CanStep)"
-                  Loading="@(ActiveCommand is WorkbenchCommandKind.Step)"
+                  Disabled="@(!CanStep || IsBusy)"
+                  Loading="@(ActiveCommand is "step")"
                   OnClick="OnStep">Step</FluentButton>
 </nav>
 
 @code {
-    [Parameter, EditorRequired]
-    public WorkbenchViewState State { get; set; } = WorkbenchViewState.StaticShell;
+    [Parameter]
+    public bool CanCreate { get; set; }
 
     [Parameter]
-    public WorkbenchCommandKind? ActiveCommand { get; set; }
+    public bool CanAuthor { get; set; }
+
+    [Parameter]
+    public bool CanCompile { get; set; }
+
+    [Parameter]
+    public bool CanCreateSession { get; set; }
+
+    [Parameter]
+    public bool CanScheduleStimulus { get; set; }
+
+    [Parameter]
+    public bool CanStep { get; set; }
+
+    [Parameter]
+    public string? ActiveCommand { get; set; }
 
     [Parameter]
     public EventCallback OnCreate { get; set; }
@@ -54,7 +69,5 @@
     [Parameter]
     public EventCallback OnStep { get; set; }
 
-    private WorkbenchViewState EffectiveState => ActiveCommand is null
-        ? State
-        : WorkbenchViewState.StaticShell;
+    private bool IsBusy => ActiveCommand is not null;
 }

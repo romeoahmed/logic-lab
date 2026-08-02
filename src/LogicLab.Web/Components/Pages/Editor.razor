@@ -12,19 +12,26 @@
         <p>Author a one-bit input–NOT–output circuit, compile it, then advance one logical step.</p>
     </header>
 
-    <WorkbenchCommandBar State="ViewState"
-                         ActiveCommand="ActiveCommand"
-                         OnCreate="@(() => RunCommandAsync(WorkbenchCommandKind.Create, CreateProject))"
-                         OnAuthor="@(() => RunCommandAsync(WorkbenchCommandKind.Author, AuthorCircuit))"
-                         OnCompile="@(() => RunCommandAsync(WorkbenchCommandKind.Compile, Compile))"
-                         OnCreateSession="@(() => RunCommandAsync(WorkbenchCommandKind.CreateSession, CreateSimulationSession))"
-                         OnScheduleStimulus="@(() => RunCommandAsync(WorkbenchCommandKind.ScheduleStimulus, ScheduleStimulus))"
-                         OnStep="@(() => RunCommandAsync(WorkbenchCommandKind.Step, Step))" />
+    <WorkbenchCommandBar CanCreate="CanCreate"
+                         CanAuthor="CanAuthor"
+                         CanCompile="CanCompile"
+                         CanCreateSession="CanCreateSession"
+                         CanScheduleStimulus="CanScheduleStimulus"
+                         CanStep="CanStep"
+                         ActiveCommand="@ActiveCommand"
+                         OnCreate="@(() => RunCommandAsync("create", CreateProject))"
+                         OnAuthor="@(() => RunCommandAsync("author", AuthorCircuit))"
+                         OnCompile="@(() => RunCommandAsync("compile", Compile))"
+                         OnCreateSession="@(() => RunCommandAsync("session", CreateSimulationSession))"
+                         OnScheduleStimulus="@(() => RunCommandAsync("stimulus", ScheduleStimulus))"
+                         OnStep="@(() => RunCommandAsync("step", Step))" />
 
     <div class="workbench-grid">
         <AccessibleCircuitScene Scene="Scene" />
         <ProbePanel Simulation="Projection?.Simulation" />
     </div>
 
-    <WorkbenchStatusStrip State="StatusState" Message="@Status" />
+    <WorkbenchStatusStrip Projection="Projection"
+                          IsConnected="IsInteractive"
+                          Message="@Status" />
 </div>
