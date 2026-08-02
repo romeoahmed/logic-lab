@@ -147,6 +147,38 @@ public sealed class WorkbenchComponentTests
     }
 
     [Test]
+    public async Task Editor_ExpiredWorkspaceCommand_ClearsStaleProjectionAndAcceptsNewSandbox()
+    {
+        using var context = CreateContext();
+        await using var workspace = new ExpiringWorkspace();
+        context.Services.AddSingleton<IEditorWorkspace>(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var rendered = context.Render<Editor>();
+        rendered.WaitForElement("[data-command='create']:not([disabled])");
+        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
+
+        await rendered.Find("[data-command='author']").ClickAsync(new MouseEventArgs());
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.Find("[role='status']").TextContent)
+                .Contains("workspace_expired");
+            await Assert.That(IsDisabled(rendered, "create")).IsFalse();
+            await Assert.That(IsDisabled(rendered, "author")).IsTrue();
+        }
+
+        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(workspace.OpenCount).IsEqualTo(2);
+            await Assert.That(rendered.Find("[role='status']").TextContent)
+                .Contains("Sandbox Project created");
+            await Assert.That(IsDisabled(rendered, "author")).IsFalse();
+        }
+    }
+
+    [Test]
     public async Task Editor_AuthorWhileBusy_KeepsNewlyAvailableCompileCommandDisabled()
     {
         using var context = CreateContext();
@@ -416,6 +448,45 @@ public sealed class WorkbenchComponentTests
             CancellationToken cancellationToken)
         {
             return inner.ReadAsync(workspaceId, cancellationToken);
+        }
+
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
+    }
+
+    private sealed class ExpiringWorkspace : IEditorWorkspace
+    {
+        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create();
+        private int isExpired;
+        private int openCount;
+
+        public int OpenCount => Volatile.Read(ref openCount);
+
+        public Task<WorkspaceOpenOutcome> OpenAsync(
+            OpenWorkspaceRequest request,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref openCount);
+            Volatile.Write(ref isExpired, 0);
+            return inner.OpenAsync(request, cancellationToken);
+        }
+
+        public Task<WorkspaceCommandOutcome> DispatchAsync(
+            WorkspaceCommand command,
+            CancellationToken cancellationToken)
+        {
+            Volatile.Write(ref isExpired, 1);
+            return Task.FromResult<WorkspaceCommandOutcome>(
+                new WorkspaceCommandRejected("workspace_expired", []));
+        }
+
+        public Task<WorkspaceReadOutcome> ReadAsync(
+            WorkspaceId workspaceId,
+            CancellationToken cancellationToken)
+        {
+            return Volatile.Read(ref isExpired) == 0
+                ? inner.ReadAsync(workspaceId, cancellationToken)
+                : Task.FromResult<WorkspaceReadOutcome>(
+                    new WorkspaceReadRejected("workspace_not_found"));
         }
 
         public ValueTask DisposeAsync() => inner.DisposeAsync();
