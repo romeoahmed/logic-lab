@@ -144,7 +144,7 @@ typed command payload
 | `ReplaceProbes` | complete ordered Probe binding requests | Session Mutation |
 | `HotSwapSession` | target Compilation Artifact Key | Session Mutation |
 | `CloseSession` | none | Session Mutation |
-| `StartExplanation` | `RegionSelectionV1`, `TruthTable | KarnaughMap`, Teaching Profile ID, Analysis Policy ID | Authoring |
+| `StartExplanation` | `RegionSelectionV1`, `TruthTable \| KarnaughMap`, Teaching Profile ID, Analysis Policy ID | Authoring |
 | `StartSimplification` | `RegionSelectionV1`, Cost Profile ID, Analysis Policy ID | Authoring |
 | `CancelAnalysis` | Operation ID | Operation |
 | `AcceptProposal` | Proposal ID | Proposal |

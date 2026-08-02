@@ -22,24 +22,29 @@ The checked-in root files are executable policy:
 
 The SDK version is full and `rollForward=disable`, so local and CI restore/build use the same SDK patch as the reviewed package lock graph. Moving to another patch or feature band is one deliberate change that regenerates and reviews application-root lock files. `allowPrerelease` is explicit because its platform default differs between CLI and Visual Studio. See the [.NET SDK selection contract](https://learn.microsoft.com/en-us/dotnet/core/tools/global-json#globaljson-schema).
 
-Production projects use these paths and SDKs:
+The Phase A production roots are executable:
 
 ```text
 src/LogicLab.Domain/             Microsoft.NET.Sdk
 src/LogicLab.Engine/             Microsoft.NET.Sdk
-src/LogicLab.BooleanAnalysis/    Microsoft.NET.Sdk
 src/LogicLab.Presentation/       Microsoft.NET.Sdk
-src/LogicLab.ProjectFormat/      Microsoft.NET.Sdk
 src/LogicLab.Application/        Microsoft.NET.Sdk
-src/LogicLab.Infrastructure/     Microsoft.NET.Sdk
 src/LogicLab.Web/                Microsoft.NET.Sdk.Web
 ```
 
-Test projects mirror evidence ownership under `tests/`; browser workflow tests use `tests/LogicLab.Web.BrowserTests/`, and comparative benchmarks use `benchmarks/LogicLab.Benchmarks/`. Create a test or benchmark project with the slice that gives it executable evidence—never add empty placeholder projects. Production projects do not reference tests or benchmarks. Tests reference the narrowest production projects that own the fact being proved.
+The remaining target production roots are created only with the slice that gives them executable behavior:
+
+```text
+src/LogicLab.BooleanAnalysis/    Microsoft.NET.Sdk
+src/LogicLab.ProjectFormat/      Microsoft.NET.Sdk
+src/LogicLab.Infrastructure/     Microsoft.NET.Sdk
+```
+
+Test projects mirror evidence ownership under `tests/`. Phase A has executable `LogicLab.Domain.Tests`, `LogicLab.Engine.Tests`, `LogicLab.Presentation.Tests`, `LogicLab.Application.Tests`, and `LogicLab.Web.Tests` projects. Browser workflow tests use `tests/LogicLab.Web.BrowserTests/` when that suite arrives, and comparative benchmarks use owner-specific projects under `benchmarks/`; the current project is `benchmarks/LogicLab.Engine.Benchmarks/`. Create a test or benchmark project with the slice that gives it executable evidence—never add empty placeholder projects. Production projects do not reference tests or benchmarks. Tests reference the narrowest production projects that own the fact being proved.
 
 TUnit is the selected test framework. Its source generator and analyzers provide compile-time discovery and validation on the default path; reflection mode is an explicit compatibility exception confined to a test project that proves why generated discovery cannot cover it. The TUnit meta-package supplies its Microsoft Testing Platform engine, assertions, code coverage, and TRX extensions. Test projects do not reference `Microsoft.NET.Test.Sdk`, a VSTest adapter, xUnit packages, an xUnit runner configuration, or Coverlet. Projects that expose properties through `[FsCheckProperty]` use `TUnit.FsCheck` as their sole FsCheck framework integration; they add a direct `FsCheck` reference only when their source directly consumes advanced FsCheck APIs.
 
-The executable evidence for slices `01` and `02` uses the centrally pinned TUnit stack. Both test projects, package locks, runner configuration, assertions, fixed data, and property entry points were migrated atomically; no project mixes xUnit and TUnit. The migration target and rationale are grounded in [TUnit Modern Testing Research](../research/tunit-modern-testing.md).
+The two test projects that existed during slices `01` and `02` were migrated atomically to the centrally pinned TUnit stack; the three Phase A test projects added later use the same stack. All five test-project lock graphs are committed alongside the Web and benchmark lock graphs, and no project mixes xUnit and TUnit. The migration target and rationale are grounded in [TUnit Modern Testing Research](../research/tunit-modern-testing.md).
 
 All projects inherit `TargetFramework`, `LangVersion`, nullable context, implicit usings, checked arithmetic, and safe-code defaults. A project may override a central property only with a comment naming the measured or platform reason and the owning evidence. `AllowUnsafeBlocks` can change only under the gate in [.NET Memory and Unsafe Code Research](../research/dotnet-memory-and-unsafe.md). No project suppresses all warnings, disables nullable analysis, uses `LangVersion=latest`, or weakens a warning only in Release.
 

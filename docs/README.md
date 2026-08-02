@@ -1,6 +1,6 @@
 # Documentation Map
 
-Logic Lab is at the design baseline. Read each document according to its authority and subject.
+Logic Lab has a closed V1 design baseline and an executable Phase A tracer. Read each document according to its authority and subject; use the readiness table below for implementation status rather than inferring delivery from a normative specification.
 
 ## Authority by subject
 
@@ -48,18 +48,22 @@ There is no generic “narrower file wins” rule. A specification defines curre
 
 ## Development readiness
 
-The baseline is ready for implementation slices, not qualified for production release.
+Phase A items `01` through `06` are complete and verified. The application is not V1-complete or qualified for production release.
 
-| Area | Specification state | Remaining evidence |
-|---|---|---|
-| authoring, Compilation, Simulation, analysis, format, diagnostics, symbols | closed V1 behavior and Module interfaces | executable projects and conformance suites |
-| Workspace, Durable Project catalog, persistence, concurrency, browser messages | closed commands, keyset paging, queries, preconditions, outcomes, and transfer values | Application/Infrastructure implementations and integration tests |
-| Blazor host and Canvas/waveform runtime | closed ownership, lifecycle, rendering, input, localization, security, and failure rules | browser matrix, corpus traces, load/security tests |
-| .NET engineering and dependency supply chain | SDK feature band, central build/analyzer/package/audit policy, migrated TUnit/MTP executables and lock graphs, execution/DI/JSON/telemetry/publication rules | add later project files, application-root locks, CI and architecture gates |
-| policies and capacity | dimensions and failure semantics are closed | calibrated values tied to a versioned corpus and deployment profile |
-| production operations | required readiness, shutdown, key, migration, proxy, and observability behavior is closed | provider-specific TLS, secrets, backup/restore, telemetry, alert, and runbook evidence |
+| Area | Specification state | Executable evidence | Remaining evidence |
+|---|---|---|---|
+| authoring, Compilation, Simulation, analysis, format, diagnostics, symbols | closed V1 behavior and Module interfaces | Phase A immutable lineage, flat combinational Compilation, atomic Simulation Session, diagnostics, scalar oracle, and packed differential path | topology/runtime breadth, Boolean Analysis, Project Format, TeachingMixed symbols, and their conformance suites |
+| Workspace, Durable Project catalog, persistence, concurrency, browser messages | closed commands, keyset paging, queries, preconditions, outcomes, and transfer values | Sandbox create/author/compile/session/stimulus/step/close path, bounded admission, lifecycle fencing, and typed failure evidence | recoverable history/idempotency, durable catalog, Infrastructure, transfer, full work lanes, and integration evidence |
+| Blazor host and Canvas/waveform runtime | closed ownership, lifecycle, rendering, input, localization, security, and failure rules | per-page Interactive Server `/editor`, accessible Scene projection, component tests, host integration, and security-header tests | Canvas/waveform adapters, browser workflow suite, supported-browser matrix, corpus traces, and load/security qualification |
+| .NET engineering and dependency supply chain | SDK feature band, central build/analyzer/package/audit policy, TUnit/MTP, execution/DI/JSON/telemetry/publication rules | five production projects, five executable test projects, one comparative benchmark project, application-root locks, locked restore, warning-clean build, format, and whole-solution test gates | later slice projects and locks, CI publication, architecture automation, and provider qualification |
+| policies and capacity | dimensions and failure semantics are closed | provisional Phase A Simulation, Trace, Scheduling, and Workspace policy snapshots exercise bounded failure paths | calibrated values tied to a versioned corpus and deployment profile |
+| production operations | required readiness, shutdown, key, migration, proxy, and observability behavior is closed | development-host lifecycle and security-header integration evidence | provider-specific TLS, secrets, backup/restore, telemetry, alert, and runbook evidence |
 
-Do not block the first vertical slice on policy calibration or provider selection. Do not describe the application as release-ready until those evidence rows are complete.
+The latest recorded Phase A gate on 2026-08-02 passed locked restore, formatting, warning-clean build, all 376 discovered TUnit tests, whitespace validation, and the complete `/editor` tracer workflow. Do not describe the application as release-ready until the remaining evidence rows are complete.
+
+## Executable evidence
+
+- [Vector Net Resolution Benchmark](../benchmarks/LogicLab.Engine.Benchmarks/README.md) records the production-shaped packed-versus-scalar comparison. It is directional performance evidence, not a release threshold.
 
 ## Research evidence
 

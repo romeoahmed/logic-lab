@@ -143,10 +143,10 @@ Segments are nonempty, nonoverlapping, ordered, use the [Editor Workspace Contra
 | Kind | Payload |
 |---|---|
 | `SetViewport` | nonempty logical-time range |
-| `SetCursor` | cursor `Primary | Secondary` and Logical Time, or explicit removal |
+| `SetCursor` | cursor `Primary \| Secondary` and Logical Time, or explicit removal |
 | `SetLiveFollow` | Boolean enabled value |
 | `SetProbeOrder` | complete ordered Probe IDs |
-| `SetProbeRadix` | Probe ID and `binary | hex | unsigned` |
+| `SetProbeRadix` | Probe ID and `binary \| hex \| unsigned` |
 | `RequestTraceWindow` | one `TraceWindowRequest` |
 | `RevealNet` | Probe ID |
 | `CloseWaveform` | none |
