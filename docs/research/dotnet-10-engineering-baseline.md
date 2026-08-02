@@ -1,6 +1,6 @@
 # .NET 10 Engineering Baseline Research
 
-> Status: primary-source evidence and readiness assessment, not a second implementation specification
+> Status: primary-source evidence with a dated implementation addendum, not a second implementation specification
 > Target: .NET 10, C# 14, ASP.NET Core 10, EF Core 10, TUnit on Microsoft Testing Platform
 > Sources last checked: 2026-07-31
 
@@ -23,9 +23,9 @@ Conflating these states either blocks implementation on operational facts that c
 
 ## 2. Readiness verdict
 
-Logic Lab is ready to begin narrow implementation slices. It is not ready to claim an implemented build or a production release.
+The original baseline found Logic Lab ready to begin narrow implementation slices. As of the 2026-08-02 addendum, Phase A items `01` through `06` are executable and the repository can claim a verified implementation build, but not V1 completion or a production release.
 
-The maintained area-by-area status is the [Development Readiness](../README.md#development-readiness) table. The remaining distance is mostly **implementation and qualification evidence**, not more general architecture: projects, dependency closures, executable tests, calibrated policies, and one provider-specific deployment profile. The first slice should prove one deep path through the existing seams and establish repository gates before feature breadth.
+The maintained area-by-area status is the [Development Readiness](../README.md#development-readiness) table. Phase A proved one deep path through the intended seams and established the repository gates. The remaining distance is mostly **implementation breadth and qualification evidence**, including later projects, calibrated policies, and one provider-specific deployment profile—not more general baseline architecture.
 
 ## 3. SDK, target framework, language, and analyzers
 
@@ -57,7 +57,7 @@ Central Package Management should contain exact versions once, in `Directory.Pac
 
 Application roots should opt into and commit `packages.lock.json`; common class libraries should not claim that their isolated lock file controls a consuming application's resolved closure. CI must restore with `--locked-mode` and run later build/test steps without restore. This is NuGet's own distinction between executable/application and common-library lock files ([dependency locking](https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#locking-dependencies)).
 
-.NET 10 enables framework package pruning by default for `net10.0`, including pruning eligible direct references. The first lock file created by an implementation slice will therefore already reflect that behavior. Enabling or changing pruning explicitly later can legitimately reduce a lock graph and requires an intentional lock regeneration and review ([`PrunePackageReference`](https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#prunepackagereference)).
+.NET 10 enables framework package pruning by default for `net10.0`, including pruning eligible direct references. The application-root lock files created by the implementation slices therefore reflect that behavior. Enabling or changing pruning explicitly later can legitimately reduce a lock graph and requires an intentional lock regeneration and review ([`PrunePackageReference`](https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#prunepackagereference)).
 
 ### 4.2 NuGet Audit severity is easy to misconfigure
 
@@ -75,7 +75,7 @@ The subtle point is that `TreatWarningsAsErrors=true` also raises NuGet and MSBu
 
 An advisory suppression must name the advisory URL, affected path, applicability analysis, owner, and expiry or upgrade issue. `NuGetAuditSuppress` is preferable to disabling audit or suppressing a whole warning code. Restore network failure and lack of vulnerability data must not silently turn a release green.
 
-Exact package versions still belong to the implementation slice that consumes them. Selecting packages in an empty solution would create inventory without evidence and would make the research note stale immediately.
+Exact package versions still belong to the implementation slice that consumes them. The baseline deliberately avoided selecting packages in the then-empty solution because that would have created inventory without evidence and made the research note stale immediately.
 
 ## 5. Runtime libraries, JSON, time, and concurrency
 
@@ -225,7 +225,7 @@ The shortest route from the documentation baseline to a trustworthy project is:
 
 ## 13. Primary source index
 
-All sources were accessed on 2026-07-30.
+Unless a claim records a later date, sources were first accessed on 2026-07-30 and last checked on 2026-07-31.
 
 ### SDK, language, analyzers, and support
 
