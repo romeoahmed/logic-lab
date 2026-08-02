@@ -10,16 +10,22 @@ transposition happen in `GlobalSetup`, outside measurement. `ProductionCallShape
 driver-ordinal projection and `ToArray()` used by `SimulationRuntime.ResolveNet` inside each
 measured operation.
 
+Restore the committed lock graph explicitly before running benchmarks:
+
+```sh
+dotnet restore benchmarks/LogicLab.Engine.Benchmarks/LogicLab.Engine.Benchmarks.csproj --locked-mode --nologo
+```
+
 Validate generated benchmark code with:
 
 ```sh
-dotnet run --project benchmarks/LogicLab.Engine.Benchmarks -c Release -- --filter '*' --job Dry --noOverwrite
+dotnet run --project benchmarks/LogicLab.Engine.Benchmarks -c Release --no-restore -- --filter '*' --job Dry --noOverwrite
 ```
 
 Record a comparative iteration with:
 
 ```sh
-dotnet run --project benchmarks/LogicLab.Engine.Benchmarks -c Release -- --filter '*' --job Short --noOverwrite
+dotnet run --project benchmarks/LogicLab.Engine.Benchmarks -c Release --no-restore -- --filter '*' --job Short --noOverwrite
 ```
 
 Benchmark artifacts report throughput distribution and managed allocation. They are evidence
