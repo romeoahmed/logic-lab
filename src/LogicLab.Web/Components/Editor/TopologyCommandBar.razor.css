@@ -1,0 +1,51 @@
+.topology-command-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--ll-border);
+  background: var(--ll-panel);
+}
+
+.topology-command-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.topology-command-heading h2,
+.topology-command-heading p {
+  margin-block: 0;
+}
+
+.topology-command-heading small,
+.route-draft {
+  color: var(--ll-muted);
+}
+
+.topology-eyebrow {
+  color: var(--ll-signal);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.topology-command-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.route-draft {
+  margin-block: 0;
+  padding: 0.65rem 0.8rem;
+  border-inline-start: 3px solid var(--ll-signal);
+  background: var(--ll-canvas);
+}
+
+@media (max-width: 720px) {
+  .topology-command-heading {
+    display: grid;
+  }
+}

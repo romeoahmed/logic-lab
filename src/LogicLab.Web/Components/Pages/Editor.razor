@@ -6,10 +6,10 @@
 <div class="workbench-shell">
     <header class="workbench-heading">
         <div>
-            <p class="eyebrow">Slice 06 · first vertical tracer</p>
+            <p class="eyebrow">Slice 07 · explicit topology</p>
             <h1>Sandbox Workbench</h1>
         </div>
-        <p>Author a one-bit input–NOT–output circuit, compile it, then advance one logical step.</p>
+        <p>Author a one-bit circuit, edit its explicit topology, compile it, then advance one logical step.</p>
     </header>
 
     <WorkbenchCommandBar CanCreate="CanCreate"
@@ -18,13 +18,32 @@
                          CanCreateSession="CanCreateSession"
                          CanScheduleStimulus="CanScheduleStimulus"
                          CanStep="CanStep"
-                         ActiveCommand="@ActiveCommand"
+                         ActiveCommand="@WorkbenchActiveCommand"
                          OnCreate="@(() => RunCommandAsync("create", CreateProject))"
                          OnAuthor="@(() => RunCommandAsync("author", AuthorCircuit))"
                          OnCompile="@(() => RunCommandAsync("compile", Compile))"
                          OnCreateSession="@(() => RunCommandAsync("session", CreateSimulationSession))"
                          OnScheduleStimulus="@(() => RunCommandAsync("stimulus", ScheduleStimulus))"
                          OnStep="@(() => RunCommandAsync("step", Step))" />
+
+    <TopologyCommandBar CanMerge="CanMergeTopology"
+                        CanSplit="CanSplitTopology"
+                        CanAddJunction="CanAddJunction"
+                        CanRemoveJunction="CanRemoveJunction"
+                        CanPrepareRoute="CanPrepareRoute"
+                        CanRoute="CanRoute"
+                        CanUnroute="CanUnroute"
+                        RouteDraftActive="RouteDraftActive"
+                        ActiveCommand="@ActiveCommand"
+                        OnMerge="@(() => RunCommandAsync("topology-merge", MergeTopology))"
+                        OnSplit="@(() => RunCommandAsync("topology-split", SplitTopology))"
+                        OnAddJunction="@(() => RunCommandAsync("topology-add-junction", AddJunction))"
+                        OnRemoveJunction="@(() => RunCommandAsync("topology-remove-junction", RemoveJunction))"
+                        OnPrepareRoute="PrepareRoute"
+                        OnCommitRoute="@(() => RunCommandAsync("topology-commit-route", CommitRoute))"
+                        OnCancelRoute="CancelRoute"
+                        OnRoute="@(() => RunCommandAsync("topology-route", RouteGeometry))"
+                        OnUnroute="@(() => RunCommandAsync("topology-unroute", UnrouteGeometry))" />
 
     <div class="workbench-grid">
         <AccessibleCircuitScene Scene="Scene" />

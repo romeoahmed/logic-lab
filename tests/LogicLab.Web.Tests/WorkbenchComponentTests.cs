@@ -223,6 +223,100 @@ public sealed class WorkbenchComponentTests
     }
 
     [Test]
+    public async Task Editor_TopologyCommands_ExerciseCompleteUserEditingPath()
+    {
+        using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        context.Services.AddSingleton<IEditorWorkspace>(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var rendered = context.Render<Editor>();
+        rendered.WaitForElement("[data-command='create']:not([disabled])");
+        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
+        await rendered.Find("[data-command='author']").ClickAsync(new MouseEventArgs());
+
+        await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(2);
+
+        await rendered.Find("[data-command='topology-merge']")
+            .ClickAsync(new MouseEventArgs());
+        await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(1);
+
+        await rendered.Find("[data-command='topology-split']")
+            .ClickAsync(new MouseEventArgs());
+        await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(2);
+
+        await rendered.Find("[data-command='topology-add-junction']")
+            .ClickAsync(new MouseEventArgs());
+        await Assert.That(rendered.FindAll("[data-junction]")).Count().IsEqualTo(1);
+
+        await rendered.Find("[data-command='topology-prepare-route']")
+            .ClickAsync(new MouseEventArgs());
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.FindAll("[data-route-draft]")).Count().IsEqualTo(1);
+            await Assert.That(rendered.FindAll("[data-wire-geometry]")).IsEmpty();
+        }
+
+        await rendered.Find("[data-command='topology-commit-route']")
+            .ClickAsync(new MouseEventArgs());
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.FindAll("[data-route-draft]")).IsEmpty();
+            await Assert.That(rendered.FindAll("[data-wire-geometry]")).Count().IsEqualTo(1);
+            await Assert.That(rendered.Markup).Contains("Orthogonal");
+        }
+
+        await rendered.Find("[data-command='topology-unroute']")
+            .ClickAsync(new MouseEventArgs());
+        await Assert.That(rendered.Markup).Contains("Unrouted");
+
+        await rendered.Find("[data-command='topology-route']")
+            .ClickAsync(new MouseEventArgs());
+        await Assert.That(rendered.Markup).Contains("Orthogonal");
+
+        await rendered.Find("[data-command='topology-remove-junction']")
+            .ClickAsync(new MouseEventArgs());
+        await Assert.That(rendered.FindAll("[data-junction]")).IsEmpty();
+
+        await rendered.Find("[data-command='compile']").ClickAsync(new MouseEventArgs());
+        await Assert.That(rendered.Find("[role='status']").TextContent)
+            .Contains("Compilation Artifact published");
+    }
+
+    [Test]
+    public async Task Editor_CancelPreparedRoute_SendsNoCommandOrProjectRevision()
+    {
+        using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        context.Services.AddSingleton<IEditorWorkspace>(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var rendered = context.Render<Editor>();
+        rendered.WaitForElement("[data-command='create']:not([disabled])");
+        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
+        await rendered.Find("[data-command='author']").ClickAsync(new MouseEventArgs());
+        var before = await workspace.ReadCurrent();
+        var dispatchCount = workspace.DispatchCount;
+
+        await rendered.Find("[data-command='topology-prepare-route']")
+            .ClickAsync(new MouseEventArgs());
+        await rendered.Find("[data-command='topology-cancel-route']")
+            .ClickAsync(new MouseEventArgs());
+        var after = await workspace.ReadCurrent();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(workspace.DispatchCount).IsEqualTo(dispatchCount);
+            await Assert.That(after.ProjectRevision.RevisionId)
+                .IsEqualTo(before.ProjectRevision.RevisionId);
+            await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
+            await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.WireGeometries)
+                .IsEmpty();
+            await Assert.That(rendered.FindAll("[data-route-draft]")).IsEmpty();
+            await Assert.That(rendered.Find("[role='status']").TextContent)
+                .Contains("cancelled");
+        }
+    }
+
+    [Test]
     public async Task AccessibleCircuitScene_CompleteCircuit_RendersReachableTopology()
     {
         using var context = CreateContext();
@@ -570,5 +664,52 @@ public sealed class WorkbenchComponentTests
         public ValueTask DisposeAsync() => inner.DisposeAsync();
 
         public void Release() => release.TrySetResult();
+    }
+
+    private sealed class TrackingWorkspace : IEditorWorkspace
+    {
+        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create();
+        private WorkspaceId? workspaceId;
+        private int dispatchCount;
+
+        public int DispatchCount => Volatile.Read(ref dispatchCount);
+
+        public async Task<WorkspaceOpenOutcome> OpenAsync(
+            OpenWorkspaceRequest request,
+            CancellationToken cancellationToken)
+        {
+            var outcome = await inner.OpenAsync(request, cancellationToken);
+            if (outcome is WorkspaceOpened opened)
+            {
+                workspaceId = opened.WorkspaceId;
+            }
+
+            return outcome;
+        }
+
+        public Task<WorkspaceCommandOutcome> DispatchAsync(
+            WorkspaceCommand command,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref dispatchCount);
+            return inner.DispatchAsync(command, cancellationToken);
+        }
+
+        public Task<WorkspaceReadOutcome> ReadAsync(
+            WorkspaceId requestedWorkspaceId,
+            CancellationToken cancellationToken)
+        {
+            return inner.ReadAsync(requestedWorkspaceId, cancellationToken);
+        }
+
+        public async Task<WorkspaceProjection> ReadCurrent()
+        {
+            var outcome = await inner.ReadAsync(
+                workspaceId ?? throw new InvalidOperationException("Workspace is not open."),
+                CancellationToken.None);
+            return ((ProjectionSnapshot)outcome).Projection;
+        }
+
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
     }
 }
