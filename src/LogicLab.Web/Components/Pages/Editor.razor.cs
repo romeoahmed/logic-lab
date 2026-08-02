@@ -238,6 +238,7 @@ public partial class Editor
         Projection = null;
         Scene = null;
         StimulusIsScheduled = false;
+        RouteDraftActive = false;
     }
 
     private void ProjectScene()
