@@ -45,8 +45,27 @@
             @foreach (var connection in Scene.Connections)
             {
                 <li @key="connection.Source" data-connection="@connection.Source.NetId.Value">
-                    <span>@TerminalPath(connection)</span>
-                    <small>@connection.Width bit</small>
+                    <div class="connection-summary">
+                        <span>@TerminalPath(connection)</span>
+                        <small>@connection.Width bit</small>
+                    </div>
+                    @if (connection.Junctions.Count != 0 || connection.WireGeometries.Count != 0)
+                    {
+                        <ul class="topology-list" aria-label="@($"Topology for net {connection.Source.NetId.Value}")">
+                            @foreach (var junction in connection.Junctions)
+                            {
+                                <li @key="junction.Source" data-junction="@junction.Source.JunctionId.Value">
+                                    Junction at grid @junction.Point.X, @junction.Point.Y
+                                </li>
+                            }
+                            @foreach (var geometry in connection.WireGeometries)
+                            {
+                                <li @key="geometry.Source" data-wire-geometry="@geometry.Source.WireGeometryId.Value">
+                                    @WireRouteLabel(geometry.Route)
+                                </li>
+                            }
+                        </ul>
+                    }
                 </li>
             }
         </ol>
@@ -60,5 +79,17 @@
     private static string TerminalPath(AccessibleConnectionProjection connection)
     {
         return string.Join(" → ", connection.Terminals.Select(terminal => terminal.PortId));
+    }
+
+    private static string WireRouteLabel(WireRoute route)
+    {
+        return route switch
+        {
+            UnroutedWireRoute => "Unrouted",
+            OrthogonalWireRoute orthogonal => $"Orthogonal · {string.Join(
+                " → ",
+                orthogonal.Points.Select(point => $"{point.X},{point.Y}"))}",
+            _ => throw new InvalidOperationException("The Wire Route variant is undefined."),
+        };
     }
 }

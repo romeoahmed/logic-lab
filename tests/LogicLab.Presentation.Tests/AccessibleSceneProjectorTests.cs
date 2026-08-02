@@ -58,6 +58,45 @@ public sealed class AccessibleSceneProjectorTests
             .IsEqualTo(new GridPoint(20, 10));
     }
 
+    [Test]
+    public async Task Project_ExplicitTopology_ExposesJunctionsAndWireGeometry()
+    {
+        var revision = CreateCompleteCircuit();
+        var definition = revision.Document.EntryCircuitDefinition;
+        var net = definition.Nets[0];
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new AddJunctionIntent(
+                definition.Id,
+                net.Id,
+                new GridPoint(2, 1),
+                [
+                    new OrthogonalWireRoute(
+                        [new GridPoint(0, 0), new GridPoint(0, 1), new GridPoint(4, 1)]),
+                    new UnroutedWireRoute(),
+                ],
+                [],
+                [])));
+
+        var scene = AccessibleSceneProjector.Project(revision);
+        var connection = scene.Connections.Single(item => item.Source.NetId == net.Id);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(connection.Junctions).Count().IsEqualTo(1);
+            await Assert.That(connection.Junctions[0].Point)
+                .IsEqualTo(new GridPoint(2, 1));
+            await Assert.That(connection.Junctions[0].Source.CircuitDefinitionId)
+                .IsEqualTo(scene.CircuitDefinitionId);
+            await Assert.That(connection.WireGeometries).Count().IsEqualTo(2);
+            await Assert.That(connection.WireGeometries.Any(
+                item => item.Route is OrthogonalWireRoute)).IsTrue();
+            await Assert.That(connection.WireGeometries.Any(
+                item => item.Route is UnroutedWireRoute)).IsTrue();
+            await Assert.That(connection.Terminals).Count().IsEqualTo(2);
+        }
+    }
+
     private static ProjectRevision CreateCompleteCircuit()
     {
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
