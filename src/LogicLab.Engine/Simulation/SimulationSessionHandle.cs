@@ -182,11 +182,7 @@ internal sealed class SimulationTraceStore
         {
             foreach (var transition in ChunkAt(chunkOffset).Transitions)
             {
-                if (requestedIds.Contains(transition.ProbeId)
-                    && transition.LogicalTime >= request.Range.StartInclusive
-                    && transition.LogicalTime < request.Range.EndExclusive
-                    && (request.AfterSequence is null
-                        || transition.Sequence > request.AfterSequence.Value))
+                if (IsRequestedTransition(transition, request, requestedIds))
                 {
                     transitions.Add(transition);
                 }
@@ -198,6 +194,18 @@ internal sealed class SimulationTraceStore
             request.Range,
             earliest,
             LatestSequence);
+    }
+
+    private static bool IsRequestedTransition(
+        TraceTransition transition,
+        SimulationTraceWindowRequest request,
+        HashSet<ProbeId> requestedIds)
+    {
+        return requestedIds.Contains(transition.ProbeId)
+            && transition.LogicalTime >= request.Range.StartInclusive
+            && transition.LogicalTime < request.Range.EndExclusive
+            && (request.AfterSequence is null
+                || transition.Sequence > request.AfterSequence.Value);
     }
 
     private bool HasBaselineAtOrBefore(
