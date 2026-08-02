@@ -1,0 +1,58 @@
+.definition-navigator {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px solid var(--ll-border);
+  background: var(--ll-panel);
+}
+
+.definition-tabs,
+.hierarchy-row,
+.occurrence-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.definition-tabs button,
+.hierarchy-row button,
+.occurrence-links button {
+  min-block-size: 2.25rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--ll-border-strong);
+  background: var(--ll-canvas);
+  color: inherit;
+}
+
+.definition-tabs button[aria-selected="true"] {
+  border-color: var(--ll-signal);
+  box-shadow: inset 0 -2px 0 var(--ll-signal);
+}
+
+[data-entry-marker] {
+  margin-inline-start: 0.4rem;
+  color: var(--ll-signal);
+  font-size: 0.7rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+[data-hierarchy-breadcrumb] {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-hierarchy-breadcrumb] li + li::before {
+  margin-inline-end: 0.4rem;
+  content: "/";
+  color: var(--ll-muted);
+}
+
+.view-kind {
+  color: var(--ll-muted);
+  font-size: 0.8rem;
+}

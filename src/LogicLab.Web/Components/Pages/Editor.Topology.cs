@@ -13,8 +13,12 @@ public partial class Editor
     private bool CanEditTopology => CommandsAvailable
         && Projection is not null
         && Projection.Simulation is null
+        && SelectedDefinitionId == Projection.ProjectRevision.Document.EntryCircuitDefinitionId
+        && HierarchyNavigation.Count == 0
         && Projection.ProjectRevision.Document.EntryCircuitDefinition
-            .ComponentInstances.Count > 0;
+            .ComponentInstances.Count > 0
+        && Projection.ProjectRevision.Document.EntryCircuitDefinition
+            .ComponentInstances.All(instance => instance.Target is LibraryComponentTarget);
 
     private bool CanMergeTopology => CanEditTopology && Definition.Nets.Count > 1;
 
@@ -100,7 +104,9 @@ public partial class Editor
             Terminal(definition.Id, output.Id, "D"),
         };
         var expectedTerminals = inputToNot.Concat(notToOutput).ToHashSet();
-        if (!expectedTerminals.SetEquals(net.Terminals))
+        var actualTerminals = net.Terminals.OfType<InstanceTerminalReference>().ToArray();
+        if (actualTerminals.Length != net.Terminals.Count
+            || !expectedTerminals.SetEquals(actualTerminals))
         {
             return [];
         }
@@ -121,10 +127,11 @@ public partial class Editor
         string contractId)
     {
         var matches = definition.ComponentInstances
-            .Where(instance => string.Equals(
-                instance.ContractKey.ContractId,
-                contractId,
-                StringComparison.Ordinal))
+            .Where(instance => instance.Target is LibraryComponentTarget library
+                && string.Equals(
+                    library.ContractKey.ContractId,
+                    contractId,
+                    StringComparison.Ordinal))
             .Take(2)
             .ToArray();
         return matches.Length == 1 ? matches[0] : null;

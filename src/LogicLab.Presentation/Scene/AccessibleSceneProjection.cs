@@ -9,6 +9,13 @@ public sealed record AccessiblePortProjection(
     string Label,
     PortDirection Direction);
 
+public sealed record AccessibleDefinitionPortProjection(
+    DefinitionPortSourceIdentity Source,
+    string Label,
+    PortDirection Direction,
+    uint Width,
+    DefinitionPortPlacement Placement);
+
 public sealed record AccessibleJunctionProjection(
     JunctionSourceIdentity Source,
     NetSourceIdentity NetSource,
@@ -27,6 +34,9 @@ public sealed record AccessibleComponentProjection
         ComponentPlacement placement,
         IReadOnlyList<AccessiblePortProjection> ports)
     {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(label);
+        ArgumentNullException.ThrowIfNull(ports);
         Source = source;
         Label = label;
         Placement = placement;
@@ -47,7 +57,7 @@ public sealed record AccessibleConnectionProjection
     public AccessibleConnectionProjection(
         NetSourceIdentity source,
         uint width,
-        IReadOnlyList<InstanceTerminalReference> terminals)
+        IReadOnlyList<AuthoredTerminalReference> terminals)
         : this(source, width, terminals, [], [])
     {
     }
@@ -55,7 +65,7 @@ public sealed record AccessibleConnectionProjection
     public AccessibleConnectionProjection(
         NetSourceIdentity source,
         uint width,
-        IReadOnlyList<InstanceTerminalReference> terminals,
+        IReadOnlyList<AuthoredTerminalReference> terminals,
         IReadOnlyList<AccessibleJunctionProjection> junctions,
         IReadOnlyList<AccessibleWireGeometryProjection> wireGeometries)
     {
@@ -74,7 +84,7 @@ public sealed record AccessibleConnectionProjection
 
     public uint Width { get; }
 
-    public ReadOnlyCollection<InstanceTerminalReference> Terminals { get; }
+    public ReadOnlyCollection<AuthoredTerminalReference> Terminals { get; }
 
     public ReadOnlyCollection<AccessibleJunctionProjection> Junctions { get; }
 
@@ -86,11 +96,18 @@ public sealed record AccessibleSceneProjection
     public AccessibleSceneProjection(
         CircuitDefinitionId circuitDefinitionId,
         string displayName,
+        IReadOnlyList<AccessibleDefinitionPortProjection> definitionPorts,
         IReadOnlyList<AccessibleComponentProjection> components,
         IReadOnlyList<AccessibleConnectionProjection> connections)
     {
+        ArgumentNullException.ThrowIfNull(circuitDefinitionId);
+        ArgumentNullException.ThrowIfNull(displayName);
+        ArgumentNullException.ThrowIfNull(definitionPorts);
+        ArgumentNullException.ThrowIfNull(components);
+        ArgumentNullException.ThrowIfNull(connections);
         CircuitDefinitionId = circuitDefinitionId;
         DisplayName = displayName;
+        DefinitionPorts = Array.AsReadOnly(definitionPorts.ToArray());
         Components = Array.AsReadOnly(components.ToArray());
         Connections = Array.AsReadOnly(connections.ToArray());
     }
@@ -98,6 +115,8 @@ public sealed record AccessibleSceneProjection
     public CircuitDefinitionId CircuitDefinitionId { get; }
 
     public string DisplayName { get; }
+
+    public ReadOnlyCollection<AccessibleDefinitionPortProjection> DefinitionPorts { get; }
 
     public ReadOnlyCollection<AccessibleComponentProjection> Components { get; }
 

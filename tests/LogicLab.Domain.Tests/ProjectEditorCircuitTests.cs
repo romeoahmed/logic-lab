@@ -39,9 +39,12 @@ public sealed class ProjectEditorCircuitTests
             await Assert.That(withOutput.Document.ProjectId)
                 .IsEqualTo(genesis.Document.ProjectId);
             await Assert.That(withOutput.RevisionId == genesis.RevisionId).IsFalse();
-            await Assert.That(input.ContractKey.ContractId).IsEqualTo("source.input");
-            await Assert.That(logicNot.ContractKey.ContractId).IsEqualTo("logic.not");
-            await Assert.That(output.ContractKey.ContractId).IsEqualTo("sink.output");
+            await Assert.That(input.Target).IsEqualTo(new LibraryComponentTarget(
+                new ComponentContractKey("logiclab.core", "source.input")));
+            await Assert.That(logicNot.Target).IsEqualTo(new LibraryComponentTarget(
+                new ComponentContractKey("logiclab.core", "logic.not")));
+            await Assert.That(output.Target).IsEqualTo(new LibraryComponentTarget(
+                new ComponentContractKey("logiclab.core", "sink.output")));
             await Assert.That(input.Id == logicNot.Id).IsFalse();
             await Assert.That(logicNot.Id == output.Id).IsFalse();
         }
@@ -378,7 +381,7 @@ public sealed class ProjectEditorCircuitTests
                 .IsEquivalentTo(expectedPorts, CollectionOrdering.Matching);
             await Assert.That(committed.ChangedSources.Distinct().Count())
                 .IsEqualTo(committed.ChangedSources.Count);
-            await Assert.That(net.Terminals)
+            await Assert.That(net.Terminals.OfType<InstanceTerminalReference>())
                 .IsEquivalentTo(terminals, CollectionOrdering.Matching);
             await Assert.That(committed.RemovedSources).IsEmpty();
         }
@@ -597,7 +600,8 @@ public sealed class ProjectEditorCircuitTests
         await Assert.That(outcome).IsTypeOf<EditCommitted>();
         var committed = (EditCommitted)outcome;
         var instance = committed.Revision.Document.EntryCircuitDefinition.ComponentInstances
-            .Single(candidate => candidate.ContractKey.ContractId == contractId);
+            .Single(candidate => candidate.Target is LibraryComponentTarget library
+                && library.ContractKey.ContractId == contractId);
         return (committed.Revision, instance);
     }
 

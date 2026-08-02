@@ -1,0 +1,174 @@
+using LogicLab.Application.Workspaces;
+using LogicLab.Domain;
+using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
+
+namespace LogicLab.Application.Tests;
+
+public sealed class EditorWorkspaceHierarchyTests
+{
+    [Test]
+    public async Task DispatchAsync_HierarchicalCircuit_CompilesAndSimulatesAcrossBoundary()
+    {
+        await using var workspace = EditorWorkspaceFactory.Create();
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("Hierarchy project", "Main"),
+            CancellationToken.None);
+        var workspaceId = opened.WorkspaceId;
+        var mainId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
+
+        await Apply(workspace, workspaceId, new CreateCircuitDefinitionIntent(
+            "Inverter",
+            [
+                new DefinitionPortDeclaration(
+                    "A",
+                    PortDirection.Input,
+                    1,
+                    new DefinitionPortPlacement(
+                        new GridPoint(0, 2),
+                        CardinalDirection.West)),
+                new DefinitionPortDeclaration(
+                    "Q",
+                    PortDirection.Output,
+                    1,
+                    new DefinitionPortPlacement(
+                        new GridPoint(8, 2),
+                        CardinalDirection.East)),
+            ]));
+        var child = (await Read(workspace, workspaceId)).ProjectRevision.Document
+            .CircuitDefinitions.Single(definition => definition.DisplayName == "Inverter");
+        await Apply(workspace, workspaceId, PlaceLibrary(
+            child.Id,
+            "logic.not",
+            [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
+            new GridPoint(4, 2)));
+        child = (await Read(workspace, workspaceId)).ProjectRevision.Document
+            .FindCircuitDefinition(child.Id)!;
+        var childNot = child.ComponentInstances.Single();
+        var inputPort = child.Ports.Single(port => port.Direction == PortDirection.Input);
+        var outputPort = child.Ports.Single(port => port.Direction == PortDirection.Output);
+        await Apply(workspace, workspaceId, new ConnectTerminalsIntent(
+            [
+                new DefinitionTerminalReference(child.Id, inputPort.Id),
+                new InstanceTerminalReference(child.Id, childNot.Id, "A"),
+            ]));
+        await Apply(workspace, workspaceId, new ConnectTerminalsIntent(
+            [
+                new InstanceTerminalReference(child.Id, childNot.Id, "Q"),
+                new DefinitionTerminalReference(child.Id, outputPort.Id),
+            ]));
+
+        await Apply(workspace, workspaceId, PlaceLibrary(
+            mainId,
+            "source.input",
+            [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding(
+                    "initialValue",
+                    new LogicVectorParameterValue([LogicValue.Zero])),
+            ],
+            new GridPoint(0, 0)));
+        await Apply(workspace, workspaceId, new PlaceComponentInstanceIntent(
+            mainId,
+            new CircuitDefinitionComponentTarget(child.Id),
+            [],
+            new ComponentPlacement(new GridPoint(4, 0)),
+            "Inverter"));
+        await Apply(workspace, workspaceId, PlaceLibrary(
+            mainId,
+            "sink.output",
+            [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
+            ],
+            new GridPoint(8, 0)));
+        var main = (await Read(workspace, workspaceId)).ProjectRevision.Document
+            .EntryCircuitDefinition;
+        var source = LibraryInstance(main, "source.input");
+        var call = main.ComponentInstances.Single(instance =>
+            instance.Target is CircuitDefinitionComponentTarget);
+        var sink = LibraryInstance(main, "sink.output");
+        await Apply(workspace, workspaceId, new ConnectTerminalsIntent(
+            [
+                new InstanceTerminalReference(mainId, source.Id, "Q"),
+                new InstanceTerminalReference(mainId, call.Id, inputPort.Id.Value),
+            ]));
+        await Apply(workspace, workspaceId, new ConnectTerminalsIntent(
+            [
+                new InstanceTerminalReference(mainId, call.Id, outputPort.Id.Value),
+                new InstanceTerminalReference(mainId, sink.Id, "D"),
+            ]));
+
+        var compiled = await workspace.DispatchAsync(
+            new RequestCompilation(workspaceId),
+            CancellationToken.None);
+        var sessionCreated = await workspace.DispatchAsync(
+            new CreateSession(workspaceId),
+            CancellationToken.None);
+        var initial = await Read(workspace, workspaceId);
+        var scheduled = await workspace.DispatchAsync(
+            new ScheduleInputStimulus(
+                workspaceId,
+                1,
+                [new InputStimulusAssignment(source.Id, [LogicValue.One])]),
+            CancellationToken.None);
+        var stepped = await workspace.DispatchAsync(
+            new StepSession(workspaceId),
+            CancellationToken.None);
+        var afterStep = await Read(workspace, workspaceId);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(compiled).IsTypeOf<CompilationPublished>();
+            await Assert.That(sessionCreated).IsTypeOf<SimulationSessionCreated>();
+            await Assert.That(initial.Simulation!.Probes.Single().Value)
+                .IsEquivalentTo(new[] { LogicValue.One });
+            await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
+            await Assert.That(stepped).IsTypeOf<SessionStepped>();
+            await Assert.That(afterStep.Simulation!.Probes.Single().Value)
+                .IsEquivalentTo(new[] { LogicValue.Zero });
+        }
+    }
+
+    private static async Task Apply(
+        IEditorWorkspace workspace,
+        WorkspaceId workspaceId,
+        EditIntent intent)
+    {
+        var outcome = await workspace.DispatchAsync(
+            new ApplyEdit(workspaceId, intent),
+            CancellationToken.None);
+        await Assert.That(outcome).IsTypeOf<AuthoringCommitted>();
+    }
+
+    private static async Task<WorkspaceProjection> Read(
+        IEditorWorkspace workspace,
+        WorkspaceId workspaceId)
+    {
+        return ((ProjectionSnapshot)await workspace.ReadAsync(
+            workspaceId,
+            CancellationToken.None)).Projection;
+    }
+
+    private static PlaceComponentInstanceIntent PlaceLibrary(
+        CircuitDefinitionId definitionId,
+        string contractId,
+        ComponentParameterBinding[] parameters,
+        GridPoint origin)
+    {
+        return new PlaceComponentInstanceIntent(
+            definitionId,
+            new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
+            parameters,
+            new ComponentPlacement(origin));
+    }
+
+    private static ComponentInstance LibraryInstance(
+        CircuitDefinition definition,
+        string contractId)
+    {
+        return definition.ComponentInstances.Single(instance =>
+            instance.Target is LibraryComponentTarget library
+            && library.ContractKey.ContractId == contractId);
+    }
+}
