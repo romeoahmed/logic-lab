@@ -61,20 +61,18 @@ public static partial class ProjectEditor
 
         ValidateCompatibleWidths(terminals, connectedNets, destinationNet, diagnostics);
         ValidateRoutes(intent.RouteAdditions, diagnostics);
-        TryApplyGeometryChanges(
+        var geometryChanges = BuildGeometryChanges(
             definition,
             affectedNetIds,
             intent.RouteReplacements,
             [],
-            diagnostics,
-            out var editedGeometries,
-            out var replacedGeometries,
-            out _);
-
-        if (diagnostics.Count != 0)
+            diagnostics);
+        if (geometryChanges is null)
         {
             return new EditRejected(diagnostics.ToArray());
         }
+
+        var (editedGeometries, replacedGeometries, _) = geometryChanges;
 
         var existingNet = destinationNet;
         var finalNetId = existingNet?.Id ?? NetId.Create();
@@ -254,19 +252,18 @@ public static partial class ProjectEditor
             .Select(partition => new PartitionBuildRequest(partition, []))
             .ToArray();
         var diagnostics = new List<AuthoringDiagnostic>();
-        if (!TryBuildPartitions(
+        var result = BuildPartitions(
             definition,
             net,
             requests,
             2,
-            diagnostics,
-            out var updatedDefinition,
-            out var changedSources))
+            diagnostics);
+        if (result is null)
         {
             return new EditRejected(diagnostics.ToArray());
         }
 
-        return Commit(revision, updatedDefinition!, changedSources!, []);
+        return Commit(revision, result.Definition, result.ChangedSources, []);
     }
 
     private static EditOutcome ApplyAddJunction(
@@ -287,19 +284,19 @@ public static partial class ProjectEditor
 
         var diagnostics = new List<AuthoringDiagnostic>();
         ValidateRoutes(intent.RouteAdditions, diagnostics);
-        TryApplyGeometryChanges(
+        var geometryChanges = BuildGeometryChanges(
             definition,
             new HashSet<NetId> { net.Id },
             intent.RouteReplacements,
             intent.RouteRemovals,
-            diagnostics,
-            out var editedGeometries,
-            out var replacedGeometries,
-            out var removedGeometryIds);
-        if (diagnostics.Count != 0)
+            diagnostics);
+        if (geometryChanges is null)
         {
             return new EditRejected(diagnostics.ToArray());
         }
+
+        var (editedGeometries, replacedGeometries, removedGeometryIds) =
+            geometryChanges;
 
         var junction = new Junction(JunctionId.Create(), net.Id, intent.Position);
         var newGeometries = intent.RouteAdditions
@@ -354,22 +351,22 @@ public static partial class ProjectEditor
         }
 
         var diagnostics = new List<AuthoringDiagnostic>();
-        TryApplyGeometryChanges(
+        var geometryChanges = BuildGeometryChanges(
             definition,
             new HashSet<NetId> { net.Id },
             intent.RouteReplacements,
             intent.RouteRemovals,
-            diagnostics,
-            out var editedGeometries,
-            out var replacedGeometries,
-            out var removedGeometryIds);
+            diagnostics);
         ValidateRoutes(
             intent.ResultingPartitions.SelectMany(item => item.RouteAdditions),
             diagnostics);
-        if (diagnostics.Count != 0)
+        if (geometryChanges is null || diagnostics.Count != 0)
         {
             return new EditRejected(diagnostics.ToArray());
         }
+
+        var (editedGeometries, replacedGeometries, removedGeometryIds) =
+            geometryChanges;
 
         var remainingNet = net.WithMembership(
             net.Terminals.ToArray(),
@@ -396,19 +393,18 @@ public static partial class ProjectEditor
                     partition.Membership,
                     partition.RouteAdditions))
                 .ToArray();
-            if (!TryBuildPartitions(
+            var result = BuildPartitions(
                 interimDefinition,
                 remainingNet,
                 requests,
                 1,
-                diagnostics,
-                out var partitionedDefinition,
-                out var partitionChangedSources))
+                diagnostics);
+            if (result is null)
             {
                 return new EditRejected(diagnostics.ToArray());
             }
 
-            var changedSources = partitionChangedSources!
+            var changedSources = result.ChangedSources
                 .Concat(replacedGeometries.Select(geometry =>
                     (AuthoredSourceIdentity)new WireGeometrySourceIdentity(
                         definition.Id,
@@ -416,7 +412,7 @@ public static partial class ProjectEditor
                 .ToArray();
             return Commit(
                 revision,
-                partitionedDefinition!,
+                result.Definition,
                 changedSources,
                 removedSources.ToArray());
         }
@@ -706,15 +702,12 @@ public static partial class ProjectEditor
         }
     }
 
-    private static bool TryApplyGeometryChanges(
+    private static GeometryChangeSet? BuildGeometryChanges(
         CircuitDefinition definition,
         HashSet<NetId> allowedNetIds,
         IReadOnlyList<WireGeometryReplacement> replacements,
         IReadOnlyList<WireGeometryId> removals,
-        List<AuthoringDiagnostic> diagnostics,
-        out WireGeometry[] updatedGeometries,
-        out WireGeometry[] replacedGeometries,
-        out WireGeometryId[] removedGeometryIds)
+        List<AuthoringDiagnostic> diagnostics)
     {
         var replacementById = new Dictionary<WireGeometryId, WireRoute>();
         foreach (var replacement in replacements)
@@ -757,14 +750,11 @@ public static partial class ProjectEditor
 
         if (diagnostics.Count != 0)
         {
-            updatedGeometries = definition.WireGeometries.ToArray();
-            replacedGeometries = [];
-            removedGeometryIds = [];
-            return false;
+            return null;
         }
 
         var replaced = new List<WireGeometry>();
-        updatedGeometries = definition.WireGeometries
+        var updatedGeometries = definition.WireGeometries
             .Where(geometry => !removalIds.Contains(geometry.Id))
             .Select(geometry =>
             {
@@ -778,9 +768,10 @@ public static partial class ProjectEditor
                 return replacement;
             })
             .ToArray();
-        replacedGeometries = replaced.ToArray();
-        removedGeometryIds = removalIds.ToArray();
-        return true;
+        return new GeometryChangeSet(
+            updatedGeometries,
+            replaced.ToArray(),
+            removalIds.ToArray());
     }
 
     private static void ValidateRoutes(
@@ -909,4 +900,8 @@ public static partial class ProjectEditor
         uint Width,
         Net? Net);
 
+    private sealed record GeometryChangeSet(
+        WireGeometry[] UpdatedGeometries,
+        WireGeometry[] ReplacedGeometries,
+        WireGeometryId[] RemovedGeometryIds);
 }

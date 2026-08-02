@@ -24,7 +24,7 @@ public static partial class ProjectEditor
         return intent switch
         {
             PlaceComponentInstanceIntent place => ApplyPlace(revision, place),
-            ConnectTerminalsIntent connect => ApplyConnect(revision, connect),
+            ConnectTerminalsIntent connect => ApplyConnectTopology(revision, connect),
             MergeNetsIntent merge => ApplyMergeNets(revision, merge),
             SplitNetIntent split => ApplySplitNet(revision, split),
             AddJunctionIntent addJunction => ApplyAddJunction(revision, addJunction),
@@ -144,13 +144,6 @@ public static partial class ProjectEditor
             [new ComponentInstanceSourceIdentity(definition.Id, instance.Id)]);
     }
 
-    private static EditOutcome ApplyConnect(
-        ProjectRevision revision,
-        ConnectTerminalsIntent intent)
-    {
-        return ApplyConnectTopology(revision, intent);
-    }
-
     private static EditOutcome ApplyMove(
         ProjectRevision revision,
         MoveComponentInstancesIntent intent)
@@ -174,13 +167,7 @@ public static partial class ProjectEditor
         {
             if (!seenIds.Add(move.ComponentInstanceId))
             {
-                diagnostics.Add(new AuthoringDiagnostic(
-                    "authoring_duplicate_id",
-                    [
-                        new AuthoringDiagnosticArgument(
-                            "entityKind",
-                            new StableTokenDiagnosticValue("componentInstance")),
-                    ]));
+                diagnostics.Add(DuplicateId("componentInstance"));
                 continue;
             }
 
