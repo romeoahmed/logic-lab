@@ -2,7 +2,7 @@
 
 > Status: implementation in progress; slices 01-06 executable
 > Target: .NET 10, C# 14, Blazor Web App
-> Last reviewed: 2026-08-01
+> Last reviewed: 2026-08-02
 
 Architecture owns system shape, dependency direction, module seams, fact ownership, deployment shape, and delivery order. Specifications own exact interfaces and observable behavior; contracts own values exchanged at real seams; [Workbench](./WORKBENCH.md) owns product behavior; [Context Map](./CONTEXT-MAP.md) owns domain language.
 
@@ -55,6 +55,8 @@ Compiler and Project Format are translation modules, not extra domain models. Th
 
 ## 4. System shape
 
+The diagram below is the target V1 shape. The Phase A executable path currently includes Domain, Engine, Presentation, Application, and Web; Boolean Analysis, Project Format, Infrastructure, and their adapters enter with the later slices that first exercise them.
+
 ```text
 Browser
   Razor/Fluent chrome <-> Scene and Waveform adapters
@@ -84,16 +86,16 @@ The initial deployment is one ASP.NET Core process and one SQLite database. Proc
 
 Project seams follow dependency or deployment seams, not every namespace.
 
-| Project | Deep responsibility | Direct dependencies |
-|---|---|---|
-| `LogicLab.Domain` | immutable authoring model, Project Editor, `logiclab.core` schema | BCL |
-| `LogicLab.BooleanAnalysis` | Boolean Region contract, explanation, synthesis, mapping, proof | Domain, BCL |
-| `LogicLab.Engine` | Compiler and Simulation Runtime as separate modules | Domain, BooleanAnalysis |
-| `LogicLab.Presentation` | TeachingMixed definitions, Geometry Plans, Schematic Projection | Domain |
-| `LogicLab.ProjectFormat` | strict `.logiclab` read/write, migration, digest, memory encoding | Domain, BCL compression/JSON |
-| `LogicLab.Application` | Editor Workspace, Work Coordinator, authorization-aware use cases | Domain, Engine, BooleanAnalysis, ProjectFormat |
-| `LogicLab.Infrastructure` | EF Core repository and persistence adapters | Application, Domain, EF Core |
-| `LogicLab.Web` | Blazor routes, Fluent chrome, browser/HTTP adapters, composition root | Application, Presentation, Infrastructure |
+| Project | Deep responsibility | Target direct dependencies | Delivery state |
+|---|---|---|---|
+| `LogicLab.Domain` | immutable authoring model, Project Editor, `logiclab.core` schema | BCL | Phase A subset executable |
+| `LogicLab.BooleanAnalysis` | Boolean Region contract, explanation, synthesis, mapping, proof | Domain, BCL | planned for Phase E |
+| `LogicLab.Engine` | Compiler and Simulation Runtime as separate modules | Domain, BooleanAnalysis | Phase A subset executable; BooleanAnalysis dependency deferred |
+| `LogicLab.Presentation` | TeachingMixed definitions, Geometry Plans, Schematic Projection | Domain | accessible Phase A Scene subset executable |
+| `LogicLab.ProjectFormat` | strict `.logiclab` read/write, migration, digest, memory encoding | Domain, BCL compression/JSON | planned for Phase C |
+| `LogicLab.Application` | Editor Workspace, Work Coordinator, authorization-aware use cases | Domain, Engine, BooleanAnalysis, ProjectFormat | Sandbox Workspace subset executable; later dependencies deferred |
+| `LogicLab.Infrastructure` | EF Core repository and persistence adapters | Application, Domain, EF Core | planned for Phase C |
+| `LogicLab.Web` | Blazor routes, Fluent chrome, browser/HTTP adapters, composition root | Application, Presentation, Infrastructure | Interactive Server tracer executable; Infrastructure dependency deferred |
 
 Tests and benchmarks remain separate projects and do not create production seams.
 

@@ -194,9 +194,9 @@ The C# adapter implements asynchronous disposal, releases every `IJSObjectRefere
 |---|---|---|
 | 2D context unavailable | `web_renderer_unavailable(contextUnavailable)` | hide the bitmap; keep the semantic fallback and recovery action |
 | effective size/pixel policy exceeded | `web_browser_policy_exhausted` with exact policy evidence | don't allocate or degrade silently; hide any noncurrent bitmap and keep semantic recovery UI |
-| invalid snapshot, patch, or private batch | `web_browser_contract_rejected(invalidSnapshot | invalidPatch | invalidBatch, correlation)` | apply nothing; request one complete replacement; never log the record |
+| invalid snapshot, patch, or private batch | `web_browser_contract_rejected(invalidSnapshot \| invalidPatch \| invalidBatch, correlation)` | apply nothing; request one complete replacement; never log the record |
 | build mismatch | `build_fingerprint_mismatch` attachment/outcome reason | cancel the gesture, destroy handles, and force a hard reload |
-| browser font unavailable or asset fingerprint mismatch | `web_renderer_unavailable(fontUnavailable | assetFingerprintMismatch)` | publish local renderer unavailable; use no substitute geometry |
+| browser font unavailable or asset fingerprint mismatch | `web_renderer_unavailable(fontUnavailable \| assetFingerprintMismatch)` | publish local renderer unavailable; use no substitute geometry |
 | context loss/restoration when supported | no evidence if restored; otherwise `web_renderer_unavailable(contextLost)` | cancel paint, invalidate caches, and perform a full redraw after restoration; fail closed if restoration doesn't complete |
 | circuit disconnect | Web-owned connection state, not a Diagnostic | freeze acknowledged semantic state, cancel the commit-capable gesture, and allow local pan/zoom only |
 | JavaScript exception | `web_interop_failure(correlation)` | fail the affected adapter closed, retain semantic recovery UI, and expose no payload or exception text |

@@ -1,7 +1,7 @@
 # Logic Lab V1 Implementation Plan
 
 > Status: approved non-normative execution plan
-> Granularity reviewed: 2026-07-30
+> Delivery status reviewed: 2026-08-02
 > Scope: documentation baseline to V1 implementation, conformance, and one qualified production deployment profile
 
 This plan translates the repository's closed V1 design into context-sized implementation slices. It does not own product behavior, Module interfaces, policy semantics, or deployment requirements. [Architecture](../ARCHITECTURE.md), [Workbench](../WORKBENCH.md), the [specifications](./specs/), [seam contracts](./contracts/README.md), [Policy Catalog](./policies/catalog.md), and [ADRs](./adr/README.md) remain authoritative. If a plan item conflicts with an owning document, repair this plan rather than changing behavior to match it.
@@ -43,6 +43,12 @@ Before item `03`, one repository-engineering increment migrated both executable 
 | 06 | Deliver the first Sandbox Workbench tracer | 05 | `/editor` lets a user create a Sandbox Project, author the narrow circuit, Compile, create a Session, Step, and observe it through Interactive Server, an accessible Scene adapter, and the intended Application seams. |
 
 The first required product tracer is complete at item `06`. Infrastructure breadth or a polished empty shell does not substitute for it.
+
+## Delivery status
+
+Phase A items `01` through `06` are complete. The latest recorded gate on 2026-08-02 passed locked restore, formatting, warning-clean build, all 376 discovered TUnit tests, whitespace validation, and the complete `/editor` create–author–compile–session–stimulus–step workflow. The permanent vector-resolution benchmark also records the production call shape without promoting local timing to a release threshold.
+
+The immediately unblocked slices are `07`, `10`, `11`, and `17`. Every other incomplete slice still depends on at least one of those items or on a later predecessor. Completion status is maintained here and in the [Development Readiness](./README.md#development-readiness) table; normative documents do not become delivery trackers.
 
 ## Phase B — Authoring, Component Contracts, and Runtime breadth
 
@@ -112,7 +118,7 @@ Only item `43` authorizes describing the selected deployment profile as producti
 
 ## Dependency frontier
 
-The initial frontier contains only item `01`. After it completes, packed execution (`02`) and immutable authoring (`03`) can proceed independently. After the first Workbench tracer (`06`), the primary parallel streams are:
+The initial frontier contained only item `01`; Phase A has now completed through item `06`. The current frontier begins with `07`, `10`, `11`, and `17`, opening these primary streams as their named prerequisites land:
 
 - topology and Component Contract breadth (`07`–`16`);
 - Workspace continuity (`17`);
