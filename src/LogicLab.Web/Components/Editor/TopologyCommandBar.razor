@@ -8,7 +8,7 @@
         </div>
         <small>Geometry never creates electrical membership.</small>
     </div>
-    <nav class="topology-command-bar" aria-label="Topology commands">
+    <div class="topology-command-bar" role="group" aria-label="Topology commands">
         <FluentButton data-command="topology-merge"
                       Disabled="@(!CanMerge || BlocksCommittedCommands)"
                       Loading="@(ActiveCommand is "topology-merge")"
@@ -44,7 +44,7 @@
                       Disabled="@(!CanRoute || BlocksCommittedCommands)"
                       Loading="@(ActiveCommand is "topology-route")"
                       OnClick="OnRoute">Route</FluentButton>
-    </nav>
+    </div>
     @if (RouteDraftActive)
     {
         <p class="route-draft" data-route-draft role="status">

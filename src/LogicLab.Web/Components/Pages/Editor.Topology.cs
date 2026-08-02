@@ -20,7 +20,7 @@ public partial class Editor
 
     private bool CanSplitTopology => CanEditTopology
         && Definition.Nets.Count == 1
-        && Definition.Nets[0].Terminals.Count > 1;
+        && CreateSampleTopologyPartitions(Definition, Definition.Nets[0]).Length == 2;
 
     private bool CanAddJunction => CanEditTopology
         && Definition.Nets.Count > 0
@@ -63,33 +63,71 @@ public partial class Editor
     private async Task SplitTopology()
     {
         var net = Definition.Nets.Single();
-        var terminals = net.Terminals
-            .OrderBy(terminal => terminal.ComponentInstanceId.Value, StringComparer.Ordinal)
-            .ThenBy(terminal => terminal.PortId, StringComparer.Ordinal)
-            .ToArray();
-        if (terminals.Length < 2)
+        var partitions = CreateSampleTopologyPartitions(Definition, net);
+        if (partitions.Length != 2)
         {
             return;
         }
-
-        var splitIndex = checked((terminals.Length + 1) / 2);
-        var wireGeometryIds = Definition.WireGeometries
-            .Where(geometry => geometry.NetId == net.Id)
-            .Select(geometry => geometry.Id)
-            .ToArray();
-        var partitions = new[]
-        {
-            new NetPartition(
-                terminals[..splitIndex],
-                net.JunctionIds,
-                wireGeometryIds),
-            new NetPartition(terminals[splitIndex..], [], []),
-        };
 
         if (await Apply(new SplitNetIntent(Definition.Id, net.Id, partitions)))
         {
             Status = "Net split into two complete membership partitions.";
         }
+    }
+
+    internal static NetPartition[] CreateSampleTopologyPartitions(
+        CircuitDefinition definition,
+        Net net)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(net);
+        var input = FindSingleComponent(definition, "source.input");
+        var logicNot = FindSingleComponent(definition, "logic.not");
+        var output = FindSingleComponent(definition, "sink.output");
+        if (input is null || logicNot is null || output is null)
+        {
+            return [];
+        }
+
+        var inputToNot = new[]
+        {
+            Terminal(definition.Id, input.Id, "Q"),
+            Terminal(definition.Id, logicNot.Id, "A"),
+        };
+        var notToOutput = new[]
+        {
+            Terminal(definition.Id, logicNot.Id, "Q"),
+            Terminal(definition.Id, output.Id, "D"),
+        };
+        var expectedTerminals = inputToNot.Concat(notToOutput).ToHashSet();
+        if (!expectedTerminals.SetEquals(net.Terminals))
+        {
+            return [];
+        }
+
+        var wireGeometryIds = definition.WireGeometries
+            .Where(geometry => geometry.NetId == net.Id)
+            .Select(geometry => geometry.Id)
+            .ToArray();
+        return
+        [
+            new NetPartition(inputToNot, net.JunctionIds, wireGeometryIds),
+            new NetPartition(notToOutput, [], []),
+        ];
+    }
+
+    private static ComponentInstance? FindSingleComponent(
+        CircuitDefinition definition,
+        string contractId)
+    {
+        var matches = definition.ComponentInstances
+            .Where(instance => string.Equals(
+                instance.ContractKey.ContractId,
+                contractId,
+                StringComparison.Ordinal))
+            .Take(2)
+            .ToArray();
+        return matches.Length == 1 ? matches[0] : null;
     }
 
     private async Task AddJunction()
