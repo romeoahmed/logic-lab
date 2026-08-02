@@ -143,6 +143,7 @@ The admission pair defines one fixed per-subject window. Queues reject rather th
 `WorkspacePolicy` dimensions are:
 
 ```text
+global_workspace_count
 workspace_count_per_subject
 history_revision_count
 idempotency_record_count
@@ -155,7 +156,14 @@ catalog_page_items
 catalog_cursor_bytes
 ```
 
-History/idempotency limits apply after an atomic successful publication and produce the contract's explicit truncation or expired-idempotency behavior; they never make a valid edit partially commit. Retention uses `TimeProvider`. `hot_swap_peak_bytes` is declared owned-buffer accounting, not a promise about total process RSS. Both Durable Display Name dimensions must pass, and catalog requests cannot exceed the page/cursor maxima.
+`global_workspace_count` is the process-wide hard bound on retained Workspace state; the
+per-subject dimension is an additional fairness bound and never replaces it. Admission and
+expiry reclamation share one atomic directory decision, so concurrent opens cannot overshoot
+either limit. History/idempotency limits apply after an atomic successful publication and
+produce the contract's explicit truncation or expired-idempotency behavior; they never make a
+valid edit partially commit. Retention uses `TimeProvider`. `hot_swap_peak_bytes` is declared
+owned-buffer accounting, not a promise about total process RSS. Both Durable Display Name
+dimensions must pass, and catalog requests cannot exceed the page/cursor maxima.
 
 `BrowserPolicy` needs lower as well as upper bounds, so it owns this separate record:
 

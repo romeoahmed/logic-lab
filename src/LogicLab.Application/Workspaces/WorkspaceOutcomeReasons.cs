@@ -11,6 +11,8 @@ internal static class WorkspaceOutcomeReasons
     public const string WorkspaceAdmissionRejected = "workspace_admission_rejected";
     public const string WorkspaceCancelled = "workspace_cancelled";
     public const string WorkspaceInternalDefect = "workspace_internal_defect";
+    public const string WorkspaceInfrastructureFailure = "workspace_infrastructure_failure";
+    public const string WorkspaceExpired = "workspace_expired";
     public const string WorkspaceNotFound = "workspace_not_found";
 
     public static string FromSimulation(SimulationFailureReason reason)
