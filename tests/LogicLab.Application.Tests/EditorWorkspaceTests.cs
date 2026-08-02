@@ -158,6 +158,102 @@ public sealed class EditorWorkspaceTests
     }
 
     [Test]
+    public async Task DispatchAsync_ExplicitTopologyEdit_PublishesWholeRevision()
+    {
+        await using var workspace = EditorWorkspaceFactory.Create();
+        var opened = await Open(workspace);
+        var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
+        await Apply(workspace, opened.WorkspaceId, Place(
+            definitionId,
+            "source.input",
+            [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding(
+                    "initialValue",
+                    new LogicVectorParameterValue([LogicValue.Zero])),
+            ],
+            new GridPoint(0, 0)));
+        var input = await FindByContract(workspace, opened.WorkspaceId, "source.input");
+        await Apply(workspace, opened.WorkspaceId, Place(
+            definitionId,
+            "sink.output",
+            [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
+            ],
+            new GridPoint(4, 0)));
+        var output = await FindByContract(workspace, opened.WorkspaceId, "sink.output");
+        await Apply(workspace, opened.WorkspaceId, new ConnectTerminalsIntent(
+            [
+                Terminal(definitionId, input, "Q"),
+                Terminal(definitionId, output, "D"),
+            ]));
+        var before = await Read(workspace, opened.WorkspaceId);
+        var net = before.ProjectRevision.Document.EntryCircuitDefinition.Nets.Single();
+
+        var outcome = await workspace.DispatchAsync(
+            new ApplyEdit(
+                opened.WorkspaceId,
+                new AddJunctionIntent(
+                    definitionId,
+                    net.Id,
+                    new GridPoint(2, 0),
+                    [new OrthogonalWireRoute(
+                        [new GridPoint(0, 0), new GridPoint(4, 0)])],
+                    [],
+                    [])),
+            CancellationToken.None);
+        var after = await Read(workspace, opened.WorkspaceId);
+
+        await Assert.That(outcome).IsTypeOf<AuthoringCommitted>();
+        using (Assert.Multiple())
+        {
+            await Assert.That(after.ProjectRevision.RevisionId ==
+                before.ProjectRevision.RevisionId).IsFalse();
+            await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.Junctions)
+                .Count().IsEqualTo(1);
+            await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.WireGeometries)
+                .Count().IsEqualTo(1);
+            await Assert.That(after.ProjectionVersion)
+                .IsEqualTo(checked(before.ProjectionVersion + 1));
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_CancelledTopologyEdit_EmitsNoProjectRevision()
+    {
+        await using var workspace = EditorWorkspaceFactory.Create();
+        var (opened, _) = await OpenInputOutputSession(workspace);
+        var before = await Read(workspace, opened.WorkspaceId);
+        var definition = before.ProjectRevision.Document.EntryCircuitDefinition;
+        var net = definition.Nets.Single();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        var outcome = await workspace.DispatchAsync(
+            new ApplyEdit(
+                opened.WorkspaceId,
+                new AddWireGeometryIntent(
+                    definition.Id,
+                    net.Id,
+                    new UnroutedWireRoute())),
+            cancellation.Token);
+        var after = await Read(workspace, opened.WorkspaceId);
+
+        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        using (Assert.Multiple())
+        {
+            await Assert.That(((WorkspaceCommandRejected)outcome).Code)
+                .IsEqualTo("workspace_cancelled");
+            await Assert.That(after.ProjectRevision.RevisionId)
+                .IsEqualTo(before.ProjectRevision.RevisionId);
+            await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
+            await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.WireGeometries)
+                .IsEmpty();
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_EditDuringQueuedCompilation_DoesNotPublishDifferentRevision()
     {
         var compilationStarted = new TaskCompletionSource(

@@ -74,12 +74,25 @@
   gap: 0.5rem;
 }
 
-.connection-list li {
-  display: flex;
-  justify-content: space-between;
+.connection-list > li {
   padding: 0.65rem 0.8rem;
   border-inline-start: 3px solid var(--ll-signal);
   background: var(--ll-panel);
+}
+
+.connection-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.topology-list {
+  display: grid;
+  gap: 0.25rem;
+  margin-block-start: 0.5rem;
+  padding-inline-start: 1.25rem;
+  color: var(--ll-muted);
+  font-size: 0.85rem;
 }
 
 @media (max-width: 720px) {
