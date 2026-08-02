@@ -121,6 +121,41 @@ public sealed class ProjectEditorTopologyTests
     }
 
     [Test]
+    public async Task Apply_NoOpConnectPermutations_ReportSameCanonicalTerminal()
+    {
+        var circuit = CreatePlacedCircuit();
+        var definitionId = circuit.Revision.Document.EntryCircuitDefinition.Id;
+        var first = Terminal(definitionId, circuit.Input, "Q");
+        var second = Terminal(definitionId, circuit.LogicNot, "A");
+        var connected = Connect(circuit.Revision, first, second);
+        var canonical = new[] { first, second }
+            .OrderBy(terminal => terminal.ComponentInstanceId.Value, StringComparer.Ordinal)
+            .ThenBy(terminal => terminal.PortId, StringComparer.Ordinal)
+            .First();
+
+        var forward = (EditRejected)ProjectEditor.Apply(
+            connected,
+            new ConnectTerminalsIntent([first, second]));
+        var reverse = (EditRejected)ProjectEditor.Apply(
+            connected,
+            new ConnectTerminalsIntent([second, first]));
+        var expectedPrimary = new InstancePortSourceIdentity(
+            definitionId,
+            canonical.ComponentInstanceId,
+            canonical.PortId);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(forward.Diagnostics).Count().IsEqualTo(1);
+            await Assert.That(reverse.Diagnostics).Count().IsEqualTo(1);
+            await Assert.That(forward.Diagnostics[0].Code)
+                .IsEqualTo("authoring_terminal_already_connected");
+            await Assert.That(forward.Diagnostics[0].Primary).IsEqualTo(expectedPrimary);
+            await Assert.That(reverse.Diagnostics[0].Primary).IsEqualTo(expectedPrimary);
+        }
+    }
+
+    [Test]
     public async Task Apply_MergeNets_RetainsDestinationAndRetargetsTopology()
     {
         var topology = CreateTwoNetsWithTopology();

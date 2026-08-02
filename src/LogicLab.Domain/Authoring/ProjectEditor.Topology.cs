@@ -102,7 +102,13 @@ public static partial class ProjectEditor
             && intent.RouteAdditions.Count == 0
             && intent.RouteReplacements.Count == 0)
         {
-            return Reject(TerminalAlreadyConnected(intent.Terminals[0]));
+            var canonicalTerminal = intent.Terminals
+                .OrderBy(
+                    terminal => terminal.ComponentInstanceId.Value,
+                    StringComparer.Ordinal)
+                .ThenBy(terminal => terminal.PortId, StringComparer.Ordinal)
+                .First();
+            return Reject(TerminalAlreadyConnected(canonicalTerminal));
         }
 
         var newJunctions = intent.NewJunctionPositions
