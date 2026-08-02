@@ -7,6 +7,7 @@ namespace LogicLab.Engine.Benchmarks;
 [RankColumn]
 public class VectorNetResolutionBenchmarks
 {
+    private int[] driverOrdinals = null!;
     private LogicVector[] vectorDrivers = null!;
     private LogicValue[][] scalarDriversByBit = null!;
 
@@ -31,6 +32,7 @@ public class VectorNetResolutionBenchmarks
         vectorDrivers = valuesByDriver
             .Select(values => new LogicVector(values))
             .ToArray();
+        driverOrdinals = Enumerable.Range(0, Case.DriverCount).ToArray();
         scalarDriversByBit = Enumerable.Range(0, Case.Width)
             .Select(bitIndex => valuesByDriver
                 .Select(values => values[bitIndex])
@@ -55,9 +57,17 @@ public class VectorNetResolutionBenchmarks
     }
 
     [Benchmark]
-    public VectorNetResolution PackedVector()
+    public VectorNetResolution PackedKernel()
     {
         return VectorNetResolver.Resolve(Case.Width, vectorDrivers);
+    }
+
+    [Benchmark]
+    public VectorNetResolution ProductionCallShape()
+    {
+        return VectorNetResolver.Resolve(
+            Case.Width,
+            driverOrdinals.Select(ordinal => vectorDrivers[ordinal]).ToArray());
     }
 
     private static LogicValue Value(int bitIndex, int driverIndex)

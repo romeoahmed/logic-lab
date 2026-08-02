@@ -185,20 +185,24 @@ internal sealed partial class EditorWorkspace
 
         if (state.SessionHandle is not null)
         {
-            try
-            {
-                _ = operations.CloseSimulation(state.SessionHandle);
-            }
-            catch (Exception exception) when (!IsFatal(exception))
-            {
-                var correlation = Guid.CreateVersion7().ToString("N");
-                LogRetirementFailure(logger, exception, correlation);
-            }
-
+            CloseSimulationForCleanup(state.SessionHandle);
             state.SessionHandle = null;
         }
 
         state.CommandGate.Dispose();
+    }
+
+    private void CloseSimulationForCleanup(SimulationSessionHandle handle)
+    {
+        try
+        {
+            _ = operations.CloseSimulation(handle);
+        }
+        catch (Exception exception) when (!IsFatal(exception))
+        {
+            var correlation = Guid.CreateVersion7().ToString("N");
+            LogSimulationCleanupFailure(logger, exception, correlation);
+        }
     }
 
     private static bool IsFatal(Exception exception)
@@ -211,8 +215,8 @@ internal sealed partial class EditorWorkspace
     [LoggerMessage(
         EventId = 1002,
         Level = LogLevel.Error,
-        Message = "Workspace retirement failed with correlation {Correlation}.")]
-    private static partial void LogRetirementFailure(
+        Message = "Simulation cleanup failed with correlation {Correlation}.")]
+    private static partial void LogSimulationCleanupFailure(
         ILogger logger,
         Exception exception,
         string correlation);

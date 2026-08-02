@@ -81,6 +81,100 @@ public sealed class EditorWorkspaceFailureTests
     }
 
     [Test]
+    public async Task DispatchAsync_CreateSessionSnapshotThrows_ClosesOpenedSessionWithoutPublication()
+    {
+        var closeCount = 0;
+        var operations = WorkspaceModuleOperations.Production with
+        {
+            ReadSimulation = (_, _, _) =>
+                throw new IOException("sensitive snapshot detail"),
+            CloseSimulation = handle =>
+            {
+                Interlocked.Increment(ref closeCount);
+                return WorkspaceModuleOperations.Production.CloseSimulation(handle);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations: operations);
+        var opened = await OpenCompiledCircuit(workspace);
+        var before = ((ProjectionSnapshot)await workspace.ReadAsync(
+            opened.WorkspaceId,
+            CancellationToken.None)).Projection;
+
+        var outcome = await workspace.DispatchAsync(
+            new CreateSession(opened.WorkspaceId),
+            CancellationToken.None);
+        var after = ((ProjectionSnapshot)await workspace.ReadAsync(
+            opened.WorkspaceId,
+            CancellationToken.None)).Projection;
+
+        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        using (Assert.Multiple())
+        {
+            await Assert.That(((WorkspaceCommandRejected)outcome).Code)
+                .IsEqualTo("workspace_infrastructure_failure");
+            await Assert.That(((WorkspaceCommandRejected)outcome).DiagnosticCodes).IsEmpty();
+            await Assert.That(closeCount).IsEqualTo(1);
+            await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
+            await Assert.That(after.Simulation).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_SessionCommands_PublishFromCommittedOutcomesWithoutExtraSnapshotReads()
+    {
+        var readCount = 0;
+        var operations = WorkspaceModuleOperations.Production with
+        {
+            ReadSimulation = (handle, query, cancellationToken) =>
+            {
+                if (Interlocked.Increment(ref readCount) > 1)
+                {
+                    throw new IOException("unexpected post-command snapshot read");
+                }
+
+                return WorkspaceModuleOperations.Production.ReadSimulation(
+                    handle,
+                    query,
+                    cancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations: operations);
+        var opened = await OpenCompiledCircuit(workspace);
+        var input = await Find(workspace, opened.WorkspaceId, "source.input");
+
+        var session = await workspace.DispatchAsync(
+            new CreateSession(opened.WorkspaceId),
+            CancellationToken.None);
+        var scheduled = await workspace.DispatchAsync(
+            new ScheduleInputStimulus(
+                opened.WorkspaceId,
+                1,
+                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+            CancellationToken.None);
+        var stepped = await workspace.DispatchAsync(
+            new StepSession(opened.WorkspaceId),
+            CancellationToken.None);
+        var after = ((ProjectionSnapshot)await workspace.ReadAsync(
+            opened.WorkspaceId,
+            CancellationToken.None)).Projection;
+
+        await Assert.That(session).IsTypeOf<SimulationSessionCreated>();
+        await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
+        await Assert.That(stepped).IsTypeOf<SessionStepped>();
+        await Assert.That(after.Simulation).IsNotNull();
+        using (Assert.Multiple())
+        {
+            await Assert.That(readCount).IsEqualTo(1);
+            await Assert.That(after.Simulation!.SessionVersion).IsEqualTo(3UL);
+            await Assert.That(after.Simulation.LogicalTime).IsEqualTo(1UL);
+            await Assert.That(after.Simulation.Probes[0].Value)
+                .IsEquivalentTo(new[] { LogicValue.One });
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_SessionCleanupThrows_StillClosesWorkspace()
     {
         var operations = WorkspaceModuleOperations.Production with
