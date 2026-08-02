@@ -463,7 +463,17 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
 
-        var simulation = ReadSimulation(opened.Handle);
+        SimulationProjection simulation;
+        try
+        {
+            simulation = ReadSimulation(opened.Handle);
+        }
+        catch (Exception exception) when (!IsFatal(exception))
+        {
+            CloseSimulationForCleanup(opened.Handle);
+            throw;
+        }
+
         state.SessionHandle = opened.Handle;
         state.Simulation = simulation;
         state.ProjectionVersion++;
@@ -479,7 +489,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     {
         var sessionHandle = state.SessionHandle;
         var artifact = state.Artifact;
-        if (sessionHandle is null || artifact is null)
+        var simulation = state.Simulation;
+        if (sessionHandle is null || artifact is null || simulation is null)
         {
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
@@ -527,7 +538,12 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
 
-        state.Simulation = ReadSimulation(sessionHandle);
+        state.Simulation = new SimulationProjection(
+            simulation.SessionId,
+            scheduled.SessionVersion,
+            simulation.LogicalTime,
+            simulation.TraceCursor,
+            simulation.Probes);
         state.ProjectionVersion++;
         return new StimulusScheduled(
             scheduled.ScheduledLogicalTime,
@@ -538,13 +554,15 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         WorkspaceState state,
         CancellationToken cancellationToken)
     {
-        if (state.SessionHandle is null)
+        var sessionHandle = state.SessionHandle;
+        var simulation = state.Simulation;
+        if (sessionHandle is null || simulation is null)
         {
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
         var outcome = operations.ExecuteSimulation(
-            state.SessionHandle,
+            sessionHandle,
             new AdvanceToNextQuiescentBoundary(),
             cancellationToken);
         if (outcome is NoScheduledStimulus)
@@ -564,7 +582,26 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
 
-        state.Simulation = ReadSimulation(state.SessionHandle);
+        var observedProbes = committed.ObservedProbePatch.ToDictionary(
+            observation => observation.ProbeId);
+        var probes = simulation.Probes.Select(probe =>
+        {
+            if (!observedProbes.TryGetValue(probe.ProbeId, out var observation))
+            {
+                return probe;
+            }
+
+            return new ProbeProjection(
+                observation.ProbeId,
+                observation.Source.Identity,
+                Values(observation.Value));
+        }).ToArray();
+        state.Simulation = new SimulationProjection(
+            simulation.SessionId,
+            committed.SessionVersion,
+            committed.LogicalTime,
+            committed.TraceCursor,
+            probes);
         state.ProjectionVersion++;
         return new SessionStepped(committed.LogicalTime, state.ProjectionVersion);
     }
