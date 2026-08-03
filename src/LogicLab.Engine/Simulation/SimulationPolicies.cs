@@ -29,22 +29,24 @@ public sealed class SimulationPolicy
     {
         ArgumentException.ThrowIfNullOrEmpty(policyId);
         ArgumentException.ThrowIfNullOrEmpty(policyRevision);
-        PolicyIdentity.ValidateTokens("Simulation", policyId, policyRevision);
         ArgumentNullException.ThrowIfNull(limits);
+        var ownedLimits = limits.ToArray();
+
+        PolicyIdentity.ValidateTokens("Simulation", policyId, policyRevision);
 
         var dimensions = Enum.GetValues<SimulationDimension>();
-        if (limits.Count != dimensions.Length)
+        if (ownedLimits.Length != dimensions.Length)
         {
             throw new ArgumentException(
                 "A Simulation Policy must contain every dimension exactly once.",
                 nameof(limits));
         }
 
-        this.limits = limits.ToArray();
         for (var index = 0; index < dimensions.Length; index++)
         {
-            if (this.limits[index].Dimension != dimensions[index]
-                || this.limits[index].Maximum == 0)
+            if (ownedLimits[index] is not { } limit
+                || limit.Dimension != dimensions[index]
+                || limit.Maximum == 0)
             {
                 throw new ArgumentException(
                     "Simulation Policy limits must be positive and in canonical dimension order.",
@@ -52,6 +54,7 @@ public sealed class SimulationPolicy
             }
         }
 
+        this.limits = ownedLimits;
         PolicyId = policyId;
         PolicyRevision = policyRevision;
         Limits = Array.AsReadOnly(this.limits);
@@ -96,20 +99,21 @@ public sealed class TracePolicy
         ArgumentNullException.ThrowIfNull(limits);
 
         PolicyIdentity.ValidateTokens("Trace", policyId, policyRevision);
+        var ownedLimits = limits.ToArray();
 
         var dimensions = Enum.GetValues<TraceDimension>();
-        if (limits.Count != dimensions.Length)
+        if (ownedLimits.Length != dimensions.Length)
         {
             throw new ArgumentException(
                 "A Trace Policy must contain every dimension exactly once.",
                 nameof(limits));
         }
 
-        this.limits = limits.ToArray();
         for (var index = 0; index < dimensions.Length; index++)
         {
-            if (this.limits[index].Dimension != dimensions[index]
-                || this.limits[index].Maximum == 0)
+            if (ownedLimits[index] is not { } limit
+                || limit.Dimension != dimensions[index]
+                || limit.Maximum == 0)
             {
                 throw new ArgumentException(
                     "Trace Policy limits must be positive and in canonical dimension order.",
@@ -117,6 +121,7 @@ public sealed class TracePolicy
             }
         }
 
+        this.limits = ownedLimits;
         PolicyId = policyId;
         PolicyRevision = policyRevision;
         Limits = Array.AsReadOnly(this.limits);
