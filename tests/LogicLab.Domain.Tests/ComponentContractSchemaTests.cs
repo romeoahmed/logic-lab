@@ -43,7 +43,7 @@ public sealed class ComponentContractSchemaTests
         };
 
         var resolution = contract.PreparePorts(parameters);
-        var ports = resolution.Materialize();
+        var ports = resolution.Materialize(maximumPortCount: 100);
 
         using (Assert.Multiple())
         {
@@ -71,7 +71,7 @@ public sealed class ComponentContractSchemaTests
         };
 
         var resolution = contract.PreparePorts(parameters);
-        var ports = resolution.Materialize();
+        var ports = resolution.Materialize(maximumPortCount: 100);
 
         using (Assert.Multiple())
         {
@@ -168,7 +168,7 @@ public sealed class ComponentContractSchemaTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
-        await Assert.That(() => resolution.Materialize(cancellation.Token))
+        await Assert.That(() => resolution.Materialize(100, cancellation.Token))
             .ThrowsExactly<OperationCanceledException>();
     }
 
@@ -185,7 +185,7 @@ public sealed class ComponentContractSchemaTests
             new("outputWidth", new Unsigned32ParameterValue(5)),
         };
 
-        var ports = contract.ResolvePorts(parameters);
+        var ports = contract.ResolvePorts(parameters, maximumPortCount: 100);
 
         await Assert.That(ports.Select(port =>
                 (port.Id, port.Direction, port.Width)))

@@ -146,6 +146,7 @@ public static partial class Compiler
 
         var resolvedInstances = MaterializeInstances(
             pendingInstances,
+            request.Policy.Maximum(ProjectScaleDimension.ElaboratedSlotCount),
             cancellationToken);
         var netByTerminal = ValidateTopology(
             request,
@@ -420,6 +421,7 @@ public static partial class Compiler
 
     private static ResolvedInstance[] MaterializeInstances(
         PendingResolvedInstance[] pendingInstances,
+        ulong maximumPortCount,
         CancellationToken cancellationToken)
     {
         var resolved = new ResolvedInstance[pendingInstances.Length];
@@ -427,7 +429,9 @@ public static partial class Compiler
         {
             cancellationToken.ThrowIfCancellationRequested();
             var pending = pendingInstances[index];
-            var ports = pending.PortResolution.Materialize(cancellationToken).ToArray();
+            var ports = pending.PortResolution.Materialize(
+                maximumPortCount,
+                cancellationToken).ToArray();
             resolved[index] = new ResolvedInstance(
                 pending.Ordinal,
                 pending.Instance,

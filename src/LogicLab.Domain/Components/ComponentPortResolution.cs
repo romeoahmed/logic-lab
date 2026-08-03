@@ -32,15 +32,39 @@ public sealed class ComponentPortResolution
     public bool ExceedsPortCountRange { get; }
 
     public ReadOnlyCollection<ResolvedComponentPortSchema> Materialize(
+        ulong maximumPortCount,
         CancellationToken cancellationToken = default)
     {
-        EnsureRepresentable();
+        if (!TryMaterialize(maximumPortCount, out var ports, cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "The generated component Port count exceeds the active materialization budget.");
+        }
 
-        return ComponentPortResolver.Materialize(
+        return ports;
+    }
+
+    public bool TryMaterialize(
+        ulong maximumPortCount,
+        out ReadOnlyCollection<ResolvedComponentPortSchema> ports,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(maximumPortCount);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (ExceedsPortCountRange
+            || portMeasure.Count > maximumPortCount
+            || portMeasure.Count > int.MaxValue)
+        {
+            ports = Array.AsReadOnly<ResolvedComponentPortSchema>([]);
+            return false;
+        }
+
+        ports = ComponentPortResolver.Materialize(
             schemas,
             parameters,
-            PortCount,
+            portMeasure.Count,
             cancellationToken);
+        return true;
     }
 
     private void EnsureRepresentable()

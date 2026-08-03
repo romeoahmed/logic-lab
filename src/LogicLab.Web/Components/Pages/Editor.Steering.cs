@@ -30,7 +30,7 @@ public partial class Editor
 
             var schema = CoreLibrarySchema.FindContract(
                 new ComponentContractKey(CoreLibrarySchema.LibraryId, component.ContractId))!;
-            var ports = schema.ResolvePorts(component.Parameters);
+            var ports = schema.ResolvePorts(component.Parameters, maximumPortCount: 100);
             foreach (var input in ports.Where(port => port.Direction == PortDirection.Input))
             {
                 var source = await PlaceGalleryComponent(

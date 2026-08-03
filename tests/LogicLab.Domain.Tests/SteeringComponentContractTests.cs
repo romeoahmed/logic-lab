@@ -42,7 +42,7 @@ public sealed class SteeringComponentContractTests
         [
             new ComponentParameterBinding("width", new Unsigned32ParameterValue(8)),
             new ComponentParameterBinding("selectorWidth", new Unsigned32ParameterValue(2)),
-        ]);
+        ], maximumPortCount: 100);
 
         await Assert.That(ports.Select(port => (port.Id, port.Direction, port.Width)))
             .IsEquivalentTo(
@@ -72,7 +72,57 @@ public sealed class SteeringComponentContractTests
         {
             await Assert.That(resolution.ExceedsPortCountRange).IsTrue();
             await Assert.That(() => resolution.PortCount).ThrowsExactly<OverflowException>();
-            await Assert.That(() => resolution.Materialize()).ThrowsExactly<OverflowException>();
+            await Assert.That(() => resolution.Materialize(ulong.MaxValue))
+                .ThrowsExactly<InvalidOperationException>();
+        }
+    }
+
+    [Test]
+    public async Task TryMaterialize_PowerOfTwoShapeBeyondBudget_ReturnsFalseWithoutPorts()
+    {
+        var contract = Find("logic.mux");
+        var resolution = contract.PreparePorts(
+        [
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+            new ComponentParameterBinding("selectorWidth", new Unsigned32ParameterValue(30)),
+        ]);
+
+        var materialized = resolution.TryMaterialize(10_000, out var ports);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(materialized).IsFalse();
+            await Assert.That(ports).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task TryResolvePort_PowerOfTwoShapeBeyondBudget_ResolvesOnePortWithoutExpansion()
+    {
+        var contract = Find("logic.mux");
+        ComponentParameterBinding[] parameters =
+        [
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(8)),
+            new ComponentParameterBinding("selectorWidth", new Unsigned32ParameterValue(30)),
+        ];
+
+        var resolved = contract.TryResolvePort(
+            parameters,
+            "D1073741823",
+            out var port);
+        var outOfRange = contract.TryResolvePort(
+            parameters,
+            "D1073741824",
+            out _);
+        var nonCanonical = contract.TryResolvePort(parameters, "D01", out _);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(resolved).IsTrue();
+            await Assert.That(outOfRange).IsFalse();
+            await Assert.That(nonCanonical).IsFalse();
+            await Assert.That((port!.Id, port.Direction, port.Width))
+                .IsEqualTo(("D1073741823", PortDirection.Input, 8U));
         }
     }
 
@@ -85,7 +135,7 @@ public sealed class SteeringComponentContractTests
         [
             new ComponentParameterBinding("selectorWidth", new Unsigned32ParameterValue(2)),
             new ComponentParameterBinding("enablePolarity", new ChoiceParameterValue("activeLow")),
-        ]);
+        ], maximumPortCount: 100);
 
         await Assert.That(ports.Select(port => (port.Id, port.Direction, port.Width)))
             .IsEquivalentTo(
@@ -109,7 +159,7 @@ public sealed class SteeringComponentContractTests
         [
             new ComponentParameterBinding("inputCount", new Unsigned32ParameterValue(5)),
             new ComponentParameterBinding("priority", new ChoiceParameterValue("highestIndex")),
-        ]);
+        ], maximumPortCount: 100);
 
         await Assert.That(ports.Select(port => (port.Id, port.Direction, port.Width)))
             .IsEquivalentTo(
