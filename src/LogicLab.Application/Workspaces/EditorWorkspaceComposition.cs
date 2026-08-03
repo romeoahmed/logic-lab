@@ -75,7 +75,7 @@ public sealed record WorkspacePolicy
     public static WorkspacePolicy Default { get; } = new(
         globalWorkspaceLimit: 128,
         sandboxRetention: TimeSpan.FromMinutes(30),
-        WorkspaceAuthoringLimits.Default);
+        authoringLimits: WorkspaceAuthoringLimits.Default);
 }
 
 public sealed record SchedulingPolicy
