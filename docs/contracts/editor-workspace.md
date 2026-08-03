@@ -260,6 +260,13 @@ The Workspace mutation and idempotency result share one in-memory commit section
 
 Reusing a Client Intent ID for a different typed command returns `IdempotencyKeyConflict`. A new attachment generation starts a new scope and does not replay unacknowledged old commands automatically.
 
+Application enforces Workspace Policy authoring admission independently of browser shape
+validation and Compiler policy. It counts the complete nested Edit Intent before execution,
+then counts definitions and authored entities in the candidate Project Document before atomic
+publication. Exhaustion returns `workspace_admission_rejected`, publishes no Project Revision,
+and does not invalidate the current Compilation. Compiler Project Scale Policy remains the
+authority for compilation, hierarchy, elaborated slots, and memory cells.
+
 ## 4. Authoring outcomes
 
 Project Editor behavior is defined by [Circuit Authoring](../specs/circuit-authoring.md). Workspace authoring commands include structure, explicit connectivity, parameters, Wire Geometry, and Transaction History. Import creates a separate Project Genesis rather than masquerading as an edit to the current Project. Pointer movement and other Transient Preview data never enter the Workspace interface.
