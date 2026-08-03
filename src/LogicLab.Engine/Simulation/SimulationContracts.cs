@@ -48,8 +48,9 @@ public sealed class SimulationSessionConfiguration
         ArgumentNullException.ThrowIfNull(simulationPolicy);
         ArgumentNullException.ThrowIfNull(tracePolicy);
         ArgumentNullException.ThrowIfNull(initialProbeBindings);
+        var ownedProbeBindings = initialProbeBindings.ToArray();
 
-        if (initialProbeBindings.Any(source => source is null))
+        if (ownedProbeBindings.Any(static source => source is null))
         {
             throw new ArgumentException(
                 "Initial Probe bindings cannot contain null sources.",
@@ -58,7 +59,7 @@ public sealed class SimulationSessionConfiguration
 
         SimulationPolicy = simulationPolicy;
         TracePolicy = tracePolicy;
-        InitialProbeBindings = Array.AsReadOnly(initialProbeBindings.ToArray());
+        InitialProbeBindings = Array.AsReadOnly(ownedProbeBindings);
     }
 
     public SimulationPolicyReference SimulationPolicy { get; }
@@ -390,7 +391,9 @@ public sealed class StimulusBatch
         IReadOnlyList<StimulusAssignment> assignments)
     {
         ArgumentNullException.ThrowIfNull(assignments);
-        if (assignments.Count == 0 || assignments.Any(item => item is null))
+        var ownedAssignments = assignments.ToArray();
+        if (ownedAssignments.Length == 0
+            || ownedAssignments.Any(static item => item is null))
         {
             throw new ArgumentException(
                 "A Stimulus Batch requires nonempty Driver assignments.",
@@ -398,7 +401,7 @@ public sealed class StimulusBatch
         }
 
         LogicalTime = logicalTime;
-        Assignments = Array.AsReadOnly(assignments.ToArray());
+        Assignments = Array.AsReadOnly(ownedAssignments);
     }
 
     public ulong LogicalTime { get; }
@@ -581,16 +584,17 @@ public sealed class SimulationTraceWindowRequest
         ulong? afterSequence)
     {
         ArgumentNullException.ThrowIfNull(probeIds);
-        if (probeIds.Count == 0
-            || probeIds.Any(id => id is null)
-            || probeIds.Distinct().Count() != probeIds.Count)
+        var ownedProbeIds = probeIds.ToArray();
+        if (ownedProbeIds.Length == 0
+            || ownedProbeIds.Any(static id => id is null)
+            || ownedProbeIds.Distinct().Count() != ownedProbeIds.Length)
         {
             throw new ArgumentException(
                 "A Trace window requires nonempty unique ordered Probe IDs.",
                 nameof(probeIds));
         }
 
-        ProbeIds = Array.AsReadOnly(probeIds.ToArray());
+        ProbeIds = Array.AsReadOnly(ownedProbeIds);
         Range = range;
         AfterSequence = afterSequence;
     }
