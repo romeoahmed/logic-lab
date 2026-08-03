@@ -86,14 +86,16 @@ public static class EditorWorkspaceFactory
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
-        WorkspaceModuleOperations? operations = null)
+        WorkspaceModuleOperations? operations = null,
+        AuthoringAdmissionPolicy? authoringAdmissionPolicy = null)
     {
         return CreateCore(
             workspacePolicy,
             schedulingPolicy,
             timeProvider,
             loggerFactory,
-            operations ?? WorkspaceModuleOperations.Production);
+            operations ?? WorkspaceModuleOperations.Production,
+            authoringAdmissionPolicy);
     }
 
     private static EditorWorkspace CreateCore(
@@ -101,7 +103,8 @@ public static class EditorWorkspaceFactory
         SchedulingPolicy? schedulingPolicy,
         TimeProvider? timeProvider,
         ILoggerFactory? loggerFactory,
-        WorkspaceModuleOperations operations)
+        WorkspaceModuleOperations operations,
+        AuthoringAdmissionPolicy? authoringAdmissionPolicy = null)
     {
         var resolvedLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         var coordinator = new Work.WorkCoordinator(
@@ -110,6 +113,7 @@ public static class EditorWorkspaceFactory
         return new EditorWorkspace(
             coordinator,
             workspacePolicy ?? WorkspacePolicy.Default,
+            authoringAdmissionPolicy ?? AuthoringAdmissionPolicy.Default,
             timeProvider ?? TimeProvider.System,
             operations,
             resolvedLoggerFactory.CreateLogger<EditorWorkspace>());
