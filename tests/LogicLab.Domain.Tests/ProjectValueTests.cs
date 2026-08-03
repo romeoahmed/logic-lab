@@ -27,27 +27,11 @@ public sealed class ProjectValueTests
         GridPoint[] leftPoints,
         GridPoint[] rightPoints)
     {
-        var first = new OrthogonalWireRoute(leftPoints);
-        var equalCopy = new OrthogonalWireRoute(leftPoints);
-        var second = new OrthogonalWireRoute(rightPoints);
-        var expectedEqual = leftPoints.AsSpan().SequenceEqual(rightPoints);
-        var set = new HashSet<OrthogonalWireRoute> { first };
-
-        var equalityMatches = first.Equals(first)
-            && first == equalCopy
-            && equalCopy == first
-            && first.Equals(equalCopy)
-            && (first == second) == expectedEqual
-            && first.Equals(second) == expectedEqual
-            && (second == first) == expectedEqual;
-        var hashContractHolds = first.GetHashCode() == equalCopy.GetHashCode()
-            && (!expectedEqual || first.GetHashCode() == second.GetHashCode());
-        var setMembershipMatches = set.Contains(equalCopy)
-            && set.Contains(second) == expectedEqual;
-
-        return (equalityMatches && hashContractHolds && setMembershipMatches)
-            .Label("route equality, hashing, and set membership match point-sequence equality")
-            .Collect($"left={leftPoints.Length}, right={rightPoints.Length}");
+        return SequenceEqualityMatchesValueEquality(
+            leftPoints,
+            rightPoints,
+            static points => new OrthogonalWireRoute(points),
+            "route");
     }
 
     [Test, FsCheckProperty]
@@ -55,26 +39,95 @@ public sealed class ProjectValueTests
         LogicValue[] leftValues,
         LogicValue[] rightValues)
     {
-        var first = new LogicVectorParameterValue(leftValues);
-        var equalCopy = new LogicVectorParameterValue(leftValues);
-        var second = new LogicVectorParameterValue(rightValues);
-        var expectedEqual = leftValues.AsSpan().SequenceEqual(rightValues);
-        var set = new HashSet<LogicVectorParameterValue> { first };
+        return SequenceEqualityMatchesValueEquality(
+            leftValues,
+            rightValues,
+            static values => new LogicVectorParameterValue(values),
+            "vector parameter");
+    }
 
-        var equalityMatches = first.Equals(first)
-            && first == equalCopy
-            && equalCopy == first
-            && first.Equals(equalCopy)
-            && (first == second) == expectedEqual
-            && first.Equals(second) == expectedEqual
-            && (second == first) == expectedEqual;
-        var hashContractHolds = first.GetHashCode() == equalCopy.GetHashCode()
-            && (!expectedEqual || first.GetHashCode() == second.GetHashCode());
-        var setMembershipMatches = set.Contains(equalCopy)
+    [Test]
+    public async Task CollectionParameterValues_InputMutation_DoesNotChangeOwnedValues()
+    {
+        var slices = new[] { new BitSlice(0, 1), new BitSlice(1, 2) };
+        var widths = new uint[] { 1, 2 };
+        var sliceValue = new SlicesParameterValue(slices);
+        var widthValue = new WidthsParameterValue(widths);
+
+        slices[0] = new BitSlice(99, 99);
+        widths[0] = 99;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(sliceValue.Values)
+                .IsEquivalentTo(
+                    [new BitSlice(0, 1), new BitSlice(1, 2)],
+                    TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(widthValue.Values)
+                .IsEquivalentTo(
+                    [1U, 2U],
+                    TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        }
+    }
+
+    [Test, FsCheckProperty]
+    public Property SlicesParameterValue_AnySliceSequences_EqualityMatchesSequenceEquality(
+        uint[] leftOffsets,
+        uint[] leftLengths,
+        uint[] rightOffsets,
+        uint[] rightLengths)
+    {
+        var left = ToSlices(leftOffsets, leftLengths);
+        var right = ToSlices(rightOffsets, rightLengths);
+
+        return SequenceEqualityMatchesValueEquality(
+            left,
+            right,
+            static values => new SlicesParameterValue(values),
+            "slices parameter");
+    }
+
+    [Test, FsCheckProperty]
+    public Property WidthsParameterValue_AnyWidthSequences_EqualityMatchesSequenceEquality(
+        uint[] leftWidths,
+        uint[] rightWidths)
+    {
+        return SequenceEqualityMatchesValueEquality(
+            leftWidths,
+            rightWidths,
+            static values => new WidthsParameterValue(values),
+            "widths parameter");
+    }
+
+    private static Property SequenceEqualityMatchesValueEquality<TItem, TValue>(
+        TItem[] left,
+        TItem[] right,
+        Func<IReadOnlyList<TItem>, TValue> create,
+        string subject)
+        where TValue : notnull
+    {
+        var first = create(left);
+        var equalCopy = create(left);
+        var second = create(right);
+        var expectedEqual = left.AsSpan().SequenceEqual(right);
+        var equality = EqualityComparer<TValue>.Default;
+        var set = new HashSet<TValue> { first };
+
+        var matches = equality.Equals(first, equalCopy)
+            && equality.Equals(first, second) == expectedEqual
+            && first.GetHashCode() == equalCopy.GetHashCode()
+            && (!expectedEqual || first.GetHashCode() == second.GetHashCode())
+            && set.Contains(equalCopy)
             && set.Contains(second) == expectedEqual;
 
-        return (equalityMatches && hashContractHolds && setMembershipMatches)
-            .Label("vector parameter equality, hashing, and set membership match value-sequence equality")
-            .Collect($"left={leftValues.Length}, right={rightValues.Length}");
+        return matches
+            .Label($"{subject} equality and hashing match sequence equality")
+            .Collect($"left={left.Length}, right={right.Length}");
+    }
+
+    private static BitSlice[] ToSlices(uint[] offsets, uint[] lengths)
+    {
+        return offsets.Zip(lengths, static (offset, length) => new BitSlice(offset, length))
+            .ToArray();
     }
 }
