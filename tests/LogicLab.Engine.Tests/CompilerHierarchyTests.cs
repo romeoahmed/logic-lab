@@ -76,6 +76,17 @@ public sealed class CompilerHierarchyTests
                 scopedNet.Path);
             await Assert.That(artifact.SourceMap.TryGetNetOrdinal(source, out _)).IsTrue();
         }
+
+        await Assert.That(artifact.SourceMap.NetAliases).IsNotEmpty();
+        foreach (var alias in artifact.SourceMap.NetAliases)
+        {
+            var found = artifact.SourceMap.TryGetNetOrdinal(alias.Source, out var ordinal);
+            using (Assert.Multiple())
+            {
+                await Assert.That(found).IsTrue();
+                await Assert.That(ordinal).IsEqualTo(alias.Ordinal);
+            }
+        }
     }
 
     [Test]

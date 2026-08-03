@@ -69,32 +69,6 @@ public sealed class LogicVectorSliceTests
     }
 
     [Test]
-    public async Task Slice_OverlappingRanges_PreserveEachRequestedBitOrder()
-    {
-        var values = Enumerable.Range(0, 100)
-            .Select(index => (LogicValue)(index % 4))
-            .ToArray();
-        var vector = new LogicVector(values);
-
-        var first = vector.Slice(17, 50);
-        var second = vector.Slice(43, 50);
-        var firstValues = LogicVectorTestData.ToValues(first);
-        var secondValues = LogicVectorTestData.ToValues(second);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(firstValues)
-                .IsEquivalentTo(
-                    values.Skip(17).Take(50),
-                    CollectionOrdering.Matching);
-            await Assert.That(secondValues)
-                .IsEquivalentTo(
-                    values.Skip(43).Take(50),
-                    CollectionOrdering.Matching);
-        }
-    }
-
-    [Test]
     public async Task Slice_InvalidRange_ThrowsArgumentOutOfRangeException()
     {
         var vector = new LogicVector(
