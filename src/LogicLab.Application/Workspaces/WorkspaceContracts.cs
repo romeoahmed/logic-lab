@@ -18,11 +18,6 @@ public sealed record WorkspaceId
     public string Value { get; }
 
     internal static WorkspaceId Create() => new(Guid.CreateVersion7().ToString("N"));
-
-    public void Deconstruct(out string value)
-    {
-        value = Value;
-    }
 }
 
 public abstract record OpenWorkspaceRequest
@@ -47,14 +42,6 @@ public sealed record CreateSandbox : OpenWorkspaceRequest
     public string ProjectDisplayName { get; }
 
     public string EntryCircuitDefinitionDisplayName { get; }
-
-    public void Deconstruct(
-        out string projectDisplayName,
-        out string entryCircuitDefinitionDisplayName)
-    {
-        projectDisplayName = ProjectDisplayName;
-        entryCircuitDefinitionDisplayName = EntryCircuitDefinitionDisplayName;
-    }
 }
 
 public abstract record WorkspaceOpenOutcome
@@ -104,12 +91,6 @@ public sealed record ApplyEdit : WorkspaceCommand
     }
 
     public EditIntent Intent { get; }
-
-    public void Deconstruct(out WorkspaceId workspaceId, out EditIntent intent)
-    {
-        workspaceId = WorkspaceId;
-        intent = Intent;
-    }
 }
 
 public sealed record RequestCompilation : WorkspaceCommand
@@ -118,11 +99,6 @@ public sealed record RequestCompilation : WorkspaceCommand
         : base(workspaceId)
     {
     }
-
-    public void Deconstruct(out WorkspaceId workspaceId)
-    {
-        workspaceId = WorkspaceId;
-    }
 }
 
 public sealed record CreateSession : WorkspaceCommand
@@ -130,11 +106,6 @@ public sealed record CreateSession : WorkspaceCommand
     public CreateSession(WorkspaceId workspaceId)
         : base(workspaceId)
     {
-    }
-
-    public void Deconstruct(out WorkspaceId workspaceId)
-    {
-        workspaceId = WorkspaceId;
     }
 }
 
@@ -193,11 +164,6 @@ public sealed record StepSession : WorkspaceCommand
         : base(workspaceId)
     {
     }
-
-    public void Deconstruct(out WorkspaceId workspaceId)
-    {
-        workspaceId = WorkspaceId;
-    }
 }
 
 public sealed record CloseWorkspace : WorkspaceCommand
@@ -205,11 +171,6 @@ public sealed record CloseWorkspace : WorkspaceCommand
     public CloseWorkspace(WorkspaceId workspaceId)
         : base(workspaceId)
     {
-    }
-
-    public void Deconstruct(out WorkspaceId workspaceId)
-    {
-        workspaceId = WorkspaceId;
     }
 }
 

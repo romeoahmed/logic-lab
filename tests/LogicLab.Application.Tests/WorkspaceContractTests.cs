@@ -11,17 +11,18 @@ public sealed class WorkspaceContractTests
         var policy = new WorkspacePolicy(
             globalWorkspaceLimit: 8,
             sandboxRetention: TimeSpan.FromMinutes(5),
-            authoringDefinitionCountLimit: 13,
-            authoringEntityCountLimit: 21,
-            authoringCommandItemCountLimit: 34);
+            authoringLimits: new WorkspaceAuthoringLimits(
+                definitionCount: 13,
+                entityCount: 21,
+                commandItemCount: 34));
 
         using (Assert.Multiple())
         {
             await Assert.That(policy.GlobalWorkspaceLimit).IsEqualTo(8);
             await Assert.That(policy.SandboxRetention).IsEqualTo(TimeSpan.FromMinutes(5));
-            await Assert.That(policy.AuthoringDefinitionCountLimit).IsEqualTo(13);
-            await Assert.That(policy.AuthoringEntityCountLimit).IsEqualTo(21);
-            await Assert.That(policy.AuthoringCommandItemCountLimit).IsEqualTo(34);
+            await Assert.That(policy.AuthoringLimits.DefinitionCount).IsEqualTo(13);
+            await Assert.That(policy.AuthoringLimits.EntityCount).IsEqualTo(21);
+            await Assert.That(policy.AuthoringLimits.CommandItemCount).IsEqualTo(34);
         }
     }
 
@@ -32,9 +33,9 @@ public sealed class WorkspaceContractTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(policy.AuthoringDefinitionCountLimit).IsEqualTo(100);
-            await Assert.That(policy.AuthoringEntityCountLimit).IsEqualTo(10_000);
-            await Assert.That(policy.AuthoringCommandItemCountLimit).IsEqualTo(1_000);
+            await Assert.That(policy.AuthoringLimits.DefinitionCount).IsEqualTo(100);
+            await Assert.That(policy.AuthoringLimits.EntityCount).IsEqualTo(10_000);
+            await Assert.That(policy.AuthoringLimits.CommandItemCount).IsEqualTo(1_000);
         }
     }
 
@@ -47,12 +48,10 @@ public sealed class WorkspaceContractTests
         int entityCountLimit,
         int commandItemCountLimit)
     {
-        await Assert.That(() => new WorkspacePolicy(
-                globalWorkspaceLimit: 8,
-                sandboxRetention: TimeSpan.FromMinutes(5),
-                authoringDefinitionCountLimit: definitionCountLimit,
-                authoringEntityCountLimit: entityCountLimit,
-                authoringCommandItemCountLimit: commandItemCountLimit))
+        await Assert.That(() => new WorkspaceAuthoringLimits(
+                definitionCount: definitionCountLimit,
+                entityCount: entityCountLimit,
+                commandItemCount: commandItemCountLimit))
             .ThrowsExactly<ArgumentOutOfRangeException>();
     }
 

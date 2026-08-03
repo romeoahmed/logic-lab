@@ -36,18 +36,6 @@ public sealed record DefinitionPortDeclaration
     public uint Width { get; }
 
     public DefinitionPortPlacement Placement { get; }
-
-    public void Deconstruct(
-        out string displayName,
-        out PortDirection direction,
-        out uint width,
-        out DefinitionPortPlacement placement)
-    {
-        displayName = DisplayName;
-        direction = Direction;
-        width = Width;
-        placement = Placement;
-    }
 }
 
 public abstract record ComponentTarget
