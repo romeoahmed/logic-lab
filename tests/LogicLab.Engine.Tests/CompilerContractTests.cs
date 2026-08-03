@@ -10,49 +10,47 @@ public sealed class CompilerContractTests
     [Test]
     public async Task EngineCompilationNamespace_ExportedTypes_MatchContractAllowlist()
     {
-        var exportedNames = typeof(Compiler).Assembly
+        var exportedTypes = typeof(Compiler).Assembly
             .GetExportedTypes()
             .Where(type => type.Namespace == "LogicLab.Engine.Compilation")
-            .Select(type => type.Name)
-            .Order(StringComparer.Ordinal)
             .ToArray();
-        var expected = new[]
-        {
-            "CompilationArtifact",
-            "CompilationArtifactKey",
-            "CompilationEvidence",
-            "CompilationOutcome",
-            "CompilationPolicyReference",
-            "CompilationRejected",
-            "CompilationRequest",
-            "CompilationSource",
-            "CompilationSucceeded",
-            "Compiler",
-            "CompilerCircuitLocation",
-            "CompilerContractKeyValue",
-            "CompilerCorrelationTokenValue",
-            "CompilerDiagnostic",
-            "CompilerDiagnosticArgument",
-            "CompilerDiagnosticSeverity",
-            "CompilerDiagnosticValue",
-            "CompilerDigestValue",
-            "CompilerProjectRootLocation",
-            "CompilerSourceLocation",
-            "CompilerStableTokenValue",
-            "CompilerUnsignedDecimalValue",
-            "EvaluatorInputSourceMapEntry",
-            "HierarchyPath",
-            "HierarchyPathStep",
-            "ObservedProjectScaleDimension",
-            "ProjectScaleDimension",
-            "ProjectScaleLimit",
-            "ProjectScalePolicy",
-            "SourceMap",
-            "SourceMapEntry",
-            "StronglyConnectedComponentMemberSourceMapEntry",
-        };
+        Type[] expected =
+        [
+            typeof(CompilationArtifact),
+            typeof(CompilationArtifactKey),
+            typeof(CompilationEvidence),
+            typeof(CompilationOutcome),
+            typeof(CompilationPolicyReference),
+            typeof(CompilationRejected),
+            typeof(CompilationRequest),
+            typeof(CompilationSource),
+            typeof(CompilationSucceeded),
+            typeof(Compiler),
+            typeof(CompilerCircuitLocation),
+            typeof(CompilerContractKeyValue),
+            typeof(CompilerCorrelationTokenValue),
+            typeof(CompilerDiagnostic),
+            typeof(CompilerDiagnosticArgument),
+            typeof(CompilerDiagnosticSeverity),
+            typeof(CompilerDiagnosticValue),
+            typeof(CompilerDigestValue),
+            typeof(CompilerProjectRootLocation),
+            typeof(CompilerSourceLocation),
+            typeof(CompilerStableTokenValue),
+            typeof(CompilerUnsignedDecimalValue),
+            typeof(EvaluatorInputSourceMapEntry),
+            typeof(HierarchyPath),
+            typeof(HierarchyPathStep),
+            typeof(ObservedProjectScaleDimension),
+            typeof(ProjectScaleDimension),
+            typeof(ProjectScaleLimit),
+            typeof(ProjectScalePolicy),
+            typeof(SourceMap),
+            typeof(SourceMapEntry),
+            typeof(StronglyConnectedComponentMemberSourceMapEntry),
+        ];
 
-        await Assert.That(exportedNames).IsEquivalentTo(expected, CollectionOrdering.Matching);
+        await Assert.That(exportedTypes).IsEquivalentTo(expected);
     }
 
     [Test]

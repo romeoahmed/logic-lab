@@ -103,19 +103,14 @@ public sealed class CoreLibrarySchemaTests
     }
 
     [Test]
-    public async Task FindContract_UnknownContract_ReturnsNull()
+    [Arguments("logiclab.core", "logic.unknown")]
+    [Arguments("other.library", "logic.not")]
+    public async Task FindContract_UnknownKey_ReturnsNull(
+        string libraryId,
+        string contractId)
     {
         var contract = CoreLibrarySchema.FindContract(
-            new ComponentContractKey("logiclab.core", "logic.unknown"));
-
-        await Assert.That(contract).IsNull();
-    }
-
-    [Test]
-    public async Task FindContract_UnknownLibrary_ReturnsNull()
-    {
-        var contract = CoreLibrarySchema.FindContract(
-            new ComponentContractKey("other.library", "logic.not"));
+            new ComponentContractKey(libraryId, contractId));
 
         await Assert.That(contract).IsNull();
     }
