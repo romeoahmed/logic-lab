@@ -5,7 +5,12 @@ namespace LogicLab.Web.Tests;
 public sealed class FixedWindowCommandAdmissionGateTests
 {
     [Test]
-    public async Task FixedWindowCommandAdmissionGate_WindowCapacityExceeded_RejectsUntilNextWindow()
+    [Arguments(999, false)]
+    [Arguments(1_000, true)]
+    [Arguments(1_001, true)]
+    public async Task FixedWindowCommandAdmissionGate_ElapsedTime_ResetsOnlyAtOrAfterBoundary(
+        int elapsedMilliseconds,
+        bool expectedAdmission)
     {
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 3, 0, 0, 0, TimeSpan.Zero));
@@ -17,15 +22,15 @@ public sealed class FixedWindowCommandAdmissionGateTests
         var first = gate.TryAdmit();
         var second = gate.TryAdmit();
         var rejected = gate.TryAdmit();
-        timeProvider.Advance(TimeSpan.FromSeconds(1));
-        var nextWindow = gate.TryAdmit();
+        timeProvider.Advance(TimeSpan.FromMilliseconds(elapsedMilliseconds));
+        var afterElapsedTime = gate.TryAdmit();
 
         using (Assert.Multiple())
         {
             await Assert.That(first).IsTrue();
             await Assert.That(second).IsTrue();
             await Assert.That(rejected).IsFalse();
-            await Assert.That(nextWindow).IsTrue();
+            await Assert.That(afterElapsedTime).IsEqualTo(expectedAdmission);
         }
     }
 

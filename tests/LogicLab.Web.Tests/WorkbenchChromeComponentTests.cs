@@ -48,7 +48,13 @@ public sealed class WorkbenchChromeComponentTests
         await using var context = CreateContext();
 
         var rendered = context.Render<WorkbenchCommandBar>(parameters => parameters
+            .Add(component => component.CanCreate, true)
+            .Add(component => component.CanAuthor, true)
+            .Add(component => component.CanAuthorHierarchy, true)
             .Add(component => component.CanCompile, true)
+            .Add(component => component.CanCreateSession, true)
+            .Add(component => component.CanScheduleStimulus, true)
+            .Add(component => component.CanStep, true)
             .Add(component => component.ActiveCommand, "compile"));
 
         foreach (var command in WorkbenchCommands)
@@ -104,7 +110,7 @@ public sealed class WorkbenchChromeComponentTests
             .Add(component => component.Document, revision.Document)
             .Add(component => component.SelectedDefinitionId,
                 revision.Document.EntryCircuitDefinitionId));
-        var navigation = rendered.Find(".definition-tabs");
+        var navigation = rendered.Find("nav[aria-label='Open Circuit Definitions']");
 
         using (Assert.Multiple())
         {
@@ -154,10 +160,8 @@ public sealed class WorkbenchChromeComponentTests
         {
             await Assert.That(rendered.Find("[data-status='connection']").TextContent)
                 .Contains("Connected");
-            await Assert.That(rendered.Find("[data-status='compilation']").TextContent)
-                .Contains("Not requested");
-            await Assert.That(rendered.Find("[data-status='logical-time']").TextContent)
-                .Contains("—");
+            await Assert.That(rendered.Find("[data-status='connection'] .status-dot")
+                .ClassList).Contains("is-connected");
         }
     }
 
