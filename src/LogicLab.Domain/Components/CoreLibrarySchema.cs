@@ -121,6 +121,38 @@ public static class CoreLibrarySchema
             FixedOnePort("VALID", PortDirection.Output),
         ]);
 
+    private static readonly ComponentContractSchema LogicUnsignedCompare = new(
+        new ComponentContractKey(LibraryId, "logic.unsigned_compare"),
+        [WidthParameter("width")],
+        [
+            new ComponentPortSchema("A", PortDirection.Input, "width"),
+            new ComponentPortSchema("B", PortDirection.Input, "width"),
+            FixedOnePort("LT", PortDirection.Output),
+            FixedOnePort("EQ", PortDirection.Output),
+            FixedOnePort("GT", PortDirection.Output),
+        ]);
+
+    private static readonly ComponentContractSchema LogicAdder =
+        CreateCarryContract("logic.adder", "CIN", "SUM", "COUT");
+
+    private static readonly ComponentContractSchema LogicSubtractor =
+        CreateCarryContract("logic.subtractor", "BIN", "DIFF", "BOUT");
+
+    private static readonly ComponentContractSchema LogicShift = new(
+        new ComponentContractKey(LibraryId, "logic.shift"),
+        [WidthParameter("width"), ChoiceParameter("direction", "left", "right")],
+        [
+            new ComponentPortSchema("D", PortDirection.Input, "width"),
+            new ComponentPortSchema(
+                "AMOUNT",
+                PortDirection.Input,
+                ComponentPortCardinality.Fixed,
+                ComponentPortIndexing.None,
+                ComponentPortWidthSource.CeilingLog2ParameterValue,
+                "width"),
+            new ComponentPortSchema("Q", PortDirection.Output, "width"),
+        ]);
+
     private static readonly ComponentContractSchema SourceConstant = new(
         new ComponentContractKey(LibraryId, "source.constant"),
         [
@@ -207,6 +239,7 @@ public static class CoreLibrarySchema
 
     private static readonly ComponentContractSchema[] ContractSchemas =
     [
+        LogicAdder,
         LogicAnd,
         LogicBuffer,
         LogicDecoder,
@@ -217,7 +250,10 @@ public static class CoreLibrarySchema
         LogicNot,
         LogicOr,
         LogicPriorityEncoder,
+        LogicShift,
+        LogicSubtractor,
         LogicTristate,
+        LogicUnsignedCompare,
         LogicXnor,
         LogicXor,
         SinkOutput,
@@ -306,6 +342,24 @@ public static class CoreLibrarySchema
             [
                 GeneratedPort("A", PortDirection.Input, "width", "fanIn"),
                 new ComponentPortSchema("Q", PortDirection.Output, "width"),
+            ]);
+    }
+
+    private static ComponentContractSchema CreateCarryContract(
+        string contractId,
+        string carryInputId,
+        string resultId,
+        string carryOutputId)
+    {
+        return new ComponentContractSchema(
+            new ComponentContractKey(LibraryId, contractId),
+            [WidthParameter("width")],
+            [
+                new ComponentPortSchema("A", PortDirection.Input, "width"),
+                new ComponentPortSchema("B", PortDirection.Input, "width"),
+                FixedOnePort(carryInputId, PortDirection.Input),
+                new ComponentPortSchema(resultId, PortDirection.Output, "width"),
+                FixedOnePort(carryOutputId, PortDirection.Output),
             ]);
     }
 

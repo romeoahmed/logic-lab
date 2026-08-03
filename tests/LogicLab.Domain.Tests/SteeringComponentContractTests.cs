@@ -8,7 +8,7 @@ namespace LogicLab.Domain.Tests;
 public sealed class SteeringComponentContractTests
 {
     [Test]
-    public async Task Contracts_SteeringFamily_HasExactCanonicalOrder()
+    public async Task Contracts_LogicFamily_HasExactCanonicalOrder()
     {
         var contracts = CoreLibrarySchema.Contracts
             .Where(contract => contract.Key.ContractId.StartsWith("logic.", StringComparison.Ordinal))
@@ -17,6 +17,7 @@ public sealed class SteeringComponentContractTests
 
         await Assert.That(contracts).IsEquivalentTo(
             [
+                "logic.adder",
                 "logic.and",
                 "logic.buffer",
                 "logic.decoder",
@@ -27,7 +28,10 @@ public sealed class SteeringComponentContractTests
                 "logic.not",
                 "logic.or",
                 "logic.priority_encoder",
+                "logic.shift",
+                "logic.subtractor",
                 "logic.tristate",
+                "logic.unsigned_compare",
                 "logic.xnor",
                 "logic.xor",
             ],

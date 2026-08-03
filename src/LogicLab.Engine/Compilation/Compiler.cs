@@ -927,6 +927,18 @@ public static partial class Compiler
             case "logic.priority_encoder":
                 kind = SimulationEvaluatorKind.LogicPriorityEncoder;
                 return true;
+            case "logic.unsigned_compare":
+                kind = SimulationEvaluatorKind.LogicUnsignedCompare;
+                return true;
+            case "logic.adder":
+                kind = SimulationEvaluatorKind.LogicAdder;
+                return true;
+            case "logic.subtractor":
+                kind = SimulationEvaluatorKind.LogicSubtractor;
+                return true;
+            case "logic.shift":
+                kind = SimulationEvaluatorKind.LogicShift;
+                return true;
             case "sink.output":
                 kind = SimulationEvaluatorKind.OutputSink;
                 return true;
@@ -978,6 +990,9 @@ public static partial class Compiler
                 or SimulationEvaluatorKind.TopologySplit
                 or SimulationEvaluatorKind.LogicDemux => "D",
             SimulationEvaluatorKind.LogicDecoder => "Q0",
+            SimulationEvaluatorKind.LogicUnsignedCompare => "LT",
+            SimulationEvaluatorKind.LogicAdder => "SUM",
+            SimulationEvaluatorKind.LogicSubtractor => "DIFF",
             _ => "Q",
         };
         return ports.Single(port => string.Equals(
@@ -1031,6 +1046,8 @@ public static partial class Compiler
                 ("enablePolarity", "activeHigh"),
             SimulationEvaluatorKind.LogicPriorityEncoder =>
                 ("priority", "lowestIndex"),
+            SimulationEvaluatorKind.LogicShift =>
+                ("direction", "left"),
             _ => (null, null),
         };
         if (parameterId is null)

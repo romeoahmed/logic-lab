@@ -1,6 +1,6 @@
 # Documentation Map
 
-Logic Lab has a closed V1 design baseline and executable implementation-plan items `01` through `10`. Read each document according to its authority and subject; use the readiness table below for implementation status rather than inferring delivery from a normative specification.
+Logic Lab has a closed V1 design baseline and executable implementation-plan items `01` through `11`. Read each document according to its authority and subject; use the readiness table below for implementation status rather than inferring delivery from a normative specification.
 
 ## Authority by subject
 
@@ -48,18 +48,18 @@ There is no generic “narrower file wins” rule. A specification defines curre
 
 ## Development readiness
 
-Implementation-plan items `01` through `10` are complete and verified. The application is not V1-complete or qualified for production release.
+Implementation-plan items `01` through `11` are complete and verified. The application is not V1-complete or qualified for production release.
 
 | Area | Specification state | Executable evidence | Remaining evidence |
 |---|---|---|---|
-| authoring, Compilation, Simulation, analysis, format, diagnostics, symbols | closed V1 behavior and Module interfaces | immutable lineage, explicit Net/Junction/Wire Geometry editing, Domain-resolved generated split/concat Ports, zero/sign extension and constant-source execution, hierarchical combinational Compilation with complete occurrence provenance and recursion evidence, atomic Simulation Session, diagnostics, scalar oracle, and packed differential path | remaining contract/runtime breadth, Boolean Analysis, Project Format, TeachingMixed symbols, and their conformance suites |
+| authoring, Compilation, Simulation, analysis, format, diagnostics, symbols | closed V1 behavior and Module interfaces | immutable lineage, explicit Net/Junction/Wire Geometry editing, Domain-resolved generated split/concat and arithmetic Ports, zero/sign extension, constant-source, unsigned comparison, full-adder/subtractor, and logical-shift execution, bounded unknown shift-case settlement, hierarchical combinational Compilation with complete occurrence provenance and recursion evidence, atomic Simulation Session, diagnostics, scalar oracle, and packed differential path | remaining contract/runtime breadth, Boolean Analysis, Project Format, TeachingMixed symbols, and their conformance suites |
 | Workspace, Durable Project catalog, persistence, concurrency, browser messages | closed commands, keyset paging, queries, preconditions, outcomes, and transfer values | Sandbox create/author/compile/session/stimulus/step/close path, bounded admission, lifecycle fencing, and typed failure evidence | recoverable history/idempotency, durable catalog, Infrastructure, transfer, full work lanes, and integration evidence |
-| Blazor host and Canvas/waveform runtime | closed ownership, lifecycle, rendering, input, localization, security, and failure rules | per-page Interactive Server `/editor`, accessible explicit-topology, selected-definition, and generated-Port width Scene projection, definition tabs, entry controls, Hierarchy Path breadcrumbs, component tests, host integration, and security-header tests | Canvas/waveform adapters, browser workflow suite, supported-browser matrix, corpus traces, and load/security qualification |
+| Blazor host and Canvas/waveform runtime | closed ownership, lifecycle, rendering, input, localization, security, and failure rules | per-page Interactive Server `/editor`, accessible explicit-topology, selected-definition, generated-Port width and arithmetic Scene projection, bounded steering/arithmetic galleries, definition tabs, entry controls, Hierarchy Path breadcrumbs, component tests, host integration, and security-header tests | Canvas/waveform adapters, browser workflow suite, supported-browser matrix, corpus traces, and load/security qualification |
 | .NET engineering and dependency supply chain | SDK feature band, central build/analyzer/package/audit policy, TUnit/MTP, execution/DI/JSON/telemetry/publication rules | five production projects, five executable test projects, one comparative benchmark project, application-root locks, locked restore, warning-clean build, format, and whole-solution test gates | later slice projects and locks, CI publication, architecture automation, and provider qualification |
 | policies and capacity | dimensions and failure semantics are closed | provisional Simulation, Trace, Scheduling, and Workspace policy snapshots exercise bounded failure paths | calibrated values tied to a versioned corpus and deployment profile |
 | production operations | required readiness, shutdown, key, migration, proxy, and observability behavior is closed | development-host lifecycle and security-header integration evidence | provider-specific TLS, secrets, backup/restore, telemetry, alert, and runbook evidence |
 
-Verification snapshot (2026-08-03): locked restore, formatting, warning-clean build, whitespace validation, and all 551 discovered TUnit tests passed. The executable evidence above covers the completed vertical slices; it does not qualify the application for release while any remaining-evidence row is open.
+Verification snapshot (2026-08-03): locked restore, formatting, warning-clean build, whitespace validation, and all 587 discovered TUnit tests passed. The executable evidence above covers the completed vertical slices; it does not qualify the application for release while any remaining-evidence row is open.
 
 ## Executable evidence
 

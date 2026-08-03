@@ -10,6 +10,22 @@ public partial class Editor
 
     private async Task AuthorSteeringGallery()
     {
+        await AuthorGallery(
+            SteeringGalleryComponents(),
+            "Steering gallery authored with generated Ports. Compile the current Project Revision.");
+    }
+
+    private async Task AuthorArithmeticGallery()
+    {
+        await AuthorGallery(
+            ArithmeticGalleryComponents(),
+            "Arithmetic gallery authored with checked Ports. Compile the current Project Revision.");
+    }
+
+    private async Task AuthorGallery(
+        GalleryComponent[] components,
+        string completionStatus)
+    {
         if (Projection is null)
         {
             return;
@@ -17,7 +33,7 @@ public partial class Editor
 
         var definitionId = Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
         var placementIndex = 0;
-        foreach (var component in SteeringGalleryComponents())
+        foreach (var component in components)
         {
             var target = await PlaceGalleryComponent(
                 definitionId,
@@ -33,12 +49,12 @@ public partial class Editor
             var schema = CoreLibrarySchema.FindContract(
                 new ComponentContractKey(CoreLibrarySchema.LibraryId, component.ContractId))
                 ?? throw new InvalidOperationException(
-                    "A steering gallery component contract is missing from the Core Library.");
+                    "A gallery component contract is missing from the Core Library.");
             var resolution = schema.ResolvePorts(component.Parameters);
             if (!resolution.TryMaterialize(MaximumGalleryPortCount, out var ports))
             {
                 throw new InvalidOperationException(
-                    "The bounded steering gallery Port set could not be materialized.");
+                    "The bounded gallery Port set could not be materialized.");
             }
             foreach (var input in ports.Where(port => port.Direction == PortDirection.Input))
             {
@@ -93,7 +109,7 @@ public partial class Editor
             }
         }
 
-        Status = "Steering gallery authored with generated Ports. Compile the current Project Revision.";
+        Status = completionStatus;
     }
 
     private async Task<ComponentInstance?> PlaceGalleryComponent(
@@ -128,7 +144,7 @@ public partial class Editor
             : LogicValue.One;
     }
 
-    private static SteeringGalleryComponent[] SteeringGalleryComponents()
+    private static GalleryComponent[] SteeringGalleryComponents()
     {
         return
         [
@@ -167,6 +183,23 @@ public partial class Editor
         ];
     }
 
+    private static GalleryComponent[] ArithmeticGalleryComponents()
+    {
+        return
+        [
+            new("logic.unsigned_compare", "Unsigned Compare", Width(3)),
+            new("logic.adder", "Adder", Width(3)),
+            new("logic.subtractor", "Subtractor", Width(3)),
+            new("logic.shift", "Logical Shift",
+            [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(3)),
+                new ComponentParameterBinding(
+                    "direction",
+                    new ChoiceParameterValue("left")),
+            ]),
+        ];
+    }
+
     private static ComponentParameterBinding[] Width(uint width)
     {
         return [new ComponentParameterBinding("width", new Unsigned32ParameterValue(width))];
@@ -190,7 +223,7 @@ public partial class Editor
         ];
     }
 
-    private sealed record SteeringGalleryComponent(
+    private sealed record GalleryComponent(
         string ContractId,
         string DisplayName,
         ComponentParameterBinding[] Parameters);

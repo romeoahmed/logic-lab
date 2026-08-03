@@ -46,9 +46,9 @@ The first required product tracer is complete at item `06`. Infrastructure bread
 
 ## Delivery status
 
-Phase A items `01` through `06` and Phase B items `07` through `10` are complete. The [Development Readiness](./README.md#development-readiness) table owns the current executable evidence, verification snapshot, and remaining qualification gaps.
+Phase A items `01` through `06` and Phase B items `07` through `11` are complete. The [Development Readiness](./README.md#development-readiness) table owns the current executable evidence, verification snapshot, and remaining qualification gaps.
 
-The immediately unblocked slices are `11`, `13`, `17`, and `23`. Every other incomplete slice still depends on at least one of those items or on a later predecessor. Completion status is maintained here; executable evidence and qualification gaps are maintained in [Development Readiness](./README.md#development-readiness). Normative documents do not become delivery trackers.
+The immediately unblocked slices are `12`, `13`, `17`, and `23`. Every other incomplete slice still depends on at least one of those items or on a later predecessor. Completion status is maintained here; executable evidence and qualification gaps are maintained in [Development Readiness](./README.md#development-readiness). Normative documents do not become delivery trackers.
 
 ## Phase B — Authoring, Component Contracts, and Runtime breadth
 
@@ -118,9 +118,9 @@ Only item `43` authorizes describing the selected deployment profile as producti
 
 ## Dependency frontier
 
-The initial frontier contained only item `01`; implementation has now completed through item `10`. The current frontier begins with `11`, `13`, `17`, and `23`, opening these primary streams as their named prerequisites land:
+The initial frontier contained only item `01`; implementation has now completed through item `11`. The current frontier begins with `12`, `13`, `17`, and `23`, opening these primary streams as their named prerequisites land:
 
-- remaining Component Contract and Runtime breadth (`11`–`16`);
+- remaining Component Contract and Runtime breadth (`12`–`16`);
 - Workspace continuity (`17`);
 - TeachingMixed generation once the relevant contracts exist (`23`–`25`); and
 - Boolean explanation once hierarchy, combinational contracts, and Workspace operations exist (`28`–`32`).
