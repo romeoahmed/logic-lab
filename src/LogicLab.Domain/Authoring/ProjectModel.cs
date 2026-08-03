@@ -236,24 +236,6 @@ public sealed class CircuitDefinition
             wireGeometries);
     }
 
-    internal CircuitDefinition AddNet(Net net)
-    {
-        var updatedNets = new Net[nets.Length + 1];
-        nets.CopyTo(updatedNets, 0);
-        updatedNets[^1] = net;
-        Array.Sort(
-            updatedNets,
-            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
-        return new CircuitDefinition(
-            Id,
-            DisplayName,
-            ports,
-            componentInstances,
-            updatedNets,
-            junctions,
-            wireGeometries);
-    }
-
     internal CircuitDefinition WithTopology(
         Net[] updatedNets,
         Junction[] updatedJunctions,
