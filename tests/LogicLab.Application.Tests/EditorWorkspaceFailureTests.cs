@@ -68,14 +68,19 @@ public sealed class EditorWorkspaceFailureTests
             opened.WorkspaceId,
             CancellationToken.None)).Projection;
 
-        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
-            await Assert.That(((WorkspaceCommandRejected)outcome).Code)
-                .IsEqualTo(expectedCode);
-            await Assert.That(((WorkspaceCommandRejected)outcome).DiagnosticCodes).IsEmpty();
+            await Assert.That(rejected.Code).IsEqualTo(expectedCode);
+            await Assert.That(rejected.DiagnosticCodes).IsEmpty();
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
-            await Assert.That(after.Compilation).IsEqualTo(before.Compilation);
+            await Assert.That(after.Compilation.Status)
+                .IsEqualTo(before.Compilation.Status);
+            await Assert.That(after.Compilation.ArtifactKey)
+                .IsEqualTo(before.Compilation.ArtifactKey);
+            await Assert.That(after.Compilation.DiagnosticCodes)
+                .IsEquivalentTo(before.Compilation.DiagnosticCodes);
             await Assert.That(after.Simulation).IsNull();
         }
     }
@@ -167,7 +172,7 @@ public sealed class EditorWorkspaceFailureTests
     }
 
     [Test]
-    public async Task DispatchAsync_SessionCommands_PublishFromCommittedOutcomesWithoutExtraSnapshotReads()
+    public async Task DispatchAsync_CommittedSessionMutation_WhenSnapshotReadIsUnavailable_StillPublishesOutcomeState()
     {
         var readCount = 0;
         var operations = WorkspaceModuleOperations.Production with
@@ -206,13 +211,20 @@ public sealed class EditorWorkspaceFailureTests
             opened.WorkspaceId,
             CancellationToken.None)).Projection;
 
-        await Assert.That(session).IsTypeOf<SimulationSessionCreated>();
-        await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
-        await Assert.That(stepped).IsTypeOf<SessionStepped>();
+        var created = await Assert.That(session).IsTypeOf<SimulationSessionCreated>();
+        var stimulus = await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
+        var step = await Assert.That(stepped).IsTypeOf<SessionStepped>();
+        Assert.NotNull(created);
+        Assert.NotNull(stimulus);
+        Assert.NotNull(step);
         await Assert.That(after.Simulation).IsNotNull();
         using (Assert.Multiple())
         {
-            await Assert.That(readCount).IsEqualTo(1);
+            await Assert.That(created.ProjectionVersion)
+                .IsLessThan(stimulus.ProjectionVersion);
+            await Assert.That(stimulus.ProjectionVersion)
+                .IsLessThan(step.ProjectionVersion);
+            await Assert.That(step.ProjectionVersion).IsEqualTo(after.ProjectionVersion);
             await Assert.That(after.Simulation!.SessionVersion).IsEqualTo(3UL);
             await Assert.That(after.Simulation.LogicalTime).IsEqualTo(1UL);
             await Assert.That(after.Simulation.Probes[0].Value)

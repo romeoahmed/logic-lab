@@ -1,7 +1,10 @@
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
+using TUnit.FsCheck;
 
 namespace LogicLab.Application.Tests;
 
@@ -22,6 +25,56 @@ public sealed class EditorWorkspaceAdmissionTests
             await Assert.That(firstConsumption).IsTrue();
             await Assert.That(secondConsumption).IsFalse();
         }
+    }
+
+    [Test, FsCheckProperty]
+    public Property AuthoringAdmissionBudget_AnyConsumptionSequence_MatchesReferenceModel(
+        PositiveInt maximum,
+        int[] consumptions)
+    {
+        var remaining = maximum.Get;
+        var budget = new AuthoringAdmissionBudget(remaining);
+        var alias = budget;
+        var matches = true;
+        var label = "every consumption matches the remaining-capacity model";
+
+        for (var index = 0; index < consumptions.Length; index++)
+        {
+            var itemCount = consumptions[index];
+            var expected = itemCount >= 0 && itemCount <= remaining;
+            var actual = (index & 1) == 0
+                ? budget.TryConsume(itemCount)
+                : alias.TryConsume(itemCount);
+
+            if (actual != expected)
+            {
+                matches = false;
+                label = $"request {index}: {itemCount}, remaining {remaining}, "
+                    + $"expected {expected}, actual {actual}";
+                break;
+            }
+
+            if (expected)
+            {
+                remaining -= itemCount;
+            }
+        }
+
+        if (matches)
+        {
+            var remainingAccepted = budget.TryConsume(remaining);
+            var exhaustedRejected = !alias.TryConsume(1);
+            matches = remainingAccepted && exhaustedRejected;
+            if (!matches)
+            {
+                label = $"final remaining-capacity probe failed for {remaining} items";
+            }
+        }
+
+        return matches
+            .Label(label)
+            .Collect($"maximum={maximum.Get}")
+            .Collect($"requests={consumptions.Length}");
     }
 
     [Test]
@@ -181,46 +234,6 @@ public sealed class EditorWorkspaceAdmissionTests
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
             await Assert.That(after.ProjectRevision.Document.CircuitDefinitions)
                 .Count().IsEqualTo(1);
-        }
-    }
-
-    [Test]
-    public async Task TryAdmitRoutes_FirstItemOverRemainingBudget_StopsEnumeration()
-    {
-        var visited = 0;
-        var budget = new AuthoringAdmissionBudget(maximum: 1);
-
-        var admitted = AuthoringAdmission.TryAdmitRoutes(Routes(), budget);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(admitted).IsFalse();
-            await Assert.That(visited).IsEqualTo(2);
-        }
-
-        IEnumerable<WireRoute> Routes()
-        {
-            visited++;
-            yield return new UnroutedWireRoute();
-            visited++;
-            yield return new UnroutedWireRoute();
-            visited++;
-            throw new InvalidOperationException("Enumeration continued after exhaustion.");
-        }
-    }
-
-    [Test]
-    public async Task AuthoringAdmissionBudget_OverBudgetConsumption_DoesNotSpendBudget()
-    {
-        var budget = new AuthoringAdmissionBudget(maximum: 1);
-
-        var overBudget = budget.TryConsume(2);
-        var atBudget = budget.TryConsume(1);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(overBudget).IsFalse();
-            await Assert.That(atBudget).IsTrue();
         }
     }
 

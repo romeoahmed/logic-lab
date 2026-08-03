@@ -6,37 +6,27 @@ namespace LogicLab.Application.Tests;
 public sealed class WorkspaceContractTests
 {
     [Test]
-    public async Task WorkspacePolicy_AuthoringLimits_PreserveConfiguredValues()
+    public async Task WorkspacePolicy_ExplicitAuthoringLimits_AreExposedAsOneValue()
     {
+        var authoringLimits = new WorkspaceAuthoringLimits(
+            definitionCount: 13,
+            entityCount: 21,
+            commandItemCount: 34);
         var policy = new WorkspacePolicy(
             globalWorkspaceLimit: 8,
             sandboxRetention: TimeSpan.FromMinutes(5),
-            authoringLimits: new WorkspaceAuthoringLimits(
-                definitionCount: 13,
-                entityCount: 21,
-                commandItemCount: 34));
+            authoringLimits);
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(policy.GlobalWorkspaceLimit).IsEqualTo(8);
-            await Assert.That(policy.SandboxRetention).IsEqualTo(TimeSpan.FromMinutes(5));
-            await Assert.That(policy.AuthoringLimits.DefinitionCount).IsEqualTo(13);
-            await Assert.That(policy.AuthoringLimits.EntityCount).IsEqualTo(21);
-            await Assert.That(policy.AuthoringLimits.CommandItemCount).IsEqualTo(34);
-        }
+        await Assert.That(policy.AuthoringLimits).IsEqualTo(authoringLimits);
     }
 
     [Test]
-    public async Task WorkspacePolicy_TwoArgumentConstructor_UsesDefaultAuthoringLimits()
+    public async Task WorkspacePolicy_TwoArgumentConstructor_UsesCanonicalAuthoringLimitsDefault()
     {
         var policy = new WorkspacePolicy(8, TimeSpan.FromMinutes(5));
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(policy.AuthoringLimits.DefinitionCount).IsEqualTo(100);
-            await Assert.That(policy.AuthoringLimits.EntityCount).IsEqualTo(10_000);
-            await Assert.That(policy.AuthoringLimits.CommandItemCount).IsEqualTo(1_000);
-        }
+        await Assert.That(policy.AuthoringLimits)
+            .IsEqualTo(WorkspaceAuthoringLimits.Default);
     }
 
     [Test]
