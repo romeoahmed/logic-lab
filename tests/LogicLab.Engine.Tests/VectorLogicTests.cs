@@ -8,34 +8,42 @@ namespace LogicLab.Engine.Tests;
 
 public sealed class VectorLogicTests
 {
-    [Test, FsCheckProperty]
-    public Property NormalizeInput_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property NormalizeInput_ValidVector_MatchesScalarOracleAtEveryBit(
+        LogicVectorCase sample)
     {
-        return CheckUnary(ScalarLogic.NormalizeInput, VectorLogic.NormalizeInput);
+        return CheckUnary(
+            sample,
+            ScalarLogic.NormalizeInput,
+            VectorLogic.NormalizeInput);
     }
 
-    [Test, FsCheckProperty]
-    public Property Not_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property Not_ValidVector_MatchesScalarOracleAtEveryBit(
+        LogicVectorCase sample)
     {
-        return CheckUnary(ScalarLogic.Not, VectorLogic.Not);
+        return CheckUnary(sample, ScalarLogic.Not, VectorLogic.Not);
     }
 
-    [Test, FsCheckProperty]
-    public Property And_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property And_ValidSameWidthVectors_MatchesScalarOracleAtEveryBit(
+        LogicVectorPairCase sample)
     {
-        return CheckBinary(ScalarLogic.And, VectorLogic.And);
+        return CheckBinary(sample, ScalarLogic.And, VectorLogic.And);
     }
 
-    [Test, FsCheckProperty]
-    public Property Or_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property Or_ValidSameWidthVectors_MatchesScalarOracleAtEveryBit(
+        LogicVectorPairCase sample)
     {
-        return CheckBinary(ScalarLogic.Or, VectorLogic.Or);
+        return CheckBinary(sample, ScalarLogic.Or, VectorLogic.Or);
     }
 
-    [Test, FsCheckProperty]
-    public Property Xor_ArbitraryPositiveWidth_MatchesScalarOracleAtEveryBit()
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property Xor_ValidSameWidthVectors_MatchesScalarOracleAtEveryBit(
+        LogicVectorPairCase sample)
     {
-        return CheckBinary(ScalarLogic.Xor, VectorLogic.Xor);
+        return CheckBinary(sample, ScalarLogic.Xor, VectorLogic.Xor);
     }
 
     [Test]
@@ -146,56 +154,45 @@ public sealed class VectorLogicTests
                 .ThrowsExactly<ArgumentNullException>();
             await Assert.That(() => VectorLogic.Or(null!, vector))
                 .ThrowsExactly<ArgumentNullException>();
+            await Assert.That(() => VectorLogic.Or(vector, null!))
+                .ThrowsExactly<ArgumentNullException>();
+            await Assert.That(() => VectorLogic.Xor(null!, vector))
+                .ThrowsExactly<ArgumentNullException>();
             await Assert.That(() => VectorLogic.Xor(vector, null!))
                 .ThrowsExactly<ArgumentNullException>();
         }
     }
 
     private static Property CheckUnary(
+        LogicVectorCase sample,
         Func<LogicValue, LogicValue> scalarOperation,
         Func<LogicVector, LogicVector> vectorOperation)
     {
-        return Prop.ForAll<int[]>(data =>
-        {
-            var seed = data is { Length: > 0 } ? data[0] : 0;
-            var width = LogicVectorTestData.PositiveWidth(seed);
-            var values = LogicVectorTestData.CreateValues(width, seed, data);
-            var expected = values.Select(scalarOperation).ToArray();
+        var expected = sample.Values.Select(scalarOperation).ToArray();
+        var actual = vectorOperation(new LogicVector(sample.Values));
+        var matches = LogicVectorTestData.Matches(actual, expected);
 
-            return LogicVectorTestData.Matches(
-                vectorOperation(new LogicVector(values)),
-                expected);
-        });
+        return matches
+            .Label(LogicVectorTestData.MismatchLabel(actual, expected))
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width));
     }
 
     private static Property CheckBinary(
+        LogicVectorPairCase sample,
         Func<LogicValue, LogicValue, LogicValue> scalarOperation,
         Func<LogicVector, LogicVector, LogicVector> vectorOperation)
     {
-        return Prop.ForAll<int[], int[]>((leftData, rightData) =>
-        {
-            var leftSeed = leftData is { Length: > 0 } ? leftData[0] : 0;
-            var rightSeed = rightData is { Length: > 0 } ? rightData[0] : 0;
-            var width = LogicVectorTestData.PositiveWidth(
-                leftSeed ^ rightSeed);
-            var leftValues = LogicVectorTestData.CreateValues(
-                width,
-                leftSeed,
-                leftData);
-            var rightValues = LogicVectorTestData.CreateValues(
-                width,
-                rightSeed,
-                rightData);
-            var expected = Enumerable.Range(0, width)
-                .Select(index => scalarOperation(leftValues[index], rightValues[index]))
-                .ToArray();
+        var expected = Enumerable.Range(0, sample.Width)
+            .Select(index => scalarOperation(sample.Left[index], sample.Right[index]))
+            .ToArray();
+        var actual = vectorOperation(
+            new LogicVector(sample.Left),
+            new LogicVector(sample.Right));
+        var matches = LogicVectorTestData.Matches(actual, expected);
 
-            return LogicVectorTestData.Matches(
-                vectorOperation(
-                    new LogicVector(leftValues),
-                    new LogicVector(rightValues)),
-                expected);
-        });
+        return matches
+            .Label(LogicVectorTestData.MismatchLabel(actual, expected))
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width));
     }
 
     private static async Task AssertMatchesScalar(

@@ -8,21 +8,16 @@ namespace LogicLab.Engine.Tests;
 
 public sealed class LogicVectorTests
 {
-    [Test, FsCheckProperty]
-    public Property Create_ArbitraryPositiveWidth_RoundTripsEveryValueInBitIndexOrder()
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property Create_ValidVector_RoundTripsEveryValueInBitIndexOrder(
+        LogicVectorCase sample)
     {
-        return Prop.ForAll<int[]>(data =>
-        {
-            var widthSeed = data is { Length: > 0 } ? data[0] : 0;
-            var width = LogicVectorTestData.PositiveWidth(widthSeed);
-            var values = LogicVectorTestData.CreateValues(
-                width,
-                widthSeed,
-                data);
-            var vector = new LogicVector(values);
+        var vector = new LogicVector(sample.Values);
+        var matches = LogicVectorTestData.Matches(vector, sample.Values);
 
-            return LogicVectorTestData.Matches(vector, values);
-        });
+        return matches
+            .Label(LogicVectorTestData.MismatchLabel(vector, sample.Values))
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width));
     }
 
     [Test]
