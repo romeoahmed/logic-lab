@@ -23,7 +23,7 @@ Do not copy a provisional value into an ADR, Project Document, or public compati
 | Trace Policy | Simulation Runtime | probes, retained transitions, sealed chunks, bytes, debug capture |
 | Analysis Policy | Boolean Analysis | rows, cubes, primes, chart edges, Petrick terms, AIG/cut/mapping work, BDD work |
 | Scheduling Policy | Application | admission rate, per-identity fairness, queue capacity, worker concurrency, result retention |
-| Workspace Policy | Application | history retention, detached recovery, hot-swap peak, sandbox lifetime, Durable Display Name scalar/UTF-8 bytes, catalog page size/cursor bytes |
+| Workspace Policy | Application | Workspace and authoring admission, history retention, detached recovery, hot-swap peak, sandbox lifetime, Durable Display Name scalar/UTF-8 bytes, catalog page size/cursor bytes |
 | Browser Policy | Web | semantic-intent bytes, snapshot/patch records, candidate-transfer bytes, bitmap pixels/bytes, effective density, zoom, semantic-tree paging, scene/waveform caches |
 
 Each policy has a stable ID and revision. A policy failure reports the policy revision, dimension, observed work, and stable reason. It does not expose sensitive fleet capacity.
@@ -145,6 +145,9 @@ The admission pair defines one fixed per-subject window. Queues reject rather th
 ```text
 global_workspace_count
 workspace_count_per_subject
+authoring_definition_count
+authoring_entity_count
+authoring_command_item_count
 history_revision_count
 idempotency_record_count
 detached_retention_seconds
@@ -159,11 +162,16 @@ catalog_cursor_bytes
 `global_workspace_count` is the process-wide hard bound on retained Workspace state; the
 per-subject dimension is an additional fairness bound and never replaces it. Admission and
 expiry reclamation share one atomic directory decision, so concurrent opens cannot overshoot
-either limit. History/idempotency limits apply after an atomic successful publication and
-produce the contract's explicit truncation or expired-idempotency behavior; they never make a
-valid edit partially commit. Retention uses `TimeProvider`. `hot_swap_peak_bytes` is declared
-owned-buffer accounting, not a promise about total process RSS. Both Durable Display Name
-dimensions must pass, and catalog requests cannot exceed the page/cursor maxima.
+either limit. `authoring_command_item_count` bounds the complete nested shape of one Edit
+Intent before Project Editor execution. The definition and entity dimensions validate the
+candidate Project Document before publication, using the same authored entity accounting as
+Compiler Project Scale Policy; they reject atomically and never substitute for the Compiler's
+hierarchy and elaboration limits. History/idempotency limits apply after an atomic successful
+publication and produce the contract's explicit truncation or expired-idempotency behavior;
+they never make a valid edit partially commit. Retention uses `TimeProvider`.
+`hot_swap_peak_bytes` is declared owned-buffer accounting, not a promise about total process
+RSS. Both Durable Display Name dimensions must pass, and catalog requests cannot exceed the
+page/cursor maxima.
 
 `BrowserPolicy` needs lower as well as upper bounds, so it owns this separate record:
 
