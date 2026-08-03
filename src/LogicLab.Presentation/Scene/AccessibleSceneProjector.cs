@@ -1,24 +1,29 @@
+using System.Diagnostics.CodeAnalysis;
 using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
 
 namespace LogicLab.Presentation.Scene;
 
 public static class AccessibleSceneProjector
 {
-    public static AccessibleSceneProjection Project(
+    public static bool TryProject(
         ProjectRevision revision,
-        ulong maximumPortCount)
+        ulong maximumPortCount,
+        [NotNullWhen(true)] out AccessibleSceneProjection? projection)
     {
         ArgumentNullException.ThrowIfNull(revision);
-        return Project(
+        return TryProject(
             revision,
             revision.Document.EntryCircuitDefinitionId,
-            maximumPortCount);
+            maximumPortCount,
+            out projection);
     }
 
-    public static AccessibleSceneProjection Project(
+    public static bool TryProject(
         ProjectRevision revision,
         CircuitDefinitionId circuitDefinitionId,
-        ulong maximumPortCount)
+        ulong maximumPortCount,
+        [NotNullWhen(true)] out AccessibleSceneProjection? projection)
     {
         ArgumentNullException.ThrowIfNull(revision);
         ArgumentNullException.ThrowIfNull(circuitDefinitionId);
@@ -27,8 +32,12 @@ public static class AccessibleSceneProjector
             ?? throw new ArgumentException(
                 "The selected Circuit Definition does not exist in the Project Revision.",
                 nameof(circuitDefinitionId));
-        var budget = new PortProjectionBudget(maximumPortCount);
-        budget.Consume(checked((ulong)definition.Ports.Count));
+        if (!FitsPortBudget(revision, definition, maximumPortCount))
+        {
+            projection = null;
+            return false;
+        }
+
         var definitionPorts = definition.Ports
             .Select(port => new AccessibleDefinitionPortProjection(
                 new DefinitionPortSourceIdentity(definition.Id, port.Id),
@@ -45,19 +54,74 @@ public static class AccessibleSceneProjector
                 revision,
                 definition.Id,
                 instance,
-                budget))
+                maximumPortCount))
             .ToArray();
         var connections = definition.Nets
             .OrderBy(net => net.Id.Value, StringComparer.Ordinal)
             .Select(net => ProjectConnection(definition, net))
             .ToArray();
 
-        return new AccessibleSceneProjection(
+        projection = new AccessibleSceneProjection(
             definition.Id,
             definition.DisplayName,
             definitionPorts,
             components,
             connections);
+        return true;
+    }
+
+    private static bool FitsPortBudget(
+        ProjectRevision revision,
+        CircuitDefinition definition,
+        ulong maximumPortCount)
+    {
+        var remaining = maximumPortCount;
+        if (!TryConsume(ref remaining, checked((ulong)definition.Ports.Count)))
+        {
+            return false;
+        }
+
+        foreach (var instance in definition.ComponentInstances)
+        {
+            ulong portCount;
+            switch (instance.Target)
+            {
+                case LibraryComponentTarget library:
+                    var schema = ResolveContract(revision, library);
+                    var resolution = schema.ResolvePorts(instance.Parameters);
+                    if (!resolution.TryGetPortCount(out portCount)
+                        || portCount > int.MaxValue)
+                    {
+                        return false;
+                    }
+                    break;
+                case CircuitDefinitionComponentTarget definitionTarget:
+                    var targetDefinition = ResolveDefinition(revision, definitionTarget);
+                    portCount = checked((ulong)targetDefinition.Ports.Count);
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        "The Component Target variant is undefined.");
+            }
+
+            if (!TryConsume(ref remaining, portCount))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryConsume(ref ulong remaining, ulong count)
+    {
+        if (count > remaining)
+        {
+            return false;
+        }
+
+        remaining -= count;
+        return true;
     }
 
     private static AccessibleConnectionProjection ProjectConnection(
@@ -93,7 +157,7 @@ public static class AccessibleSceneProjector
         ProjectRevision revision,
         CircuitDefinitionId definitionId,
         ComponentInstance instance,
-        PortProjectionBudget budget)
+        ulong maximumPortCount)
     {
         var (label, ports) = instance.Target switch
         {
@@ -102,13 +166,12 @@ public static class AccessibleSceneProjector
                 definitionId,
                 instance,
                 library,
-                budget),
+                maximumPortCount),
             CircuitDefinitionComponentTarget definition => ProjectDefinitionComponent(
                 revision,
                 definitionId,
                 instance,
-                definition,
-                budget),
+                definition),
             _ => throw new InvalidOperationException(
                 "The Component Target variant is undefined."),
         };
@@ -126,19 +189,16 @@ public static class AccessibleSceneProjector
             CircuitDefinitionId definitionId,
             ComponentInstance instance,
             LibraryComponentTarget target,
-            PortProjectionBudget budget)
+            ulong maximumPortCount)
     {
-        var schema = revision.Document.LibrarySnapshot.ResolveContract(target.ContractKey)
-            ?? throw new InvalidOperationException(
-                "The authored component contract is absent from the pinned Library Snapshot.");
-        var resolution = schema.PreparePorts(instance.Parameters);
-        if (budget.Remaining == 0
-            || !resolution.TryMaterialize(budget.Remaining, out var resolvedPorts))
+        var schema = ResolveContract(revision, target);
+        var resolution = schema.ResolvePorts(instance.Parameters);
+        if (!resolution.TryMaterialize(maximumPortCount, out var resolvedPorts))
         {
-            throw new AccessibleSceneProjectionLimitExceededException(budget.Maximum);
+            throw new InvalidOperationException(
+                "A preflight-admitted component Port resolution could not be materialized.");
         }
 
-        budget.Consume(checked((ulong)resolvedPorts.Count));
         var ports = resolvedPorts
             .Select(port => new AccessiblePortProjection(
                 new InstancePortSourceIdentity(definitionId, instance.Id, port.Id),
@@ -156,14 +216,9 @@ public static class AccessibleSceneProjector
             ProjectRevision revision,
             CircuitDefinitionId definitionId,
             ComponentInstance instance,
-            CircuitDefinitionComponentTarget target,
-            PortProjectionBudget budget)
+            CircuitDefinitionComponentTarget target)
     {
-        var targetDefinition = revision.Document.FindCircuitDefinition(
-            target.CircuitDefinitionId)
-            ?? throw new InvalidOperationException(
-                "The authored Circuit Definition target is absent from the Project Revision.");
-        budget.Consume(checked((ulong)targetDefinition.Ports.Count));
+        var targetDefinition = ResolveDefinition(revision, target);
         var ports = targetDefinition.Ports
             .Select(port => new AccessiblePortProjection(
                 new InstancePortSourceIdentity(
@@ -175,6 +230,24 @@ public static class AccessibleSceneProjector
                 port.Width))
             .ToArray();
         return (instance.DisplayName ?? targetDefinition.DisplayName, ports);
+    }
+
+    private static ComponentContractSchema ResolveContract(
+        ProjectRevision revision,
+        LibraryComponentTarget target)
+    {
+        return revision.Document.LibrarySnapshot.ResolveContract(target.ContractKey)
+            ?? throw new InvalidOperationException(
+                "The authored component contract is absent from the pinned Library Snapshot.");
+    }
+
+    private static CircuitDefinition ResolveDefinition(
+        ProjectRevision revision,
+        CircuitDefinitionComponentTarget target)
+    {
+        return revision.Document.FindCircuitDefinition(target.CircuitDefinitionId)
+            ?? throw new InvalidOperationException(
+                "The authored Circuit Definition target is absent from the Project Revision.");
     }
 
     private static string ContractLabel(string contractId)
@@ -205,27 +278,4 @@ public static class AccessibleSceneProjector
         };
     }
 
-    private sealed class PortProjectionBudget(ulong maximum)
-    {
-        public ulong Maximum { get; } = maximum;
-
-        public ulong Remaining { get; private set; } = maximum;
-
-        public void Consume(ulong count)
-        {
-            if (count > Remaining)
-            {
-                throw new AccessibleSceneProjectionLimitExceededException(Maximum);
-            }
-
-            Remaining -= count;
-        }
-    }
-}
-
-public sealed class AccessibleSceneProjectionLimitExceededException(
-    ulong maximumPortCount) : Exception(
-        "The accessible Scene Port count exceeds the active projection budget.")
-{
-    public ulong MaximumPortCount { get; } = maximumPortCount;
 }

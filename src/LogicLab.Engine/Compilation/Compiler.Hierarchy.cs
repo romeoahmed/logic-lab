@@ -375,7 +375,7 @@ public static partial class Compiler
                 }
 
                 if (!TryGetEvaluatorKind(key, out var kind)
-                    || !TryPreparePorts(
+                    || !TryResolvePorts(
                         instance,
                         schema,
                         cancellationToken,
@@ -423,9 +423,16 @@ public static partial class Compiler
         {
             cancellationToken.ThrowIfCancellationRequested();
             var pending = pendingInstances[index];
-            var ports = pending.PortResolution.Materialize(
-                maximumPortCount,
-                cancellationToken).ToArray();
+            if (!pending.PortResolution.TryMaterialize(
+                    maximumPortCount,
+                    out var materializedPorts,
+                    cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    "A policy-admitted component Port resolution could not be materialized.");
+            }
+
+            var ports = materializedPorts.ToArray();
             resolved[index] = new HierarchyResolvedInstance(
                 index,
                 pending.Occurrence,

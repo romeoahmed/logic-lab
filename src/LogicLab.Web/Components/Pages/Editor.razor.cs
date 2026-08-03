@@ -304,18 +304,18 @@ public partial class Editor
             HierarchyNavigation.Clear();
         }
 
-        try
-        {
-            Scene = AccessibleSceneProjector.Project(
+        if (AccessibleSceneProjector.TryProject(
                 Projection.ProjectRevision,
                 SelectedDefinitionId,
-                MaximumScenePortCount);
-        }
-        catch (AccessibleSceneProjectionLimitExceededException)
+                MaximumScenePortCount,
+                out var scene))
         {
-            Scene = null;
-            Status = "The accessible Scene exceeds the active Port projection budget.";
+            Scene = scene;
+            return;
         }
+
+        Scene = null;
+        Status = "The accessible Scene exceeds the active Port projection budget.";
     }
 
     private ComponentInstance Find(string contractId)

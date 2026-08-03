@@ -13,7 +13,7 @@ public sealed class TopologySceneProjectorTests
     {
         var revision = CreateWidthConversionComponents();
 
-        var scene = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
+        var scene = Project(revision);
 
         await AssertProjectedPorts(
             revision,
@@ -86,6 +86,14 @@ public sealed class TopologySceneProjectorTests
                     == revision.Document.EntryCircuitDefinitionId
                 && port.Source.ComponentInstanceId == instance.Id)).IsTrue();
         }
+    }
+
+    private static AccessibleSceneProjection Project(ProjectRevision revision)
+    {
+        return AccessibleSceneProjector.TryProject(revision, 10_000, out var scene)
+            ? scene
+            : throw new InvalidOperationException(
+                "The bounded test Scene could not be projected.");
     }
 
     private static ProjectRevision CreateWidthConversionComponents()

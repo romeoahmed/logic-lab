@@ -9,7 +9,7 @@ namespace LogicLab.Presentation.Tests;
 public sealed class AccessibleSceneProjectorTests
 {
     [Test]
-    public async Task Project_GeneratedPortShapeBeyondBudget_RejectsBeforeMaterialization()
+    public async Task TryProject_GeneratedPortShapeBeyondCollectionCapacity_ReturnsFalse()
     {
         var revision = CreateCompleteCircuit();
         var outcome = ProjectEditor.Apply(
@@ -28,12 +28,31 @@ public sealed class AccessibleSceneProjectorTests
                 new ComponentPlacement(new GridPoint(24, 0))));
         revision = Commit(outcome);
 
-        var exception = await Assert.That(() => AccessibleSceneProjector.Project(
-                revision,
-                maximumPortCount: 10_000))
-            .ThrowsExactly<AccessibleSceneProjectionLimitExceededException>();
+        var projected = AccessibleSceneProjector.TryProject(
+            revision,
+            maximumPortCount: ulong.MaxValue,
+            out var scene);
 
-        await Assert.That(exception!.MaximumPortCount).IsEqualTo(10_000UL);
+        using (Assert.Multiple())
+        {
+            await Assert.That(projected).IsFalse();
+            await Assert.That(scene).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task TryProject_TotalPortCountBeyondBudget_ReturnsFalseWithoutProjection()
+    {
+        var projected = AccessibleSceneProjector.TryProject(
+            CreateCompleteCircuit(),
+            maximumPortCount: 3,
+            out var scene);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(projected).IsFalse();
+            await Assert.That(scene).IsNull();
+        }
     }
 
     [Test]
@@ -42,7 +61,7 @@ public sealed class AccessibleSceneProjectorTests
         var revision = CreateCompleteCircuit();
         var definition = revision.Document.EntryCircuitDefinition;
 
-        var scene = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
+        var scene = Project(revision);
 
         using (Assert.Multiple())
         {
@@ -95,7 +114,7 @@ public sealed class AccessibleSceneProjectorTests
     public async Task Project_ComponentMove_PreservesElectricalTerminalMembership()
     {
         var revision = CreateCompleteCircuit();
-        var before = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
+        var before = Project(revision);
         var logicNot = revision.Document.EntryCircuitDefinition.ComponentInstances
             .Single(instance => instance.Target is LibraryComponentTarget library
                 && library.ContractKey.ContractId == "logic.not");
@@ -105,7 +124,7 @@ public sealed class AccessibleSceneProjectorTests
                 revision.Document.EntryCircuitDefinitionId,
                 [new ComponentMove(logicNot.Id, new ComponentPlacement(new GridPoint(20, 10)))])));
 
-        var after = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
+        var after = Project(revision);
 
         using (Assert.Multiple())
         {
@@ -165,7 +184,7 @@ public sealed class AccessibleSceneProjectorTests
                 [])));
 
         var projectedDefinition = revision.Document.EntryCircuitDefinition;
-        var scene = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
+        var scene = Project(revision);
         var connection = scene.Connections.Single(item => item.Source.NetId == net.Id);
         var junction = await Assert.That(connection.Junctions).HasSingleItem();
         var authoredJunction = await Assert.That(projectedDefinition.Junctions).HasSingleItem();
@@ -248,14 +267,10 @@ public sealed class AccessibleSceneProjectorTests
         var authoredCall = mainDefinition.ComponentInstances.Single(instance =>
             instance.Target is CircuitDefinitionComponentTarget target
             && target.CircuitDefinitionId == child.Id);
-        var childScene = AccessibleSceneProjector.Project(
+        var childScene = Project(revision, child.Id);
+        var mainScene = Project(
             revision,
-            child.Id,
-            maximumPortCount: 10_000);
-        var mainScene = AccessibleSceneProjector.Project(
-            revision,
-            revision.Document.EntryCircuitDefinitionId,
-            maximumPortCount: 10_000);
+            revision.Document.EntryCircuitDefinitionId);
         var call = mainScene.Components.Single(component =>
             component.Label == "Nested inverter");
         var expectedDefinitionPorts = child.Ports.Select(port =>
@@ -299,6 +314,28 @@ public sealed class AccessibleSceneProjectorTests
             "sink.output" => "Output",
             _ => throw new ArgumentOutOfRangeException(nameof(instance)),
         };
+    }
+
+    private static AccessibleSceneProjection Project(ProjectRevision revision)
+    {
+        return AccessibleSceneProjector.TryProject(revision, 10_000, out var scene)
+            ? scene
+            : throw new InvalidOperationException(
+                "The bounded test Scene could not be projected.");
+    }
+
+    private static AccessibleSceneProjection Project(
+        ProjectRevision revision,
+        CircuitDefinitionId circuitDefinitionId)
+    {
+        return AccessibleSceneProjector.TryProject(
+                revision,
+                circuitDefinitionId,
+                10_000,
+                out var scene)
+            ? scene
+            : throw new InvalidOperationException(
+                "The bounded test Scene could not be projected.");
     }
 
     private static (string PortId, string Label, PortDirection Direction)[] ExpectedPorts(

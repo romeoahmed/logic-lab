@@ -330,8 +330,8 @@ public static partial class Compiler
         foreach (var resolution in portResolutions)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (resolution.ExceedsPortCountRange
-                || resolution.PortCount > ulong.MaxValue - observed)
+            if (!resolution.TryGetPortCount(out var portCount)
+                || portCount > ulong.MaxValue - observed)
             {
                 var firstExceeded = maximum == ulong.MaxValue
                     ? ulong.MaxValue
@@ -344,7 +344,7 @@ public static partial class Compiler
                     exceedsMaximum: true)!;
             }
 
-            observed += resolution.PortCount;
+            observed += portCount;
         }
 
         return Observe(request, dimension, observed, observations);
@@ -383,7 +383,7 @@ public static partial class Compiler
             }
 
             if (!TryGetEvaluatorKind(contractKey, out var kind)
-                || !TryPreparePorts(
+                || !TryResolvePorts(
                     instance,
                     schema,
                     cancellationToken,
@@ -429,9 +429,16 @@ public static partial class Compiler
         {
             cancellationToken.ThrowIfCancellationRequested();
             var pending = pendingInstances[index];
-            var ports = pending.PortResolution.Materialize(
-                maximumPortCount,
-                cancellationToken).ToArray();
+            if (!pending.PortResolution.TryMaterialize(
+                    maximumPortCount,
+                    out var materializedPorts,
+                    cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    "A policy-admitted component Port resolution could not be materialized.");
+            }
+
+            var ports = materializedPorts.ToArray();
             resolved[index] = new ResolvedInstance(
                 pending.Ordinal,
                 pending.Instance,
@@ -941,7 +948,7 @@ public static partial class Compiler
         }
     }
 
-    private static bool TryPreparePorts(
+    private static bool TryResolvePorts(
         ComponentInstance instance,
         ComponentContractSchema schema,
         CancellationToken cancellationToken,
@@ -949,7 +956,7 @@ public static partial class Compiler
     {
         try
         {
-            resolution = schema.PreparePorts(
+            resolution = schema.ResolvePorts(
                 instance.Parameters,
                 cancellationToken);
             return true;
