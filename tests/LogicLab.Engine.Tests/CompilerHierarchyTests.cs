@@ -254,7 +254,7 @@ public sealed class CompilerHierarchyTests
         await AssertPolicyBreach(
             outcome,
             ProjectScaleDimension.ElaboratedSlotCount,
-            observed: 9);
+            observed: 13);
     }
 
     private static HierarchicalCircuit CreateHierarchicalCircuit(int instanceCount)

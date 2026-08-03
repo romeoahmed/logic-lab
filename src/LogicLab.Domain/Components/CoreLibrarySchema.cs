@@ -78,8 +78,16 @@ public static class CoreLibrarySchema
                 widthParameterId: "width",
                 minimumItemCount: 2),
         ],
-        [],
-        ComponentPortResolutionKind.Split);
+        [
+            new ComponentPortSchema("D", PortDirection.Input, "width"),
+            new ComponentPortSchema(
+                "Q",
+                PortDirection.Output,
+                ComponentPortCardinality.ParameterItems,
+                ComponentPortIndexing.ZeroBasedDecimal,
+                ComponentPortWidthSource.SliceLength,
+                "slices"),
+        ]);
 
     private static readonly ComponentContractSchema TopologyConcat = new(
         new ComponentContractKey(LibraryId, "topology.concat"),
@@ -89,8 +97,22 @@ public static class CoreLibrarySchema
                 ComponentParameterKind.Widths,
                 minimumItemCount: 2),
         ],
-        [],
-        ComponentPortResolutionKind.Concat);
+        [
+            new ComponentPortSchema(
+                "D",
+                PortDirection.Input,
+                ComponentPortCardinality.ParameterItems,
+                ComponentPortIndexing.ZeroBasedDecimal,
+                ComponentPortWidthSource.WidthItem,
+                "inputWidths"),
+            new ComponentPortSchema(
+                "Q",
+                PortDirection.Output,
+                ComponentPortCardinality.Fixed,
+                ComponentPortIndexing.None,
+                ComponentPortWidthSource.WidthSum,
+                "inputWidths"),
+        ]);
 
     private static readonly ComponentContractSchema TopologyZeroExtend =
         CreateExtensionContract("topology.zero_extend");
@@ -134,33 +156,14 @@ public static class CoreLibrarySchema
     private static string ComputeContentDigest()
     {
         var canonical = new StringBuilder();
+        canonical.Append("componentLibrarySchemaV1\u001f")
+            .Append(LibraryId).Append('\u001f')
+            .Append(Version).Append('\n');
         foreach (var contract in ContractSchemas)
         {
-            canonical.Append(contract.Key.LibraryId).Append('\u001f')
-                .Append(contract.Key.ContractId).Append('\n');
-            foreach (var parameter in contract.Parameters)
-            {
-                canonical.Append("parameter\u001f")
-                    .Append(parameter.Id).Append('\u001f')
-                    .Append((int)parameter.Kind).Append('\u001f')
-                    .Append(parameter.WidthParameterId ?? string.Empty).Append('\u001f')
-                    .Append(parameter.MinimumItemCount).Append('\u001f')
-                    .Append(parameter.GreaterThanParameterId ?? string.Empty).Append('\u001f')
-                    .AppendJoin('\u001e', parameter.AllowedValues)
-                    .Append('\n');
-            }
-
-            foreach (var port in contract.Ports)
-            {
-                canonical.Append("port\u001f")
-                    .Append(port.Id).Append('\u001f')
-                    .Append((int)port.Direction).Append('\u001f')
-                    .Append(port.WidthParameterId)
-                    .Append('\n');
-            }
-
-            canonical.Append("portResolution\u001f")
-                .Append((int)contract.PortResolutionKind)
+            canonical.Append("contract\u001f")
+                .Append(contract.Key.ContractId).Append('\u001f')
+                .Append(contract.SchemaDigest)
                 .Append('\n');
         }
 

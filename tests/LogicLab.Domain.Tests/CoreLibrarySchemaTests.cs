@@ -38,7 +38,7 @@ public sealed class CoreLibrarySchemaTests
                 .IsEquivalentTo(["Q"], CollectionOrdering.Matching);
             await Assert.That(sourceInput.Ports.Select(port => port.Direction).ToArray())
                 .IsEquivalentTo([PortDirection.Output], CollectionOrdering.Matching);
-            await Assert.That(sourceInput.Ports.Select(port => port.WidthParameterId).ToArray())
+            await Assert.That(sourceInput.Ports.Select(port => port.ParameterId).ToArray())
                 .IsEquivalentTo(["width"], CollectionOrdering.Matching);
         }
     }
@@ -66,7 +66,7 @@ public sealed class CoreLibrarySchemaTests
                 .IsEquivalentTo(
                     [PortDirection.Input, PortDirection.Output],
                     CollectionOrdering.Matching);
-            await Assert.That(logicNot.Ports.Select(port => port.WidthParameterId).ToArray())
+            await Assert.That(logicNot.Ports.Select(port => port.ParameterId).ToArray())
                 .IsEquivalentTo(["width", "width"], CollectionOrdering.Matching);
         }
     }
@@ -97,7 +97,7 @@ public sealed class CoreLibrarySchemaTests
                 .IsEquivalentTo(["D"], CollectionOrdering.Matching);
             await Assert.That(sinkOutput.Ports.Select(port => port.Direction).ToArray())
                 .IsEquivalentTo([PortDirection.Input], CollectionOrdering.Matching);
-            await Assert.That(sinkOutput.Ports.Select(port => port.WidthParameterId).ToArray())
+            await Assert.That(sinkOutput.Ports.Select(port => port.ParameterId).ToArray())
                 .IsEquivalentTo(["width"], CollectionOrdering.Matching);
         }
     }

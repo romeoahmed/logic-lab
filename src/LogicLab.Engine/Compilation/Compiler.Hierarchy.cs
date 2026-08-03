@@ -61,16 +61,9 @@ public static partial class Compiler
         }
 
         var occurrences = occurrenceResult.Occurrences;
-        var resolvedInstances = ResolveHierarchyInstances(
+        var pendingInstances = ResolveHierarchyInstanceShapes(
             request,
             occurrences,
-            diagnostics,
-            cancellationToken);
-        var topology = BuildHierarchyTopology(
-            request,
-            occurrences,
-            occurrenceResult.ChildByCall,
-            resolvedInstances,
             diagnostics,
             cancellationToken);
         if (diagnostics.Count != 0)
@@ -79,17 +72,22 @@ public static partial class Compiler
             return RejectInvalid(request, diagnostics, observations);
         }
 
-        var driverCount = resolvedInstances.Aggregate(
-            0UL,
-            (count, instance) => checked(
-                count
-                + (ulong)instance.Ports.Count(
-                    port => port.Direction == PortDirection.Output)));
         var elaboratedSlotCount = checked(
-            (ulong)occurrences.Length
-            + (ulong)resolvedInstances.Length
-            + (ulong)topology.Groups.Length
-            + driverCount);
+            (ulong)occurrences.Length + (ulong)pendingInstances.Length);
+        foreach (var occurrence in occurrences)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            elaboratedSlotCount = checked(
+                elaboratedSlotCount + (ulong)occurrence.Definition.Nets.Count);
+        }
+
+        foreach (var instance in pendingInstances)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            elaboratedSlotCount = checked(
+                elaboratedSlotCount + instance.PortShape.PortCount);
+        }
+
         var slotRejection = Observe(
             request,
             ProjectScaleDimension.ElaboratedSlotCount,
@@ -110,6 +108,22 @@ public static partial class Compiler
         {
             cancellationToken.ThrowIfCancellationRequested();
             return memoryRejection;
+        }
+
+        var resolvedInstances = MaterializeHierarchyInstances(
+            pendingInstances,
+            cancellationToken);
+        var topology = BuildHierarchyTopology(
+            request,
+            occurrences,
+            occurrenceResult.ChildByCall,
+            resolvedInstances,
+            diagnostics,
+            cancellationToken);
+        if (diagnostics.Count != 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return RejectInvalid(request, diagnostics, observations);
         }
 
         var artifact = BuildHierarchyArtifact(
@@ -331,13 +345,13 @@ public static partial class Compiler
             null);
     }
 
-    private static HierarchyResolvedInstance[] ResolveHierarchyInstances(
+    private static PendingHierarchyResolvedInstance[] ResolveHierarchyInstanceShapes(
         CompilationRequest request,
         HierarchyOccurrence[] occurrences,
         List<CompilerDiagnostic> diagnostics,
         CancellationToken cancellationToken)
     {
-        var resolved = new List<HierarchyResolvedInstance>();
+        var pending = new List<PendingHierarchyResolvedInstance>();
         foreach (var occurrence in occurrences)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -366,7 +380,11 @@ public static partial class Compiler
                 }
 
                 if (!TryGetEvaluatorKind(key, out var kind)
-                    || !TryResolvePorts(instance, schema, out var ports))
+                    || !TryResolvePortShape(
+                        instance,
+                        schema,
+                        cancellationToken,
+                        out var portShape))
                 {
                     diagnostics.Add(new CompilerDiagnostic(
                         "compiler_parameter_schema_mismatch",
@@ -389,17 +407,40 @@ public static partial class Compiler
                     continue;
                 }
 
-                resolved.Add(new HierarchyResolvedInstance(
-                    resolved.Count,
+                pending.Add(new PendingHierarchyResolvedInstance(
                     occurrence,
                     instance,
                     kind,
-                    ports,
-                    GetEvaluatorWidth(ports)));
+                    schema,
+                    portShape));
             }
         }
 
-        return resolved.ToArray();
+        return pending.ToArray();
+    }
+
+    private static HierarchyResolvedInstance[] MaterializeHierarchyInstances(
+        PendingHierarchyResolvedInstance[] pendingInstances,
+        CancellationToken cancellationToken)
+    {
+        var resolved = new HierarchyResolvedInstance[pendingInstances.Length];
+        for (var index = 0; index < pendingInstances.Length; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var pending = pendingInstances[index];
+            var ports = pending.Schema.ResolvePorts(
+                pending.Instance.Parameters,
+                cancellationToken).ToArray();
+            resolved[index] = new HierarchyResolvedInstance(
+                index,
+                pending.Occurrence,
+                pending.Instance,
+                pending.Kind,
+                ports,
+                GetEvaluatorWidth(ports));
+        }
+
+        return resolved;
     }
 
     private static HierarchyTopology BuildHierarchyTopology(
@@ -412,6 +453,10 @@ public static partial class Compiler
     {
         var scopedNets = new List<HierarchyScopedNet>();
         var scopedNetByTerminal = new Dictionary<HierarchyTerminalKey, int>();
+        var resolvedByInstance = resolvedInstances.ToDictionary(
+            resolved => new HierarchyInstanceKey(
+                resolved.Occurrence,
+                resolved.Instance.Id));
         foreach (var occurrence in occurrences)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -433,6 +478,7 @@ public static partial class Compiler
                             request,
                             occurrence,
                             terminal,
+                            resolvedByInstance,
                             out var port))
                     {
                         diagnostics.Add(PortUnresolved(
@@ -472,6 +518,7 @@ public static partial class Compiler
         ValidateRequiredHierarchyTerminals(
             request,
             occurrences,
+            resolvedByInstance,
             scopedNetByTerminal,
             diagnostics,
             cancellationToken);
@@ -538,6 +585,7 @@ public static partial class Compiler
     private static void ValidateRequiredHierarchyTerminals(
         CompilationRequest request,
         HierarchyOccurrence[] occurrences,
+        Dictionary<HierarchyInstanceKey, HierarchyResolvedInstance> resolvedByInstance,
         Dictionary<HierarchyTerminalKey, int> scopedNetByTerminal,
         List<CompilerDiagnostic> diagnostics,
         CancellationToken cancellationToken)
@@ -561,20 +609,15 @@ public static partial class Compiler
                 cancellationToken.ThrowIfCancellationRequested();
                 switch (instance.Target)
                 {
-                    case LibraryComponentTarget library:
-                        var schema = request.LibrarySnapshot.ResolveContract(
-                            library.ContractKey);
-                        if (schema is null)
+                    case LibraryComponentTarget:
+                        if (!resolvedByInstance.TryGetValue(
+                                new HierarchyInstanceKey(occurrence, instance.Id),
+                                out var resolved))
                         {
                             continue;
                         }
 
-                        if (!TryResolvePorts(instance, schema, out var ports))
-                        {
-                            continue;
-                        }
-
-                        foreach (var port in ports.Where(
+                        foreach (var port in resolved.Ports.Where(
                             port => port.Direction == PortDirection.Input))
                         {
                             RequireTerminal(
@@ -648,6 +691,7 @@ public static partial class Compiler
         CompilationRequest request,
         HierarchyOccurrence occurrence,
         AuthoredTerminalReference terminal,
+        Dictionary<HierarchyInstanceKey, HierarchyResolvedInstance> resolvedByInstance,
         out HierarchyPort port)
     {
         switch (terminal)
@@ -676,17 +720,17 @@ public static partial class Compiler
                     return false;
                 }
 
-                if (instance.Target is LibraryComponentTarget library)
+                if (instance.Target is LibraryComponentTarget)
                 {
-                    var schema = request.LibrarySnapshot.ResolveContract(library.ContractKey);
-                    if (schema is null
-                        || !TryResolvePorts(instance, schema, out var ports))
+                    if (!resolvedByInstance.TryGetValue(
+                            new HierarchyInstanceKey(occurrence, instance.Id),
+                            out var resolved))
                     {
                         port = default!;
                         return false;
                     }
 
-                    var componentPort = ports.SingleOrDefault(candidate =>
+                    var componentPort = resolved.Ports.SingleOrDefault(candidate =>
                         string.Equals(
                             candidate.Id,
                             instanceTerminal.PortId,
@@ -910,6 +954,13 @@ public static partial class Compiler
         SimulationEvaluatorKind Kind,
         ResolvedComponentPortSchema[] Ports,
         uint Width);
+
+    private sealed record PendingHierarchyResolvedInstance(
+        HierarchyOccurrence Occurrence,
+        ComponentInstance Instance,
+        SimulationEvaluatorKind Kind,
+        ComponentContractSchema Schema,
+        ComponentPortShape PortShape);
 
     private sealed record HierarchyScopedNet(
         int Index,

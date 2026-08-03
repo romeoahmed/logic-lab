@@ -62,6 +62,12 @@ ProjectScaleLimitV1
   maximum: UnsignedDecimal
 ```
 
+`elaborated_slot_count` counts every library evaluator, resolved library Port
+slot, and Net record in the elaborated entry. Hierarchical compilation also
+counts each reachable occurrence and each scoped Net before boundary unions.
+The Compiler measures generated Port cardinality and admits this complete count
+before it allocates generated Port identities or topology storage.
+
 The remaining Module and Application policies use the same local schema notation without creating a shared CLR `Common` type:
 
 ```text
