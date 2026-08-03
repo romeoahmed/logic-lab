@@ -20,13 +20,13 @@
                          CanScheduleStimulus="CanScheduleStimulus"
                          CanStep="CanStep"
                          ActiveCommand="@WorkbenchActiveCommand"
-                         OnCreate="@(() => RunCommandAsync("create", CreateProject))"
-                         OnAuthor="@(() => RunCommandAsync("author", AuthorCircuit))"
-                         OnAuthorHierarchy="@(() => RunCommandAsync("author-hierarchy", AuthorHierarchy))"
-                         OnCompile="@(() => RunCommandAsync("compile", Compile))"
-                         OnCreateSession="@(() => RunCommandAsync("session", CreateSimulationSession))"
-                         OnScheduleStimulus="@(() => RunCommandAsync("stimulus", ScheduleStimulus))"
-                         OnStep="@(() => RunCommandAsync("step", Step))" />
+                         OnCreate="@(() => RunCommandAsync("create", () => CanCreate, CreateProject))"
+                         OnAuthor="@(() => RunCommandAsync("author", () => CanAuthor, AuthorCircuit))"
+                         OnAuthorHierarchy="@(() => RunCommandAsync("author-hierarchy", () => CanAuthorHierarchy, AuthorHierarchy))"
+                         OnCompile="@(() => RunCommandAsync("compile", () => CanCompile, Compile))"
+                         OnCreateSession="@(() => RunCommandAsync("session", () => CanCreateSession, CreateSimulationSession))"
+                         OnScheduleStimulus="@(() => RunCommandAsync("stimulus", () => CanScheduleStimulus, ScheduleStimulus))"
+                         OnStep="@(() => RunCommandAsync("step", () => CanStep, Step))" />
 
     <DefinitionNavigator Document="Projection?.ProjectRevision.Document"
                          SelectedDefinitionId="SelectedDefinitionId"
@@ -48,15 +48,15 @@
                         CanUnroute="CanUnroute"
                         RouteDraftActive="RouteDraftActive"
                         ActiveCommand="@ActiveCommand"
-                        OnMerge="@(() => RunCommandAsync("topology-merge", MergeTopology))"
-                        OnSplit="@(() => RunCommandAsync("topology-split", SplitTopology))"
-                        OnAddJunction="@(() => RunCommandAsync("topology-add-junction", AddJunction))"
-                        OnRemoveJunction="@(() => RunCommandAsync("topology-remove-junction", RemoveJunction))"
+                        OnMerge="@(() => RunCommandAsync("topology-merge", () => CanMergeTopology, MergeTopology))"
+                        OnSplit="@(() => RunCommandAsync("topology-split", () => CanSplitTopology, SplitTopology))"
+                        OnAddJunction="@(() => RunCommandAsync("topology-add-junction", () => CanAddJunction, AddJunction))"
+                        OnRemoveJunction="@(() => RunCommandAsync("topology-remove-junction", () => CanRemoveJunction, RemoveJunction))"
                         OnPrepareRoute="PrepareRoute"
-                        OnCommitRoute="@(() => RunCommandAsync("topology-commit-route", CommitRoute))"
+                        OnCommitRoute="@(() => RunCommandAsync("topology-commit-route", () => RouteDraftActive && CanEditTopology, CommitRoute))"
                         OnCancelRoute="CancelRoute"
-                        OnRoute="@(() => RunCommandAsync("topology-route", RouteGeometry))"
-                        OnUnroute="@(() => RunCommandAsync("topology-unroute", UnrouteGeometry))" />
+                        OnRoute="@(() => RunCommandAsync("topology-route", () => CanRoute, RouteGeometry))"
+                        OnUnroute="@(() => RunCommandAsync("topology-unroute", () => CanUnroute, UnrouteGeometry))" />
 
     <div class="workbench-grid">
         <AccessibleCircuitScene Scene="Scene" />
