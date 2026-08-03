@@ -6,6 +6,13 @@ namespace LogicLab.Domain.Tests;
 
 public sealed class ProjectEditorTopologyTests
 {
+    public enum InvalidRouteScenario
+    {
+        TooShort,
+        AdjacentDuplicate,
+        Diagonal,
+    }
+
     [Test]
     public async Task Apply_ConnectToExistingNetWithJunctionAndRoute_CommitsExplicitTopology()
     {
@@ -77,8 +84,8 @@ public sealed class ProjectEditorTopologyTests
                     Terminal(definitionId, circuit.Output, "D"),
                 ]));
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics).Count().IsEqualTo(1);
@@ -262,8 +269,8 @@ public sealed class ProjectEditorTopologyTests
             topology.Revision,
             new SplitNetIntent(definition.Id, topology.Net.Id, [first, second]));
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code))
@@ -369,8 +376,8 @@ public sealed class ProjectEditorTopologyTests
                     new NetPartition(terminals.Skip(2).ToArray(), [], []),
                 ]));
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Single().Code)
@@ -461,8 +468,8 @@ public sealed class ProjectEditorTopologyTests
                 updatedDefinition.Id,
                 wireOnlyGeometry.Id));
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Single().Code)
@@ -477,10 +484,11 @@ public sealed class ProjectEditorTopologyTests
     }
 
     [Test]
-    [Arguments("tooShort")]
-    [Arguments("adjacentDuplicate")]
-    [Arguments("diagonal")]
-    public async Task Apply_InvalidOrthogonalRoute_RejectsAtomically(string scenario)
+    [Arguments(InvalidRouteScenario.TooShort)]
+    [Arguments(InvalidRouteScenario.AdjacentDuplicate)]
+    [Arguments(InvalidRouteScenario.Diagonal)]
+    public async Task Apply_InvalidOrthogonalRoute_RejectsAtomically(
+        InvalidRouteScenario scenario)
     {
         var circuit = CreatePlacedCircuit();
         var definitionId = circuit.Revision.Document.EntryCircuitDefinition.Id;
@@ -491,11 +499,11 @@ public sealed class ProjectEditorTopologyTests
         var net = connected.Document.EntryCircuitDefinition.Nets.Single();
         var points = scenario switch
         {
-            "tooShort" => new[] { new GridPoint(0, 0) },
-            "adjacentDuplicate" =>
+            InvalidRouteScenario.TooShort => new[] { new GridPoint(0, 0) },
+            InvalidRouteScenario.AdjacentDuplicate =>
                 [new GridPoint(0, 0), new GridPoint(0, 0)],
-            "diagonal" => [new GridPoint(0, 0), new GridPoint(1, 1)],
-            _ => throw new InvalidOperationException("Undefined route scenario."),
+            InvalidRouteScenario.Diagonal => [new GridPoint(0, 0), new GridPoint(1, 1)],
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
         };
 
         var outcome = ProjectEditor.Apply(
@@ -505,8 +513,8 @@ public sealed class ProjectEditorTopologyTests
                 net.Id,
                 new OrthogonalWireRoute(points)));
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics).Count().IsEqualTo(1);

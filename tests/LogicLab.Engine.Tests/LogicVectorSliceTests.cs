@@ -8,25 +8,24 @@ namespace LogicLab.Engine.Tests;
 
 public sealed class LogicVectorSliceTests
 {
-    [Test, FsCheckProperty]
-    public Property Slice_ArbitraryContainedPositiveRange_MatchesScalarProjection()
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property Slice_ContainedPositiveRange_MatchesScalarProjection(
+        LogicVectorSliceCase sample)
     {
-        return Prop.ForAll<int[]>(data =>
-        {
-            var seed = data is { Length: > 0 } ? data[0] : 0;
-            var width = LogicVectorTestData.PositiveWidth(seed);
-            var values = LogicVectorTestData.CreateValues(width, seed, data);
-            var offsetSeed = data is { Length: > 1 } ? data[1] : ~seed;
-            var lengthSeed = data is { Length: > 2 } ? data[2] : seed;
-            var offset = (int)(unchecked((uint)offsetSeed) % (uint)width);
-            var remaining = width - offset;
-            var length = (int)(unchecked((uint)lengthSeed) % (uint)remaining) + 1;
+        var actual = new LogicVector(sample.Values)
+            .Slice(sample.Offset, sample.Length);
+        var expected = sample.Values
+            .Skip(sample.Offset)
+            .Take(sample.Length)
+            .ToArray();
+        var matches = LogicVectorTestData.Matches(actual, expected);
+        var crossesWordBoundary = sample.Offset / 64
+            != (sample.Offset + sample.Length - 1) / 64;
 
-            var actual = new LogicVector(values).Slice(offset, length);
-            var expected = values.Skip(offset).Take(length).ToArray();
-
-            return LogicVectorTestData.Matches(actual, expected);
-        });
+        return matches
+            .Label(LogicVectorTestData.MismatchLabel(actual, expected))
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width))
+            .Classify(crossesWordBoundary, "crosses 64-bit word boundary");
     }
 
     [Test]
