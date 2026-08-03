@@ -36,6 +36,91 @@ public static class CoreLibrarySchema
             new ComponentPortSchema("Q", PortDirection.Output, "width"),
         ]);
 
+    private static readonly ComponentContractSchema LogicBuffer =
+        CreateUnaryLogicContract("logic.buffer");
+
+    private static readonly ComponentContractSchema LogicAnd =
+        CreateGateContract("logic.and");
+
+    private static readonly ComponentContractSchema LogicNand =
+        CreateGateContract("logic.nand");
+
+    private static readonly ComponentContractSchema LogicOr =
+        CreateGateContract("logic.or");
+
+    private static readonly ComponentContractSchema LogicNor =
+        CreateGateContract("logic.nor");
+
+    private static readonly ComponentContractSchema LogicXor =
+        CreateGateContract("logic.xor");
+
+    private static readonly ComponentContractSchema LogicXnor =
+        CreateGateContract("logic.xnor");
+
+    private static readonly ComponentContractSchema LogicTristate = new(
+        new ComponentContractKey(LibraryId, "logic.tristate"),
+        [
+            WidthParameter("width"),
+            ChoiceParameter("enablePolarity", "activeHigh", "activeLow"),
+        ],
+        [
+            new ComponentPortSchema("D", PortDirection.Input, "width"),
+            FixedOnePort("EN", PortDirection.Input),
+            new ComponentPortSchema("Q", PortDirection.Output, "width"),
+        ]);
+
+    private static readonly ComponentContractSchema LogicMux = new(
+        new ComponentContractKey(LibraryId, "logic.mux"),
+        [WidthParameter("width"), WidthParameter("selectorWidth")],
+        [
+            GeneratedPort("D", PortDirection.Input, "width", "selectorWidth", powerOfTwo: true),
+            new ComponentPortSchema("S", PortDirection.Input, "selectorWidth"),
+            new ComponentPortSchema("Q", PortDirection.Output, "width"),
+        ]);
+
+    private static readonly ComponentContractSchema LogicDemux = new(
+        new ComponentContractKey(LibraryId, "logic.demux"),
+        [WidthParameter("width"), WidthParameter("selectorWidth")],
+        [
+            new ComponentPortSchema("D", PortDirection.Input, "width"),
+            new ComponentPortSchema("S", PortDirection.Input, "selectorWidth"),
+            GeneratedPort("Q", PortDirection.Output, "width", "selectorWidth", powerOfTwo: true),
+        ]);
+
+    private static readonly ComponentContractSchema LogicDecoder = new(
+        new ComponentContractKey(LibraryId, "logic.decoder"),
+        [
+            WidthParameter("selectorWidth"),
+            ChoiceParameter("enablePolarity", "activeHigh", "activeLow"),
+        ],
+        [
+            new ComponentPortSchema("A", PortDirection.Input, "selectorWidth"),
+            FixedOnePort("EN", PortDirection.Input),
+            GeneratedOneBitPort(
+                "Q",
+                PortDirection.Output,
+                "selectorWidth",
+                powerOfTwo: true),
+        ]);
+
+    private static readonly ComponentContractSchema LogicPriorityEncoder = new(
+        new ComponentContractKey(LibraryId, "logic.priority_encoder"),
+        [
+            WidthParameter("inputCount", minimumValue: 2),
+            ChoiceParameter("priority", "lowestIndex", "highestIndex"),
+        ],
+        [
+            GeneratedOneBitPort("A", PortDirection.Input, "inputCount"),
+            new ComponentPortSchema(
+                "Q",
+                PortDirection.Output,
+                ComponentPortCardinality.Fixed,
+                ComponentPortIndexing.None,
+                ComponentPortWidthSource.CeilingLog2ParameterValue,
+                "inputCount"),
+            FixedOnePort("VALID", PortDirection.Output),
+        ]);
+
     private static readonly ComponentContractSchema SourceConstant = new(
         new ComponentContractKey(LibraryId, "source.constant"),
         [
@@ -122,7 +207,19 @@ public static class CoreLibrarySchema
 
     private static readonly ComponentContractSchema[] ContractSchemas =
     [
+        LogicAnd,
+        LogicBuffer,
+        LogicDecoder,
+        LogicDemux,
+        LogicMux,
+        LogicNand,
+        LogicNor,
         LogicNot,
+        LogicOr,
+        LogicPriorityEncoder,
+        LogicTristate,
+        LogicXnor,
+        LogicXor,
         SinkOutput,
         SourceConstant,
         SourceInput,
@@ -188,5 +285,95 @@ public static class CoreLibrarySchema
                 new ComponentPortSchema("D", PortDirection.Input, "inputWidth"),
                 new ComponentPortSchema("Q", PortDirection.Output, "outputWidth"),
             ]);
+    }
+
+    private static ComponentContractSchema CreateUnaryLogicContract(string contractId)
+    {
+        return new ComponentContractSchema(
+            new ComponentContractKey(LibraryId, contractId),
+            [WidthParameter("width")],
+            [
+                new ComponentPortSchema("A", PortDirection.Input, "width"),
+                new ComponentPortSchema("Q", PortDirection.Output, "width"),
+            ]);
+    }
+
+    private static ComponentContractSchema CreateGateContract(string contractId)
+    {
+        return new ComponentContractSchema(
+            new ComponentContractKey(LibraryId, contractId),
+            [WidthParameter("width"), WidthParameter("fanIn", minimumValue: 2)],
+            [
+                GeneratedPort("A", PortDirection.Input, "width", "fanIn"),
+                new ComponentPortSchema("Q", PortDirection.Output, "width"),
+            ]);
+    }
+
+    private static ComponentParameterSchema WidthParameter(
+        string id,
+        uint minimumValue = 1)
+    {
+        return new ComponentParameterSchema(
+            id,
+            ComponentParameterKind.PositiveWidth,
+            minimumValue: minimumValue);
+    }
+
+    private static ComponentParameterSchema ChoiceParameter(
+        string id,
+        params string[] values)
+    {
+        return new ComponentParameterSchema(
+            id,
+            ComponentParameterKind.Choice,
+            allowedValues: values);
+    }
+
+    private static ComponentPortSchema FixedOnePort(string id, PortDirection direction)
+    {
+        return new ComponentPortSchema(
+            id,
+            direction,
+            ComponentPortCardinality.Fixed,
+            ComponentPortIndexing.None,
+            ComponentPortWidthSource.FixedOne,
+            string.Empty);
+    }
+
+    private static ComponentPortSchema GeneratedPort(
+        string id,
+        PortDirection direction,
+        string widthParameterId,
+        string countParameterId,
+        bool powerOfTwo = false)
+    {
+        return new ComponentPortSchema(
+            id,
+            direction,
+            powerOfTwo
+                ? ComponentPortCardinality.PowerOfTwoParameterValue
+                : ComponentPortCardinality.ParameterValue,
+            ComponentPortIndexing.ZeroBasedDecimal,
+            ComponentPortWidthSource.ParameterValue,
+            widthParameterId,
+            countParameterId);
+    }
+
+    private static ComponentPortSchema GeneratedOneBitPort(
+        string id,
+        PortDirection direction,
+        string countParameterId,
+        bool powerOfTwo = false)
+    {
+        return new ComponentPortSchema(
+            id,
+            direction,
+            powerOfTwo
+                ? ComponentPortCardinality.PowerOfTwoParameterValue
+                : ComponentPortCardinality.ParameterValue,
+            ComponentPortIndexing.ZeroBasedDecimal,
+            ComponentPortWidthSource.FixedOne,
+            string.Empty,
+            countParameterId);
     }
 }

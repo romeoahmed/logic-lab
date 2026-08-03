@@ -1,6 +1,6 @@
 # Documentation Map
 
-Logic Lab has a closed V1 design baseline, an executable Phase A tracer, explicit-topology authoring, hierarchy, and width-conversion contracts through slice `09`. Read each document according to its authority and subject; use the readiness table below for implementation status rather than inferring delivery from a normative specification.
+Logic Lab has a closed V1 design baseline, an executable Phase A tracer, explicit-topology authoring, hierarchy, width-conversion contracts, and steering/multi-Driver combinational contracts through slice `10`. Read each document according to its authority and subject; use the readiness table below for implementation status rather than inferring delivery from a normative specification.
 
 ## Authority by subject
 
@@ -48,7 +48,7 @@ There is no generic “narrower file wins” rule. A specification defines curre
 
 ## Development readiness
 
-Implementation-plan items `01` through `09` are complete and verified. The application is not V1-complete or qualified for production release.
+Implementation-plan items `01` through `10` are complete and verified. The application is not V1-complete or qualified for production release.
 
 | Area | Specification state | Executable evidence | Remaining evidence |
 |---|---|---|---|
@@ -59,7 +59,7 @@ Implementation-plan items `01` through `09` are complete and verified. The appli
 | policies and capacity | dimensions and failure semantics are closed | provisional Phase A Simulation, Trace, Scheduling, and Workspace policy snapshots exercise bounded failure paths | calibrated values tied to a versioned corpus and deployment profile |
 | production operations | required readiness, shutdown, key, migration, proxy, and observability behavior is closed | development-host lifecycle and security-header integration evidence | provider-specific TLS, secrets, backup/restore, telemetry, alert, and runbook evidence |
 
-The latest recorded gate on 2026-08-03 passed locked restore, formatting, warning-clean build, all 514 discovered TUnit tests, whitespace validation, the complete flat-topology `/editor` tracer, hierarchical create–instantiate–navigate–select-entry–compile–session behavior, and generated-Port width-conversion execution through the Domain, Engine, Application, Presentation, and interactive Web paths. Do not describe the application as release-ready until the remaining evidence rows are complete.
+The latest recorded gate on 2026-08-03 passed locked restore, formatting, warning-clean build, all 557 discovered TUnit tests, whitespace validation, the complete flat-topology `/editor` tracer, hierarchical create–instantiate–navigate–select-entry–compile–session behavior, generated-Port width conversion, and steering/multi-Driver combinational execution through the Domain, Engine, Application, Presentation, and interactive Web paths. Do not describe the application as release-ready until the remaining evidence rows are complete.
 
 ## Executable evidence
 

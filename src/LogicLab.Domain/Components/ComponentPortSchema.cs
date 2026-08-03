@@ -4,6 +4,8 @@ public enum ComponentPortCardinality
 {
     Fixed,
     ParameterItems,
+    ParameterValue,
+    PowerOfTwoParameterValue,
 }
 
 public enum ComponentPortWidthSource
@@ -12,6 +14,8 @@ public enum ComponentPortWidthSource
     SliceLength,
     WidthItem,
     WidthSum,
+    FixedOne,
+    CeilingLog2ParameterValue,
 }
 
 public enum ComponentPortIndexing
@@ -32,7 +36,8 @@ public sealed class ComponentPortSchema
             ComponentPortCardinality.Fixed,
             ComponentPortIndexing.None,
             ComponentPortWidthSource.ParameterValue,
-            widthParameterId)
+            widthParameterId,
+            null)
     {
     }
 
@@ -42,7 +47,8 @@ public sealed class ComponentPortSchema
         ComponentPortCardinality cardinality,
         ComponentPortIndexing indexing,
         ComponentPortWidthSource widthSource,
-        string parameterId)
+        string parameterId,
+        string? cardinalityParameterId = null)
     {
         if (!IsValidCombination(cardinality, indexing, widthSource))
         {
@@ -51,12 +57,22 @@ public sealed class ComponentPortSchema
                 nameof(widthSource));
         }
 
+        var hasGeneratedCount = cardinality is ComponentPortCardinality.ParameterValue
+            or ComponentPortCardinality.PowerOfTwoParameterValue;
+        if (hasGeneratedCount != !string.IsNullOrEmpty(cardinalityParameterId))
+        {
+            throw new ArgumentException(
+                "Generated Port cardinality requires exactly one count parameter.",
+                nameof(cardinalityParameterId));
+        }
+
         Id = id;
         Direction = direction;
         Cardinality = cardinality;
         Indexing = indexing;
         WidthSource = widthSource;
         ParameterId = parameterId;
+        CardinalityParameterId = cardinalityParameterId;
     }
 
     public string Id { get; }
@@ -70,6 +86,8 @@ public sealed class ComponentPortSchema
     public ComponentPortWidthSource WidthSource { get; }
 
     public string ParameterId { get; }
+
+    public string? CardinalityParameterId { get; }
 
     private static bool IsValidCombination(
         ComponentPortCardinality cardinality,
@@ -88,6 +106,24 @@ public sealed class ComponentPortSchema
                 ComponentPortWidthSource.SliceLength)
             or (ComponentPortCardinality.ParameterItems,
                 ComponentPortIndexing.ZeroBasedDecimal,
-                ComponentPortWidthSource.WidthItem);
+                ComponentPortWidthSource.WidthItem)
+            or (ComponentPortCardinality.ParameterValue,
+                ComponentPortIndexing.ZeroBasedDecimal,
+                ComponentPortWidthSource.ParameterValue)
+            or (ComponentPortCardinality.ParameterValue,
+                ComponentPortIndexing.ZeroBasedDecimal,
+                ComponentPortWidthSource.FixedOne)
+            or (ComponentPortCardinality.PowerOfTwoParameterValue,
+                ComponentPortIndexing.ZeroBasedDecimal,
+                ComponentPortWidthSource.ParameterValue)
+            or (ComponentPortCardinality.PowerOfTwoParameterValue,
+                ComponentPortIndexing.ZeroBasedDecimal,
+                ComponentPortWidthSource.FixedOne)
+            or (ComponentPortCardinality.Fixed,
+                ComponentPortIndexing.None,
+                ComponentPortWidthSource.FixedOne)
+            or (ComponentPortCardinality.Fixed,
+                ComponentPortIndexing.None,
+                ComponentPortWidthSource.CeilingLog2ParameterValue);
     }
 }

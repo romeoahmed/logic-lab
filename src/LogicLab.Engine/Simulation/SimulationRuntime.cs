@@ -586,6 +586,66 @@ public static class SimulationRuntime
                 driverValues[evaluator.OutputDriverOrdinals[0]] = VectorLogic.Not(
                     netValues[evaluator.InputNetOrdinals[0]]);
                 return;
+            case SimulationEvaluatorKind.LogicBuffer:
+                driverValues[evaluator.OutputDriverOrdinals[0]] = VectorLogic.NormalizeInput(
+                    netValues[evaluator.InputNetOrdinals[0]]);
+                return;
+            case SimulationEvaluatorKind.LogicAnd:
+            case SimulationEvaluatorKind.LogicNand:
+            case SimulationEvaluatorKind.LogicOr:
+            case SimulationEvaluatorKind.LogicNor:
+            case SimulationEvaluatorKind.LogicXor:
+            case SimulationEvaluatorKind.LogicXnor:
+                driverValues[evaluator.OutputDriverOrdinals[0]] =
+                    CombinationalEvaluation.Gate(
+                        evaluator.Kind,
+                        evaluator.InputNetOrdinals
+                            .Select(ordinal => netValues[ordinal])
+                            .ToArray());
+                return;
+            case SimulationEvaluatorKind.LogicTristate:
+                driverValues[evaluator.OutputDriverOrdinals[0]] =
+                    CombinationalEvaluation.TriState(
+                        netValues[evaluator.InputNetOrdinals[0]],
+                        netValues[evaluator.InputNetOrdinals[1]][0],
+                        evaluator.Option);
+                return;
+            case SimulationEvaluatorKind.LogicMux:
+                driverValues[evaluator.OutputDriverOrdinals[0]] =
+                    CombinationalEvaluation.Mux(
+                        evaluator.InputNetOrdinals
+                            .Take(evaluator.InputNetOrdinals.Count - 1)
+                            .Select(ordinal => netValues[ordinal])
+                            .ToArray(),
+                        netValues[evaluator.InputNetOrdinals[^1]]);
+                return;
+            case SimulationEvaluatorKind.LogicDemux:
+                CopyOutputs(
+                    evaluator,
+                    driverValues,
+                    CombinationalEvaluation.Demux(
+                        netValues[evaluator.InputNetOrdinals[0]],
+                        netValues[evaluator.InputNetOrdinals[1]]));
+                return;
+            case SimulationEvaluatorKind.LogicDecoder:
+                CopyOutputs(
+                    evaluator,
+                    driverValues,
+                    CombinationalEvaluation.Decoder(
+                        netValues[evaluator.InputNetOrdinals[0]],
+                        netValues[evaluator.InputNetOrdinals[1]][0],
+                        evaluator.Option));
+                return;
+            case SimulationEvaluatorKind.LogicPriorityEncoder:
+                var priority = CombinationalEvaluation.PriorityEncoder(
+                    evaluator.InputNetOrdinals
+                        .Select(ordinal => netValues[ordinal][0])
+                        .ToArray(),
+                    evaluator.Option);
+                driverValues[evaluator.OutputDriverOrdinals[0]] = priority.Index;
+                driverValues[evaluator.OutputDriverOrdinals[1]] =
+                    new LogicVector([priority.Valid]);
+                return;
             case SimulationEvaluatorKind.TopologySplit:
                 var splitInput = VectorLogic.NormalizeInput(
                     netValues[evaluator.InputNetOrdinals[0]]);
@@ -617,6 +677,23 @@ public static class SimulationRuntime
             default:
                 throw new InvalidOperationException(
                     "The Simulation evaluator kind is undefined.");
+        }
+    }
+
+    private static void CopyOutputs(
+        SimulationEvaluator evaluator,
+        LogicVector[] driverValues,
+        LogicVector[] outputs)
+    {
+        if (outputs.Length != evaluator.OutputDriverOrdinals.Count)
+        {
+            throw new InvalidOperationException(
+                "The combinational evaluator produced an invalid output shape.");
+        }
+
+        for (var index = 0; index < outputs.Length; index++)
+        {
+            driverValues[evaluator.OutputDriverOrdinals[index]] = outputs[index];
         }
     }
 
