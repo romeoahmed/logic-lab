@@ -72,27 +72,21 @@ public static partial class Compiler
             return RejectInvalid(request, diagnostics, observations);
         }
 
-        var elaboratedSlotCount = checked(
+        var baseElaboratedSlotCount = checked(
             (ulong)occurrences.Length + (ulong)pendingInstances.Length);
         foreach (var occurrence in occurrences)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            elaboratedSlotCount = checked(
-                elaboratedSlotCount + (ulong)occurrence.Definition.Nets.Count);
+            baseElaboratedSlotCount = checked(
+                baseElaboratedSlotCount + (ulong)occurrence.Definition.Nets.Count);
         }
 
-        foreach (var instance in pendingInstances)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            elaboratedSlotCount = checked(
-                elaboratedSlotCount + instance.PortResolution.PortCount);
-        }
-
-        var slotRejection = Observe(
+        var slotRejection = ObserveElaboratedSlots(
             request,
-            ProjectScaleDimension.ElaboratedSlotCount,
-            elaboratedSlotCount,
-            observations);
+            baseElaboratedSlotCount,
+            pendingInstances.Select(instance => instance.PortResolution),
+            observations,
+            cancellationToken);
         if (slotRejection is not null)
         {
             cancellationToken.ThrowIfCancellationRequested();

@@ -46,6 +46,8 @@ public partial class Editor
 
     private bool CanAuthorHierarchy => CanAuthor;
 
+    private bool CanAuthorSteering => CanAuthor;
+
     private bool CanSetEntryDefinition => CommandsAvailable
         && ActiveCommand is null
         && Projection?.Simulation is null;

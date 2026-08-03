@@ -87,12 +87,12 @@ public sealed class ComponentContractSchema
             return false;
         }
 
-        var portCount = ComponentPortResolver.Measure(
+        var portMeasure = ComponentPortResolver.Measure(
             Ports,
             parameters,
             cancellationToken);
-        resolution = new ComponentPortResolution(Ports, parameters, portCount);
-        return portCount > 0;
+        resolution = new ComponentPortResolution(Ports, parameters, portMeasure);
+        return portMeasure.Count > 0;
     }
 
     private static ArgumentException InvalidParameters(string parameterName)
