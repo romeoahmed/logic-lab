@@ -5,152 +5,181 @@ namespace LogicLab.Application.Tests;
 
 public sealed class EditorWorkspaceSchedulingTests
 {
-    [Test]
-    public async Task DispatchAsync_CompilationQueueFull_RejectsThroughWorkspaceBoundary()
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_CompilationQueueFull_RejectsThroughWorkspaceBoundary(
+        CancellationToken cancellationToken)
     {
-        var firstStarted = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseFirst = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        var compilationGate = new BlockingOperationGate();
         var invocationCount = 0;
         var operations = WorkspaceModuleOperations.Production with
         {
-            Compile = (request, cancellationToken) =>
+            Compile = (request, operationCancellationToken) =>
             {
                 if (Interlocked.Increment(ref invocationCount) == 1)
                 {
-                    firstStarted.TrySetResult();
-                    releaseFirst.Task.GetAwaiter().GetResult();
+                    compilationGate.Block(operationCancellationToken);
                 }
 
-                return Compiler.Compile(request, cancellationToken);
+                return Compiler.Compile(request, operationCancellationToken);
             },
         };
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
             schedulingPolicy: new SchedulingPolicy(1, 1),
             operations: operations);
-        var firstWorkspace = (WorkspaceOpened)await Open(workspace, "First");
-        var secondWorkspace = (WorkspaceOpened)await Open(workspace, "Second");
-        var thirdWorkspace = (WorkspaceOpened)await Open(workspace, "Third");
+        var firstWorkspace = await Open(workspace, "First", cancellationToken);
+        var secondWorkspace = await Open(workspace, "Second", cancellationToken);
+        var thirdWorkspace = await Open(workspace, "Third", cancellationToken);
 
         var first = workspace.DispatchAsync(
             new RequestCompilation(firstWorkspace.WorkspaceId),
-            CancellationToken.None);
-        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var second = workspace.DispatchAsync(
-            new RequestCompilation(secondWorkspace.WorkspaceId),
-            CancellationToken.None);
-        var rejected = await workspace.DispatchAsync(
-            new RequestCompilation(thirdWorkspace.WorkspaceId),
-            CancellationToken.None);
-        releaseFirst.TrySetResult();
-        _ = await first;
-        _ = await second;
+            cancellationToken);
+        Task<WorkspaceCommandOutcome> second;
+        WorkspaceCommandOutcome rejected;
+
+        try
+        {
+            await compilationGate.Started.WaitAsync(cancellationToken);
+            second = workspace.DispatchAsync(
+                new RequestCompilation(secondWorkspace.WorkspaceId),
+                cancellationToken);
+            rejected = await workspace.DispatchAsync(
+                new RequestCompilation(thirdWorkspace.WorkspaceId),
+                cancellationToken);
+        }
+        finally
+        {
+            compilationGate.Release();
+        }
+
+        _ = await first.WaitAsync(cancellationToken);
+        _ = await second.WaitAsync(cancellationToken);
+        var rejection = await Assert.That(rejected)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejection);
 
         using (Assert.Multiple())
         {
-            await Assert.That(rejected).IsTypeOf<WorkspaceCommandRejected>();
-            await Assert.That(((WorkspaceCommandRejected)rejected).Code)
+            await Assert.That(rejection.Code)
                 .IsEqualTo("workspace_admission_rejected");
             await Assert.That(invocationCount).IsEqualTo(2);
         }
     }
 
-    [Test]
-    public async Task DispatchAsync_NewerCompilation_SupersedesOlderPublication()
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_NewerCompilation_SupersedesOlderPublication(
+        CancellationToken cancellationToken)
     {
-        var firstStarted = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseFirst = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        var compilationGate = new BlockingOperationGate();
         var invocationCount = 0;
         var operations = WorkspaceModuleOperations.Production with
         {
-            Compile = (request, cancellationToken) =>
+            Compile = (request, operationCancellationToken) =>
             {
                 if (Interlocked.Increment(ref invocationCount) == 1)
                 {
-                    firstStarted.TrySetResult();
-                    releaseFirst.Task.GetAwaiter().GetResult();
+                    compilationGate.Block(operationCancellationToken);
                 }
 
-                return Compiler.Compile(request, cancellationToken);
+                return Compiler.Compile(request, operationCancellationToken);
             },
         };
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
             schedulingPolicy: new SchedulingPolicy(2, 1),
             operations: operations);
-        var opened = (WorkspaceOpened)await Open(workspace, "Newest wins");
+        var opened = await Open(workspace, "Newest wins", cancellationToken);
 
         var first = workspace.DispatchAsync(
             new RequestCompilation(opened.WorkspaceId),
-            CancellationToken.None);
-        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var second = workspace.DispatchAsync(
-            new RequestCompilation(opened.WorkspaceId),
-            CancellationToken.None);
-        releaseFirst.TrySetResult();
+            cancellationToken);
+        Task<WorkspaceCommandOutcome> second;
 
-        var firstOutcome = await first;
-        var secondOutcome = await second;
+        try
+        {
+            await compilationGate.Started.WaitAsync(cancellationToken);
+            second = workspace.DispatchAsync(
+                new RequestCompilation(opened.WorkspaceId),
+                cancellationToken);
+        }
+        finally
+        {
+            compilationGate.Release();
+        }
+
+        var firstOutcome = await first.WaitAsync(cancellationToken);
+        var secondOutcome = await second.WaitAsync(cancellationToken);
+        var firstRejection = await Assert.That(firstOutcome)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(firstRejection);
 
         using (Assert.Multiple())
         {
-            await Assert.That(firstOutcome).IsTypeOf<WorkspaceCommandRejected>();
-            await Assert.That(((WorkspaceCommandRejected)firstOutcome).Code)
+            await Assert.That(firstRejection.Code)
                 .IsEqualTo("workspace_cancelled");
             await Assert.That(secondOutcome).IsTypeOf<CompilationPublished>();
             await Assert.That(invocationCount).IsEqualTo(2);
         }
     }
 
-    [Test]
-    public async Task DispatchAsync_CloseDuringCompilation_PreventsLatePublication()
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_CloseDuringCompilation_PreventsLatePublication(
+        CancellationToken cancellationToken)
     {
-        var compilationStarted = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseCompilation = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        var compilationGate = new BlockingOperationGate();
         var operations = WorkspaceModuleOperations.Production with
         {
-            Compile = (request, cancellationToken) =>
+            Compile = (request, operationCancellationToken) =>
             {
-                compilationStarted.TrySetResult();
-                releaseCompilation.Task.GetAwaiter().GetResult();
-                return Compiler.Compile(request, cancellationToken);
+                compilationGate.Block(operationCancellationToken);
+                return Compiler.Compile(request, operationCancellationToken);
             },
         };
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
             operations: operations);
-        var opened = (WorkspaceOpened)await Open(workspace, "Close race");
+        var opened = await Open(workspace, "Close race", cancellationToken);
 
         var compilation = workspace.DispatchAsync(
             new RequestCompilation(opened.WorkspaceId),
-            CancellationToken.None);
-        await compilationStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var closed = await workspace.DispatchAsync(
-            new CloseWorkspace(opened.WorkspaceId),
-            CancellationToken.None);
-        releaseCompilation.TrySetResult();
-        var compilationOutcome = await compilation;
-        var read = await workspace.ReadAsync(opened.WorkspaceId, CancellationToken.None);
+            cancellationToken);
+        WorkspaceCommandOutcome closed;
+
+        try
+        {
+            await compilationGate.Started.WaitAsync(cancellationToken);
+            closed = await workspace.DispatchAsync(
+                new CloseWorkspace(opened.WorkspaceId),
+                cancellationToken);
+        }
+        finally
+        {
+            compilationGate.Release();
+        }
+
+        var compilationOutcome = await compilation.WaitAsync(cancellationToken);
+        var read = await workspace.ReadAsync(opened.WorkspaceId, cancellationToken);
+        var compilationRejection = await Assert.That(compilationOutcome)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(compilationRejection);
 
         using (Assert.Multiple())
         {
             await Assert.That(closed).IsTypeOf<WorkspaceClosed>();
-            await Assert.That(compilationOutcome).IsTypeOf<WorkspaceCommandRejected>();
-            await Assert.That(((WorkspaceCommandRejected)compilationOutcome).Code)
+            await Assert.That(compilationRejection.Code)
                 .IsEqualTo("workspace_not_found");
             await Assert.That(read).IsTypeOf<WorkspaceReadRejected>();
         }
     }
 
-    private static Task<WorkspaceOpenOutcome> Open(
+    private static async Task<WorkspaceOpened> Open(
         IEditorWorkspace workspace,
-        string projectDisplayName)
+        string projectDisplayName,
+        CancellationToken cancellationToken)
     {
-        return workspace.OpenAsync(
+        var outcome = await workspace.OpenAsync(
             new CreateSandbox(projectDisplayName, "Main"),
-            CancellationToken.None);
+            cancellationToken);
+
+        var opened = await Assert.That(outcome).IsTypeOf<WorkspaceOpened>();
+        Assert.NotNull(opened);
+        return opened;
     }
 }
