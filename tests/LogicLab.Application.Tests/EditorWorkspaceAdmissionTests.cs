@@ -238,43 +238,26 @@ public sealed class EditorWorkspaceAdmissionTests
     }
 
     [Test]
-    public async Task DispatchAsync_SlicesNestedItemsExceedCommandLimit_RejectsWithoutPublication()
+    [Arguments("topology.split", 3)]
+    [Arguments("topology.concat", 2)]
+    public async Task DispatchAsync_NestedParameterItemsExceedCommandLimit_RejectsWithoutPublication(
+        string contractId,
+        int commandItemCount)
     {
         await AssertNestedParameterAdmissionRejected(
-            commandItemCount: 3,
-            static definitionId => new PlaceComponentInstanceIntent(
-                definitionId,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, "topology.split"),
-                [
-                    new ComponentParameterBinding(
-                        "width",
-                        new Unsigned32ParameterValue(2)),
-                    new ComponentParameterBinding(
-                        "slices",
-                        new SlicesParameterValue(
-                            [new BitSlice(0, 1), new BitSlice(1, 1)])),
-                ],
-                new ComponentPlacement(new GridPoint(0, 0))));
+            commandItemCount,
+            contractId);
     }
 
     [Test]
-    public async Task DispatchAsync_InputWidthsNestedItemsExceedCommandLimit_RejectsWithoutPublication()
-    {
-        await AssertNestedParameterAdmissionRejected(
-            commandItemCount: 2,
-            static definitionId => new PlaceComponentInstanceIntent(
-                definitionId,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, "topology.concat"),
-                [
-                    new ComponentParameterBinding(
-                        "inputWidths",
-                        new WidthsParameterValue([1, 1])),
-                ],
-                new ComponentPlacement(new GridPoint(0, 0))));
-    }
-
-    [Test]
-    public async Task AuthoringAdmission_NestedCollectionAtExactBudget_AdmitsCommand()
+    [Arguments("topology.split", 4, true)]
+    [Arguments("topology.split", 3, false)]
+    [Arguments("topology.concat", 3, true)]
+    [Arguments("topology.concat", 2, false)]
+    public async Task AuthoringAdmission_NestedParameterBudget_ReturnsExpectedDecision(
+        string contractId,
+        int commandItemCount,
+        bool expected)
     {
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
             "Admission fixture",
@@ -284,50 +267,15 @@ public sealed class EditorWorkspaceAdmissionTests
                 "1.0.0",
                 IndicationConvention.Negation),
             "Main"))).Revision;
-        var definitionId = revision.Document.EntryCircuitDefinitionId;
-        var split = new PlaceComponentInstanceIntent(
-            definitionId,
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, "topology.split"),
-            [
-                new ComponentParameterBinding(
-                    "width",
-                    new Unsigned32ParameterValue(2)),
-                new ComponentParameterBinding(
-                    "slices",
-                    new SlicesParameterValue(
-                        [new BitSlice(0, 1), new BitSlice(1, 1)])),
-            ],
-            new ComponentPlacement(new GridPoint(0, 0)));
-        var concat = new PlaceComponentInstanceIntent(
-            definitionId,
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, "topology.concat"),
-            [
-                new ComponentParameterBinding(
-                    "inputWidths",
-                    new WidthsParameterValue([1, 1])),
-            ],
-            new ComponentPlacement(new GridPoint(4, 0)));
+        var intent = NestedParameterIntent(
+            revision.Document.EntryCircuitDefinitionId,
+            contractId);
 
-        var splitAtBoundary = AuthoringAdmission.AdmitsCommand(
-            split,
-            PolicyWithCommandLimit(4));
-        var splitBelowBoundary = AuthoringAdmission.AdmitsCommand(
-            split,
-            PolicyWithCommandLimit(3));
-        var concatAtBoundary = AuthoringAdmission.AdmitsCommand(
-            concat,
-            PolicyWithCommandLimit(3));
-        var concatBelowBoundary = AuthoringAdmission.AdmitsCommand(
-            concat,
-            PolicyWithCommandLimit(2));
+        var actual = AuthoringAdmission.AdmitsCommand(
+            intent,
+            PolicyWithCommandLimit(commandItemCount));
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(splitAtBoundary).IsTrue();
-            await Assert.That(splitBelowBoundary).IsFalse();
-            await Assert.That(concatAtBoundary).IsTrue();
-            await Assert.That(concatBelowBoundary).IsFalse();
-        }
+        await Assert.That(actual).IsEqualTo(expected);
     }
 
     [Test]
@@ -349,7 +297,7 @@ public sealed class EditorWorkspaceAdmissionTests
 
     private static async Task AssertNestedParameterAdmissionRejected(
         int commandItemCount,
-        Func<CircuitDefinitionId, PlaceComponentInstanceIntent> createIntent)
+        string contractId)
     {
         await using var workspace = EditorWorkspaceFactory.Create(
             workspacePolicy: PolicyWithCommandLimit(commandItemCount));
@@ -361,7 +309,9 @@ public sealed class EditorWorkspaceAdmissionTests
         var rejected = await workspace.DispatchAsync(
             new ApplyEdit(
                 opened.WorkspaceId,
-                createIntent(before.ProjectRevision.Document.EntryCircuitDefinitionId)),
+                NestedParameterIntent(
+                    before.ProjectRevision.Document.EntryCircuitDefinitionId,
+                    contractId)),
             CancellationToken.None);
         var after = ((ProjectionSnapshot)await workspace.ReadAsync(
             opened.WorkspaceId,
@@ -389,5 +339,37 @@ public sealed class EditorWorkspaceAdmissionTests
                 definitionCount: 10,
                 entityCount: 100,
                 commandItemCount: commandItemCount));
+    }
+
+    private static PlaceComponentInstanceIntent NestedParameterIntent(
+        CircuitDefinitionId definitionId,
+        string contractId)
+    {
+        ComponentParameterBinding[] parameters = contractId switch
+        {
+            "topology.split" =>
+            [
+                new ComponentParameterBinding(
+                    "width",
+                    new Unsigned32ParameterValue(2)),
+                new ComponentParameterBinding(
+                    "slices",
+                    new SlicesParameterValue(
+                        [new BitSlice(0, 1), new BitSlice(1, 1)])),
+            ],
+            "topology.concat" =>
+            [
+                new ComponentParameterBinding(
+                    "inputWidths",
+                    new WidthsParameterValue([1, 1])),
+            ],
+            _ => throw new ArgumentOutOfRangeException(nameof(contractId), contractId, null),
+        };
+
+        return new PlaceComponentInstanceIntent(
+            definitionId,
+            new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
+            parameters,
+            new ComponentPlacement(new GridPoint(0, 0)));
     }
 }
