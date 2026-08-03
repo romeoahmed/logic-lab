@@ -6,7 +6,7 @@ namespace LogicLab.Engine.Compilation;
 
 public static partial class Compiler
 {
-    public const string SemanticVersion = "logiclab.compiler.topology-v1";
+    public const string SemanticVersion = "logiclab.compiler.topology-v2";
 
     public static CompilationOutcome Compile(
         CompilationRequest request,
@@ -104,15 +104,9 @@ public static partial class Compiler
             return hierarchyRejection;
         }
 
-        var resolvedInstances = ResolveInstances(
+        var pendingInstances = ResolveInstanceShapes(
             request,
             definition,
-            diagnostics,
-            cancellationToken);
-        var netByTerminal = ValidateTopology(
-            request,
-            definition,
-            resolvedInstances,
             diagnostics,
             cancellationToken);
         if (diagnostics.Count != 0)
@@ -121,24 +115,17 @@ public static partial class Compiler
             return RejectInvalid(request, diagnostics, observations);
         }
 
-        ulong driverCount = 0;
-        foreach (var instance in resolvedInstances)
+        ulong portCount = 0;
+        foreach (var instance in pendingInstances)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (var port in instance.Ports)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (port.Direction == PortDirection.Output)
-                {
-                    driverCount = checked(driverCount + 1);
-                }
-            }
+            portCount = checked(portCount + instance.PortShape.PortCount);
         }
 
         var elaboratedSlotCount = checked(
-            (ulong)resolvedInstances.Length
+            (ulong)pendingInstances.Length
             + (ulong)definition.Nets.Count
-            + driverCount);
+            + portCount);
         var slotRejection = Observe(
             request,
             ProjectScaleDimension.ElaboratedSlotCount,
@@ -162,6 +149,21 @@ public static partial class Compiler
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        var resolvedInstances = MaterializeInstances(
+            pendingInstances,
+            cancellationToken);
+        var netByTerminal = ValidateTopology(
+            request,
+            definition,
+            resolvedInstances,
+            diagnostics,
+            cancellationToken);
+        if (diagnostics.Count != 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return RejectInvalid(request, diagnostics, observations);
+        }
 
         var artifact = BuildArtifact(
             request,
@@ -319,7 +321,7 @@ public static partial class Compiler
             breach);
     }
 
-    private static ResolvedInstance[] ResolveInstances(
+    private static PendingResolvedInstance[] ResolveInstanceShapes(
         CompilationRequest request,
         CircuitDefinition definition,
         List<CompilerDiagnostic> diagnostics,
@@ -329,7 +331,7 @@ public static partial class Compiler
         var instances = definition.ComponentInstances
             .OrderBy(instance => instance.Id.Value, StringComparer.Ordinal)
             .ToArray();
-        var resolved = new List<ResolvedInstance>(instances.Length);
+        var pending = new List<PendingResolvedInstance>(instances.Length);
         for (var ordinal = 0; ordinal < instances.Length; ordinal++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -352,7 +354,11 @@ public static partial class Compiler
             }
 
             if (!TryGetEvaluatorKind(contractKey, out var kind)
-                || !TryResolvePorts(instance, schema, out var ports))
+                || !TryResolvePortShape(
+                    instance,
+                    schema,
+                    cancellationToken,
+                    out var portShape))
             {
                 diagnostics.Add(new CompilerDiagnostic(
                     "compiler_parameter_schema_mismatch",
@@ -373,16 +379,40 @@ public static partial class Compiler
                 continue;
             }
 
-            resolved.Add(new ResolvedInstance(
+            pending.Add(new PendingResolvedInstance(
                 ordinal,
                 instance,
                 contractKey,
                 kind,
-                ports,
-                GetEvaluatorWidth(ports)));
+                schema,
+                portShape));
         }
 
-        return resolved.ToArray();
+        return pending.ToArray();
+    }
+
+    private static ResolvedInstance[] MaterializeInstances(
+        PendingResolvedInstance[] pendingInstances,
+        CancellationToken cancellationToken)
+    {
+        var resolved = new ResolvedInstance[pendingInstances.Length];
+        for (var index = 0; index < pendingInstances.Length; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var pending = pendingInstances[index];
+            var ports = pending.Schema.ResolvePorts(
+                pending.Instance.Parameters,
+                cancellationToken).ToArray();
+            resolved[index] = new ResolvedInstance(
+                pending.Ordinal,
+                pending.Instance,
+                pending.ContractKey,
+                pending.Kind,
+                ports,
+                GetEvaluatorWidth(ports));
+        }
+
+        return resolved;
     }
 
     private static Dictionary<TerminalKey, int> ValidateTopology(
@@ -864,19 +894,22 @@ public static partial class Compiler
         }
     }
 
-    private static bool TryResolvePorts(
+    private static bool TryResolvePortShape(
         ComponentInstance instance,
         ComponentContractSchema schema,
-        out ResolvedComponentPortSchema[] ports)
+        CancellationToken cancellationToken,
+        out ComponentPortShape portShape)
     {
         try
         {
-            ports = schema.ResolvePorts(instance.Parameters).ToArray();
-            return ports.Length > 0;
+            portShape = schema.ResolvePortShape(
+                instance.Parameters,
+                cancellationToken);
+            return portShape.PortCount > 0;
         }
         catch (ArgumentException)
         {
-            ports = [];
+            portShape = null!;
             return false;
         }
     }
@@ -997,4 +1030,12 @@ public static partial class Compiler
         SimulationEvaluatorKind Kind,
         ResolvedComponentPortSchema[] Ports,
         uint Width);
+
+    private sealed record PendingResolvedInstance(
+        int Ordinal,
+        ComponentInstance Instance,
+        ComponentContractKey ContractKey,
+        SimulationEvaluatorKind Kind,
+        ComponentContractSchema Schema,
+        ComponentPortShape PortShape);
 }
