@@ -8,33 +8,24 @@ namespace LogicLab.Engine.Tests;
 
 public sealed class VectorConservativeMergeTests
 {
-    [Test, FsCheckProperty]
-    public Property Merge_ArbitraryNonemptySameWidthVectors_MatchesScalarOracleAtEveryBit()
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property Merge_NonemptySameWidthVectors_MatchesScalarOracleAtEveryBit(
+        LogicVectorMergeCase sample)
     {
-        return Prop.ForAll<int[]>(data =>
-        {
-            var seed = data is { Length: > 0 } ? data[0] : 0;
-            var width = LogicVectorTestData.PositiveWidth(seed);
-            var countSeed = data is { Length: > 1 } ? data[1] : seed;
-            var vectorCount = (int)(unchecked((uint)countSeed) % 5u) + 1;
-            var valueSets = Enumerable.Range(0, vectorCount)
-                .Select(index => LogicVectorTestData.CreateValues(
-                    width,
-                    unchecked(seed ^ (index * 1_000_003)),
-                    data?.Select(value => unchecked(value + index)).ToArray()))
-                .ToArray();
-            var vectors = valueSets
-                .Select(values => new LogicVector(values))
-                .ToArray();
-            var expected = Enumerable.Range(0, width)
-                .Select(bitIndex => ConservativeMerge.Merge(
-                    valueSets.Select(values => values[bitIndex]).ToArray()))
-                .ToArray();
+        var vectors = sample.Vectors
+            .Select(values => new LogicVector(values))
+            .ToArray();
+        var expected = Enumerable.Range(0, sample.Width)
+            .Select(bitIndex => ConservativeMerge.Merge(
+                sample.Vectors.Select(values => values[bitIndex]).ToArray()))
+            .ToArray();
+        var actual = VectorConservativeMerge.Merge(vectors);
+        var matches = LogicVectorTestData.Matches(actual, expected);
 
-            return LogicVectorTestData.Matches(
-                VectorConservativeMerge.Merge(vectors),
-                expected);
-        });
+        return matches
+            .Label(LogicVectorTestData.MismatchLabel(actual, expected))
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width))
+            .Collect($"vectors={sample.Vectors.Length}");
     }
 
     [Test]

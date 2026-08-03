@@ -203,11 +203,13 @@ TUnit's official data guide separates the mechanisms as follows ([data approach]
 
 **Source fact:** The integration installs a custom TUnit test executor during registration and generates FsCheck data during execution, not as discovery-time rows. Its source injects TUnit's timeout-backed `CancellationToken` and explicitly suppresses trimming/AOT diagnostics because FsCheck requires reflection and dynamic code ([`FsCheckPropertyAttribute`](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/src/TUnit.FsCheck/FsCheckPropertyAttribute.cs), [`FsCheckPropertyTestExecutor`](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/src/TUnit.FsCheck/FsCheckPropertyTestExecutor.cs)).
 
-**Logic Lab inference:** Convert each current `QuickCheckThrowOnFailure` wrapper into a first-class `[Test, FsCheckProperty]` property where practical:
+**Logic Lab inference:** Model each valid input shape as a first-class domain case and register its `Arbitrary` provider on `[FsCheckProperty]`:
 
-- accept the generated arrays as method parameters instead of nesting `Prop.ForAll` inside a fact;
-- return `bool` or `Property` for semantic checks so FsCheck owns shrink/replay reporting;
-- preserve `LogicVectorTestData.PositiveWidth`, value creation, scalar oracle, and all boundary-specific deterministic tests;
+- accept the generated domain case directly as a test-method parameter instead of nesting `Prop.ForAll` or mapping unconstrained integer seeds through modulo arithmetic;
+- generate complete valid widths and independently generate every vector in pair/merge/driver cases, with extra weight on `1`, `63/64/65`, `127/128/129/130`, and `255/256/257` boundaries;
+- define domain-preserving shrinkers that keep widths positive, paired vectors equal-width, merge sets nonempty, slices contained, and driver sets internally consistent;
+- return a labelled and classified `Property` so failures identify the first mismatching bit and reports expose width/vector-count distributions;
+- preserve the independent scalar oracle and all deterministic word-boundary examples alongside the open-ended properties;
 - set an explicit `MaxTest` only where the present default/QuickCheck configuration differs or evidence requires more coverage;
 - let TUnit supply a timeout-linked `CancellationToken` for async properties;
 - store a failing replay seed only as a temporary regression aid; materialize a stable minimal example as an ordinary deterministic test when it represents an important bug.

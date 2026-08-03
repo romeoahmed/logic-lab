@@ -8,37 +8,37 @@ namespace LogicLab.Engine.Tests;
 
 public sealed class VectorNetResolverTests
 {
-    [Test, FsCheckProperty]
-    public Property Resolve_ArbitraryDriverSets_MatchesScalarValueAndCausesAtEveryBit()
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property Resolve_ValidDriverSets_MatchesScalarValueAndCausesAtEveryBit(
+        LogicVectorDriverCase sample)
     {
-        return Prop.ForAll<int[]>(data =>
+        var drivers = sample.Drivers
+            .Select(values => new LogicVector(values))
+            .ToArray();
+        var actual = VectorNetResolver.Resolve(sample.Width, drivers);
+        var matches = true;
+        var label = "vector resolution matches scalar oracle";
+
+        for (var bitIndex = 0; bitIndex < sample.Width; bitIndex++)
         {
-            var seed = data is { Length: > 0 } ? data[0] : 0;
-            var width = LogicVectorTestData.PositiveWidth(seed);
-            var countSeed = data is { Length: > 1 } ? data[1] : seed;
-            var driverCount = (int)(unchecked((uint)countSeed) % 6u);
-            var driverValues = Enumerable.Range(0, driverCount)
-                .Select(index => LogicVectorTestData.CreateValues(
-                    width,
-                    unchecked(seed ^ (index * 1_000_003)),
-                    data?.Select(value => unchecked(value + index)).ToArray()))
-                .ToArray();
-            var drivers = driverValues
-                .Select(values => new LogicVector(values))
-                .ToArray();
-
-            var actual = VectorNetResolver.Resolve(width, drivers);
-
-            return Enumerable.Range(0, width).All(bitIndex =>
+            var expected = NetResolver.Resolve(
+                sample.Drivers
+                    .Select(values => values[bitIndex])
+                    .ToArray());
+            if (actual.Value[bitIndex] != expected.Value
+                || actual.GetCauses(bitIndex) != expected.Causes)
             {
-                var expected = NetResolver.Resolve(
-                    driverValues
-                        .Select(values => values[bitIndex])
-                        .ToArray());
-                return actual.Value[bitIndex] == expected.Value
-                    && actual.GetCauses(bitIndex) == expected.Causes;
-            });
-        });
+                matches = false;
+                label = $"bit {bitIndex}: expected {expected}, actual "
+                    + $"{actual.Value[bitIndex]}/{actual.GetCauses(bitIndex)}";
+                break;
+            }
+        }
+
+        return matches
+            .Label(label)
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width))
+            .Collect($"drivers={sample.Drivers.Length}");
     }
 
     [Test]
