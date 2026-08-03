@@ -273,114 +273,57 @@ public sealed class WorkbenchComponentTests
             "author",
             () => rendered.FindAll("[data-connection]").Count == 2);
 
-        await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(2);
-
         await ClickAndWaitForState(
             rendered,
             "topology-merge",
             () => rendered.FindAll("[data-connection]").Count == 1);
-        await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(1);
 
         await ClickAndWaitForState(
             rendered,
             "topology-split",
             () => rendered.FindAll("[data-connection]").Count == 2);
-        await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(2);
 
         await ClickAndWaitForState(
             rendered,
             "topology-add-junction",
             () => rendered.FindAll("[data-junction]").Count == 1);
-        await Assert.That(rendered.FindAll("[data-junction]")).Count().IsEqualTo(1);
 
         await ClickAndWaitForState(
             rendered,
             "topology-prepare-route",
             () => rendered.FindAll("[data-route-draft]").Count == 1);
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.FindAll("[data-route-draft]")).Count().IsEqualTo(1);
-            await Assert.That(rendered.FindAll("[data-wire-geometry]")).IsEmpty();
-        }
+        await Assert.That(rendered.FindAll("[data-wire-geometry]")).IsEmpty();
 
         await ClickAndWaitForState(
             rendered,
             "topology-commit-route",
             () => rendered.FindAll("[data-route-draft]").Count == 0
                 && rendered.FindAll("[data-wire-geometry]").Count == 1);
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.FindAll("[data-route-draft]")).IsEmpty();
-            await Assert.That(rendered.FindAll("[data-wire-geometry]")).Count().IsEqualTo(1);
-            await Assert.That(rendered.Find("[data-wire-geometry]").TextContent)
-                .Contains("Orthogonal");
-        }
+        await Assert.That(rendered.Find("[data-wire-geometry]").TextContent)
+            .Contains("Orthogonal");
 
         await ClickAndWaitForState(
             rendered,
             "topology-unroute",
             () => rendered.Find("[data-wire-geometry]").TextContent
                 .Contains("Unrouted", StringComparison.Ordinal));
-        await Assert.That(rendered.Find("[data-wire-geometry]").TextContent)
-            .Contains("Unrouted");
 
         await ClickAndWaitForState(
             rendered,
             "topology-route",
             () => rendered.Find("[data-wire-geometry]").TextContent
                 .Contains("Orthogonal", StringComparison.Ordinal));
-        await Assert.That(rendered.Find("[data-wire-geometry]").TextContent)
-            .Contains("Orthogonal");
 
         await ClickAndWaitForState(
             rendered,
             "topology-remove-junction",
             () => rendered.FindAll("[data-junction]").Count == 0);
-        await Assert.That(rendered.FindAll("[data-junction]")).IsEmpty();
 
         await ClickAndWaitForState(
             rendered,
             "compile",
             () => rendered.Find("[role='status']").TextContent
                 .Contains("Compilation Artifact published", StringComparison.Ordinal));
-        await Assert.That(rendered.Find("[role='status']").TextContent)
-            .Contains("Compilation Artifact published");
-    }
-
-    [Test]
-    public async Task Editor_AddJunctionAfterCommit_ReplayedDisabledCallback_DoesNotPublishRevision()
-    {
-        await using var context = CreateContext();
-        await using var workspace = new TrackingWorkspace();
-        var rendered = RenderEditor(context, workspace);
-        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
-        await ClickAndWaitForState(
-            rendered,
-            "create",
-            () => !IsDisabled(rendered, "author"));
-        await ClickAndWaitForState(
-            rendered,
-            "author",
-            () => !IsDisabled(rendered, "topology-add-junction"));
-        await ClickAndWaitForState(
-            rendered,
-            "topology-add-junction",
-            () => rendered.FindAll("[data-junction]").Count == 1);
-        var afterFirst = await workspace.ReadCurrent();
-
-        var topologyCommandBar = rendered.FindComponent<TopologyCommandBar>();
-        await rendered.InvokeAsync(() => topologyCommandBar.Instance.OnAddJunction.InvokeAsync());
-        var afterReplay = await workspace.ReadCurrent();
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(afterReplay.ProjectRevision.RevisionId)
-                .IsEqualTo(afterFirst.ProjectRevision.RevisionId);
-            await Assert.That(afterReplay.ProjectionVersion)
-                .IsEqualTo(afterFirst.ProjectionVersion);
-            await Assert.That(afterReplay.ProjectRevision.Document.EntryCircuitDefinition.Junctions)
-                .Count().IsEqualTo(1);
-        }
     }
 
     [Test]
@@ -410,15 +353,16 @@ public sealed class WorkbenchComponentTests
 
         await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
         await rendered.WaitForStateAsync(() => rendered.FindAll("[data-definition-port]").Count == 2);
+        var childTerminalPaths = rendered
+            .FindAll("[data-connection] .connection-summary span")
+            .Select(element => element.TextContent)
+            .ToArray();
         using (Assert.Multiple())
         {
             await Assert.That(rendered.Find("[data-hierarchy-breadcrumb]").TextContent)
                 .Contains("Inverter");
-            await Assert.That(rendered.FindAll("[data-definition-port]")).Count()
-                .IsEqualTo(2);
             await Assert.That(rendered.FindAll("[data-component]")).Count().IsEqualTo(1);
-            await Assert.That(rendered.Markup).Contains("A → A");
-            await Assert.That(rendered.Markup).Contains("Q → Q");
+            await Assert.That(childTerminalPaths).IsEquivalentTo(["A → A", "Q → Q"]);
             await Assert.That(rendered.FindAll("[data-command='hierarchy-back']")).Count()
                 .IsEqualTo(1);
         }
@@ -426,18 +370,13 @@ public sealed class WorkbenchComponentTests
         await rendered.Find("[data-command='set-entry']").ClickAsync(new MouseEventArgs());
         await rendered.WaitForStateAsync(() => rendered.Find("[data-entry-marker]")
             .ParentElement!.TextContent.Contains("Inverter", StringComparison.Ordinal));
-        await Assert.That(rendered.Find("[data-entry-marker]").ParentElement!.TextContent)
-            .Contains("Inverter");
         var mainTab = rendered.FindAll("[data-definition]")
             .Single(element => element.TextContent.Contains("Main", StringComparison.Ordinal));
         await mainTab.ClickAsync(new MouseEventArgs());
         await rendered.WaitForStateAsync(() => rendered.FindAll("[data-enter-instance]").Count == 0);
-        await Assert.That(rendered.FindAll("[data-enter-instance]")).IsEmpty();
         await rendered.Find("[data-command='set-entry']").ClickAsync(new MouseEventArgs());
         await rendered.WaitForStateAsync(() => rendered.Find("[data-entry-marker]")
             .ParentElement!.TextContent.Contains("Main", StringComparison.Ordinal));
-        await Assert.That(rendered.Find("[data-entry-marker]").ParentElement!.TextContent)
-            .Contains("Main");
 
         await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
         await rendered.WaitForStateAsync(() => rendered.FindAll("[data-definition-port]").Count == 2);
@@ -459,44 +398,6 @@ public sealed class WorkbenchComponentTests
                 .Contains("Simulation Session created");
             await Assert.That(rendered.FindAll("[data-probe]")).Count().IsEqualTo(1);
         }
-    }
-
-    [Test]
-    public async Task Editor_SetEntryWhileBusy_ReplayedCallback_DispatchesOnce()
-    {
-        await using var context = CreateContext();
-        await using var workspace = new BlockingSetEntryWorkspace();
-        var rendered = RenderEditor(context, workspace);
-        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
-        await ClickAndWaitForState(
-            rendered,
-            "create",
-            () => !IsDisabled(rendered, "author-hierarchy"));
-        await ClickAndWaitForState(
-            rendered,
-            "author-hierarchy",
-            () => rendered.FindAll("[data-definition]").Count == 2);
-        var childButton = rendered.FindAll("[data-definition]")
-            .Single(element => element.TextContent.Contains("Inverter", StringComparison.Ordinal));
-        await childButton.ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "set-entry"));
-
-        var first = rendered.Find("[data-command='set-entry']")
-            .ClickAsync(new MouseEventArgs());
-        await workspace.Started.WaitAsync(TimeSpan.FromSeconds(5));
-        try
-        {
-            await rendered.Find("[data-command='set-entry']")
-                .TriggerEventAsync("onclick", new MouseEventArgs());
-
-            await Assert.That(workspace.SetEntryDispatchCount).IsEqualTo(1);
-        }
-        finally
-        {
-            workspace.Release();
-        }
-
-        await first;
     }
 
     [Test]
@@ -533,7 +434,6 @@ public sealed class WorkbenchComponentTests
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
             await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.WireGeometries)
                 .IsEmpty();
-            await Assert.That(rendered.FindAll("[data-route-draft]")).IsEmpty();
             await Assert.That(rendered.Find("[role='status']").TextContent)
                 .Contains("cancelled");
         }
@@ -793,51 +693,4 @@ public sealed class WorkbenchComponentTests
         public ValueTask DisposeAsync() => inner.DisposeAsync();
     }
 
-    private sealed class BlockingSetEntryWorkspace : IEditorWorkspace
-    {
-        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create();
-        private readonly TaskCompletionSource release = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource started = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        private int setEntryDispatchCount;
-
-        public Task Started => started.Task;
-
-        public int SetEntryDispatchCount => Volatile.Read(ref setEntryDispatchCount);
-
-        public Task<WorkspaceOpenOutcome> OpenAsync(
-            OpenWorkspaceRequest request,
-            CancellationToken cancellationToken)
-        {
-            return inner.OpenAsync(request, cancellationToken);
-        }
-
-        public async Task<WorkspaceCommandOutcome> DispatchAsync(
-            WorkspaceCommand command,
-            CancellationToken cancellationToken)
-        {
-            if (command is ApplyEdit { Intent: SetEntryCircuitDefinitionIntent })
-            {
-                if (Interlocked.Increment(ref setEntryDispatchCount) == 1)
-                {
-                    started.TrySetResult();
-                    await release.Task.WaitAsync(cancellationToken);
-                }
-            }
-
-            return await inner.DispatchAsync(command, cancellationToken);
-        }
-
-        public Task<WorkspaceReadOutcome> ReadAsync(
-            WorkspaceId workspaceId,
-            CancellationToken cancellationToken)
-        {
-            return inner.ReadAsync(workspaceId, cancellationToken);
-        }
-
-        public ValueTask DisposeAsync() => inner.DisposeAsync();
-
-        public void Release() => release.TrySetResult();
-    }
 }

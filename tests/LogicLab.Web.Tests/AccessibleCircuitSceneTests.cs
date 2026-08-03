@@ -17,6 +17,12 @@ public sealed class AccessibleCircuitSceneTests
 
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene));
+        var componentLabels = rendered.FindAll("[data-component] h3")
+            .Select(element => element.TextContent)
+            .ToArray();
+        var terminalPaths = rendered.FindAll("[data-connection] .connection-summary span")
+            .Select(element => element.TextContent)
+            .ToArray();
 
         using (Assert.Multiple())
         {
@@ -24,11 +30,8 @@ public sealed class AccessibleCircuitSceneTests
                 .IsEqualTo("circuit-scene-heading");
             await Assert.That(rendered.FindAll("[data-component]")).Count().IsEqualTo(3);
             await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(2);
-            await Assert.That(rendered.Markup).Contains("Input");
-            await Assert.That(rendered.Markup).Contains("NOT");
-            await Assert.That(rendered.Markup).Contains("Output");
-            await Assert.That(rendered.Markup).Contains("Q → A");
-            await Assert.That(rendered.Markup).Contains("Q → D");
+            await Assert.That(componentLabels).IsEquivalentTo(["Input", "NOT", "Output"]);
+            await Assert.That(terminalPaths).IsEquivalentTo(["Q → A", "Q → D"]);
         }
     }
 
@@ -56,14 +59,18 @@ public sealed class AccessibleCircuitSceneTests
 
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene));
+        var routeLabels = rendered.FindAll("[data-wire-geometry]")
+            .Select(element => element.TextContent.Trim())
+            .ToArray();
 
         using (Assert.Multiple())
         {
             await Assert.That(rendered.FindAll("[data-junction]")).Count().IsEqualTo(1);
             await Assert.That(rendered.FindAll("[data-wire-geometry]")).Count().IsEqualTo(2);
-            await Assert.That(rendered.Markup).Contains("Junction at grid 2, 1");
-            await Assert.That(rendered.Markup).Contains("Orthogonal");
-            await Assert.That(rendered.Markup).Contains("Unrouted");
+            await Assert.That(rendered.Find("[data-junction]").TextContent.Trim())
+                .IsEqualTo("Junction at grid 2, 1");
+            await Assert.That(routeLabels)
+                .IsEquivalentTo(["Orthogonal · 0,0 → 0,1 → 4,1", "Unrouted"]);
         }
     }
 
