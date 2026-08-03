@@ -283,35 +283,6 @@ public sealed class SimulationRuntimeTests
     }
 
     [Test]
-    public async Task Execute_FutureStimulusBatch_SchedulesWithStableSequence()
-    {
-        var context = SimulationTestContext.Create();
-        var opened = OpenOutputProbe(context);
-
-        var outcome = SimulationRuntime.Execute(
-            opened.Handle,
-            Schedule(context, logicalTime: 10, LogicValue.One),
-            CancellationToken.None);
-        var snapshot = (SessionSnapshotRead)SimulationRuntime.Read(
-            opened.Handle,
-            new ReadSessionSnapshot(),
-            CancellationToken.None);
-
-        await Assert.That(outcome).IsTypeOf<StimulusBatchScheduled>();
-        var scheduled = (StimulusBatchScheduled)outcome;
-        using (Assert.Multiple())
-        {
-            await Assert.That(scheduled.SessionVersion).IsEqualTo(2UL);
-            await Assert.That(scheduled.ScheduledLogicalTime).IsEqualTo(10UL);
-            await Assert.That(scheduled.StableSequence).IsEqualTo(1UL);
-            await Assert.That(snapshot.SessionVersion).IsEqualTo(2UL);
-            await Assert.That(snapshot.LogicalTime).IsEqualTo(0UL);
-            await Assert.That(snapshot.Probes[0].Value[0]).IsEqualTo(LogicValue.One);
-            await Assert.That(snapshot.TraceCursor).IsEqualTo(opened.TraceCursor);
-        }
-    }
-
-    [Test]
     public async Task Execute_ScheduledInputChange_CommitsSettledProbePatchAndTrace()
     {
         var context = SimulationTestContext.Create();
@@ -621,74 +592,73 @@ public sealed class SimulationRuntimeTests
     }
 
     [Test]
-    public async Task Execute_EarlierTimeBucket_AdvancesBeforeLaterScheduledBatch()
+    public async Task Execute_OutOfOrderStimuli_MatchStablePriorityQueueModel()
     {
         var context = SimulationTestContext.Create();
         var opened = OpenOutputProbe(context);
-        _ = SimulationRuntime.Execute(
-            opened.Handle,
-            Schedule(context, logicalTime: 20, LogicValue.Zero),
-            CancellationToken.None);
-        _ = SimulationRuntime.Execute(
-            opened.Handle,
-            Schedule(context, logicalTime: 10, LogicValue.One),
-            CancellationToken.None);
+        (ulong LogicalTime, LogicValue Value)[] stimuli =
+        [
+            (60, LogicValue.Zero),
+            (10, LogicValue.One),
+            (50, LogicValue.One),
+            (20, LogicValue.Zero),
+            (40, LogicValue.Zero),
+            (30, LogicValue.One),
+        ];
 
-        var first = (AdvanceCommitted)SimulationRuntime.Execute(
-            opened.Handle,
-            new AdvanceToNextQuiescentBoundary(),
-            CancellationToken.None);
-        var second = (AdvanceCommitted)SimulationRuntime.Execute(
-            opened.Handle,
-            new AdvanceToNextQuiescentBoundary(),
-            CancellationToken.None);
-
-        using (Assert.Multiple())
+        for (var index = 0; index < stimuli.Length; index++)
         {
-            await Assert.That(first.LogicalTime).IsEqualTo(10UL);
-            await Assert.That(first.ObservedProbePatch[0].Value[0])
-                .IsEqualTo(LogicValue.Zero);
-            await Assert.That(second.LogicalTime).IsEqualTo(20UL);
-            await Assert.That(second.ObservedProbePatch[0].Value[0])
-                .IsEqualTo(LogicValue.One);
-        }
-    }
-
-    [Test]
-    public async Task Execute_OutOfOrderTimeBuckets_AdvanceInHeapPriorityOrder()
-    {
-        var context = SimulationTestContext.Create();
-        var opened = OpenOutputProbe(context);
-        ulong[] scheduledTimes = [60, 10, 50, 20, 40, 30];
-        var scheduledSequences = new List<ulong>(scheduledTimes.Length);
-        foreach (var logicalTime in scheduledTimes)
-        {
+            var stimulus = stimuli[index];
             var scheduled = (StimulusBatchScheduled)SimulationRuntime.Execute(
                 opened.Handle,
-                Schedule(context, logicalTime, LogicValue.One),
+                Schedule(context, stimulus.LogicalTime, stimulus.Value),
                 CancellationToken.None);
-            scheduledSequences.Add(scheduled.StableSequence);
+            using (Assert.Multiple())
+            {
+                await Assert.That(scheduled.ScheduledLogicalTime)
+                    .IsEqualTo(stimulus.LogicalTime);
+                await Assert.That(scheduled.StableSequence).IsEqualTo((ulong)index + 1UL);
+                await Assert.That(scheduled.SessionVersion).IsEqualTo((ulong)index + 2UL);
+            }
         }
 
-        var committedTimes = new List<ulong>(scheduledTimes.Length);
-        for (var index = 0; index < scheduledTimes.Length; index++)
+        var beforeAdvance = (SessionSnapshotRead)SimulationRuntime.Read(
+            opened.Handle,
+            new ReadSessionSnapshot(),
+            CancellationToken.None);
+        using (Assert.Multiple())
         {
+            await Assert.That(beforeAdvance.SessionVersion)
+                .IsEqualTo((ulong)stimuli.Length + 1UL);
+            await Assert.That(beforeAdvance.LogicalTime).IsEqualTo(0UL);
+            await Assert.That(beforeAdvance.Probes[0].Value[0]).IsEqualTo(LogicValue.One);
+            await Assert.That(beforeAdvance.TraceCursor).IsEqualTo(opened.TraceCursor);
+        }
+
+        var expectedOrder = stimuli.OrderBy(stimulus => stimulus.LogicalTime).ToArray();
+        for (var index = 0; index < expectedOrder.Length; index++)
+        {
+            var expected = expectedOrder[index];
             var committed = (AdvanceCommitted)SimulationRuntime.Execute(
                 opened.Handle,
                 new AdvanceToNextQuiescentBoundary(),
                 CancellationToken.None);
-            committedTimes.Add(committed.LogicalTime);
+            using (Assert.Multiple())
+            {
+                await Assert.That(committed.LogicalTime).IsEqualTo(expected.LogicalTime);
+                await Assert.That(committed.SessionVersion)
+                    .IsEqualTo((ulong)stimuli.Length + (ulong)index + 2UL);
+                await Assert.That(committed.ObservedProbePatch.Single().Value[0])
+                    .IsEqualTo(ScalarLogic.Not(expected.Value));
+            }
         }
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(scheduledSequences).IsEquivalentTo(
-                new ulong[] { 1, 2, 3, 4, 5, 6 },
-                CollectionOrdering.Matching);
-            await Assert.That(committedTimes).IsEquivalentTo(
-                new ulong[] { 10, 20, 30, 40, 50, 60 },
-                CollectionOrdering.Matching);
-        }
+        var exhausted = SimulationRuntime.Execute(
+            opened.Handle,
+            new AdvanceToNextQuiescentBoundary(),
+            CancellationToken.None);
+
+        await Assert.That(exhausted).IsTypeOf<NoScheduledStimulus>();
     }
 
     [Test]

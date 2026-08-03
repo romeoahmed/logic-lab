@@ -302,7 +302,7 @@ public sealed class CompilerSuccessTests
     }
 
     [Test]
-    public async Task SourceMap_EachNetSource_RoundTripsToItsCompilationOrdinal()
+    public async Task SourceMap_EachNetAndDriverSource_RoundTripsToItsCompilationOrdinal()
     {
         var circuit = CompilerTestCircuit.CreateComplete();
         var succeeded = (CompilationSucceeded)Compiler.Compile(
@@ -312,6 +312,19 @@ public sealed class CompilerSuccessTests
         foreach (var entry in succeeded.Artifact.SourceMap.Nets)
         {
             var found = succeeded.Artifact.SourceMap.TryGetNetOrdinal(
+                entry.Source,
+                out var ordinal);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(found).IsTrue();
+                await Assert.That(ordinal).IsEqualTo(entry.Ordinal);
+            }
+        }
+
+        foreach (var entry in succeeded.Artifact.SourceMap.Drivers)
+        {
+            var found = succeeded.Artifact.SourceMap.TryGetDriverOrdinal(
                 entry.Source,
                 out var ordinal);
 

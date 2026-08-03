@@ -139,6 +139,18 @@ public static class LogicVectorArbitraries
             yield return sample with { Length = 1 };
         }
 
+        var minimumWidth = sample.Offset + sample.Length;
+        var smallerWidths = ShrinkWidth(sample.Width)
+            .Where(width => width >= minimumWidth)
+            .Append(minimumWidth)
+            .Where(width => width < sample.Width)
+            .Distinct()
+            .Order();
+        foreach (var width in smallerWidths)
+        {
+            yield return sample with { Values = sample.Values[..width] };
+        }
+
         foreach (var values in ShrinkLogicValues(sample.Values))
         {
             yield return sample with { Values = values };
@@ -169,9 +181,11 @@ public static class LogicVectorArbitraries
     private static IEnumerable<LogicVectorMergeCase> ShrinkMerge(
         LogicVectorMergeCase sample)
     {
-        if (sample.Vectors.Length > 1)
+        for (var index = 0; index < sample.Vectors.Length && sample.Vectors.Length > 1; index++)
         {
-            yield return new LogicVectorMergeCase(sample.Vectors[..^1]);
+            yield return new LogicVectorMergeCase(sample.Vectors
+                .Where((_, candidateIndex) => candidateIndex != index)
+                .ToArray());
         }
 
         foreach (var width in ShrinkWidth(sample.Width))
@@ -189,9 +203,14 @@ public static class LogicVectorArbitraries
     private static IEnumerable<LogicVectorDriverCase> ShrinkDrivers(
         LogicVectorDriverCase sample)
     {
-        if (sample.Drivers.Length > 0)
+        for (var index = 0; index < sample.Drivers.Length; index++)
         {
-            yield return sample with { Drivers = sample.Drivers[..^1] };
+            yield return sample with
+            {
+                Drivers = sample.Drivers
+                    .Where((_, candidateIndex) => candidateIndex != index)
+                    .ToArray(),
+            };
         }
 
         foreach (var width in ShrinkWidth(sample.Width))

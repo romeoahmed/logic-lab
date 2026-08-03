@@ -480,24 +480,67 @@ public sealed class ProjectEditorCircuitTests
         var secondMissingMove = new ComponentMove(
             secondOtherCircuit.Input.Id,
             new ComponentPlacement(new GridPoint(30, 30)));
-        var permutations = new ComponentMove[][]
-        {
-            [firstMissingMove, existingMove, existingMove, secondMissingMove],
-            [existingMove, existingMove, secondMissingMove, firstMissingMove],
-        };
+        ComponentMove[] moveSet =
+            [existingMove, existingMove, firstMissingMove, secondMissingMove];
+        var permutations = (
+                from first in Enumerable.Range(0, moveSet.Length)
+                from second in Enumerable.Range(0, moveSet.Length)
+                from third in Enumerable.Range(0, moveSet.Length)
+                from fourth in Enumerable.Range(0, moveSet.Length)
+                where new[] { first, second, third, fourth }.Distinct().Count() == moveSet.Length
+                select new[]
+                {
+                    moveSet[first],
+                    moveSet[second],
+                    moveSet[third],
+                    moveSet[fourth],
+                })
+            .DistinctBy(permutation => string.Join(
+                '\u001f',
+                permutation.Select(move =>
+                    $"{move.ComponentInstanceId.Value}@{move.Placement.Origin.X},{move.Placement.Origin.Y}")))
+            .ToArray();
 
-        foreach (var moves in permutations)
+        await Assert.That(permutations).Count().IsEqualTo(12);
+        var expectedOutcome = ProjectEditor.Apply(
+            circuit.Revision,
+            new MoveComponentInstancesIntent(definitionId, permutations[0]));
+        var expected = await Assert.That(expectedOutcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(expected);
+
+        await Assert.That(expected.Diagnostics.Select(item => item.Code).ToArray())
+            .IsEquivalentTo(
+                ["authoring_duplicate_id", "authoring_missing_reference"],
+                CollectionOrdering.Matching);
+
+        foreach (var moves in permutations.Skip(1))
         {
             var outcome = ProjectEditor.Apply(
                 circuit.Revision,
                 new MoveComponentInstancesIntent(definitionId, moves));
 
-            await Assert.That(outcome).IsTypeOf<EditRejected>();
-            var rejected = (EditRejected)outcome;
-            await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
-                .IsEquivalentTo(
-                    ["authoring_duplicate_id", "authoring_missing_reference"],
-                    CollectionOrdering.Matching);
+            var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+            Assert.NotNull(rejected);
+            await Assert.That(rejected.Diagnostics).Count()
+                .IsEqualTo(expected.Diagnostics.Count);
+            for (var index = 0; index < expected.Diagnostics.Count; index++)
+            {
+                var expectedDiagnostic = expected.Diagnostics[index];
+                var actualDiagnostic = rejected.Diagnostics[index];
+                using (Assert.Multiple())
+                {
+                    await Assert.That(actualDiagnostic.Code)
+                        .IsEqualTo(expectedDiagnostic.Code);
+                    await Assert.That(actualDiagnostic.Severity)
+                        .IsEqualTo(expectedDiagnostic.Severity);
+                    await Assert.That(actualDiagnostic.Primary)
+                        .IsEqualTo(expectedDiagnostic.Primary);
+                    await Assert.That(actualDiagnostic.Arguments)
+                        .IsEquivalentTo(
+                            expectedDiagnostic.Arguments,
+                            CollectionOrdering.Matching);
+                }
+            }
         }
     }
 
