@@ -222,20 +222,36 @@ public sealed class VectorLogicTests
     }
 
     [Test]
-    public async Task WidthConversion_InvalidArguments_ThrowExactExceptions()
+    public async Task Concat_InvalidInputs_ThrowExactExceptions()
     {
-        var input = new LogicVector([LogicValue.Zero, LogicValue.One]);
-
         using (Assert.Multiple())
         {
             await Assert.That(() => VectorLogic.Concat(null!))
                 .ThrowsExactly<ArgumentNullException>();
             await Assert.That(() => VectorLogic.Concat([]))
                 .ThrowsExactly<ArgumentException>();
+        }
+    }
+
+    [Test]
+    public async Task Extend_NullInputs_ThrowExactException()
+    {
+        using (Assert.Multiple())
+        {
             await Assert.That(() => VectorLogic.ZeroExtend(null!, 3))
                 .ThrowsExactly<ArgumentNullException>();
             await Assert.That(() => VectorLogic.SignExtend(null!, 3))
                 .ThrowsExactly<ArgumentNullException>();
+        }
+    }
+
+    [Test]
+    public async Task Extend_NonIncreasingOutputWidths_ThrowExactException()
+    {
+        var input = new LogicVector([LogicValue.Zero, LogicValue.One]);
+
+        using (Assert.Multiple())
+        {
             await Assert.That(() => VectorLogic.ZeroExtend(input, 2))
                 .ThrowsExactly<ArgumentOutOfRangeException>();
             await Assert.That(() => VectorLogic.SignExtend(input, 1))
