@@ -16,6 +16,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private readonly Dictionary<WorkspaceId, WorkspaceState> workspaces = [];
     private readonly WorkCoordinator workCoordinator;
     private readonly WorkspacePolicy workspacePolicy;
+    private readonly AuthoringAdmissionPolicy authoringAdmissionPolicy;
     private readonly TimeProvider timeProvider;
     private readonly WorkspaceModuleOperations operations;
     private readonly ILogger<EditorWorkspace> logger;
@@ -25,17 +26,20 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     public EditorWorkspace(
         WorkCoordinator workCoordinator,
         WorkspacePolicy workspacePolicy,
+        AuthoringAdmissionPolicy authoringAdmissionPolicy,
         TimeProvider timeProvider,
         WorkspaceModuleOperations operations,
         ILogger<EditorWorkspace> logger)
     {
         ArgumentNullException.ThrowIfNull(workCoordinator);
         ArgumentNullException.ThrowIfNull(workspacePolicy);
+        ArgumentNullException.ThrowIfNull(authoringAdmissionPolicy);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(logger);
         this.workCoordinator = workCoordinator;
         this.workspacePolicy = workspacePolicy;
+        this.authoringAdmissionPolicy = authoringAdmissionPolicy;
         this.timeProvider = timeProvider;
         this.operations = operations;
         this.logger = logger;
@@ -212,7 +216,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
     }
 
-    private static WorkspaceCommandOutcome Apply(
+    private WorkspaceCommandOutcome Apply(
         WorkspaceState state,
         ApplyEdit command,
         CancellationToken cancellationToken)
@@ -227,6 +231,11 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
+        if (!AuthoringAdmission.AdmitsCommand(command.Intent, authoringAdmissionPolicy))
+        {
+            return Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
+        }
+
         var outcome = ProjectEditor.Apply(state.Revision, command.Intent);
         if (outcome is EditRejected rejected)
         {
@@ -236,6 +245,20 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
 
         var committed = (EditCommitted)outcome;
+        if (!AuthoringAdmission.AdmitsDocument(
+                committed.Revision.Document,
+                authoringAdmissionPolicy))
+        {
+            return Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
+        }
+
+        if (ReferenceEquals(committed.Revision, state.Revision))
+        {
+            return new AuthoringCommitted(
+                state.Revision.RevisionId,
+                state.ProjectionVersion);
+        }
+
         state.Revision = committed.Revision;
         state.Artifact = null;
         state.Compilation = NotRequestedCompilation();
@@ -463,10 +486,18 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
 
-        SimulationProjection simulation;
+        SimulationProjection? simulation;
         try
         {
-            simulation = ReadSimulation(opened.Handle);
+            var readFailure = TryReadSimulation(
+                opened.Handle,
+                cancellationToken,
+                out simulation);
+            if (readFailure is not null)
+            {
+                CloseSimulationForCleanup(opened.Handle);
+                return readFailure;
+            }
         }
         catch (Exception exception) when (!IsFatal(exception))
         {
@@ -474,8 +505,14 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             throw;
         }
 
+        if (cancellationToken.IsCancellationRequested)
+        {
+            CloseSimulationForCleanup(opened.Handle);
+            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+        }
+
         state.SessionHandle = opened.Handle;
-        state.Simulation = simulation;
+        state.Simulation = simulation!;
         state.ProjectionVersion++;
         return new SimulationSessionCreated(
             opened.SessionId,
@@ -696,18 +733,32 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 StringComparison.Ordinal);
     }
 
-    private SimulationProjection ReadSimulation(SimulationSessionHandle handle)
+    private WorkspaceCommandRejected? TryReadSimulation(
+        SimulationSessionHandle handle,
+        CancellationToken cancellationToken,
+        out SimulationProjection? simulation)
     {
         var outcome = operations.ReadSimulation(
             handle,
             new ReadSessionSnapshot(),
-            CancellationToken.None);
-        if (outcome is not SessionSnapshotRead snapshot)
+            cancellationToken);
+        if (outcome is SimulationReadFailed failed)
         {
-            throw new InvalidOperationException("The simulation snapshot could not be read.");
+            simulation = null;
+            return Reject(
+                failed.Reason is SimulationFailureReason.SimulationCancelled
+                    ? WorkspaceOutcomeReasons.WorkspaceCancelled
+                    : WorkspaceOutcomeReasons.FromSimulation(failed.Reason),
+                failed.Diagnostics.Select(item => item.Code));
         }
 
-        return new SimulationProjection(
+        if (outcome is not SessionSnapshotRead snapshot)
+        {
+            simulation = null;
+            return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
+        }
+
+        simulation = new SimulationProjection(
             snapshot.SessionId,
             snapshot.SessionVersion,
             snapshot.LogicalTime,
@@ -716,6 +767,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 probe.ProbeId,
                 probe.Source.Identity,
                 Values(probe.Value))).ToArray());
+        return null;
     }
 
     private static LogicValue[] Values(LogicVector vector)
