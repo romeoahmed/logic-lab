@@ -8,6 +8,12 @@ namespace LogicLab.Application.Tests;
 public sealed class EditorWorkspaceAdmissionTests
 {
     [Test]
+    public async Task AuthoringAdmissionBudget_State_HasSingleReferenceOwner()
+    {
+        await Assert.That(typeof(AuthoringAdmissionBudget).IsClass).IsTrue();
+    }
+
+    [Test]
     public async Task DispatchAsync_AuthoringLimitsAtMaximum_CommitThenRejectNextDefinition()
     {
         await using var workspace = EditorWorkspaceFactory.Create(
@@ -173,7 +179,7 @@ public sealed class EditorWorkspaceAdmissionTests
         var visited = 0;
         var budget = new AuthoringAdmissionBudget(maximum: 1);
 
-        var admitted = AuthoringAdmission.TryAdmitRoutes(Routes(), ref budget);
+        var admitted = AuthoringAdmission.TryAdmitRoutes(Routes(), budget);
 
         using (Assert.Multiple())
         {
@@ -181,7 +187,7 @@ public sealed class EditorWorkspaceAdmissionTests
             await Assert.That(visited).IsEqualTo(2);
         }
 
-        IEnumerable<WireRoute?> Routes()
+        IEnumerable<WireRoute> Routes()
         {
             visited++;
             yield return new UnroutedWireRoute();
@@ -193,12 +199,17 @@ public sealed class EditorWorkspaceAdmissionTests
     }
 
     [Test]
-    public async Task AuthoringAdmissionBudget_OversizedConsumption_RejectsWithoutOverflow()
+    public async Task AuthoringAdmissionBudget_OverBudgetConsumption_DoesNotSpendBudget()
     {
         var budget = new AuthoringAdmissionBudget(maximum: 1);
 
-        var admitted = budget.TryConsume(ulong.MaxValue);
+        var overBudget = budget.TryConsume(2);
+        var atBudget = budget.TryConsume(1);
 
-        await Assert.That(admitted).IsFalse();
+        using (Assert.Multiple())
+        {
+            await Assert.That(overBudget).IsFalse();
+            await Assert.That(atBudget).IsTrue();
+        }
     }
 }
