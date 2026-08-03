@@ -8,16 +8,16 @@ internal enum LogicalShiftDirection
     Right,
 }
 
-internal sealed record UnsignedComparisonResult(
+internal readonly record struct UnsignedComparisonResult(
     LogicValue LessThan,
     LogicValue Equal,
     LogicValue GreaterThan);
 
-internal sealed record AdderResult(
+internal readonly record struct AdderResult(
     LogicVector Sum,
     LogicValue CarryOut);
 
-internal sealed record SubtractorResult(
+internal readonly record struct SubtractorResult(
     LogicVector Difference,
     LogicValue BorrowOut);
 
@@ -95,10 +95,11 @@ internal static class ArithmeticEvaluation
             difference[bit] = ScalarLogic.Xor(
                 ScalarLogic.Xor(leftValue, rightValue),
                 borrow);
+            var invertedLeft = ScalarLogic.Not(leftValue);
             borrow = ScalarLogic.Or(
                 ScalarLogic.Or(
-                    ScalarLogic.And(ScalarLogic.Not(leftValue), rightValue),
-                    ScalarLogic.And(ScalarLogic.Not(leftValue), borrow)),
+                    ScalarLogic.And(invertedLeft, rightValue),
+                    ScalarLogic.And(invertedLeft, borrow)),
                 ScalarLogic.And(rightValue, borrow));
         }
 
@@ -326,11 +327,12 @@ internal static class ArithmeticEvaluation
 
     private static LogicValue RelationValue(bool possible, int possibleCount)
     {
-        return !possible
-            ? LogicValue.Zero
-            : possibleCount == 1
-                ? LogicValue.One
-                : LogicValue.X;
+        if (!possible)
+        {
+            return LogicValue.Zero;
+        }
+
+        return possibleCount == 1 ? LogicValue.One : LogicValue.X;
     }
 
     private static void EnsureEqualWidths(LogicVector left, LogicVector right)

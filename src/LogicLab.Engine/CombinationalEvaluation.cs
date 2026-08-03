@@ -3,7 +3,9 @@ using LogicLab.Engine.Compilation;
 
 namespace LogicLab.Engine;
 
-internal sealed record PriorityEncoderResult(LogicVector Index, LogicValue Valid);
+internal readonly record struct PriorityEncoderResult(
+    LogicVector Index,
+    LogicValue Valid);
 
 internal static class CombinationalEvaluation
 {
@@ -155,22 +157,21 @@ internal static class CombinationalEvaluation
 
         var normalized = inputs.Select(ScalarLogic.NormalizeInput).ToArray();
         var possibleResults = new List<(uint Index, LogicValue Valid)>();
-        var candidateOrder = lowestIndex
-            ? Enumerable.Range(0, inputs.Count)
-            : Enumerable.Range(0, inputs.Count).Reverse();
-        foreach (var candidate in candidateOrder)
+        var candidate = lowestIndex ? 0 : inputs.Count - 1;
+        var step = lowestIndex ? 1 : -1;
+        var higherCanAllBeZero = true;
+        for (; candidate >= 0 && candidate < inputs.Count; candidate += step)
         {
             var candidateCanBeOne = normalized[candidate] is LogicValue.One or LogicValue.X;
-            var higherCanAllBeZero = candidateOrder
-                .TakeWhile(index => index != candidate)
-                .All(index => normalized[index] is LogicValue.Zero or LogicValue.X);
             if (candidateCanBeOne && higherCanAllBeZero)
             {
                 possibleResults.Add((checked((uint)candidate), LogicValue.One));
             }
+
+            higherCanAllBeZero &= normalized[candidate] is LogicValue.Zero or LogicValue.X;
         }
 
-        if (normalized.All(value => value is LogicValue.Zero or LogicValue.X))
+        if (higherCanAllBeZero)
         {
             possibleResults.Add((0, LogicValue.Zero));
         }
