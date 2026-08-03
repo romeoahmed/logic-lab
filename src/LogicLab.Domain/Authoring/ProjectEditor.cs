@@ -156,6 +156,9 @@ public static partial class ProjectEditor
             circuitDefinitionId,
             seed.EntryCircuitDefinitionDisplayName,
             [],
+            [],
+            [],
+            [],
             []);
         var document = new ProjectDocument(
             projectId,

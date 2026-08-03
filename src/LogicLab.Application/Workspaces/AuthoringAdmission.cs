@@ -33,7 +33,7 @@ internal static class AuthoringAdmission
         ArgumentNullException.ThrowIfNull(intent);
         ArgumentNullException.ThrowIfNull(policy);
         var budget = new AuthoringAdmissionBudget(
-            policy.AuthoringCommandItemCountLimit);
+            policy.AuthoringLimits.CommandItemCount);
         return intent switch
         {
             CreateCircuitDefinitionIntent create => budget.TryConsume(
@@ -74,7 +74,7 @@ internal static class AuthoringAdmission
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(policy);
-        if (document.CircuitDefinitions.Count > policy.AuthoringDefinitionCountLimit)
+        if (document.CircuitDefinitions.Count > policy.AuthoringLimits.DefinitionCount)
         {
             return false;
         }
@@ -93,7 +93,7 @@ internal static class AuthoringAdmission
                     + (ulong)definition.WireGeometries.Count);
             }
 
-            return entityCount <= checked((ulong)policy.AuthoringEntityCountLimit);
+            return entityCount <= checked((ulong)policy.AuthoringLimits.EntityCount);
         }
         catch (OverflowException)
         {

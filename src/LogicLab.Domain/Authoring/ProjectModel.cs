@@ -129,15 +129,6 @@ public sealed class CircuitDefinition
     internal CircuitDefinition(
         CircuitDefinitionId id,
         string displayName,
-        ComponentInstance[] componentInstances,
-        Net[] nets)
-        : this(id, displayName, [], componentInstances, nets, [], [])
-    {
-    }
-
-    internal CircuitDefinition(
-        CircuitDefinitionId id,
-        string displayName,
         DefinitionPort[] ports,
         ComponentInstance[] componentInstances,
         Net[] nets,
@@ -333,11 +324,6 @@ public sealed record ChoiceParameterValue : ComponentParameterValue
     }
 
     public string Value { get; }
-
-    public void Deconstruct(out string value)
-    {
-        value = Value;
-    }
 }
 
 public sealed record LogicVectorParameterValue : ComponentParameterValue
@@ -386,14 +372,6 @@ public sealed record ComponentParameterBinding
     public string ParameterId { get; }
 
     public ComponentParameterValue Value { get; }
-
-    public void Deconstruct(
-        out string parameterId,
-        out ComponentParameterValue value)
-    {
-        parameterId = ParameterId;
-        value = Value;
-    }
 }
 
 public sealed class ComponentInstance

@@ -6,6 +6,28 @@ namespace LogicLab.Domain.Tests;
 public sealed class EditIntentContractTests
 {
     [Test]
+    public async Task ValidatedRecords_DoNotExposeLegacyDeconstruction()
+    {
+        Type[] validatedRecordTypes =
+        [
+            typeof(ComponentContractKey),
+            typeof(DefinitionPortDeclaration),
+            typeof(SetEntryCircuitDefinitionIntent),
+            typeof(ComponentMove),
+            typeof(ChoiceParameterValue),
+            typeof(ComponentParameterBinding),
+        ];
+
+        var legacyDeconstructors = validatedRecordTypes
+            .SelectMany(type => type.GetMethods())
+            .Where(method => method.Name == "Deconstruct")
+            .Select(method => method.DeclaringType!.Name)
+            .ToArray();
+
+        await Assert.That(legacyDeconstructors).IsEmpty();
+    }
+
+    [Test]
     public async Task ComponentParameterBinding_NullParameterId_ThrowsArgumentNullException()
     {
         await Assert.That(() => new ComponentParameterBinding(
