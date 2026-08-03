@@ -116,7 +116,12 @@ public sealed class CompilerSuccessTests
                 .IsEquivalentTo([0, 1], CollectionOrdering.Matching);
             await Assert.That(ir.Evaluators.Select(item => item.Kind).Order().ToArray())
                 .IsEquivalentTo(
-                    Enum.GetValues<SimulationEvaluatorKind>().Order().ToArray(),
+                    new[]
+                    {
+                        SimulationEvaluatorKind.InputSource,
+                        SimulationEvaluatorKind.LogicNot,
+                        SimulationEvaluatorKind.OutputSink,
+                    }.Order().ToArray(),
                     CollectionOrdering.Matching);
             await Assert.That(ir.Evaluators.SelectMany(item => item.InputNetOrdinals)
                 .All(ordinal => ordinal >= 0 && ordinal < ir.Nets.Count)).IsTrue();

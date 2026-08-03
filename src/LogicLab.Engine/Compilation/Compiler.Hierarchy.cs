@@ -83,7 +83,7 @@ public static partial class Compiler
             0UL,
             (count, instance) => checked(
                 count
-                + (ulong)instance.Schema.Ports.Count(
+                + (ulong)instance.Ports.Count(
                     port => port.Direction == PortDirection.Output)));
         var elaboratedSlotCount = checked(
             (ulong)occurrences.Length
@@ -366,7 +366,7 @@ public static partial class Compiler
                 }
 
                 if (!TryGetEvaluatorKind(key, out var kind)
-                    || !TryGetInstanceWidth(instance, schema, out var width))
+                    || !TryResolvePorts(instance, schema, out var ports))
                 {
                     diagnostics.Add(new CompilerDiagnostic(
                         "compiler_parameter_schema_mismatch",
@@ -393,9 +393,9 @@ public static partial class Compiler
                     resolved.Count,
                     occurrence,
                     instance,
-                    schema,
                     kind,
-                    width));
+                    ports,
+                    GetEvaluatorWidth(ports)));
             }
         }
 
@@ -569,7 +569,12 @@ public static partial class Compiler
                             continue;
                         }
 
-                        foreach (var port in schema.Ports.Where(
+                        if (!TryResolvePorts(instance, schema, out var ports))
+                        {
+                            continue;
+                        }
+
+                        foreach (var port in ports.Where(
                             port => port.Direction == PortDirection.Input))
                         {
                             RequireTerminal(
@@ -674,20 +679,26 @@ public static partial class Compiler
                 if (instance.Target is LibraryComponentTarget library)
                 {
                     var schema = request.LibrarySnapshot.ResolveContract(library.ContractKey);
-                    var componentPort = schema?.Ports.SingleOrDefault(candidate =>
+                    if (schema is null
+                        || !TryResolvePorts(instance, schema, out var ports))
+                    {
+                        port = default!;
+                        return false;
+                    }
+
+                    var componentPort = ports.SingleOrDefault(candidate =>
                         string.Equals(
                             candidate.Id,
                             instanceTerminal.PortId,
                             StringComparison.Ordinal));
-                    if (componentPort is null
-                        || !TryGetPortWidth(instance, componentPort, out var componentWidth))
+                    if (componentPort is null)
                     {
                         port = default!;
                         return false;
                     }
 
                     port = new HierarchyPort(
-                        componentWidth,
+                        componentPort.Width,
                         new InstancePortSourceIdentity(
                             occurrence.Definition.Id,
                             instance.Id,
@@ -896,8 +907,8 @@ public static partial class Compiler
         int Ordinal,
         HierarchyOccurrence Occurrence,
         ComponentInstance Instance,
-        ComponentContractSchema Schema,
         SimulationEvaluatorKind Kind,
+        ResolvedComponentPortSchema[] Ports,
         uint Width);
 
     private sealed record HierarchyScopedNet(

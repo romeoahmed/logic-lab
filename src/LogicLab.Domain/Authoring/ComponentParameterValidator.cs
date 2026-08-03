@@ -55,23 +55,6 @@ internal static class ComponentParameterValidator
         return diagnostics.ToArray();
     }
 
-    public static bool TryGetPortWidth(
-        ComponentInstance instance,
-        ComponentPortSchema port,
-        out uint width)
-    {
-        width = instance.Parameters
-            .Where(binding => string.Equals(
-                binding.ParameterId,
-                port.WidthParameterId,
-                StringComparison.Ordinal))
-            .Select(binding => binding.Value)
-            .OfType<Unsigned32ParameterValue>()
-            .Select(parameter => parameter.Value)
-            .SingleOrDefault();
-        return width > 0;
-    }
-
     private static string? GetInvalidValueRule(
         ComponentParameterSchema schema,
         ComponentParameterValue? value,
@@ -80,7 +63,8 @@ internal static class ComponentParameterValidator
         return (schema.Kind, value) switch
         {
             (ComponentParameterKind.PositiveWidth,
-                Unsigned32ParameterValue { Value: > 0 }) => null,
+                Unsigned32ParameterValue { Value: > 0 } width) =>
+                GetInvalidWidthRule(schema, width, allParameters),
             (ComponentParameterKind.PositiveWidth, Unsigned32ParameterValue) =>
                 "positiveWidth",
             (ComponentParameterKind.Choice, ChoiceParameterValue choice) =>
@@ -89,8 +73,30 @@ internal static class ComponentParameterValidator
                     : "allowedValue",
             (ComponentParameterKind.LogicVector, LogicVectorParameterValue vector) =>
                 GetInvalidLogicVectorRule(schema, vector, allParameters),
+            (ComponentParameterKind.Slices, SlicesParameterValue slices) =>
+                GetInvalidSlicesRule(schema, slices, allParameters),
+            (ComponentParameterKind.Widths, WidthsParameterValue widths) =>
+                GetInvalidWidthsRule(schema, widths),
             _ => "parameterKind",
         };
+    }
+
+    private static string? GetInvalidWidthRule(
+        ComponentParameterSchema schema,
+        Unsigned32ParameterValue width,
+        ReadOnlyCollection<ComponentParameterBinding> allParameters)
+    {
+        if (schema.GreaterThanParameterId is null)
+        {
+            return null;
+        }
+
+        var lowerBound = FindUnsignedWidth(
+            allParameters,
+            schema.GreaterThanParameterId);
+        return lowerBound > 0 && width.Value > lowerBound
+            ? null
+            : "greaterThanInputWidth";
     }
 
     private static string? GetInvalidLogicVectorRule(
@@ -104,19 +110,93 @@ internal static class ComponentParameterValidator
             return "logicVectorValue";
         }
 
-        var width = allParameters
+        var width = FindUnsignedWidth(allParameters, schema.WidthParameterId);
+
+        return width == 0 || vector.Values.Count != width
+            ? "vectorWidth"
+            : null;
+    }
+
+    private static string? GetInvalidSlicesRule(
+        ComponentParameterSchema schema,
+        SlicesParameterValue slices,
+        ReadOnlyCollection<ComponentParameterBinding> allParameters)
+    {
+        if (slices.Values.Count < schema.MinimumItemCount)
+        {
+            return "minimumItemCount";
+        }
+
+        var width = FindUnsignedWidth(allParameters, schema.WidthParameterId);
+        foreach (var slice in slices.Values)
+        {
+            if (slice.Length == 0)
+            {
+                return "positiveLength";
+            }
+
+            uint end;
+            try
+            {
+                end = checked(slice.Offset + slice.Length);
+            }
+            catch (OverflowException)
+            {
+                return "sliceContainment";
+            }
+
+            if (width == 0 || end > width)
+            {
+                return "sliceContainment";
+            }
+        }
+
+        return null;
+    }
+
+    private static string? GetInvalidWidthsRule(
+        ComponentParameterSchema schema,
+        WidthsParameterValue widths)
+    {
+        if (widths.Values.Count < schema.MinimumItemCount)
+        {
+            return "minimumItemCount";
+        }
+
+        uint sum = 0;
+        foreach (var width in widths.Values)
+        {
+            if (width == 0)
+            {
+                return "positiveWidth";
+            }
+
+            try
+            {
+                sum = checked(sum + width);
+            }
+            catch (OverflowException)
+            {
+                return "widthSum";
+            }
+        }
+
+        return sum > 0 ? null : "widthSum";
+    }
+
+    private static uint FindUnsignedWidth(
+        IEnumerable<ComponentParameterBinding> parameters,
+        string? parameterId)
+    {
+        return parameters
             .Where(binding => string.Equals(
                 binding.ParameterId,
-                schema.WidthParameterId,
+                parameterId,
                 StringComparison.Ordinal))
             .Select(binding => binding.Value)
             .OfType<Unsigned32ParameterValue>()
             .Select(value => value.Value)
             .FirstOrDefault();
-
-        return width == 0 || vector.Values.Count != width
-            ? "vectorWidth"
-            : null;
     }
 
     private static AuthoringDiagnostic InvalidParameter(

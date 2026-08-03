@@ -357,6 +357,70 @@ public sealed record LogicVectorParameterValue : ComponentParameterValue
     }
 }
 
+public readonly record struct BitSlice(uint Offset, uint Length);
+
+public sealed record SlicesParameterValue : ComponentParameterValue
+{
+    private readonly BitSlice[] values;
+
+    public SlicesParameterValue(IReadOnlyList<BitSlice> values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        this.values = values.ToArray();
+        Values = Array.AsReadOnly(this.values);
+    }
+
+    public ReadOnlyCollection<BitSlice> Values { get; }
+
+    public bool Equals(SlicesParameterValue? other)
+    {
+        return ReferenceEquals(this, other)
+            || other is not null && values.AsSpan().SequenceEqual(other.values);
+    }
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        foreach (var value in values)
+        {
+            hash.Add(value);
+        }
+
+        return hash.ToHashCode();
+    }
+}
+
+public sealed record WidthsParameterValue : ComponentParameterValue
+{
+    private readonly uint[] values;
+
+    public WidthsParameterValue(IReadOnlyList<uint> values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        this.values = values.ToArray();
+        Values = Array.AsReadOnly(this.values);
+    }
+
+    public ReadOnlyCollection<uint> Values { get; }
+
+    public bool Equals(WidthsParameterValue? other)
+    {
+        return ReferenceEquals(this, other)
+            || other is not null && values.AsSpan().SequenceEqual(other.values);
+    }
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        foreach (var value in values)
+        {
+            hash.Add(value);
+        }
+
+        return hash.ToHashCode();
+    }
+}
+
 public sealed record ComponentParameterBinding
 {
     public ComponentParameterBinding(
