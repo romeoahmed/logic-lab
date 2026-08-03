@@ -1,14 +1,14 @@
 # Logic Lab Architecture
 
-> Status: implementation in progress; slices 01-10 executable
+> Status: normative V1 architecture; implementation in progress
 > Target: .NET 10, C# 14, Blazor Web App
 > Last reviewed: 2026-08-03
 
-Architecture owns system shape, dependency direction, module seams, fact ownership, deployment shape, and delivery order. Specifications own exact interfaces and observable behavior; contracts own values exchanged at real seams; [Workbench](./WORKBENCH.md) owns product behavior; [Context Map](./CONTEXT-MAP.md) owns domain language.
+Architecture owns system shape, dependency direction, Module seams, fact ownership, and deployment shape. Specifications own exact interfaces and observable behavior; contracts own values exchanged at real seams; [Workbench](./WORKBENCH.md) owns product behavior; [Context Map](./CONTEXT-MAP.md) owns domain language. The [Implementation Plan](./docs/implementation-plan.md) owns delivery order and completion status.
 
 ## 1. Baseline and product scope
 
-`logic-lab.slnx` contains the first production and test projects. Slice `01` provides the Domain-owned minimum `logiclab.core` schema and the Engine-owned scalar four-state oracle, Conservative Merge, and Net resolution. Slice `02` adds a private packed Logic Vector representation, word-wise scalar-equivalent operations, non-word-aligned slices, Conservative Merge, and per-bit Net resolution evidence. Slice `03` adds Domain-owned immutable Project lineage, Project Genesis, and narrow place, connect, and move editing with typed outcomes and diagnostics. Slice `04` adds deterministic Compilation of the first flat combinational circuit into a sealed Compilation Artifact with immutable Simulation IR, a total Source Map, policy and cancellation evidence, and atomic source-bound rejection. Slice `05` adds the first synchronous Simulation Session: time-zero settlement, source-bound initial Probes, stable future Stimulus scheduling, atomic advance and rollback, bounded circular Trace retention, immutable reads, and idempotent close. Slice `06` adds the first user tracer at `/editor`: an Application-owned Sandbox Workspace coordinates authoring, atomic Compilation publication, Session creation, Stimulus scheduling, and one Step; a renderer-neutral accessible Scene projection and per-page Interactive Server UI expose the result. Slice `07` adds explicit Net, Junction, and Wire Geometry authoring through the same immutable Domain, Application, Presentation, and Web seams while preserving the rule that geometry never defines electrical topology. Slice `08` adds Circuit Definition Ports and instances, selectable entry definitions, occurrence navigation, iterative reachable-hierarchy elaboration, canonical recursion rejection, and occurrence-complete Source Map provenance through the same vertical path. Slice `09` adds Domain-owned resolution and validation for generated split and concat Ports, distinct-width zero/sign extension, an immutable constant source, flat and hierarchical lowering, four-state execution, and width-aware accessible projection. Slice `10` adds exact gate-family, tri-state, MUX/DEMUX, decoder, and priority-encoder schemas, generated Ports, four-state lowering and execution, multi-Driver resolution, structured invalid-parameter evidence, and accessible projection. Clock Source execution remains with the event-calendar slice `14`. Modules and behaviors assigned to later implementation-plan slices remain target design rather than implemented evidence. The [Documentation Map](./docs/README.md) is the authority index.
+`logic-lab.slnx` grows one executable vertical slice at a time. The current solution exercises Domain, Engine, Presentation, Application, and Web through authoring, Compilation, Simulation, accessible projection, and the `/editor` route. Modules and behavior assigned to incomplete plan items remain target design. The [Documentation Map](./docs/README.md) indexes authority; its [Development Readiness](./docs/README.md#development-readiness) table owns current evidence and gaps.
 
 V1 supports:
 
@@ -55,7 +55,7 @@ Compiler and Project Format are translation modules, not extra domain models. Th
 
 ## 4. System shape
 
-The diagram below is the target V1 shape. The Phase A executable path currently includes Domain, Engine, Presentation, Application, and Web; Boolean Analysis, Project Format, Infrastructure, and their adapters enter with the later slices that first exercise them.
+The diagram below is the target V1 shape. Boolean Analysis, Project Format, Infrastructure, and their adapters enter only when an implementation slice first exercises them.
 
 ```text
 Browser
@@ -86,16 +86,16 @@ The initial deployment is one ASP.NET Core process and one SQLite database. Proc
 
 Project seams follow dependency or deployment seams, not every namespace.
 
-| Project | Deep responsibility | Target direct dependencies | Delivery state |
-|---|---|---|---|
-| `LogicLab.Domain` | immutable authoring model, Project Editor, `logiclab.core` schema | BCL | Phase A subset executable |
-| `LogicLab.BooleanAnalysis` | Boolean Region contract, explanation, synthesis, mapping, proof | Domain, BCL | planned for Phase E |
-| `LogicLab.Engine` | Compiler and Simulation Runtime as separate modules | Domain, BooleanAnalysis | Phase A subset executable; BooleanAnalysis dependency deferred |
-| `LogicLab.Presentation` | TeachingMixed definitions, Geometry Plans, Schematic Projection | Domain | accessible Phase A Scene subset executable |
-| `LogicLab.ProjectFormat` | strict `.logiclab` read/write, migration, digest, memory encoding | Domain, BCL compression/JSON | planned for Phase C |
-| `LogicLab.Application` | Editor Workspace, Work Coordinator, authorization-aware use cases | Domain, Engine, BooleanAnalysis, ProjectFormat | Sandbox Workspace subset executable; later dependencies deferred |
-| `LogicLab.Infrastructure` | EF Core repository and persistence adapters | Application, Domain, EF Core | planned for Phase C |
-| `LogicLab.Web` | Blazor routes, Fluent chrome, browser/HTTP adapters, composition root | Application, Presentation, Infrastructure | Interactive Server tracer executable; Infrastructure dependency deferred |
+| Project | Deep responsibility | Target direct dependencies |
+|---|---|---|
+| `LogicLab.Domain` | immutable authoring model, Project Editor, `logiclab.core` schema | BCL |
+| `LogicLab.BooleanAnalysis` | Boolean Region contract, explanation, synthesis, mapping, proof | Domain, BCL |
+| `LogicLab.Engine` | Compiler and Simulation Runtime as separate modules | Domain, BooleanAnalysis |
+| `LogicLab.Presentation` | TeachingMixed definitions, Geometry Plans, Schematic Projection | Domain |
+| `LogicLab.ProjectFormat` | strict `.logiclab` read/write, migration, digest, memory encoding | Domain, BCL compression/JSON |
+| `LogicLab.Application` | Editor Workspace, Work Coordinator, authorization-aware use cases | Domain, Engine, BooleanAnalysis, ProjectFormat |
+| `LogicLab.Infrastructure` | EF Core repository and persistence adapters | Application, Domain, EF Core |
+| `LogicLab.Web` | Blazor routes, Fluent chrome, browser/HTTP adapters, composition root | Application, Presentation, Infrastructure |
 
 Tests and benchmarks remain separate projects and do not create production seams.
 
@@ -222,23 +222,7 @@ The [Development Readiness](./docs/README.md#development-readiness) table owns c
 | Trace live-follow exceeds circuit backpressure | dedicated authorized stream or custom Hub |
 | scene work dominates the browser main thread | browser Worker behind the same Scene interface |
 
-## 11. Delivery sequence
-
-1. scalar four-state oracle and Component Contract truth/state tables;
-2. packed Logic Vector differential tests;
-3. immutable Project Document, topology, Edit Transaction, and Transaction History;
-4. Compiler hierarchy, connectivity, diagnostics, Simulation IR, and Source Map;
-5. event calendar, DAG propagation, Probe, and quiescent Trace vertical slice;
-6. cyclic settlement, Trigger Batches, Clock Source, registers, counters, and memory;
-7. Blazor Web App vertical slice with Static SSR, Interactive Server editor, Web Host, and one accessible Scene adapter;
-8. Workspace attachment/save/detach/Hot Swap and `.logiclab` transfer;
-9. full Logic Analyzer, Component Contract evidence manifest, and TeachingMixed qualification;
-10. Truth Table, Karnaugh Map, QMC/Petrick, AIG mapping, ROBDD proof, and proposal review;
-11. corpus-driven policy calibration, accessibility, browser, security, and deployment gates.
-
-The first slice must author, compile, advance, and observe one circuit through the intended seams. Infrastructure breadth or a polished empty shell is not a substitute.
-
-## 12. Primary references
+## 11. Primary references
 
 - [ASP.NET Core 10](https://learn.microsoft.com/en-us/aspnet/core/overview?view=aspnetcore-10.0)
 - [C# language reference](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/)
