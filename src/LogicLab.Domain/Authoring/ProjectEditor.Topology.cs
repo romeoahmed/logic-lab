@@ -696,18 +696,17 @@ public static partial class ProjectEditor
                         var schema = document.LibrarySnapshot.ResolveContract(
                             library.ContractKey);
                         if (schema is null
-                            || !schema.TryResolvePorts(instance.Parameters, out var ports))
+                            || !schema.TryResolvePort(
+                                instance.Parameters,
+                                instanceTerminal.PortId,
+                                out var componentPort)
+                            || componentPort is null)
                         {
                             return false;
                         }
 
-                        var componentPort = ports.SingleOrDefault(candidate =>
-                            string.Equals(
-                                candidate.Id,
-                                instanceTerminal.PortId,
-                                StringComparison.Ordinal));
-                        width = componentPort?.Width ?? 0;
-                        return componentPort is not null;
+                        width = componentPort.Width;
+                        return true;
                     case CircuitDefinitionComponentTarget definitionTarget:
                         var target = document.FindCircuitDefinition(
                             definitionTarget.CircuitDefinitionId);

@@ -13,7 +13,7 @@ public sealed class TopologySceneProjectorTests
     {
         var revision = CreateWidthConversionComponents();
 
-        var scene = AccessibleSceneProjector.Project(revision);
+        var scene = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
 
         await AssertProjectedPorts(
             revision,
