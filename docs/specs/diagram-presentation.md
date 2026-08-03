@@ -270,4 +270,4 @@ Strict export rejects a Teaching Extension or requires an explicit user-visible 
 - keyboard, focus, screen-reader, text expansion, bidirectional text, and high-zoom scenarios;
 - export manifests for strict, TeachingMixed, and extension-containing projects.
 
-The local combined standard is [00027895.pdf](../../00027895.pdf). Standard clauses, page mapping, and reference-implementation observations are documented in [symbol research](../research/diagram-presentation.md).
+Standard clauses, optional local-reference details, page mapping, and reference-implementation observations are documented in [symbol research](../research/diagram-presentation.md).

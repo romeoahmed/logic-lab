@@ -5,7 +5,7 @@
 
 ## 1. Research method
 
-The local [00027895.pdf](../../00027895.pdf) is the combined publication *IEEE Standard Graphic Symbols for Logic Functions (Including and incorporating IEEE Std 91a-1991)*. `pdftotext -layout` supports clause search, while the original pages remain necessary for figures and proportions. PDF page numbers are eleven greater than printed standard pages in the relevant body.
+The optional untracked local file `00027895.pdf` is the combined publication *IEEE Standard Graphic Symbols for Logic Functions (Including and incorporating IEEE Std 91a-1991)*. `pdftotext -layout` supports clause search, while the original pages remain necessary for figures and proportions. PDF page numbers are eleven greater than printed standard pages in the relevant body.
 
 The research distinguishes:
 
@@ -141,7 +141,7 @@ Route preview and scene indexing remain evidence-gated implementation choices. O
 
 ## 13. Primary sources
 
-- IEEE Std 91-1984 with IEEE 91A-1991: [local combined reference](../../00027895.pdf).
+- IEEE Std 91-1984 with IEEE 91A-1991.
 - [SVG 2 interaction](https://www.w3.org/TR/SVG2/interact.html#pointer-processing) and [descriptive elements](https://www.w3.org/TR/SVG2/struct.html#DescriptionAndTitleElements).
 - [WAI-ARIA Graphics Module](https://www.w3.org/TR/graphics-aria-1.0/).
 - [HTML Canvas](https://html.spec.whatwg.org/multipage/canvas.html#the-canvas-element).

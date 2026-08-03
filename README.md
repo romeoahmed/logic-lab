@@ -2,7 +2,7 @@
 
 Logic Lab is a teaching-oriented gate-level digital logic workbench for authoring, simulating, observing, and simplifying combinational and sequential circuits.
 
-The repository targets .NET 10, C# 14, and a server-first Blazor Web App. Implementation-plan items `01` through `11` are executable; the broader V1 Workbench remains target design. See [Development Readiness](./docs/README.md#development-readiness) for the current evidence and gaps instead of inferring delivery from the normative documents.
+The repository targets .NET 10, C# 14, and a server-first Blazor Web App. The [Implementation Plan](./docs/implementation-plan.md#delivery-status) tracks completed slices; the broader V1 Workbench remains target design. See [Development Readiness](./docs/README.md#development-readiness) for current evidence and gaps instead of inferring delivery from normative documents.
 
 ## V1 scope
 
@@ -22,6 +22,4 @@ The repository targets .NET 10, C# 14, and a server-first Blazor Web App. Implem
 4. [Documentation Map](./docs/README.md)
 5. [.NET Engineering Baseline](./docs/specs/dotnet-engineering.md)
 
-Continue from the current frontier in the [Implementation Plan](./docs/implementation-plan.md#delivery-status). The documentation baseline closes V1 behavior and interfaces; policy calibration and provider-specific production evidence remain explicit release work.
-
-The repository-local [IEEE 91A reference](./00027895.pdf) and [IEEE 1800-2023 reference](./1800-2023.pdf) support standards research. They are references, not project source code.
+Continue from the current frontier in the [Implementation Plan](./docs/implementation-plan.md#dependency-frontier). The documentation baseline closes V1 behavior and interfaces; policy calibration and provider-specific production evidence remain explicit release work.

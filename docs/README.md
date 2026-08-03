@@ -1,6 +1,6 @@
 # Documentation Map
 
-Logic Lab has a closed V1 design baseline and executable implementation-plan items `01` through `11`. Read each document according to its authority and subject; use the readiness table below for implementation status rather than inferring delivery from a normative specification.
+Logic Lab has a closed V1 design baseline. Read each document according to its authority and subject; use the [Implementation Plan](./implementation-plan.md#delivery-status) for completion status and the readiness table below for executable evidence instead of inferring delivery from a normative specification.
 
 ## Authority by subject
 
@@ -19,7 +19,7 @@ Logic Lab has a closed V1 design baseline and executable implementation-plan ite
 
 There is no generic “narrower file wins” rule. A specification defines current behavior, Architecture defines ownership and seams, Workbench defines experience, a contract defines values at one real seam, a glossary defines terminology, an ADR explains a choice, and research supplies evidence. A conflict is a documentation defect and must be repaired in the owning artifact.
 
-## Specifications
+## Behavior and policy
 
 - [Circuit Authoring](./specs/circuit-authoring.md)
 - [Component Contract Catalog V1](./specs/component-contract-catalog-v1.md)
@@ -48,7 +48,7 @@ There is no generic “narrower file wins” rule. A specification defines curre
 
 ## Development readiness
 
-Implementation-plan items `01` through `11` are complete and verified. The application is not V1-complete or qualified for production release.
+Completed implementation-plan items are verified. The application is not V1-complete or qualified for production release.
 
 | Area | Specification state | Executable evidence | Remaining evidence |
 |---|---|---|---|
@@ -59,7 +59,7 @@ Implementation-plan items `01` through `11` are complete and verified. The appli
 | policies and capacity | dimensions and failure semantics are closed | provisional Simulation, Trace, Scheduling, and Workspace policy snapshots exercise bounded failure paths | calibrated values tied to a versioned corpus and deployment profile |
 | production operations | required readiness, shutdown, key, migration, proxy, and observability behavior is closed | development-host lifecycle and security-header integration evidence | provider-specific TLS, secrets, backup/restore, telemetry, alert, and runbook evidence |
 
-Verification snapshot (2026-08-03): locked restore, formatting, warning-clean build, whitespace validation, and all 591 discovered TUnit tests passed. The executable evidence above covers the completed vertical slices; it does not qualify the application for release while any remaining-evidence row is open.
+Verification snapshot (2026-08-03): locked restore, formatting, warning-clean build, whitespace validation, and the whole-solution TUnit suite passed. The executable evidence above covers the completed vertical slices; it does not qualify the application for release while any remaining-evidence row is open.
 
 ## Executable evidence
 
@@ -78,7 +78,7 @@ Verification snapshot (2026-08-03): locked restore, formatting, warning-clean bu
 
 Research is not a second implementation specification. It preserves primary-source claims, mathematical reasoning, rejected alternatives, and qualification gaps. Project choices link to the owning specification or ADR.
 
-The repository-root `00027895.pdf` and `1800-2023.pdf` are local standards references. Use `pdftotext -layout` for searchable prose and inspect original pages for figures and typography.
+Research notes identify optional untracked standards copies by filename. When available, use `pdftotext -layout` for searchable prose and inspect original pages for figures and typography; do not treat those files as project assets.
 
 ## Maintenance
 

@@ -27,10 +27,6 @@ Every completed item must:
 5. pass the applicable restore, build, test, format, architecture, and whitespace gates; and
 6. update an authoritative document only when implementation uncovers a real specification defect.
 
-### Completed test-stack migration before item 03
-
-Before item `03`, one repository-engineering increment migrated both executable test projects from xUnit v3 to the centrally pinned TUnit stack selected by the [.NET Engineering Baseline](./specs/dotnet-engineering.md). The increment replaced runner configuration and lock graphs, converted assertions and fixed data rows, exposed all nine generative Engine properties through `TUnit.FsCheck`, and adopted source-generated discovery, awaited assertion analysis, and an intentional 112-case word-tail matrix. Test discovery increased from 140 to 252 independently reported tests while preserving scalar-oracle shrinking and replay, and no xUnit artifact remains. This is an engineering migration rather than a new V1 product slice; it does not change the dependency frontier below.
-
 ## Phase A — Executable semantics and first tracer
 
 | ID | Slice | Blocked by | Independently delivers |
@@ -47,8 +43,6 @@ The first required product tracer is complete at item `06`. Infrastructure bread
 ## Delivery status
 
 Phase A items `01` through `06` and Phase B items `07` through `11` are complete. The [Development Readiness](./README.md#development-readiness) table owns the current executable evidence, verification snapshot, and remaining qualification gaps.
-
-The immediately unblocked slices are `12`, `13`, `17`, and `23`. Every other incomplete slice still depends on at least one of those items or on a later predecessor. Completion status is maintained here; executable evidence and qualification gaps are maintained in [Development Readiness](./README.md#development-readiness). Normative documents do not become delivery trackers.
 
 ## Phase B — Authoring, Component Contracts, and Runtime breadth
 
