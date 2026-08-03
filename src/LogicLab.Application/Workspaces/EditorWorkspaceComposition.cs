@@ -50,14 +50,6 @@ public sealed record WorkspaceAuthoringLimits
 
 public sealed record WorkspacePolicy
 {
-    public WorkspacePolicy(int globalWorkspaceLimit, TimeSpan sandboxRetention)
-        : this(
-            globalWorkspaceLimit,
-            sandboxRetention,
-            WorkspaceAuthoringLimits.Default)
-    {
-    }
-
     public WorkspacePolicy(
         int globalWorkspaceLimit,
         TimeSpan sandboxRetention,
@@ -82,7 +74,8 @@ public sealed record WorkspacePolicy
 
     public static WorkspacePolicy Default { get; } = new(
         globalWorkspaceLimit: 128,
-        sandboxRetention: TimeSpan.FromMinutes(30));
+        sandboxRetention: TimeSpan.FromMinutes(30),
+        WorkspaceAuthoringLimits.Default);
 }
 
 public sealed record SchedulingPolicy
