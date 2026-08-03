@@ -495,7 +495,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 return readFailure;
             }
         }
-        catch (Exception exception) when (!IsFatal(exception))
+        catch (Exception exception) when (!FatalExceptionClassifier.IsFatal(exception))
         {
             CloseSimulationForCleanup(opened.Handle);
             throw;

@@ -14,14 +14,7 @@ internal sealed class FixedWindowCommandAdmissionGate
         TimeProvider timeProvider)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumAdmissions);
-        if (window <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(window),
-                window,
-                "The admission window must be positive.");
-        }
-
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(window, TimeSpan.Zero);
         ArgumentNullException.ThrowIfNull(timeProvider);
         this.maximumAdmissions = maximumAdmissions;
         this.window = window;
