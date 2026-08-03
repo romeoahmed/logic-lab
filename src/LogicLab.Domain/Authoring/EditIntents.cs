@@ -35,11 +35,6 @@ public sealed record SetEntryCircuitDefinitionIntent : EditIntent
     }
 
     public CircuitDefinitionId CircuitDefinitionId { get; }
-
-    public void Deconstruct(out CircuitDefinitionId circuitDefinitionId)
-    {
-        circuitDefinitionId = CircuitDefinitionId;
-    }
 }
 
 public sealed record PlaceComponentInstanceIntent : EditIntent
@@ -370,14 +365,6 @@ public sealed record ComponentMove
     public ComponentInstanceId ComponentInstanceId { get; }
 
     public ComponentPlacement Placement { get; }
-
-    public void Deconstruct(
-        out ComponentInstanceId componentInstanceId,
-        out ComponentPlacement placement)
-    {
-        componentInstanceId = ComponentInstanceId;
-        placement = Placement;
-    }
 }
 
 public sealed record MoveComponentInstancesIntent : EditIntent

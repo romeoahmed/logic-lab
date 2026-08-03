@@ -20,59 +20,65 @@ public interface IEditorWorkspace : IAsyncDisposable
         CancellationToken cancellationToken);
 }
 
+public sealed record WorkspaceAuthoringLimits
+{
+    public WorkspaceAuthoringLimits(
+        int definitionCount,
+        int entityCount,
+        int commandItemCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(definitionCount);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(entityCount);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(commandItemCount);
+
+        DefinitionCount = definitionCount;
+        EntityCount = entityCount;
+        CommandItemCount = commandItemCount;
+    }
+
+    public int DefinitionCount { get; }
+
+    public int EntityCount { get; }
+
+    public int CommandItemCount { get; }
+
+    public static WorkspaceAuthoringLimits Default { get; } = new(
+        definitionCount: 100,
+        entityCount: 10_000,
+        commandItemCount: 1_000);
+}
+
 public sealed record WorkspacePolicy
 {
-    private const int DefaultAuthoringDefinitionCountLimit = 100;
-    private const int DefaultAuthoringEntityCountLimit = 10_000;
-    private const int DefaultAuthoringCommandItemCountLimit = 1_000;
-
     public WorkspacePolicy(int globalWorkspaceLimit, TimeSpan sandboxRetention)
         : this(
             globalWorkspaceLimit,
             sandboxRetention,
-            DefaultAuthoringDefinitionCountLimit,
-            DefaultAuthoringEntityCountLimit,
-            DefaultAuthoringCommandItemCountLimit)
+            WorkspaceAuthoringLimits.Default)
     {
     }
 
     public WorkspacePolicy(
         int globalWorkspaceLimit,
         TimeSpan sandboxRetention,
-        int authoringDefinitionCountLimit,
-        int authoringEntityCountLimit,
-        int authoringCommandItemCountLimit)
+        WorkspaceAuthoringLimits authoringLimits)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(globalWorkspaceLimit);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(
-            authoringDefinitionCountLimit);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(authoringEntityCountLimit);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(
-            authoringCommandItemCountLimit);
-        if (sandboxRetention <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(sandboxRetention),
-                sandboxRetention,
-                "Sandbox retention must be positive.");
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
+            sandboxRetention,
+            TimeSpan.Zero);
+        ArgumentNullException.ThrowIfNull(authoringLimits);
 
         GlobalWorkspaceLimit = globalWorkspaceLimit;
         SandboxRetention = sandboxRetention;
-        AuthoringDefinitionCountLimit = authoringDefinitionCountLimit;
-        AuthoringEntityCountLimit = authoringEntityCountLimit;
-        AuthoringCommandItemCountLimit = authoringCommandItemCountLimit;
+        AuthoringLimits = authoringLimits;
     }
 
     public int GlobalWorkspaceLimit { get; }
 
     public TimeSpan SandboxRetention { get; }
 
-    public int AuthoringDefinitionCountLimit { get; }
-
-    public int AuthoringEntityCountLimit { get; }
-
-    public int AuthoringCommandItemCountLimit { get; }
+    public WorkspaceAuthoringLimits AuthoringLimits { get; }
 
     public static WorkspacePolicy Default { get; } = new(
         globalWorkspaceLimit: 128,

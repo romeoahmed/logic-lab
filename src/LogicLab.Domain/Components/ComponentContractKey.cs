@@ -13,10 +13,4 @@ public readonly record struct ComponentContractKey
     public string LibraryId { get; }
 
     public string ContractId { get; }
-
-    public void Deconstruct(out string libraryId, out string contractId)
-    {
-        libraryId = LibraryId;
-        contractId = ContractId;
-    }
 }

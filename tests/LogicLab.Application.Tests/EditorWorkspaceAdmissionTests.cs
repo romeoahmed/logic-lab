@@ -14,9 +14,10 @@ public sealed class EditorWorkspaceAdmissionTests
             workspacePolicy: new WorkspacePolicy(
                 globalWorkspaceLimit: 128,
                 sandboxRetention: TimeSpan.FromMinutes(30),
-                authoringDefinitionCountLimit: 2,
-                authoringEntityCountLimit: 10,
-                authoringCommandItemCountLimit: 1));
+                authoringLimits: new WorkspaceAuthoringLimits(
+                    definitionCount: 2,
+                    entityCount: 10,
+                    commandItemCount: 1)));
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Boundary limit", "Main"),
             CancellationToken.None);
@@ -67,9 +68,10 @@ public sealed class EditorWorkspaceAdmissionTests
             workspacePolicy: new WorkspacePolicy(
                 globalWorkspaceLimit: 128,
                 sandboxRetention: TimeSpan.FromMinutes(30),
-                authoringDefinitionCountLimit: 10,
-                authoringEntityCountLimit: 1,
-                authoringCommandItemCountLimit: 10));
+                authoringLimits: new WorkspaceAuthoringLimits(
+                    definitionCount: 10,
+                    entityCount: 1,
+                    commandItemCount: 10)));
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Entity limit", "Main"),
             CancellationToken.None);
@@ -119,9 +121,10 @@ public sealed class EditorWorkspaceAdmissionTests
             workspacePolicy: new WorkspacePolicy(
                 globalWorkspaceLimit: 128,
                 sandboxRetention: TimeSpan.FromMinutes(30),
-                authoringDefinitionCountLimit: 10,
-                authoringEntityCountLimit: 100,
-                authoringCommandItemCountLimit: 1));
+                authoringLimits: new WorkspaceAuthoringLimits(
+                    definitionCount: 10,
+                    entityCount: 100,
+                    commandItemCount: 1)));
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Command limit", "Main"),
             CancellationToken.None);
