@@ -1,5 +1,22 @@
 namespace LogicLab.Domain.Components;
 
-public readonly record struct ComponentContractKey(
-    string LibraryId,
-    string ContractId);
+public readonly record struct ComponentContractKey
+{
+    public ComponentContractKey(string libraryId, string contractId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(libraryId);
+        ArgumentException.ThrowIfNullOrEmpty(contractId);
+        LibraryId = libraryId;
+        ContractId = contractId;
+    }
+
+    public string LibraryId { get; }
+
+    public string ContractId { get; }
+
+    public void Deconstruct(out string libraryId, out string contractId)
+    {
+        libraryId = LibraryId;
+        contractId = ContractId;
+    }
+}

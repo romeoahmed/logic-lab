@@ -17,9 +17,8 @@ public sealed record CreateCircuitDefinitionIntent : EditIntent
         IReadOnlyList<DefinitionPortDeclaration> ports)
     {
         ArgumentNullException.ThrowIfNull(displayName);
-        ArgumentNullException.ThrowIfNull(ports);
         DisplayName = displayName;
-        Ports = Array.AsReadOnly(ports.ToArray());
+        Ports = AuthoringInput.CopyRequiredReferences(ports, nameof(ports));
     }
 
     public string DisplayName { get; }
@@ -27,8 +26,21 @@ public sealed record CreateCircuitDefinitionIntent : EditIntent
     public ReadOnlyCollection<DefinitionPortDeclaration> Ports { get; }
 }
 
-public sealed record SetEntryCircuitDefinitionIntent(
-    CircuitDefinitionId CircuitDefinitionId) : EditIntent;
+public sealed record SetEntryCircuitDefinitionIntent : EditIntent
+{
+    public SetEntryCircuitDefinitionIntent(CircuitDefinitionId circuitDefinitionId)
+    {
+        ArgumentNullException.ThrowIfNull(circuitDefinitionId);
+        CircuitDefinitionId = circuitDefinitionId;
+    }
+
+    public CircuitDefinitionId CircuitDefinitionId { get; }
+
+    public void Deconstruct(out CircuitDefinitionId circuitDefinitionId)
+    {
+        circuitDefinitionId = CircuitDefinitionId;
+    }
+}
 
 public sealed record PlaceComponentInstanceIntent : EditIntent
 {
@@ -56,10 +68,9 @@ public sealed record PlaceComponentInstanceIntent : EditIntent
     {
         ArgumentNullException.ThrowIfNull(circuitDefinitionId);
         ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(parameters);
         CircuitDefinitionId = circuitDefinitionId;
         Target = target;
-        Parameters = Array.AsReadOnly(parameters.ToArray());
+        Parameters = AuthoringInput.CopyRequiredReferences(parameters, nameof(parameters));
         Placement = placement;
         DisplayName = displayName;
     }
@@ -89,15 +100,16 @@ public sealed record ConnectTerminalsIntent : EditIntent
         IReadOnlyList<WireRoute> routeAdditions,
         IReadOnlyList<WireGeometryReplacement> routeReplacements)
     {
-        ArgumentNullException.ThrowIfNull(terminals);
         ArgumentNullException.ThrowIfNull(newJunctionPositions);
-        ArgumentNullException.ThrowIfNull(routeAdditions);
-        ArgumentNullException.ThrowIfNull(routeReplacements);
-        Terminals = Array.AsReadOnly(terminals.ToArray());
+        Terminals = AuthoringInput.CopyRequiredReferences(terminals, nameof(terminals));
         DestinationNetId = destinationNetId;
         NewJunctionPositions = Array.AsReadOnly(newJunctionPositions.ToArray());
-        RouteAdditions = Array.AsReadOnly(routeAdditions.ToArray());
-        RouteReplacements = Array.AsReadOnly(routeReplacements.ToArray());
+        RouteAdditions = AuthoringInput.CopyRequiredReferences(
+            routeAdditions,
+            nameof(routeAdditions));
+        RouteReplacements = AuthoringInput.CopyRequiredReferences(
+            routeReplacements,
+            nameof(routeReplacements));
     }
 
     public ReadOnlyCollection<AuthoredTerminalReference> Terminals { get; }
@@ -133,12 +145,11 @@ public sealed record NetPartition
         IReadOnlyList<JunctionId> junctionIds,
         IReadOnlyList<WireGeometryId> wireGeometryIds)
     {
-        ArgumentNullException.ThrowIfNull(terminals);
-        ArgumentNullException.ThrowIfNull(junctionIds);
-        ArgumentNullException.ThrowIfNull(wireGeometryIds);
-        Terminals = Array.AsReadOnly(terminals.ToArray());
-        JunctionIds = Array.AsReadOnly(junctionIds.ToArray());
-        WireGeometryIds = Array.AsReadOnly(wireGeometryIds.ToArray());
+        Terminals = AuthoringInput.CopyRequiredReferences(terminals, nameof(terminals));
+        JunctionIds = AuthoringInput.CopyRequiredReferences(junctionIds, nameof(junctionIds));
+        WireGeometryIds = AuthoringInput.CopyRequiredReferences(
+            wireGeometryIds,
+            nameof(wireGeometryIds));
     }
 
     public ReadOnlyCollection<AuthoredTerminalReference> Terminals { get; }
@@ -155,9 +166,10 @@ public sealed record JunctionRemovalPartition
         IReadOnlyList<WireRoute> routeAdditions)
     {
         ArgumentNullException.ThrowIfNull(membership);
-        ArgumentNullException.ThrowIfNull(routeAdditions);
         Membership = membership;
-        RouteAdditions = Array.AsReadOnly(routeAdditions.ToArray());
+        RouteAdditions = AuthoringInput.CopyRequiredReferences(
+            routeAdditions,
+            nameof(routeAdditions));
     }
 
     public NetPartition Membership { get; }
@@ -174,10 +186,11 @@ public sealed record MergeNetsIntent : EditIntent
     {
         ArgumentNullException.ThrowIfNull(circuitDefinitionId);
         ArgumentNullException.ThrowIfNull(destinationNetId);
-        ArgumentNullException.ThrowIfNull(sourceNetIds);
         CircuitDefinitionId = circuitDefinitionId;
         DestinationNetId = destinationNetId;
-        SourceNetIds = Array.AsReadOnly(sourceNetIds.ToArray());
+        SourceNetIds = AuthoringInput.CopyRequiredReferences(
+            sourceNetIds,
+            nameof(sourceNetIds));
     }
 
     public CircuitDefinitionId CircuitDefinitionId { get; }
@@ -196,10 +209,9 @@ public sealed record SplitNetIntent : EditIntent
     {
         ArgumentNullException.ThrowIfNull(circuitDefinitionId);
         ArgumentNullException.ThrowIfNull(netId);
-        ArgumentNullException.ThrowIfNull(partitions);
         CircuitDefinitionId = circuitDefinitionId;
         NetId = netId;
-        Partitions = Array.AsReadOnly(partitions.ToArray());
+        Partitions = AuthoringInput.CopyRequiredReferences(partitions, nameof(partitions));
     }
 
     public CircuitDefinitionId CircuitDefinitionId { get; }
@@ -221,15 +233,18 @@ public sealed record AddJunctionIntent : EditIntent
     {
         ArgumentNullException.ThrowIfNull(circuitDefinitionId);
         ArgumentNullException.ThrowIfNull(netId);
-        ArgumentNullException.ThrowIfNull(routeAdditions);
-        ArgumentNullException.ThrowIfNull(routeReplacements);
-        ArgumentNullException.ThrowIfNull(routeRemovals);
         CircuitDefinitionId = circuitDefinitionId;
         NetId = netId;
         Position = position;
-        RouteAdditions = Array.AsReadOnly(routeAdditions.ToArray());
-        RouteReplacements = Array.AsReadOnly(routeReplacements.ToArray());
-        RouteRemovals = Array.AsReadOnly(routeRemovals.ToArray());
+        RouteAdditions = AuthoringInput.CopyRequiredReferences(
+            routeAdditions,
+            nameof(routeAdditions));
+        RouteReplacements = AuthoringInput.CopyRequiredReferences(
+            routeReplacements,
+            nameof(routeReplacements));
+        RouteRemovals = AuthoringInput.CopyRequiredReferences(
+            routeRemovals,
+            nameof(routeRemovals));
     }
 
     public CircuitDefinitionId CircuitDefinitionId { get; }
@@ -256,14 +271,17 @@ public sealed record RemoveJunctionIntent : EditIntent
     {
         ArgumentNullException.ThrowIfNull(circuitDefinitionId);
         ArgumentNullException.ThrowIfNull(junctionId);
-        ArgumentNullException.ThrowIfNull(resultingPartitions);
-        ArgumentNullException.ThrowIfNull(routeReplacements);
-        ArgumentNullException.ThrowIfNull(routeRemovals);
         CircuitDefinitionId = circuitDefinitionId;
         JunctionId = junctionId;
-        ResultingPartitions = Array.AsReadOnly(resultingPartitions.ToArray());
-        RouteReplacements = Array.AsReadOnly(routeReplacements.ToArray());
-        RouteRemovals = Array.AsReadOnly(routeRemovals.ToArray());
+        ResultingPartitions = AuthoringInput.CopyRequiredReferences(
+            resultingPartitions,
+            nameof(resultingPartitions));
+        RouteReplacements = AuthoringInput.CopyRequiredReferences(
+            routeReplacements,
+            nameof(routeReplacements));
+        RouteRemovals = AuthoringInput.CopyRequiredReferences(
+            routeRemovals,
+            nameof(routeRemovals));
     }
 
     public CircuitDefinitionId CircuitDefinitionId { get; }
@@ -338,9 +356,29 @@ public sealed record RemoveWireGeometryIntent : EditIntent
     public WireGeometryId WireGeometryId { get; }
 }
 
-public sealed record ComponentMove(
-    ComponentInstanceId ComponentInstanceId,
-    ComponentPlacement Placement);
+public sealed record ComponentMove
+{
+    public ComponentMove(
+        ComponentInstanceId componentInstanceId,
+        ComponentPlacement placement)
+    {
+        ArgumentNullException.ThrowIfNull(componentInstanceId);
+        ComponentInstanceId = componentInstanceId;
+        Placement = placement;
+    }
+
+    public ComponentInstanceId ComponentInstanceId { get; }
+
+    public ComponentPlacement Placement { get; }
+
+    public void Deconstruct(
+        out ComponentInstanceId componentInstanceId,
+        out ComponentPlacement placement)
+    {
+        componentInstanceId = ComponentInstanceId;
+        placement = Placement;
+    }
+}
 
 public sealed record MoveComponentInstancesIntent : EditIntent
 {
@@ -349,9 +387,8 @@ public sealed record MoveComponentInstancesIntent : EditIntent
         IReadOnlyList<ComponentMove> moves)
     {
         ArgumentNullException.ThrowIfNull(circuitDefinitionId);
-        ArgumentNullException.ThrowIfNull(moves);
         CircuitDefinitionId = circuitDefinitionId;
-        Moves = Array.AsReadOnly(moves.ToArray());
+        Moves = AuthoringInput.CopyRequiredReferences(moves, nameof(moves));
     }
 
     public CircuitDefinitionId CircuitDefinitionId { get; }

@@ -324,7 +324,21 @@ public abstract record ComponentParameterValue
 
 public sealed record Unsigned32ParameterValue(uint Value) : ComponentParameterValue;
 
-public sealed record ChoiceParameterValue(string Value) : ComponentParameterValue;
+public sealed record ChoiceParameterValue : ComponentParameterValue
+{
+    public ChoiceParameterValue(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        Value = value;
+    }
+
+    public string Value { get; }
+
+    public void Deconstruct(out string value)
+    {
+        value = Value;
+    }
+}
 
 public sealed record LogicVectorParameterValue : ComponentParameterValue
 {
@@ -357,9 +371,30 @@ public sealed record LogicVectorParameterValue : ComponentParameterValue
     }
 }
 
-public sealed record ComponentParameterBinding(
-    string ParameterId,
-    ComponentParameterValue Value);
+public sealed record ComponentParameterBinding
+{
+    public ComponentParameterBinding(
+        string parameterId,
+        ComponentParameterValue value)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(parameterId);
+        ArgumentNullException.ThrowIfNull(value);
+        ParameterId = parameterId;
+        Value = value;
+    }
+
+    public string ParameterId { get; }
+
+    public ComponentParameterValue Value { get; }
+
+    public void Deconstruct(
+        out string parameterId,
+        out ComponentParameterValue value)
+    {
+        parameterId = ParameterId;
+        value = Value;
+    }
+}
 
 public sealed class ComponentInstance
 {
