@@ -121,6 +121,52 @@ public sealed class EditorWorkspaceFailureTests
     }
 
     [Test]
+    public async Task DispatchAsync_CreateSessionCancelledDuringSnapshot_ClosesHandleWithoutPublication()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var closeCount = 0;
+        var operations = WorkspaceModuleOperations.Production with
+        {
+            ReadSimulation = (handle, query, cancellationToken) =>
+            {
+                cancellation.Cancel();
+                return WorkspaceModuleOperations.Production.ReadSimulation(
+                    handle,
+                    query,
+                    cancellationToken);
+            },
+            CloseSimulation = handle =>
+            {
+                Interlocked.Increment(ref closeCount);
+                return WorkspaceModuleOperations.Production.CloseSimulation(handle);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations: operations);
+        var opened = await OpenCompiledCircuit(workspace);
+        var before = ((ProjectionSnapshot)await workspace.ReadAsync(
+            opened.WorkspaceId,
+            CancellationToken.None)).Projection;
+
+        var outcome = await workspace.DispatchAsync(
+            new CreateSession(opened.WorkspaceId),
+            cancellation.Token);
+        var after = ((ProjectionSnapshot)await workspace.ReadAsync(
+            opened.WorkspaceId,
+            CancellationToken.None)).Projection;
+
+        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        using (Assert.Multiple())
+        {
+            await Assert.That(((WorkspaceCommandRejected)outcome).Code)
+                .IsEqualTo("workspace_cancelled");
+            await Assert.That(closeCount).IsEqualTo(1);
+            await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
+            await Assert.That(after.Simulation).IsNull();
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_SessionCommands_PublishFromCommittedOutcomesWithoutExtraSnapshotReads()
     {
         var readCount = 0;
