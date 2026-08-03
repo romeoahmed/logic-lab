@@ -58,14 +58,6 @@ public sealed record AccessibleConnectionProjection
     public AccessibleConnectionProjection(
         NetSourceIdentity source,
         uint width,
-        IReadOnlyList<AuthoredTerminalReference> terminals)
-        : this(source, width, terminals, [], [])
-    {
-    }
-
-    public AccessibleConnectionProjection(
-        NetSourceIdentity source,
-        uint width,
         IReadOnlyList<AuthoredTerminalReference> terminals,
         IReadOnlyList<AccessibleJunctionProjection> junctions,
         IReadOnlyList<AccessibleWireGeometryProjection> wireGeometries)

@@ -8,7 +8,7 @@ public sealed class EditorWorkspaceLifecycleTests
     public async Task OpenAsync_GlobalLimitReached_RejectsAdditionalWorkspace()
     {
         await using var workspace = EditorWorkspaceFactory.Create(
-            new WorkspacePolicy(2, TimeSpan.FromHours(1)));
+            Policy(globalWorkspaceLimit: 2, TimeSpan.FromHours(1)));
 
         var first = await Open(workspace);
         var second = await Open(workspace);
@@ -32,7 +32,7 @@ public sealed class EditorWorkspaceLifecycleTests
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 2, 0, 0, 0, TimeSpan.Zero));
         await using var workspace = EditorWorkspaceFactory.Create(
-            new WorkspacePolicy(1, TimeSpan.FromMinutes(5)),
+            Policy(globalWorkspaceLimit: 1, TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider);
         var opened = (WorkspaceOpened)await Open(workspace);
 
@@ -50,7 +50,7 @@ public sealed class EditorWorkspaceLifecycleTests
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 2, 0, 0, 0, TimeSpan.Zero));
         await using var workspace = EditorWorkspaceFactory.Create(
-            new WorkspacePolicy(1, TimeSpan.FromMinutes(5)),
+            Policy(globalWorkspaceLimit: 1, TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider);
         _ = await Open(workspace);
 
@@ -64,7 +64,7 @@ public sealed class EditorWorkspaceLifecycleTests
     public async Task OpenAsync_RejectedGenesis_ReleasesReservedCapacity()
     {
         await using var workspace = EditorWorkspaceFactory.Create(
-            new WorkspacePolicy(1, TimeSpan.FromHours(1)));
+            Policy(globalWorkspaceLimit: 1, TimeSpan.FromHours(1)));
 
         var rejected = await workspace.OpenAsync(
             new CreateSandbox(string.Empty, "Main"),
@@ -82,7 +82,7 @@ public sealed class EditorWorkspaceLifecycleTests
     public async Task DispatchAsync_CloseWorkspace_ReleasesCapacityAndRemovesProjection()
     {
         await using var workspace = EditorWorkspaceFactory.Create(
-            new WorkspacePolicy(1, TimeSpan.FromHours(1)));
+            Policy(globalWorkspaceLimit: 1, TimeSpan.FromHours(1)));
         var opened = (WorkspaceOpened)await Open(workspace);
 
         var closed = await workspace.DispatchAsync(
@@ -107,7 +107,7 @@ public sealed class EditorWorkspaceLifecycleTests
     {
         const int limit = 4;
         await using var workspace = EditorWorkspaceFactory.Create(
-            new WorkspacePolicy(limit, TimeSpan.FromHours(1)));
+            Policy(limit, TimeSpan.FromHours(1)));
 
         var outcomes = await OpenSimultaneously(
             workspace,
@@ -133,7 +133,7 @@ public sealed class EditorWorkspaceLifecycleTests
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 2, 0, 0, 0, TimeSpan.Zero));
         await using var workspace = EditorWorkspaceFactory.Create(
-            new WorkspacePolicy(limit, TimeSpan.FromMinutes(1)),
+            Policy(limit, TimeSpan.FromMinutes(1)),
             timeProvider: timeProvider);
         _ = await Task.WhenAll(Enumerable.Range(0, limit).Select(_ => Open(workspace)));
         timeProvider.Advance(TimeSpan.FromMinutes(1));
@@ -154,6 +154,16 @@ public sealed class EditorWorkspaceLifecycleTests
         return workspace.OpenAsync(
             new CreateSandbox("Test project", "Main"),
             CancellationToken.None);
+    }
+
+    private static WorkspacePolicy Policy(
+        int globalWorkspaceLimit,
+        TimeSpan sandboxRetention)
+    {
+        return new WorkspacePolicy(
+            globalWorkspaceLimit,
+            sandboxRetention,
+            WorkspaceAuthoringLimits.Default);
     }
 
     private static async Task<WorkspaceOpenOutcome[]> OpenSimultaneously(
