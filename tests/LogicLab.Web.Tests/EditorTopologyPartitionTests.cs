@@ -9,10 +9,19 @@ namespace LogicLab.Web.Tests;
 public sealed class EditorTopologyPartitionTests
 {
     [Test]
-    public async Task Editor_CreateSampleTopologyPartitions_ComponentCreationOrder_DoesNotChangeElectricalPairs()
+    [Arguments("source.input", "logic.not", "sink.output")]
+    [Arguments("source.input", "sink.output", "logic.not")]
+    [Arguments("logic.not", "source.input", "sink.output")]
+    [Arguments("logic.not", "sink.output", "source.input")]
+    [Arguments("sink.output", "source.input", "logic.not")]
+    [Arguments("sink.output", "logic.not", "source.input")]
+    public async Task Editor_CreateSampleTopologyPartitions_EveryComponentCreationOrder_PreservesElectricalPairs(
+        string firstContractId,
+        string secondContractId,
+        string thirdContractId)
     {
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
-            "Reverse-order fixture",
+            "Creation-order fixture",
             LibrarySnapshot.Core,
             new SymbolProfileReference(
                 "TeachingMixed",
@@ -20,19 +29,11 @@ public sealed class EditorTopologyPartitionTests
                 IndicationConvention.Negation),
             "Main"))).Revision;
         var definitionId = revision.Document.EntryCircuitDefinitionId;
-        revision = WebTestCircuit.Place(revision, "sink.output", [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-            new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
-        ], new GridPoint(8, 0));
-        revision = WebTestCircuit.Place(revision, "logic.not", [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-        ], new GridPoint(4, 0));
-        revision = WebTestCircuit.Place(revision, "source.input", [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-            new ComponentParameterBinding(
-                "initialValue",
-                new LogicVectorParameterValue([LogicValue.Zero])),
-        ], new GridPoint(0, 0));
+        foreach (var contractId in new[] { firstContractId, secondContractId, thirdContractId })
+        {
+            revision = Place(revision, contractId);
+        }
+
         var input = WebTestCircuit.Find(revision, "source.input");
         var logicNot = WebTestCircuit.Find(revision, "logic.not");
         var output = WebTestCircuit.Find(revision, "sink.output");
@@ -66,5 +67,26 @@ public sealed class EditorTopologyPartitionTests
         await Assert.That(actualPairs).IsEquivalentTo(
             ["logic.not.A|source.input.Q", "logic.not.Q|sink.output.D"],
             CollectionOrdering.Matching);
+    }
+
+    private static ProjectRevision Place(ProjectRevision revision, string contractId)
+    {
+        return contractId switch
+        {
+            "source.input" => WebTestCircuit.Place(revision, contractId, [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding(
+                    "initialValue",
+                    new LogicVectorParameterValue([LogicValue.Zero])),
+            ], new GridPoint(0, 0)),
+            "logic.not" => WebTestCircuit.Place(revision, contractId, [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+            ], new GridPoint(4, 0)),
+            "sink.output" => WebTestCircuit.Place(revision, contractId, [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
+            ], new GridPoint(8, 0)),
+            _ => throw new ArgumentOutOfRangeException(nameof(contractId)),
+        };
     }
 }
