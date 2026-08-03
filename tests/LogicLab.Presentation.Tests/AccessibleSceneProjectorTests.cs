@@ -8,35 +8,58 @@ namespace LogicLab.Presentation.Tests;
 
 public sealed class AccessibleSceneProjectorTests
 {
-    private static readonly string[] ExpectedLabels = ["Input", "NOT", "Output"];
-    private static readonly string[] ExpectedDefinitionPortLabels = ["A", "Q"];
-    private static readonly PortDirection[] ExpectedDefinitionPortDirections =
-        [PortDirection.Input, PortDirection.Output];
-
     [Test]
-    public async Task Project_CompleteCircuit_ExposesReachableSemanticTopology()
+    public async Task Project_CompleteCircuit_PreservesEveryAuthoredSemanticFact()
     {
         var revision = CreateCompleteCircuit();
+        var definition = revision.Document.EntryCircuitDefinition;
 
         var scene = AccessibleSceneProjector.Project(revision);
 
         using (Assert.Multiple())
         {
+            await Assert.That(scene.CircuitDefinitionId).IsEqualTo(definition.Id);
             await Assert.That(scene.DisplayName).IsEqualTo("Main");
-            await Assert.That(scene.Components).Count().IsEqualTo(3);
-            await Assert.That(scene.Components.Select(item => item.Label))
-                .IsEquivalentTo(ExpectedLabels);
-            await Assert.That(scene.Components.SelectMany(item => item.Ports)).Count()
-                .IsEqualTo(4);
-            await Assert.That(scene.Connections).Count().IsEqualTo(2);
-            await Assert.That(scene.Connections.All(item => item.Terminals.Count == 2))
-                .IsTrue();
-            await Assert.That(scene.Components.All(item =>
-                item.Source.CircuitDefinitionId == scene.CircuitDefinitionId))
-                .IsTrue();
-            await Assert.That(scene.Connections.All(item =>
-                item.Source.CircuitDefinitionId == scene.CircuitDefinitionId))
-                .IsTrue();
+            await Assert.That(scene.Components).Count()
+                .IsEqualTo(definition.ComponentInstances.Count);
+            await Assert.That(scene.Connections).Count().IsEqualTo(definition.Nets.Count);
+            await Assert.That(scene.Components.Select(item => item.Source).Distinct()).Count()
+                .IsEqualTo(scene.Components.Count);
+            await Assert.That(scene.Connections.Select(item => item.Source).Distinct()).Count()
+                .IsEqualTo(scene.Connections.Count);
+        }
+
+        foreach (var instance in definition.ComponentInstances)
+        {
+            var projected = scene.Components.Single(component =>
+                component.Source.ComponentInstanceId == instance.Id);
+            using (Assert.Multiple())
+            {
+                await Assert.That(projected.Source)
+                    .IsEqualTo(new ComponentInstanceSourceIdentity(definition.Id, instance.Id));
+                await Assert.That(projected.Label).IsEqualTo(ExpectedLabel(instance));
+                await Assert.That(projected.Placement).IsEqualTo(instance.Placement);
+                await Assert.That(projected.Ports.Select(port =>
+                        (port.Source.PortId, port.Label, port.Direction)))
+                    .IsEquivalentTo(ExpectedPorts(instance), CollectionOrdering.Matching);
+                await Assert.That(projected.Ports.All(port =>
+                    port.Source.CircuitDefinitionId == definition.Id
+                    && port.Source.ComponentInstanceId == instance.Id)).IsTrue();
+            }
+        }
+
+        foreach (var net in definition.Nets)
+        {
+            var projected = scene.Connections.Single(connection =>
+                connection.Source.NetId == net.Id);
+            using (Assert.Multiple())
+            {
+                await Assert.That(projected.Source)
+                    .IsEqualTo(new NetSourceIdentity(definition.Id, net.Id));
+                await Assert.That(projected.Width).IsEqualTo(net.Width);
+                await Assert.That(projected.Terminals)
+                    .IsEquivalentTo(net.Terminals, CollectionOrdering.Matching);
+            }
         }
     }
 
@@ -56,11 +79,41 @@ public sealed class AccessibleSceneProjectorTests
 
         var after = AccessibleSceneProjector.Project(revision);
 
-        await Assert.That(after.Connections.SelectMany(item => item.Terminals))
-            .IsEquivalentTo(before.Connections.SelectMany(item => item.Terminals));
-        await Assert.That(after.Components.Single(item =>
-            item.Source.ComponentInstanceId == logicNot.Id).Placement.Origin)
-            .IsEqualTo(new GridPoint(20, 10));
+        using (Assert.Multiple())
+        {
+            await Assert.That(after.Components.Select(component => component.Source))
+                .IsEquivalentTo(before.Components.Select(component => component.Source));
+            await Assert.That(after.Connections.Select(connection => connection.Source))
+                .IsEquivalentTo(before.Connections.Select(connection => connection.Source));
+        }
+
+        foreach (var beforeComponent in before.Components)
+        {
+            var afterComponent = after.Components.Single(component =>
+                component.Source == beforeComponent.Source);
+            var expectedPlacement = beforeComponent.Source.ComponentInstanceId == logicNot.Id
+                ? new ComponentPlacement(new GridPoint(20, 10))
+                : beforeComponent.Placement;
+            using (Assert.Multiple())
+            {
+                await Assert.That(afterComponent.Label).IsEqualTo(beforeComponent.Label);
+                await Assert.That(afterComponent.Ports)
+                    .IsEquivalentTo(beforeComponent.Ports, CollectionOrdering.Matching);
+                await Assert.That(afterComponent.Placement).IsEqualTo(expectedPlacement);
+            }
+        }
+
+        foreach (var beforeConnection in before.Connections)
+        {
+            var afterConnection = after.Connections.Single(connection =>
+                connection.Source == beforeConnection.Source);
+            using (Assert.Multiple())
+            {
+                await Assert.That(afterConnection.Width).IsEqualTo(beforeConnection.Width);
+                await Assert.That(afterConnection.Terminals)
+                    .IsEquivalentTo(beforeConnection.Terminals, CollectionOrdering.Matching);
+            }
+        }
     }
 
     [Test]
@@ -83,22 +136,48 @@ public sealed class AccessibleSceneProjectorTests
                 [],
                 [])));
 
+        var projectedDefinition = revision.Document.EntryCircuitDefinition;
         var scene = AccessibleSceneProjector.Project(revision);
         var connection = scene.Connections.Single(item => item.Source.NetId == net.Id);
+        var junction = await Assert.That(connection.Junctions).HasSingleItem();
+        var authoredJunction = await Assert.That(projectedDefinition.Junctions).HasSingleItem();
 
         using (Assert.Multiple())
         {
-            await Assert.That(connection.Junctions).Count().IsEqualTo(1);
-            await Assert.That(connection.Junctions[0].Point)
-                .IsEqualTo(new GridPoint(2, 1));
-            await Assert.That(connection.Junctions[0].Source.CircuitDefinitionId)
-                .IsEqualTo(scene.CircuitDefinitionId);
-            await Assert.That(connection.WireGeometries).Count().IsEqualTo(2);
-            await Assert.That(connection.WireGeometries.Any(
-                item => item.Route is OrthogonalWireRoute)).IsTrue();
-            await Assert.That(connection.WireGeometries.Any(
-                item => item.Route is UnroutedWireRoute)).IsTrue();
+            await Assert.That(junction.Source)
+                .IsEqualTo(new JunctionSourceIdentity(
+                    projectedDefinition.Id,
+                    authoredJunction.Id));
+            await Assert.That(junction.NetSource).IsEqualTo(connection.Source);
+            await Assert.That(junction.Point).IsEqualTo(new GridPoint(2, 1));
+            await Assert.That(connection.WireGeometries).Count()
+                .IsEqualTo(projectedDefinition.WireGeometries.Count);
             await Assert.That(connection.Terminals).Count().IsEqualTo(2);
+        }
+
+        foreach (var authoredGeometry in projectedDefinition.WireGeometries)
+        {
+            var geometry = await Assert.That(connection.WireGeometries)
+                .HasSingleItem(item => item.Source.WireGeometryId == authoredGeometry.Id);
+            using (Assert.Multiple())
+            {
+                await Assert.That(geometry.Source).IsEqualTo(
+                    new WireGeometrySourceIdentity(projectedDefinition.Id, authoredGeometry.Id));
+                await Assert.That(geometry.NetSource).IsEqualTo(connection.Source);
+            }
+
+            if (authoredGeometry.Route is OrthogonalWireRoute expectedOrthogonal)
+            {
+                var actualOrthogonal = await Assert.That(geometry.Route)
+                    .IsTypeOf<OrthogonalWireRoute>();
+                Assert.NotNull(actualOrthogonal);
+                await Assert.That(actualOrthogonal.Points)
+                    .IsEquivalentTo(expectedOrthogonal.Points, CollectionOrdering.Matching);
+            }
+            else
+            {
+                await Assert.That(geometry.Route).IsTypeOf<UnroutedWireRoute>();
+            }
         }
     }
 
@@ -137,27 +216,73 @@ public sealed class AccessibleSceneProjectorTests
                 new ComponentPlacement(new GridPoint(12, 0)),
                 "Nested inverter")));
 
+        var mainDefinition = revision.Document.EntryCircuitDefinition;
+        var authoredCall = mainDefinition.ComponentInstances.Single(instance =>
+            instance.Target is CircuitDefinitionComponentTarget target
+            && target.CircuitDefinitionId == child.Id);
         var childScene = AccessibleSceneProjector.Project(revision, child.Id);
         var mainScene = AccessibleSceneProjector.Project(
             revision,
             revision.Document.EntryCircuitDefinitionId);
         var call = mainScene.Components.Single(component =>
             component.Label == "Nested inverter");
+        var expectedDefinitionPorts = child.Ports.Select(port =>
+                (port.Id.Value, port.DisplayName, port.Direction, port.Width, port.Placement))
+            .ToArray();
+        var expectedCallPorts = child.Ports.Select(port =>
+                (port.Id.Value, port.DisplayName, port.Direction))
+            .ToArray();
 
         using (Assert.Multiple())
         {
             await Assert.That(childScene.CircuitDefinitionId).IsEqualTo(child.Id);
-            await Assert.That(childScene.DefinitionPorts.Select(port => port.Label))
-                .IsEquivalentTo(
-                    ExpectedDefinitionPortLabels,
-                    CollectionOrdering.Matching);
-            await Assert.That(call.Ports.Select(port => port.Label))
-                .IsEquivalentTo(
-                    ExpectedDefinitionPortLabels,
-                    CollectionOrdering.Matching);
-            await Assert.That(call.Ports.Select(port => port.Direction))
-                .IsEquivalentTo(ExpectedDefinitionPortDirections);
+            await Assert.That(childScene.DefinitionPorts.Select(port =>
+                    (port.Source.DefinitionPortId.Value,
+                        port.Label,
+                        port.Direction,
+                        port.Width,
+                        port.Placement)))
+                .IsEquivalentTo(expectedDefinitionPorts, CollectionOrdering.Matching);
+            await Assert.That(childScene.DefinitionPorts.All(port =>
+                port.Source.CircuitDefinitionId == child.Id)).IsTrue();
+            await Assert.That(call.Source).IsEqualTo(
+                new ComponentInstanceSourceIdentity(mainDefinition.Id, authoredCall.Id));
+            await Assert.That(call.Label).IsEqualTo("Nested inverter");
+            await Assert.That(call.Placement).IsEqualTo(authoredCall.Placement);
+            await Assert.That(call.Ports.Select(port =>
+                    (port.Source.PortId, port.Label, port.Direction)))
+                .IsEquivalentTo(expectedCallPorts, CollectionOrdering.Matching);
+            await Assert.That(call.Ports.All(port =>
+                port.Source.CircuitDefinitionId == mainDefinition.Id
+                && port.Source.ComponentInstanceId == authoredCall.Id)).IsTrue();
         }
+    }
+
+    private static string ExpectedLabel(ComponentInstance instance)
+    {
+        return ((LibraryComponentTarget)instance.Target).ContractKey.ContractId switch
+        {
+            "source.input" => "Input",
+            "logic.not" => "NOT",
+            "sink.output" => "Output",
+            _ => throw new ArgumentOutOfRangeException(nameof(instance)),
+        };
+    }
+
+    private static (string PortId, string Label, PortDirection Direction)[] ExpectedPorts(
+        ComponentInstance instance)
+    {
+        return ((LibraryComponentTarget)instance.Target).ContractKey.ContractId switch
+        {
+            "source.input" => [("Q", "Q", PortDirection.Output)],
+            "logic.not" =>
+            [
+                ("A", "A", PortDirection.Input),
+                ("Q", "Q", PortDirection.Output),
+            ],
+            "sink.output" => [("D", "D", PortDirection.Input)],
+            _ => throw new ArgumentOutOfRangeException(nameof(instance)),
+        };
     }
 
     private static ProjectRevision CreateCompleteCircuit()
