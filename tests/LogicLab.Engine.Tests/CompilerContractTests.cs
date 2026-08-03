@@ -1,10 +1,59 @@
 using LogicLab.Domain.Authoring;
 using LogicLab.Engine.Compilation;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
 public sealed class CompilerContractTests
 {
+    [Test]
+    public async Task EngineCompilationNamespace_ExportedTypes_MatchContractAllowlist()
+    {
+        var exportedNames = typeof(Compiler).Assembly
+            .GetExportedTypes()
+            .Where(type => type.Namespace == "LogicLab.Engine.Compilation")
+            .Select(type => type.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var expected = new[]
+        {
+            "CompilationArtifact",
+            "CompilationArtifactKey",
+            "CompilationEvidence",
+            "CompilationOutcome",
+            "CompilationPolicyReference",
+            "CompilationRejected",
+            "CompilationRequest",
+            "CompilationSource",
+            "CompilationSucceeded",
+            "Compiler",
+            "CompilerCircuitLocation",
+            "CompilerContractKeyValue",
+            "CompilerCorrelationTokenValue",
+            "CompilerDiagnostic",
+            "CompilerDiagnosticArgument",
+            "CompilerDiagnosticSeverity",
+            "CompilerDiagnosticValue",
+            "CompilerDigestValue",
+            "CompilerProjectRootLocation",
+            "CompilerSourceLocation",
+            "CompilerStableTokenValue",
+            "CompilerUnsignedDecimalValue",
+            "EvaluatorInputSourceMapEntry",
+            "HierarchyPath",
+            "HierarchyPathStep",
+            "ObservedProjectScaleDimension",
+            "ProjectScaleDimension",
+            "ProjectScaleLimit",
+            "ProjectScalePolicy",
+            "SourceMap",
+            "SourceMapEntry",
+            "StronglyConnectedComponentMemberSourceMapEntry",
+        };
+
+        await Assert.That(exportedNames).IsEquivalentTo(expected, CollectionOrdering.Matching);
+    }
+
     [Test]
     public async Task CompilerCorrelationTokenValue_OpaqueToken_PreservesExactValue()
     {
@@ -63,7 +112,7 @@ public sealed class CompilerContractTests
     }
 
     [Test]
-    public async Task CompilationArtifact_PublicCollections_AreReadOnly()
+    public async Task CompilationArtifact_InternalCollections_AreReadOnly()
     {
         var circuit = CompilerTestCircuit.CreateComplete();
         var succeeded = (CompilationSucceeded)Compiler.Compile(
