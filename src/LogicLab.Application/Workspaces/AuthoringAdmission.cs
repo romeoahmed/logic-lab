@@ -14,7 +14,7 @@ internal sealed class AuthoringAdmissionBudget
 
     public bool TryConsume(int itemCount)
     {
-        if (itemCount > remaining)
+        if (itemCount < 0 || itemCount > remaining)
         {
             return false;
         }
