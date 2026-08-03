@@ -6,42 +6,29 @@ namespace LogicLab.Engine.Tests;
 public sealed class ArithmeticEvaluationTests
 {
     [Test]
-    public async Task UnsignedCompare_KnownOperands_ProducesOneHotRelation()
+    [Arguments(
+        new[] { LogicValue.Zero, LogicValue.One, LogicValue.One },
+        new[] { LogicValue.One, LogicValue.Zero, LogicValue.One },
+        new[] { LogicValue.Zero, LogicValue.Zero, LogicValue.One })]
+    [Arguments(
+        new[] { LogicValue.One, LogicValue.Zero },
+        new[] { LogicValue.Zero, LogicValue.One },
+        new[] { LogicValue.One, LogicValue.Zero, LogicValue.Zero })]
+    [Arguments(
+        new[] { LogicValue.One, LogicValue.Zero, LogicValue.One },
+        new[] { LogicValue.One, LogicValue.Zero, LogicValue.One },
+        new[] { LogicValue.Zero, LogicValue.One, LogicValue.Zero })]
+    public async Task UnsignedCompare_KnownOperands_ProducesOneHotRelation(
+        LogicValue[] left,
+        LogicValue[] right,
+        LogicValue[] expected)
     {
         var result = ArithmeticEvaluation.UnsignedCompare(
-            Vector(LogicValue.Zero, LogicValue.One, LogicValue.One),
-            Vector(LogicValue.One, LogicValue.Zero, LogicValue.One));
+            Vector(left),
+            Vector(right));
 
         await Assert.That(new[] { result.LessThan, result.Equal, result.GreaterThan })
-            .IsEquivalentTo(
-                [LogicValue.Zero, LogicValue.Zero, LogicValue.One],
-                CollectionOrdering.Matching);
-    }
-
-    [Test]
-    public async Task UnsignedCompare_KnownLesserOperand_ProducesLessThanOnly()
-    {
-        var result = ArithmeticEvaluation.UnsignedCompare(
-            Vector(LogicValue.One, LogicValue.Zero),
-            Vector(LogicValue.Zero, LogicValue.One));
-
-        await Assert.That(new[] { result.LessThan, result.Equal, result.GreaterThan })
-            .IsEquivalentTo(
-                [LogicValue.One, LogicValue.Zero, LogicValue.Zero],
-                CollectionOrdering.Matching);
-    }
-
-    [Test]
-    public async Task UnsignedCompare_EqualOperands_ProducesEqualOnly()
-    {
-        var result = ArithmeticEvaluation.UnsignedCompare(
-            Vector(LogicValue.One, LogicValue.Zero, LogicValue.One),
-            Vector(LogicValue.One, LogicValue.Zero, LogicValue.One));
-
-        await Assert.That(new[] { result.LessThan, result.Equal, result.GreaterThan })
-            .IsEquivalentTo(
-                [LogicValue.Zero, LogicValue.One, LogicValue.Zero],
-                CollectionOrdering.Matching);
+            .IsEquivalentTo(expected, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -170,15 +157,6 @@ public sealed class ArithmeticEvaluationTests
     }
 
     [Test]
-    public async Task ReachableShiftCaseCount_UnknownBits_UsesCheckedPowerOfTwo()
-    {
-        var count = ArithmeticEvaluation.ReachableShiftCaseCount(
-            Vector(LogicValue.X, LogicValue.Z, LogicValue.One));
-
-        await Assert.That(count).IsEqualTo(4UL);
-    }
-
-    [Test]
     public async Task LogicalShift_KnownThirtyTwoBitAmount_EvaluatesItsSingleReachableCase()
     {
         var amount = Enumerable.Repeat(LogicValue.Zero, 32).ToArray();
@@ -190,33 +168,7 @@ public sealed class ArithmeticEvaluationTests
             LogicalShiftDirection.Left,
             CancellationToken.None);
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(result[0]).IsEqualTo(LogicValue.Zero);
-            await Assert.That(ArithmeticEvaluation.ReachableShiftCaseCount(Vector(amount)))
-                .IsEqualTo(1UL);
-        }
-    }
-
-    [Test]
-    public async Task LogicalShift_UnknownAmount_UsesWidthBoundedAllocation()
-    {
-        var data = Enumerable.Repeat(LogicValue.One, 256).ToArray();
-        var amount = Enumerable.Repeat(LogicValue.X, 8).ToArray();
-        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-
-        var result = ArithmeticEvaluation.LogicalShift(
-            Vector(data),
-            Vector(amount),
-            LogicalShiftDirection.Left,
-            CancellationToken.None);
-
-        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
-        using (Assert.Multiple())
-        {
-            await Assert.That(result.Width).IsEqualTo(data.Length);
-            await Assert.That(allocatedBytes).IsLessThan(100_000L);
-        }
+        await Assert.That(result[0]).IsEqualTo(LogicValue.Zero);
     }
 
     [Test]

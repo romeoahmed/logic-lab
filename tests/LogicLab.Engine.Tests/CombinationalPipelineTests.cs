@@ -7,7 +7,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class SteeringPipelineTests
+public sealed class CombinationalPipelineTests
 {
     [Test]
     public async Task Compile_PowerOfTwoPortShapeBeyondPolicy_ReturnsStructuredExhaustion()
@@ -294,18 +294,7 @@ public sealed class SteeringPipelineTests
         var compilation = (CompilationSucceeded)Compiler.Compile(
             CompilerTestCircuit.Request(circuit.Revision),
             CancellationToken.None);
-        var policy = new SimulationPolicy(
-            "bounded-shift",
-            "1",
-            [
-                new SimulationLimit(SimulationDimension.ScheduledBatchCount, 100),
-                new SimulationLimit(SimulationDimension.ScheduledAssignmentCount, 100),
-                new SimulationLimit(SimulationDimension.AdvanceWorkItemCount, 10),
-                new SimulationLimit(SimulationDimension.AdvanceFrontierItemCount, 100),
-                new SimulationLimit(SimulationDimension.WorkingLayerSlotCount, 100),
-                new SimulationLimit(SimulationDimension.TriggerBatchCount, 100),
-                new SimulationLimit(SimulationDimension.ZeroTimeStateCount, 100),
-            ]);
+        var policy = SimulationTestContext.SimulationPolicyWithAdvanceWorkLimit(10);
         var outcome = SimulationRuntime.Open(
             new OpenSimulationRequest(
                 compilation.Artifact,

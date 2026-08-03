@@ -34,6 +34,7 @@ public sealed class ProjectEditorCircuitTests
             "sink.output",
             SinkOutputParameters(1),
             new GridPoint(8, 0));
+        var revisions = new[] { genesis, withInput, withNot, withOutput };
 
         using (Assert.Multiple())
         {
@@ -45,9 +46,11 @@ public sealed class ProjectEditorCircuitTests
                 .Count().IsEqualTo(2);
             await Assert.That(withOutput.Document.EntryCircuitDefinition.ComponentInstances)
                 .Count().IsEqualTo(3);
-            await Assert.That(withOutput.Document.ProjectId)
-                .IsEqualTo(genesis.Document.ProjectId);
-            await Assert.That(withOutput.RevisionId == genesis.RevisionId).IsFalse();
+            await Assert.That(revisions.Select(revision => revision.RevisionId).Distinct())
+                .Count().IsEqualTo(revisions.Length);
+            await Assert.That(revisions.All(revision =>
+                    revision.Document.ProjectId == genesis.Document.ProjectId))
+                .IsTrue();
             await Assert.That(input.Target).IsEqualTo(new LibraryComponentTarget(
                 new ComponentContractKey("logiclab.core", "source.input")));
             await Assert.That(logicNot.Target).IsEqualTo(new LibraryComponentTarget(
@@ -83,9 +86,17 @@ public sealed class ProjectEditorCircuitTests
             new ConnectTerminalsIntent(notToOutput)));
 
         var nets = completed.Revision.Document.EntryCircuitDefinition.Nets;
+        var revisions = new[]
+        {
+            circuit.Revision,
+            firstConnection.Revision,
+            completed.Revision,
+        };
 
         using (Assert.Multiple())
         {
+            await Assert.That(revisions.Select(revision => revision.RevisionId).Distinct())
+                .Count().IsEqualTo(revisions.Length);
             await Assert.That(circuit.Revision.Document.EntryCircuitDefinition.Nets)
                 .IsEmpty();
             await Assert.That(firstConnection.Revision.Document.EntryCircuitDefinition.Nets)
@@ -125,12 +136,21 @@ public sealed class ProjectEditorCircuitTests
                 circuit.Revision.Document.EntryCircuitDefinition.Id,
                 moves)));
         var movedDefinition = committed.Revision.Document.EntryCircuitDefinition;
+        var originalDefinition = circuit.Revision.Document.EntryCircuitDefinition;
 
         using (Assert.Multiple())
         {
-            await Assert.That(circuit.Input.Placement.Origin).IsEqualTo(new GridPoint(0, 0));
-            await Assert.That(circuit.LogicNot.Placement.Origin).IsEqualTo(new GridPoint(4, 0));
-            await Assert.That(circuit.Output.Placement.Origin).IsEqualTo(new GridPoint(8, 0));
+            await Assert.That(committed.Revision.RevisionId == circuit.Revision.RevisionId)
+                .IsFalse();
+            await Assert.That(originalDefinition.FindComponentInstance(circuit.Input.Id)!
+                    .Placement.Origin)
+                .IsEqualTo(new GridPoint(0, 0));
+            await Assert.That(originalDefinition.FindComponentInstance(circuit.LogicNot.Id)!
+                    .Placement.Origin)
+                .IsEqualTo(new GridPoint(4, 0));
+            await Assert.That(originalDefinition.FindComponentInstance(circuit.Output.Id)!
+                    .Placement.Origin)
+                .IsEqualTo(new GridPoint(8, 0));
             await Assert.That(movedDefinition.FindComponentInstance(circuit.Input.Id)!.Placement.Origin)
                 .IsEqualTo(new GridPoint(2, 2));
             await Assert.That(movedDefinition.FindComponentInstance(circuit.LogicNot.Id)!.Placement.Origin)

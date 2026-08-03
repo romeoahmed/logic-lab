@@ -7,51 +7,38 @@ namespace LogicLab.Domain.Tests;
 public sealed class ArithmeticComponentContractTests
 {
     [Test]
-    public async Task Contracts_ArithmeticFamily_HasExactCanonicalOrder()
-    {
-        var contracts = CoreLibrarySchema.Contracts
-            .Where(contract => contract.Key.ContractId is
-                "logic.unsigned_compare" or "logic.adder" or "logic.subtractor" or
-                "logic.shift")
-            .Select(contract => contract.Key.ContractId)
-            .ToArray();
-
-        await Assert.That(contracts).IsEquivalentTo(
-            [
-                "logic.adder",
-                "logic.shift",
-                "logic.subtractor",
-                "logic.unsigned_compare",
-            ],
-            CollectionOrdering.Matching);
-    }
-
-    [Test]
-    [Arguments("logic.unsigned_compare", new[] { "A", "B", "LT", "EQ", "GT" })]
-    [Arguments("logic.adder", new[] { "A", "B", "CIN", "SUM", "COUT" })]
-    [Arguments("logic.subtractor", new[] { "A", "B", "BIN", "DIFF", "BOUT" })]
-    public async Task ResolvePorts_FixedArithmeticContract_UsesExactPortOrder(
+    [Arguments(
+        "logic.unsigned_compare",
+        new[] { "A", "B", "LT", "EQ", "GT" },
+        new uint[] { 8, 8, 1, 1, 1 },
+        2)]
+    [Arguments(
+        "logic.adder",
+        new[] { "A", "B", "CIN", "SUM", "COUT" },
+        new uint[] { 8, 8, 1, 8, 1 },
+        3)]
+    [Arguments(
+        "logic.subtractor",
+        new[] { "A", "B", "BIN", "DIFF", "BOUT" },
+        new uint[] { 8, 8, 1, 8, 1 },
+        3)]
+    public async Task ResolvePorts_FixedArithmeticContract_ProducesExactSchema(
         string contractId,
-        string[] expectedPortIds)
+        string[] expectedPortIds,
+        uint[] expectedWidths,
+        int inputCount)
     {
         var ports = Resolve(contractId,
         [
             new ComponentParameterBinding("width", new Unsigned32ParameterValue(8)),
         ]);
+        var expected = expectedPortIds.Select((id, index) => (
+            Id: id,
+            Direction: index < inputCount ? PortDirection.Input : PortDirection.Output,
+            Width: expectedWidths[index]));
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(ports.Select(port => port.Id).ToArray())
-                .IsEquivalentTo(expectedPortIds, CollectionOrdering.Matching);
-            await Assert.That(ports.Where(port => port.Id is "A" or "B")
-                    .Select(port => port.Width).ToArray())
-                .IsEquivalentTo([8U, 8U], CollectionOrdering.Matching);
-            await Assert.That(ports.Where(port =>
-                    port.Id is "CIN" or "COUT" or "BIN" or "BOUT" or
-                        "LT" or "EQ" or "GT")
-                    .All(port => port.Width == 1U))
-                .IsTrue();
-        }
+        await Assert.That(ports.Select(port => (port.Id, port.Direction, port.Width)))
+            .IsEquivalentTo(expected, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -71,9 +58,13 @@ public sealed class ArithmeticComponentContractTests
             new ComponentParameterBinding("direction", new ChoiceParameterValue("left")),
         ]);
 
-        await Assert.That(ports.Select(port => (port.Id, port.Width)).ToArray())
+        await Assert.That(ports.Select(port => (port.Id, port.Direction, port.Width)))
             .IsEquivalentTo(
-                [("D", width), ("AMOUNT", expectedAmountWidth), ("Q", width)],
+                [
+                    ("D", PortDirection.Input, width),
+                    ("AMOUNT", PortDirection.Input, expectedAmountWidth),
+                    ("Q", PortDirection.Output, width),
+                ],
                 CollectionOrdering.Matching);
     }
 
