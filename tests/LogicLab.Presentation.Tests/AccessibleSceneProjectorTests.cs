@@ -9,12 +9,40 @@ namespace LogicLab.Presentation.Tests;
 public sealed class AccessibleSceneProjectorTests
 {
     [Test]
+    public async Task Project_GeneratedPortShapeBeyondBudget_RejectsBeforeMaterialization()
+    {
+        var revision = CreateCompleteCircuit();
+        var outcome = ProjectEditor.Apply(
+            revision,
+            new PlaceComponentInstanceIntent(
+                revision.Document.EntryCircuitDefinitionId,
+                new ComponentContractKey(CoreLibrarySchema.LibraryId, "logic.mux"),
+                [
+                    new ComponentParameterBinding(
+                        "width",
+                        new Unsigned32ParameterValue(1)),
+                    new ComponentParameterBinding(
+                        "selectorWidth",
+                        new Unsigned32ParameterValue(31)),
+                ],
+                new ComponentPlacement(new GridPoint(24, 0))));
+        revision = Commit(outcome);
+
+        var exception = await Assert.That(() => AccessibleSceneProjector.Project(
+                revision,
+                maximumPortCount: 10_000))
+            .ThrowsExactly<AccessibleSceneProjectionLimitExceededException>();
+
+        await Assert.That(exception!.MaximumPortCount).IsEqualTo(10_000UL);
+    }
+
+    [Test]
     public async Task Project_CompleteCircuit_PreservesEveryAuthoredSemanticFact()
     {
         var revision = CreateCompleteCircuit();
         var definition = revision.Document.EntryCircuitDefinition;
 
-        var scene = AccessibleSceneProjector.Project(revision);
+        var scene = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
 
         using (Assert.Multiple())
         {
@@ -67,7 +95,7 @@ public sealed class AccessibleSceneProjectorTests
     public async Task Project_ComponentMove_PreservesElectricalTerminalMembership()
     {
         var revision = CreateCompleteCircuit();
-        var before = AccessibleSceneProjector.Project(revision);
+        var before = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
         var logicNot = revision.Document.EntryCircuitDefinition.ComponentInstances
             .Single(instance => instance.Target is LibraryComponentTarget library
                 && library.ContractKey.ContractId == "logic.not");
@@ -77,7 +105,7 @@ public sealed class AccessibleSceneProjectorTests
                 revision.Document.EntryCircuitDefinitionId,
                 [new ComponentMove(logicNot.Id, new ComponentPlacement(new GridPoint(20, 10)))])));
 
-        var after = AccessibleSceneProjector.Project(revision);
+        var after = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
 
         using (Assert.Multiple())
         {
@@ -137,7 +165,7 @@ public sealed class AccessibleSceneProjectorTests
                 [])));
 
         var projectedDefinition = revision.Document.EntryCircuitDefinition;
-        var scene = AccessibleSceneProjector.Project(revision);
+        var scene = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
         var connection = scene.Connections.Single(item => item.Source.NetId == net.Id);
         var junction = await Assert.That(connection.Junctions).HasSingleItem();
         var authoredJunction = await Assert.That(projectedDefinition.Junctions).HasSingleItem();
@@ -220,10 +248,14 @@ public sealed class AccessibleSceneProjectorTests
         var authoredCall = mainDefinition.ComponentInstances.Single(instance =>
             instance.Target is CircuitDefinitionComponentTarget target
             && target.CircuitDefinitionId == child.Id);
-        var childScene = AccessibleSceneProjector.Project(revision, child.Id);
+        var childScene = AccessibleSceneProjector.Project(
+            revision,
+            child.Id,
+            maximumPortCount: 10_000);
         var mainScene = AccessibleSceneProjector.Project(
             revision,
-            revision.Document.EntryCircuitDefinitionId);
+            revision.Document.EntryCircuitDefinitionId,
+            maximumPortCount: 10_000);
         var call = mainScene.Components.Single(component =>
             component.Label == "Nested inverter");
         var expectedDefinitionPorts = child.Ports.Select(port =>

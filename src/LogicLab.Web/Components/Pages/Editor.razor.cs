@@ -10,6 +10,7 @@ namespace LogicLab.Web.Components.Pages;
 
 public partial class Editor
 {
+    private const ulong MaximumScenePortCount = 100_000;
     private readonly FixedWindowCommandAdmissionGate commandAdmission = new(
         maximumAdmissions: 30,
         window: TimeSpan.FromSeconds(1),
@@ -303,9 +304,18 @@ public partial class Editor
             HierarchyNavigation.Clear();
         }
 
-        Scene = AccessibleSceneProjector.Project(
-            Projection.ProjectRevision,
-            SelectedDefinitionId);
+        try
+        {
+            Scene = AccessibleSceneProjector.Project(
+                Projection.ProjectRevision,
+                SelectedDefinitionId,
+                MaximumScenePortCount);
+        }
+        catch (AccessibleSceneProjectionLimitExceededException)
+        {
+            Scene = null;
+            Status = "The accessible Scene exceeds the active Port projection budget.";
+        }
     }
 
     private ComponentInstance Find(string contractId)

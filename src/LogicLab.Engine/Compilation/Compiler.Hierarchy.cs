@@ -106,6 +106,7 @@ public static partial class Compiler
 
         var resolvedInstances = MaterializeHierarchyInstances(
             pendingInstances,
+            request.Policy.Maximum(ProjectScaleDimension.ElaboratedSlotCount),
             cancellationToken);
         var topology = BuildHierarchyTopology(
             request,
@@ -414,6 +415,7 @@ public static partial class Compiler
 
     private static HierarchyResolvedInstance[] MaterializeHierarchyInstances(
         PendingHierarchyResolvedInstance[] pendingInstances,
+        ulong maximumPortCount,
         CancellationToken cancellationToken)
     {
         var resolved = new HierarchyResolvedInstance[pendingInstances.Length];
@@ -421,7 +423,9 @@ public static partial class Compiler
         {
             cancellationToken.ThrowIfCancellationRequested();
             var pending = pendingInstances[index];
-            var ports = pending.PortResolution.Materialize(cancellationToken).ToArray();
+            var ports = pending.PortResolution.Materialize(
+                maximumPortCount,
+                cancellationToken).ToArray();
             resolved[index] = new HierarchyResolvedInstance(
                 index,
                 pending.Occurrence,

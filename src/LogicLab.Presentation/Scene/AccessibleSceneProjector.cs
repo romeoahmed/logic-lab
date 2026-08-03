@@ -4,22 +4,31 @@ namespace LogicLab.Presentation.Scene;
 
 public static class AccessibleSceneProjector
 {
-    public static AccessibleSceneProjection Project(ProjectRevision revision)
+    public static AccessibleSceneProjection Project(
+        ProjectRevision revision,
+        ulong maximumPortCount)
     {
         ArgumentNullException.ThrowIfNull(revision);
-        return Project(revision, revision.Document.EntryCircuitDefinitionId);
+        return Project(
+            revision,
+            revision.Document.EntryCircuitDefinitionId,
+            maximumPortCount);
     }
 
     public static AccessibleSceneProjection Project(
         ProjectRevision revision,
-        CircuitDefinitionId circuitDefinitionId)
+        CircuitDefinitionId circuitDefinitionId,
+        ulong maximumPortCount)
     {
         ArgumentNullException.ThrowIfNull(revision);
         ArgumentNullException.ThrowIfNull(circuitDefinitionId);
+        ArgumentOutOfRangeException.ThrowIfZero(maximumPortCount);
         var definition = revision.Document.FindCircuitDefinition(circuitDefinitionId)
             ?? throw new ArgumentException(
                 "The selected Circuit Definition does not exist in the Project Revision.",
                 nameof(circuitDefinitionId));
+        var budget = new PortProjectionBudget(maximumPortCount);
+        budget.Consume(checked((ulong)definition.Ports.Count));
         var definitionPorts = definition.Ports
             .Select(port => new AccessibleDefinitionPortProjection(
                 new DefinitionPortSourceIdentity(definition.Id, port.Id),
@@ -29,10 +38,14 @@ public static class AccessibleSceneProjector
                 port.Placement))
             .ToArray();
         var components = definition.ComponentInstances
-            .Select(instance => ProjectComponent(revision, definition.Id, instance))
             .OrderBy(item => item.Placement.Origin.X)
             .ThenBy(item => item.Placement.Origin.Y)
-            .ThenBy(item => item.Source.ComponentInstanceId.Value, StringComparer.Ordinal)
+            .ThenBy(item => item.Id.Value, StringComparer.Ordinal)
+            .Select(instance => ProjectComponent(
+                revision,
+                definition.Id,
+                instance,
+                budget))
             .ToArray();
         var connections = definition.Nets
             .OrderBy(net => net.Id.Value, StringComparer.Ordinal)
@@ -79,7 +92,8 @@ public static class AccessibleSceneProjector
     private static AccessibleComponentProjection ProjectComponent(
         ProjectRevision revision,
         CircuitDefinitionId definitionId,
-        ComponentInstance instance)
+        ComponentInstance instance,
+        PortProjectionBudget budget)
     {
         var (label, ports) = instance.Target switch
         {
@@ -87,12 +101,14 @@ public static class AccessibleSceneProjector
                 revision,
                 definitionId,
                 instance,
-                library),
+                library,
+                budget),
             CircuitDefinitionComponentTarget definition => ProjectDefinitionComponent(
                 revision,
                 definitionId,
                 instance,
-                definition),
+                definition,
+                budget),
             _ => throw new InvalidOperationException(
                 "The Component Target variant is undefined."),
         };
@@ -109,12 +125,21 @@ public static class AccessibleSceneProjector
             ProjectRevision revision,
             CircuitDefinitionId definitionId,
             ComponentInstance instance,
-            LibraryComponentTarget target)
+            LibraryComponentTarget target,
+            PortProjectionBudget budget)
     {
         var schema = revision.Document.LibrarySnapshot.ResolveContract(target.ContractKey)
             ?? throw new InvalidOperationException(
                 "The authored component contract is absent from the pinned Library Snapshot.");
-        var ports = schema.ResolvePorts(instance.Parameters)
+        var resolution = schema.PreparePorts(instance.Parameters);
+        if (budget.Remaining == 0
+            || !resolution.TryMaterialize(budget.Remaining, out var resolvedPorts))
+        {
+            throw new AccessibleSceneProjectionLimitExceededException(budget.Maximum);
+        }
+
+        budget.Consume(checked((ulong)resolvedPorts.Count));
+        var ports = resolvedPorts
             .Select(port => new AccessiblePortProjection(
                 new InstancePortSourceIdentity(definitionId, instance.Id, port.Id),
                 port.Id,
@@ -131,12 +156,14 @@ public static class AccessibleSceneProjector
             ProjectRevision revision,
             CircuitDefinitionId definitionId,
             ComponentInstance instance,
-            CircuitDefinitionComponentTarget target)
+            CircuitDefinitionComponentTarget target,
+            PortProjectionBudget budget)
     {
         var targetDefinition = revision.Document.FindCircuitDefinition(
             target.CircuitDefinitionId)
             ?? throw new InvalidOperationException(
                 "The authored Circuit Definition target is absent from the Project Revision.");
+        budget.Consume(checked((ulong)targetDefinition.Ports.Count));
         var ports = targetDefinition.Ports
             .Select(port => new AccessiblePortProjection(
                 new InstancePortSourceIdentity(
@@ -177,4 +204,28 @@ public static class AccessibleSceneProjector
             _ => contractId,
         };
     }
+
+    private sealed class PortProjectionBudget(ulong maximum)
+    {
+        public ulong Maximum { get; } = maximum;
+
+        public ulong Remaining { get; private set; } = maximum;
+
+        public void Consume(ulong count)
+        {
+            if (count > Remaining)
+            {
+                throw new AccessibleSceneProjectionLimitExceededException(Maximum);
+            }
+
+            Remaining -= count;
+        }
+    }
+}
+
+public sealed class AccessibleSceneProjectionLimitExceededException(
+    ulong maximumPortCount) : Exception(
+        "The accessible Scene Port count exceeds the active projection budget.")
+{
+    public ulong MaximumPortCount { get; } = maximumPortCount;
 }

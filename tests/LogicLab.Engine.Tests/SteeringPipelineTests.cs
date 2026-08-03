@@ -135,6 +135,8 @@ public sealed class SteeringPipelineTests
                  {
                      LogicValue.Zero,
                      LogicValue.One,
+                     LogicValue.X,
+                     LogicValue.One,
                      LogicValue.One,
                      LogicValue.One,
                  })
@@ -150,7 +152,7 @@ public sealed class SteeringPipelineTests
         }
 
         var triStates = new List<ComponentInstance>();
-        for (var index = 0; index < 2; index++)
+        for (var index = 0; index < 3; index++)
         {
             (revision, var triState) = Place(revision, definitionId, "logic.tristate",
             [
@@ -164,7 +166,7 @@ public sealed class SteeringPipelineTests
             revision = Connect(
                 revision,
                 definitionId,
-                (sources[index + 2], "Q"),
+                (sources[index + 3], "Q"),
                 (triState, "EN"));
         }
 
@@ -181,6 +183,7 @@ public sealed class SteeringPipelineTests
             definitionId,
             (triStates[0], "Q"),
             (triStates[1], "Q"),
+            (triStates[2], "Q"),
             (sink, "D"));
         var outputNet = revision.Document.EntryCircuitDefinition.Nets.Single(net =>
             !existingNetIds.Contains(net.Id));
@@ -205,7 +208,9 @@ public sealed class SteeringPipelineTests
                 SimulationTestContext.PermissiveTracePolicy()),
             CancellationToken.None);
 
-        var contention = opened.Diagnostics.Single(diagnostic => diagnostic.Primary == probe);
+        var initialDiagnostics = opened.Diagnostics
+            .Where(diagnostic => diagnostic.Primary == probe)
+            .ToArray();
         _ = SimulationRuntime.Execute(
             opened.Handle,
             new ScheduleStimulusBatch(new StimulusBatch(
@@ -221,6 +226,11 @@ public sealed class SteeringPipelineTests
 
         using (Assert.Multiple())
         {
+            await Assert.That(initialDiagnostics.Select(diagnostic => diagnostic.Code).ToArray())
+                .IsEquivalentTo(
+                    ["simulation_contention", "simulation_unknown_driver"],
+                    CollectionOrdering.Matching);
+            var contention = initialDiagnostics[0];
             await Assert.That(contention.Code).IsEqualTo("simulation_contention");
             await Assert.That(contention.Severity)
                 .IsEqualTo(SimulationDiagnosticSeverity.Error);
@@ -230,12 +240,12 @@ public sealed class SteeringPipelineTests
                     CollectionOrdering.Matching);
             await Assert.That(contention.Arguments.Select(argument =>
                     ((SimulationUnsignedDecimalValue)argument.Value).Value).ToArray())
-                .IsEquivalentTo(new ulong[] { 1, 1, 0 }, CollectionOrdering.Matching);
+                .IsEquivalentTo(new ulong[] { 1, 1, 1 }, CollectionOrdering.Matching);
             await Assert.That(advanced.ObservedProbePatch).IsEmpty();
             await Assert.That(unknownDriver.Code).IsEqualTo("simulation_unknown_driver");
             await Assert.That(((SimulationUnsignedDecimalValue)
                     unknownDriver.Arguments.Single().Value).Value)
-                .IsEqualTo(1UL);
+                .IsEqualTo(2UL);
         }
     }
 
@@ -408,7 +418,7 @@ public sealed class SteeringPipelineTests
         var definitionId = revision.Document.EntryCircuitDefinitionId;
         var schema = CoreLibrarySchema.FindContract(
             new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId))!;
-        var ports = schema.ResolvePorts(parameters);
+        var ports = schema.ResolvePorts(parameters, maximumPortCount: 100);
         var inputs = ports.Where(port => port.Direction == PortDirection.Input).ToArray();
         var outputs = ports.Where(port => port.Direction == PortDirection.Output).ToArray();
         if (inputs.Length != inputValues.Length || outputs.Length != expectedOutputs.Length)

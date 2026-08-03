@@ -31,10 +31,11 @@ public sealed class ComponentContractSchema
 
     public ReadOnlyCollection<ResolvedComponentPortSchema> ResolvePorts(
         IReadOnlyList<ComponentParameterBinding> parameters,
+        ulong maximumPortCount,
         CancellationToken cancellationToken = default)
     {
         return PreparePorts(parameters, cancellationToken)
-            .Materialize(cancellationToken);
+            .Materialize(maximumPortCount, cancellationToken);
     }
 
     public ComponentPortResolution PreparePorts(
@@ -54,21 +55,31 @@ public sealed class ComponentContractSchema
         return resolution;
     }
 
-    internal bool TryResolvePorts(
-        ReadOnlyCollection<ComponentParameterBinding> parameters,
-        out ReadOnlyCollection<ResolvedComponentPortSchema> ports)
+    public bool TryResolvePort(
+        IReadOnlyList<ComponentParameterBinding> parameters,
+        string portId,
+        out ResolvedComponentPortSchema? port,
+        CancellationToken cancellationToken = default)
     {
-        if (!TryPreparePorts(
-                parameters,
-                CancellationToken.None,
-                out var resolution))
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentException.ThrowIfNullOrEmpty(portId);
+        var ownedParameters = Array.AsReadOnly(parameters.ToArray());
+        if (ComponentParameterValidator.Validate(
+                Key,
+                this,
+                ownedParameters,
+                cancellationToken).Length > 0)
         {
-            ports = Array.AsReadOnly<ResolvedComponentPortSchema>([]);
+            port = null;
             return false;
         }
 
-        ports = resolution.Materialize();
-        return true;
+        return ComponentPortResolver.TryResolvePort(
+            Ports,
+            ownedParameters,
+            portId,
+            out port,
+            cancellationToken);
     }
 
     private bool TryPreparePorts(

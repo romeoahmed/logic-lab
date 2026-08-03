@@ -15,7 +15,9 @@ public sealed class AccessibleCircuitSceneTests
     public async Task AccessibleCircuitScene_CompleteCircuit_RendersReachableTopology()
     {
         await using var context = CreateContext();
-        var scene = AccessibleSceneProjector.Project(WebTestCircuit.CreateCompleteCircuit());
+        var scene = AccessibleSceneProjector.Project(
+            WebTestCircuit.CreateCompleteCircuit(),
+            maximumPortCount: 10_000);
 
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene));
@@ -57,7 +59,7 @@ public sealed class AccessibleCircuitSceneTests
                 ],
                 [],
                 [])));
-        var scene = AccessibleSceneProjector.Project(revision);
+        var scene = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
 
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene));
@@ -81,7 +83,7 @@ public sealed class AccessibleCircuitSceneTests
     {
         await using var context = CreateContext();
         var revision = CreateWidthConversionComponents();
-        var scene = AccessibleSceneProjector.Project(revision);
+        var scene = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
 
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene));
@@ -113,7 +115,7 @@ public sealed class AccessibleCircuitSceneTests
     {
         await using var context = CreateContext();
         var revision = CreateSteeringComponents();
-        var scene = AccessibleSceneProjector.Project(revision);
+        var scene = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
 
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene));

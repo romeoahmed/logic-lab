@@ -46,6 +46,32 @@ internal static class ComponentPortResolver
         return Array.AsReadOnly(resolved.ToArray());
     }
 
+    public static bool TryResolvePort(
+        ReadOnlyCollection<ComponentPortSchema> ports,
+        ReadOnlyCollection<ComponentParameterBinding> parameters,
+        string portId,
+        out ResolvedComponentPortSchema? resolved,
+        CancellationToken cancellationToken)
+    {
+        foreach (var port in ports)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!TryGetPortIndex(port, parameters, portId, out var index))
+            {
+                continue;
+            }
+
+            resolved = new ResolvedComponentPortSchema(
+                portId,
+                port.Direction,
+                ResolvePortWidth(port, parameters, index, cancellationToken));
+            return true;
+        }
+
+        resolved = null;
+        return false;
+    }
+
     private static void AppendPorts(
         List<ResolvedComponentPortSchema> resolved,
         ComponentPortSchema port,
@@ -74,7 +100,7 @@ internal static class ComponentPortResolver
                 resolved.Add(new ResolvedComponentPortSchema(
                     port.Id,
                     port.Direction,
-                    Math.Max(1U, checked((uint)BitOperations.Log2(count - 1) + 1U))));
+                    CeilingLog2(count)));
                 return;
             case ComponentPortWidthSource.SliceLength:
                 var slices = GetValue<SlicesParameterValue>(
@@ -108,17 +134,10 @@ internal static class ComponentPortResolver
                 var summedWidths = GetValue<WidthsParameterValue>(
                     parameters,
                     port.ParameterId);
-                uint sum = 0;
-                foreach (var width in summedWidths.Values)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    sum = checked(sum + width);
-                }
-
                 resolved.Add(new ResolvedComponentPortSchema(
                     port.Id,
                     port.Direction,
-                    sum));
+                    SumWidths(summedWidths, cancellationToken)));
                 return;
             default:
                 throw new InvalidOperationException(
@@ -161,6 +180,85 @@ internal static class ComponentPortResolver
                 "The component Port cardinality is undefined."),
         };
         return new ComponentPortMeasure(count, ExceedsUInt64: false);
+    }
+
+    private static bool TryGetPortIndex(
+        ComponentPortSchema port,
+        ReadOnlyCollection<ComponentParameterBinding> parameters,
+        string portId,
+        out ulong index)
+    {
+        index = 0;
+        if (port.Cardinality == ComponentPortCardinality.Fixed)
+        {
+            return string.Equals(port.Id, portId, StringComparison.Ordinal);
+        }
+
+        if (!portId.StartsWith(port.Id, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var suffix = portId.AsSpan(port.Id.Length);
+        if (suffix.IsEmpty
+            || (suffix.Length > 1 && suffix[0] == '0')
+            || !ulong.TryParse(
+                suffix,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out index))
+        {
+            return false;
+        }
+
+        var measure = ResolvePortCount(port, parameters);
+        return measure.ExceedsUInt64 || index < measure.Count;
+    }
+
+    private static uint ResolvePortWidth(
+        ComponentPortSchema port,
+        ReadOnlyCollection<ComponentParameterBinding> parameters,
+        ulong index,
+        CancellationToken cancellationToken)
+    {
+        return port.WidthSource switch
+        {
+            ComponentPortWidthSource.ParameterValue =>
+                GetValue<Unsigned32ParameterValue>(parameters, port.ParameterId).Value,
+            ComponentPortWidthSource.FixedOne => 1,
+            ComponentPortWidthSource.CeilingLog2ParameterValue => CeilingLog2(
+                GetValue<Unsigned32ParameterValue>(parameters, port.ParameterId).Value),
+            ComponentPortWidthSource.SliceLength => GetValue<SlicesParameterValue>(
+                parameters,
+                port.ParameterId).Values[checked((int)index)].Length,
+            ComponentPortWidthSource.WidthItem => GetValue<WidthsParameterValue>(
+                parameters,
+                port.ParameterId).Values[checked((int)index)],
+            ComponentPortWidthSource.WidthSum => SumWidths(
+                GetValue<WidthsParameterValue>(parameters, port.ParameterId),
+                cancellationToken),
+            _ => throw new InvalidOperationException(
+                "The component Port width source is undefined."),
+        };
+    }
+
+    private static uint CeilingLog2(uint count)
+    {
+        return Math.Max(1U, checked((uint)BitOperations.Log2(count - 1) + 1U));
+    }
+
+    private static uint SumWidths(
+        WidthsParameterValue widths,
+        CancellationToken cancellationToken)
+    {
+        uint sum = 0;
+        foreach (var width in widths.Values)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            sum = checked(sum + width);
+        }
+
+        return sum;
     }
 
     private static void AppendUniformPorts(
