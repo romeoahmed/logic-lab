@@ -53,7 +53,7 @@ A stable deterministic queue order is still valuable for reproducible diagnostic
 
 ## 4. Current rule audit
 
-IEEE 1800-2023 defines `0/1/x/z`, normally treats gate-input `z` like `x`, gives scalar gate tables, makes an undriven Net `z`, and resolves equal-strength `0`/`1` conflict to `x` ([local standard, §§6.3.1, 6.6.1, 28.4–28.6](../../1800-2023.pdf)). It does not define Logic Lab's Information Order or feedback fixed point.
+IEEE 1800-2023 defines `0/1/x/z`, normally treats gate-input `z` like `x`, gives scalar gate tables, makes an undriven Net `z`, and resolves equal-strength `0`/`1` conflict to `x` (§§6.3.1, 6.6.1, 28.4–28.6). It does not define Logic Lab's Information Order or feedback fixed point.
 
 The scalar tables were checked against every comparable input pair. NOT, AND, OR, XOR, conservative MUX and tri-state rules, and resolver arities zero through four all passed. The complete V1 catalog was then audited by rule family.
 
@@ -118,6 +118,6 @@ Primary material inspected:
 - Alfred Tarski, *A Lattice-Theoretical Fixpoint Theorem and Its Applications*, Pacific Journal of Mathematics 5 (1955), 285–309: [DOI](https://doi.org/10.2140/pjm.1955.5.285), [publisher PDF](https://msp.org/pjm/1955/5-2/pjm-v5-n2-p11-s.pdf).
 - Patrick and Radhia Cousot, *Abstract Interpretation: A Unified Lattice Model for Static Analysis of Programs by Construction or Approximation of Fixpoints*, POPL 1977: [author record/PDF](https://www.di.ens.fr/~cousot/COUSOTpapers/POPL77.shtml), [DOI](https://doi.org/10.1145/512950.512973).
 - Patrick Cousot, *Asynchronous Iterative Methods for Solving a Fixed Point System of Monotone Equations in a Complete Lattice*, R.R. 88 (1977): [author record](https://www.di.ens.fr/~cousot/COUSOTpapers/IMAG-RR88.shtml), [author PDF](https://www.di.ens.fr/~cousot/publications.www/Cousot-IMAG-RR88-Sep-1977.pdf).
-- [IEEE Std 1800-2023](../../1800-2023.pdf), especially §§6.3.1, 6.5–6.6, and 28.4–28.6.
+- IEEE Std 1800-2023, especially §§6.3.1, 6.5–6.6, and 28.4–28.6. An optional untracked local copy is named `1800-2023.pdf`.
 
 The [Wikipedia least-fixed-point page](https://en.wikipedia.org/wiki/Least_fixed_point) was used only for navigation. No claim depends on it or on an inaccessible abstract. Future Component Contracts remain unverified until their complete scalar rules exist and pass the same audit.

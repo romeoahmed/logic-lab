@@ -329,7 +329,7 @@ State migrates only when stable instance identity, Component Contract kind, widt
 
 ## 9. Sources and qualification
 
-- IEEE Std 1800-2023, especially clauses 4.4, 6.3, 6.5-6.6, 9.4.2, 11.4.8, and 28-29: [local reference](../../1800-2023.pdf).
+- IEEE Std 1800-2023, especially clauses 4.4, 6.3, 6.5-6.6, 9.4.2, 11.4.8, and 28-29.
 - Robert Tarjan, [Depth-First Search and Linear Graph Algorithms](https://doi.org/10.1137/0201010).
 - Bernard Zeigler et al., *Theory of Modeling and Simulation*, for discrete-event modeling and DEVS terminology.
 - [Least-Fixed-Point Semantics Research](../research/least-fixed-point-semantics.md), for the finite proof, monotonicity audit, counterexamples, and source access record.
