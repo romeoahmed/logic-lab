@@ -1,4 +1,3 @@
-using System.Collections;
 using LogicLab.Domain;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
@@ -153,6 +152,53 @@ public sealed class SimulationContractTests
     }
 
     [Test]
+    public async Task Policies_ChangingInputs_ValidateSingleOwnedSnapshot()
+    {
+        var simulationLimits = SimulationTestContext.PermissiveSimulationPolicy()
+            .Limits.ToArray();
+        var traceLimits = SimulationTestContext.PermissiveTracePolicy()
+            .Limits.ToArray();
+        var simulation = new SimulationPolicy(
+            "simulation",
+            "1",
+            new ChangingReadOnlyList<SimulationLimit>(0, simulationLimits));
+        var trace = new TracePolicy(
+            "trace",
+            "1",
+            new ChangingReadOnlyList<TraceLimit>(0, traceLimits));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(simulation.Limits).Count()
+                .IsEqualTo(simulationLimits.Length);
+            await Assert.That(trace.Limits).Count()
+                .IsEqualTo(traceLimits.Length);
+        }
+    }
+
+    [Test]
+    public async Task Policies_NullLimit_ThrowArgumentException()
+    {
+        var simulationLimits = SimulationTestContext.PermissiveSimulationPolicy()
+            .Limits.ToArray();
+        var traceLimits = SimulationTestContext.PermissiveTracePolicy()
+            .Limits.ToArray();
+        simulationLimits[0] = null!;
+        traceLimits[0] = null!;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(() => new SimulationPolicy(
+                    "simulation",
+                    "1",
+                    simulationLimits))
+                .ThrowsExactly<ArgumentException>();
+            await Assert.That(() => new TracePolicy("trace", "1", traceLimits))
+                .ThrowsExactly<ArgumentException>();
+        }
+    }
+
+    [Test]
     public async Task Open_WorkEvidence_UsesCanonicalPolicyDimensionOrder()
     {
         var context = SimulationTestContext.Create();
@@ -186,27 +232,6 @@ public sealed class SimulationContractTests
                 .IsTrue();
             await Assert.That(((ICollection<SimulationWorkObservation>)opened.WorkEvidence
                 .ObservedDimensions).IsReadOnly).IsTrue();
-        }
-    }
-
-    private sealed class ChangingReadOnlyList<T>(
-        params IReadOnlyList<T>[] snapshots) : IReadOnlyList<T>
-    {
-        private int enumerationCount;
-
-        public int Count => snapshots[0].Count;
-
-        public T this[int index] => snapshots[0][index];
-
-        public IEnumerator<T> GetEnumerator()
-        {
-            var snapshotIndex = Math.Min(enumerationCount++, snapshots.Length - 1);
-            return snapshots[snapshotIndex].GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
         }
     }
 }

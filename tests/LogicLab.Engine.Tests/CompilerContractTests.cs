@@ -112,6 +112,31 @@ public sealed class CompilerContractTests
     }
 
     [Test]
+    public async Task ProjectScalePolicy_ChangingInput_ValidatesSingleOwnedSnapshot()
+    {
+        var limits = CompilerTestCircuit.PermissivePolicy().Limits.ToArray();
+        var policy = new ProjectScalePolicy(
+            "changing-policy",
+            "1",
+            new ChangingReadOnlyList<ProjectScaleLimit>(0, limits));
+
+        await Assert.That(policy.Limits).Count().IsEqualTo(limits.Length);
+    }
+
+    [Test]
+    public async Task ProjectScalePolicy_NullLimit_ThrowsArgumentException()
+    {
+        var limits = CompilerTestCircuit.PermissivePolicy().Limits.ToArray();
+        limits[0] = null!;
+
+        await Assert.That(() => new ProjectScalePolicy(
+                "null-limit-policy",
+                "1",
+                limits))
+            .ThrowsExactly<ArgumentException>();
+    }
+
+    [Test]
     public async Task CompilationArtifact_InternalCollections_AreReadOnly()
     {
         var circuit = CompilerTestCircuit.CreateComplete();
