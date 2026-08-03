@@ -85,7 +85,7 @@ public static partial class Compiler
         {
             cancellationToken.ThrowIfCancellationRequested();
             elaboratedSlotCount = checked(
-                elaboratedSlotCount + instance.PortShape.PortCount);
+                elaboratedSlotCount + instance.PortResolution.PortCount);
         }
 
         var slotRejection = Observe(
@@ -380,11 +380,11 @@ public static partial class Compiler
                 }
 
                 if (!TryGetEvaluatorKind(key, out var kind)
-                    || !TryResolvePortShape(
+                    || !TryPreparePorts(
                         instance,
                         schema,
                         cancellationToken,
-                        out var portShape))
+                        out var portResolution))
                 {
                     diagnostics.Add(new CompilerDiagnostic(
                         "compiler_parameter_schema_mismatch",
@@ -411,8 +411,7 @@ public static partial class Compiler
                     occurrence,
                     instance,
                     kind,
-                    schema,
-                    portShape));
+                    portResolution));
             }
         }
 
@@ -428,9 +427,7 @@ public static partial class Compiler
         {
             cancellationToken.ThrowIfCancellationRequested();
             var pending = pendingInstances[index];
-            var ports = pending.Schema.ResolvePorts(
-                pending.Instance.Parameters,
-                cancellationToken).ToArray();
+            var ports = pending.PortResolution.Materialize(cancellationToken).ToArray();
             resolved[index] = new HierarchyResolvedInstance(
                 index,
                 pending.Occurrence,
@@ -959,8 +956,7 @@ public static partial class Compiler
         HierarchyOccurrence Occurrence,
         ComponentInstance Instance,
         SimulationEvaluatorKind Kind,
-        ComponentContractSchema Schema,
-        ComponentPortShape PortShape);
+        ComponentPortResolution PortResolution);
 
     private sealed record HierarchyScopedNet(
         int Index,
