@@ -167,8 +167,8 @@ public static partial class Compiler
                 resolved.Width,
                 inputNets,
                 outputDrivers,
-                GetHierarchyInitialValue(resolved),
-                GetHierarchySlices(resolved));
+                GetInitialValue(resolved.Kind, resolved.Instance.Parameters),
+                GetSlices(resolved.Kind, resolved.Instance.Parameters));
             sources[resolved.Ordinal] = new SourceMapEntry(
                 resolved.Ordinal,
                 Source(
@@ -263,36 +263,4 @@ public static partial class Compiler
         return (nets, sources, aliases.ToArray());
     }
 
-    private static LogicVector? GetHierarchyInitialValue(
-        HierarchyResolvedInstance instance)
-    {
-        if (instance.Kind is not (SimulationEvaluatorKind.InputSource
-            or SimulationEvaluatorKind.ConstantSource))
-        {
-            return null;
-        }
-
-        var values = instance.Instance.Parameters
-            .Single(binding => string.Equals(
-                binding.ParameterId,
-                instance.Kind == SimulationEvaluatorKind.InputSource
-                    ? "initialValue"
-                    : "value",
-                StringComparison.Ordinal))
-            .Value as LogicVectorParameterValue;
-        return new LogicVector(values!.Values);
-    }
-
-    private static System.Collections.ObjectModel.ReadOnlyCollection<BitSlice>
-        GetHierarchySlices(
-        HierarchyResolvedInstance instance)
-    {
-        return instance.Kind == SimulationEvaluatorKind.TopologySplit
-            ? ((SlicesParameterValue)instance.Instance.Parameters.Single(binding =>
-                string.Equals(
-                    binding.ParameterId,
-                    "slices",
-                    StringComparison.Ordinal)).Value).Values
-            : Array.AsReadOnly<BitSlice>([]);
-    }
 }

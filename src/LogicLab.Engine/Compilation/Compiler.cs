@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
@@ -406,7 +407,7 @@ public static partial class Compiler
                 pending.ContractKey,
                 pending.Kind,
                 ports,
-                GetEvaluatorWidth(ports));
+                GetEvaluatorWidth(pending.Kind, ports));
         }
 
         return resolved;
@@ -720,8 +721,8 @@ public static partial class Compiler
                 resolved.Width,
                 inputNets,
                 outputDrivers,
-                GetInitialValue(resolved),
-                GetSlices(resolved));
+                GetInitialValue(resolved.Kind, resolved.Instance.Parameters),
+                GetSlices(resolved.Kind, resolved.Instance.Parameters));
             evaluatorSources[resolved.Ordinal] = new SourceMapEntry(
                 resolved.Ordinal,
                 Source(
@@ -836,25 +837,6 @@ public static partial class Compiler
         return adjacency.Select(edges => edges.ToArray()).ToArray();
     }
 
-    private static LogicVector? GetInitialValue(ResolvedInstance instance)
-    {
-        if (instance.Kind is not (SimulationEvaluatorKind.InputSource
-            or SimulationEvaluatorKind.ConstantSource))
-        {
-            return null;
-        }
-
-        var values = instance.Instance.Parameters
-            .Single(binding => string.Equals(
-                binding.ParameterId,
-                instance.Kind == SimulationEvaluatorKind.InputSource
-                    ? "initialValue"
-                    : "value",
-                StringComparison.Ordinal))
-            .Value as LogicVectorParameterValue;
-        return new LogicVector(values!.Values);
-    }
-
     private static bool TryGetEvaluatorKind(
         ComponentContractKey key,
         out SimulationEvaluatorKind kind)
@@ -902,7 +884,7 @@ public static partial class Compiler
             resolution = schema.PreparePorts(
                 instance.Parameters,
                 cancellationToken);
-            return resolution.PortCount > 0;
+            return true;
         }
         catch (ArgumentException)
         {
@@ -912,25 +894,54 @@ public static partial class Compiler
     }
 
     private static uint GetEvaluatorWidth(
+        SimulationEvaluatorKind kind,
         ResolvedComponentPortSchema[] ports)
     {
-        return ports.SingleOrDefault(port => string.Equals(
-                port.Id,
-                "Q",
-                StringComparison.Ordinal))?.Width
-            ?? ports[0].Width;
+        var primaryPortId = kind switch
+        {
+            SimulationEvaluatorKind.OutputSink
+                or SimulationEvaluatorKind.TopologySplit => "D",
+            _ => "Q",
+        };
+        return ports.Single(port => string.Equals(
+            port.Id,
+            primaryPortId,
+            StringComparison.Ordinal)).Width;
     }
 
-    private static System.Collections.ObjectModel.ReadOnlyCollection<BitSlice> GetSlices(
-        ResolvedInstance instance)
+    private static LogicVector? GetInitialValue(
+        SimulationEvaluatorKind kind,
+        IReadOnlyList<ComponentParameterBinding> parameters)
     {
-        return instance.Kind == SimulationEvaluatorKind.TopologySplit
-            ? ((SlicesParameterValue)instance.Instance.Parameters.Single(binding =>
-                string.Equals(
-                    binding.ParameterId,
-                    "slices",
-                    StringComparison.Ordinal)).Value).Values
-            : Array.AsReadOnly<BitSlice>([]);
+        var parameterId = kind switch
+        {
+            SimulationEvaluatorKind.InputSource => "initialValue",
+            SimulationEvaluatorKind.ConstantSource => "value",
+            _ => null,
+        };
+        if (parameterId is null)
+        {
+            return null;
+        }
+
+        var values = (LogicVectorParameterValue)parameters.Single(binding =>
+            string.Equals(
+                binding.ParameterId,
+                parameterId,
+                StringComparison.Ordinal)).Value;
+        return new LogicVector(values.Values);
+    }
+
+    private static ReadOnlyCollection<BitSlice>? GetSlices(
+        SimulationEvaluatorKind kind,
+        IReadOnlyList<ComponentParameterBinding> parameters)
+    {
+        return kind == SimulationEvaluatorKind.TopologySplit
+            ? ((SlicesParameterValue)parameters.Single(binding => string.Equals(
+                binding.ParameterId,
+                "slices",
+                StringComparison.Ordinal)).Value).Values
+            : null;
     }
 
     private static CompilationSource Source(
