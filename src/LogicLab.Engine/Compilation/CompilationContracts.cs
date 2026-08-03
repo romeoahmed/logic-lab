@@ -28,22 +28,23 @@ public sealed class ProjectScalePolicy
         ArgumentException.ThrowIfNullOrEmpty(policyId);
         ArgumentException.ThrowIfNullOrEmpty(policyRevision);
         ArgumentNullException.ThrowIfNull(limits);
+        var ownedLimits = limits.ToArray();
 
         PolicyIdentity.ValidateTokens("Project Scale", policyId, policyRevision);
 
         var dimensions = Enum.GetValues<ProjectScaleDimension>();
-        if (limits.Count != dimensions.Length)
+        if (ownedLimits.Length != dimensions.Length)
         {
             throw new ArgumentException(
                 "A Project Scale Policy must contain every dimension exactly once.",
                 nameof(limits));
         }
 
-        this.limits = limits.ToArray();
         for (var index = 0; index < dimensions.Length; index++)
         {
-            if (this.limits[index].Dimension != dimensions[index]
-                || this.limits[index].Maximum == 0)
+            if (ownedLimits[index] is not { } limit
+                || limit.Dimension != dimensions[index]
+                || limit.Maximum == 0)
             {
                 throw new ArgumentException(
                     "Project Scale Policy limits must be positive and in canonical dimension order.",
@@ -51,6 +52,7 @@ public sealed class ProjectScalePolicy
             }
         }
 
+        this.limits = ownedLimits;
         PolicyId = policyId;
         PolicyRevision = policyRevision;
         Limits = Array.AsReadOnly(this.limits);

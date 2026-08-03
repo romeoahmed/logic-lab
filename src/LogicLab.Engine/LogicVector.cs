@@ -12,21 +12,22 @@ public sealed class LogicVector
     public LogicVector(IReadOnlyList<LogicValue> values)
     {
         ArgumentNullException.ThrowIfNull(values);
+        var ownedValues = values.ToArray();
 
-        if (values.Count == 0)
+        if (ownedValues.Length == 0)
         {
             throw new ArgumentException(
                 "A Logic Vector requires a positive width.",
                 nameof(values));
         }
 
-        Width = values.Count;
+        Width = ownedValues.Length;
         lowBits = new ulong[GetWordCount(Width)];
         highBits = new ulong[lowBits.Length];
 
-        for (var index = 0; index < values.Count; index++)
+        for (var index = 0; index < ownedValues.Length; index++)
         {
-            var value = values[index];
+            var value = ownedValues[index];
             ScalarLogic.EnsureDefined(value, nameof(values));
 
             var wordIndex = index / BitsPerWord;
