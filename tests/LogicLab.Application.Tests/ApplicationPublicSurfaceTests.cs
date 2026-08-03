@@ -5,25 +5,53 @@ namespace LogicLab.Application.Tests;
 public sealed class ApplicationPublicSurfaceTests
 {
     [Test]
-    public async Task ApplicationAssembly_ExportedTypes_HideSchedulingImplementation()
+    public async Task ApplicationAssembly_ExportedTypes_MatchWorkspaceContractAllowlist()
     {
         var exportedNames = typeof(IEditorWorkspace).Assembly
             .GetExportedTypes()
-            .Select(type => type.FullName ?? type.Name)
+            .Select(type => type.Name)
+            .Order(StringComparer.Ordinal)
             .ToArray();
-
-        using (Assert.Multiple())
+        var expectedNames = new[]
         {
-            await Assert.That(exportedNames.Any(name => name.Contains(
-                "WorkCoordinator",
-                StringComparison.Ordinal))).IsFalse();
-            await Assert.That(exportedNames.Any(name => name.Contains(
-                "CompilationWorkContext",
-                StringComparison.Ordinal))).IsFalse();
-            await Assert.That(exportedNames.Any(name => name.Contains(
-                "WorkItem",
-                StringComparison.Ordinal))).IsFalse();
-        }
+            "ApplyEdit",
+            "AuthoringCommitted",
+            "CloseWorkspace",
+            "CompilationProjection",
+            "CompilationPublicationStatus",
+            "CompilationPublished",
+            "CreateSandbox",
+            "CreateSession",
+            "EditorWorkspaceFactory",
+            "IEditorWorkspace",
+            "InputStimulusAssignment",
+            "OpenWorkspaceRequest",
+            "ProbeProjection",
+            "ProjectionSnapshot",
+            "RequestCompilation",
+            "ScheduleInputStimulus",
+            "SchedulingPolicy",
+            "SessionStepped",
+            "SimulationProjection",
+            "SimulationSessionCreated",
+            "StepSession",
+            "StimulusScheduled",
+            "WorkspaceAuthoringLimits",
+            "WorkspaceClosed",
+            "WorkspaceCommand",
+            "WorkspaceCommandOutcome",
+            "WorkspaceCommandRejected",
+            "WorkspaceId",
+            "WorkspaceOpenOutcome",
+            "WorkspaceOpened",
+            "WorkspaceOpenRejected",
+            "WorkspacePolicy",
+            "WorkspaceProjection",
+            "WorkspaceReadOutcome",
+            "WorkspaceReadRejected",
+        };
+
+        await Assert.That(exportedNames).IsEquivalentTo(expectedNames);
     }
 
     [Test]
