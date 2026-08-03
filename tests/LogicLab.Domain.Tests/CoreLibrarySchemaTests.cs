@@ -6,6 +6,36 @@ namespace LogicLab.Domain.Tests;
 public sealed class CoreLibrarySchemaTests
 {
     [Test]
+    public async Task Contracts_LogicFamily_HasExactCanonicalOrder()
+    {
+        var contracts = CoreLibrarySchema.Contracts
+            .Where(contract => contract.Key.ContractId.StartsWith("logic.", StringComparison.Ordinal))
+            .Select(contract => contract.Key.ContractId);
+
+        await Assert.That(contracts).IsEquivalentTo(
+            [
+                "logic.adder",
+                "logic.and",
+                "logic.buffer",
+                "logic.decoder",
+                "logic.demux",
+                "logic.mux",
+                "logic.nand",
+                "logic.nor",
+                "logic.not",
+                "logic.or",
+                "logic.priority_encoder",
+                "logic.shift",
+                "logic.subtractor",
+                "logic.tristate",
+                "logic.unsigned_compare",
+                "logic.xnor",
+                "logic.xor",
+            ],
+            CollectionOrdering.Matching);
+    }
+
+    [Test]
     public async Task Library_RequiredIdentity_HasExactValues()
     {
         using (Assert.Multiple())

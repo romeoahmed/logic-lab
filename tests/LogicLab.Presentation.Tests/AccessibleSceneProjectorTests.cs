@@ -9,13 +9,36 @@ namespace LogicLab.Presentation.Tests;
 public sealed class AccessibleSceneProjectorTests
 {
     [Test]
-    [Arguments("logic.unsigned_compare", "Unsigned Compare")]
-    [Arguments("logic.adder", "Adder")]
-    [Arguments("logic.subtractor", "Subtractor")]
-    [Arguments("logic.shift", "Logical Shift")]
-    public async Task Project_ArithmeticComponent_UsesAccessibleContractLabelAndPorts(
+    [Arguments(
+        "logic.unsigned_compare",
+        "Unsigned Compare",
+        new[] { "A", "B", "LT", "EQ", "GT" },
+        new uint[] { 5, 5, 1, 1, 1 },
+        2)]
+    [Arguments(
+        "logic.adder",
+        "Adder",
+        new[] { "A", "B", "CIN", "SUM", "COUT" },
+        new uint[] { 5, 5, 1, 5, 1 },
+        3)]
+    [Arguments(
+        "logic.subtractor",
+        "Subtractor",
+        new[] { "A", "B", "BIN", "DIFF", "BOUT" },
+        new uint[] { 5, 5, 1, 5, 1 },
+        3)]
+    [Arguments(
+        "logic.shift",
+        "Logical Shift",
+        new[] { "D", "AMOUNT", "Q" },
+        new uint[] { 5, 3, 5 },
+        2)]
+    public async Task Project_ArithmeticComponent_ExposesExactAccessibleContract(
         string contractId,
-        string expectedLabel)
+        string expectedLabel,
+        string[] expectedPortLabels,
+        uint[] expectedPortWidths,
+        int inputCount)
     {
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
             "Arithmetic projection",
@@ -40,16 +63,17 @@ public sealed class AccessibleSceneProjectorTests
         revision = Place(revision, contractId, parameters, new GridPoint(0, 0));
 
         var component = Project(revision).Components.Single();
+        var expectedPorts = expectedPortLabels.Select((label, index) => (
+            Label: label,
+            Direction: index < inputCount ? PortDirection.Input : PortDirection.Output,
+            Width: expectedPortWidths[index]));
 
         using (Assert.Multiple())
         {
             await Assert.That(component.Label).IsEqualTo(expectedLabel);
-            await Assert.That(component.Ports.All(port => port.Width > 0)).IsTrue();
-            if (contractId == "logic.shift")
-            {
-                await Assert.That(component.Ports.Single(port => port.Label == "AMOUNT").Width)
-                    .IsEqualTo(3U);
-            }
+            await Assert.That(component.Ports.Select(port =>
+                    (port.Label, port.Direction, port.Width)))
+                .IsEquivalentTo(expectedPorts, CollectionOrdering.Matching);
         }
     }
 

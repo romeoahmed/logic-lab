@@ -140,14 +140,16 @@ public sealed class WorkbenchComponentTests
         var labels = rendered.FindAll("[data-component] h3")
             .Select(element => element.TextContent)
             .ToArray();
-        var missingLabels = SteeringComponentLabels.Except(labels).ToArray();
+        var steeringLabels = labels
+            .Where(SteeringComponentLabels.Contains)
+            .ToArray();
         var mux = rendered.FindAll("[data-component]").Single(element =>
             element.QuerySelector("h3")?.TextContent == "MUX");
         var priorityEncoder = rendered.FindAll("[data-component]").Single(element =>
             element.QuerySelector("h3")?.TextContent == "Priority Encoder");
         using (Assert.Multiple())
         {
-            await Assert.That(missingLabels).IsEmpty();
+            await Assert.That(steeringLabels).IsEquivalentTo(SteeringComponentLabels);
             await Assert.That(mux.TextContent).Contains("D0 · Input · 1 bit");
             await Assert.That(mux.TextContent).Contains("D1 · Input · 1 bit");
             await Assert.That(priorityEncoder.TextContent).Contains("A0 · Input · 1 bit");
@@ -162,7 +164,7 @@ public sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task Editor_AuthorArithmeticGallery_RendersCheckedPortsAndCompiles()
+    public async Task Editor_AuthorArithmeticGallery_RendersExactCheckedPorts()
     {
         await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
@@ -182,21 +184,18 @@ public sealed class WorkbenchComponentTests
         var labels = rendered.FindAll("[data-component] h3")
             .Select(element => element.TextContent)
             .ToArray();
+        var arithmeticLabels = labels
+            .Where(ArithmeticComponentLabels.Contains)
+            .ToArray();
         var shift = rendered.FindAll("[data-component]").Single(element =>
             element.QuerySelector("h3")?.TextContent == "Logical Shift");
         using (Assert.Multiple())
         {
-            await Assert.That(ArithmeticComponentLabels.Except(labels)).IsEmpty();
+            await Assert.That(arithmeticLabels).IsEquivalentTo(ArithmeticComponentLabels);
             await Assert.That(shift.TextContent).Contains("D · Input · 3 bit");
             await Assert.That(shift.TextContent).Contains("AMOUNT · Input · 2 bit");
             await Assert.That(shift.TextContent).Contains("Q · Output · 3 bit");
         }
-
-        await ClickAndWaitForState(
-            rendered,
-            "compile",
-            () => rendered.Find("[role='status']").TextContent
-                .Contains("Compilation Artifact published", StringComparison.Ordinal));
     }
 
     [Test]

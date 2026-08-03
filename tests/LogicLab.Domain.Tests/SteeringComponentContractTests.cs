@@ -8,37 +8,6 @@ namespace LogicLab.Domain.Tests;
 public sealed class SteeringComponentContractTests
 {
     [Test]
-    public async Task Contracts_LogicFamily_HasExactCanonicalOrder()
-    {
-        var contracts = CoreLibrarySchema.Contracts
-            .Where(contract => contract.Key.ContractId.StartsWith("logic.", StringComparison.Ordinal))
-            .Select(contract => contract.Key.ContractId)
-            .ToArray();
-
-        await Assert.That(contracts).IsEquivalentTo(
-            [
-                "logic.adder",
-                "logic.and",
-                "logic.buffer",
-                "logic.decoder",
-                "logic.demux",
-                "logic.mux",
-                "logic.nand",
-                "logic.nor",
-                "logic.not",
-                "logic.or",
-                "logic.priority_encoder",
-                "logic.shift",
-                "logic.subtractor",
-                "logic.tristate",
-                "logic.unsigned_compare",
-                "logic.xnor",
-                "logic.xor",
-            ],
-            CollectionOrdering.Matching);
-    }
-
-    [Test]
     public async Task ResolvePorts_Mux_GeneratesPowerOfTwoInputs()
     {
         var contract = Find("logic.mux");
