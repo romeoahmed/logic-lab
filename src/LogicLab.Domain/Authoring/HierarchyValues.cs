@@ -14,11 +14,41 @@ public readonly record struct DefinitionPortPlacement(
     GridPoint Position,
     CardinalDirection Facing);
 
-public sealed record DefinitionPortDeclaration(
-    string DisplayName,
-    PortDirection Direction,
-    uint Width,
-    DefinitionPortPlacement Placement);
+public sealed record DefinitionPortDeclaration
+{
+    public DefinitionPortDeclaration(
+        string displayName,
+        PortDirection direction,
+        uint width,
+        DefinitionPortPlacement placement)
+    {
+        ArgumentNullException.ThrowIfNull(displayName);
+        DisplayName = displayName;
+        Direction = direction;
+        Width = width;
+        Placement = placement;
+    }
+
+    public string DisplayName { get; }
+
+    public PortDirection Direction { get; }
+
+    public uint Width { get; }
+
+    public DefinitionPortPlacement Placement { get; }
+
+    public void Deconstruct(
+        out string displayName,
+        out PortDirection direction,
+        out uint width,
+        out DefinitionPortPlacement placement)
+    {
+        displayName = DisplayName;
+        direction = Direction;
+        width = Width;
+        placement = Placement;
+    }
+}
 
 public abstract record ComponentTarget
 {
@@ -31,6 +61,14 @@ public sealed record LibraryComponentTarget : ComponentTarget
 {
     public LibraryComponentTarget(ComponentContractKey contractKey)
     {
+        if (string.IsNullOrEmpty(contractKey.LibraryId)
+            || string.IsNullOrEmpty(contractKey.ContractId))
+        {
+            throw new ArgumentException(
+                "The component contract key must be initialized.",
+                nameof(contractKey));
+        }
+
         ContractKey = contractKey;
     }
 
