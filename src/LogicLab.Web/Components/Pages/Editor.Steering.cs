@@ -8,16 +8,16 @@ public partial class Editor
 {
     private const ulong MaximumGalleryPortCount = 100;
 
-    private async Task AuthorSteeringGallery()
+    private Task AuthorSteeringGallery()
     {
-        await AuthorGallery(
+        return AuthorGallery(
             SteeringGalleryComponents(),
             "Steering gallery authored with generated Ports. Compile the current Project Revision.");
     }
 
-    private async Task AuthorArithmeticGallery()
+    private Task AuthorArithmeticGallery()
     {
-        await AuthorGallery(
+        return AuthorGallery(
             ArithmeticGalleryComponents(),
             "Arithmetic gallery authored with checked Ports. Compile the current Project Revision.");
     }

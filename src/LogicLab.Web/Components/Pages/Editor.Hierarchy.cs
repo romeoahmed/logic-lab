@@ -152,18 +152,17 @@ public partial class Editor
         Status = "Hierarchy authored. Navigate its occurrence or compile the entry definition.";
     }
 
-    private Task SelectDefinition(CircuitDefinitionId definitionId)
+    private void SelectDefinition(CircuitDefinitionId definitionId)
     {
         if (Projection?.ProjectRevision.Document.FindCircuitDefinition(definitionId) is null)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         SelectedDefinitionId = definitionId;
         HierarchyNavigation.Clear();
         ProjectScene();
         Status = $"Editing Circuit Definition {Scene!.DisplayName}.";
-        return Task.CompletedTask;
     }
 
     private Task SetEntryDefinition(CircuitDefinitionId definitionId)
@@ -188,18 +187,18 @@ public partial class Editor
         }
     }
 
-    private Task EnterDefinitionInstance(ComponentInstanceId instanceId)
+    private void EnterDefinitionInstance(ComponentInstanceId instanceId)
     {
         if (Projection is null || SelectedDefinitionId is null)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         if (HierarchyNavigation.Count == 0
             && SelectedDefinitionId != Projection.ProjectRevision.Document
                 .EntryCircuitDefinitionId)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var containing = Projection.ProjectRevision.Document
@@ -207,7 +206,7 @@ public partial class Editor
         var instance = containing?.FindComponentInstance(instanceId);
         if (instance?.Target is not CircuitDefinitionComponentTarget target)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var targetDefinition = Projection.ProjectRevision.Document.FindCircuitDefinition(
@@ -221,14 +220,13 @@ public partial class Editor
         Status = $"Observing hierarchy occurrence {string.Join(
             " / ",
             Breadcrumbs.Select(item => item.Label))}.";
-        return Task.CompletedTask;
     }
 
-    private Task LeaveDefinitionInstance()
+    private void LeaveDefinitionInstance()
     {
         if (HierarchyNavigation.Count == 0)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var last = HierarchyNavigation[^1];
@@ -236,7 +234,6 @@ public partial class Editor
         SelectedDefinitionId = last.ContainingCircuitDefinitionId;
         ProjectScene();
         Status = $"Returned to {Scene!.DisplayName}.";
-        return Task.CompletedTask;
     }
 
     private static ComponentInstance FindLibrary(

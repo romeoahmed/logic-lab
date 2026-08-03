@@ -129,7 +129,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             sessionQueue.Writer.TryComplete();
         }
 
-        stopping.Cancel();
+        await stopping.CancelAsync().ConfigureAwait(false);
         await Task.WhenAll(compilationWorker, sessionWorker).ConfigureAwait(false);
         stopping.Dispose();
     }
