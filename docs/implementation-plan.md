@@ -1,7 +1,7 @@
 # Logic Lab V1 Implementation Plan
 
 > Status: approved non-normative execution plan
-> Delivery status reviewed: 2026-08-02
+> Delivery status reviewed: 2026-08-03
 > Scope: documentation baseline to V1 implementation, conformance, and one qualified production deployment profile
 
 This plan translates the repository's closed V1 design into context-sized implementation slices. It does not own product behavior, Module interfaces, policy semantics, or deployment requirements. [Architecture](../ARCHITECTURE.md), [Workbench](../WORKBENCH.md), the [specifications](./specs/), [seam contracts](./contracts/README.md), [Policy Catalog](./policies/catalog.md), and [ADRs](./adr/README.md) remain authoritative. If a plan item conflicts with an owning document, repair this plan rather than changing behavior to match it.
@@ -46,9 +46,9 @@ The first required product tracer is complete at item `06`. Infrastructure bread
 
 ## Delivery status
 
-Phase A items `01` through `06` and Phase B items `07` and `08` are complete. The latest recorded gate on 2026-08-02 passed locked restore, formatting, warning-clean build, all 419 discovered TUnit tests, whitespace validation, the complete `/editor` flat-topology workflow, and the hierarchical create–instantiate–navigate–select-entry–compile–session workflow across Domain, Engine, Application, Presentation, and Web. Compilation evidence covers repeated occurrences, complete Hierarchy Paths, bounded elaboration, and canonical direct or indirect recursion rejection. The permanent vector-resolution benchmark also records the production call shape without promoting local timing to a release threshold.
+Phase A items `01` through `06` and Phase B items `07` through `09` are complete. The latest recorded gate on 2026-08-03 passed locked restore, formatting, warning-clean build, all 499 discovered TUnit tests, whitespace validation, the complete `/editor` flat-topology workflow, the hierarchical create–instantiate–navigate–select-entry–compile–session workflow, and generated-Port width-conversion execution across Domain, Engine, Application, Presentation, and Web. Compilation evidence covers repeated occurrences, complete Hierarchy Paths, bounded elaboration, canonical direct or indirect recursion rejection, and exact flat or hierarchical Source Map identities for generated Ports. The permanent vector-resolution benchmark also records the production call shape without promoting local timing to a release threshold.
 
-The immediately unblocked slices are `09`, `10`, `11`, and `17`. Every other incomplete slice still depends on at least one of those items or on a later predecessor. Completion status is maintained here and in the [Development Readiness](./README.md#development-readiness) table; normative documents do not become delivery trackers.
+The immediately unblocked slices are `10`, `11`, and `17`. Every other incomplete slice still depends on at least one of those items or on a later predecessor. Completion status is maintained here and in the [Development Readiness](./README.md#development-readiness) table; normative documents do not become delivery trackers.
 
 ## Phase B — Authoring, Component Contracts, and Runtime breadth
 
@@ -56,7 +56,7 @@ The immediately unblocked slices are `09`, `10`, `11`, and `17`. Every other inc
 |---:|---|---|---|
 | 07 | Edit explicit Net, Junction, and Wire Geometry topology | 06 | Users can connect, merge, split, route, unroute, and edit Junction-backed topology without inferring electrical membership from pixels or crossings; cancelled gestures commit nothing. |
 | 08 | Author and observe hierarchical Circuit Definitions | 07 | Users can create Circuit Definitions, instantiate them, select an entry definition, navigate Hierarchy Paths, and compile deterministic recursion or source-provenance evidence. |
-| 09 | Complete topology and width-conversion contracts | 07 | Split, concatenate, zero/sign extend, and the complete source/sink family can be authored, compiled, executed, projected, and verified. |
+| 09 | Complete topology and width-conversion contracts | 07 | Split, concatenate, zero/sign extend, input/constant sources, and the output sink can be authored, compiled, executed, projected, and verified; Clock Source execution remains with `14`. |
 | 10 | Complete steering and multi-driver combinational contracts | 06 | Gate families, tri-state, MUX/DEMUX, decoder, and priority encoder have exact parameters, generated Ports, four-state behavior, Diagnostics, and editor paths. |
 | 11 | Complete arithmetic and vector-decision contracts | 06 | Unsigned compare, adder, subtractor, and logical shift work through every seam, including unknown inputs, checked widths, and policy exhaustion. |
 | 12 | Close the Project Editor V1 Edit Intent catalog | 08, 09, 10, 11 | Rename, public-Port migration, parameter/contract change, deletion, Memory Image, Symbol Profile/Variant, Annotation, and remaining presentation intentions commit atomically or leave no revision. |
@@ -118,9 +118,9 @@ Only item `43` authorizes describing the selected deployment profile as producti
 
 ## Dependency frontier
 
-The initial frontier contained only item `01`; implementation has now completed through item `08`. The current frontier begins with `09`, `10`, `11`, and `17`, opening these primary streams as their named prerequisites land:
+The initial frontier contained only item `01`; implementation has now completed through item `09`. The current frontier begins with `10`, `11`, and `17`, opening these primary streams as their named prerequisites land:
 
-- topology and Component Contract breadth (`09`–`16`);
+- remaining Component Contract and Runtime breadth (`10`–`16`);
 - Workspace continuity (`17`);
 - TeachingMixed generation once the relevant contracts exist (`23`–`25`); and
 - Boolean explanation once hierarchy, combinational contracts, and Workspace operations exist (`28`–`32`).

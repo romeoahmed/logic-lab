@@ -114,11 +114,12 @@ public static class AccessibleSceneProjector
         var schema = revision.Document.LibrarySnapshot.ResolveContract(target.ContractKey)
             ?? throw new InvalidOperationException(
                 "The authored component contract is absent from the pinned Library Snapshot.");
-        var ports = schema.Ports
+        var ports = schema.ResolvePorts(instance.Parameters)
             .Select(port => new AccessiblePortProjection(
                 new InstancePortSourceIdentity(definitionId, instance.Id, port.Id),
                 port.Id,
-                port.Direction))
+                port.Direction,
+                port.Width))
             .ToArray();
         return (
             instance.DisplayName ?? ContractLabel(target.ContractKey.ContractId),
@@ -143,7 +144,8 @@ public static class AccessibleSceneProjector
                     instance.Id,
                     port.Id.Value),
                 port.DisplayName,
-                port.Direction))
+                port.Direction,
+                port.Width))
             .ToArray();
         return (instance.DisplayName ?? targetDefinition.DisplayName, ports);
     }
@@ -153,8 +155,13 @@ public static class AccessibleSceneProjector
         return contractId switch
         {
             "source.input" => "Input",
+            "source.constant" => "Constant",
             "logic.not" => "NOT",
             "sink.output" => "Output",
+            "topology.split" => "Split",
+            "topology.concat" => "Concat",
+            "topology.zero_extend" => "Zero Extend",
+            "topology.sign_extend" => "Sign Extend",
             _ => contractId,
         };
     }

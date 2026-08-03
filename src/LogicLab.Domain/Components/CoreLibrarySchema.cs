@@ -36,6 +36,21 @@ public static class CoreLibrarySchema
             new ComponentPortSchema("Q", PortDirection.Output, "width"),
         ]);
 
+    private static readonly ComponentContractSchema SourceConstant = new(
+        new ComponentContractKey(LibraryId, "source.constant"),
+        [
+            new ComponentParameterSchema(
+                "width",
+                ComponentParameterKind.PositiveWidth),
+            new ComponentParameterSchema(
+                "value",
+                ComponentParameterKind.LogicVector,
+                widthParameterId: "width"),
+        ],
+        [
+            new ComponentPortSchema("Q", PortDirection.Output, "width"),
+        ]);
+
     private static readonly ComponentContractSchema SinkOutput = new(
         new ComponentContractKey(LibraryId, "sink.output"),
         [
@@ -51,11 +66,48 @@ public static class CoreLibrarySchema
             new ComponentPortSchema("D", PortDirection.Input, "width"),
         ]);
 
+    private static readonly ComponentContractSchema TopologySplit = new(
+        new ComponentContractKey(LibraryId, "topology.split"),
+        [
+            new ComponentParameterSchema(
+                "width",
+                ComponentParameterKind.PositiveWidth),
+            new ComponentParameterSchema(
+                "slices",
+                ComponentParameterKind.Slices,
+                widthParameterId: "width",
+                minimumItemCount: 2),
+        ],
+        [],
+        ComponentPortResolutionKind.Split);
+
+    private static readonly ComponentContractSchema TopologyConcat = new(
+        new ComponentContractKey(LibraryId, "topology.concat"),
+        [
+            new ComponentParameterSchema(
+                "inputWidths",
+                ComponentParameterKind.Widths,
+                minimumItemCount: 2),
+        ],
+        [],
+        ComponentPortResolutionKind.Concat);
+
+    private static readonly ComponentContractSchema TopologyZeroExtend =
+        CreateExtensionContract("topology.zero_extend");
+
+    private static readonly ComponentContractSchema TopologySignExtend =
+        CreateExtensionContract("topology.sign_extend");
+
     private static readonly ComponentContractSchema[] ContractSchemas =
     [
         LogicNot,
         SinkOutput,
+        SourceConstant,
         SourceInput,
+        TopologyConcat,
+        TopologySignExtend,
+        TopologySplit,
+        TopologyZeroExtend,
     ];
 
     public static ReadOnlyCollection<ComponentContractSchema> Contracts { get; } =
@@ -92,6 +144,8 @@ public static class CoreLibrarySchema
                     .Append(parameter.Id).Append('\u001f')
                     .Append((int)parameter.Kind).Append('\u001f')
                     .Append(parameter.WidthParameterId ?? string.Empty).Append('\u001f')
+                    .Append(parameter.MinimumItemCount).Append('\u001f')
+                    .Append(parameter.GreaterThanParameterId ?? string.Empty).Append('\u001f')
                     .AppendJoin('\u001e', parameter.AllowedValues)
                     .Append('\n');
             }
@@ -104,9 +158,32 @@ public static class CoreLibrarySchema
                     .Append(port.WidthParameterId)
                     .Append('\n');
             }
+
+            canonical.Append("portResolution\u001f")
+                .Append((int)contract.PortResolutionKind)
+                .Append('\n');
         }
 
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString()));
         return Convert.ToHexStringLower(digest);
+    }
+
+    private static ComponentContractSchema CreateExtensionContract(string contractId)
+    {
+        return new ComponentContractSchema(
+            new ComponentContractKey(LibraryId, contractId),
+            [
+                new ComponentParameterSchema(
+                    "inputWidth",
+                    ComponentParameterKind.PositiveWidth),
+                new ComponentParameterSchema(
+                    "outputWidth",
+                    ComponentParameterKind.PositiveWidth,
+                    greaterThanParameterId: "inputWidth"),
+            ],
+            [
+                new ComponentPortSchema("D", PortDirection.Input, "inputWidth"),
+                new ComponentPortSchema("Q", PortDirection.Output, "outputWidth"),
+            ]);
     }
 }

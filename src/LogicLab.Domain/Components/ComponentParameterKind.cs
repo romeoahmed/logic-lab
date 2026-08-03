@@ -5,4 +5,6 @@ public enum ComponentParameterKind
     PositiveWidth,
     LogicVector,
     Choice,
+    Slices,
+    Widths,
 }

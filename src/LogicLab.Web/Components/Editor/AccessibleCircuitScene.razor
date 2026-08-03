@@ -48,7 +48,7 @@
                         <ul aria-label="@($"{component.Label} ports")">
                             @foreach (var port in component.Ports)
                             {
-                                <li @key="port.Source"><strong>@port.Label</strong> · @port.Direction</li>
+                                <li @key="port.Source"><strong>@port.Label</strong> · @port.Direction · @port.Width bit</li>
                             }
                         </ul>
                     </article>

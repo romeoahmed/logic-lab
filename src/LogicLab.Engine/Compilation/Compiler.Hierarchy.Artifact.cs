@@ -89,7 +89,7 @@ public static partial class Compiler
         foreach (var resolved in resolvedInstances)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (var port in resolved.Schema.Ports.Where(
+            foreach (var port in resolved.Ports.Where(
                 port => port.Direction == PortDirection.Output))
             {
                 var instancePort = new HierarchyInstancePortKey(
@@ -112,7 +112,7 @@ public static partial class Compiler
                     ordinal,
                     resolved.Ordinal,
                     netOrdinal,
-                    GetPortWidth(resolved.Instance, port)));
+                    port.Width));
                 ordinalByInstancePort.Add(instancePort, ordinal);
                 sources.Add(new SourceMapEntry(
                     ordinal,
@@ -143,10 +143,10 @@ public static partial class Compiler
         foreach (var resolved in resolvedInstances)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var inputPorts = resolved.Schema.Ports
+            var inputPorts = resolved.Ports
                 .Where(port => port.Direction == PortDirection.Input)
                 .ToArray();
-            var outputPorts = resolved.Schema.Ports
+            var outputPorts = resolved.Ports
                 .Where(port => port.Direction == PortDirection.Output)
                 .ToArray();
             var inputNets = inputPorts.Select(port => runtimeNetByTerminal[
@@ -167,7 +167,8 @@ public static partial class Compiler
                 resolved.Width,
                 inputNets,
                 outputDrivers,
-                GetHierarchyInitialValue(resolved));
+                GetHierarchyInitialValue(resolved),
+                GetHierarchySlices(resolved));
             sources[resolved.Ordinal] = new SourceMapEntry(
                 resolved.Ordinal,
                 Source(
@@ -226,7 +227,7 @@ public static partial class Compiler
                         continue;
                     }
 
-                    var port = resolved.Schema.Ports.Single(candidate =>
+                    var port = resolved.Ports.Single(candidate =>
                         string.Equals(candidate.Id, terminal.PortId, StringComparison.Ordinal));
                     var instancePort = new HierarchyInstancePortKey(
                         member.Occurrence,
@@ -265,7 +266,8 @@ public static partial class Compiler
     private static LogicVector? GetHierarchyInitialValue(
         HierarchyResolvedInstance instance)
     {
-        if (instance.Kind != SimulationEvaluatorKind.InputSource)
+        if (instance.Kind is not (SimulationEvaluatorKind.InputSource
+            or SimulationEvaluatorKind.ConstantSource))
         {
             return null;
         }
@@ -273,9 +275,24 @@ public static partial class Compiler
         var values = instance.Instance.Parameters
             .Single(binding => string.Equals(
                 binding.ParameterId,
-                "initialValue",
+                instance.Kind == SimulationEvaluatorKind.InputSource
+                    ? "initialValue"
+                    : "value",
                 StringComparison.Ordinal))
             .Value as LogicVectorParameterValue;
         return new LogicVector(values!.Values);
+    }
+
+    private static System.Collections.ObjectModel.ReadOnlyCollection<BitSlice>
+        GetHierarchySlices(
+        HierarchyResolvedInstance instance)
+    {
+        return instance.Kind == SimulationEvaluatorKind.TopologySplit
+            ? ((SlicesParameterValue)instance.Instance.Parameters.Single(binding =>
+                string.Equals(
+                    binding.ParameterId,
+                    "slices",
+                    StringComparison.Ordinal)).Value).Values
+            : Array.AsReadOnly<BitSlice>([]);
     }
 }

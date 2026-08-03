@@ -1,5 +1,7 @@
 using Bunit;
+using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
 using LogicLab.Presentation.Scene;
 using LogicLab.Web.Components.Editor;
 using Microsoft.Extensions.DependencyInjection;
@@ -72,6 +74,114 @@ public sealed class AccessibleCircuitSceneTests
             await Assert.That(routeLabels)
                 .IsEquivalentTo(["Orthogonal · 0,0 → 0,1 → 4,1", "Unrouted"]);
         }
+    }
+
+    [Test]
+    public async Task AccessibleCircuitScene_GeneratedPorts_RenderDirectionAndWidth()
+    {
+        await using var context = CreateContext();
+        var revision = CreateWidthConversionComponents();
+        var scene = AccessibleSceneProjector.Project(revision);
+
+        var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
+            .Add(component => component.Scene, scene));
+
+        await AssertRenderedPorts(
+            rendered,
+            revision,
+            "topology.split",
+            ["D · Input · 4 bit", "Q0 · Output · 1 bit", "Q1 · Output · 3 bit"]);
+        await AssertRenderedPorts(
+            rendered,
+            revision,
+            "topology.concat",
+            ["D0 · Input · 1 bit", "D1 · Input · 3 bit", "Q · Output · 4 bit"]);
+        await AssertRenderedPorts(
+            rendered,
+            revision,
+            "topology.zero_extend",
+            ["D · Input · 4 bit", "Q · Output · 6 bit"]);
+        await AssertRenderedPorts(
+            rendered,
+            revision,
+            "topology.sign_extend",
+            ["D · Input · 4 bit", "Q · Output · 6 bit"]);
+    }
+
+    private static async Task AssertRenderedPorts(
+        IRenderedComponent<AccessibleCircuitScene> rendered,
+        ProjectRevision revision,
+        string contractId,
+        string[] expected)
+    {
+        var instance = revision.Document.EntryCircuitDefinition.ComponentInstances.Single(
+            item => item.Target is LibraryComponentTarget library
+                && library.ContractKey.ContractId == contractId);
+        var actual = rendered.FindAll(
+                $"[data-component='{instance.Id.Value}'] article > ul > li")
+            .Select(element => element.TextContent.Trim())
+            .ToArray();
+
+        await Assert.That(actual)
+            .IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+    }
+
+    private static ProjectRevision CreateWidthConversionComponents()
+    {
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "Accessible topology markup",
+            LibrarySnapshot.Core,
+            new SymbolProfileReference(
+                "TeachingMixed",
+                "1.0.0",
+                IndicationConvention.Negation),
+            "Main"))).Revision;
+        revision = Place(revision, "topology.split",
+        [
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(4)),
+            new ComponentParameterBinding(
+                "slices",
+                new SlicesParameterValue(
+                    [new BitSlice(0, 1), new BitSlice(1, 3)])),
+        ]);
+        revision = Place(revision, "topology.concat",
+        [
+            new ComponentParameterBinding(
+                "inputWidths",
+                new WidthsParameterValue([1, 3])),
+        ]);
+        revision = Place(revision, "topology.zero_extend", ExtensionParameters(4, 6));
+        return Place(revision, "topology.sign_extend", ExtensionParameters(4, 6));
+    }
+
+    private static ProjectRevision Place(
+        ProjectRevision revision,
+        string contractId,
+        ComponentParameterBinding[] parameters)
+    {
+        var count = revision.Document.EntryCircuitDefinition.ComponentInstances.Count;
+        return WebTestCircuit.Commit(ProjectEditor.Apply(
+            revision,
+            new PlaceComponentInstanceIntent(
+                revision.Document.EntryCircuitDefinitionId,
+                new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
+                parameters,
+                new ComponentPlacement(new GridPoint(count * 4, 0)))));
+    }
+
+    private static ComponentParameterBinding[] ExtensionParameters(
+        uint inputWidth,
+        uint outputWidth)
+    {
+        return
+        [
+            new ComponentParameterBinding(
+                "inputWidth",
+                new Unsigned32ParameterValue(inputWidth)),
+            new ComponentParameterBinding(
+                "outputWidth",
+                new Unsigned32ParameterValue(outputWidth)),
+        ];
     }
 
     private static BunitContext CreateContext()

@@ -238,6 +238,99 @@ public sealed class EditorWorkspaceAdmissionTests
     }
 
     [Test]
+    public async Task DispatchAsync_SlicesNestedItemsExceedCommandLimit_RejectsWithoutPublication()
+    {
+        await AssertNestedParameterAdmissionRejected(
+            commandItemCount: 3,
+            static definitionId => new PlaceComponentInstanceIntent(
+                definitionId,
+                new ComponentContractKey(CoreLibrarySchema.LibraryId, "topology.split"),
+                [
+                    new ComponentParameterBinding(
+                        "width",
+                        new Unsigned32ParameterValue(2)),
+                    new ComponentParameterBinding(
+                        "slices",
+                        new SlicesParameterValue(
+                            [new BitSlice(0, 1), new BitSlice(1, 1)])),
+                ],
+                new ComponentPlacement(new GridPoint(0, 0))));
+    }
+
+    [Test]
+    public async Task DispatchAsync_InputWidthsNestedItemsExceedCommandLimit_RejectsWithoutPublication()
+    {
+        await AssertNestedParameterAdmissionRejected(
+            commandItemCount: 2,
+            static definitionId => new PlaceComponentInstanceIntent(
+                definitionId,
+                new ComponentContractKey(CoreLibrarySchema.LibraryId, "topology.concat"),
+                [
+                    new ComponentParameterBinding(
+                        "inputWidths",
+                        new WidthsParameterValue([1, 1])),
+                ],
+                new ComponentPlacement(new GridPoint(0, 0))));
+    }
+
+    [Test]
+    public async Task AuthoringAdmission_NestedCollectionAtExactBudget_AdmitsCommand()
+    {
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "Admission fixture",
+            LibrarySnapshot.Core,
+            new SymbolProfileReference(
+                "TeachingMixed",
+                "1.0.0",
+                IndicationConvention.Negation),
+            "Main"))).Revision;
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        var split = new PlaceComponentInstanceIntent(
+            definitionId,
+            new ComponentContractKey(CoreLibrarySchema.LibraryId, "topology.split"),
+            [
+                new ComponentParameterBinding(
+                    "width",
+                    new Unsigned32ParameterValue(2)),
+                new ComponentParameterBinding(
+                    "slices",
+                    new SlicesParameterValue(
+                        [new BitSlice(0, 1), new BitSlice(1, 1)])),
+            ],
+            new ComponentPlacement(new GridPoint(0, 0)));
+        var concat = new PlaceComponentInstanceIntent(
+            definitionId,
+            new ComponentContractKey(CoreLibrarySchema.LibraryId, "topology.concat"),
+            [
+                new ComponentParameterBinding(
+                    "inputWidths",
+                    new WidthsParameterValue([1, 1])),
+            ],
+            new ComponentPlacement(new GridPoint(4, 0)));
+
+        var splitAtBoundary = AuthoringAdmission.AdmitsCommand(
+            split,
+            PolicyWithCommandLimit(4));
+        var splitBelowBoundary = AuthoringAdmission.AdmitsCommand(
+            split,
+            PolicyWithCommandLimit(3));
+        var concatAtBoundary = AuthoringAdmission.AdmitsCommand(
+            concat,
+            PolicyWithCommandLimit(3));
+        var concatBelowBoundary = AuthoringAdmission.AdmitsCommand(
+            concat,
+            PolicyWithCommandLimit(2));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(splitAtBoundary).IsTrue();
+            await Assert.That(splitBelowBoundary).IsFalse();
+            await Assert.That(concatAtBoundary).IsTrue();
+            await Assert.That(concatBelowBoundary).IsFalse();
+        }
+    }
+
+    [Test]
     public async Task AuthoringAdmissionBudget_NegativeConsumption_DoesNotIncreaseBudget()
     {
         var budget = new AuthoringAdmissionBudget(maximum: 1);
@@ -252,5 +345,49 @@ public sealed class EditorWorkspaceAdmissionTests
             await Assert.That(atBudget).IsTrue();
             await Assert.That(exhausted).IsFalse();
         }
+    }
+
+    private static async Task AssertNestedParameterAdmissionRejected(
+        int commandItemCount,
+        Func<CircuitDefinitionId, PlaceComponentInstanceIntent> createIntent)
+    {
+        await using var workspace = EditorWorkspaceFactory.Create(
+            workspacePolicy: PolicyWithCommandLimit(commandItemCount));
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("Nested command limit", "Main"),
+            CancellationToken.None);
+        var before = opened.Projection;
+
+        var rejected = await workspace.DispatchAsync(
+            new ApplyEdit(
+                opened.WorkspaceId,
+                createIntent(before.ProjectRevision.Document.EntryCircuitDefinitionId)),
+            CancellationToken.None);
+        var after = ((ProjectionSnapshot)await workspace.ReadAsync(
+            opened.WorkspaceId,
+            CancellationToken.None)).Projection;
+
+        await Assert.That(rejected).IsTypeOf<WorkspaceCommandRejected>();
+        using (Assert.Multiple())
+        {
+            await Assert.That(((WorkspaceCommandRejected)rejected).Code)
+                .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(after.ProjectRevision.RevisionId)
+                .IsEqualTo(before.ProjectRevision.RevisionId);
+            await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
+            await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition
+                .ComponentInstances).IsEmpty();
+        }
+    }
+
+    private static WorkspacePolicy PolicyWithCommandLimit(int commandItemCount)
+    {
+        return new WorkspacePolicy(
+            globalWorkspaceLimit: 128,
+            sandboxRetention: TimeSpan.FromMinutes(30),
+            authoringLimits: new WorkspaceAuthoringLimits(
+                definitionCount: 10,
+                entityCount: 100,
+                commandItemCount: commandItemCount));
     }
 }

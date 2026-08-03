@@ -507,7 +507,8 @@ public static class SimulationRuntime
             .Select(driver => Uniform(driver.Width, LogicValue.Z))
             .ToArray();
         foreach (var evaluator in ir.Evaluators.Where(
-            evaluator => evaluator.Kind == SimulationEvaluatorKind.InputSource))
+            evaluator => evaluator.Kind is SimulationEvaluatorKind.InputSource
+                or SimulationEvaluatorKind.ConstantSource))
         {
             foreach (var driverOrdinal in evaluator.OutputDriverOrdinals)
             {
@@ -578,11 +579,40 @@ public static class SimulationRuntime
         switch (evaluator.Kind)
         {
             case SimulationEvaluatorKind.InputSource:
+            case SimulationEvaluatorKind.ConstantSource:
             case SimulationEvaluatorKind.OutputSink:
                 return;
             case SimulationEvaluatorKind.LogicNot:
                 driverValues[evaluator.OutputDriverOrdinals[0]] = VectorLogic.Not(
                     netValues[evaluator.InputNetOrdinals[0]]);
+                return;
+            case SimulationEvaluatorKind.TopologySplit:
+                var splitInput = VectorLogic.NormalizeInput(
+                    netValues[evaluator.InputNetOrdinals[0]]);
+                for (var index = 0; index < evaluator.Slices.Count; index++)
+                {
+                    var slice = evaluator.Slices[index];
+                    driverValues[evaluator.OutputDriverOrdinals[index]] = splitInput.Slice(
+                        checked((int)slice.Offset),
+                        checked((int)slice.Length));
+                }
+
+                return;
+            case SimulationEvaluatorKind.TopologyConcat:
+                driverValues[evaluator.OutputDriverOrdinals[0]] = VectorLogic.Concat(
+                    evaluator.InputNetOrdinals
+                        .Select(ordinal => netValues[ordinal])
+                        .ToArray());
+                return;
+            case SimulationEvaluatorKind.TopologyZeroExtend:
+                driverValues[evaluator.OutputDriverOrdinals[0]] = VectorLogic.ZeroExtend(
+                    netValues[evaluator.InputNetOrdinals[0]],
+                    checked((int)evaluator.Width));
+                return;
+            case SimulationEvaluatorKind.TopologySignExtend:
+                driverValues[evaluator.OutputDriverOrdinals[0]] = VectorLogic.SignExtend(
+                    netValues[evaluator.InputNetOrdinals[0]],
+                    checked((int)evaluator.Width));
                 return;
             default:
                 throw new InvalidOperationException(

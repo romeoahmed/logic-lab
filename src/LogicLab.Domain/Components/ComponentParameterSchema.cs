@@ -8,13 +8,17 @@ public sealed class ComponentParameterSchema
         string id,
         ComponentParameterKind kind,
         string? widthParameterId = null,
-        string[]? allowedValues = null)
+        string[]? allowedValues = null,
+        int minimumItemCount = 0,
+        string? greaterThanParameterId = null)
     {
         Id = id;
         Kind = kind;
         WidthParameterId = widthParameterId;
         AllowedValues = Array.AsReadOnly(
             allowedValues is null ? [] : (string[])allowedValues.Clone());
+        MinimumItemCount = minimumItemCount;
+        GreaterThanParameterId = greaterThanParameterId;
     }
 
     public string Id { get; }
@@ -24,4 +28,8 @@ public sealed class ComponentParameterSchema
     public string? WidthParameterId { get; }
 
     public ReadOnlyCollection<string> AllowedValues { get; }
+
+    public int MinimumItemCount { get; }
+
+    public string? GreaterThanParameterId { get; }
 }
