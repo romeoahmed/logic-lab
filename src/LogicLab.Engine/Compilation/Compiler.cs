@@ -119,7 +119,7 @@ public static partial class Compiler
         foreach (var instance in pendingInstances)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            portCount = checked(portCount + instance.PortShape.PortCount);
+            portCount = checked(portCount + instance.PortResolution.PortCount);
         }
 
         var elaboratedSlotCount = checked(
@@ -354,11 +354,11 @@ public static partial class Compiler
             }
 
             if (!TryGetEvaluatorKind(contractKey, out var kind)
-                || !TryResolvePortShape(
+                || !TryPreparePorts(
                     instance,
                     schema,
                     cancellationToken,
-                    out var portShape))
+                    out var portResolution))
             {
                 diagnostics.Add(new CompilerDiagnostic(
                     "compiler_parameter_schema_mismatch",
@@ -384,8 +384,7 @@ public static partial class Compiler
                 instance,
                 contractKey,
                 kind,
-                schema,
-                portShape));
+                portResolution));
         }
 
         return pending.ToArray();
@@ -400,9 +399,7 @@ public static partial class Compiler
         {
             cancellationToken.ThrowIfCancellationRequested();
             var pending = pendingInstances[index];
-            var ports = pending.Schema.ResolvePorts(
-                pending.Instance.Parameters,
-                cancellationToken).ToArray();
+            var ports = pending.PortResolution.Materialize(cancellationToken).ToArray();
             resolved[index] = new ResolvedInstance(
                 pending.Ordinal,
                 pending.Instance,
@@ -894,22 +891,22 @@ public static partial class Compiler
         }
     }
 
-    private static bool TryResolvePortShape(
+    private static bool TryPreparePorts(
         ComponentInstance instance,
         ComponentContractSchema schema,
         CancellationToken cancellationToken,
-        out ComponentPortShape portShape)
+        out ComponentPortResolution resolution)
     {
         try
         {
-            portShape = schema.ResolvePortShape(
+            resolution = schema.PreparePorts(
                 instance.Parameters,
                 cancellationToken);
-            return portShape.PortCount > 0;
+            return resolution.PortCount > 0;
         }
         catch (ArgumentException)
         {
-            portShape = null!;
+            resolution = null!;
             return false;
         }
     }
@@ -1036,6 +1033,5 @@ public static partial class Compiler
         ComponentInstance Instance,
         ComponentContractKey ContractKey,
         SimulationEvaluatorKind Kind,
-        ComponentContractSchema Schema,
-        ComponentPortShape PortShape);
+        ComponentPortResolution PortResolution);
 }

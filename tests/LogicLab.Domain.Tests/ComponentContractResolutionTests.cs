@@ -59,7 +59,7 @@ public sealed class ComponentContractResolutionTests
     }
 
     [Test]
-    public async Task ResolvePorts_TopologySplit_GeneratesOrderedSlicePorts()
+    public async Task PreparePorts_TopologySplit_GeneratesOrderedSlicePorts()
     {
         var contract = await FindCoreContract("topology.split");
         var parameters = new ComponentParameterBinding[]
@@ -69,7 +69,8 @@ public sealed class ComponentContractResolutionTests
                 [new BitSlice(0, 4), new BitSlice(2, 3), new BitSlice(7, 1)])),
         };
 
-        var ports = contract.ResolvePorts(parameters);
+        var resolution = contract.PreparePorts(parameters);
+        var ports = resolution.Materialize();
 
         using (Assert.Multiple())
         {
@@ -81,6 +82,7 @@ public sealed class ComponentContractResolutionTests
                         ("slices", ComponentParameterKind.Slices),
                     ],
                     CollectionOrdering.Matching);
+            await Assert.That(resolution.PortCount).IsEqualTo(4UL);
             await Assert.That(ports.Select(port =>
                     (port.Id, port.Direction, port.Width)))
                 .IsEquivalentTo(
@@ -95,7 +97,7 @@ public sealed class ComponentContractResolutionTests
     }
 
     [Test]
-    public async Task ResolvePorts_TopologyConcat_GeneratesOrderedInputPortsAndOutputWidth()
+    public async Task PreparePorts_TopologyConcat_GeneratesOrderedInputPortsAndOutputWidth()
     {
         var contract = await FindCoreContract("topology.concat");
         var parameters = new ComponentParameterBinding[]
@@ -103,7 +105,8 @@ public sealed class ComponentContractResolutionTests
             new("inputWidths", new WidthsParameterValue([1, 3, 4])),
         };
 
-        var ports = contract.ResolvePorts(parameters);
+        var resolution = contract.PreparePorts(parameters);
+        var ports = resolution.Materialize();
 
         using (Assert.Multiple())
         {
@@ -112,6 +115,7 @@ public sealed class ComponentContractResolutionTests
                 .IsEquivalentTo(
                     [("inputWidths", ComponentParameterKind.Widths)],
                     CollectionOrdering.Matching);
+            await Assert.That(resolution.PortCount).IsEqualTo(4UL);
             await Assert.That(ports.Select(port =>
                     (port.Id, port.Direction, port.Width)))
                 .IsEquivalentTo(
@@ -177,7 +181,7 @@ public sealed class ComponentContractResolutionTests
     }
 
     [Test]
-    public async Task ResolvePorts_CancelledRequest_StopsBeforePortGeneration()
+    public async Task Materialize_CancelledRequest_StopsBeforePortGeneration()
     {
         var contract = await FindCoreContract("topology.split");
         var parameters = new ComponentParameterBinding[]
@@ -186,15 +190,16 @@ public sealed class ComponentContractResolutionTests
             new("slices", new SlicesParameterValue(
                 [new BitSlice(0, 2), new BitSlice(2, 2)])),
         };
+        var resolution = contract.PreparePorts(parameters);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
-        await Assert.That(() => contract.ResolvePorts(parameters, cancellation.Token))
+        await Assert.That(() => resolution.Materialize(cancellation.Token))
             .ThrowsExactly<OperationCanceledException>();
     }
 
     [Test]
-    public async Task ResolvePorts_ExtensionContracts_ResolveDistinctPortWidths()
+    public async Task PreparePorts_ExtensionContracts_ResolveDistinctPortWidths()
     {
         foreach (var contractId in new[]
             {
@@ -209,7 +214,7 @@ public sealed class ComponentContractResolutionTests
                 new("outputWidth", new Unsigned32ParameterValue(5)),
             };
 
-            var ports = contract.ResolvePorts(parameters);
+            var ports = contract.PreparePorts(parameters).Materialize();
 
             using (Assert.Multiple())
             {

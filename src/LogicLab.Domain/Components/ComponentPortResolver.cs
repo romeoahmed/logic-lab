@@ -6,41 +6,29 @@ namespace LogicLab.Domain.Components;
 
 internal static class ComponentPortResolver
 {
-    public static ComponentPortShape Measure(
+    public static ulong Measure(
         ReadOnlyCollection<ComponentPortSchema> ports,
         ReadOnlyCollection<ComponentParameterBinding> parameters,
         CancellationToken cancellationToken)
     {
-        ulong inputPortCount = 0;
-        ulong outputPortCount = 0;
+        ulong portCount = 0;
         foreach (var port in ports)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var count = ResolvePortCount(port, parameters);
-            if (port.Direction == PortDirection.Input)
-            {
-                inputPortCount = checked(inputPortCount + count);
-            }
-            else
-            {
-                outputPortCount = checked(outputPortCount + count);
-            }
+            portCount = checked(portCount + ResolvePortCount(port, parameters));
         }
 
-        return new ComponentPortShape(
-            checked(inputPortCount + outputPortCount),
-            inputPortCount,
-            outputPortCount);
+        return portCount;
     }
 
     public static ReadOnlyCollection<ResolvedComponentPortSchema> Materialize(
         ReadOnlyCollection<ComponentPortSchema> ports,
         ReadOnlyCollection<ComponentParameterBinding> parameters,
-        ComponentPortShape shape,
+        ulong portCount,
         CancellationToken cancellationToken)
     {
         var resolved = new List<ResolvedComponentPortSchema>(
-            checked((int)shape.PortCount));
+            checked((int)portCount));
         foreach (var port in ports)
         {
             cancellationToken.ThrowIfCancellationRequested();
