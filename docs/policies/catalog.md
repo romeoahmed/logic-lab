@@ -167,9 +167,11 @@ Intent before Project Editor execution; accounting stops as soon as the remainin
 exhausted. The definition and entity dimensions validate the candidate Project Document before
 publication, using the same authored entity accounting as Compiler Project Scale Policy. All
 three authoring dimensions are configurable through the owning Workspace Policy rather than a
-second internal policy; they reject atomically and never substitute for the Compiler's hierarchy
-and elaboration limits. History/idempotency limits apply after an atomic successful publication
-and produce the contract's explicit truncation or expired-idempotency behavior; they never make
+second internal policy. Its `AuthoringLimits` value keeps those related dimensions together at
+the public composition seam; they reject atomically and never substitute for the Compiler's
+hierarchy and elaboration limits. History/idempotency limits apply after atomic successful
+publication and produce the contract's explicit truncation or expired-idempotency behavior;
+they never make
 a valid edit partially commit. Retention uses `TimeProvider`.
 `hot_swap_peak_bytes` is declared owned-buffer accounting, not a promise about total process
 RSS. Both Durable Display Name dimensions must pass, and catalog requests cannot exceed the

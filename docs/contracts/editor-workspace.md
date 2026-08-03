@@ -267,6 +267,7 @@ publication. Exhaustion returns `workspace_admission_rejected`, publishes no Pro
 and does not invalidate the current Compilation. Compiler Project Scale Policy remains the
 authority for compilation, hierarchy, elaborated slots, and memory cells. Deployments supply
 these authoring dimensions through the same Workspace Policy as Workspace count and retention;
+`WorkspacePolicy.AuthoringLimits` groups the three dimensions into one immutable value, and
 authoring admission is not a separate hidden policy.
 
 ## 4. Authoring outcomes
