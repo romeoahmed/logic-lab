@@ -6,7 +6,7 @@ namespace LogicLab.Engine.Compilation;
 
 public static partial class Compiler
 {
-    public const string SemanticVersion = "logiclab.compiler.hierarchy-v1";
+    public const string SemanticVersion = "logiclab.compiler.topology-v1";
 
     public static CompilationOutcome Compile(
         CompilationRequest request,
@@ -125,7 +125,7 @@ public static partial class Compiler
         foreach (var instance in resolvedInstances)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (var port in instance.Schema.Ports)
+            foreach (var port in instance.Ports)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (port.Direction == PortDirection.Output)
@@ -352,7 +352,7 @@ public static partial class Compiler
             }
 
             if (!TryGetEvaluatorKind(contractKey, out var kind)
-                || !TryGetInstanceWidth(instance, schema, out var width))
+                || !TryResolvePorts(instance, schema, out var ports))
             {
                 diagnostics.Add(new CompilerDiagnostic(
                     "compiler_parameter_schema_mismatch",
@@ -377,9 +377,9 @@ public static partial class Compiler
                 ordinal,
                 instance,
                 contractKey,
-                schema,
                 kind,
-                width));
+                ports,
+                GetEvaluatorWidth(ports)));
         }
 
         return resolved.ToArray();
@@ -441,10 +441,9 @@ public static partial class Compiler
                     continue;
                 }
 
-                var port = resolved.Schema.Ports.SingleOrDefault(candidate =>
+                var port = resolved.Ports.SingleOrDefault(candidate =>
                     string.Equals(candidate.Id, terminal.PortId, StringComparison.Ordinal));
-                if (port is null
-                    || !TryGetPortWidth(resolved.Instance, port, out var portWidth))
+                if (port is null)
                 {
                     diagnostics.Add(new CompilerDiagnostic(
                         "compiler_port_unresolved",
@@ -468,14 +467,14 @@ public static partial class Compiler
                     continue;
                 }
 
-                if (portWidth != net.Width)
+                if (port.Width != net.Width)
                 {
                     diagnostics.Add(new CompilerDiagnostic(
                         "compiler_width_mismatch",
                         [
                             new CompilerDiagnosticArgument(
                                 "expected",
-                                new CompilerUnsignedDecimalValue(portWidth)),
+                                new CompilerUnsignedDecimalValue(port.Width)),
                             new CompilerDiagnosticArgument(
                                 "actual",
                                 new CompilerUnsignedDecimalValue(net.Width)),
@@ -497,7 +496,7 @@ public static partial class Compiler
         foreach (var resolved in resolvedInstances)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (var port in resolved.Schema.Ports.Where(
+            foreach (var port in resolved.Ports.Where(
                 item => item.Direction == PortDirection.Input))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -536,7 +535,7 @@ public static partial class Compiler
             item => item.Instance.Id,
             item => item.Ordinal);
         var inputTerminals = resolvedInstances
-            .SelectMany(resolved => resolved.Schema.Ports
+            .SelectMany(resolved => resolved.Ports
                 .Where(port => port.Direction == PortDirection.Input)
                 .Select(port => new TerminalKey(resolved.Instance.Id, port.Id)))
             .ToHashSet();
@@ -626,13 +625,12 @@ public static partial class Compiler
         foreach (var resolved in resolvedInstances)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (var port in resolved.Schema.Ports.Where(
+            foreach (var port in resolved.Ports.Where(
                 item => item.Direction == PortDirection.Output))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var terminal = new TerminalKey(resolved.Instance.Id, port.Id);
                 var driverOrdinal = drivers.Count;
-                var width = GetPortWidth(resolved.Instance, port);
                 int? netOrdinal = netByTerminal.TryGetValue(
                     terminal,
                     out var connectedNetOrdinal)
@@ -642,7 +640,7 @@ public static partial class Compiler
                     driverOrdinal,
                     resolved.Ordinal,
                     netOrdinal,
-                    width));
+                    port.Width));
                 driverByTerminal.Add(terminal, driverOrdinal);
                 driverSources.Add(new SourceMapEntry(
                     driverOrdinal,
@@ -675,10 +673,10 @@ public static partial class Compiler
         foreach (var resolved in resolvedInstances)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var inputPorts = resolved.Schema.Ports
+            var inputPorts = resolved.Ports
                 .Where(port => port.Direction == PortDirection.Input)
                 .ToArray();
-            var outputPorts = resolved.Schema.Ports
+            var outputPorts = resolved.Ports
                 .Where(port => port.Direction == PortDirection.Output)
                 .ToArray();
             var inputNets = inputPorts
@@ -695,7 +693,8 @@ public static partial class Compiler
                 resolved.Width,
                 inputNets,
                 outputDrivers,
-                GetInitialValue(resolved));
+                GetInitialValue(resolved),
+                GetSlices(resolved));
             evaluatorSources[resolved.Ordinal] = new SourceMapEntry(
                 resolved.Ordinal,
                 Source(
@@ -812,7 +811,8 @@ public static partial class Compiler
 
     private static LogicVector? GetInitialValue(ResolvedInstance instance)
     {
-        if (instance.Kind != SimulationEvaluatorKind.InputSource)
+        if (instance.Kind is not (SimulationEvaluatorKind.InputSource
+            or SimulationEvaluatorKind.ConstantSource))
         {
             return null;
         }
@@ -820,7 +820,9 @@ public static partial class Compiler
         var values = instance.Instance.Parameters
             .Single(binding => string.Equals(
                 binding.ParameterId,
-                "initialValue",
+                instance.Kind == SimulationEvaluatorKind.InputSource
+                    ? "initialValue"
+                    : "value",
                 StringComparison.Ordinal))
             .Value as LogicVectorParameterValue;
         return new LogicVector(values!.Values);
@@ -835,11 +837,26 @@ public static partial class Compiler
             case "source.input":
                 kind = SimulationEvaluatorKind.InputSource;
                 return true;
+            case "source.constant":
+                kind = SimulationEvaluatorKind.ConstantSource;
+                return true;
             case "logic.not":
                 kind = SimulationEvaluatorKind.LogicNot;
                 return true;
             case "sink.output":
                 kind = SimulationEvaluatorKind.OutputSink;
+                return true;
+            case "topology.split":
+                kind = SimulationEvaluatorKind.TopologySplit;
+                return true;
+            case "topology.concat":
+                kind = SimulationEvaluatorKind.TopologyConcat;
+                return true;
+            case "topology.zero_extend":
+                kind = SimulationEvaluatorKind.TopologyZeroExtend;
+                return true;
+            case "topology.sign_extend":
+                kind = SimulationEvaluatorKind.TopologySignExtend;
                 return true;
             default:
                 kind = default;
@@ -847,49 +864,43 @@ public static partial class Compiler
         }
     }
 
-    private static bool TryGetInstanceWidth(
+    private static bool TryResolvePorts(
         ComponentInstance instance,
         ComponentContractSchema schema,
-        out uint width)
+        out ResolvedComponentPortSchema[] ports)
     {
-        width = 0;
-        if (schema.Ports.Count == 0
-            || !TryGetPortWidth(instance, schema.Ports[0], out width))
+        try
         {
+            ports = schema.ResolvePorts(instance.Parameters).ToArray();
+            return ports.Length > 0;
+        }
+        catch (ArgumentException)
+        {
+            ports = [];
             return false;
         }
-
-        var expectedWidth = width;
-        return schema.Ports.All(port =>
-            TryGetPortWidth(instance, port, out var portWidth)
-            && portWidth == expectedWidth);
     }
 
-    private static uint GetPortWidth(
-        ComponentInstance instance,
-        ComponentPortSchema port)
+    private static uint GetEvaluatorWidth(
+        ResolvedComponentPortSchema[] ports)
     {
-        return TryGetPortWidth(instance, port, out var width)
-            ? width
-            : throw new InvalidOperationException(
-                "A validated Component Port has no positive width.");
+        return ports.SingleOrDefault(port => string.Equals(
+                port.Id,
+                "Q",
+                StringComparison.Ordinal))?.Width
+            ?? ports[0].Width;
     }
 
-    private static bool TryGetPortWidth(
-        ComponentInstance instance,
-        ComponentPortSchema port,
-        out uint width)
+    private static System.Collections.ObjectModel.ReadOnlyCollection<BitSlice> GetSlices(
+        ResolvedInstance instance)
     {
-        width = instance.Parameters
-            .Where(binding => string.Equals(
-                binding.ParameterId,
-                port.WidthParameterId,
-                StringComparison.Ordinal))
-            .Select(binding => binding.Value)
-            .OfType<Unsigned32ParameterValue>()
-            .Select(value => value.Value)
-            .SingleOrDefault();
-        return width > 0;
+        return instance.Kind == SimulationEvaluatorKind.TopologySplit
+            ? ((SlicesParameterValue)instance.Instance.Parameters.Single(binding =>
+                string.Equals(
+                    binding.ParameterId,
+                    "slices",
+                    StringComparison.Ordinal)).Value).Values
+            : Array.AsReadOnly<BitSlice>([]);
     }
 
     private static CompilationSource Source(
@@ -983,7 +994,7 @@ public static partial class Compiler
         int Ordinal,
         ComponentInstance Instance,
         ComponentContractKey ContractKey,
-        ComponentContractSchema Schema,
         SimulationEvaluatorKind Kind,
+        ResolvedComponentPortSchema[] Ports,
         uint Width);
 }

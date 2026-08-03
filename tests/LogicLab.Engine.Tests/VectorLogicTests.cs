@@ -163,6 +163,86 @@ public sealed class VectorLogicTests
         }
     }
 
+    [Test]
+    public async Task Concat_NonWordAlignedInputs_PreservesOrderAndNormalizesHighImpedance()
+    {
+        var firstValues = Enumerable.Repeat(LogicValue.One, 65).ToArray();
+        var secondValues = Enumerable.Repeat(LogicValue.Zero, 64).ToArray();
+        firstValues[63] = LogicValue.Z;
+        secondValues[0] = LogicValue.X;
+        secondValues[63] = LogicValue.Z;
+        var expected = firstValues
+            .Concat(secondValues)
+            .Select(ScalarLogic.NormalizeInput)
+            .ToArray();
+
+        var actual = VectorLogic.Concat(
+            [new LogicVector(firstValues), new LogicVector(secondValues)]);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(actual.Width).IsEqualTo(129);
+            await Assert.That(LogicVectorTestData.ToValues(actual))
+                .IsEquivalentTo(expected, CollectionOrdering.Matching);
+        }
+    }
+
+    [Test]
+    public async Task Extend_HighImpedanceInput_NormalizesAndUsesExactFillRule()
+    {
+        var input = new LogicVector(
+            [LogicValue.One, LogicValue.Z, LogicValue.X]);
+
+        var zeroExtended = VectorLogic.ZeroExtend(input, 5);
+        var signExtended = VectorLogic.SignExtend(input, 5);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(LogicVectorTestData.ToValues(zeroExtended))
+                .IsEquivalentTo(
+                    [
+                        LogicValue.One,
+                        LogicValue.X,
+                        LogicValue.X,
+                        LogicValue.Zero,
+                        LogicValue.Zero,
+                    ],
+                    CollectionOrdering.Matching);
+            await Assert.That(LogicVectorTestData.ToValues(signExtended))
+                .IsEquivalentTo(
+                    [
+                        LogicValue.One,
+                        LogicValue.X,
+                        LogicValue.X,
+                        LogicValue.X,
+                        LogicValue.X,
+                    ],
+                    CollectionOrdering.Matching);
+        }
+    }
+
+    [Test]
+    public async Task WidthConversion_InvalidArguments_ThrowExactExceptions()
+    {
+        var input = new LogicVector([LogicValue.Zero, LogicValue.One]);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(() => VectorLogic.Concat(null!))
+                .ThrowsExactly<ArgumentNullException>();
+            await Assert.That(() => VectorLogic.Concat([]))
+                .ThrowsExactly<ArgumentException>();
+            await Assert.That(() => VectorLogic.ZeroExtend(null!, 3))
+                .ThrowsExactly<ArgumentNullException>();
+            await Assert.That(() => VectorLogic.SignExtend(null!, 3))
+                .ThrowsExactly<ArgumentNullException>();
+            await Assert.That(() => VectorLogic.ZeroExtend(input, 2))
+                .ThrowsExactly<ArgumentOutOfRangeException>();
+            await Assert.That(() => VectorLogic.SignExtend(input, 1))
+                .ThrowsExactly<ArgumentOutOfRangeException>();
+        }
+    }
+
     private static Property CheckUnary(
         LogicVectorCase sample,
         Func<LogicValue, LogicValue> scalarOperation,

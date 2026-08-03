@@ -96,8 +96,14 @@ internal static class AuthoringAdmission
                 return false;
             }
 
-            if (parameter.Value is LogicVectorParameterValue vector
-                && !budget.TryConsume(vector.Values.Count))
+            var nestedItemCount = parameter.Value switch
+            {
+                LogicVectorParameterValue vector => vector.Values.Count,
+                SlicesParameterValue slices => slices.Values.Count,
+                WidthsParameterValue widths => widths.Values.Count,
+                _ => 0,
+            };
+            if (!budget.TryConsume(nestedItemCount))
             {
                 return false;
             }

@@ -7,7 +7,8 @@ namespace LogicLab.Presentation.Scene;
 public sealed record AccessiblePortProjection(
     InstancePortSourceIdentity Source,
     string Label,
-    PortDirection Direction);
+    PortDirection Direction,
+    uint Width);
 
 public sealed record AccessibleDefinitionPortProjection(
     DefinitionPortSourceIdentity Source,

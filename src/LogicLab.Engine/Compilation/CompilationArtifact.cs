@@ -12,8 +12,13 @@ public sealed record CompilationArtifactKey(
 internal enum SimulationEvaluatorKind
 {
     InputSource,
+    ConstantSource,
     LogicNot,
     OutputSink,
+    TopologySplit,
+    TopologyConcat,
+    TopologyZeroExtend,
+    TopologySignExtend,
 }
 
 internal sealed class SimulationEvaluator
@@ -24,7 +29,8 @@ internal sealed class SimulationEvaluator
         uint width,
         int[] inputNetOrdinals,
         int[] outputDriverOrdinals,
-        LogicVector? initialValue)
+        LogicVector? initialValue,
+        IReadOnlyList<BitSlice>? slices = null)
     {
         Ordinal = ordinal;
         Kind = kind;
@@ -32,6 +38,8 @@ internal sealed class SimulationEvaluator
         InputNetOrdinals = Array.AsReadOnly((int[])inputNetOrdinals.Clone());
         OutputDriverOrdinals = Array.AsReadOnly((int[])outputDriverOrdinals.Clone());
         InitialValue = initialValue;
+        Slices = Array.AsReadOnly(
+            slices is null ? [] : slices.ToArray());
     }
 
     public int Ordinal { get; }
@@ -45,6 +53,8 @@ internal sealed class SimulationEvaluator
     public ReadOnlyCollection<int> OutputDriverOrdinals { get; }
 
     public LogicVector? InitialValue { get; }
+
+    public ReadOnlyCollection<BitSlice> Slices { get; }
 }
 
 internal sealed record SimulationDriver(

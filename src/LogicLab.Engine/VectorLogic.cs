@@ -1,3 +1,5 @@
+using LogicLab.Domain;
+
 namespace LogicLab.Engine;
 
 public static class VectorLogic
@@ -51,6 +53,72 @@ public static class VectorLogic
     public static LogicVector Xor(LogicVector left, LogicVector right)
     {
         return ApplyBinary(left, right, BinaryOperation.Xor);
+    }
+
+    public static LogicVector Concat(IReadOnlyList<LogicVector> inputs)
+    {
+        ArgumentNullException.ThrowIfNull(inputs);
+        if (inputs.Count == 0 || inputs.Any(input => input is null))
+        {
+            throw new ArgumentException(
+                "Concatenation requires one or more Logic Vectors.",
+                nameof(inputs));
+        }
+
+        var width = inputs.Aggregate(
+            0,
+            (sum, input) => checked(sum + input.Width));
+        var values = new LogicValue[width];
+        var offset = 0;
+        foreach (var input in inputs)
+        {
+            var normalized = NormalizeInput(input);
+            for (var index = 0; index < normalized.Width; index++)
+            {
+                values[offset + index] = normalized[index];
+            }
+
+            offset = checked(offset + normalized.Width);
+        }
+
+        return new LogicVector(values);
+    }
+
+    public static LogicVector ZeroExtend(LogicVector input, int outputWidth)
+    {
+        return Extend(input, outputWidth, signExtend: false);
+    }
+
+    public static LogicVector SignExtend(LogicVector input, int outputWidth)
+    {
+        return Extend(input, outputWidth, signExtend: true);
+    }
+
+    private static LogicVector Extend(
+        LogicVector input,
+        int outputWidth,
+        bool signExtend)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (outputWidth <= input.Width)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(outputWidth),
+                "The extension width must exceed the input width.");
+        }
+
+        var normalized = NormalizeInput(input);
+        var values = new LogicValue[outputWidth];
+        for (var index = 0; index < normalized.Width; index++)
+        {
+            values[index] = normalized[index];
+        }
+
+        var fill = signExtend
+            ? normalized[normalized.Width - 1]
+            : LogicValue.Zero;
+        Array.Fill(values, fill, normalized.Width, outputWidth - normalized.Width);
+        return new LogicVector(values);
     }
 
     private static LogicVector ApplyBinary(
