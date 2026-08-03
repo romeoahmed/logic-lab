@@ -165,7 +165,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             {
                 item.Completion.TrySetResult(CancellationOutcome());
             }
-            catch (Exception exception) when (!IsFatal(exception))
+            catch (Exception exception) when (!FatalExceptionClassifier.IsFatal(exception))
             {
                 item.Completion.TrySetResult(FailureOutcome(exception, "compilation"));
             }
@@ -199,7 +199,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 item.Completion.TrySetResult(
                     Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
             }
-            catch (Exception exception) when (!IsFatal(exception))
+            catch (Exception exception) when (!FatalExceptionClassifier.IsFatal(exception))
             {
                 item.Completion.TrySetResult(FailureOutcome(exception, "session"));
             }
@@ -246,13 +246,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         var correlation = Guid.CreateVersion7().ToString("N");
         LogWorkFailure(logger, exception, correlation, lane, code);
         return Reject(code);
-    }
-
-    private static bool IsFatal(Exception exception)
-    {
-        return exception is OutOfMemoryException
-            or StackOverflowException
-            or AccessViolationException;
     }
 
     [LoggerMessage(
