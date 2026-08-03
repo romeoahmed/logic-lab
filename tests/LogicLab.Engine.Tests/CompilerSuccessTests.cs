@@ -52,7 +52,7 @@ public sealed class CompilerSuccessTests
                     CollectionOrdering.Matching);
             await Assert.That(succeeded.Evidence.ObservedDimensions.Select(row => row.Observed))
                 .IsEquivalentTo(
-                    [1UL, 7UL, 5UL, 1UL, 0UL],
+                    [1UL, 9UL, 5UL, 1UL, 0UL],
                     CollectionOrdering.Matching);
         }
     }

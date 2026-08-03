@@ -51,7 +51,7 @@ public sealed class ComponentContractResolutionTests
                     ],
                     CollectionOrdering.Matching);
             await Assert.That(contract.Ports.Select(port =>
-                    (port.Id, port.Direction, port.WidthParameterId)))
+                    (port.Id, port.Direction, port.ParameterId)))
                 .IsEquivalentTo(
                     [("Q", PortDirection.Output, "width")],
                     CollectionOrdering.Matching);
@@ -123,6 +123,74 @@ public sealed class ComponentContractResolutionTests
                     ],
                     CollectionOrdering.Matching);
         }
+    }
+
+    [Test]
+    public async Task FindContract_DynamicTopologyContracts_ExposeCanonicalPortTemplates()
+    {
+        var split = await FindCoreContract("topology.split");
+        var concat = await FindCoreContract("topology.concat");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(split.Ports.Select(port => (
+                    port.Id,
+                    port.Direction,
+                    port.Cardinality,
+                    port.Indexing,
+                    port.WidthSource,
+                    port.ParameterId)))
+                .IsEquivalentTo(
+                    [
+                        ("D", PortDirection.Input, ComponentPortCardinality.Fixed,
+                            ComponentPortIndexing.None,
+                            ComponentPortWidthSource.ParameterValue, "width"),
+                        ("Q", PortDirection.Output, ComponentPortCardinality.ParameterItems,
+                            ComponentPortIndexing.ZeroBasedDecimal,
+                            ComponentPortWidthSource.SliceLength, "slices"),
+                    ],
+                    CollectionOrdering.Matching);
+            await Assert.That(concat.Ports.Select(port => (
+                    port.Id,
+                    port.Direction,
+                    port.Cardinality,
+                    port.Indexing,
+                    port.WidthSource,
+                    port.ParameterId)))
+                .IsEquivalentTo(
+                    [
+                        ("D", PortDirection.Input, ComponentPortCardinality.ParameterItems,
+                            ComponentPortIndexing.ZeroBasedDecimal,
+                            ComponentPortWidthSource.WidthItem, "inputWidths"),
+                        ("Q", PortDirection.Output, ComponentPortCardinality.Fixed,
+                            ComponentPortIndexing.None,
+                            ComponentPortWidthSource.WidthSum, "inputWidths"),
+                    ],
+                    CollectionOrdering.Matching);
+            await Assert.That(split.SchemaDigest)
+                .IsEqualTo("3f3b2f05e7452c3599163a5a38d7f0c15f299d056742c6d84a1a66254027a45e");
+            await Assert.That(concat.SchemaDigest)
+                .IsEqualTo("e4605b5e65b0c8bd538d54fd829674a7f46d75ec003a9941bc6f9ff8114054e2");
+            await Assert.That(CoreLibrarySchema.ContentDigest)
+                .IsEqualTo("6d625bf37075dc46aae0a125a4a027ce95cb904d3a0f3e39862c29163680b2d9");
+        }
+    }
+
+    [Test]
+    public async Task ResolvePorts_CancelledRequest_StopsBeforePortGeneration()
+    {
+        var contract = await FindCoreContract("topology.split");
+        var parameters = new ComponentParameterBinding[]
+        {
+            new("width", new Unsigned32ParameterValue(4)),
+            new("slices", new SlicesParameterValue(
+                [new BitSlice(0, 2), new BitSlice(2, 2)])),
+        };
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.That(() => contract.ResolvePorts(parameters, cancellation.Token))
+            .ThrowsExactly<OperationCanceledException>();
     }
 
     [Test]

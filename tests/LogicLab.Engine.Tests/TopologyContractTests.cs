@@ -233,6 +233,36 @@ public sealed class TopologyContractTests
     }
 
     [Test]
+    [Arguments("topology.split")]
+    [Arguments("topology.concat")]
+    public async Task Compile_DynamicPortShapeExceedsSlotPolicy_RejectsBeforeTopologyValidation(
+        string contractId)
+    {
+        var revision = TopologyCircuitFixture.CreateUnconnectedDynamicPortCircuit(
+            contractId,
+            itemCount: 12);
+
+        var outcome = Compiler.Compile(
+            CompilerTestCircuit.Request(revision, SlotPolicy(maximum: 5)),
+            CancellationToken.None);
+
+        await AssertSlotPolicyBreach(outcome, observed: 14);
+    }
+
+    [Test]
+    public async Task Compile_HierarchicalDynamicPortShapeExceedsSlotPolicy_RejectsBeforeTopologyValidation()
+    {
+        var revision = TopologyCircuitFixture.CreateHierarchicalUnconnectedSplit(
+            sliceCount: 12);
+
+        var outcome = Compiler.Compile(
+            CompilerTestCircuit.Request(revision, SlotPolicy(maximum: 5)),
+            CancellationToken.None);
+
+        await AssertSlotPolicyBreach(outcome, observed: 16);
+    }
+
+    [Test]
     public async Task Open_FlatTopologyCircuit_SettlesExactValuesAtTimeZero()
     {
         var circuit = TopologyCircuitFixture.CreateFlat();
@@ -577,6 +607,38 @@ public sealed class TopologyContractTests
         var rightEnd = checked(right.Offset + right.Length);
         return left.Offset < rightEnd && right.Offset < leftEnd;
     }
+
+    private static ProjectScalePolicy SlotPolicy(ulong maximum)
+    {
+        return new ProjectScalePolicy(
+            "dynamic-port-test",
+            "1",
+            [
+                new ProjectScaleLimit(ProjectScaleDimension.DefinitionCount, 100),
+                new ProjectScaleLimit(ProjectScaleDimension.EntityCount, 1_000),
+                new ProjectScaleLimit(ProjectScaleDimension.HierarchyDepth, 100),
+                new ProjectScaleLimit(ProjectScaleDimension.ElaboratedSlotCount, maximum),
+                new ProjectScaleLimit(ProjectScaleDimension.MemoryCellCount, 1),
+            ]);
+    }
+
+    private static async Task AssertSlotPolicyBreach(
+        CompilationOutcome outcome,
+        ulong observed)
+    {
+        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
+        Assert.NotNull(rejected);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("compilation_policy_exhausted");
+            await Assert.That(rejected.Diagnostics.Single().Code)
+                .IsEqualTo("compiler_policy_exhausted");
+            await Assert.That(rejected.Evidence.PolicyLimitBreach)
+                .IsEqualTo(new ObservedProjectScaleDimension(
+                    ProjectScaleDimension.ElaboratedSlotCount,
+                    observed));
+        }
+    }
 }
 
 internal sealed record FlatTopologyCircuit(
@@ -675,6 +737,37 @@ internal static class TopologyCircuitFixture
             Port(definitionId, components["signSink"], "D"));
 
         return new FlatTopologyCircuit(revision, components, nets);
+    }
+
+    public static ProjectRevision CreateUnconnectedDynamicPortCircuit(
+        string contractId,
+        int itemCount)
+    {
+        var revision = CompilerTestCircuit.BeginProject();
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        var parameters = DynamicPortParameters(contractId, itemCount);
+        (revision, _) = Place(revision, definitionId, contractId, parameters);
+        return revision;
+    }
+
+    public static ProjectRevision CreateHierarchicalUnconnectedSplit(int sliceCount)
+    {
+        var revision = CompilerTestCircuit.BeginProject();
+        revision = CompilerTestCircuit.Commit(ProjectEditor.Apply(
+            revision,
+            new CreateCircuitDefinitionIntent("Dynamic ports", [])));
+        var child = revision.Document.CircuitDefinitions.Single(definition =>
+            definition.DisplayName == "Dynamic ports");
+        (revision, _) = Place(
+            revision,
+            child.Id,
+            "topology.split",
+            DynamicPortParameters("topology.split", sliceCount));
+        (revision, _) = PlaceDefinition(
+            revision,
+            revision.Document.EntryCircuitDefinitionId,
+            child.Id);
+        return revision;
     }
 
     public static HierarchicalTopologyCircuit CreateHierarchical()
@@ -907,6 +1000,26 @@ internal static class TopologyCircuitFixture
                 "outputWidth",
                 new Unsigned32ParameterValue(outputWidth)),
         ];
+    }
+
+    private static ComponentParameterBinding[] DynamicPortParameters(
+        string contractId,
+        int itemCount)
+    {
+        return contractId switch
+        {
+            "topology.split" => SplitParameters(
+                checked((uint)itemCount),
+                Enumerable.Range(0, itemCount)
+                    .Select(index => new BitSlice(checked((uint)index), 1))
+                    .ToArray()),
+            "topology.concat" => ConcatParameters(
+                Enumerable.Repeat(1U, itemCount).ToArray()),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(contractId),
+                contractId,
+                "The dynamic Port contract is unsupported."),
+        };
     }
 
     private static ComponentParameterBinding[] SinkParameters(

@@ -8,12 +8,15 @@ internal static class ComponentParameterValidator
     public static AuthoringDiagnostic[] Validate(
         ComponentContractKey contractKey,
         ComponentContractSchema schema,
-        ReadOnlyCollection<ComponentParameterBinding> parameters)
+        ReadOnlyCollection<ComponentParameterBinding> parameters,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var diagnostics = new List<AuthoringDiagnostic>();
         var availableCount = Math.Min(schema.Parameters.Count, parameters.Count);
         for (var index = 0; index < availableCount; index++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var expected = schema.Parameters[index];
             var actual = parameters[index];
 
@@ -29,7 +32,8 @@ internal static class ComponentParameterValidator
             var rule = GetInvalidValueRule(
                 expected,
                 actual.Value,
-                parameters);
+                parameters,
+                cancellationToken);
             if (rule is not null)
             {
                 diagnostics.Add(InvalidParameter(contractKey, expected.Id, rule));
@@ -38,6 +42,7 @@ internal static class ComponentParameterValidator
 
         for (var index = availableCount; index < schema.Parameters.Count; index++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             diagnostics.Add(InvalidParameter(
                 contractKey,
                 schema.Parameters[index].Id,
@@ -46,6 +51,7 @@ internal static class ComponentParameterValidator
 
         for (var index = schema.Parameters.Count; index < parameters.Count; index++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             diagnostics.Add(InvalidParameter(
                 contractKey,
                 parameters[index].ParameterId,
@@ -58,7 +64,8 @@ internal static class ComponentParameterValidator
     private static string? GetInvalidValueRule(
         ComponentParameterSchema schema,
         ComponentParameterValue? value,
-        ReadOnlyCollection<ComponentParameterBinding> allParameters)
+        ReadOnlyCollection<ComponentParameterBinding> allParameters,
+        CancellationToken cancellationToken)
     {
         return (schema.Kind, value) switch
         {
@@ -72,11 +79,19 @@ internal static class ComponentParameterValidator
                     ? null
                     : "allowedValue",
             (ComponentParameterKind.LogicVector, LogicVectorParameterValue vector) =>
-                GetInvalidLogicVectorRule(schema, vector, allParameters),
+                GetInvalidLogicVectorRule(
+                    schema,
+                    vector,
+                    allParameters,
+                    cancellationToken),
             (ComponentParameterKind.Slices, SlicesParameterValue slices) =>
-                GetInvalidSlicesRule(schema, slices, allParameters),
+                GetInvalidSlicesRule(
+                    schema,
+                    slices,
+                    allParameters,
+                    cancellationToken),
             (ComponentParameterKind.Widths, WidthsParameterValue widths) =>
-                GetInvalidWidthsRule(schema, widths),
+                GetInvalidWidthsRule(schema, widths, cancellationToken),
             _ => "parameterKind",
         };
     }
@@ -102,12 +117,21 @@ internal static class ComponentParameterValidator
     private static string? GetInvalidLogicVectorRule(
         ComponentParameterSchema schema,
         LogicVectorParameterValue vector,
-        ReadOnlyCollection<ComponentParameterBinding> allParameters)
+        ReadOnlyCollection<ComponentParameterBinding> allParameters,
+        CancellationToken cancellationToken)
     {
-        if (vector.Values.Count == 0
-            || vector.Values.Any(value => value is < LogicValue.Zero or > LogicValue.X))
+        if (vector.Values.Count == 0)
         {
             return "logicVectorValue";
+        }
+
+        foreach (var value in vector.Values)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (value is < LogicValue.Zero or > LogicValue.X)
+            {
+                return "logicVectorValue";
+            }
         }
 
         var width = FindUnsignedWidth(allParameters, schema.WidthParameterId);
@@ -120,7 +144,8 @@ internal static class ComponentParameterValidator
     private static string? GetInvalidSlicesRule(
         ComponentParameterSchema schema,
         SlicesParameterValue slices,
-        ReadOnlyCollection<ComponentParameterBinding> allParameters)
+        ReadOnlyCollection<ComponentParameterBinding> allParameters,
+        CancellationToken cancellationToken)
     {
         if (slices.Values.Count < schema.MinimumItemCount)
         {
@@ -130,6 +155,7 @@ internal static class ComponentParameterValidator
         var width = FindUnsignedWidth(allParameters, schema.WidthParameterId);
         foreach (var slice in slices.Values)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (slice.Length == 0)
             {
                 return "positiveLength";
@@ -156,7 +182,8 @@ internal static class ComponentParameterValidator
 
     private static string? GetInvalidWidthsRule(
         ComponentParameterSchema schema,
-        WidthsParameterValue widths)
+        WidthsParameterValue widths,
+        CancellationToken cancellationToken)
     {
         if (widths.Values.Count < schema.MinimumItemCount)
         {
@@ -166,6 +193,7 @@ internal static class ComponentParameterValidator
         uint sum = 0;
         foreach (var width in widths.Values)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (width == 0)
             {
                 return "positiveWidth";

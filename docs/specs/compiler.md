@@ -94,15 +94,17 @@ The `logiclab.core` Library Snapshot schema, Contract Keys, generated Ports, nor
 Compilation performs these logical stages in stable order:
 
 1. validate the exact Project Revision, entry definition, Library Snapshot, and policy provenance;
-2. resolve Component Contracts, parameters, generated Ports, Memory Images, and Circuit Definition call sites;
+2. resolve Component Contracts and parameters, then measure generated Port shapes without generating Port identities;
 3. build the definition call graph and reject recursion with one canonical witness;
 4. elaborate every reachable occurrence with a complete Hierarchy Path;
-5. validate directions, widths, Driver rules, state schemas, and memory shapes;
-6. construct the evaluator/Driver/Net graph and cut state outputs;
-7. compute combinational strongly connected components and the condensation order;
-8. assign dense ordinals only after canonical semantic order is fixed;
-9. build Simulation IR and a total Source Map; and
-10. validate and publish one sealed Compilation Artifact atomically.
+5. admit the complete elaborated shape under Project Scale Policy;
+6. materialize generated Ports and resolve Memory Images and Circuit Definition call sites;
+7. validate directions, widths, Driver rules, state schemas, and memory shapes;
+8. construct the evaluator/Driver/Net graph and cut state outputs;
+9. compute combinational strongly connected components and the condensation order;
+10. assign dense ordinals only after canonical semantic order is fixed;
+11. build Simulation IR and a total Source Map; and
+12. validate and publish one sealed Compilation Artifact atomically.
 
 An unconnected receiving Terminal reports `compiler_required_terminal_unconnected` and rejects Compilation. Receiving Terminals are Component input Ports and Circuit Definition output Ports within their containing definition. Driving Terminals may remain unconnected. A Net with no effective Driver remains executable and resolves to `Z` with Runtime evidence; multiple Drivers are legal and use four-state resolution.
 
