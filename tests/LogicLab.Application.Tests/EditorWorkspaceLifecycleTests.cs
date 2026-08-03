@@ -101,17 +101,19 @@ public sealed class EditorWorkspaceLifecycleTests
         }
     }
 
-    [Test]
-    public async Task OpenAsync_ConcurrentCreation_AdmitsNoMoreThanGlobalLimit()
+    [Test, Timeout(30_000)]
+    public async Task OpenAsync_ConcurrentCreation_AdmitsNoMoreThanGlobalLimit(
+        CancellationToken cancellationToken)
     {
         const int limit = 4;
         await using var workspace = EditorWorkspaceFactory.Create(
             new WorkspacePolicy(limit, TimeSpan.FromHours(1)));
 
-        var outcomes = await Task.WhenAll(Enumerable.Range(0, 32).Select(index =>
-            Task.Run(() => workspace.OpenAsync(
-                new CreateSandbox($"Project {index}", "Main"),
-                CancellationToken.None))));
+        var outcomes = await OpenSimultaneously(
+            workspace,
+            32,
+            "Project",
+            cancellationToken);
 
         using (Assert.Multiple())
         {
@@ -123,8 +125,9 @@ public sealed class EditorWorkspaceLifecycleTests
         }
     }
 
-    [Test]
-    public async Task OpenAsync_ConcurrentReclamation_AdmitsNoMoreThanGlobalLimit()
+    [Test, Timeout(30_000)]
+    public async Task OpenAsync_ConcurrentReclamation_AdmitsNoMoreThanGlobalLimit(
+        CancellationToken cancellationToken)
     {
         const int limit = 3;
         var timeProvider = new ManualTimeProvider(
@@ -135,10 +138,11 @@ public sealed class EditorWorkspaceLifecycleTests
         _ = await Task.WhenAll(Enumerable.Range(0, limit).Select(_ => Open(workspace)));
         timeProvider.Advance(TimeSpan.FromMinutes(1));
 
-        var outcomes = await Task.WhenAll(Enumerable.Range(0, 24).Select(index =>
-            Task.Run(() => workspace.OpenAsync(
-                new CreateSandbox($"Replacement {index}", "Main"),
-                CancellationToken.None))));
+        var outcomes = await OpenSimultaneously(
+            workspace,
+            24,
+            "Replacement",
+            cancellationToken);
 
         await Assert.That(outcomes.OfType<WorkspaceOpened>()).Count().IsEqualTo(limit);
         await Assert.That(outcomes.OfType<WorkspaceOpenRejected>()).Count()
@@ -150,6 +154,44 @@ public sealed class EditorWorkspaceLifecycleTests
         return workspace.OpenAsync(
             new CreateSandbox("Test project", "Main"),
             CancellationToken.None);
+    }
+
+    private static async Task<WorkspaceOpenOutcome[]> OpenSimultaneously(
+        IEditorWorkspace workspace,
+        int contenderCount,
+        string projectNamePrefix,
+        CancellationToken cancellationToken)
+    {
+        var allReady = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var start = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var readyCount = 0;
+        var contenders = Enumerable.Range(0, contenderCount)
+            .Select(async index =>
+            {
+                if (Interlocked.Increment(ref readyCount) == contenderCount)
+                {
+                    allReady.TrySetResult();
+                }
+
+                await start.Task.WaitAsync(cancellationToken);
+                return await workspace.OpenAsync(
+                    new CreateSandbox($"{projectNamePrefix} {index}", "Main"),
+                    cancellationToken);
+            })
+            .ToArray();
+
+        try
+        {
+            await allReady.Task.WaitAsync(cancellationToken);
+        }
+        finally
+        {
+            start.TrySetResult();
+        }
+
+        return await Task.WhenAll(contenders).WaitAsync(cancellationToken);
     }
 
     private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider

@@ -2,6 +2,7 @@ using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
+using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Application.Tests;
 
@@ -253,20 +254,19 @@ public sealed class EditorWorkspaceTests
         }
     }
 
-    [Test]
-    public async Task DispatchAsync_EditDuringQueuedCompilation_DoesNotPublishDifferentRevision()
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_EditDuringQueuedCompilation_DoesNotPublishDifferentRevision(
+        CancellationToken cancellationToken)
     {
-        var compilationStarted = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseCompilation = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        var compilationGate = new BlockingOperationGate();
         var operations = WorkspaceModuleOperations.Production with
         {
-            Compile = (request, cancellationToken) =>
+            Compile = (request, operationCancellationToken) =>
             {
-                compilationStarted.TrySetResult();
-                releaseCompilation.Task.GetAwaiter().GetResult();
-                return LogicLab.Engine.Compilation.Compiler.Compile(request, cancellationToken);
+                compilationGate.Block(operationCancellationToken);
+                return LogicLab.Engine.Compilation.Compiler.Compile(
+                    request,
+                    operationCancellationToken);
             },
         };
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
@@ -296,23 +296,33 @@ public sealed class EditorWorkspaceTests
 
         var compilation = workspace.DispatchAsync(
             new RequestCompilation(opened.WorkspaceId),
-            CancellationToken.None);
-        await compilationStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await Apply(workspace, opened.WorkspaceId, new ConnectTerminalsIntent(
-            [
-                Terminal(definitionId, input, "Q"),
-                Terminal(definitionId, output, "D"),
-            ]));
-        var edited = await Read(workspace, opened.WorkspaceId);
+            cancellationToken);
+        WorkspaceProjection edited;
 
-        releaseCompilation.SetResult();
-        var outcome = await compilation;
+        try
+        {
+            await compilationGate.Started.WaitAsync(cancellationToken);
+            await Apply(workspace, opened.WorkspaceId, new ConnectTerminalsIntent(
+                [
+                    Terminal(definitionId, input, "Q"),
+                    Terminal(definitionId, output, "D"),
+                ]));
+            edited = await Read(workspace, opened.WorkspaceId);
+        }
+        finally
+        {
+            compilationGate.Release();
+        }
+
+        var outcome = await compilation.WaitAsync(cancellationToken);
         var afterCompilation = await Read(workspace, opened.WorkspaceId);
+        var rejection = await Assert.That(outcome)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejection);
 
-        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
         using (Assert.Multiple())
         {
-            await Assert.That(((WorkspaceCommandRejected)outcome).Code)
+            await Assert.That(rejection.Code)
                 .IsEqualTo("project_revision_precondition_failed");
             await Assert.That(afterCompilation.ProjectRevision.RevisionId)
                 .IsEqualTo(edited.ProjectRevision.RevisionId);
@@ -373,33 +383,67 @@ public sealed class EditorWorkspaceTests
             .IsEqualTo("no_scheduled_stimulus");
     }
 
-    [Test]
-    public async Task DispatchAsync_ConcurrentSessionSteps_SerializeInAdmissionOrder()
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_ConcurrentSessionSteps_SerializeInAdmissionOrder(
+        CancellationToken cancellationToken)
     {
-        await using var workspace = EditorWorkspaceFactory.Create();
+        var stepGate = new BlockingOperationGate();
+        var stepCount = 0;
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            ExecuteSimulation = (handle, command, operationCancellationToken) =>
+            {
+                if (command is AdvanceToNextQuiescentBoundary
+                    && Interlocked.Increment(ref stepCount) == 1)
+                {
+                    stepGate.Block(operationCancellationToken);
+                }
+
+                return production.ExecuteSimulation(
+                    handle,
+                    command,
+                    operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations: operations);
         var (opened, input) = await OpenInputOutputSession(workspace);
         var scheduled = await workspace.DispatchAsync(
             new ScheduleInputStimulus(
                 opened.WorkspaceId,
                 1,
                 [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
-            CancellationToken.None);
+            cancellationToken);
 
         var first = workspace.DispatchAsync(
             new StepSession(opened.WorkspaceId),
-            CancellationToken.None);
-        var second = workspace.DispatchAsync(
-            new StepSession(opened.WorkspaceId),
-            CancellationToken.None);
-        var outcomes = await Task.WhenAll(first, second);
+            cancellationToken);
+        Task<WorkspaceCommandOutcome> second;
+
+        try
+        {
+            await stepGate.Started.WaitAsync(cancellationToken);
+            second = workspace.DispatchAsync(
+                new StepSession(opened.WorkspaceId),
+                cancellationToken);
+        }
+        finally
+        {
+            stepGate.Release();
+        }
+
+        var outcomes = await Task.WhenAll(first, second).WaitAsync(cancellationToken);
         var projection = await Read(workspace, opened.WorkspaceId);
+        var secondRejection = await Assert.That(outcomes[1])
+            .IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(secondRejection);
 
         using (Assert.Multiple())
         {
             await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
             await Assert.That(outcomes[0]).IsTypeOf<SessionStepped>();
-            await Assert.That(outcomes[1]).IsTypeOf<WorkspaceCommandRejected>();
-            await Assert.That(((WorkspaceCommandRejected)outcomes[1]).Code)
+            await Assert.That(secondRejection.Code)
                 .IsEqualTo("no_scheduled_stimulus");
             await Assert.That(projection.Simulation!.LogicalTime).IsEqualTo(1UL);
         }
@@ -449,8 +493,9 @@ public sealed class EditorWorkspaceTests
         var outcome = await workspace.OpenAsync(
             new CreateSandbox("Test project", "Main"),
             CancellationToken.None);
-        await Assert.That(outcome).IsTypeOf<WorkspaceOpened>();
-        return (WorkspaceOpened)outcome;
+        var opened = await Assert.That(outcome).IsTypeOf<WorkspaceOpened>();
+        Assert.NotNull(opened);
+        return opened;
     }
 
     private static async Task Apply(
@@ -469,7 +514,9 @@ public sealed class EditorWorkspaceTests
         WorkspaceId workspaceId)
     {
         var outcome = await workspace.ReadAsync(workspaceId, CancellationToken.None);
-        return ((ProjectionSnapshot)outcome).Projection;
+        var snapshot = await Assert.That(outcome).IsTypeOf<ProjectionSnapshot>();
+        Assert.NotNull(snapshot);
+        return snapshot.Projection;
     }
 
     private static async Task<ComponentInstance> FindByContract(

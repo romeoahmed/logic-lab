@@ -8,9 +8,20 @@ namespace LogicLab.Application.Tests;
 public sealed class EditorWorkspaceAdmissionTests
 {
     [Test]
-    public async Task AuthoringAdmissionBudget_State_HasSingleReferenceOwner()
+    public async Task AuthoringAdmissionBudget_SharedOwners_ConsumeOneBudget()
     {
-        await Assert.That(typeof(AuthoringAdmissionBudget).IsClass).IsTrue();
+        var budget = new AuthoringAdmissionBudget(maximum: 1);
+        var firstOwner = budget;
+        var secondOwner = budget;
+
+        var firstConsumption = firstOwner.TryConsume(1);
+        var secondConsumption = secondOwner.TryConsume(1);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(firstConsumption).IsTrue();
+            await Assert.That(secondConsumption).IsFalse();
+        }
     }
 
     [Test]
