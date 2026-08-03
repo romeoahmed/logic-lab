@@ -158,6 +158,26 @@ public sealed class ProjectEditorHierarchyTests
     }
 
     [Test]
+    public async Task Apply_SetCurrentEntryDefinition_PreservesRevision()
+    {
+        var revision = BeginProject();
+
+        var outcome = ProjectEditor.Apply(
+            revision,
+            new SetEntryCircuitDefinitionIntent(
+                revision.Document.EntryCircuitDefinitionId));
+
+        await Assert.That(outcome).IsTypeOf<EditCommitted>();
+        var committed = (EditCommitted)outcome;
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.Revision).IsSameReferenceAs(revision);
+            await Assert.That(committed.ChangedSources).IsEmpty();
+            await Assert.That(committed.RemovedSources).IsEmpty();
+        }
+    }
+
+    [Test]
     public async Task Apply_InvalidDefinitionContract_RejectsWithoutRevision()
     {
         var revision = BeginProject();

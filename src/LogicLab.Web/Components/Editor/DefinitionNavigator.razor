@@ -5,16 +5,15 @@
     }
     else
     {
-        <div class="definition-tabs" role="tablist" aria-label="Open Circuit Definitions">
+        <nav class="definition-tabs" aria-label="Open Circuit Definitions">
             @foreach (var definition in Document.CircuitDefinitions
                 .OrderBy(item => item.DisplayName, StringComparer.Ordinal)
                 .ThenBy(item => item.Id.Value, StringComparer.Ordinal))
             {
                 <button @key="definition.Id"
                         type="button"
-                        role="tab"
                         data-definition="@definition.Id.Value"
-                        aria-selected="@(definition.Id == SelectedDefinitionId)"
+                        aria-current="@(definition.Id == SelectedDefinitionId ? "page" : null)"
                         @onclick="@(() => OnSelect.InvokeAsync(definition.Id))">
                     @definition.DisplayName
                     @if (definition.Id == Document.EntryCircuitDefinitionId)
@@ -23,7 +22,7 @@
                     }
                 </button>
             }
-        </div>
+        </nav>
 
         <div class="hierarchy-row">
             <nav aria-label="Hierarchy path">

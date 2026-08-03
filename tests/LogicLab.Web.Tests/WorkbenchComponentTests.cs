@@ -149,6 +149,23 @@ public sealed class WorkbenchComponentTests
     }
 
     [Test]
+    public async Task Editor_CreateAfterOpen_ReplayedDisabledCallback_DoesNotOpenSecondWorkspace()
+    {
+        using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        context.Services.AddSingleton<IEditorWorkspace>(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var rendered = context.Render<Editor>();
+        rendered.WaitForElement("[data-command='create']:not([disabled])");
+
+        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
+        var commandBar = rendered.FindComponent<WorkbenchCommandBar>();
+        await rendered.InvokeAsync(() => commandBar.Instance.OnCreate.InvokeAsync());
+
+        await Assert.That(workspace.OpenCount).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task Editor_WorkspaceFailure_RemainsInteractiveAndAcceptsNextCommand()
     {
         using var context = CreateContext();
@@ -318,6 +335,36 @@ public sealed class WorkbenchComponentTests
     }
 
     [Test]
+    public async Task Editor_AddJunctionAfterCommit_ReplayedDisabledCallback_DoesNotPublishRevision()
+    {
+        using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        context.Services.AddSingleton<IEditorWorkspace>(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var rendered = context.Render<Editor>();
+        rendered.WaitForElement("[data-command='create']:not([disabled])");
+        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
+        await rendered.Find("[data-command='author']").ClickAsync(new MouseEventArgs());
+        await rendered.Find("[data-command='topology-add-junction']")
+            .ClickAsync(new MouseEventArgs());
+        var afterFirst = await workspace.ReadCurrent();
+
+        var topologyCommandBar = rendered.FindComponent<TopologyCommandBar>();
+        await rendered.InvokeAsync(() => topologyCommandBar.Instance.OnAddJunction.InvokeAsync());
+        var afterReplay = await workspace.ReadCurrent();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(afterReplay.ProjectRevision.RevisionId)
+                .IsEqualTo(afterFirst.ProjectRevision.RevisionId);
+            await Assert.That(afterReplay.ProjectionVersion)
+                .IsEqualTo(afterFirst.ProjectionVersion);
+            await Assert.That(afterReplay.ProjectRevision.Document.EntryCircuitDefinition.Junctions)
+                .Count().IsEqualTo(1);
+        }
+    }
+
+    [Test]
     public async Task Editor_HierarchyCommands_NavigateDefinitionsAndCompileEntryOccurrence()
     {
         using var context = CreateContext();
@@ -375,6 +422,93 @@ public sealed class WorkbenchComponentTests
             await Assert.That(rendered.Find("[role='status']").TextContent)
                 .Contains("Simulation Session created");
             await Assert.That(rendered.FindAll("[data-probe]")).Count().IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task Editor_SetEntryWhileBusy_ReplayedCallback_DispatchesOnce()
+    {
+        using var context = CreateContext();
+        await using var workspace = new BlockingSetEntryWorkspace();
+        context.Services.AddSingleton<IEditorWorkspace>(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var rendered = context.Render<Editor>();
+        rendered.WaitForElement("[data-command='create']:not([disabled])");
+        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
+        await rendered.Find("[data-command='author-hierarchy']")
+            .ClickAsync(new MouseEventArgs());
+        var childButton = rendered.FindAll("[data-definition]")
+            .Single(element => element.TextContent.Contains("Inverter", StringComparison.Ordinal));
+        await childButton.ClickAsync(new MouseEventArgs());
+
+        var first = rendered.Find("[data-command='set-entry']")
+            .ClickAsync(new MouseEventArgs());
+        await workspace.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            await rendered.Find("[data-command='set-entry']")
+                .TriggerEventAsync("onclick", new MouseEventArgs());
+
+            await Assert.That(workspace.SetEntryDispatchCount).IsEqualTo(1);
+        }
+        finally
+        {
+            workspace.Release();
+        }
+
+        await first;
+    }
+
+    [Test]
+    public async Task DefinitionNavigator_DefinitionButtons_UseNativeNavigationSemantics()
+    {
+        using var context = CreateContext();
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "Navigator fixture",
+            LibrarySnapshot.Core,
+            new SymbolProfileReference(
+                "TeachingMixed",
+                "1.0.0",
+                IndicationConvention.Negation),
+            "Main"))).Revision;
+
+        var rendered = context.Render<DefinitionNavigator>(parameters => parameters
+            .Add(component => component.Document, revision.Document)
+            .Add(component => component.SelectedDefinitionId,
+                revision.Document.EntryCircuitDefinitionId));
+        var navigation = rendered.Find(".definition-tabs");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(navigation.TagName).IsEqualTo("NAV");
+            await Assert.That(rendered.FindAll("[role='tablist']")).IsEmpty();
+            await Assert.That(rendered.FindAll("[role='tab']")).IsEmpty();
+            await Assert.That(rendered.FindAll("[aria-current='page']")).Count().IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task FixedWindowCommandAdmissionGate_WindowCapacityExceeded_RejectsUntilNextWindow()
+    {
+        var timeProvider = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 3, 0, 0, 0, TimeSpan.Zero));
+        var gate = new FixedWindowCommandAdmissionGate(
+            maximumAdmissions: 2,
+            window: TimeSpan.FromSeconds(1),
+            timeProvider);
+
+        var first = gate.TryAdmit();
+        var second = gate.TryAdmit();
+        var rejected = gate.TryAdmit();
+        timeProvider.Advance(TimeSpan.FromSeconds(1));
+        var nextWindow = gate.TryAdmit();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(first).IsTrue();
+            await Assert.That(second).IsTrue();
+            await Assert.That(rejected).IsFalse();
+            await Assert.That(nextWindow).IsTrue();
         }
     }
 
@@ -828,13 +962,17 @@ public sealed class WorkbenchComponentTests
         private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create();
         private WorkspaceId? workspaceId;
         private int dispatchCount;
+        private int openCount;
 
         public int DispatchCount => Volatile.Read(ref dispatchCount);
+
+        public int OpenCount => Volatile.Read(ref openCount);
 
         public async Task<WorkspaceOpenOutcome> OpenAsync(
             OpenWorkspaceRequest request,
             CancellationToken cancellationToken)
         {
+            Interlocked.Increment(ref openCount);
             var outcome = await inner.OpenAsync(request, cancellationToken);
             if (outcome is WorkspaceOpened opened)
             {
@@ -868,5 +1006,72 @@ public sealed class WorkbenchComponentTests
         }
 
         public ValueTask DisposeAsync() => inner.DisposeAsync();
+    }
+
+    private sealed class BlockingSetEntryWorkspace : IEditorWorkspace
+    {
+        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create();
+        private readonly TaskCompletionSource release = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource started = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private int setEntryDispatchCount;
+
+        public Task Started => started.Task;
+
+        public int SetEntryDispatchCount => Volatile.Read(ref setEntryDispatchCount);
+
+        public Task<WorkspaceOpenOutcome> OpenAsync(
+            OpenWorkspaceRequest request,
+            CancellationToken cancellationToken)
+        {
+            return inner.OpenAsync(request, cancellationToken);
+        }
+
+        public async Task<WorkspaceCommandOutcome> DispatchAsync(
+            WorkspaceCommand command,
+            CancellationToken cancellationToken)
+        {
+            if (command is ApplyEdit { Intent: SetEntryCircuitDefinitionIntent })
+            {
+                if (Interlocked.Increment(ref setEntryDispatchCount) == 1)
+                {
+                    started.TrySetResult();
+                    await release.Task.WaitAsync(cancellationToken);
+                }
+            }
+
+            return await inner.DispatchAsync(command, cancellationToken);
+        }
+
+        public Task<WorkspaceReadOutcome> ReadAsync(
+            WorkspaceId workspaceId,
+            CancellationToken cancellationToken)
+        {
+            return inner.ReadAsync(workspaceId, cancellationToken);
+        }
+
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
+
+        public void Release() => release.TrySetResult();
+    }
+
+    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        private long timestamp;
+
+        public DateTimeOffset UtcNow { get; private set; } = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
+
+        public override long GetTimestamp() => timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public void Advance(TimeSpan elapsed)
+        {
+            UtcNow += elapsed;
+            timestamp += elapsed.Ticks;
+        }
     }
 }

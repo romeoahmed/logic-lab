@@ -10,6 +10,11 @@ namespace LogicLab.Web.Components.Pages;
 
 public partial class Editor
 {
+    private readonly FixedWindowCommandAdmissionGate commandAdmission = new(
+        maximumAdmissions: 30,
+        window: TimeSpan.FromSeconds(1),
+        TimeProvider.System);
+
     [Inject]
     private IEditorWorkspace Workspace { get; set; } = null!;
 
@@ -79,11 +84,22 @@ public partial class Editor
         }
     }
 
-    private async Task RunCommandAsync(string command, Func<Task> operation)
+    private async Task RunCommandAsync(
+        string command,
+        Func<bool> canExecute,
+        Func<Task> operation)
     {
+        ArgumentException.ThrowIfNullOrEmpty(command);
+        ArgumentNullException.ThrowIfNull(canExecute);
         ArgumentNullException.ThrowIfNull(operation);
-        if (ActiveCommand is not null)
+        if (ActiveCommand is not null || !canExecute())
         {
+            return;
+        }
+
+        if (!commandAdmission.TryAdmit())
+        {
+            Status = "Command rate limit reached. Try again shortly.";
             return;
         }
 
@@ -222,7 +238,14 @@ public partial class Editor
 
     private async Task<bool> Apply(EditIntent intent)
     {
-        var outcome = await Execute(new ApplyEdit(Projection!.WorkspaceId, intent));
+        ArgumentNullException.ThrowIfNull(intent);
+        var projection = Projection;
+        if (projection is null)
+        {
+            return false;
+        }
+
+        var outcome = await Execute(new ApplyEdit(projection.WorkspaceId, intent));
         if (outcome is AuthoringCommitted)
         {
             return true;
