@@ -10,6 +10,10 @@
                   Disabled="@(!CanAuthor || IsBusy)"
                   Loading="@(ActiveCommand is "author")"
                   OnClick="OnAuthor">Author circuit</FluentButton>
+    <FluentButton data-command="author-steering"
+                  Disabled="@(!CanAuthorSteering || IsBusy)"
+                  Loading="@(ActiveCommand is "author-steering")"
+                  OnClick="OnAuthorSteering">Author steering gallery</FluentButton>
     <FluentButton data-command="author-hierarchy"
                   Disabled="@(!CanAuthorHierarchy || IsBusy)"
                   Loading="@(ActiveCommand is "author-hierarchy")"
@@ -41,6 +45,9 @@
     public bool CanAuthor { get; set; }
 
     [Parameter]
+    public bool CanAuthorSteering { get; set; }
+
+    [Parameter]
     public bool CanAuthorHierarchy { get; set; }
 
     [Parameter]
@@ -63,6 +70,9 @@
 
     [Parameter]
     public EventCallback OnAuthor { get; set; }
+
+    [Parameter]
+    public EventCallback OnAuthorSteering { get; set; }
 
     [Parameter]
     public EventCallback OnAuthorHierarchy { get; set; }

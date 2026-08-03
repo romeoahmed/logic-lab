@@ -16,6 +16,7 @@ public sealed class WorkbenchComponentTests
     [
         "create",
         "author",
+        "author-steering",
         "author-hierarchy",
         "compile",
         "session",
@@ -104,6 +105,58 @@ public sealed class WorkbenchComponentTests
             await Assert.That(IsDisabled(rendered, "stimulus")).IsFalse();
             await Assert.That(IsDisabled(rendered, "step")).IsTrue();
         }
+    }
+
+    [Test]
+    public async Task Editor_AuthorSteeringGallery_RendersGeneratedPortsAndCompiles()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author-steering"));
+        await ClickAndWaitForState(
+            rendered,
+            "author-steering",
+            () => rendered.FindAll("[data-component] h3")
+                .Any(element => element.TextContent == "Priority Encoder"));
+
+        var labels = rendered.FindAll("[data-component] h3")
+            .Select(element => element.TextContent)
+            .ToArray();
+        var mux = rendered.FindAll("[data-component]").Single(element =>
+            element.QuerySelector("h3")?.TextContent == "MUX");
+        var priorityEncoder = rendered.FindAll("[data-component]").Single(element =>
+            element.QuerySelector("h3")?.TextContent == "Priority Encoder");
+        using (Assert.Multiple())
+        {
+            await Assert.That(labels).Contains("AND");
+            await Assert.That(labels).Contains("Buffer");
+            await Assert.That(labels).Contains("Decoder");
+            await Assert.That(labels).Contains("DEMUX");
+            await Assert.That(labels).Contains("MUX");
+            await Assert.That(labels).Contains("NAND");
+            await Assert.That(labels).Contains("NOR");
+            await Assert.That(labels).Contains("OR");
+            await Assert.That(labels).Contains("Priority Encoder");
+            await Assert.That(labels).Contains("Tri-State");
+            await Assert.That(labels).Contains("XNOR");
+            await Assert.That(labels).Contains("XOR");
+            await Assert.That(mux.TextContent).Contains("D0 · Input · 1 bit");
+            await Assert.That(mux.TextContent).Contains("D1 · Input · 1 bit");
+            await Assert.That(priorityEncoder.TextContent).Contains("A0 · Input · 1 bit");
+            await Assert.That(priorityEncoder.TextContent).Contains("VALID · Output · 1 bit");
+        }
+
+        await ClickAndWaitForState(
+            rendered,
+            "compile",
+            () => rendered.Find("[role='status']").TextContent
+                .Contains("Compilation Artifact published", StringComparison.Ordinal));
     }
 
     [Test]
