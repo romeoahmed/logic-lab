@@ -2,6 +2,15 @@
   "version": 2,
   "dependencies": {
     "net10.0": {
+      "FsCheck": {
+        "type": "Direct",
+        "requested": "[3.3.4, )",
+        "resolved": "3.3.4",
+        "contentHash": "Gintz/p4eTVb3EW3P8tg5wZB66sHbUBO42kHwuDZJ9BRHurOuC3+JF5YPq4rfeURMxuGs5YgzW/DDneIUsTNqA==",
+        "dependencies": {
+          "FSharp.Core": "5.0.2"
+        }
+      },
       "TUnit": {
         "type": "Direct",
         "requested": "[1.63.0, )",
@@ -14,6 +23,21 @@
           "TUnit.Assertions": "1.63.0",
           "TUnit.Engine": "1.63.0"
         }
+      },
+      "TUnit.FsCheck": {
+        "type": "Direct",
+        "requested": "[1.63.0, )",
+        "resolved": "1.63.0",
+        "contentHash": "1GwClGgRDjGA9FQSVJsAsy0GcOVSLwtKdDdpHWhsXm0mF0/nW5gvR98ZhW6xbp/C+7StdT1Ws5hrl+ENqXQnPA==",
+        "dependencies": {
+          "FsCheck": "3.3.4",
+          "TUnit": "1.63.0"
+        }
+      },
+      "FSharp.Core": {
+        "type": "Transitive",
+        "resolved": "5.0.2",
+        "contentHash": "DpcajqENgb3VXaHw1FKfVS+TWwEzck1PCajqLwBAVrtd1lfxd7T8JISVZBdV1mX9+2g48+tIgpNaVJWObdMrBw=="
       },
       "Microsoft.ApplicationInsights": {
         "type": "Transitive",
