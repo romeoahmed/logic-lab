@@ -7,7 +7,7 @@ namespace LogicLab.Engine.Compilation;
 
 public static partial class Compiler
 {
-    public const string SemanticVersion = "logiclab.compiler.topology-v2";
+    public const string SemanticVersion = "logiclab.compiler.combinational-v3";
 
     public static CompilationOutcome Compile(
         CompilationRequest request,
@@ -722,7 +722,8 @@ public static partial class Compiler
                 inputNets,
                 outputDrivers,
                 GetInitialValue(resolved.Kind, resolved.Instance.Parameters),
-                GetSlices(resolved.Kind, resolved.Instance.Parameters));
+                GetSlices(resolved.Kind, resolved.Instance.Parameters),
+                GetOption(resolved.Kind, resolved.Instance.Parameters));
             evaluatorSources[resolved.Ordinal] = new SourceMapEntry(
                 resolved.Ordinal,
                 Source(
@@ -852,6 +853,42 @@ public static partial class Compiler
             case "logic.not":
                 kind = SimulationEvaluatorKind.LogicNot;
                 return true;
+            case "logic.buffer":
+                kind = SimulationEvaluatorKind.LogicBuffer;
+                return true;
+            case "logic.and":
+                kind = SimulationEvaluatorKind.LogicAnd;
+                return true;
+            case "logic.nand":
+                kind = SimulationEvaluatorKind.LogicNand;
+                return true;
+            case "logic.or":
+                kind = SimulationEvaluatorKind.LogicOr;
+                return true;
+            case "logic.nor":
+                kind = SimulationEvaluatorKind.LogicNor;
+                return true;
+            case "logic.xor":
+                kind = SimulationEvaluatorKind.LogicXor;
+                return true;
+            case "logic.xnor":
+                kind = SimulationEvaluatorKind.LogicXnor;
+                return true;
+            case "logic.tristate":
+                kind = SimulationEvaluatorKind.LogicTristate;
+                return true;
+            case "logic.mux":
+                kind = SimulationEvaluatorKind.LogicMux;
+                return true;
+            case "logic.demux":
+                kind = SimulationEvaluatorKind.LogicDemux;
+                return true;
+            case "logic.decoder":
+                kind = SimulationEvaluatorKind.LogicDecoder;
+                return true;
+            case "logic.priority_encoder":
+                kind = SimulationEvaluatorKind.LogicPriorityEncoder;
+                return true;
             case "sink.output":
                 kind = SimulationEvaluatorKind.OutputSink;
                 return true;
@@ -900,7 +937,9 @@ public static partial class Compiler
         var primaryPortId = kind switch
         {
             SimulationEvaluatorKind.OutputSink
-                or SimulationEvaluatorKind.TopologySplit => "D",
+                or SimulationEvaluatorKind.TopologySplit
+                or SimulationEvaluatorKind.LogicDemux => "D",
+            SimulationEvaluatorKind.LogicDecoder => "Q0",
             _ => "Q",
         };
         return ports.Single(port => string.Equals(
@@ -942,6 +981,30 @@ public static partial class Compiler
                 "slices",
                 StringComparison.Ordinal)).Value).Values
             : null;
+    }
+
+    private static bool GetOption(
+        SimulationEvaluatorKind kind,
+        IReadOnlyList<ComponentParameterBinding> parameters)
+    {
+        var (parameterId, trueValue) = kind switch
+        {
+            SimulationEvaluatorKind.LogicTristate or SimulationEvaluatorKind.LogicDecoder =>
+                ("enablePolarity", "activeHigh"),
+            SimulationEvaluatorKind.LogicPriorityEncoder =>
+                ("priority", "lowestIndex"),
+            _ => (null, null),
+        };
+        if (parameterId is null)
+        {
+            return false;
+        }
+
+        var choice = (ChoiceParameterValue)parameters.Single(binding => string.Equals(
+            binding.ParameterId,
+            parameterId,
+            StringComparison.Ordinal)).Value;
+        return string.Equals(choice.Value, trueValue, StringComparison.Ordinal);
     }
 
     private static CompilationSource Source(

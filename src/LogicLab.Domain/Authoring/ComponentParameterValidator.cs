@@ -70,10 +70,11 @@ internal static class ComponentParameterValidator
         return (schema.Kind, value) switch
         {
             (ComponentParameterKind.PositiveWidth,
-                Unsigned32ParameterValue { Value: > 0 } width) =>
+                Unsigned32ParameterValue { Value: > 0 } width)
+                when width.Value >= schema.MinimumValue =>
                 GetInvalidWidthRule(schema, width, allParameters),
             (ComponentParameterKind.PositiveWidth, Unsigned32ParameterValue) =>
-                "positiveWidth",
+                schema.MinimumValue > 1 ? "minimumValue" : "positiveWidth",
             (ComponentParameterKind.Choice, ChoiceParameterValue choice) =>
                 schema.AllowedValues.Contains(choice.Value, StringComparer.Ordinal)
                     ? null

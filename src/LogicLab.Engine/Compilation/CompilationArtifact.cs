@@ -14,6 +14,18 @@ internal enum SimulationEvaluatorKind
     InputSource,
     ConstantSource,
     LogicNot,
+    LogicAnd,
+    LogicNand,
+    LogicOr,
+    LogicNor,
+    LogicXor,
+    LogicXnor,
+    LogicBuffer,
+    LogicTristate,
+    LogicMux,
+    LogicDemux,
+    LogicDecoder,
+    LogicPriorityEncoder,
     OutputSink,
     TopologySplit,
     TopologyConcat,
@@ -30,7 +42,8 @@ internal sealed class SimulationEvaluator
         int[] inputNetOrdinals,
         int[] outputDriverOrdinals,
         LogicVector? initialValue,
-        IReadOnlyList<BitSlice>? slices = null)
+        IReadOnlyList<BitSlice>? slices = null,
+        bool option = false)
     {
         Ordinal = ordinal;
         Kind = kind;
@@ -40,6 +53,7 @@ internal sealed class SimulationEvaluator
         InitialValue = initialValue;
         Slices = Array.AsReadOnly(
             slices is null ? [] : slices.ToArray());
+        Option = option;
     }
 
     public int Ordinal { get; }
@@ -55,6 +69,8 @@ internal sealed class SimulationEvaluator
     public LogicVector? InitialValue { get; }
 
     public ReadOnlyCollection<BitSlice> Slices { get; }
+
+    public bool Option { get; }
 }
 
 internal sealed record SimulationDriver(

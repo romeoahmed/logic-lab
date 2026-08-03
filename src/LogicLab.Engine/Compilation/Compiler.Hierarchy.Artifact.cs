@@ -168,7 +168,8 @@ public static partial class Compiler
                 inputNets,
                 outputDrivers,
                 GetInitialValue(resolved.Kind, resolved.Instance.Parameters),
-                GetSlices(resolved.Kind, resolved.Instance.Parameters));
+                GetSlices(resolved.Kind, resolved.Instance.Parameters),
+                GetOption(resolved.Kind, resolved.Instance.Parameters));
             sources[resolved.Ordinal] = new SourceMapEntry(
                 resolved.Ordinal,
                 Source(
