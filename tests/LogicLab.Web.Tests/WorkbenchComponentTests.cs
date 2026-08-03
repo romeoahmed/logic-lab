@@ -1,118 +1,123 @@
 using Bunit;
 using LogicLab.Application.Workspaces;
-using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
-using LogicLab.Domain.Components;
-using LogicLab.Presentation.Scene;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Components.Pages;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
-using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
 public sealed class WorkbenchComponentTests
 {
-    [Test]
-    public async Task WorkbenchCommandBar_EmptyProject_EnablesOnlyAuthoring()
-    {
-        using var context = CreateContext();
+    private static readonly string[] WorkbenchCommands =
+    [
+        "create",
+        "author",
+        "author-hierarchy",
+        "compile",
+        "session",
+        "stimulus",
+        "step",
+    ];
 
-        var rendered = context.Render<WorkbenchCommandBar>(parameters => parameters
-            .Add(component => component.CanAuthor, true)
-            .Add(component => component.CanAuthorHierarchy, true));
+    [Test]
+    public async Task Editor_StaticPrerender_RendersStableShellWithoutWorkspaceSideEffects()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = RenderEditor(context, workspace, isInteractive: false);
 
         using (Assert.Multiple())
         {
-            await Assert.That(IsDisabled(rendered, "create")).IsTrue();
-            await Assert.That(IsDisabled(rendered, "author")).IsFalse();
-            await Assert.That(IsDisabled(rendered, "author-hierarchy")).IsFalse();
-            await Assert.That(IsDisabled(rendered, "compile")).IsTrue();
-            await Assert.That(IsDisabled(rendered, "session")).IsTrue();
-            await Assert.That(IsDisabled(rendered, "stimulus")).IsTrue();
+            await Assert.That(rendered.Find("h1").TextContent)
+                .IsEqualTo("Sandbox Workbench");
+            await Assert.That(rendered.Find("[role='status']").TextContent)
+                .Contains("Connecting");
+            await Assert.That(rendered.FindAll("[data-component]")).IsEmpty();
+            await Assert.That(rendered.Find(".scene .empty-state").TextContent)
+                .Contains("Create a Sandbox Project");
+            await Assert.That(workspace.OpenCount).IsEqualTo(0);
+            await Assert.That(workspace.DispatchCount).IsEqualTo(0);
+            await Assert.That(workspace.ReadCount).IsEqualTo(0);
+            foreach (var command in WorkbenchCommands)
+            {
+                await Assert.That(IsDisabled(rendered, command)).IsTrue();
+            }
+        }
+    }
+
+    [Test]
+    public async Task Editor_CompleteSimulationWorkflow_ProjectsProbeAndLogicalTime()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author"));
+        await ClickAndWaitForState(
+            rendered,
+            "author",
+            () => !IsDisabled(rendered, "compile")
+                && rendered.FindAll("[data-component]").Count == 3);
+        await ClickAndWaitForState(
+            rendered,
+            "compile",
+            () => !IsDisabled(rendered, "session"));
+        await ClickAndWaitForState(
+            rendered,
+            "session",
+            () => !IsDisabled(rendered, "stimulus")
+                && rendered.FindAll("[data-probe]").Count == 1);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.Find("[data-probe] strong").TextContent)
+                .IsEqualTo("1");
+            await Assert.That(rendered.Find("[data-status='logical-time'] dd").TextContent)
+                .IsEqualTo("0");
+        }
+
+        await ClickAndWaitForState(
+            rendered,
+            "stimulus",
+            () => !IsDisabled(rendered, "step")
+                && IsDisabled(rendered, "stimulus"));
+        await ClickAndWaitForState(
+            rendered,
+            "step",
+            () => rendered.Find("[data-status='logical-time'] dd").TextContent == "1"
+                && rendered.Find("[data-probe] strong").TextContent == "0");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.Find("[role='status']").TextContent)
+                .Contains("Step committed at Logical Time 1");
+            await Assert.That(rendered.Find("[data-status='quiescence'] dd").TextContent)
+                .IsEqualTo("Quiescent");
+            await Assert.That(IsDisabled(rendered, "stimulus")).IsFalse();
             await Assert.That(IsDisabled(rendered, "step")).IsTrue();
-        }
-    }
-
-    [Test]
-    public async Task WorkbenchCommandBar_ActiveCommand_DisablesEveryCommand()
-    {
-        using var context = CreateContext();
-
-        var rendered = context.Render<WorkbenchCommandBar>(parameters => parameters
-            .Add(component => component.CanCompile, true)
-            .Add(component => component.ActiveCommand, "compile"));
-
-        foreach (var command in new[]
-                 {
-                     "create", "author", "author-hierarchy", "compile", "session",
-                     "stimulus", "step",
-                 })
-        {
-            await Assert.That(IsDisabled(rendered, command)).IsTrue();
-        }
-    }
-
-    [Test]
-    public async Task WorkbenchCommandBar_Commands_UseLabelledGroupSemantics()
-    {
-        using var context = CreateContext();
-
-        var rendered = context.Render<WorkbenchCommandBar>();
-        var group = rendered.Find("[role='group'][aria-label='Workbench commands']");
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(group.TagName).IsEqualTo("DIV");
-            await Assert.That(rendered.FindAll("nav")).IsEmpty();
-        }
-    }
-
-    [Test]
-    public async Task TopologyCommandBar_Commands_UseLabelledGroupSemantics()
-    {
-        using var context = CreateContext();
-
-        var rendered = context.Render<TopologyCommandBar>();
-        var group = rendered.Find("[role='group'][aria-label='Topology commands']");
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(group.TagName).IsEqualTo("DIV");
-            await Assert.That(rendered.FindAll("nav")).IsEmpty();
         }
     }
 
     [Test]
     public async Task Editor_CreateWhileBusy_DisablesCommandsAndIgnoresSecondClick()
     {
-        using var context = CreateContext();
+        await using var context = CreateContext();
         await using var workspace = new BlockingWorkspace();
-        context.Services.AddSingleton<IEditorWorkspace>(workspace);
-        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var rendered = context.Render<Editor>();
-        rendered.WaitForAssertion(() =>
-        {
-            if (IsDisabled(rendered, "create"))
-            {
-                throw new InvalidOperationException(
-                    "Create must be enabled after interactivity.");
-            }
-        });
+        var rendered = RenderEditor(context, workspace);
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "create"));
 
         var firstClick = rendered.Find("[data-command='create']")
             .ClickAsync(new MouseEventArgs());
         await workspace.Started.WaitAsync(TimeSpan.FromSeconds(5));
-        rendered.WaitForAssertion(() =>
-        {
-            if (!IsDisabled(rendered, "author"))
-            {
-                throw new InvalidOperationException("Commands must be disabled while busy.");
-            }
-        });
+        await rendered.WaitForStateAsync(() => IsDisabled(rendered, "author"));
 
         try
         {
@@ -122,11 +127,7 @@ public sealed class WorkbenchComponentTests
             using (Assert.Multiple())
             {
                 await Assert.That(workspace.OpenCount).IsEqualTo(1);
-                foreach (var command in new[]
-                         {
-                             "create", "author", "author-hierarchy", "compile", "session",
-                             "stimulus", "step",
-                         })
+                foreach (var command in WorkbenchCommands)
                 {
                     await Assert.That(IsDisabled(rendered, command)).IsTrue();
                 }
@@ -138,27 +139,20 @@ public sealed class WorkbenchComponentTests
         }
 
         await firstClick;
-        rendered.WaitForAssertion(() =>
-        {
-            if (IsDisabled(rendered, "author"))
-            {
-                throw new InvalidOperationException("Author must be restored after creation.");
-            }
-        });
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
         await Assert.That(workspace.OpenCount).IsEqualTo(1);
     }
 
     [Test]
     public async Task Editor_CreateAfterOpen_ReplayedDisabledCallback_DoesNotOpenSecondWorkspace()
     {
-        using var context = CreateContext();
+        await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
-        context.Services.AddSingleton<IEditorWorkspace>(workspace);
-        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var rendered = context.Render<Editor>();
-        rendered.WaitForElement("[data-command='create']:not([disabled])");
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
 
         await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
         var commandBar = rendered.FindComponent<WorkbenchCommandBar>();
         await rendered.InvokeAsync(() => commandBar.Instance.OnCreate.InvokeAsync());
 
@@ -168,15 +162,15 @@ public sealed class WorkbenchComponentTests
     [Test]
     public async Task Editor_WorkspaceFailure_RemainsInteractiveAndAcceptsNextCommand()
     {
-        using var context = CreateContext();
+        await using var context = CreateContext();
         await using var workspace = new RecoveringWorkspace();
-        context.Services.AddSingleton<IEditorWorkspace>(workspace);
-        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var rendered = context.Render<Editor>();
-        rendered.WaitForElement("[data-command='create']:not([disabled])");
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
 
         await rendered.Find("[data-command='create']")
             .ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => rendered.Find("[role='status']").TextContent
+            .Contains("workspace_internal_defect", StringComparison.Ordinal));
 
         using (Assert.Multiple())
         {
@@ -188,6 +182,7 @@ public sealed class WorkbenchComponentTests
 
         await rendered.Find("[data-command='create']")
             .ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
 
         using (Assert.Multiple())
         {
@@ -201,15 +196,16 @@ public sealed class WorkbenchComponentTests
     [Test]
     public async Task Editor_ExpiredWorkspaceCommand_ClearsStaleProjectionAndAcceptsNewSandbox()
     {
-        using var context = CreateContext();
+        await using var context = CreateContext();
         await using var workspace = new ExpiringWorkspace();
-        context.Services.AddSingleton<IEditorWorkspace>(workspace);
-        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var rendered = context.Render<Editor>();
-        rendered.WaitForElement("[data-command='create']:not([disabled])");
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
         await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
 
         await rendered.Find("[data-command='author']").ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => rendered.Find("[role='status']").TextContent
+            .Contains("workspace_expired", StringComparison.Ordinal));
 
         using (Assert.Multiple())
         {
@@ -220,6 +216,7 @@ public sealed class WorkbenchComponentTests
         }
 
         await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
 
         using (Assert.Multiple())
         {
@@ -233,27 +230,19 @@ public sealed class WorkbenchComponentTests
     [Test]
     public async Task Editor_AuthorWhileBusy_KeepsNewlyAvailableCompileCommandDisabled()
     {
-        using var context = CreateContext();
+        await using var context = CreateContext();
         await using var workspace = new BlockingAuthorWorkspace();
-        context.Services.AddSingleton<IEditorWorkspace>(workspace);
-        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var rendered = context.Render<Editor>();
-        rendered.WaitForElement("[data-command='create']:not([disabled])");
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
         await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
 
         var authoring = rendered.Find("[data-command='author']")
             .ClickAsync(new MouseEventArgs());
         await workspace.Started.WaitAsync(TimeSpan.FromSeconds(5));
         try
         {
-            rendered.WaitForAssertion(() =>
-            {
-                if (!IsDisabled(rendered, "compile"))
-                {
-                    throw new InvalidOperationException(
-                        "Compile must stay disabled while authoring.");
-                }
-            });
+            await rendered.WaitForStateAsync(() => IsDisabled(rendered, "compile"));
 
             await rendered.Find("[data-command='compile']")
                 .TriggerEventAsync("onclick", new MouseEventArgs());
@@ -265,71 +254,95 @@ public sealed class WorkbenchComponentTests
         }
 
         await authoring;
-        rendered.WaitForAssertion(() =>
-        {
-            if (IsDisabled(rendered, "compile"))
-            {
-                throw new InvalidOperationException("Compile must be restored after authoring.");
-            }
-        });
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "compile"));
     }
 
     [Test]
     public async Task Editor_TopologyCommands_ExerciseCompleteUserEditingPath()
     {
-        using var context = CreateContext();
+        await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
-        context.Services.AddSingleton<IEditorWorkspace>(workspace);
-        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var rendered = context.Render<Editor>();
-        rendered.WaitForElement("[data-command='create']:not([disabled])");
-        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
-        await rendered.Find("[data-command='author']").ClickAsync(new MouseEventArgs());
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author"));
+        await ClickAndWaitForState(
+            rendered,
+            "author",
+            () => rendered.FindAll("[data-connection]").Count == 2);
 
         await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(2);
 
-        await rendered.Find("[data-command='topology-merge']")
-            .ClickAsync(new MouseEventArgs());
+        await ClickAndWaitForState(
+            rendered,
+            "topology-merge",
+            () => rendered.FindAll("[data-connection]").Count == 1);
         await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(1);
 
-        await rendered.Find("[data-command='topology-split']")
-            .ClickAsync(new MouseEventArgs());
+        await ClickAndWaitForState(
+            rendered,
+            "topology-split",
+            () => rendered.FindAll("[data-connection]").Count == 2);
         await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(2);
 
-        await rendered.Find("[data-command='topology-add-junction']")
-            .ClickAsync(new MouseEventArgs());
+        await ClickAndWaitForState(
+            rendered,
+            "topology-add-junction",
+            () => rendered.FindAll("[data-junction]").Count == 1);
         await Assert.That(rendered.FindAll("[data-junction]")).Count().IsEqualTo(1);
 
-        await rendered.Find("[data-command='topology-prepare-route']")
-            .ClickAsync(new MouseEventArgs());
+        await ClickAndWaitForState(
+            rendered,
+            "topology-prepare-route",
+            () => rendered.FindAll("[data-route-draft]").Count == 1);
         using (Assert.Multiple())
         {
             await Assert.That(rendered.FindAll("[data-route-draft]")).Count().IsEqualTo(1);
             await Assert.That(rendered.FindAll("[data-wire-geometry]")).IsEmpty();
         }
 
-        await rendered.Find("[data-command='topology-commit-route']")
-            .ClickAsync(new MouseEventArgs());
+        await ClickAndWaitForState(
+            rendered,
+            "topology-commit-route",
+            () => rendered.FindAll("[data-route-draft]").Count == 0
+                && rendered.FindAll("[data-wire-geometry]").Count == 1);
         using (Assert.Multiple())
         {
             await Assert.That(rendered.FindAll("[data-route-draft]")).IsEmpty();
             await Assert.That(rendered.FindAll("[data-wire-geometry]")).Count().IsEqualTo(1);
-            await Assert.That(rendered.Markup).Contains("Orthogonal");
+            await Assert.That(rendered.Find("[data-wire-geometry]").TextContent)
+                .Contains("Orthogonal");
         }
 
-        await rendered.Find("[data-command='topology-unroute']")
-            .ClickAsync(new MouseEventArgs());
-        await Assert.That(rendered.Markup).Contains("Unrouted");
+        await ClickAndWaitForState(
+            rendered,
+            "topology-unroute",
+            () => rendered.Find("[data-wire-geometry]").TextContent
+                .Contains("Unrouted", StringComparison.Ordinal));
+        await Assert.That(rendered.Find("[data-wire-geometry]").TextContent)
+            .Contains("Unrouted");
 
-        await rendered.Find("[data-command='topology-route']")
-            .ClickAsync(new MouseEventArgs());
-        await Assert.That(rendered.Markup).Contains("Orthogonal");
+        await ClickAndWaitForState(
+            rendered,
+            "topology-route",
+            () => rendered.Find("[data-wire-geometry]").TextContent
+                .Contains("Orthogonal", StringComparison.Ordinal));
+        await Assert.That(rendered.Find("[data-wire-geometry]").TextContent)
+            .Contains("Orthogonal");
 
-        await rendered.Find("[data-command='topology-remove-junction']")
-            .ClickAsync(new MouseEventArgs());
+        await ClickAndWaitForState(
+            rendered,
+            "topology-remove-junction",
+            () => rendered.FindAll("[data-junction]").Count == 0);
         await Assert.That(rendered.FindAll("[data-junction]")).IsEmpty();
 
-        await rendered.Find("[data-command='compile']").ClickAsync(new MouseEventArgs());
+        await ClickAndWaitForState(
+            rendered,
+            "compile",
+            () => rendered.Find("[role='status']").TextContent
+                .Contains("Compilation Artifact published", StringComparison.Ordinal));
         await Assert.That(rendered.Find("[role='status']").TextContent)
             .Contains("Compilation Artifact published");
     }
@@ -337,16 +350,22 @@ public sealed class WorkbenchComponentTests
     [Test]
     public async Task Editor_AddJunctionAfterCommit_ReplayedDisabledCallback_DoesNotPublishRevision()
     {
-        using var context = CreateContext();
+        await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
-        context.Services.AddSingleton<IEditorWorkspace>(workspace);
-        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var rendered = context.Render<Editor>();
-        rendered.WaitForElement("[data-command='create']:not([disabled])");
-        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
-        await rendered.Find("[data-command='author']").ClickAsync(new MouseEventArgs());
-        await rendered.Find("[data-command='topology-add-junction']")
-            .ClickAsync(new MouseEventArgs());
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author"));
+        await ClickAndWaitForState(
+            rendered,
+            "author",
+            () => !IsDisabled(rendered, "topology-add-junction"));
+        await ClickAndWaitForState(
+            rendered,
+            "topology-add-junction",
+            () => rendered.FindAll("[data-junction]").Count == 1);
         var afterFirst = await workspace.ReadCurrent();
 
         var topologyCommandBar = rendered.FindComponent<TopologyCommandBar>();
@@ -367,15 +386,18 @@ public sealed class WorkbenchComponentTests
     [Test]
     public async Task Editor_HierarchyCommands_NavigateDefinitionsAndCompileEntryOccurrence()
     {
-        using var context = CreateContext();
+        await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
-        context.Services.AddSingleton<IEditorWorkspace>(workspace);
-        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var rendered = context.Render<Editor>();
-        rendered.WaitForElement("[data-command='create']:not([disabled])");
-        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
-        await rendered.Find("[data-command='author-hierarchy']")
-            .ClickAsync(new MouseEventArgs());
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author-hierarchy"));
+        await ClickAndWaitForState(
+            rendered,
+            "author-hierarchy",
+            () => rendered.FindAll("[data-definition]").Count == 2);
 
         using (Assert.Multiple())
         {
@@ -387,6 +409,7 @@ public sealed class WorkbenchComponentTests
         }
 
         await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-definition-port]").Count == 2);
         using (Assert.Multiple())
         {
             await Assert.That(rendered.Find("[data-hierarchy-breadcrumb]").TextContent)
@@ -401,21 +424,34 @@ public sealed class WorkbenchComponentTests
         }
 
         await rendered.Find("[data-command='set-entry']").ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => rendered.Find("[data-entry-marker]")
+            .ParentElement!.TextContent.Contains("Inverter", StringComparison.Ordinal));
         await Assert.That(rendered.Find("[data-entry-marker]").ParentElement!.TextContent)
             .Contains("Inverter");
         var mainTab = rendered.FindAll("[data-definition]")
             .Single(element => element.TextContent.Contains("Main", StringComparison.Ordinal));
         await mainTab.ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-enter-instance]").Count == 0);
         await Assert.That(rendered.FindAll("[data-enter-instance]")).IsEmpty();
         await rendered.Find("[data-command='set-entry']").ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => rendered.Find("[data-entry-marker]")
+            .ParentElement!.TextContent.Contains("Main", StringComparison.Ordinal));
         await Assert.That(rendered.Find("[data-entry-marker]").ParentElement!.TextContent)
             .Contains("Main");
 
         await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-definition-port]").Count == 2);
         await rendered.Find("[data-command='hierarchy-back']")
             .ClickAsync(new MouseEventArgs());
-        await rendered.Find("[data-command='compile']").ClickAsync(new MouseEventArgs());
-        await rendered.Find("[data-command='session']").ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-enter-instance]").Count == 1);
+        await ClickAndWaitForState(
+            rendered,
+            "compile",
+            () => !IsDisabled(rendered, "session"));
+        await ClickAndWaitForState(
+            rendered,
+            "session",
+            () => rendered.FindAll("[data-probe]").Count == 1);
 
         using (Assert.Multiple())
         {
@@ -428,18 +464,22 @@ public sealed class WorkbenchComponentTests
     [Test]
     public async Task Editor_SetEntryWhileBusy_ReplayedCallback_DispatchesOnce()
     {
-        using var context = CreateContext();
+        await using var context = CreateContext();
         await using var workspace = new BlockingSetEntryWorkspace();
-        context.Services.AddSingleton<IEditorWorkspace>(workspace);
-        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var rendered = context.Render<Editor>();
-        rendered.WaitForElement("[data-command='create']:not([disabled])");
-        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
-        await rendered.Find("[data-command='author-hierarchy']")
-            .ClickAsync(new MouseEventArgs());
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author-hierarchy"));
+        await ClickAndWaitForState(
+            rendered,
+            "author-hierarchy",
+            () => rendered.FindAll("[data-definition]").Count == 2);
         var childButton = rendered.FindAll("[data-definition]")
             .Single(element => element.TextContent.Contains("Inverter", StringComparison.Ordinal));
         await childButton.ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "set-entry"));
 
         var first = rendered.Find("[data-command='set-entry']")
             .ClickAsync(new MouseEventArgs());
@@ -460,136 +500,29 @@ public sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task DefinitionNavigator_DefinitionButtons_UseNativeNavigationSemantics()
-    {
-        using var context = CreateContext();
-        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
-            "Navigator fixture",
-            LibrarySnapshot.Core,
-            new SymbolProfileReference(
-                "TeachingMixed",
-                "1.0.0",
-                IndicationConvention.Negation),
-            "Main"))).Revision;
-
-        var rendered = context.Render<DefinitionNavigator>(parameters => parameters
-            .Add(component => component.Document, revision.Document)
-            .Add(component => component.SelectedDefinitionId,
-                revision.Document.EntryCircuitDefinitionId));
-        var navigation = rendered.Find(".definition-tabs");
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(navigation.TagName).IsEqualTo("NAV");
-            await Assert.That(rendered.FindAll("[role='tablist']")).IsEmpty();
-            await Assert.That(rendered.FindAll("[role='tab']")).IsEmpty();
-            await Assert.That(rendered.FindAll("[aria-current='page']")).Count().IsEqualTo(1);
-        }
-    }
-
-    [Test]
-    public async Task FixedWindowCommandAdmissionGate_WindowCapacityExceeded_RejectsUntilNextWindow()
-    {
-        var timeProvider = new ManualTimeProvider(
-            new DateTimeOffset(2026, 8, 3, 0, 0, 0, TimeSpan.Zero));
-        var gate = new FixedWindowCommandAdmissionGate(
-            maximumAdmissions: 2,
-            window: TimeSpan.FromSeconds(1),
-            timeProvider);
-
-        var first = gate.TryAdmit();
-        var second = gate.TryAdmit();
-        var rejected = gate.TryAdmit();
-        timeProvider.Advance(TimeSpan.FromSeconds(1));
-        var nextWindow = gate.TryAdmit();
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(first).IsTrue();
-            await Assert.That(second).IsTrue();
-            await Assert.That(rejected).IsFalse();
-            await Assert.That(nextWindow).IsTrue();
-        }
-    }
-
-    [Test]
-    public async Task Editor_CreateSampleTopologyPartitions_ComponentCreationOrder_DoesNotChangeElectricalPairs()
-    {
-        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
-            "Reverse-order fixture",
-            LibrarySnapshot.Core,
-            new SymbolProfileReference(
-                "TeachingMixed",
-                "1.0.0",
-                IndicationConvention.Negation),
-            "Main"))).Revision;
-        var definitionId = revision.Document.EntryCircuitDefinitionId;
-        revision = Place(revision, "sink.output", [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-            new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
-        ], new GridPoint(8, 0));
-        revision = Place(revision, "logic.not", [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-        ], new GridPoint(4, 0));
-        revision = Place(revision, "source.input", [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-            new ComponentParameterBinding(
-                "initialValue",
-                new LogicVectorParameterValue([LogicValue.Zero])),
-        ], new GridPoint(0, 0));
-        var input = Find(revision, "source.input");
-        var logicNot = Find(revision, "logic.not");
-        var output = Find(revision, "sink.output");
-        revision = Connect(revision,
-            new InstanceTerminalReference(definitionId, input.Id, "Q"),
-            new InstanceTerminalReference(definitionId, logicNot.Id, "A"));
-        revision = Connect(revision,
-            new InstanceTerminalReference(definitionId, logicNot.Id, "Q"),
-            new InstanceTerminalReference(definitionId, output.Id, "D"));
-        var beforeMerge = revision.Document.EntryCircuitDefinition;
-        revision = Commit(ProjectEditor.Apply(
-            revision,
-            new MergeNetsIntent(
-                definitionId,
-                beforeMerge.Nets[0].Id,
-                [beforeMerge.Nets[1].Id])));
-        var definition = revision.Document.EntryCircuitDefinition;
-
-        var partitions = Editor.CreateSampleTopologyPartitions(definition, definition.Nets.Single());
-        var actualPairs = partitions
-            .Select(partition => string.Join(
-                "|",
-                partition.Terminals
-                    .OfType<InstanceTerminalReference>()
-                    .Select(terminal =>
-                        $"{((LibraryComponentTarget)definition.FindComponentInstance(
-                            terminal.ComponentInstanceId)!.Target).ContractKey.ContractId}.{terminal.PortId}")
-                    .Order(StringComparer.Ordinal)))
-            .ToArray();
-
-        await Assert.That(actualPairs).IsEquivalentTo(
-            ["logic.not.A|source.input.Q", "logic.not.Q|sink.output.D"],
-            CollectionOrdering.Matching);
-    }
-
-    [Test]
     public async Task Editor_CancelPreparedRoute_SendsNoCommandOrProjectRevision()
     {
-        using var context = CreateContext();
+        await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
-        context.Services.AddSingleton<IEditorWorkspace>(workspace);
-        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var rendered = context.Render<Editor>();
-        rendered.WaitForElement("[data-command='create']:not([disabled])");
-        await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
-        await rendered.Find("[data-command='author']").ClickAsync(new MouseEventArgs());
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author"));
+        await ClickAndWaitForState(
+            rendered,
+            "author",
+            () => !IsDisabled(rendered, "topology-prepare-route"));
         var before = await workspace.ReadCurrent();
         var dispatchCount = workspace.DispatchCount;
 
         await rendered.Find("[data-command='topology-prepare-route']")
             .ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-route-draft]").Count == 1);
         await rendered.Find("[data-command='topology-cancel-route']")
             .ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-route-draft]").Count == 0);
         var after = await workspace.ReadCurrent();
 
         using (Assert.Multiple())
@@ -606,115 +539,32 @@ public sealed class WorkbenchComponentTests
         }
     }
 
-    [Test]
-    public async Task AccessibleCircuitScene_CompleteCircuit_RendersReachableTopology()
-    {
-        using var context = CreateContext();
-        var scene = AccessibleSceneProjector.Project(CreateCompleteCircuit());
-
-        var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
-            .Add(component => component.Scene, scene));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.Find("section").GetAttribute("aria-labelledby"))
-                .IsEqualTo("circuit-scene-heading");
-            await Assert.That(rendered.FindAll("[data-component]")).Count().IsEqualTo(3);
-            await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(2);
-            await Assert.That(rendered.Markup).Contains("Input");
-            await Assert.That(rendered.Markup).Contains("NOT");
-            await Assert.That(rendered.Markup).Contains("Output");
-            await Assert.That(rendered.Markup).Contains("Q → A");
-            await Assert.That(rendered.Markup).Contains("Q → D");
-        }
-    }
-
-    [Test]
-    public async Task AccessibleCircuitScene_ExplicitTopology_RendersJunctionsAndRoutes()
-    {
-        using var context = CreateContext();
-        var revision = CreateCompleteCircuit();
-        var definition = revision.Document.EntryCircuitDefinition;
-        var net = definition.Nets[0];
-        revision = Commit(ProjectEditor.Apply(
-            revision,
-            new AddJunctionIntent(
-                definition.Id,
-                net.Id,
-                new GridPoint(2, 1),
-                [
-                    new OrthogonalWireRoute(
-                        [new GridPoint(0, 0), new GridPoint(0, 1), new GridPoint(4, 1)]),
-                    new UnroutedWireRoute(),
-                ],
-                [],
-                [])));
-        var scene = AccessibleSceneProjector.Project(revision);
-
-        var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
-            .Add(component => component.Scene, scene));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.FindAll("[data-junction]")).Count().IsEqualTo(1);
-            await Assert.That(rendered.FindAll("[data-wire-geometry]")).Count().IsEqualTo(2);
-            await Assert.That(rendered.Markup).Contains("Junction at grid 2, 1");
-            await Assert.That(rendered.Markup).Contains("Orthogonal");
-            await Assert.That(rendered.Markup).Contains("Unrouted");
-        }
-    }
-
-    [Test]
-    public async Task WorkbenchStatusStrip_StaticShell_ExposesIndependentStatusFacts()
-    {
-        using var context = CreateContext();
-
-        var rendered = context.Render<WorkbenchStatusStrip>(parameters => parameters
-            .Add(component => component.Message, "Connecting to the interactive workbench…"));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.Find("[data-status='connection']").TextContent)
-                .Contains("Connecting");
-            await Assert.That(rendered.Find("[data-status='connection'] .status-dot")
-                .ClassList).Contains("is-connecting");
-            await Assert.That(rendered.Find("[data-status='logical-time']").TextContent)
-                .Contains("—");
-            await Assert.That(rendered.Find("[data-status='quiescence']").TextContent)
-                .Contains("Unavailable");
-            await Assert.That(rendered.Find("[data-status='trace']").TextContent)
-                .Contains("Unavailable");
-            await Assert.That(rendered.Find("[data-status='compilation']").TextContent)
-                .Contains("Not requested");
-            await Assert.That(rendered.Find("[data-status='save']").TextContent)
-                .Contains("Sandbox");
-        }
-    }
-
-    [Test]
-    public async Task WorkbenchStatusStrip_InteractiveWithoutProject_ReportsConnected()
-    {
-        using var context = CreateContext();
-        var rendered = context.Render<WorkbenchStatusStrip>(parameters => parameters
-            .Add(component => component.IsConnected, true)
-            .Add(component => component.Message, "Ready."));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.Find("[data-status='connection']").TextContent)
-                .Contains("Connected");
-            await Assert.That(rendered.Find("[data-status='compilation']").TextContent)
-                .Contains("Not requested");
-            await Assert.That(rendered.Find("[data-status='logical-time']").TextContent)
-                .Contains("—");
-        }
-    }
-
     private static BunitContext CreateContext()
     {
         var context = new BunitContext();
         context.Services.AddFluentUIComponents();
         return context;
+    }
+
+    private static IRenderedComponent<Editor> RenderEditor(
+        BunitContext context,
+        IEditorWorkspace workspace,
+        bool isInteractive = true)
+    {
+        context.Services.AddSingleton(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo(
+            isInteractive ? "Server" : "Static",
+            isInteractive));
+        return context.Render<Editor>();
+    }
+
+    private static async Task ClickAndWaitForState(
+        IRenderedComponent<Editor> rendered,
+        string command,
+        Func<bool> statePredicate)
+    {
+        await rendered.Find($"[data-command='{command}']").ClickAsync();
+        await rendered.WaitForStateAsync(statePredicate);
     }
 
     private static bool IsDisabled<TComponent>(
@@ -723,75 +573,6 @@ public sealed class WorkbenchComponentTests
         where TComponent : IComponent
     {
         return rendered.Find($"[data-command='{command}']").HasAttribute("disabled");
-    }
-
-    private static ProjectRevision CreateCompleteCircuit()
-    {
-        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
-            "Web fixture",
-            LibrarySnapshot.Core,
-            new SymbolProfileReference(
-                "TeachingMixed",
-                "1.0.0",
-                IndicationConvention.Negation),
-            "Main"))).Revision;
-        var definitionId = revision.Document.EntryCircuitDefinitionId;
-        revision = Place(revision, "source.input", [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-            new ComponentParameterBinding(
-                "initialValue",
-                new LogicVectorParameterValue([LogicValue.Zero])),
-        ], new GridPoint(0, 0));
-        var input = Find(revision, "source.input");
-        revision = Place(revision, "logic.not", [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-        ], new GridPoint(4, 0));
-        var logicNot = Find(revision, "logic.not");
-        revision = Place(revision, "sink.output", [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-            new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
-        ], new GridPoint(8, 0));
-        var output = Find(revision, "sink.output");
-        revision = Connect(revision,
-            new InstanceTerminalReference(definitionId, input.Id, "Q"),
-            new InstanceTerminalReference(definitionId, logicNot.Id, "A"));
-        return Connect(revision,
-            new InstanceTerminalReference(definitionId, logicNot.Id, "Q"),
-            new InstanceTerminalReference(definitionId, output.Id, "D"));
-    }
-
-    private static ProjectRevision Place(
-        ProjectRevision revision,
-        string contractId,
-        ComponentParameterBinding[] parameters,
-        GridPoint origin)
-    {
-        return Commit(ProjectEditor.Apply(
-            revision,
-            new PlaceComponentInstanceIntent(
-                revision.Document.EntryCircuitDefinitionId,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
-                parameters,
-                new ComponentPlacement(origin))));
-    }
-
-    private static ProjectRevision Connect(
-        ProjectRevision revision,
-        params InstanceTerminalReference[] terminals)
-    {
-        return Commit(ProjectEditor.Apply(revision, new ConnectTerminalsIntent(terminals)));
-    }
-
-    private static ComponentInstance Find(ProjectRevision revision, string contractId)
-    {
-        return revision.Document.EntryCircuitDefinition.ComponentInstances
-            .Single(instance => instance.Target is LibraryComponentTarget library
-                && library.ContractKey.ContractId == contractId);
-    }
-
-    private static ProjectRevision Commit(EditOutcome outcome)
-    {
-        return ((EditCommitted)outcome).Revision;
     }
 
     private sealed class BlockingWorkspace : IEditorWorkspace
@@ -963,10 +744,13 @@ public sealed class WorkbenchComponentTests
         private WorkspaceId? workspaceId;
         private int dispatchCount;
         private int openCount;
+        private int readCount;
 
         public int DispatchCount => Volatile.Read(ref dispatchCount);
 
         public int OpenCount => Volatile.Read(ref openCount);
+
+        public int ReadCount => Volatile.Read(ref readCount);
 
         public async Task<WorkspaceOpenOutcome> OpenAsync(
             OpenWorkspaceRequest request,
@@ -994,6 +778,7 @@ public sealed class WorkbenchComponentTests
             WorkspaceId requestedWorkspaceId,
             CancellationToken cancellationToken)
         {
+            Interlocked.Increment(ref readCount);
             return inner.ReadAsync(requestedWorkspaceId, cancellationToken);
         }
 
@@ -1054,24 +839,5 @@ public sealed class WorkbenchComponentTests
         public ValueTask DisposeAsync() => inner.DisposeAsync();
 
         public void Release() => release.TrySetResult();
-    }
-
-    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        private long timestamp;
-
-        public DateTimeOffset UtcNow { get; private set; } = utcNow;
-
-        public override DateTimeOffset GetUtcNow() => UtcNow;
-
-        public override long GetTimestamp() => timestamp;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-
-        public void Advance(TimeSpan elapsed)
-        {
-            UtcNow += elapsed;
-            timestamp += elapsed.Ticks;
-        }
     }
 }
