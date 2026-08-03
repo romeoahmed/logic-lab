@@ -166,13 +166,19 @@ public partial class Editor
         return Task.CompletedTask;
     }
 
-    private async Task SetEntryDefinition(CircuitDefinitionId definitionId)
+    private Task SetEntryDefinition(CircuitDefinitionId definitionId)
     {
-        if (!CanSetEntryDefinition)
-        {
-            return;
-        }
+        return RunCommandAsync(
+            "set-entry",
+            () => CanSetEntryDefinition
+                && Projection?.ProjectRevision.Document.FindCircuitDefinition(definitionId)
+                    is not null
+                && Projection.ProjectRevision.Document.EntryCircuitDefinitionId != definitionId,
+            () => SetEntryDefinitionCore(definitionId));
+    }
 
+    private async Task SetEntryDefinitionCore(CircuitDefinitionId definitionId)
+    {
         if (await Apply(new SetEntryCircuitDefinitionIntent(definitionId)))
         {
             SelectedDefinitionId = definitionId;
