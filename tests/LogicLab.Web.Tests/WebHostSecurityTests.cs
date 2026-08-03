@@ -87,7 +87,7 @@ public sealed class WebHostSecurityTests(LogicLabWebFactory factory)
 
         var webSocketClient = host.Server.CreateWebSocketClient();
         webSocketClient.ConfigureRequest = request =>
-            request.Headers["Sec-WebSocket-Extensions"] = "permessage-deflate";
+            request.Headers.SecWebSocketExtensions = "permessage-deflate";
         using var socket = await webSocketClient.ConnectAsync(
             new Uri($"ws://localhost/_blazor?id={Uri.EscapeDataString(connectionToken!)}"),
             CancellationToken.None);
@@ -126,7 +126,7 @@ public sealed class WebHostSecurityTests(LogicLabWebFactory factory)
                         context.Response.OnStarting(() =>
                         {
                             capture.Capture(
-                                context.Response.Headers["Sec-WebSocket-Extensions"]
+                                context.Response.Headers.SecWebSocketExtensions
                                     .FirstOrDefault());
                             return Task.CompletedTask;
                         });

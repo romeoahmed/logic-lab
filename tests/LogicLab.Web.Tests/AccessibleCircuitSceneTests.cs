@@ -15,9 +15,7 @@ public sealed class AccessibleCircuitSceneTests
     public async Task AccessibleCircuitScene_CompleteCircuit_RendersReachableTopology()
     {
         await using var context = CreateContext();
-        var scene = AccessibleSceneProjector.Project(
-            WebTestCircuit.CreateCompleteCircuit(),
-            maximumPortCount: 10_000);
+        var scene = Project(WebTestCircuit.CreateCompleteCircuit());
 
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene));
@@ -59,7 +57,7 @@ public sealed class AccessibleCircuitSceneTests
                 ],
                 [],
                 [])));
-        var scene = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
+        var scene = Project(revision);
 
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene));
@@ -83,7 +81,7 @@ public sealed class AccessibleCircuitSceneTests
     {
         await using var context = CreateContext();
         var revision = CreateWidthConversionComponents();
-        var scene = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
+        var scene = Project(revision);
 
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene));
@@ -115,7 +113,7 @@ public sealed class AccessibleCircuitSceneTests
     {
         await using var context = CreateContext();
         var revision = CreateSteeringComponents();
-        var scene = AccessibleSceneProjector.Project(revision, maximumPortCount: 10_000);
+        var scene = Project(revision);
 
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene));
@@ -157,6 +155,14 @@ public sealed class AccessibleCircuitSceneTests
 
         await Assert.That(actual)
             .IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+    }
+
+    private static AccessibleSceneProjection Project(ProjectRevision revision)
+    {
+        return AccessibleSceneProjector.TryProject(revision, 10_000, out var scene)
+            ? scene
+            : throw new InvalidOperationException(
+                "The bounded test Scene could not be projected.");
     }
 
     private static ProjectRevision CreateWidthConversionComponents()

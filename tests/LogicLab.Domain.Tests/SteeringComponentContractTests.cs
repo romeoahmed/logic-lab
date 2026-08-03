@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
@@ -34,15 +35,15 @@ public sealed class SteeringComponentContractTests
     }
 
     [Test]
-    public async Task PreparePorts_Mux_GeneratesPowerOfTwoInputs()
+    public async Task ResolvePorts_Mux_GeneratesPowerOfTwoInputs()
     {
         var contract = Find("logic.mux");
 
-        var ports = contract.ResolvePorts(
+        var ports = Materialize(contract.ResolvePorts(
         [
             new ComponentParameterBinding("width", new Unsigned32ParameterValue(8)),
             new ComponentParameterBinding("selectorWidth", new Unsigned32ParameterValue(2)),
-        ], maximumPortCount: 100);
+        ]));
 
         await Assert.That(ports.Select(port => (port.Id, port.Direction, port.Width)))
             .IsEquivalentTo(
@@ -58,30 +59,24 @@ public sealed class SteeringComponentContractTests
     }
 
     [Test]
-    public async Task PreparePorts_PowerOfTwoShapeBeyondUInt64_ExposesOverflowState()
+    public async Task TryGetPortCount_PowerOfTwoShapeBeyondUInt64_ReturnsFalse()
     {
         var contract = Find("logic.mux");
 
-        var resolution = contract.PreparePorts(
+        var resolution = contract.ResolvePorts(
         [
             new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
             new ComponentParameterBinding("selectorWidth", new Unsigned32ParameterValue(64)),
         ]);
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(resolution.ExceedsPortCountRange).IsTrue();
-            await Assert.That(() => resolution.PortCount).ThrowsExactly<OverflowException>();
-            await Assert.That(() => resolution.Materialize(ulong.MaxValue))
-                .ThrowsExactly<InvalidOperationException>();
-        }
+        await Assert.That(resolution.TryGetPortCount(out _)).IsFalse();
     }
 
     [Test]
     public async Task TryMaterialize_PowerOfTwoShapeBeyondBudget_ReturnsFalseWithoutPorts()
     {
         var contract = Find("logic.mux");
-        var resolution = contract.PreparePorts(
+        var resolution = contract.ResolvePorts(
         [
             new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
             new ComponentParameterBinding("selectorWidth", new Unsigned32ParameterValue(30)),
@@ -127,15 +122,15 @@ public sealed class SteeringComponentContractTests
     }
 
     [Test]
-    public async Task PreparePorts_Decoder_GeneratesOneBitOutputs()
+    public async Task ResolvePorts_Decoder_GeneratesOneBitOutputs()
     {
         var contract = Find("logic.decoder");
 
-        var ports = contract.ResolvePorts(
+        var ports = Materialize(contract.ResolvePorts(
         [
             new ComponentParameterBinding("selectorWidth", new Unsigned32ParameterValue(2)),
             new ComponentParameterBinding("enablePolarity", new ChoiceParameterValue("activeLow")),
-        ], maximumPortCount: 100);
+        ]));
 
         await Assert.That(ports.Select(port => (port.Id, port.Direction, port.Width)))
             .IsEquivalentTo(
@@ -151,15 +146,15 @@ public sealed class SteeringComponentContractTests
     }
 
     [Test]
-    public async Task PreparePorts_PriorityEncoder_ComputesMinimumBinaryWidth()
+    public async Task ResolvePorts_PriorityEncoder_ComputesMinimumBinaryWidth()
     {
         var contract = Find("logic.priority_encoder");
 
-        var ports = contract.ResolvePorts(
+        var ports = Materialize(contract.ResolvePorts(
         [
             new ComponentParameterBinding("inputCount", new Unsigned32ParameterValue(5)),
             new ComponentParameterBinding("priority", new ChoiceParameterValue("highestIndex")),
-        ], maximumPortCount: 100);
+        ]));
 
         await Assert.That(ports.Select(port => (port.Id, port.Direction, port.Width)))
             .IsEquivalentTo(
@@ -176,11 +171,11 @@ public sealed class SteeringComponentContractTests
     }
 
     [Test]
-    public async Task PreparePorts_GateFanInBelowTwo_RejectsExactRule()
+    public async Task ResolvePorts_GateFanInBelowTwo_RejectsExactRule()
     {
         var contract = Find("logic.and");
 
-        await Assert.That(() => contract.PreparePorts(
+        await Assert.That(() => contract.ResolvePorts(
         [
             new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
             new ComponentParameterBinding("fanIn", new Unsigned32ParameterValue(1)),
@@ -236,5 +231,14 @@ public sealed class SteeringComponentContractTests
         return CoreLibrarySchema.FindContract(
             new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId))
             ?? throw new InvalidOperationException($"Missing contract {contractId}.");
+    }
+
+    private static ReadOnlyCollection<ResolvedComponentPortSchema> Materialize(
+        ComponentPortResolution resolution)
+    {
+        return resolution.TryMaterialize(100, out var ports)
+            ? ports
+            : throw new InvalidOperationException(
+                "The bounded test Port resolution could not be materialized.");
     }
 }
