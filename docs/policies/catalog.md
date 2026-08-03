@@ -163,12 +163,14 @@ catalog_cursor_bytes
 per-subject dimension is an additional fairness bound and never replaces it. Admission and
 expiry reclamation share one atomic directory decision, so concurrent opens cannot overshoot
 either limit. `authoring_command_item_count` bounds the complete nested shape of one Edit
-Intent before Project Editor execution. The definition and entity dimensions validate the
-candidate Project Document before publication, using the same authored entity accounting as
-Compiler Project Scale Policy; they reject atomically and never substitute for the Compiler's
-hierarchy and elaboration limits. History/idempotency limits apply after an atomic successful
-publication and produce the contract's explicit truncation or expired-idempotency behavior;
-they never make a valid edit partially commit. Retention uses `TimeProvider`.
+Intent before Project Editor execution; accounting stops as soon as the remaining budget is
+exhausted. The definition and entity dimensions validate the candidate Project Document before
+publication, using the same authored entity accounting as Compiler Project Scale Policy. All
+three authoring dimensions are configurable through the owning Workspace Policy rather than a
+second internal policy; they reject atomically and never substitute for the Compiler's hierarchy
+and elaboration limits. History/idempotency limits apply after an atomic successful publication
+and produce the contract's explicit truncation or expired-idempotency behavior; they never make
+a valid edit partially commit. Retention uses `TimeProvider`.
 `hot_swap_peak_bytes` is declared owned-buffer accounting, not a promise about total process
 RSS. Both Durable Display Name dimensions must pass, and catalog requests cannot exceed the
 page/cursor maxima.

@@ -265,7 +265,9 @@ validation and Compiler policy. It counts the complete nested Edit Intent before
 then counts definitions and authored entities in the candidate Project Document before atomic
 publication. Exhaustion returns `workspace_admission_rejected`, publishes no Project Revision,
 and does not invalidate the current Compilation. Compiler Project Scale Policy remains the
-authority for compilation, hierarchy, elaborated slots, and memory cells.
+authority for compilation, hierarchy, elaborated slots, and memory cells. Deployments supply
+these authoring dimensions through the same Workspace Policy as Workspace count and retention;
+authoring admission is not a separate hidden policy.
 
 ## 4. Authoring outcomes
 
