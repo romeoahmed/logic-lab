@@ -9,14 +9,14 @@ public sealed record CompilationArtifactKey(
     string LibrarySnapshotFingerprint,
     string CompilerSemanticVersion);
 
-public enum SimulationEvaluatorKind
+internal enum SimulationEvaluatorKind
 {
     InputSource,
     LogicNot,
     OutputSink,
 }
 
-public sealed class SimulationEvaluator
+internal sealed class SimulationEvaluator
 {
     internal SimulationEvaluator(
         int ordinal,
@@ -47,13 +47,13 @@ public sealed class SimulationEvaluator
     public LogicVector? InitialValue { get; }
 }
 
-public sealed record SimulationDriver(
+internal sealed record SimulationDriver(
     int Ordinal,
     int EvaluatorOrdinal,
     int? NetOrdinal,
     uint Width);
 
-public sealed class SimulationNet
+internal sealed class SimulationNet
 {
     internal SimulationNet(
         int ordinal,
@@ -77,7 +77,7 @@ public sealed class SimulationNet
     public ReadOnlyCollection<int> ReceiverEvaluatorOrdinals { get; }
 }
 
-public sealed class CombinationalStronglyConnectedComponent
+internal sealed class CombinationalStronglyConnectedComponent
 {
     internal CombinationalStronglyConnectedComponent(
         int ordinal,
@@ -96,7 +96,7 @@ public sealed class CombinationalStronglyConnectedComponent
     public bool IsCyclic { get; }
 }
 
-public sealed class SimulationIr
+internal sealed class SimulationIr
 {
     internal SimulationIr(
         SimulationEvaluator[] evaluators,
@@ -283,7 +283,7 @@ public sealed class CompilationArtifact
 
     public CompilationArtifactKey Key { get; }
 
-    public SimulationIr SimulationIr { get; }
+    internal SimulationIr SimulationIr { get; }
 
     public SourceMap SourceMap { get; }
 
