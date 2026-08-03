@@ -1,6 +1,6 @@
 # Documentation Map
 
-Logic Lab has a closed V1 design baseline, an executable Phase A tracer, explicit-topology authoring, hierarchy, width-conversion contracts, and steering/multi-Driver combinational contracts through slice `10`. Read each document according to its authority and subject; use the readiness table below for implementation status rather than inferring delivery from a normative specification.
+Logic Lab has a closed V1 design baseline and executable implementation-plan items `01` through `10`. Read each document according to its authority and subject; use the readiness table below for implementation status rather than inferring delivery from a normative specification.
 
 ## Authority by subject
 
@@ -56,10 +56,10 @@ Implementation-plan items `01` through `10` are complete and verified. The appli
 | Workspace, Durable Project catalog, persistence, concurrency, browser messages | closed commands, keyset paging, queries, preconditions, outcomes, and transfer values | Sandbox create/author/compile/session/stimulus/step/close path, bounded admission, lifecycle fencing, and typed failure evidence | recoverable history/idempotency, durable catalog, Infrastructure, transfer, full work lanes, and integration evidence |
 | Blazor host and Canvas/waveform runtime | closed ownership, lifecycle, rendering, input, localization, security, and failure rules | per-page Interactive Server `/editor`, accessible explicit-topology, selected-definition, and generated-Port width Scene projection, definition tabs, entry controls, Hierarchy Path breadcrumbs, component tests, host integration, and security-header tests | Canvas/waveform adapters, browser workflow suite, supported-browser matrix, corpus traces, and load/security qualification |
 | .NET engineering and dependency supply chain | SDK feature band, central build/analyzer/package/audit policy, TUnit/MTP, execution/DI/JSON/telemetry/publication rules | five production projects, five executable test projects, one comparative benchmark project, application-root locks, locked restore, warning-clean build, format, and whole-solution test gates | later slice projects and locks, CI publication, architecture automation, and provider qualification |
-| policies and capacity | dimensions and failure semantics are closed | provisional Phase A Simulation, Trace, Scheduling, and Workspace policy snapshots exercise bounded failure paths | calibrated values tied to a versioned corpus and deployment profile |
+| policies and capacity | dimensions and failure semantics are closed | provisional Simulation, Trace, Scheduling, and Workspace policy snapshots exercise bounded failure paths | calibrated values tied to a versioned corpus and deployment profile |
 | production operations | required readiness, shutdown, key, migration, proxy, and observability behavior is closed | development-host lifecycle and security-header integration evidence | provider-specific TLS, secrets, backup/restore, telemetry, alert, and runbook evidence |
 
-The latest recorded gate on 2026-08-03 passed locked restore, formatting, warning-clean build, all 551 discovered TUnit tests, whitespace validation, the complete flat-topology `/editor` tracer, hierarchical create–instantiate–navigate–select-entry–compile–session behavior, non-throwing budgeted generated-Port and accessible-Scene admission, structured power-of-two shape exhaustion, canonically ordered Quiescent Boundary multi-Driver diagnostics, and the compilable steering gallery across the Domain, Engine, Application, Presentation, and interactive Web paths. Do not describe the application as release-ready until the remaining evidence rows are complete.
+Verification snapshot (2026-08-03): locked restore, formatting, warning-clean build, whitespace validation, and all 551 discovered TUnit tests passed. The executable evidence above covers the completed vertical slices; it does not qualify the application for release while any remaining-evidence row is open.
 
 ## Executable evidence
 
