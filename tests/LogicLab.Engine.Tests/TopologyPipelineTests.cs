@@ -118,7 +118,7 @@ public static class TopologyRuntimeArbitraries
     }
 }
 
-public sealed class TopologyContractTests
+public sealed class TopologyPipelineTests
 {
     [Test]
     public async Task Compile_FlatTopologyCircuit_LowersEveryContractWithTotalSourceMap()

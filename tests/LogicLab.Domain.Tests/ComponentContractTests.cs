@@ -7,7 +7,7 @@ using TUnit.FsCheck;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class ComponentContractResolutionTests
+public sealed class ComponentContractTests
 {
     public enum InvalidParameterEnvelope
     {
