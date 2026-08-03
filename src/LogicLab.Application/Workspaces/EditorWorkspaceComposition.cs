@@ -22,9 +22,33 @@ public interface IEditorWorkspace : IAsyncDisposable
 
 public sealed record WorkspacePolicy
 {
+    private const int DefaultAuthoringDefinitionCountLimit = 100;
+    private const int DefaultAuthoringEntityCountLimit = 10_000;
+    private const int DefaultAuthoringCommandItemCountLimit = 1_000;
+
     public WorkspacePolicy(int globalWorkspaceLimit, TimeSpan sandboxRetention)
+        : this(
+            globalWorkspaceLimit,
+            sandboxRetention,
+            DefaultAuthoringDefinitionCountLimit,
+            DefaultAuthoringEntityCountLimit,
+            DefaultAuthoringCommandItemCountLimit)
+    {
+    }
+
+    public WorkspacePolicy(
+        int globalWorkspaceLimit,
+        TimeSpan sandboxRetention,
+        int authoringDefinitionCountLimit,
+        int authoringEntityCountLimit,
+        int authoringCommandItemCountLimit)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(globalWorkspaceLimit);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(
+            authoringDefinitionCountLimit);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(authoringEntityCountLimit);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(
+            authoringCommandItemCountLimit);
         if (sandboxRetention <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(
@@ -35,11 +59,20 @@ public sealed record WorkspacePolicy
 
         GlobalWorkspaceLimit = globalWorkspaceLimit;
         SandboxRetention = sandboxRetention;
+        AuthoringDefinitionCountLimit = authoringDefinitionCountLimit;
+        AuthoringEntityCountLimit = authoringEntityCountLimit;
+        AuthoringCommandItemCountLimit = authoringCommandItemCountLimit;
     }
 
     public int GlobalWorkspaceLimit { get; }
 
     public TimeSpan SandboxRetention { get; }
+
+    public int AuthoringDefinitionCountLimit { get; }
+
+    public int AuthoringEntityCountLimit { get; }
+
+    public int AuthoringCommandItemCountLimit { get; }
 
     public static WorkspacePolicy Default { get; } = new(
         globalWorkspaceLimit: 128,
@@ -86,16 +119,14 @@ public static class EditorWorkspaceFactory
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
-        WorkspaceModuleOperations? operations = null,
-        AuthoringAdmissionPolicy? authoringAdmissionPolicy = null)
+        WorkspaceModuleOperations? operations = null)
     {
         return CreateCore(
             workspacePolicy,
             schedulingPolicy,
             timeProvider,
             loggerFactory,
-            operations ?? WorkspaceModuleOperations.Production,
-            authoringAdmissionPolicy);
+            operations ?? WorkspaceModuleOperations.Production);
     }
 
     private static EditorWorkspace CreateCore(
@@ -103,8 +134,7 @@ public static class EditorWorkspaceFactory
         SchedulingPolicy? schedulingPolicy,
         TimeProvider? timeProvider,
         ILoggerFactory? loggerFactory,
-        WorkspaceModuleOperations operations,
-        AuthoringAdmissionPolicy? authoringAdmissionPolicy = null)
+        WorkspaceModuleOperations operations)
     {
         var resolvedLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         var coordinator = new Work.WorkCoordinator(
@@ -113,7 +143,6 @@ public static class EditorWorkspaceFactory
         return new EditorWorkspace(
             coordinator,
             workspacePolicy ?? WorkspacePolicy.Default,
-            authoringAdmissionPolicy ?? AuthoringAdmissionPolicy.Default,
             timeProvider ?? TimeProvider.System,
             operations,
             resolvedLoggerFactory.CreateLogger<EditorWorkspace>());

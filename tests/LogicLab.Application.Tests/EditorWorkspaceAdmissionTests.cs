@@ -10,11 +10,13 @@ public sealed class EditorWorkspaceAdmissionTests
     [Test]
     public async Task DispatchAsync_AuthoringLimitsAtMaximum_CommitThenRejectNextDefinition()
     {
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
-            authoringAdmissionPolicy: new AuthoringAdmissionPolicy(
-                definitionCountLimit: 2,
-                entityCountLimit: 10,
-                commandItemCountLimit: 1));
+        await using var workspace = EditorWorkspaceFactory.Create(
+            workspacePolicy: new WorkspacePolicy(
+                globalWorkspaceLimit: 128,
+                sandboxRetention: TimeSpan.FromMinutes(30),
+                authoringDefinitionCountLimit: 2,
+                authoringEntityCountLimit: 10,
+                authoringCommandItemCountLimit: 1));
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Boundary limit", "Main"),
             CancellationToken.None);
@@ -61,11 +63,13 @@ public sealed class EditorWorkspaceAdmissionTests
     [Test]
     public async Task DispatchAsync_AuthoringEntityLimitExceeded_RejectsWithoutRevision()
     {
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
-            authoringAdmissionPolicy: new AuthoringAdmissionPolicy(
-                definitionCountLimit: 10,
-                entityCountLimit: 1,
-                commandItemCountLimit: 10));
+        await using var workspace = EditorWorkspaceFactory.Create(
+            workspacePolicy: new WorkspacePolicy(
+                globalWorkspaceLimit: 128,
+                sandboxRetention: TimeSpan.FromMinutes(30),
+                authoringDefinitionCountLimit: 10,
+                authoringEntityCountLimit: 1,
+                authoringCommandItemCountLimit: 10));
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Entity limit", "Main"),
             CancellationToken.None);
@@ -111,11 +115,13 @@ public sealed class EditorWorkspaceAdmissionTests
     [Test]
     public async Task DispatchAsync_AuthoringCommandShapeLimitExceeded_RejectsWithoutRevision()
     {
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
-            authoringAdmissionPolicy: new AuthoringAdmissionPolicy(
-                definitionCountLimit: 10,
-                entityCountLimit: 100,
-                commandItemCountLimit: 1));
+        await using var workspace = EditorWorkspaceFactory.Create(
+            workspacePolicy: new WorkspacePolicy(
+                globalWorkspaceLimit: 128,
+                sandboxRetention: TimeSpan.FromMinutes(30),
+                authoringDefinitionCountLimit: 10,
+                authoringEntityCountLimit: 100,
+                authoringCommandItemCountLimit: 1));
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Command limit", "Main"),
             CancellationToken.None);
@@ -156,5 +162,40 @@ public sealed class EditorWorkspaceAdmissionTests
             await Assert.That(after.ProjectRevision.Document.CircuitDefinitions)
                 .Count().IsEqualTo(1);
         }
+    }
+
+    [Test]
+    public async Task TryAdmitRoutes_FirstItemOverRemainingBudget_StopsEnumeration()
+    {
+        var visited = 0;
+        var budget = new AuthoringAdmissionBudget(maximum: 1);
+
+        var admitted = AuthoringAdmission.TryAdmitRoutes(Routes(), ref budget);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(admitted).IsFalse();
+            await Assert.That(visited).IsEqualTo(2);
+        }
+
+        IEnumerable<WireRoute?> Routes()
+        {
+            visited++;
+            yield return new UnroutedWireRoute();
+            visited++;
+            yield return new UnroutedWireRoute();
+            visited++;
+            throw new InvalidOperationException("Enumeration continued after exhaustion.");
+        }
+    }
+
+    [Test]
+    public async Task AuthoringAdmissionBudget_OversizedConsumption_RejectsWithoutOverflow()
+    {
+        var budget = new AuthoringAdmissionBudget(maximum: 1);
+
+        var admitted = budget.TryConsume(ulong.MaxValue);
+
+        await Assert.That(admitted).IsFalse();
     }
 }
