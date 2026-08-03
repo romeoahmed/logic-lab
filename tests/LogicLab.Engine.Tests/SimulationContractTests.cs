@@ -1,3 +1,4 @@
+using System.Collections;
 using LogicLab.Domain;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
@@ -85,6 +86,48 @@ public sealed class SimulationContractTests
     }
 
     [Test]
+    public async Task CollectionContracts_ChangingInputs_UseSingleOwnedSnapshot()
+    {
+        var context = SimulationTestContext.Create();
+        var source = context.NetSource(context.Circuit.InputNet.Id);
+        var assignment = new StimulusAssignment(
+            context.InputDriverSource(),
+            new LogicVector([LogicValue.Zero]));
+        var probeId = ProbeId.Create();
+        var configuration = new SimulationSessionConfiguration(
+            new SimulationPolicyReference("simulation", "1"),
+            new TracePolicyReference("trace", "1"),
+            new ChangingReadOnlyList<CompilationSource>(
+                [source],
+                [null!]));
+        var batch = new StimulusBatch(
+            10,
+            new ChangingReadOnlyList<StimulusAssignment>(
+                [assignment],
+                [null!]));
+        var traceRequest = new SimulationTraceWindowRequest(
+            new ChangingReadOnlyList<ProbeId>(
+                [probeId],
+                [probeId],
+                [null!]),
+            new LogicalTimeRange(0, 1),
+            afterSequence: null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(configuration.InitialProbeBindings).IsEquivalentTo(
+                [source],
+                CollectionOrdering.Matching);
+            await Assert.That(batch.Assignments).IsEquivalentTo(
+                [assignment],
+                CollectionOrdering.Matching);
+            await Assert.That(traceRequest.ProbeIds).IsEquivalentTo(
+                [probeId],
+                CollectionOrdering.Matching);
+        }
+    }
+
+    [Test]
     public async Task Policies_MutatedInputArrays_PreserveOwnedCanonicalLimits()
     {
         var simulationLimits = SimulationTestContext.PermissiveSimulationPolicy()
@@ -143,6 +186,27 @@ public sealed class SimulationContractTests
                 .IsTrue();
             await Assert.That(((ICollection<SimulationWorkObservation>)opened.WorkEvidence
                 .ObservedDimensions).IsReadOnly).IsTrue();
+        }
+    }
+
+    private sealed class ChangingReadOnlyList<T>(
+        params IReadOnlyList<T>[] snapshots) : IReadOnlyList<T>
+    {
+        private int enumerationCount;
+
+        public int Count => snapshots[0].Count;
+
+        public T this[int index] => snapshots[0][index];
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            var snapshotIndex = Math.Min(enumerationCount++, snapshots.Length - 1);
+            return snapshots[snapshotIndex].GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
         }
     }
 }
