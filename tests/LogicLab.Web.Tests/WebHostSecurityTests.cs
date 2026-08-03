@@ -45,17 +45,22 @@ public sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     {
         using var client = factory.CreateClient();
         using var response = await client.GetAsync(path);
+        var contentSecurityPolicy = Header(response, "Content-Security-Policy");
 
         using (Assert.Multiple())
         {
             await Assert.That(response.StatusCode).IsEqualTo(expectedStatus);
-            await Assert.That(Header(response, "Content-Security-Policy"))
+            await Assert.That(contentSecurityPolicy)
                 .IsEqualTo(ExpectedContentSecurityPolicy);
+            await Assert.That(Header(response, "Cross-Origin-Opener-Policy"))
+                .IsEqualTo("same-origin");
+            await Assert.That(Header(response, "Permissions-Policy"))
+                .IsEqualTo("camera=(), geolocation=(), microphone=()");
             await Assert.That(Header(response, "X-Content-Type-Options")).IsEqualTo("nosniff");
             await Assert.That(Header(response, "X-Frame-Options")).IsEqualTo("DENY");
             await Assert.That(Header(response, "Referrer-Policy")).IsEqualTo("no-referrer");
-            await Assert.That(ExpectedContentSecurityPolicy).DoesNotContain("*");
-            await Assert.That(ExpectedContentSecurityPolicy).Contains("frame-ancestors 'none'");
+            await Assert.That(contentSecurityPolicy).DoesNotContain("*");
+            await Assert.That(contentSecurityPolicy).Contains("frame-ancestors 'none'");
         }
     }
 

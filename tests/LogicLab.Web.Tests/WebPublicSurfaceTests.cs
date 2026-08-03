@@ -5,24 +5,34 @@ namespace LogicLab.Web.Tests;
 public sealed class WebPublicSurfaceTests
 {
     [Test]
-    public async Task WebAssembly_ExportedTypes_ExcludeRemovedWorkbenchHelpers()
+    public async Task WebAssembly_ExportedTypes_MatchComponentContractAllowlist()
     {
         var exportedNames = typeof(Editor).Assembly
             .GetExportedTypes()
-            .Select(type => type.FullName ?? type.Name)
+            .Select(type => type.Name)
+            .Order(StringComparer.Ordinal)
             .ToArray();
-
-        using (Assert.Multiple())
+        var expectedNames = new[]
         {
-            await Assert.That(exportedNames.Any(name => name.EndsWith(
-                ".WorkbenchCommandExecution",
-                StringComparison.Ordinal))).IsFalse();
-            await Assert.That(exportedNames.Any(name => name.EndsWith(
-                ".WorkbenchViewState",
-                StringComparison.Ordinal))).IsFalse();
-            await Assert.That(exportedNames.Any(name => name.EndsWith(
-                ".WorkbenchStatusState",
-                StringComparison.Ordinal))).IsFalse();
-        }
+            "AccessibleCircuitScene",
+            "App",
+            "DefinitionNavigator",
+            "Editor",
+            "Error",
+            "HierarchyBreadcrumbItem",
+            "Home",
+            "MainLayout",
+            "NotFound",
+            "ProbePanel",
+            "Program",
+            "ReconnectModal",
+            "Routes",
+            "TopologyCommandBar",
+            "WorkbenchCommandBar",
+            "WorkbenchStatusStrip",
+            "_Imports",
+        };
+
+        await Assert.That(exportedNames).IsEquivalentTo(expectedNames);
     }
 }
