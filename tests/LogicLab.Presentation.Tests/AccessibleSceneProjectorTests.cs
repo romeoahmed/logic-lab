@@ -9,6 +9,51 @@ namespace LogicLab.Presentation.Tests;
 public sealed class AccessibleSceneProjectorTests
 {
     [Test]
+    [Arguments("logic.unsigned_compare", "Unsigned Compare")]
+    [Arguments("logic.adder", "Adder")]
+    [Arguments("logic.subtractor", "Subtractor")]
+    [Arguments("logic.shift", "Logical Shift")]
+    public async Task Project_ArithmeticComponent_UsesAccessibleContractLabelAndPorts(
+        string contractId,
+        string expectedLabel)
+    {
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "Arithmetic projection",
+            LibrarySnapshot.Core,
+            new SymbolProfileReference(
+                "TeachingMixed",
+                "1.0.0",
+                IndicationConvention.Negation),
+            "Main"))).Revision;
+        var parameters = contractId == "logic.shift"
+            ? new[]
+            {
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(5)),
+                new ComponentParameterBinding(
+                    "direction",
+                    new ChoiceParameterValue("right")),
+            }
+            : new[]
+            {
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(5)),
+            };
+        revision = Place(revision, contractId, parameters, new GridPoint(0, 0));
+
+        var component = Project(revision).Components.Single();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(component.Label).IsEqualTo(expectedLabel);
+            await Assert.That(component.Ports.All(port => port.Width > 0)).IsTrue();
+            if (contractId == "logic.shift")
+            {
+                await Assert.That(component.Ports.Single(port => port.Label == "AMOUNT").Width)
+                    .IsEqualTo(3U);
+            }
+        }
+    }
+
+    [Test]
     public async Task TryProject_GeneratedPortShapeBeyondCollectionCapacity_ReturnsFalse()
     {
         var revision = CreateCompleteCircuit();

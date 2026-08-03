@@ -152,7 +152,7 @@ public sealed class ComponentContractSchemaTests
             await Assert.That(concat.SchemaDigest)
                 .IsEqualTo("e4605b5e65b0c8bd538d54fd829674a7f46d75ec003a9941bc6f9ff8114054e2");
             await Assert.That(CoreLibrarySchema.ContentDigest)
-                .IsEqualTo("7f4f0991bed1cf04d1b320886ca1f5a8ae822973a3cfaa406c47d15cd30ef9b5");
+                .IsEqualTo("5374e31ff009f9302173de780baec86c0a30416abd5369d5c842c60bfaa26c50");
         }
     }
 

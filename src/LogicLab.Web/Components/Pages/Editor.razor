@@ -6,7 +6,7 @@
 <div class="workbench-shell">
     <header class="workbench-heading">
         <div>
-            <p class="eyebrow">Slice 10 · steering and multi-Driver</p>
+            <p class="eyebrow">Slice 11 · arithmetic and vector decisions</p>
             <h1>Sandbox Workbench</h1>
         </div>
         <p>Create Circuit Definitions, navigate occurrences, choose an entry, compile, and simulate.</p>
@@ -15,6 +15,7 @@
     <WorkbenchCommandBar CanCreate="CanCreate"
                          CanAuthor="CanAuthor"
                          CanAuthorSteering="CanAuthorSteering"
+                         CanAuthorArithmetic="CanAuthorArithmetic"
                          CanAuthorHierarchy="CanAuthorHierarchy"
                          CanCompile="CanCompile"
                          CanCreateSession="CanCreateSession"
@@ -24,6 +25,7 @@
                          OnCreate="@(() => RunCommandAsync("create", () => CanCreate, CreateProject))"
                          OnAuthor="@(() => RunCommandAsync("author", () => CanAuthor, AuthorCircuit))"
                          OnAuthorSteering="@(() => RunCommandAsync("author-steering", () => CanAuthorSteering, AuthorSteeringGallery))"
+                         OnAuthorArithmetic="@(() => RunCommandAsync("author-arithmetic", () => CanAuthorArithmetic, AuthorArithmeticGallery))"
                          OnAuthorHierarchy="@(() => RunCommandAsync("author-hierarchy", () => CanAuthorHierarchy, AuthorHierarchy))"
                          OnCompile="@(() => RunCommandAsync("compile", () => CanCompile, Compile))"
                          OnCreateSession="@(() => RunCommandAsync("session", () => CanCreateSession, CreateSimulationSession))"

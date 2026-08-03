@@ -262,13 +262,73 @@ public sealed class SteeringPipelineTests
     [Arguments("logic.demux")]
     [Arguments("logic.decoder")]
     [Arguments("logic.priority_encoder")]
-    public async Task Open_SteeringContract_SettlesExactFourStateOutputs(string contractId)
+    [Arguments("logic.unsigned_compare")]
+    [Arguments("logic.adder")]
+    [Arguments("logic.subtractor")]
+    [Arguments("logic.shift")]
+    public async Task Open_CombinationalContract_SettlesExactFourStateOutputs(string contractId)
     {
         var circuit = CreateScenario(contractId);
         var (_, snapshot, _) = Open(circuit);
 
         await Assert.That(snapshot.Probes.Select(probe => Values(probe.Value)).ToArray())
             .IsEquivalentTo(circuit.ExpectedOutputs, CollectionOrdering.Matching);
+    }
+
+    [Test]
+    public async Task Open_UnknownShiftCaseSetBeyondPolicy_RejectsWithoutSession()
+    {
+        var circuit = Build(
+            "logic.shift",
+            [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(8)),
+                new ComponentParameterBinding(
+                    "direction",
+                    new ChoiceParameterValue("left")),
+            ],
+            [
+                Enumerable.Repeat(LogicValue.One, 8).ToArray(),
+                [LogicValue.X, LogicValue.X, LogicValue.X],
+            ],
+            [Enumerable.Repeat(LogicValue.X, 8).ToArray()]);
+        var compilation = (CompilationSucceeded)Compiler.Compile(
+            CompilerTestCircuit.Request(circuit.Revision),
+            CancellationToken.None);
+        var policy = new SimulationPolicy(
+            "bounded-shift",
+            "1",
+            [
+                new SimulationLimit(SimulationDimension.ScheduledBatchCount, 100),
+                new SimulationLimit(SimulationDimension.ScheduledAssignmentCount, 100),
+                new SimulationLimit(SimulationDimension.AdvanceWorkItemCount, 10),
+                new SimulationLimit(SimulationDimension.AdvanceFrontierItemCount, 100),
+                new SimulationLimit(SimulationDimension.WorkingLayerSlotCount, 100),
+                new SimulationLimit(SimulationDimension.TriggerBatchCount, 100),
+                new SimulationLimit(SimulationDimension.ZeroTimeStateCount, 100),
+            ]);
+        var outcome = SimulationRuntime.Open(
+            new OpenSimulationRequest(
+                compilation.Artifact,
+                new SimulationSessionConfiguration(
+                    new SimulationPolicyReference(policy.PolicyId, policy.PolicyRevision),
+                    new TracePolicyReference("test-trace", "1"),
+                    []),
+                policy,
+                SimulationTestContext.PermissiveTracePolicy()),
+            CancellationToken.None);
+
+        var rejected = await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
+        Assert.NotNull(rejected);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason)
+                .IsEqualTo(SimulationFailureReason.SimulationResourceLimit);
+            await Assert.That(rejected.WorkEvidence.PolicyLimitBreach)
+                .IsEqualTo(new SimulationWorkObservation(
+                    SimulationWorkPolicy.Simulation,
+                    "advance_work_item_count",
+                    11));
+        }
     }
 
     [Test]
@@ -372,6 +432,38 @@ public sealed class SteeringPipelineTests
                 ],
                 [[LogicValue.One], [LogicValue.X]],
                 [[LogicValue.X], [LogicValue.One]]),
+            "logic.unsigned_compare" => Build(contractId,
+                Width(2),
+                [[LogicValue.X, LogicValue.Zero], [LogicValue.Zero, LogicValue.Zero]],
+                [[LogicValue.Zero], [LogicValue.X], [LogicValue.X]]),
+            "logic.adder" => Build(contractId,
+                Width(2),
+                [
+                    [LogicValue.One, LogicValue.One],
+                    [LogicValue.Zero, LogicValue.Zero],
+                    [LogicValue.One],
+                ],
+                [[LogicValue.Zero, LogicValue.Zero], [LogicValue.One]]),
+            "logic.subtractor" => Build(contractId,
+                Width(2),
+                [
+                    [LogicValue.Zero, LogicValue.Zero],
+                    [LogicValue.Zero, LogicValue.Zero],
+                    [LogicValue.One],
+                ],
+                [[LogicValue.One, LogicValue.One], [LogicValue.One]]),
+            "logic.shift" => Build(contractId,
+                [
+                    new ComponentParameterBinding("width", new Unsigned32ParameterValue(3)),
+                    new ComponentParameterBinding(
+                        "direction",
+                        new ChoiceParameterValue("left")),
+                ],
+                [
+                    [LogicValue.One, LogicValue.One, LogicValue.Zero],
+                    [LogicValue.X, LogicValue.Zero],
+                ],
+                [[LogicValue.X, LogicValue.One, LogicValue.X]]),
             _ => throw new ArgumentOutOfRangeException(nameof(contractId)),
         };
     }

@@ -2,7 +2,7 @@
 
 Logic Lab is a teaching-oriented gate-level digital logic workbench for authoring, simulating, observing, and simplifying combinational and sequential circuits.
 
-The repository targets .NET 10, C# 14, and a server-first Blazor Web App. Implementation-plan items `01` through `10` are executable; the broader V1 Workbench remains target design. See [Development Readiness](./docs/README.md#development-readiness) for the current evidence and gaps instead of inferring delivery from the normative documents.
+The repository targets .NET 10, C# 14, and a server-first Blazor Web App. Implementation-plan items `01` through `11` are executable; the broader V1 Workbench remains target design. See [Development Readiness](./docs/README.md#development-readiness) for the current evidence and gaps instead of inferring delivery from the normative documents.
 
 ## V1 scope
 

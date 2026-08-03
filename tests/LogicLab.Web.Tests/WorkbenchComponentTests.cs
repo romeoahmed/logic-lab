@@ -17,6 +17,7 @@ public sealed class WorkbenchComponentTests
         "create",
         "author",
         "author-steering",
+        "author-arithmetic",
         "author-hierarchy",
         "compile",
         "session",
@@ -28,6 +29,11 @@ public sealed class WorkbenchComponentTests
     [
         "AND", "Buffer", "Decoder", "DEMUX", "MUX", "NAND", "NOR", "OR",
         "Priority Encoder", "Tri-State", "XNOR", "XOR",
+    ];
+
+    private static readonly string[] ArithmeticComponentLabels =
+    [
+        "Adder", "Logical Shift", "Subtractor", "Unsigned Compare",
     ];
 
     [Test]
@@ -146,6 +152,44 @@ public sealed class WorkbenchComponentTests
             await Assert.That(mux.TextContent).Contains("D1 · Input · 1 bit");
             await Assert.That(priorityEncoder.TextContent).Contains("A0 · Input · 1 bit");
             await Assert.That(priorityEncoder.TextContent).Contains("VALID · Output · 1 bit");
+        }
+
+        await ClickAndWaitForState(
+            rendered,
+            "compile",
+            () => rendered.Find("[role='status']").TextContent
+                .Contains("Compilation Artifact published", StringComparison.Ordinal));
+    }
+
+    [Test]
+    public async Task Editor_AuthorArithmeticGallery_RendersCheckedPortsAndCompiles()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author-arithmetic"));
+        await ClickAndWaitForState(
+            rendered,
+            "author-arithmetic",
+            () => rendered.FindAll("[data-component] h3")
+                .Any(element => element.TextContent == "Logical Shift"));
+
+        var labels = rendered.FindAll("[data-component] h3")
+            .Select(element => element.TextContent)
+            .ToArray();
+        var shift = rendered.FindAll("[data-component]").Single(element =>
+            element.QuerySelector("h3")?.TextContent == "Logical Shift");
+        using (Assert.Multiple())
+        {
+            await Assert.That(ArithmeticComponentLabels.Except(labels)).IsEmpty();
+            await Assert.That(shift.TextContent).Contains("D · Input · 3 bit");
+            await Assert.That(shift.TextContent).Contains("AMOUNT · Input · 2 bit");
+            await Assert.That(shift.TextContent).Contains("Q · Output · 3 bit");
         }
 
         await ClickAndWaitForState(

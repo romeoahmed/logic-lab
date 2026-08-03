@@ -559,7 +559,12 @@ public static class SimulationRuntime
                     SimulationDimension.AdvanceFrontierItemCount,
                     ref work.FrontierItems);
                 var evaluator = ir.Evaluators[evaluatorOrdinal];
-                Evaluate(evaluator, netValues, driverValues);
+                Evaluate(
+                    evaluator,
+                    netValues,
+                    driverValues,
+                    policy,
+                    work);
                 foreach (var driverOrdinal in evaluator.OutputDriverOrdinals)
                 {
                     var netOrdinal = ir.Drivers[driverOrdinal].NetOrdinal;
@@ -588,7 +593,9 @@ public static class SimulationRuntime
     private static void Evaluate(
         SimulationEvaluator evaluator,
         LogicVector[] netValues,
-        LogicVector[] driverValues)
+        LogicVector[] driverValues,
+        SimulationPolicy policy,
+        SettlementWork work)
     {
         switch (evaluator.Kind)
         {
@@ -659,6 +666,50 @@ public static class SimulationRuntime
                 driverValues[evaluator.OutputDriverOrdinals[0]] = priority.Index;
                 driverValues[evaluator.OutputDriverOrdinals[1]] =
                     new LogicVector([priority.Valid]);
+                return;
+            case SimulationEvaluatorKind.LogicUnsignedCompare:
+                var comparison = ArithmeticEvaluation.UnsignedCompare(
+                    netValues[evaluator.InputNetOrdinals[0]],
+                    netValues[evaluator.InputNetOrdinals[1]]);
+                driverValues[evaluator.OutputDriverOrdinals[0]] =
+                    new LogicVector([comparison.LessThan]);
+                driverValues[evaluator.OutputDriverOrdinals[1]] =
+                    new LogicVector([comparison.Equal]);
+                driverValues[evaluator.OutputDriverOrdinals[2]] =
+                    new LogicVector([comparison.GreaterThan]);
+                return;
+            case SimulationEvaluatorKind.LogicAdder:
+                var addition = ArithmeticEvaluation.Add(
+                    netValues[evaluator.InputNetOrdinals[0]],
+                    netValues[evaluator.InputNetOrdinals[1]],
+                    netValues[evaluator.InputNetOrdinals[2]][0]);
+                driverValues[evaluator.OutputDriverOrdinals[0]] = addition.Sum;
+                driverValues[evaluator.OutputDriverOrdinals[1]] =
+                    new LogicVector([addition.CarryOut]);
+                return;
+            case SimulationEvaluatorKind.LogicSubtractor:
+                var subtraction = ArithmeticEvaluation.Subtract(
+                    netValues[evaluator.InputNetOrdinals[0]],
+                    netValues[evaluator.InputNetOrdinals[1]],
+                    netValues[evaluator.InputNetOrdinals[2]][0]);
+                driverValues[evaluator.OutputDriverOrdinals[0]] = subtraction.Difference;
+                driverValues[evaluator.OutputDriverOrdinals[1]] =
+                    new LogicVector([subtraction.BorrowOut]);
+                return;
+            case SimulationEvaluatorKind.LogicShift:
+                var amount = netValues[evaluator.InputNetOrdinals[1]];
+                CountWork(
+                    policy,
+                    SimulationDimension.AdvanceWorkItemCount,
+                    ref work.WorkItems,
+                    ArithmeticEvaluation.ReachableShiftCaseCount(amount));
+                driverValues[evaluator.OutputDriverOrdinals[0]] =
+                    ArithmeticEvaluation.LogicalShift(
+                        netValues[evaluator.InputNetOrdinals[0]],
+                        amount,
+                        evaluator.Option
+                            ? LogicalShiftDirection.Left
+                            : LogicalShiftDirection.Right);
                 return;
             case SimulationEvaluatorKind.TopologySplit:
                 var splitInput = VectorLogic.NormalizeInput(
@@ -732,6 +783,22 @@ public static class SimulationRuntime
         {
             throw new SimulationPolicyLimitException(dimension, observed);
         }
+    }
+
+    private static void CountWork(
+        SimulationPolicy policy,
+        SimulationDimension dimension,
+        ref ulong observed,
+        ulong count)
+    {
+        var maximum = policy.Maximum(dimension);
+        if (count > maximum - Math.Min(observed, maximum))
+        {
+            observed = maximum == ulong.MaxValue ? ulong.MaxValue : maximum + 1;
+            throw new SimulationPolicyLimitException(dimension, observed);
+        }
+
+        observed = checked(observed + count);
     }
 
     private static void RequireWithinPolicy(
