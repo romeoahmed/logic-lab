@@ -21,15 +21,6 @@ public sealed class WorkspaceContractTests
     }
 
     [Test]
-    public async Task WorkspacePolicy_TwoArgumentConstructor_UsesCanonicalAuthoringLimitsDefault()
-    {
-        var policy = new WorkspacePolicy(8, TimeSpan.FromMinutes(5));
-
-        await Assert.That(policy.AuthoringLimits)
-            .IsEqualTo(WorkspaceAuthoringLimits.Default);
-    }
-
-    [Test]
     [Arguments(0, 1, 1)]
     [Arguments(1, 0, 1)]
     [Arguments(1, 1, 0)]

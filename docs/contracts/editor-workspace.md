@@ -269,6 +269,8 @@ authority for compilation, hierarchy, elaborated slots, and memory cells. Deploy
 these authoring dimensions through the same Workspace Policy as Workspace count and retention;
 `WorkspacePolicy.AuthoringLimits` groups the three dimensions into one immutable value, and
 authoring admission is not a separate hidden policy.
+Constructing a custom `WorkspacePolicy` requires this value explicitly; only the canonical
+`WorkspacePolicy.Default` composition supplies the development baseline limits.
 
 ## 4. Authoring outcomes
 
