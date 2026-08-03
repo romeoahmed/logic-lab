@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
@@ -32,7 +33,7 @@ public sealed class ComponentContractSchemaTests
     }
 
     [Test]
-    public async Task PreparePorts_TopologySplit_GeneratesOrderedSlicePorts()
+    public async Task ResolvePorts_TopologySplit_GeneratesOrderedSlicePorts()
     {
         var contract = await FindCoreContract("topology.split");
         var parameters = new ComponentParameterBinding[]
@@ -42,12 +43,13 @@ public sealed class ComponentContractSchemaTests
                 [new BitSlice(0, 4), new BitSlice(2, 3), new BitSlice(7, 1)])),
         };
 
-        var resolution = contract.PreparePorts(parameters);
-        var ports = resolution.Materialize(maximumPortCount: 100);
+        var resolution = contract.ResolvePorts(parameters);
+        var ports = Materialize(resolution);
 
         using (Assert.Multiple())
         {
-            await Assert.That(resolution.PortCount).IsEqualTo(4UL);
+            await Assert.That(resolution.TryGetPortCount(out var portCount)).IsTrue();
+            await Assert.That(portCount).IsEqualTo(4UL);
             await Assert.That(ports.Select(port =>
                     (port.Id, port.Direction, port.Width)))
                 .IsEquivalentTo(
@@ -62,7 +64,7 @@ public sealed class ComponentContractSchemaTests
     }
 
     [Test]
-    public async Task PreparePorts_TopologyConcat_GeneratesOrderedInputPortsAndOutputWidth()
+    public async Task ResolvePorts_TopologyConcat_GeneratesOrderedInputPortsAndOutputWidth()
     {
         var contract = await FindCoreContract("topology.concat");
         var parameters = new ComponentParameterBinding[]
@@ -70,12 +72,13 @@ public sealed class ComponentContractSchemaTests
             new("inputWidths", new WidthsParameterValue([1, 3, 4])),
         };
 
-        var resolution = contract.PreparePorts(parameters);
-        var ports = resolution.Materialize(maximumPortCount: 100);
+        var resolution = contract.ResolvePorts(parameters);
+        var ports = Materialize(resolution);
 
         using (Assert.Multiple())
         {
-            await Assert.That(resolution.PortCount).IsEqualTo(4UL);
+            await Assert.That(resolution.TryGetPortCount(out var portCount)).IsTrue();
+            await Assert.That(portCount).IsEqualTo(4UL);
             await Assert.That(ports.Select(port =>
                     (port.Id, port.Direction, port.Width)))
                 .IsEquivalentTo(
@@ -157,7 +160,7 @@ public sealed class ComponentContractSchemaTests
     public async Task Materialize_CancelledRequest_StopsBeforePortGeneration()
     {
         var contract = await FindCoreContract("topology.split");
-        var resolution = contract.PreparePorts(
+        var resolution = contract.ResolvePorts(
         [
             new ComponentParameterBinding("width", new Unsigned32ParameterValue(4)),
             new ComponentParameterBinding(
@@ -168,14 +171,17 @@ public sealed class ComponentContractSchemaTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
-        await Assert.That(() => resolution.Materialize(100, cancellation.Token))
+        await Assert.That(() => resolution.TryMaterialize(
+                100,
+                out _,
+                cancellation.Token))
             .ThrowsExactly<OperationCanceledException>();
     }
 
     [Test]
     [Arguments("topology.zero_extend")]
     [Arguments("topology.sign_extend")]
-    public async Task PreparePorts_ExtensionContract_ResolvesDistinctPortWidths(
+    public async Task ResolvePorts_ExtensionContract_ResolvesDistinctPortWidths(
         string contractId)
     {
         var contract = await FindCoreContract(contractId);
@@ -185,7 +191,7 @@ public sealed class ComponentContractSchemaTests
             new("outputWidth", new Unsigned32ParameterValue(5)),
         };
 
-        var ports = contract.ResolvePorts(parameters, maximumPortCount: 100);
+        var ports = Materialize(contract.ResolvePorts(parameters));
 
         await Assert.That(ports.Select(port =>
                 (port.Id, port.Direction, port.Width)))
@@ -204,5 +210,14 @@ public sealed class ComponentContractSchemaTests
         var schema = await Assert.That(contract).IsTypeOf<ComponentContractSchema>();
         Assert.NotNull(schema);
         return schema;
+    }
+
+    private static ReadOnlyCollection<ResolvedComponentPortSchema> Materialize(
+        ComponentPortResolution resolution)
+    {
+        return resolution.TryMaterialize(100, out var ports)
+            ? ports
+            : throw new InvalidOperationException(
+                "The bounded test Port resolution could not be materialized.");
     }
 }

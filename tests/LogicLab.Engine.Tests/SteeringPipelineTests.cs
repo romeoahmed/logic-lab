@@ -418,7 +418,12 @@ public sealed class SteeringPipelineTests
         var definitionId = revision.Document.EntryCircuitDefinitionId;
         var schema = CoreLibrarySchema.FindContract(
             new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId))!;
-        var ports = schema.ResolvePorts(parameters, maximumPortCount: 100);
+        var resolution = schema.ResolvePorts(parameters);
+        if (!resolution.TryMaterialize(100, out var ports))
+        {
+            throw new InvalidOperationException(
+                "The bounded test Port resolution could not be materialized.");
+        }
         var inputs = ports.Where(port => port.Direction == PortDirection.Input).ToArray();
         var outputs = ports.Where(port => port.Direction == PortDirection.Output).ToArray();
         if (inputs.Length != inputValues.Length || outputs.Length != expectedOutputs.Length)

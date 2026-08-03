@@ -115,6 +115,9 @@ internal static class CombinationalEvaluation
             .Select(index =>
             {
                 var possible = new List<LogicValue>(3);
+                var addressMatchesIndex = IsCompatibleIndex(
+                    normalizedAddress,
+                    checked((uint)index));
                 if (active is LogicValue.Zero or LogicValue.X)
                 {
                     possible.Add(LogicValue.Zero);
@@ -122,13 +125,12 @@ internal static class CombinationalEvaluation
 
                 if (active is LogicValue.One or LogicValue.X)
                 {
-                    if (IsCompatibleIndex(normalizedAddress, checked((uint)index)))
+                    if (addressMatchesIndex)
                     {
                         possible.Add(LogicValue.One);
                     }
 
-                    if (!addressIsKnown
-                        || !IsCompatibleIndex(normalizedAddress, checked((uint)index)))
+                    if (!addressIsKnown || !addressMatchesIndex)
                     {
                         possible.Add(LogicValue.Zero);
                     }

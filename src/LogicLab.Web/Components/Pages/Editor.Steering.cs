@@ -6,6 +6,8 @@ namespace LogicLab.Web.Components.Pages;
 
 public partial class Editor
 {
+    private const ulong MaximumGalleryPortCount = 100;
+
     private async Task AuthorSteeringGallery()
     {
         if (Projection is null)
@@ -29,8 +31,15 @@ public partial class Editor
             }
 
             var schema = CoreLibrarySchema.FindContract(
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, component.ContractId))!;
-            var ports = schema.ResolvePorts(component.Parameters, maximumPortCount: 100);
+                new ComponentContractKey(CoreLibrarySchema.LibraryId, component.ContractId))
+                ?? throw new InvalidOperationException(
+                    "A steering gallery component contract is missing from the Core Library.");
+            var resolution = schema.ResolvePorts(component.Parameters);
+            if (!resolution.TryMaterialize(MaximumGalleryPortCount, out var ports))
+            {
+                throw new InvalidOperationException(
+                    "The bounded steering gallery Port set could not be materialized.");
+            }
             foreach (var input in ports.Where(port => port.Direction == PortDirection.Input))
             {
                 var source = await PlaceGalleryComponent(

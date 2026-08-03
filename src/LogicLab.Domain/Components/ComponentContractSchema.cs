@@ -29,30 +29,33 @@ public sealed class ComponentContractSchema
 
     public string SchemaDigest { get; }
 
-    public ReadOnlyCollection<ResolvedComponentPortSchema> ResolvePorts(
-        IReadOnlyList<ComponentParameterBinding> parameters,
-        ulong maximumPortCount,
-        CancellationToken cancellationToken = default)
-    {
-        return PreparePorts(parameters, cancellationToken)
-            .Materialize(maximumPortCount, cancellationToken);
-    }
-
-    public ComponentPortResolution PreparePorts(
+    public ComponentPortResolution ResolvePorts(
         IReadOnlyList<ComponentParameterBinding> parameters,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         var ownedParameters = Array.AsReadOnly(parameters.ToArray());
-        if (!TryPreparePorts(
+        cancellationToken.ThrowIfCancellationRequested();
+        if (ComponentParameterValidator.Validate(
+                Key,
+                this,
                 ownedParameters,
-                cancellationToken,
-                out var resolution))
+                cancellationToken).Length > 0)
         {
             throw InvalidParameters(nameof(parameters));
         }
 
-        return resolution;
+        var portMeasure = ComponentPortResolver.Measure(
+            Ports,
+            ownedParameters,
+            cancellationToken);
+        if (portMeasure.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "A component contract must resolve at least one Port.");
+        }
+
+        return new ComponentPortResolution(Ports, ownedParameters, portMeasure);
     }
 
     public bool TryResolvePort(
@@ -80,30 +83,6 @@ public sealed class ComponentContractSchema
             portId,
             out port,
             cancellationToken);
-    }
-
-    private bool TryPreparePorts(
-        ReadOnlyCollection<ComponentParameterBinding> parameters,
-        CancellationToken cancellationToken,
-        out ComponentPortResolution resolution)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (ComponentParameterValidator.Validate(
-                Key,
-                this,
-                parameters,
-                cancellationToken).Length > 0)
-        {
-            resolution = null!;
-            return false;
-        }
-
-        var portMeasure = ComponentPortResolver.Measure(
-            Ports,
-            parameters,
-            cancellationToken);
-        resolution = new ComponentPortResolution(Ports, parameters, portMeasure);
-        return portMeasure.Count > 0;
     }
 
     private static ArgumentException InvalidParameters(string parameterName)
