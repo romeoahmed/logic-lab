@@ -29,6 +29,14 @@ public sealed class ComponentContractSchema
 
     public string SchemaDigest { get; }
 
+    public ReadOnlyCollection<ResolvedComponentPortSchema> ResolvePorts(
+        IReadOnlyList<ComponentParameterBinding> parameters,
+        CancellationToken cancellationToken = default)
+    {
+        return PreparePorts(parameters, cancellationToken)
+            .Materialize(cancellationToken);
+    }
+
     public ComponentPortResolution PreparePorts(
         IReadOnlyList<ComponentParameterBinding> parameters,
         CancellationToken cancellationToken = default)
