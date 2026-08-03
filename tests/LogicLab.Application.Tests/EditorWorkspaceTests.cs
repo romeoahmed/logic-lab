@@ -67,11 +67,11 @@ public sealed class EditorWorkspaceTests
         await Assert.That(compiled).IsTypeOf<CompilationPublished>();
         await Assert.That(sessionCreated).IsTypeOf<SimulationSessionCreated>();
         await Assert.That(initial.Simulation).IsNotNull();
+        var initialProbe = await Assert.That(initial.Simulation!.Probes).HasSingleItem();
         using (Assert.Multiple())
         {
-            await Assert.That(initial.Simulation!.LogicalTime).IsEqualTo(0UL);
-            await Assert.That(initial.Simulation.Probes).Count().IsEqualTo(1);
-            await Assert.That(initial.Simulation.Probes[0].Value).IsEquivalentTo(
+            await Assert.That(initial.Simulation.LogicalTime).IsEqualTo(0UL);
+            await Assert.That(initialProbe.Value).IsEquivalentTo(
                 new[] { LogicValue.One });
         }
 
@@ -89,10 +89,11 @@ public sealed class EditorWorkspaceTests
         await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
         await Assert.That(stepped).IsTypeOf<SessionStepped>();
         await Assert.That(afterStep.Simulation).IsNotNull();
+        var afterStepProbe = await Assert.That(afterStep.Simulation!.Probes).HasSingleItem();
         using (Assert.Multiple())
         {
-            await Assert.That(afterStep.Simulation!.LogicalTime).IsEqualTo(1UL);
-            await Assert.That(afterStep.Simulation.Probes[0].Value).IsEquivalentTo(
+            await Assert.That(afterStep.Simulation.LogicalTime).IsEqualTo(1UL);
+            await Assert.That(afterStepProbe.Value).IsEquivalentTo(
                 new[] { LogicValue.Zero });
         }
     }
