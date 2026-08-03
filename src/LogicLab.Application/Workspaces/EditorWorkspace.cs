@@ -16,7 +16,6 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private readonly Dictionary<WorkspaceId, WorkspaceState> workspaces = [];
     private readonly WorkCoordinator workCoordinator;
     private readonly WorkspacePolicy workspacePolicy;
-    private readonly AuthoringAdmissionPolicy authoringAdmissionPolicy;
     private readonly TimeProvider timeProvider;
     private readonly WorkspaceModuleOperations operations;
     private readonly ILogger<EditorWorkspace> logger;
@@ -26,20 +25,17 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     public EditorWorkspace(
         WorkCoordinator workCoordinator,
         WorkspacePolicy workspacePolicy,
-        AuthoringAdmissionPolicy authoringAdmissionPolicy,
         TimeProvider timeProvider,
         WorkspaceModuleOperations operations,
         ILogger<EditorWorkspace> logger)
     {
         ArgumentNullException.ThrowIfNull(workCoordinator);
         ArgumentNullException.ThrowIfNull(workspacePolicy);
-        ArgumentNullException.ThrowIfNull(authoringAdmissionPolicy);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(logger);
         this.workCoordinator = workCoordinator;
         this.workspacePolicy = workspacePolicy;
-        this.authoringAdmissionPolicy = authoringAdmissionPolicy;
         this.timeProvider = timeProvider;
         this.operations = operations;
         this.logger = logger;
@@ -231,7 +227,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
-        if (!AuthoringAdmission.AdmitsCommand(command.Intent, authoringAdmissionPolicy))
+        if (!AuthoringAdmission.AdmitsCommand(command.Intent, workspacePolicy))
         {
             return Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
         }
@@ -247,7 +243,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         var committed = (EditCommitted)outcome;
         if (!AuthoringAdmission.AdmitsDocument(
                 committed.Revision.Document,
-                authoringAdmissionPolicy))
+                workspacePolicy))
         {
             return Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
         }

@@ -2,58 +2,79 @@ using LogicLab.Domain.Authoring;
 
 namespace LogicLab.Application.Workspaces;
 
-internal sealed record AuthoringAdmissionPolicy
+internal struct AuthoringAdmissionBudget
 {
-    public AuthoringAdmissionPolicy(
-        int definitionCountLimit,
-        int entityCountLimit,
-        int commandItemCountLimit)
+    private ulong remaining;
+
+    public AuthoringAdmissionBudget(int maximum)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(definitionCountLimit);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(entityCountLimit);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(commandItemCountLimit);
-        DefinitionCountLimit = definitionCountLimit;
-        EntityCountLimit = entityCountLimit;
-        CommandItemCountLimit = commandItemCountLimit;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximum);
+        remaining = checked((ulong)maximum);
     }
 
-    public int DefinitionCountLimit { get; }
+    public bool TryConsume(ulong itemCount)
+    {
+        if (itemCount > remaining)
+        {
+            return false;
+        }
 
-    public int EntityCountLimit { get; }
-
-    public int CommandItemCountLimit { get; }
-
-    public static AuthoringAdmissionPolicy Default { get; } = new(
-        definitionCountLimit: 100,
-        entityCountLimit: 10_000,
-        commandItemCountLimit: 1_000);
+        remaining -= itemCount;
+        return true;
+    }
 }
 
 internal static class AuthoringAdmission
 {
     public static bool AdmitsCommand(
         EditIntent intent,
-        AuthoringAdmissionPolicy policy)
+        WorkspacePolicy policy)
     {
         ArgumentNullException.ThrowIfNull(intent);
         ArgumentNullException.ThrowIfNull(policy);
-        try
+        var budget = new AuthoringAdmissionBudget(
+            policy.AuthoringCommandItemCountLimit);
+        return intent switch
         {
-            return CountCommandItems(intent) <= checked((ulong)policy.CommandItemCountLimit);
-        }
-        catch (OverflowException)
-        {
-            return false;
-        }
+            CreateCircuitDefinitionIntent create => budget.TryConsume(
+                checked((ulong)create.Ports.Count)),
+            SetEntryCircuitDefinitionIntent => budget.TryConsume(1),
+            PlaceComponentInstanceIntent place => TryAdmitParameters(
+                place.Parameters,
+                ref budget),
+            ConnectTerminalsIntent connect => budget.TryConsume(
+                    checked((ulong)connect.Terminals.Count))
+                && budget.TryConsume(checked((ulong)connect.NewJunctionPositions.Count))
+                && TryAdmitRoutes(connect.RouteAdditions, ref budget)
+                && TryAdmitReplacements(connect.RouteReplacements, ref budget),
+            MergeNetsIntent merge => budget.TryConsume(
+                checked((ulong)merge.SourceNetIds.Count)),
+            SplitNetIntent split => TryAdmitPartitions(split.Partitions, ref budget),
+            AddJunctionIntent add => budget.TryConsume(1)
+                && TryAdmitRoutes(add.RouteAdditions, ref budget)
+                && TryAdmitReplacements(add.RouteReplacements, ref budget)
+                && budget.TryConsume(checked((ulong)add.RouteRemovals.Count)),
+            RemoveJunctionIntent remove => TryAdmitRemovalPartitions(
+                    remove.ResultingPartitions,
+                    ref budget)
+                && TryAdmitReplacements(remove.RouteReplacements, ref budget)
+                && budget.TryConsume(checked((ulong)remove.RouteRemovals.Count)),
+            AddWireGeometryIntent addWire => TryAdmitRoute(addWire.Route, ref budget),
+            SetWireGeometryIntent setWire => TryAdmitRoute(setWire.Route, ref budget),
+            RemoveWireGeometryIntent => budget.TryConsume(1),
+            MoveComponentInstancesIntent move => budget.TryConsume(
+                checked((ulong)move.Moves.Count)),
+            _ => false,
+        };
     }
 
     public static bool AdmitsDocument(
         ProjectDocument document,
-        AuthoringAdmissionPolicy policy)
+        WorkspacePolicy policy)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(policy);
-        if (document.CircuitDefinitions.Count > policy.DefinitionCountLimit)
+        if (document.CircuitDefinitions.Count > policy.AuthoringDefinitionCountLimit)
         {
             return false;
         }
@@ -72,7 +93,7 @@ internal static class AuthoringAdmission
                     + (ulong)definition.WireGeometries.Count);
             }
 
-            return entityCount <= checked((ulong)policy.EntityCountLimit);
+            return entityCount <= checked((ulong)policy.AuthoringEntityCountLimit);
         }
         catch (OverflowException)
         {
@@ -80,134 +101,112 @@ internal static class AuthoringAdmission
         }
     }
 
-    private static ulong CountCommandItems(EditIntent intent)
+    private static bool TryAdmitParameters(
+        IEnumerable<ComponentParameterBinding?> parameters,
+        ref AuthoringAdmissionBudget budget)
     {
-        return intent switch
-        {
-            CreateCircuitDefinitionIntent create => checked((ulong)create.Ports.Count),
-            SetEntryCircuitDefinitionIntent => 1,
-            PlaceComponentInstanceIntent place => CountParameters(place.Parameters),
-            ConnectTerminalsIntent connect => checked(
-                (ulong)connect.Terminals.Count
-                + (ulong)connect.NewJunctionPositions.Count
-                + CountRoutes(connect.RouteAdditions)
-                + CountReplacements(connect.RouteReplacements)),
-            MergeNetsIntent merge => checked((ulong)merge.SourceNetIds.Count),
-            SplitNetIntent split => CountPartitions(split.Partitions),
-            AddJunctionIntent add => checked(
-                1UL
-                + CountRoutes(add.RouteAdditions)
-                + CountReplacements(add.RouteReplacements)
-                + (ulong)add.RouteRemovals.Count),
-            RemoveJunctionIntent remove => checked(
-                CountRemovalPartitions(remove.ResultingPartitions)
-                + CountReplacements(remove.RouteReplacements)
-                + (ulong)remove.RouteRemovals.Count),
-            AddWireGeometryIntent addWire => CountRoute(addWire.Route),
-            SetWireGeometryIntent setWire => CountRoute(setWire.Route),
-            RemoveWireGeometryIntent => 1,
-            MoveComponentInstancesIntent move => checked((ulong)move.Moves.Count),
-            _ => ulong.MaxValue,
-        };
-    }
-
-    private static ulong CountParameters(IEnumerable<ComponentParameterBinding?> parameters)
-    {
-        ulong count = 0;
         foreach (var parameter in parameters)
         {
-            if (parameter is null)
+            if (parameter is null || !budget.TryConsume(1))
             {
-                return ulong.MaxValue;
+                return false;
             }
 
-            count = checked(count + 1);
-            if (parameter.Value is LogicVectorParameterValue vector)
+            if (parameter.Value is LogicVectorParameterValue vector
+                && !budget.TryConsume(checked((ulong)vector.Values.Count)))
             {
-                count = checked(count + (ulong)vector.Values.Count);
+                return false;
             }
         }
 
-        return count;
+        return true;
     }
 
-    private static ulong CountPartitions(IEnumerable<NetPartition?> partitions)
+    private static bool TryAdmitPartitions(
+        IEnumerable<NetPartition?> partitions,
+        ref AuthoringAdmissionBudget budget)
     {
-        ulong count = 0;
         foreach (var partition in partitions)
         {
-            if (partition is null)
+            if (partition is null || !TryAdmitPartition(partition, ref budget))
             {
-                return ulong.MaxValue;
+                return false;
             }
-
-            count = checked(
-                count
-                + 1
-                + (ulong)partition.Terminals.Count
-                + (ulong)partition.JunctionIds.Count
-                + (ulong)partition.WireGeometryIds.Count);
         }
 
-        return count;
+        return true;
     }
 
-    private static ulong CountRemovalPartitions(
-        IEnumerable<JunctionRemovalPartition?> partitions)
+    private static bool TryAdmitPartition(
+        NetPartition partition,
+        ref AuthoringAdmissionBudget budget)
     {
-        ulong count = 0;
+        return budget.TryConsume(1)
+            && budget.TryConsume(checked((ulong)partition.Terminals.Count))
+            && budget.TryConsume(checked((ulong)partition.JunctionIds.Count))
+            && budget.TryConsume(checked((ulong)partition.WireGeometryIds.Count));
+    }
+
+    private static bool TryAdmitRemovalPartitions(
+        IEnumerable<JunctionRemovalPartition?> partitions,
+        ref AuthoringAdmissionBudget budget)
+    {
         foreach (var partition in partitions)
         {
-            if (partition is null)
+            if (partition is null
+                || !budget.TryConsume(1)
+                || !TryAdmitPartition(partition.Membership, ref budget)
+                || !TryAdmitRoutes(partition.RouteAdditions, ref budget))
             {
-                return ulong.MaxValue;
+                return false;
             }
-
-            count = checked(
-                count
-                + 1
-                + CountPartitions([partition.Membership])
-                + CountRoutes(partition.RouteAdditions));
         }
 
-        return count;
+        return true;
     }
 
-    private static ulong CountReplacements(
-        IEnumerable<WireGeometryReplacement?> replacements)
+    private static bool TryAdmitReplacements(
+        IEnumerable<WireGeometryReplacement?> replacements,
+        ref AuthoringAdmissionBudget budget)
     {
-        ulong count = 0;
         foreach (var replacement in replacements)
         {
-            if (replacement is null)
+            if (replacement is null
+                || !budget.TryConsume(1)
+                || !TryAdmitRoute(replacement.Route, ref budget))
             {
-                return ulong.MaxValue;
+                return false;
             }
-
-            count = checked(count + 1 + CountRoute(replacement.Route));
         }
 
-        return count;
+        return true;
     }
 
-    private static ulong CountRoutes(IEnumerable<WireRoute?> routes)
+    internal static bool TryAdmitRoutes(
+        IEnumerable<WireRoute?> routes,
+        ref AuthoringAdmissionBudget budget)
     {
-        ulong count = 0;
         foreach (var route in routes)
         {
-            count = checked(count + CountRoute(route));
+            if (!TryAdmitRoute(route, ref budget))
+            {
+                return false;
+            }
         }
 
-        return count;
+        return true;
     }
 
-    private static ulong CountRoute(WireRoute? route)
+    private static bool TryAdmitRoute(
+        WireRoute? route,
+        ref AuthoringAdmissionBudget budget)
     {
         return route switch
         {
-            UnroutedWireRoute => 1,
-            OrthogonalWireRoute orthogonal => checked(1UL + (ulong)orthogonal.Points.Count),
-            _ => ulong.MaxValue,
+            UnroutedWireRoute => budget.TryConsume(1),
+            OrthogonalWireRoute orthogonal => budget.TryConsume(1)
+                && budget.TryConsume(checked((ulong)orthogonal.Points.Count)),
+            _ => false,
         };
     }
 }

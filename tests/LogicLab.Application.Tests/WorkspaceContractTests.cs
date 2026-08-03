@@ -6,6 +6,57 @@ namespace LogicLab.Application.Tests;
 public sealed class WorkspaceContractTests
 {
     [Test]
+    public async Task WorkspacePolicy_AuthoringLimits_PreserveConfiguredValues()
+    {
+        var policy = new WorkspacePolicy(
+            globalWorkspaceLimit: 8,
+            sandboxRetention: TimeSpan.FromMinutes(5),
+            authoringDefinitionCountLimit: 13,
+            authoringEntityCountLimit: 21,
+            authoringCommandItemCountLimit: 34);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(policy.GlobalWorkspaceLimit).IsEqualTo(8);
+            await Assert.That(policy.SandboxRetention).IsEqualTo(TimeSpan.FromMinutes(5));
+            await Assert.That(policy.AuthoringDefinitionCountLimit).IsEqualTo(13);
+            await Assert.That(policy.AuthoringEntityCountLimit).IsEqualTo(21);
+            await Assert.That(policy.AuthoringCommandItemCountLimit).IsEqualTo(34);
+        }
+    }
+
+    [Test]
+    public async Task WorkspacePolicy_TwoArgumentConstructor_UsesDefaultAuthoringLimits()
+    {
+        var policy = new WorkspacePolicy(8, TimeSpan.FromMinutes(5));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(policy.AuthoringDefinitionCountLimit).IsEqualTo(100);
+            await Assert.That(policy.AuthoringEntityCountLimit).IsEqualTo(10_000);
+            await Assert.That(policy.AuthoringCommandItemCountLimit).IsEqualTo(1_000);
+        }
+    }
+
+    [Test]
+    [Arguments(0, 1, 1)]
+    [Arguments(1, 0, 1)]
+    [Arguments(1, 1, 0)]
+    public async Task WorkspacePolicy_NonPositiveAuthoringLimit_ThrowsArgumentOutOfRangeException(
+        int definitionCountLimit,
+        int entityCountLimit,
+        int commandItemCountLimit)
+    {
+        await Assert.That(() => new WorkspacePolicy(
+                globalWorkspaceLimit: 8,
+                sandboxRetention: TimeSpan.FromMinutes(5),
+                authoringDefinitionCountLimit: definitionCountLimit,
+                authoringEntityCountLimit: entityCountLimit,
+                authoringCommandItemCountLimit: commandItemCountLimit))
+            .ThrowsExactly<ArgumentOutOfRangeException>();
+    }
+
+    [Test]
     public async Task WorkspaceId_NullValue_ThrowsArgumentNullException()
     {
         await Assert.That(() => new WorkspaceId(null!))
