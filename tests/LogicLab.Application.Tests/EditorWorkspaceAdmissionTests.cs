@@ -212,4 +212,21 @@ public sealed class EditorWorkspaceAdmissionTests
             await Assert.That(atBudget).IsTrue();
         }
     }
+
+    [Test]
+    public async Task AuthoringAdmissionBudget_NegativeConsumption_DoesNotIncreaseBudget()
+    {
+        var budget = new AuthoringAdmissionBudget(maximum: 1);
+
+        var negative = budget.TryConsume(-1);
+        var atBudget = budget.TryConsume(1);
+        var exhausted = budget.TryConsume(1);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(negative).IsFalse();
+            await Assert.That(atBudget).IsTrue();
+            await Assert.That(exhausted).IsFalse();
+        }
+    }
 }
