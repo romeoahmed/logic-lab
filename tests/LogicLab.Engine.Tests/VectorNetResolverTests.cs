@@ -15,9 +15,10 @@ public sealed class VectorNetResolverTests
         var drivers = sample.Drivers
             .Select(values => new LogicVector(values))
             .ToArray();
-        var actual = VectorNetResolver.Resolve(sample.Width, drivers);
+        var arrayResolution = VectorNetResolver.Resolve(sample.Width, drivers);
+        var listResolution = VectorNetResolver.Resolve(sample.Width, drivers.ToList());
         var matches = true;
-        var label = "vector resolution matches scalar oracle";
+        var label = "array and list carriers match the scalar oracle";
 
         for (var bitIndex = 0; bitIndex < sample.Width; bitIndex++)
         {
@@ -25,12 +26,18 @@ public sealed class VectorNetResolverTests
                 sample.Drivers
                     .Select(values => values[bitIndex])
                     .ToArray());
-            if (actual.Value[bitIndex] != expected.Value
-                || actual.GetCauses(bitIndex) != expected.Causes)
+            var arrayValue = arrayResolution.Value[bitIndex];
+            var arrayCauses = arrayResolution.GetCauses(bitIndex);
+            var listValue = listResolution.Value[bitIndex];
+            var listCauses = listResolution.GetCauses(bitIndex);
+            if (arrayValue != expected.Value
+                || arrayCauses != expected.Causes
+                || listValue != expected.Value
+                || listCauses != expected.Causes)
             {
                 matches = false;
-                label = $"bit {bitIndex}: expected {expected}, actual "
-                    + $"{actual.Value[bitIndex]}/{actual.GetCauses(bitIndex)}";
+                label = $"bit {bitIndex}: expected {expected}, "
+                    + $"array {arrayValue}/{arrayCauses}, list {listValue}/{listCauses}";
                 break;
             }
         }
@@ -119,50 +126,6 @@ public sealed class VectorNetResolverTests
                 .IsEqualTo(
                     NetResolutionCauses.UnknownDriver | NetResolutionCauses.Contention);
         }
-    }
-
-    [Test]
-    public async Task Resolve_ListDriversAcrossWordBoundary_MatchesScalarValueAndCausesAtEveryBit()
-    {
-        const int width = 130;
-        var firstValues = Enumerable.Range(0, width)
-            .Select(index => (LogicValue)(index & 3))
-            .ToArray();
-        var secondValues = Enumerable.Range(0, width)
-            .Select(index => (LogicValue)((index + 1) & 3))
-            .ToArray();
-        var thirdValues = Enumerable.Range(0, width)
-            .Select(index => (LogicValue)((index + 2) & 3))
-            .ToArray();
-        firstValues[63] = LogicValue.X;
-        secondValues[63] = LogicValue.Z;
-        thirdValues[63] = LogicValue.Z;
-        firstValues[64] = LogicValue.Zero;
-        secondValues[64] = LogicValue.One;
-        thirdValues[64] = LogicValue.Z;
-        firstValues[129] = LogicValue.Zero;
-        secondValues[129] = LogicValue.One;
-        thirdValues[129] = LogicValue.X;
-        List<LogicVector> drivers =
-        [
-            new LogicVector(firstValues),
-            new LogicVector(secondValues),
-            new LogicVector(thirdValues),
-        ];
-
-        var actual = VectorNetResolver.Resolve(width, drivers);
-        var actualResolutions = ToScalarResolutions(actual);
-        var expectedResolutions = Enumerable.Range(0, width)
-            .Select(bitIndex => NetResolver.Resolve(
-                [
-                    firstValues[bitIndex],
-                    secondValues[bitIndex],
-                    thirdValues[bitIndex],
-                ]))
-            .ToArray();
-
-        await Assert.That(actualResolutions)
-            .IsEquivalentTo(expectedResolutions, CollectionOrdering.Matching);
     }
 
     [Test]
