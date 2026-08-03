@@ -164,7 +164,7 @@ internal static class AuthoringAdmission
         return true;
     }
 
-    internal static bool TryAdmitRoutes(
+    private static bool TryAdmitRoutes(
         IEnumerable<WireRoute> routes,
         AuthoringAdmissionBudget budget)
     {
