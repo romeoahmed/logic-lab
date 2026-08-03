@@ -7,9 +7,22 @@ using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Application.Workspaces;
 
-public sealed record WorkspaceId(string Value)
+public sealed record WorkspaceId
 {
+    public WorkspaceId(string value)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(value);
+        Value = value;
+    }
+
+    public string Value { get; }
+
     internal static WorkspaceId Create() => new(Guid.CreateVersion7().ToString("N"));
+
+    public void Deconstruct(out string value)
+    {
+        value = Value;
+    }
 }
 
 public abstract record OpenWorkspaceRequest
@@ -19,9 +32,30 @@ public abstract record OpenWorkspaceRequest
     }
 }
 
-public sealed record CreateSandbox(
-    string ProjectDisplayName,
-    string EntryCircuitDefinitionDisplayName) : OpenWorkspaceRequest;
+public sealed record CreateSandbox : OpenWorkspaceRequest
+{
+    public CreateSandbox(
+        string projectDisplayName,
+        string entryCircuitDefinitionDisplayName)
+    {
+        ArgumentNullException.ThrowIfNull(projectDisplayName);
+        ArgumentNullException.ThrowIfNull(entryCircuitDefinitionDisplayName);
+        ProjectDisplayName = projectDisplayName;
+        EntryCircuitDefinitionDisplayName = entryCircuitDefinitionDisplayName;
+    }
+
+    public string ProjectDisplayName { get; }
+
+    public string EntryCircuitDefinitionDisplayName { get; }
+
+    public void Deconstruct(
+        out string projectDisplayName,
+        out string entryCircuitDefinitionDisplayName)
+    {
+        projectDisplayName = ProjectDisplayName;
+        entryCircuitDefinitionDisplayName = EntryCircuitDefinitionDisplayName;
+    }
+}
 
 public abstract record WorkspaceOpenOutcome
 {
@@ -49,16 +83,60 @@ public sealed record WorkspaceOpenRejected : WorkspaceOpenOutcome
     public ReadOnlyCollection<string> DiagnosticCodes { get; }
 }
 
-public abstract record WorkspaceCommand(WorkspaceId WorkspaceId);
+public abstract record WorkspaceCommand
+{
+    private protected WorkspaceCommand(WorkspaceId workspaceId)
+    {
+        ArgumentNullException.ThrowIfNull(workspaceId);
+        WorkspaceId = workspaceId;
+    }
 
-public sealed record ApplyEdit(WorkspaceId WorkspaceId, EditIntent Intent)
-    : WorkspaceCommand(WorkspaceId);
+    public WorkspaceId WorkspaceId { get; }
+}
 
-public sealed record RequestCompilation(WorkspaceId WorkspaceId)
-    : WorkspaceCommand(WorkspaceId);
+public sealed record ApplyEdit : WorkspaceCommand
+{
+    public ApplyEdit(WorkspaceId workspaceId, EditIntent intent)
+        : base(workspaceId)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+        Intent = intent;
+    }
 
-public sealed record CreateSession(WorkspaceId WorkspaceId)
-    : WorkspaceCommand(WorkspaceId);
+    public EditIntent Intent { get; }
+
+    public void Deconstruct(out WorkspaceId workspaceId, out EditIntent intent)
+    {
+        workspaceId = WorkspaceId;
+        intent = Intent;
+    }
+}
+
+public sealed record RequestCompilation : WorkspaceCommand
+{
+    public RequestCompilation(WorkspaceId workspaceId)
+        : base(workspaceId)
+    {
+    }
+
+    public void Deconstruct(out WorkspaceId workspaceId)
+    {
+        workspaceId = WorkspaceId;
+    }
+}
+
+public sealed record CreateSession : WorkspaceCommand
+{
+    public CreateSession(WorkspaceId workspaceId)
+        : base(workspaceId)
+    {
+    }
+
+    public void Deconstruct(out WorkspaceId workspaceId)
+    {
+        workspaceId = WorkspaceId;
+    }
+}
 
 public sealed record InputStimulusAssignment
 {
@@ -85,21 +163,55 @@ public sealed record ScheduleInputStimulus : WorkspaceCommand
         IReadOnlyList<InputStimulusAssignment> assignments)
         : base(workspaceId)
     {
-        ArgumentNullException.ThrowIfNull(assignments);
         LogicalTime = logicalTime;
-        Assignments = Array.AsReadOnly(assignments.ToArray());
+        Assignments = CopyAssignments(assignments);
     }
 
     public ulong LogicalTime { get; }
 
     public ReadOnlyCollection<InputStimulusAssignment> Assignments { get; }
+
+    private static ReadOnlyCollection<InputStimulusAssignment> CopyAssignments(
+        IReadOnlyList<InputStimulusAssignment> assignments)
+    {
+        ArgumentNullException.ThrowIfNull(assignments);
+        var copy = assignments.ToArray();
+        if (copy.Any(static assignment => assignment is null))
+        {
+            throw new ArgumentException(
+                "The collection must not contain null elements.",
+                nameof(assignments));
+        }
+
+        return Array.AsReadOnly(copy);
+    }
 }
 
-public sealed record StepSession(WorkspaceId WorkspaceId)
-    : WorkspaceCommand(WorkspaceId);
+public sealed record StepSession : WorkspaceCommand
+{
+    public StepSession(WorkspaceId workspaceId)
+        : base(workspaceId)
+    {
+    }
 
-public sealed record CloseWorkspace(WorkspaceId WorkspaceId)
-    : WorkspaceCommand(WorkspaceId);
+    public void Deconstruct(out WorkspaceId workspaceId)
+    {
+        workspaceId = WorkspaceId;
+    }
+}
+
+public sealed record CloseWorkspace : WorkspaceCommand
+{
+    public CloseWorkspace(WorkspaceId workspaceId)
+        : base(workspaceId)
+    {
+    }
+
+    public void Deconstruct(out WorkspaceId workspaceId)
+    {
+        workspaceId = WorkspaceId;
+    }
+}
 
 public abstract record WorkspaceCommandOutcome
 {
