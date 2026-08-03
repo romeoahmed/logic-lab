@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Numerics;
 using LogicLab.Domain.Authoring;
 
 namespace LogicLab.Domain.Components;
@@ -47,12 +48,26 @@ internal static class ComponentPortResolver
         switch (port.WidthSource)
         {
             case ComponentPortWidthSource.ParameterValue:
+                AppendUniformPorts(
+                    resolved,
+                    port,
+                    parameters,
+                    GetValue<Unsigned32ParameterValue>(
+                        parameters,
+                        port.ParameterId).Value,
+                    cancellationToken);
+                return;
+            case ComponentPortWidthSource.FixedOne:
+                AppendUniformPorts(resolved, port, parameters, 1, cancellationToken);
+                return;
+            case ComponentPortWidthSource.CeilingLog2ParameterValue:
+                var count = GetValue<Unsigned32ParameterValue>(
+                    parameters,
+                    port.ParameterId).Value;
                 resolved.Add(new ResolvedComponentPortSchema(
                     port.Id,
                     port.Direction,
-                    GetValue<Unsigned32ParameterValue>(
-                        parameters,
-                        port.ParameterId).Value));
+                    Math.Max(1U, checked((uint)BitOperations.Log2(count - 1) + 1U))));
                 return;
             case ComponentPortWidthSource.SliceLength:
                 var slices = GetValue<SlicesParameterValue>(
@@ -121,9 +136,37 @@ internal static class ComponentPortResolver
                 checked((ulong)GetValue<WidthsParameterValue>(
                     parameters,
                     port.ParameterId).Values.Count),
+            ComponentPortCardinality.ParameterValue =>
+                GetValue<Unsigned32ParameterValue>(
+                    parameters,
+                    port.CardinalityParameterId!).Value,
+            ComponentPortCardinality.PowerOfTwoParameterValue =>
+                checked(1UL << checked((int)GetValue<Unsigned32ParameterValue>(
+                    parameters,
+                    port.CardinalityParameterId!).Value)),
             _ => throw new InvalidOperationException(
                 "The component Port cardinality is undefined."),
         };
+    }
+
+    private static void AppendUniformPorts(
+        List<ResolvedComponentPortSchema> resolved,
+        ComponentPortSchema port,
+        ReadOnlyCollection<ComponentParameterBinding> parameters,
+        uint width,
+        CancellationToken cancellationToken)
+    {
+        var count = ResolvePortCount(port, parameters);
+        for (ulong index = 0; index < count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            resolved.Add(new ResolvedComponentPortSchema(
+                port.Cardinality == ComponentPortCardinality.Fixed
+                    ? port.Id
+                    : IndexedPortId(port, checked((int)index)),
+                port.Direction,
+                width));
+        }
     }
 
     private static string IndexedPortId(ComponentPortSchema port, int index)

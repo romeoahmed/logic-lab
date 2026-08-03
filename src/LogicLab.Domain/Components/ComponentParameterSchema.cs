@@ -10,8 +10,16 @@ public sealed class ComponentParameterSchema
         string? widthParameterId = null,
         string[]? allowedValues = null,
         int minimumItemCount = 0,
-        string? greaterThanParameterId = null)
+        string? greaterThanParameterId = null,
+        uint minimumValue = 1)
     {
+        if (minimumValue == 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(minimumValue),
+                "A positive-width parameter minimum must be positive.");
+        }
+
         Id = id;
         Kind = kind;
         WidthParameterId = widthParameterId;
@@ -19,6 +27,7 @@ public sealed class ComponentParameterSchema
             allowedValues is null ? [] : (string[])allowedValues.Clone());
         MinimumItemCount = minimumItemCount;
         GreaterThanParameterId = greaterThanParameterId;
+        MinimumValue = minimumValue;
     }
 
     public string Id { get; }
@@ -32,4 +41,6 @@ public sealed class ComponentParameterSchema
     public int MinimumItemCount { get; }
 
     public string? GreaterThanParameterId { get; }
+
+    public uint MinimumValue { get; }
 }

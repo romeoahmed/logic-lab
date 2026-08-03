@@ -108,6 +108,37 @@ public sealed class AccessibleCircuitSceneTests
             ["D · Input · 4 bit", "Q · Output · 6 bit"]);
     }
 
+    [Test]
+    public async Task AccessibleCircuitScene_SteeringComponents_RenderLabelsAndGeneratedPorts()
+    {
+        await using var context = CreateContext();
+        var revision = CreateSteeringComponents();
+        var scene = AccessibleSceneProjector.Project(revision);
+
+        var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
+            .Add(component => component.Scene, scene));
+        var labels = rendered.FindAll("[data-component] h3")
+            .Select(element => element.TextContent)
+            .ToArray();
+
+        await Assert.That(labels).IsEquivalentTo(
+            ["AND", "Buffer", "Decoder", "DEMUX", "MUX", "NAND", "NOR", "OR",
+                "Priority Encoder", "Tri-State", "XNOR", "XOR"],
+            TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await AssertRenderedPorts(
+            rendered,
+            revision,
+            "logic.mux",
+            ["D0 · Input · 2 bit", "D1 · Input · 2 bit", "S · Input · 1 bit",
+                "Q · Output · 2 bit"]);
+        await AssertRenderedPorts(
+            rendered,
+            revision,
+            "logic.priority_encoder",
+            ["A0 · Input · 1 bit", "A1 · Input · 1 bit", "A2 · Input · 1 bit",
+                "Q · Output · 2 bit", "VALID · Output · 1 bit"]);
+    }
+
     private static async Task AssertRenderedPorts(
         IRenderedComponent<AccessibleCircuitScene> rendered,
         ProjectRevision revision,
@@ -152,6 +183,71 @@ public sealed class AccessibleCircuitSceneTests
         ]);
         revision = Place(revision, "topology.zero_extend", ExtensionParameters(4, 6));
         return Place(revision, "topology.sign_extend", ExtensionParameters(4, 6));
+    }
+
+    private static ProjectRevision CreateSteeringComponents()
+    {
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "Accessible steering markup",
+            LibrarySnapshot.Core,
+            new SymbolProfileReference(
+                "TeachingMixed",
+                "1.0.0",
+                IndicationConvention.Negation),
+            "Main"))).Revision;
+        foreach (var contractId in new[]
+                 {
+                     "logic.and", "logic.buffer", "logic.decoder", "logic.demux",
+                     "logic.mux", "logic.nand", "logic.nor", "logic.or",
+                     "logic.priority_encoder", "logic.tristate", "logic.xnor", "logic.xor",
+                 })
+        {
+            ComponentParameterBinding[] parameters = contractId switch
+            {
+                "logic.buffer" =>
+                    [new ComponentParameterBinding("width", new Unsigned32ParameterValue(2))],
+                "logic.decoder" =>
+                    [
+                        new ComponentParameterBinding(
+                            "selectorWidth",
+                            new Unsigned32ParameterValue(1)),
+                        new ComponentParameterBinding(
+                            "enablePolarity",
+                            new ChoiceParameterValue("activeHigh")),
+                    ],
+                "logic.demux" or "logic.mux" =>
+                    [
+                        new ComponentParameterBinding("width", new Unsigned32ParameterValue(2)),
+                        new ComponentParameterBinding(
+                            "selectorWidth",
+                            new Unsigned32ParameterValue(1)),
+                    ],
+                "logic.priority_encoder" =>
+                    [
+                        new ComponentParameterBinding(
+                            "inputCount",
+                            new Unsigned32ParameterValue(3)),
+                        new ComponentParameterBinding(
+                            "priority",
+                            new ChoiceParameterValue("highestIndex")),
+                    ],
+                "logic.tristate" =>
+                    [
+                        new ComponentParameterBinding("width", new Unsigned32ParameterValue(2)),
+                        new ComponentParameterBinding(
+                            "enablePolarity",
+                            new ChoiceParameterValue("activeHigh")),
+                    ],
+                _ =>
+                    [
+                        new ComponentParameterBinding("width", new Unsigned32ParameterValue(2)),
+                        new ComponentParameterBinding("fanIn", new Unsigned32ParameterValue(2)),
+                    ],
+            };
+            revision = Place(revision, contractId, parameters);
+        }
+
+        return revision;
     }
 
     private static ProjectRevision Place(

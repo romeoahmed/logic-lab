@@ -38,6 +38,13 @@ internal static class ComponentContractSchemaDigest
                 .Append(parameter.GreaterThanParameterId ?? string.Empty).Append('\u001f')
                 .AppendJoin('\u001e', parameter.AllowedValues)
                 .Append('\n');
+            if (parameter.MinimumValue > 1)
+            {
+                canonical.Append("minimumValue\u001f")
+                    .Append(parameter.Id).Append('\u001f')
+                    .Append(parameter.MinimumValue.ToString(CultureInfo.InvariantCulture))
+                    .Append('\n');
+            }
         }
     }
 
@@ -55,6 +62,13 @@ internal static class ComponentContractSchemaDigest
                 .Append(WidthSourceToken(port.WidthSource)).Append('\u001f')
                 .Append(port.ParameterId)
                 .Append('\n');
+            if (port.CardinalityParameterId is not null)
+            {
+                canonical.Append("cardinalityParameter\u001f")
+                    .Append(port.Id).Append('\u001f')
+                    .Append(port.CardinalityParameterId)
+                    .Append('\n');
+            }
         }
     }
 
@@ -89,6 +103,8 @@ internal static class ComponentContractSchemaDigest
         {
             ComponentPortCardinality.Fixed => "fixed",
             ComponentPortCardinality.ParameterItems => "parameterItems",
+            ComponentPortCardinality.ParameterValue => "parameterValue",
+            ComponentPortCardinality.PowerOfTwoParameterValue => "powerOfTwoParameterValue",
             _ => throw new InvalidOperationException(
                 "The component Port cardinality is undefined."),
         };
@@ -102,6 +118,8 @@ internal static class ComponentContractSchemaDigest
             ComponentPortWidthSource.SliceLength => "sliceLength",
             ComponentPortWidthSource.WidthItem => "widthItem",
             ComponentPortWidthSource.WidthSum => "widthSum",
+            ComponentPortWidthSource.FixedOne => "fixedOne",
+            ComponentPortWidthSource.CeilingLog2ParameterValue => "ceilingLog2ParameterValue",
             _ => throw new InvalidOperationException(
                 "The component Port width source is undefined."),
         };
