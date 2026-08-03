@@ -114,7 +114,7 @@ public static class AccessibleSceneProjector
         var schema = revision.Document.LibrarySnapshot.ResolveContract(target.ContractKey)
             ?? throw new InvalidOperationException(
                 "The authored component contract is absent from the pinned Library Snapshot.");
-        var ports = schema.ResolvePorts(instance.Parameters)
+        var ports = schema.PreparePorts(instance.Parameters).Materialize()
             .Select(port => new AccessiblePortProjection(
                 new InstancePortSourceIdentity(definitionId, instance.Id, port.Id),
                 port.Id,

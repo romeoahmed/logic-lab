@@ -29,71 +29,44 @@ public sealed class ComponentContractSchema
 
     public string SchemaDigest { get; }
 
-    public ComponentPortShape ResolvePortShape(
+    public ComponentPortResolution PreparePorts(
         IReadOnlyList<ComponentParameterBinding> parameters,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         var ownedParameters = Array.AsReadOnly(parameters.ToArray());
-        if (!TryResolvePortShape(ownedParameters, cancellationToken, out var shape))
+        if (!TryPreparePorts(
+                ownedParameters,
+                cancellationToken,
+                out var resolution))
         {
             throw InvalidParameters(nameof(parameters));
         }
 
-        return shape;
-    }
-
-    public ReadOnlyCollection<ResolvedComponentPortSchema> ResolvePorts(
-        IReadOnlyList<ComponentParameterBinding> parameters)
-    {
-        return ResolvePorts(parameters, CancellationToken.None);
-    }
-
-    public ReadOnlyCollection<ResolvedComponentPortSchema> ResolvePorts(
-        IReadOnlyList<ComponentParameterBinding> parameters,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(parameters);
-        var ownedParameters = Array.AsReadOnly(parameters.ToArray());
-        if (!TryResolvePortShape(ownedParameters, cancellationToken, out var shape)
-            || shape.PortCount > int.MaxValue)
-        {
-            throw InvalidParameters(nameof(parameters));
-        }
-
-        return ComponentPortResolver.Materialize(
-            Ports,
-            ownedParameters,
-            shape,
-            cancellationToken);
+        return resolution;
     }
 
     internal bool TryResolvePorts(
         ReadOnlyCollection<ComponentParameterBinding> parameters,
         out ReadOnlyCollection<ResolvedComponentPortSchema> ports)
     {
-        if (!TryResolvePortShape(
+        if (!TryPreparePorts(
                 parameters,
                 CancellationToken.None,
-                out var shape)
-            || shape.PortCount > int.MaxValue)
+                out var resolution))
         {
             ports = Array.AsReadOnly<ResolvedComponentPortSchema>([]);
             return false;
         }
 
-        ports = ComponentPortResolver.Materialize(
-            Ports,
-            parameters,
-            shape,
-            CancellationToken.None);
+        ports = resolution.Materialize();
         return true;
     }
 
-    internal bool TryResolvePortShape(
+    private bool TryPreparePorts(
         ReadOnlyCollection<ComponentParameterBinding> parameters,
         CancellationToken cancellationToken,
-        out ComponentPortShape shape)
+        out ComponentPortResolution resolution)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (ComponentParameterValidator.Validate(
@@ -102,15 +75,16 @@ public sealed class ComponentContractSchema
                 parameters,
                 cancellationToken).Length > 0)
         {
-            shape = ComponentPortShape.Empty;
+            resolution = null!;
             return false;
         }
 
-        shape = ComponentPortResolver.Measure(
+        var portCount = ComponentPortResolver.Measure(
             Ports,
             parameters,
             cancellationToken);
-        return shape.PortCount > 0;
+        resolution = new ComponentPortResolution(Ports, parameters, portCount);
+        return portCount > 0;
     }
 
     private static ArgumentException InvalidParameters(string parameterName)
