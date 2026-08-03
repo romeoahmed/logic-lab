@@ -564,7 +564,8 @@ public static class SimulationRuntime
                     netValues,
                     driverValues,
                     policy,
-                    work);
+                    work,
+                    cancellationToken);
                 foreach (var driverOrdinal in evaluator.OutputDriverOrdinals)
                 {
                     var netOrdinal = ir.Drivers[driverOrdinal].NetOrdinal;
@@ -595,7 +596,8 @@ public static class SimulationRuntime
         LogicVector[] netValues,
         LogicVector[] driverValues,
         SimulationPolicy policy,
-        SettlementWork work)
+        SettlementWork work,
+        CancellationToken cancellationToken)
     {
         switch (evaluator.Kind)
         {
@@ -709,7 +711,8 @@ public static class SimulationRuntime
                         amount,
                         evaluator.Option
                             ? LogicalShiftDirection.Left
-                            : LogicalShiftDirection.Right);
+                            : LogicalShiftDirection.Right,
+                        cancellationToken);
                 return;
             case SimulationEvaluatorKind.TopologySplit:
                 var splitInput = VectorLogic.NormalizeInput(
