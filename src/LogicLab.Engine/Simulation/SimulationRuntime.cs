@@ -40,13 +40,17 @@ public static class SimulationRuntime
             }
 
             var driverValues = CreateDriverValues(ir);
-            var netValues = SettleAcyclic(
+            var settlement = SettleAcyclic(
                 ir,
                 driverValues,
                 request.SimulationPolicy,
                 work.Settlement,
                 cancellationToken);
-            var diagnostics = Array.Empty<SimulationDiagnostic>();
+            var netValues = settlement.NetValues;
+            var diagnostics = SimulationNetDiagnostics.Create(
+                request.CompilationArtifact,
+                driverValues,
+                settlement.NetResolutions);
             var trace = new SimulationTraceStore(request.TracePolicy);
             trace.Append(
                 0,
@@ -359,12 +363,17 @@ public static class SimulationRuntime
             driverValues[assignment.Key] = assignment.Value;
         }
 
-        var netValues = SettleAcyclic(
+        var settlement = SettleAcyclic(
             state.Artifact!.SimulationIr,
             driverValues,
             state.SimulationPolicy,
             settlementWork,
             cancellationToken);
+        var netValues = settlement.NetValues;
+        var diagnostics = SimulationNetDiagnostics.Create(
+            state.Artifact,
+            driverValues,
+            settlement.NetResolutions);
         var observations = new List<ProbeObservation>(state.Probes.Length);
         var traceObservations = new List<(ProbeState Probe, LogicVector Value)>(
             state.Probes.Length);
@@ -399,7 +408,7 @@ public static class SimulationRuntime
         state.NetValues = netValues;
         state.LogicalTime = logicalTime;
         state.SessionVersion = nextVersion;
-        state.Diagnostics = [];
+        state.Diagnostics = diagnostics;
         return new AdvanceCommitted(
             state.SessionVersion,
             state.LogicalTime,
@@ -519,7 +528,7 @@ public static class SimulationRuntime
         return driverValues;
     }
 
-    private static LogicVector[] SettleAcyclic(
+    private static SettlementResult SettleAcyclic(
         SimulationIr ir,
         LogicVector[] driverValues,
         SimulationPolicy policy,
@@ -527,13 +536,16 @@ public static class SimulationRuntime
         CancellationToken cancellationToken)
     {
         var netValues = new LogicVector[ir.Nets.Count];
+        var netResolutions = new VectorNetResolution[ir.Nets.Count];
         for (var netOrdinal = 0; netOrdinal < ir.Nets.Count; netOrdinal++)
         {
             CountWork(
                 policy,
                 SimulationDimension.AdvanceWorkItemCount,
                 ref work.WorkItems);
-            netValues[netOrdinal] = ResolveNet(ir, driverValues, netOrdinal);
+            var resolution = ResolveNet(ir, driverValues, netOrdinal);
+            netResolutions[netOrdinal] = resolution;
+            netValues[netOrdinal] = resolution.Value;
         }
 
         foreach (var componentOrdinal in ir.CondensationOrder)
@@ -560,15 +572,17 @@ public static class SimulationRuntime
                         policy,
                         SimulationDimension.AdvanceWorkItemCount,
                         ref work.WorkItems);
-                    netValues[netOrdinal.Value] = ResolveNet(
+                    var resolution = ResolveNet(
                         ir,
                         driverValues,
                         netOrdinal.Value);
+                    netResolutions[netOrdinal.Value] = resolution;
+                    netValues[netOrdinal.Value] = resolution.Value;
                 }
             }
         }
 
-        return netValues;
+        return new SettlementResult(netValues, netResolutions);
     }
 
     private static void Evaluate(
@@ -697,7 +711,7 @@ public static class SimulationRuntime
         }
     }
 
-    private static LogicVector ResolveNet(
+    private static VectorNetResolution ResolveNet(
         SimulationIr ir,
         LogicVector[] driverValues,
         int netOrdinal)
@@ -705,7 +719,7 @@ public static class SimulationRuntime
         var net = ir.Nets[netOrdinal];
         return VectorNetResolver.Resolve(
             checked((int)net.Width),
-            net.DriverOrdinals.Select(ordinal => driverValues[ordinal]).ToArray()).Value;
+            net.DriverOrdinals.Select(ordinal => driverValues[ordinal]).ToArray());
     }
 
     private static void CountWork(
@@ -951,6 +965,10 @@ public static class SimulationRuntime
 
         public ulong FrontierItems;
     }
+
+    private sealed record SettlementResult(
+        LogicVector[] NetValues,
+        VectorNetResolution[] NetResolutions);
 
     private sealed class SimulationPolicyLimitException(
         SimulationDimension dimension,

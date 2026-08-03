@@ -7,7 +7,7 @@ namespace LogicLab.Domain.Components;
 
 internal static class ComponentPortResolver
 {
-    public static ulong Measure(
+    public static ComponentPortMeasure Measure(
         ReadOnlyCollection<ComponentPortSchema> ports,
         ReadOnlyCollection<ComponentParameterBinding> parameters,
         CancellationToken cancellationToken)
@@ -16,10 +16,17 @@ internal static class ComponentPortResolver
         foreach (var port in ports)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            portCount = checked(portCount + ResolvePortCount(port, parameters));
+            var portMeasure = ResolvePortCount(port, parameters);
+            if (portMeasure.ExceedsUInt64
+                || ulong.MaxValue - portCount < portMeasure.Count)
+            {
+                return new ComponentPortMeasure(ulong.MaxValue, ExceedsUInt64: true);
+            }
+
+            portCount += portMeasure.Count;
         }
 
-        return portCount;
+        return new ComponentPortMeasure(portCount, ExceedsUInt64: false);
     }
 
     public static ReadOnlyCollection<ResolvedComponentPortSchema> Materialize(
@@ -119,13 +126,23 @@ internal static class ComponentPortResolver
         }
     }
 
-    private static ulong ResolvePortCount(
+    private static ComponentPortMeasure ResolvePortCount(
         ComponentPortSchema port,
         IEnumerable<ComponentParameterBinding> parameters)
     {
-        return port.Cardinality switch
+        if (port.Cardinality == ComponentPortCardinality.PowerOfTwoParameterValue)
         {
-            ComponentPortCardinality.Fixed => 1,
+            var exponent = GetValue<Unsigned32ParameterValue>(
+                parameters,
+                port.CardinalityParameterId!).Value;
+            return exponent >= 64
+                ? new ComponentPortMeasure(ulong.MaxValue, ExceedsUInt64: true)
+                : new ComponentPortMeasure(1UL << checked((int)exponent), ExceedsUInt64: false);
+        }
+
+        ulong count = port.Cardinality switch
+        {
+            ComponentPortCardinality.Fixed => 1UL,
             ComponentPortCardinality.ParameterItems when
                 port.WidthSource == ComponentPortWidthSource.SliceLength =>
                 checked((ulong)GetValue<SlicesParameterValue>(
@@ -140,13 +157,10 @@ internal static class ComponentPortResolver
                 GetValue<Unsigned32ParameterValue>(
                     parameters,
                     port.CardinalityParameterId!).Value,
-            ComponentPortCardinality.PowerOfTwoParameterValue =>
-                checked(1UL << checked((int)GetValue<Unsigned32ParameterValue>(
-                    parameters,
-                    port.CardinalityParameterId!).Value)),
             _ => throw new InvalidOperationException(
                 "The component Port cardinality is undefined."),
         };
+        return new ComponentPortMeasure(count, ExceedsUInt64: false);
     }
 
     private static void AppendUniformPorts(
@@ -156,7 +170,14 @@ internal static class ComponentPortResolver
         uint width,
         CancellationToken cancellationToken)
     {
-        var count = ResolvePortCount(port, parameters);
+        var measure = ResolvePortCount(port, parameters);
+        if (measure.ExceedsUInt64)
+        {
+            throw new OverflowException(
+                "The generated component Port count exceeds the supported unsigned range.");
+        }
+
+        var count = measure.Count;
         for (ulong index = 0; index < count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -196,3 +217,5 @@ internal static class ComponentPortResolver
                 "A validated component parameter has an unexpected value kind.");
     }
 }
+
+internal readonly record struct ComponentPortMeasure(ulong Count, bool ExceedsUInt64);

@@ -116,22 +116,15 @@ public static partial class Compiler
             return RejectInvalid(request, diagnostics, observations);
         }
 
-        ulong portCount = 0;
-        foreach (var instance in pendingInstances)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            portCount = checked(portCount + instance.PortResolution.PortCount);
-        }
-
-        var elaboratedSlotCount = checked(
+        var baseElaboratedSlotCount = checked(
             (ulong)pendingInstances.Length
-            + (ulong)definition.Nets.Count
-            + portCount);
-        var slotRejection = Observe(
+            + (ulong)definition.Nets.Count);
+        var slotRejection = ObserveElaboratedSlots(
             request,
-            ProjectScaleDimension.ElaboratedSlotCount,
-            elaboratedSlotCount,
-            observations);
+            baseElaboratedSlotCount,
+            pendingInstances.Select(instance => instance.PortResolution),
+            observations,
+            cancellationToken);
         if (slotRejection is not null)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -287,10 +280,11 @@ public static partial class Compiler
         CompilationRequest request,
         ProjectScaleDimension dimension,
         ulong observed,
-        Dictionary<ProjectScaleDimension, ulong> observations)
+        Dictionary<ProjectScaleDimension, ulong> observations,
+        bool exceedsMaximum = false)
     {
         observations[dimension] = observed;
-        if (observed <= request.Policy.Maximum(dimension))
+        if (!exceedsMaximum && observed <= request.Policy.Maximum(dimension))
         {
             return null;
         }
@@ -320,6 +314,39 @@ public static partial class Compiler
             [diagnostic],
             observations,
             breach);
+    }
+
+    private static CompilationRejected? ObserveElaboratedSlots(
+        CompilationRequest request,
+        ulong baseSlotCount,
+        IEnumerable<ComponentPortResolution> portResolutions,
+        Dictionary<ProjectScaleDimension, ulong> observations,
+        CancellationToken cancellationToken)
+    {
+        var dimension = ProjectScaleDimension.ElaboratedSlotCount;
+        var maximum = request.Policy.Maximum(dimension);
+        var observed = baseSlotCount;
+        foreach (var resolution in portResolutions)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (resolution.ExceedsPortCountRange
+                || resolution.PortCount > ulong.MaxValue - observed)
+            {
+                var firstExceeded = maximum == ulong.MaxValue
+                    ? ulong.MaxValue
+                    : maximum + 1;
+                return Observe(
+                    request,
+                    dimension,
+                    firstExceeded,
+                    observations,
+                    exceedsMaximum: true)!;
+            }
+
+            observed += resolution.PortCount;
+        }
+
+        return Observe(request, dimension, observed, observations);
     }
 
     private static PendingResolvedInstance[] ResolveInstanceShapes(

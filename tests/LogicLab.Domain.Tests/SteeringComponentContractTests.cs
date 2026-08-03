@@ -58,6 +58,25 @@ public sealed class SteeringComponentContractTests
     }
 
     [Test]
+    public async Task PreparePorts_PowerOfTwoShapeBeyondUInt64_ExposesOverflowState()
+    {
+        var contract = Find("logic.mux");
+
+        var resolution = contract.PreparePorts(
+        [
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+            new ComponentParameterBinding("selectorWidth", new Unsigned32ParameterValue(64)),
+        ]);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(resolution.ExceedsPortCountRange).IsTrue();
+            await Assert.That(() => resolution.PortCount).ThrowsExactly<OverflowException>();
+            await Assert.That(() => resolution.Materialize()).ThrowsExactly<OverflowException>();
+        }
+    }
+
+    [Test]
     public async Task PreparePorts_Decoder_GeneratesOneBitOutputs()
     {
         var contract = Find("logic.decoder");

@@ -10,6 +10,39 @@ namespace LogicLab.Engine.Tests;
 public sealed class SteeringPipelineTests
 {
     [Test]
+    public async Task Compile_PowerOfTwoPortShapeBeyondPolicy_ReturnsStructuredExhaustion()
+    {
+        var revision = CompilerTestCircuit.BeginProject();
+        (revision, _) = Place(
+            revision,
+            revision.Document.EntryCircuitDefinitionId,
+            "logic.mux",
+            [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding(
+                    "selectorWidth",
+                    new Unsigned32ParameterValue(64)),
+            ]);
+
+        var outcome = Compiler.Compile(
+            CompilerTestCircuit.Request(revision),
+            CancellationToken.None);
+
+        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
+        Assert.NotNull(rejected);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("compilation_policy_exhausted");
+            await Assert.That(rejected.Diagnostics.Single().Code)
+                .IsEqualTo("compiler_policy_exhausted");
+            await Assert.That(rejected.Evidence.PolicyLimitBreach)
+                .IsEqualTo(new ObservedProjectScaleDimension(
+                    ProjectScaleDimension.ElaboratedSlotCount,
+                    10_001));
+        }
+    }
+
+    [Test]
     public async Task Open_TriStateMultiDriverNet_ResolvesDisabledAndEnabledContributions()
     {
         var revision = CompilerTestCircuit.BeginProject();
@@ -93,6 +126,120 @@ public sealed class SteeringPipelineTests
     }
 
     [Test]
+    public async Task Advance_TriStateCauseChangesWithoutValueChange_ReplacesDiagnostics()
+    {
+        var revision = CompilerTestCircuit.BeginProject();
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        var sources = new List<ComponentInstance>();
+        foreach (var value in new[]
+                 {
+                     LogicValue.Zero,
+                     LogicValue.One,
+                     LogicValue.One,
+                     LogicValue.One,
+                 })
+        {
+            (revision, var source) = Place(revision, definitionId, "source.input",
+            [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding(
+                    "initialValue",
+                    new LogicVectorParameterValue([value])),
+            ]);
+            sources.Add(source);
+        }
+
+        var triStates = new List<ComponentInstance>();
+        for (var index = 0; index < 2; index++)
+        {
+            (revision, var triState) = Place(revision, definitionId, "logic.tristate",
+            [
+                new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding(
+                    "enablePolarity",
+                    new ChoiceParameterValue("activeHigh")),
+            ]);
+            triStates.Add(triState);
+            revision = Connect(revision, definitionId, (sources[index], "Q"), (triState, "D"));
+            revision = Connect(
+                revision,
+                definitionId,
+                (sources[index + 2], "Q"),
+                (triState, "EN"));
+        }
+
+        (revision, var sink) = Place(revision, definitionId, "sink.output",
+        [
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+            new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
+        ]);
+        var existingNetIds = revision.Document.EntryCircuitDefinition.Nets
+            .Select(net => net.Id)
+            .ToHashSet();
+        revision = Connect(
+            revision,
+            definitionId,
+            (triStates[0], "Q"),
+            (triStates[1], "Q"),
+            (sink, "D"));
+        var outputNet = revision.Document.EntryCircuitDefinition.Nets.Single(net =>
+            !existingNetIds.Contains(net.Id));
+        var compilation = (CompilationSucceeded)Compiler.Compile(
+            CompilerTestCircuit.Request(revision),
+            CancellationToken.None);
+        var probe = compilation.Artifact.SourceMap.Nets.Single(entry =>
+            entry.Source.Identity is NetSourceIdentity identity
+            && identity.NetId == outputNet.Id).Source;
+        var changingDriver = compilation.Artifact.SourceMap.Drivers.Single(entry =>
+            entry.Source.Identity is InstancePortSourceIdentity identity
+            && identity.ComponentInstanceId == sources[1].Id
+            && identity.PortId == "Q").Source;
+        var opened = (SimulationOpened)SimulationRuntime.Open(
+            new OpenSimulationRequest(
+                compilation.Artifact,
+                new SimulationSessionConfiguration(
+                    new SimulationPolicyReference("test-simulation", "1"),
+                    new TracePolicyReference("test-trace", "1"),
+                    [probe]),
+                SimulationTestContext.PermissiveSimulationPolicy(),
+                SimulationTestContext.PermissiveTracePolicy()),
+            CancellationToken.None);
+
+        var contention = opened.Diagnostics.Single(diagnostic => diagnostic.Primary == probe);
+        _ = SimulationRuntime.Execute(
+            opened.Handle,
+            new ScheduleStimulusBatch(new StimulusBatch(
+                1,
+                [new StimulusAssignment(changingDriver, new LogicVector([LogicValue.X]))])),
+            CancellationToken.None);
+        var advanced = (AdvanceCommitted)SimulationRuntime.Execute(
+            opened.Handle,
+            new AdvanceToNextQuiescentBoundary(),
+            CancellationToken.None);
+        var unknownDriver = advanced.Diagnostics.Single(
+            diagnostic => diagnostic.Primary == probe);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(contention.Code).IsEqualTo("simulation_contention");
+            await Assert.That(contention.Severity)
+                .IsEqualTo(SimulationDiagnosticSeverity.Error);
+            await Assert.That(contention.Arguments.Select(argument => argument.Name).ToArray())
+                .IsEquivalentTo(
+                    ["zeroDrivers", "oneDrivers", "unknownDrivers"],
+                    CollectionOrdering.Matching);
+            await Assert.That(contention.Arguments.Select(argument =>
+                    ((SimulationUnsignedDecimalValue)argument.Value).Value).ToArray())
+                .IsEquivalentTo(new ulong[] { 1, 1, 0 }, CollectionOrdering.Matching);
+            await Assert.That(advanced.ObservedProbePatch).IsEmpty();
+            await Assert.That(unknownDriver.Code).IsEqualTo("simulation_unknown_driver");
+            await Assert.That(((SimulationUnsignedDecimalValue)
+                    unknownDriver.Arguments.Single().Value).Value)
+                .IsEqualTo(1UL);
+        }
+    }
+
+    [Test]
     [Arguments("logic.buffer")]
     [Arguments("logic.and")]
     [Arguments("logic.nand")]
@@ -165,6 +312,18 @@ public sealed class SteeringPipelineTests
 
         await Assert.That(snapshot.Probes.Select(probe => Values(probe.Value)).ToArray())
             .IsEquivalentTo(circuit.ExpectedOutputs, CollectionOrdering.Matching);
+        if (contractId == "logic.tristate")
+        {
+            var undriven = opened.Diagnostics.Single(diagnostic =>
+                diagnostic.Primary == probeSources[0]);
+            using (Assert.Multiple())
+            {
+                await Assert.That(undriven.Code).IsEqualTo("simulation_net_undriven");
+                await Assert.That(undriven.Severity)
+                    .IsEqualTo(SimulationDiagnosticSeverity.Warning);
+                await Assert.That(undriven.Arguments).IsEmpty();
+            }
+        }
     }
 
     private static SteeringScenario CreateScenario(string contractId)
