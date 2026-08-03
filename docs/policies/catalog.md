@@ -96,7 +96,7 @@ zero_time_state_count
 ```
 
 The first two bound retained future input; the next four bound one discardable Logical-time Advance; `zero_time_state_count` bounds exact repetition evidence, not a heuristic proof. Work counters increment before the corresponding item is admitted, use checked arithmetic, and roll the advance back when the maximum would be exceeded.
-Each reachable amount admitted by logical shift's explicit possible-case set consumes one `advance_work_item_count` item before that set is materialized; symbolic logic that does not materialize a case set is charged for its ordinary evaluator and Net work only.
+Each reachable amount admitted by logical shift's explicit possible-case set consumes one `advance_work_item_count` item before case evaluation begins. The evaluator may stream the Conservative Merge without retaining every reachable result; symbolic logic that does not enumerate a case set is charged for its ordinary evaluator and Net work only.
 
 `TracePolicy` dimensions are:
 

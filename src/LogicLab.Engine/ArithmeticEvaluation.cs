@@ -108,14 +108,25 @@ internal static class ArithmeticEvaluation
     public static LogicVector LogicalShift(
         LogicVector data,
         LogicVector amount,
-        LogicalShiftDirection direction)
+        LogicalShiftDirection direction,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(amount);
         EnsureShiftAmountWidth(amount);
+        if (direction is not LogicalShiftDirection.Left and
+            not LogicalShiftDirection.Right)
+        {
+            throw new ArgumentOutOfRangeException(nameof(direction));
+        }
+
         var reachableCount = ReachableShiftCaseCount(amount);
-        var possible = new List<LogicVector>(checked((int)reachableCount));
-        var unknownBits = new List<int>(amount.Width);
+        var firstLowBits = new ulong[data.WordCount];
+        var firstHighBits = new ulong[data.WordCount];
+        var differentBits = new ulong[data.WordCount];
+        var unresolvedWordCount = data.WordCount;
+        var unknownBits = new int[amount.Width];
+        var unknownCount = 0;
         var knownAmount = 0UL;
         for (var bit = 0; bit < amount.Width; bit++)
         {
@@ -127,7 +138,7 @@ internal static class ArithmeticEvaluation
                     knownAmount |= 1UL << bit;
                     break;
                 case LogicValue.X:
-                    unknownBits.Add(bit);
+                    unknownBits[unknownCount++] = bit;
                     break;
                 default:
                     throw new InvalidOperationException(
@@ -137,8 +148,9 @@ internal static class ArithmeticEvaluation
 
         for (var combination = 0UL; combination < reachableCount; combination++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var reachableAmount = knownAmount;
-            for (var unknownIndex = 0; unknownIndex < unknownBits.Count; unknownIndex++)
+            for (var unknownIndex = 0; unknownIndex < unknownCount; unknownIndex++)
             {
                 if (((combination >> unknownIndex) & 1UL) != 0)
                 {
@@ -146,10 +158,70 @@ internal static class ArithmeticEvaluation
                 }
             }
 
-            possible.Add(ShiftKnown(data, reachableAmount, direction));
+            for (var wordIndex = 0; wordIndex < data.WordCount; wordIndex++)
+            {
+                if ((wordIndex & 1023) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
+                var mask = LogicVector.GetWordMask(data.Width, wordIndex);
+                if (combination != 0 && differentBits[wordIndex] == mask)
+                {
+                    continue;
+                }
+
+                var candidateLow = ShiftKnownWord(
+                    data,
+                    reachableAmount,
+                    direction,
+                    wordIndex,
+                    highPlane: false) & mask;
+                var candidateHigh = ShiftKnownWord(
+                    data,
+                    reachableAmount,
+                    direction,
+                    wordIndex,
+                    highPlane: true) & mask;
+                if (combination == 0)
+                {
+                    firstLowBits[wordIndex] = candidateLow;
+                    firstHighBits[wordIndex] = candidateHigh;
+                }
+                else
+                {
+                    differentBits[wordIndex] |= candidateLow ^ firstLowBits[wordIndex];
+                    differentBits[wordIndex] |= candidateHigh ^ firstHighBits[wordIndex];
+                    if (differentBits[wordIndex] == mask)
+                    {
+                        unresolvedWordCount--;
+                    }
+                }
+            }
+
+            if (unresolvedWordCount == 0)
+            {
+                break;
+            }
         }
 
-        return VectorConservativeMerge.Merge(possible);
+        for (var wordIndex = 0; wordIndex < data.WordCount; wordIndex++)
+        {
+            if ((wordIndex & 1023) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            var mask = LogicVector.GetWordMask(data.Width, wordIndex);
+            firstLowBits[wordIndex] &= ~differentBits[wordIndex] & mask;
+            firstHighBits[wordIndex] =
+                (firstHighBits[wordIndex] | differentBits[wordIndex]) & mask;
+        }
+
+        return LogicVector.CreateFromOwnedWords(
+            data.Width,
+            firstLowBits,
+            firstHighBits);
     }
 
     public static ulong ReachableShiftCaseCount(LogicVector amount)
@@ -168,27 +240,78 @@ internal static class ArithmeticEvaluation
         return 1UL << unknownCount;
     }
 
-    private static LogicVector ShiftKnown(
+    private static ulong ShiftKnownWord(
         LogicVector data,
         ulong amount,
-        LogicalShiftDirection direction)
+        LogicalShiftDirection direction,
+        int outputWordIndex,
+        bool highPlane)
     {
-        var result = new LogicValue[data.Width];
-        for (var outputBit = 0; outputBit < data.Width; outputBit++)
+        if (amount >= checked((ulong)data.Width))
         {
-            var sourceBit = direction switch
-            {
-                LogicalShiftDirection.Left => (long)outputBit - checked((long)amount),
-                LogicalShiftDirection.Right => (long)outputBit + checked((long)amount),
-                _ => throw new InvalidOperationException(
-                    "The logical shift direction is undefined."),
-            };
-            result[outputBit] = sourceBit >= 0 && sourceBit < data.Width
-                ? ScalarLogic.NormalizeInput(data[checked((int)sourceBit)])
-                : LogicValue.Zero;
+            return 0;
         }
 
-        return new LogicVector(result);
+        var shift = checked((int)amount);
+        var wordOffset = shift / LogicVector.BitsPerWord;
+        var bitOffset = shift % LogicVector.BitsPerWord;
+        return direction == LogicalShiftDirection.Left
+            ? ShiftLeftWord(
+                data,
+                outputWordIndex,
+                wordOffset,
+                bitOffset,
+                highPlane)
+            : ShiftRightWord(
+                data,
+                outputWordIndex,
+                wordOffset,
+                bitOffset,
+                highPlane);
+    }
+
+    private static ulong ShiftLeftWord(
+        LogicVector data,
+        int outputWordIndex,
+        int wordOffset,
+        int bitOffset,
+        bool highPlane)
+    {
+        var sourceWordIndex = outputWordIndex - wordOffset;
+        var result = PlaneWord(data, sourceWordIndex, highPlane) << bitOffset;
+        return bitOffset == 0
+            ? result
+            : result | PlaneWord(data, sourceWordIndex - 1, highPlane) >>
+                (LogicVector.BitsPerWord - bitOffset);
+    }
+
+    private static ulong ShiftRightWord(
+        LogicVector data,
+        int outputWordIndex,
+        int wordOffset,
+        int bitOffset,
+        bool highPlane)
+    {
+        var sourceWordIndex = outputWordIndex + wordOffset;
+        var result = PlaneWord(data, sourceWordIndex, highPlane) >> bitOffset;
+        return bitOffset == 0
+            ? result
+            : result | PlaneWord(data, sourceWordIndex + 1, highPlane) <<
+                (LogicVector.BitsPerWord - bitOffset);
+    }
+
+    private static ulong PlaneWord(
+        LogicVector data,
+        int wordIndex,
+        bool highPlane)
+    {
+        if (wordIndex < 0 || wordIndex >= data.WordCount)
+        {
+            return 0;
+        }
+
+        var high = data.GetHighWord(wordIndex);
+        return highPlane ? high : data.GetLowWord(wordIndex) & ~high;
     }
 
     private static void EnsureShiftAmountWidth(LogicVector amount)

@@ -133,7 +133,8 @@ public sealed class ArithmeticEvaluationTests
         var result = ArithmeticEvaluation.LogicalShift(
             Vector(LogicValue.One, LogicValue.One, LogicValue.Zero, LogicValue.One),
             Vector(LogicValue.One, LogicValue.Zero),
-            shiftLeft ? LogicalShiftDirection.Left : LogicalShiftDirection.Right);
+            shiftLeft ? LogicalShiftDirection.Left : LogicalShiftDirection.Right,
+            CancellationToken.None);
 
         await Assert.That(Values(result)).IsEquivalentTo(
             expected,
@@ -146,7 +147,8 @@ public sealed class ArithmeticEvaluationTests
         var result = ArithmeticEvaluation.LogicalShift(
             Vector(LogicValue.One, LogicValue.One, LogicValue.One),
             Vector(LogicValue.One, LogicValue.One),
-            LogicalShiftDirection.Left);
+            LogicalShiftDirection.Left,
+            CancellationToken.None);
 
         await Assert.That(Values(result)).IsEquivalentTo(
             [LogicValue.Zero, LogicValue.Zero, LogicValue.Zero],
@@ -159,7 +161,8 @@ public sealed class ArithmeticEvaluationTests
         var result = ArithmeticEvaluation.LogicalShift(
             Vector(LogicValue.One, LogicValue.One, LogicValue.Zero),
             Vector(LogicValue.Z, LogicValue.Zero),
-            LogicalShiftDirection.Left);
+            LogicalShiftDirection.Left,
+            CancellationToken.None);
 
         await Assert.That(Values(result)).IsEquivalentTo(
             [LogicValue.X, LogicValue.One, LogicValue.X],
@@ -184,7 +187,8 @@ public sealed class ArithmeticEvaluationTests
         var result = ArithmeticEvaluation.LogicalShift(
             Vector(LogicValue.One),
             Vector(amount),
-            LogicalShiftDirection.Left);
+            LogicalShiftDirection.Left,
+            CancellationToken.None);
 
         using (Assert.Multiple())
         {
@@ -192,6 +196,82 @@ public sealed class ArithmeticEvaluationTests
             await Assert.That(ArithmeticEvaluation.ReachableShiftCaseCount(Vector(amount)))
                 .IsEqualTo(1UL);
         }
+    }
+
+    [Test]
+    public async Task LogicalShift_UnknownAmount_UsesWidthBoundedAllocation()
+    {
+        var data = Enumerable.Repeat(LogicValue.One, 256).ToArray();
+        var amount = Enumerable.Repeat(LogicValue.X, 8).ToArray();
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+
+        var result = ArithmeticEvaluation.LogicalShift(
+            Vector(data),
+            Vector(amount),
+            LogicalShiftDirection.Left,
+            CancellationToken.None);
+
+        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+        using (Assert.Multiple())
+        {
+            await Assert.That(result.Width).IsEqualTo(data.Length);
+            await Assert.That(allocatedBytes).IsLessThan(100_000L);
+        }
+    }
+
+    [Test]
+    public async Task LogicalShift_CancelledCandidateEnumeration_StopsAtSafePoint()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.That(() => ArithmeticEvaluation.LogicalShift(
+            Vector(LogicValue.One, LogicValue.Zero),
+            Vector(LogicValue.X),
+            LogicalShiftDirection.Left,
+            cancellation.Token)).ThrowsExactly<OperationCanceledException>();
+    }
+
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task LogicalShift_UnknownAmountAcrossPackedWords_MatchesScalarOracle(
+        bool shiftLeft)
+    {
+        var data = Enumerable.Range(0, 130)
+            .Select(index => (index % 4) switch
+            {
+                0 => LogicValue.Zero,
+                1 => LogicValue.One,
+                2 => LogicValue.X,
+                _ => LogicValue.Z,
+            })
+            .ToArray();
+        var amount = new[]
+        {
+            LogicValue.X,
+            LogicValue.Zero,
+            LogicValue.Zero,
+            LogicValue.Zero,
+            LogicValue.Zero,
+            LogicValue.Zero,
+            LogicValue.X,
+            LogicValue.Zero,
+        };
+        var direction = shiftLeft
+            ? LogicalShiftDirection.Left
+            : LogicalShiftDirection.Right;
+
+        var result = ArithmeticEvaluation.LogicalShift(
+            Vector(data),
+            Vector(amount),
+            direction,
+            CancellationToken.None);
+        var expected = ScalarShiftOracle(data, amount, direction);
+
+        await Assert.That(Values(result)).IsEquivalentTo(
+            expected,
+            CollectionOrdering.Matching);
     }
 
     [Test]
@@ -208,5 +288,41 @@ public sealed class ArithmeticEvaluationTests
     private static LogicValue[] Values(LogicVector vector)
     {
         return Enumerable.Range(0, vector.Width).Select(index => vector[index]).ToArray();
+    }
+
+    private static LogicValue[] ScalarShiftOracle(
+        LogicValue[] data,
+        LogicValue[] amount,
+        LogicalShiftDirection direction)
+    {
+        var unknownBits = Enumerable.Range(0, amount.Length)
+            .Where(index => ScalarLogic.NormalizeInput(amount[index]) == LogicValue.X)
+            .ToArray();
+        var knownAmount = Enumerable.Range(0, amount.Length)
+            .Where(index => ScalarLogic.NormalizeInput(amount[index]) == LogicValue.One)
+            .Aggregate(0, (value, index) => value | (1 << index));
+        var possible = Enumerable.Range(0, 1 << unknownBits.Length)
+            .Select(combination =>
+            {
+                var shift = knownAmount;
+                for (var index = 0; index < unknownBits.Length; index++)
+                {
+                    shift |= ((combination >> index) & 1) << unknownBits[index];
+                }
+
+                return new LogicVector(Enumerable.Range(0, data.Length)
+                    .Select(outputBit =>
+                    {
+                        var sourceBit = direction == LogicalShiftDirection.Left
+                            ? outputBit - shift
+                            : outputBit + shift;
+                        return sourceBit >= 0 && sourceBit < data.Length
+                            ? ScalarLogic.NormalizeInput(data[sourceBit])
+                            : LogicValue.Zero;
+                    })
+                    .ToArray());
+            })
+            .ToArray();
+        return Values(VectorConservativeMerge.Merge(possible));
     }
 }

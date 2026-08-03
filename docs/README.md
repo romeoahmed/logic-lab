@@ -59,7 +59,7 @@ Implementation-plan items `01` through `11` are complete and verified. The appli
 | policies and capacity | dimensions and failure semantics are closed | provisional Simulation, Trace, Scheduling, and Workspace policy snapshots exercise bounded failure paths | calibrated values tied to a versioned corpus and deployment profile |
 | production operations | required readiness, shutdown, key, migration, proxy, and observability behavior is closed | development-host lifecycle and security-header integration evidence | provider-specific TLS, secrets, backup/restore, telemetry, alert, and runbook evidence |
 
-Verification snapshot (2026-08-03): locked restore, formatting, warning-clean build, whitespace validation, and all 587 discovered TUnit tests passed. The executable evidence above covers the completed vertical slices; it does not qualify the application for release while any remaining-evidence row is open.
+Verification snapshot (2026-08-03): locked restore, formatting, warning-clean build, whitespace validation, and all 591 discovered TUnit tests passed. The executable evidence above covers the completed vertical slices; it does not qualify the application for release while any remaining-evidence row is open.
 
 ## Executable evidence
 
