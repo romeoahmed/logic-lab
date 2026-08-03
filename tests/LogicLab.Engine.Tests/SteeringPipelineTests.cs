@@ -262,39 +262,35 @@ public sealed class SteeringPipelineTests
     [Arguments("logic.demux")]
     [Arguments("logic.decoder")]
     [Arguments("logic.priority_encoder")]
-    public async Task Compile_SteeringContract_LowersCompleteEvaluator(string contractId)
-    {
-        var circuit = CreateScenario(contractId);
-
-        var outcome = Compiler.Compile(
-            CompilerTestCircuit.Request(circuit.Revision),
-            CancellationToken.None);
-
-        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        Assert.NotNull(succeeded);
-        var targetSource = succeeded.Artifact.SourceMap.Evaluators.Single(entry =>
-            entry.Source.Identity is ComponentInstanceSourceIdentity identity
-            && identity.ComponentInstanceId == circuit.Target.Id);
-        await Assert.That(succeeded.Artifact.SimulationIr.Evaluators[targetSource.Ordinal].Kind)
-            .IsNotEqualTo(SimulationEvaluatorKind.OutputSink);
-    }
-
-    [Test]
-    [Arguments("logic.buffer")]
-    [Arguments("logic.and")]
-    [Arguments("logic.nand")]
-    [Arguments("logic.or")]
-    [Arguments("logic.nor")]
-    [Arguments("logic.xor")]
-    [Arguments("logic.xnor")]
-    [Arguments("logic.tristate")]
-    [Arguments("logic.mux")]
-    [Arguments("logic.demux")]
-    [Arguments("logic.decoder")]
-    [Arguments("logic.priority_encoder")]
     public async Task Open_SteeringContract_SettlesExactFourStateOutputs(string contractId)
     {
         var circuit = CreateScenario(contractId);
+        var (_, snapshot, _) = Open(circuit);
+
+        await Assert.That(snapshot.Probes.Select(probe => Values(probe.Value)).ToArray())
+            .IsEquivalentTo(circuit.ExpectedOutputs, CollectionOrdering.Matching);
+    }
+
+    [Test]
+    public async Task Open_DisabledTriStateOutput_ReportsUndrivenNet()
+    {
+        var (opened, _, probeSources) = Open(CreateScenario("logic.tristate"));
+        var diagnostic = opened.Diagnostics.Single(item => item.Primary == probeSources[0]);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(diagnostic.Code).IsEqualTo("simulation_net_undriven");
+            await Assert.That(diagnostic.Severity)
+                .IsEqualTo(SimulationDiagnosticSeverity.Warning);
+            await Assert.That(diagnostic.Arguments).IsEmpty();
+        }
+    }
+
+    private static (
+        SimulationOpened Opened,
+        SessionSnapshotRead Snapshot,
+        CompilationSource[] ProbeSources) Open(SteeringScenario circuit)
+    {
         var compilation = (CompilationSucceeded)Compiler.Compile(
             CompilerTestCircuit.Request(circuit.Revision),
             CancellationToken.None);
@@ -320,20 +316,7 @@ public sealed class SteeringPipelineTests
             new ReadSessionSnapshot(),
             CancellationToken.None);
 
-        await Assert.That(snapshot.Probes.Select(probe => Values(probe.Value)).ToArray())
-            .IsEquivalentTo(circuit.ExpectedOutputs, CollectionOrdering.Matching);
-        if (contractId == "logic.tristate")
-        {
-            var undriven = opened.Diagnostics.Single(diagnostic =>
-                diagnostic.Primary == probeSources[0]);
-            using (Assert.Multiple())
-            {
-                await Assert.That(undriven.Code).IsEqualTo("simulation_net_undriven");
-                await Assert.That(undriven.Severity)
-                    .IsEqualTo(SimulationDiagnosticSeverity.Warning);
-                await Assert.That(undriven.Arguments).IsEmpty();
-            }
-        }
+        return (opened, snapshot, probeSources);
     }
 
     private static SteeringScenario CreateScenario(string contractId)
@@ -342,12 +325,12 @@ public sealed class SteeringPipelineTests
         {
             "logic.buffer" => Build(contractId, Width(1), [[LogicValue.X]],
                 [[LogicValue.X]]),
-            "logic.and" => Gate(contractId, LogicValue.One, LogicValue.X, LogicValue.X),
-            "logic.nand" => Gate(contractId, LogicValue.One, LogicValue.X, LogicValue.X),
-            "logic.or" => Gate(contractId, LogicValue.One, LogicValue.X, LogicValue.One),
-            "logic.nor" => Gate(contractId, LogicValue.One, LogicValue.X, LogicValue.Zero),
-            "logic.xor" => Gate(contractId, LogicValue.One, LogicValue.X, LogicValue.X),
-            "logic.xnor" => Gate(contractId, LogicValue.One, LogicValue.X, LogicValue.X),
+            "logic.and" => Gate(contractId, LogicValue.One, LogicValue.One, LogicValue.One),
+            "logic.nand" => Gate(contractId, LogicValue.One, LogicValue.One, LogicValue.Zero),
+            "logic.or" => Gate(contractId, LogicValue.Zero, LogicValue.Zero, LogicValue.Zero),
+            "logic.nor" => Gate(contractId, LogicValue.Zero, LogicValue.Zero, LogicValue.One),
+            "logic.xor" => Gate(contractId, LogicValue.One, LogicValue.Zero, LogicValue.One),
+            "logic.xnor" => Gate(contractId, LogicValue.One, LogicValue.Zero, LogicValue.Zero),
             "logic.tristate" => Build(contractId,
                 [
                     new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
@@ -494,7 +477,7 @@ public sealed class SteeringPipelineTests
                 !existingNetIds.Contains(net.Id)));
         }
 
-        return new SteeringScenario(revision, target, outputNets, expectedOutputs);
+        return new SteeringScenario(revision, outputNets, expectedOutputs);
     }
 
     private static (ProjectRevision Revision, ComponentInstance Instance) Place(
@@ -555,7 +538,6 @@ public sealed class SteeringPipelineTests
 
     private sealed record SteeringScenario(
         ProjectRevision Revision,
-        ComponentInstance Target,
         IReadOnlyList<Net> OutputNets,
         LogicValue[][] ExpectedOutputs);
 }

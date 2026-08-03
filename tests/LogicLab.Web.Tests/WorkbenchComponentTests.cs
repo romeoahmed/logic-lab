@@ -24,6 +24,12 @@ public sealed class WorkbenchComponentTests
         "step",
     ];
 
+    private static readonly string[] SteeringComponentLabels =
+    [
+        "AND", "Buffer", "Decoder", "DEMUX", "MUX", "NAND", "NOR", "OR",
+        "Priority Encoder", "Tri-State", "XNOR", "XOR",
+    ];
+
     [Test]
     public async Task Editor_StaticPrerender_RendersStableShellWithoutWorkspaceSideEffects()
     {
@@ -128,24 +134,14 @@ public sealed class WorkbenchComponentTests
         var labels = rendered.FindAll("[data-component] h3")
             .Select(element => element.TextContent)
             .ToArray();
+        var missingLabels = SteeringComponentLabels.Except(labels).ToArray();
         var mux = rendered.FindAll("[data-component]").Single(element =>
             element.QuerySelector("h3")?.TextContent == "MUX");
         var priorityEncoder = rendered.FindAll("[data-component]").Single(element =>
             element.QuerySelector("h3")?.TextContent == "Priority Encoder");
         using (Assert.Multiple())
         {
-            await Assert.That(labels).Contains("AND");
-            await Assert.That(labels).Contains("Buffer");
-            await Assert.That(labels).Contains("Decoder");
-            await Assert.That(labels).Contains("DEMUX");
-            await Assert.That(labels).Contains("MUX");
-            await Assert.That(labels).Contains("NAND");
-            await Assert.That(labels).Contains("NOR");
-            await Assert.That(labels).Contains("OR");
-            await Assert.That(labels).Contains("Priority Encoder");
-            await Assert.That(labels).Contains("Tri-State");
-            await Assert.That(labels).Contains("XNOR");
-            await Assert.That(labels).Contains("XOR");
+            await Assert.That(missingLabels).IsEmpty();
             await Assert.That(mux.TextContent).Contains("D0 · Input · 1 bit");
             await Assert.That(mux.TextContent).Contains("D1 · Input · 1 bit");
             await Assert.That(priorityEncoder.TextContent).Contains("A0 · Input · 1 bit");
