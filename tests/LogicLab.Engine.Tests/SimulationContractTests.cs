@@ -77,10 +77,9 @@ public sealed class SimulationContractTests
             await Assert.That(configuration.InitialProbeBindings[0])
                 .IsEqualTo(firstSource);
             await Assert.That(batch.Assignments[0]).IsEqualTo(firstAssignment);
-            await Assert.That(((ICollection<CompilationSource>)
-                configuration.InitialProbeBindings).IsReadOnly).IsTrue();
-            await Assert.That(((ICollection<StimulusAssignment>)batch.Assignments)
-                .IsReadOnly).IsTrue();
+            await ReadOnlyCollectionAssertions.RejectsMutation(
+                configuration.InitialProbeBindings);
+            await ReadOnlyCollectionAssertions.RejectsMutation(batch.Assignments);
         }
     }
 
@@ -144,10 +143,8 @@ public sealed class SimulationContractTests
         {
             await Assert.That(simulation.Limits[0].Maximum).IsEqualTo(1_000UL);
             await Assert.That(trace.Limits[0].Maximum).IsEqualTo(1_000UL);
-            await Assert.That(((ICollection<SimulationLimit>)simulation.Limits)
-                .IsReadOnly).IsTrue();
-            await Assert.That(((ICollection<TraceLimit>)trace.Limits).IsReadOnly)
-                .IsTrue();
+            await ReadOnlyCollectionAssertions.RejectsMutation(simulation.Limits);
+            await ReadOnlyCollectionAssertions.RejectsMutation(trace.Limits);
         }
     }
 
@@ -226,12 +223,10 @@ public sealed class SimulationContractTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(((ICollection<ProbeId>)opened.ProbeIds).IsReadOnly)
-                .IsTrue();
-            await Assert.That(((ICollection<ProbeSnapshot>)snapshot.Probes).IsReadOnly)
-                .IsTrue();
-            await Assert.That(((ICollection<SimulationWorkObservation>)opened.WorkEvidence
-                .ObservedDimensions).IsReadOnly).IsTrue();
+            await ReadOnlyCollectionAssertions.RejectsMutation(opened.ProbeIds);
+            await ReadOnlyCollectionAssertions.RejectsMutation(snapshot.Probes);
+            await ReadOnlyCollectionAssertions.RejectsMutation(
+                opened.WorkEvidence.ObservedDimensions);
         }
     }
 }

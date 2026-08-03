@@ -6,6 +6,15 @@ namespace LogicLab.Domain.Tests;
 
 public sealed class ProjectEditorCircuitTests
 {
+    public enum InvalidParameterScenario
+    {
+        ZeroWidth,
+        WrongKind,
+        HighImpedanceInitialValue,
+        VectorWidthMismatch,
+        InvalidRadix,
+    }
+
     [Test]
     public async Task Apply_PlaceInputNotOutput_CommitsAtomicProjectRevisions()
     {
@@ -158,8 +167,8 @@ public sealed class ProjectEditorCircuitTests
 
         var outcome = ProjectEditor.Apply(genesis, intent);
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason).IsEqualTo("authoring_invalid");
@@ -194,8 +203,8 @@ public sealed class ProjectEditorCircuitTests
 
         var outcome = ProjectEditor.Apply(genesis, intent);
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
@@ -227,8 +236,8 @@ public sealed class ProjectEditorCircuitTests
 
         var outcome = ProjectEditor.Apply(genesis, intent);
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         await Assert.That(rejected.Diagnostics[0].Arguments)
             .IsEquivalentTo(
                 [
@@ -246,13 +255,13 @@ public sealed class ProjectEditorCircuitTests
     }
 
     [Test]
-    [Arguments("zeroWidth", "positiveWidth")]
-    [Arguments("wrongKind", "parameterKind")]
-    [Arguments("zInitialValue", "logicVectorValue")]
-    [Arguments("vectorWidth", "vectorWidth")]
-    [Arguments("invalidRadix", "allowedValue")]
+    [Arguments(InvalidParameterScenario.ZeroWidth, "positiveWidth")]
+    [Arguments(InvalidParameterScenario.WrongKind, "parameterKind")]
+    [Arguments(InvalidParameterScenario.HighImpedanceInitialValue, "logicVectorValue")]
+    [Arguments(InvalidParameterScenario.VectorWidthMismatch, "vectorWidth")]
+    [Arguments(InvalidParameterScenario.InvalidRadix, "allowedValue")]
     public async Task Apply_InvalidParameterRule_RejectsExactDiagnostic(
-        string scenario,
+        InvalidParameterScenario scenario,
         string expectedRule)
     {
         var genesis = BeginProject();
@@ -265,8 +274,8 @@ public sealed class ProjectEditorCircuitTests
 
         var outcome = ProjectEditor.Apply(genesis, intent);
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics).Count().IsEqualTo(1);
@@ -338,8 +347,8 @@ public sealed class ProjectEditorCircuitTests
                     Terminal(definitionId, logicNot, "A"),
                 ]));
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
@@ -401,8 +410,8 @@ public sealed class ProjectEditorCircuitTests
                     Terminal(definitionId, circuit.LogicNot, "A"),
                 ]));
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
@@ -442,8 +451,8 @@ public sealed class ProjectEditorCircuitTests
                         new ComponentPlacement(new GridPoint(30, 30))),
                 ]));
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
@@ -503,8 +512,8 @@ public sealed class ProjectEditorCircuitTests
                 circuit.Revision.Document.EntryCircuitDefinition.Id,
                 []));
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
@@ -656,25 +665,25 @@ public sealed class ProjectEditorCircuitTests
     }
 
     private static (string ContractId, ComponentParameterBinding[] Parameters)
-        InvalidParameterCase(string scenario)
+        InvalidParameterCase(InvalidParameterScenario scenario)
     {
         return scenario switch
         {
-            "zeroWidth" => (
+            InvalidParameterScenario.ZeroWidth => (
                 "logic.not",
                 [
                     new ComponentParameterBinding(
                         "width",
                         new Unsigned32ParameterValue(0)),
                 ]),
-            "wrongKind" => (
+            InvalidParameterScenario.WrongKind => (
                 "logic.not",
                 [
                     new ComponentParameterBinding(
                         "width",
                         new ChoiceParameterValue("one")),
                 ]),
-            "zInitialValue" => (
+            InvalidParameterScenario.HighImpedanceInitialValue => (
                 "source.input",
                 [
                     new ComponentParameterBinding(
@@ -684,7 +693,7 @@ public sealed class ProjectEditorCircuitTests
                         "initialValue",
                         new LogicVectorParameterValue([LogicValue.Z])),
                 ]),
-            "vectorWidth" => (
+            InvalidParameterScenario.VectorWidthMismatch => (
                 "source.input",
                 [
                     new ComponentParameterBinding(
@@ -694,7 +703,7 @@ public sealed class ProjectEditorCircuitTests
                         "initialValue",
                         new LogicVectorParameterValue([LogicValue.Zero])),
                 ]),
-            "invalidRadix" => (
+            InvalidParameterScenario.InvalidRadix => (
                 "sink.output",
                 [
                     new ComponentParameterBinding(
@@ -704,7 +713,7 @@ public sealed class ProjectEditorCircuitTests
                         "radix",
                         new ChoiceParameterValue("octal")),
                 ]),
-            _ => throw new InvalidOperationException("The test scenario is undefined."),
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
         };
     }
 
