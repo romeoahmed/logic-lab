@@ -434,7 +434,7 @@ public static partial class Compiler
                 pending.Instance,
                 pending.Kind,
                 ports,
-                GetEvaluatorWidth(ports));
+                GetEvaluatorWidth(pending.Kind, ports));
         }
 
         return resolved;
