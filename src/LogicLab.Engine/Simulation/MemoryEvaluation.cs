@@ -40,16 +40,15 @@ internal static class MemoryEvaluation
             throw new ArgumentException("Memory must contain at least one word.", nameof(words));
         }
 
-        var reachable = new List<LogicVector>();
+        var reachable = new List<LogicVector>(
+            checked((int)ReachableAddressCount(address)));
         foreach (var index in ReachableAddresses(address))
         {
             cancellationToken.ThrowIfCancellationRequested();
             reachable.Add(words[index]);
         }
 
-        return reachable.Count == 0
-            ? throw new InvalidOperationException("A memory address has no reachable word.")
-            : VectorConservativeMerge.Merge(reachable);
+        return VectorConservativeMerge.Merge(reachable);
     }
 
     public static MemoryCellWrite[] SampleWrite(
@@ -68,18 +67,10 @@ internal static class MemoryEvaluation
         }
 
         var normalizedData = VectorLogic.NormalizeInput(data);
-        var addressIsKnown = true;
-        for (var bit = 0; bit < address.Width; bit++)
-        {
-            if (address[bit] is LogicValue.X or LogicValue.Z)
-            {
-                addressIsKnown = false;
-                break;
-            }
-        }
-
-        var writeIsDefinite = writeEnable == LogicValue.One && addressIsKnown;
-        var writes = new List<MemoryCellWrite>();
+        var reachableAddressCount = ReachableAddressCount(address);
+        var writeIsDefinite = writeEnable == LogicValue.One
+            && reachableAddressCount == 1;
+        var writes = new List<MemoryCellWrite>(checked((int)reachableAddressCount));
         foreach (var index in ReachableAddresses(address))
         {
             cancellationToken.ThrowIfCancellationRequested();

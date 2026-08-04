@@ -339,10 +339,10 @@ public sealed class MemoryRuntimeTests
     public async Task Execute_DisabledRamWrite_DoesNotCopyMemoryWorkingStorage()
     {
         var circuit = CreateRam(
-            Enumerable.Repeat(LogicValue.Zero, 6).ToArray(),
+            [.. Enumerable.Repeat(LogicValue.Zero, 6)],
             [LogicValue.One],
             LogicValue.Zero,
-            Enumerable.Range(0, 64).Select(_ => new[] { LogicValue.Zero }).ToArray());
+            [.. Enumerable.Range(0, 64).Select(_ => new[] { LogicValue.Zero })]);
         var policy = SimulationPolicyWithLimits(advanceWorkItems: 50);
         var opened = (SimulationOpened)SimulationRuntime.Open(
             MemoryTestCircuit.Request(circuit.Artifact, policy, circuit.OutputNet),
@@ -366,10 +366,10 @@ public sealed class MemoryRuntimeTests
     public async Task Execute_IdempotentRamWrite_DoesNotCopyMemoryWorkingStorage()
     {
         var circuit = CreateRam(
-            Enumerable.Repeat(LogicValue.Zero, 6).ToArray(),
+            [.. Enumerable.Repeat(LogicValue.Zero, 6)],
             [LogicValue.Zero],
             LogicValue.One,
-            Enumerable.Range(0, 64).Select(_ => new[] { LogicValue.Zero }).ToArray());
+            [.. Enumerable.Range(0, 64).Select(_ => new[] { LogicValue.Zero })]);
         var policy = SimulationPolicyWithLimits(advanceWorkItems: 50);
         var opened = (SimulationOpened)SimulationRuntime.Open(
             MemoryTestCircuit.Request(circuit.Artifact, policy, circuit.OutputNet),
@@ -393,10 +393,10 @@ public sealed class MemoryRuntimeTests
     public async Task Execute_FirstRamWriteCopyExceedsWorkPolicy_RollsBackMemory()
     {
         var circuit = CreateRam(
-            Enumerable.Repeat(LogicValue.Zero, 6).ToArray(),
+            [.. Enumerable.Repeat(LogicValue.Zero, 6)],
             [LogicValue.One],
             LogicValue.One,
-            Enumerable.Range(0, 64).Select(_ => new[] { LogicValue.Zero }).ToArray());
+            [.. Enumerable.Range(0, 64).Select(_ => new[] { LogicValue.Zero })]);
         var policy = SimulationPolicyWithLimits(advanceWorkItems: 50);
         var opened = (SimulationOpened)SimulationRuntime.Open(
             MemoryTestCircuit.Request(circuit.Artifact, policy, circuit.OutputNet),

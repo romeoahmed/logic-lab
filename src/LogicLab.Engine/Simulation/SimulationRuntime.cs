@@ -603,7 +603,7 @@ public static partial class SimulationRuntime
         foreach (var evaluator in ir.Evaluators.Where(evaluator =>
             SimulationEvaluatorKindFacts.IsMemory(evaluator.Kind)))
         {
-            states[evaluator.Ordinal] = evaluator.InitialMemory!.ToArray();
+            states[evaluator.Ordinal] = [.. evaluator.InitialMemory!];
         }
 
         return states;
