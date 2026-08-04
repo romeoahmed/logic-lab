@@ -1,6 +1,7 @@
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
+using static LogicLab.Domain.Tests.ProjectEditorTestContext;
 
 namespace LogicLab.Domain.Tests;
 
@@ -11,7 +12,7 @@ public sealed class ProjectEditorMigrationTests
     {
         var revision = BeginProject();
         var definitionId = revision.Document.EntryCircuitDefinitionId;
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new ChangePublicPortContractIntent(
                 definitionId,
@@ -23,7 +24,7 @@ public sealed class ProjectEditorMigrationTests
         var definition = revision.Document.EntryCircuitDefinition;
         var input = definition.Ports.Single(port => port.Direction == PortDirection.Input);
         var output = definition.Ports.Single(port => port.Direction == PortDirection.Output);
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new ConnectTerminalsIntent(
                 [
@@ -67,14 +68,14 @@ public sealed class ProjectEditorMigrationTests
     public async Task Apply_ChangePublicPortContract_DisconnectsCallSiteAndReportsRemovedNet()
     {
         var revision = BeginProject();
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new CreateCircuitDefinitionIntent(
                 "Child",
                 [Port("A", PortDirection.Input, 1), Port("Q", PortDirection.Output, 1)])));
         var child = revision.Document.CircuitDefinitions.Single(definition =>
             definition.Id != revision.Document.EntryCircuitDefinitionId);
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 revision.Document.EntryCircuitDefinitionId,
@@ -83,7 +84,7 @@ public sealed class ProjectEditorMigrationTests
                 new ComponentPlacement(new GridPoint(0, 0)))));
         var parent = revision.Document.EntryCircuitDefinition;
         var callSite = parent.ComponentInstances.Single();
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new ConnectTerminalsIntent(
                 [
@@ -121,33 +122,33 @@ public sealed class ProjectEditorMigrationTests
     public async Task Apply_ChangePublicPortContract_MigratesEveryCallSiteAtomically()
     {
         var revision = BeginProject();
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new CreateCircuitDefinitionIntent(
                 "Child",
                 [Port("A", PortDirection.Input, 1), Port("Q", PortDirection.Output, 1)])));
         var child = revision.Document.CircuitDefinitions.Single(definition =>
             definition.Id != revision.Document.EntryCircuitDefinitionId);
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 revision.Document.EntryCircuitDefinitionId,
                 new CircuitDefinitionComponentTarget(child.Id),
                 [],
                 new ComponentPlacement(new GridPoint(2, 2)))));
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 revision.Document.EntryCircuitDefinitionId,
-                ProjectEditorCatalogTests.Contract("source.constant"),
-                ProjectEditorCatalogTests.ConstantParameters(LogicValue.One),
+                Contract("source.constant"),
+                ConstantParameters(LogicValue.One),
                 new ComponentPlacement(new GridPoint(0, 0)))));
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 revision.Document.EntryCircuitDefinitionId,
-                ProjectEditorCatalogTests.Contract("sink.output"),
-                ProjectEditorCatalogTests.SinkParameters(1),
+                Contract("sink.output"),
+                SinkParameters(1),
                 new ComponentPlacement(new GridPoint(6, 0)))));
         var parent = revision.Document.EntryCircuitDefinition;
         var callSite = parent.ComponentInstances.Single(instance =>
@@ -160,14 +161,14 @@ public sealed class ProjectEditorMigrationTests
             && library.ContractKey.ContractId == "sink.output");
         var oldInput = child.Ports[0];
         var oldOutput = child.Ports[1];
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new ConnectTerminalsIntent(
                 [
                     new InstanceTerminalReference(parent.Id, source.Id, "Q"),
                     new InstanceTerminalReference(parent.Id, callSite.Id, oldInput.Id.Value),
                 ])));
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new ConnectTerminalsIntent(
                 [
@@ -230,14 +231,14 @@ public sealed class ProjectEditorMigrationTests
     public async Task Apply_ChangePublicPortContract_IncompleteCallSiteMigrationRejects()
     {
         var revision = BeginProject();
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new CreateCircuitDefinitionIntent(
                 "Child",
                 [Port("A", PortDirection.Input, 1)])));
         var child = revision.Document.CircuitDefinitions.Single(definition =>
             definition.Id != revision.Document.EntryCircuitDefinitionId);
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 revision.Document.EntryCircuitDefinitionId,
@@ -268,19 +269,19 @@ public sealed class ProjectEditorMigrationTests
     {
         var revision = BeginProject();
         var definitionId = revision.Document.EntryCircuitDefinitionId;
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 definitionId,
-                ProjectEditorCatalogTests.Contract("logic.not"),
-                ProjectEditorCatalogTests.WidthParameters(1),
+                Contract("logic.not"),
+                WidthParameters(1),
                 new ComponentPlacement(new GridPoint(0, 0)))));
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 definitionId,
-                ProjectEditorCatalogTests.Contract("sink.output"),
-                ProjectEditorCatalogTests.SinkParameters(1),
+                Contract("sink.output"),
+                SinkParameters(1),
                 new ComponentPlacement(new GridPoint(4, 0)))));
         var not = revision.Document.EntryCircuitDefinition.ComponentInstances.Single(instance =>
             instance.Target is LibraryComponentTarget library
@@ -288,7 +289,7 @@ public sealed class ProjectEditorMigrationTests
         var sink = revision.Document.EntryCircuitDefinition.ComponentInstances.Single(instance =>
             instance.Target is LibraryComponentTarget library
             && library.ContractKey.ContractId == "sink.output");
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new ConnectTerminalsIntent(
                 [
@@ -301,8 +302,8 @@ public sealed class ProjectEditorMigrationTests
             new ChangeInstanceContractIntent(
                 definitionId,
                 not.Id,
-                new LibraryComponentTarget(ProjectEditorCatalogTests.Contract("logic.buffer")),
-                ProjectEditorCatalogTests.WidthParameters(1),
+                new LibraryComponentTarget(Contract("logic.buffer")),
+                WidthParameters(1),
                 [new InstancePortMigration("A", "A"), new InstancePortMigration("Q", "Q")],
                 null));
 
@@ -324,7 +325,7 @@ public sealed class ProjectEditorMigrationTests
         return ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
             "Migration fixture",
             LibrarySnapshot.Core,
-            ProjectEditorCatalogTests.TeachingMixedProfile(),
+            TeachingMixedProfile(),
             "Main"))).Revision;
     }
 
