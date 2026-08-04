@@ -63,8 +63,9 @@ public sealed class SequentialRuntimeTests
             await Assert.That(committed.LogicalTime).IsEqualTo(ulong.MaxValue);
             await Assert.That(committed.ObservedProbePatch.Single().Value[0])
                 .IsEqualTo(LogicValue.One);
-            await Assert.That(exhausted).IsTypeOf<NoScheduledStimulus>();
-            await Assert.That(((NoScheduledStimulus)exhausted).LogicalTime)
+            var noStimulus = await Assert.That(exhausted).IsTypeOf<NoScheduledStimulus>();
+            Assert.NotNull(noStimulus);
+            await Assert.That(noStimulus.LogicalTime)
                 .IsEqualTo(ulong.MaxValue);
         }
     }
@@ -419,20 +420,25 @@ public sealed class SequentialRuntimeTests
             CancellationToken.None);
         var afterRetry = Snapshot(opened);
 
-        await Assert.That(first).IsTypeOf<AdvanceFailed>();
-        await Assert.That(retry).IsTypeOf<AdvanceFailed>();
+        var firstFailure = await Assert.That(first).IsTypeOf<AdvanceFailed>();
+        var retryFailure = await Assert.That(retry).IsTypeOf<AdvanceFailed>();
+        Assert.NotNull(firstFailure);
+        Assert.NotNull(retryFailure);
+        var firstPolicyEvidence = firstFailure.PolicyEvidence;
+        var retryPolicyEvidence = retryFailure.PolicyEvidence;
+        Assert.NotNull(firstPolicyEvidence);
+        Assert.NotNull(retryPolicyEvidence);
         using (Assert.Multiple())
         {
-            await Assert.That(((AdvanceFailed)first).PolicyEvidence!.Dimension)
+            await Assert.That(firstPolicyEvidence.Dimension)
                 .IsEqualTo("trigger_batch_count");
-            await Assert.That(((AdvanceFailed)first).PolicyEvidence!.Observed)
+            await Assert.That(firstPolicyEvidence.Observed)
                 .IsEqualTo(2UL);
             await Assert.That(afterFirst.SessionVersion).IsEqualTo(before.SessionVersion);
             await Assert.That(afterFirst.LogicalTime).IsEqualTo(0UL);
             await Assert.That(afterFirst.TraceCursor).IsEqualTo(before.TraceCursor);
             await Assert.That(afterFirst.Probes[0].Value[0]).IsEqualTo(LogicValue.Zero);
-            await Assert.That(((AdvanceFailed)retry).PolicyEvidence)
-                .IsEqualTo(((AdvanceFailed)first).PolicyEvidence);
+            await Assert.That(retryPolicyEvidence).IsEqualTo(firstPolicyEvidence);
             await Assert.That(afterRetry.SessionVersion).IsEqualTo(afterFirst.SessionVersion);
             await Assert.That(afterRetry.LogicalTime).IsEqualTo(afterFirst.LogicalTime);
             await Assert.That(afterRetry.TraceCursor).IsEqualTo(afterFirst.TraceCursor);

@@ -120,8 +120,8 @@ public sealed class SimulationFeedbackTests
             new ReadSessionSnapshot(),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<AdvanceFailed>();
-        var failed = (AdvanceFailed)outcome;
+        var failed = await Assert.That(outcome).IsTypeOf<AdvanceFailed>();
+        Assert.NotNull(failed);
         using (Assert.Multiple())
         {
             await Assert.That(failed.Reason)
