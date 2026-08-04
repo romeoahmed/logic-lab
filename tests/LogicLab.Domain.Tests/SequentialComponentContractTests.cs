@@ -95,6 +95,30 @@ public sealed class SequentialComponentContractTests
         }
     }
 
+    [Test]
+    [Arguments("sequential.d_latch")]
+    [Arguments("sequential.dff")]
+    [Arguments("sequential.register")]
+    public async Task ResolvePorts_HighImpedanceInitialState_RejectsStoredValue(
+        string contractId)
+    {
+        var parameters = contractId == "sequential.d_latch"
+            ? new ComponentParameterBinding[]
+            {
+                new("width", new Unsigned32ParameterValue(1)),
+                new("initialState", new LogicVectorParameterValue([LogicValue.Z])),
+            }
+            :
+            [
+                new("width", new Unsigned32ParameterValue(1)),
+                new("edge", new ChoiceParameterValue("rising")),
+                new("initialState", new LogicVectorParameterValue([LogicValue.Z])),
+            ];
+
+        await Assert.That(() => Find(contractId).ResolvePorts(parameters))
+            .ThrowsExactly<ArgumentException>();
+    }
+
     private static ComponentContractSchema Find(string contractId)
     {
         return CoreLibrarySchema.FindContract(new ComponentContractKey(
