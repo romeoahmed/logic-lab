@@ -93,8 +93,15 @@ internal static class SimulationNetDiagnostics
             sources,
             diagnostics);
 
-        diagnostics.Sort(SimulationNetDiagnosticComparer.Instance);
-        return [.. diagnostics];
+        return Canonicalize(diagnostics);
+    }
+
+    public static SimulationDiagnostic[] Canonicalize(
+        IEnumerable<SimulationDiagnostic> diagnostics)
+    {
+        var canonical = diagnostics.ToList();
+        canonical.Sort(SimulationNetDiagnosticComparer.Instance);
+        return [.. canonical];
     }
 
     private static void AddIndeterminateFeedbackDiagnostics(

@@ -3,7 +3,7 @@ using LogicLab.Engine.Compilation;
 
 namespace LogicLab.Engine.Simulation;
 
-public static class SimulationRuntime
+public static partial class SimulationRuntime
 {
     public static SimulationOpenOutcome Open(
         OpenSimulationRequest request,
@@ -19,7 +19,12 @@ public static class SimulationRuntime
             ValidateRequest(request, cancellationToken);
             var ir = request.CompilationArtifact.SimulationIr;
             work.WorkingLayerSlots = checked(
-                (ulong)ir.Drivers.Count + (ulong)ir.Nets.Count);
+                (ulong)ir.Drivers.Count
+                + (ulong)ir.Nets.Count
+                + (ulong)ir.Evaluators.Count(evaluator =>
+                    SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind))
+                + (ulong)ir.Evaluators.Count(evaluator =>
+                    evaluator.Kind == SimulationEvaluatorKind.ClockSource));
             if (work.WorkingLayerSlots > request.SimulationPolicy.Maximum(
                 SimulationDimension.WorkingLayerSlotCount))
             {
@@ -39,7 +44,9 @@ public static class SimulationRuntime
                 return probeFailure;
             }
 
-            var driverValues = CreateDriverValues(ir);
+            var sequentialStates = CreateSequentialStates(ir);
+            var driverValues = CreateDriverValues(ir, sequentialStates);
+            var scheduledClockTransitions = CreateClockEventCalendar(ir);
             var settlement = SettleCombinational(
                 ir,
                 driverValues,
@@ -67,11 +74,13 @@ public static class SimulationRuntime
                 TracePolicy = request.TracePolicy,
                 DriverValues = driverValues,
                 NetValues = netValues,
+                SequentialStates = sequentialStates,
                 Probes = probes,
                 Trace = trace,
                 Diagnostics = diagnostics,
                 SessionVersion = 1,
                 LogicalTime = 0,
+                ScheduledClockTransitions = scheduledClockTransitions,
             };
             var handle = new SimulationSessionHandle(state);
             var evidence = Evidence(request, work);
@@ -216,10 +225,12 @@ public static class SimulationRuntime
         state.Artifact = null;
         state.DriverValues = [];
         state.NetValues = [];
+        state.SequentialStates = [];
         state.Probes = [];
         state.ScheduledBatches = new();
         state.ScheduledAssignmentsByTime = [];
         state.ScheduledAssignmentCount = 0;
+        state.ScheduledClockTransitions = new();
         state.Trace = new(state.TracePolicy);
         state.Diagnostics = [];
         return new SessionClosed(state.SessionId);
@@ -341,26 +352,49 @@ public static class SimulationRuntime
         SimulationSessionState state,
         CancellationToken cancellationToken)
     {
-        if (state.ScheduledBatches.Count == 0)
+        var nextStimulusTime = PeekStimulusTime(state.ScheduledBatches);
+        var nextClockTime = PeekClockTime(state.ScheduledClockTransitions);
+        if (nextStimulusTime is null && nextClockTime is null)
         {
             return new NoScheduledStimulus(
                 state.SessionVersion,
                 state.LogicalTime);
         }
 
-        _ = state.ScheduledBatches.TryPeek(out _, out var nextPriority);
-        var logicalTime = nextPriority.LogicalTime;
-        var assignments = state.ScheduledAssignmentsByTime[logicalTime];
+        var logicalTime = Math.Min(
+            nextStimulusTime ?? ulong.MaxValue,
+            nextClockTime ?? ulong.MaxValue);
         var driverValues = (LogicVector[])state.DriverValues.Clone();
+        var sequentialStates = (LogicVector?[])state.SequentialStates.Clone();
         var settlementWork = new SettlementWork();
-        foreach (var assignment in assignments)
+        if (state.ScheduledAssignmentsByTime.TryGetValue(
+                logicalTime,
+                out var assignments))
+        {
+            foreach (var assignment in assignments)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                CountWork(
+                    state.SimulationPolicy,
+                    SimulationDimension.AdvanceWorkItemCount,
+                    ref settlementWork.WorkItems);
+                driverValues[assignment.Key] = assignment.Value;
+            }
+        }
+
+        var clockTransitions = ClockTransitionsAt(
+            state.ScheduledClockTransitions,
+            logicalTime);
+        foreach (var transition in clockTransitions)
         {
             cancellationToken.ThrowIfCancellationRequested();
             CountWork(
                 state.SimulationPolicy,
                 SimulationDimension.AdvanceWorkItemCount,
                 ref settlementWork.WorkItems);
-            driverValues[assignment.Key] = assignment.Value;
+            var previous = driverValues[transition.DriverOrdinal][0];
+            driverValues[transition.DriverOrdinal] = new LogicVector(
+                [previous == LogicValue.Zero ? LogicValue.One : LogicValue.Zero]);
         }
 
         var settlement = SettleCombinational(
@@ -370,10 +404,29 @@ public static class SimulationRuntime
             settlementWork,
             cancellationToken);
         var netValues = settlement.NetValues;
-        var diagnostics = SimulationNetDiagnostics.Create(
-            state.Artifact,
+        var clockDiagnostics = new List<SimulationDiagnostic>();
+        SettleSequential(
+            state.Artifact!,
+            state.NetValues,
+            ref netValues,
+            ref settlement,
             driverValues,
-            settlement.NetResolutions);
+            sequentialStates,
+            state.SimulationPolicy,
+            settlementWork,
+            clockDiagnostics,
+            cancellationToken);
+        var diagnostics = SimulationNetDiagnostics.Canonicalize(
+            SimulationNetDiagnostics.Create(
+                state.Artifact!,
+                driverValues,
+                settlement.NetResolutions)
+            .Concat(clockDiagnostics));
+        var nextClockTransitions = StageNextClockTransitions(
+            state.Artifact!.SimulationIr,
+            clockTransitions,
+            driverValues,
+            logicalTime);
         var observations = new List<ProbeObservation>(state.Probes.Length);
         var traceObservations = new List<(ProbeState Probe, LogicVector Value)>(
             state.Probes.Length);
@@ -404,8 +457,20 @@ public static class SimulationRuntime
         }
 
         _ = state.ScheduledAssignmentsByTime.Remove(logicalTime);
+        while (state.ScheduledClockTransitions.TryPeek(out _, out var clockPriority)
+            && clockPriority.LogicalTime == logicalTime)
+        {
+            _ = state.ScheduledClockTransitions.Dequeue();
+        }
+
+        foreach (var (transition, priority) in nextClockTransitions)
+        {
+            state.ScheduledClockTransitions.Enqueue(transition, priority);
+        }
+
         state.DriverValues = driverValues;
         state.NetValues = netValues;
+        state.SequentialStates = sequentialStates;
         state.LogicalTime = logicalTime;
         state.SessionVersion = nextVersion;
         state.Diagnostics = diagnostics;
@@ -504,14 +569,29 @@ public static class SimulationRuntime
         return probes;
     }
 
-    private static LogicVector[] CreateDriverValues(SimulationIr ir)
+    private static LogicVector?[] CreateSequentialStates(SimulationIr ir)
+    {
+        var states = new LogicVector?[ir.Evaluators.Count];
+        foreach (var evaluator in ir.Evaluators.Where(evaluator =>
+            SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind)))
+        {
+            states[evaluator.Ordinal] = evaluator.InitialValue!;
+        }
+
+        return states;
+    }
+
+    private static LogicVector[] CreateDriverValues(
+        SimulationIr ir,
+        LogicVector?[] sequentialStates)
     {
         var driverValues = ir.Drivers
             .Select(driver => Uniform(driver.Width, LogicValue.Z))
             .ToArray();
         foreach (var evaluator in ir.Evaluators.Where(
             evaluator => evaluator.Kind is SimulationEvaluatorKind.InputSource
-                or SimulationEvaluatorKind.ConstantSource))
+                or SimulationEvaluatorKind.ConstantSource
+                or SimulationEvaluatorKind.ClockSource))
         {
             foreach (var driverOrdinal in evaluator.OutputDriverOrdinals)
             {
@@ -519,7 +599,20 @@ public static class SimulationRuntime
             }
         }
 
+        foreach (var evaluator in ir.Evaluators.Where(evaluator =>
+            SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind)))
+        {
+            driverValues[evaluator.OutputDriverOrdinals[0]] =
+                sequentialStates[evaluator.Ordinal]!;
+        }
+
         return driverValues;
+    }
+
+    private static LogicVector[] CreateDriverValues(SimulationIr ir)
+    {
+        var states = CreateSequentialStates(ir);
+        return CreateDriverValues(ir, states);
     }
 
     private static SettlementResult SettleCombinational(
@@ -762,6 +855,10 @@ public static class SimulationRuntime
         {
             case SimulationEvaluatorKind.InputSource:
             case SimulationEvaluatorKind.ConstantSource:
+            case SimulationEvaluatorKind.ClockSource:
+            case SimulationEvaluatorKind.SequentialDLatch:
+            case SimulationEvaluatorKind.SequentialDff:
+            case SimulationEvaluatorKind.SequentialRegister:
             case SimulationEvaluatorKind.OutputSink:
                 return;
             case SimulationEvaluatorKind.LogicNot:
@@ -1186,6 +1283,8 @@ public static class SimulationRuntime
         public ulong WorkItems;
 
         public ulong FrontierItems;
+
+        public ulong TriggerBatches;
     }
 
     private sealed record SettlementResult(
