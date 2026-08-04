@@ -50,15 +50,7 @@ internal static class SimulationEvaluatorKindFacts
 {
     public static bool IsStateBoundary(SimulationEvaluatorKind kind)
     {
-        return kind is SimulationEvaluatorKind.ClockSource
-            or SimulationEvaluatorKind.SequentialDLatch
-            or SimulationEvaluatorKind.SequentialDff
-            or SimulationEvaluatorKind.SequentialRegister
-            or SimulationEvaluatorKind.SequentialSrLatch
-            or SimulationEvaluatorKind.SequentialJkff
-            or SimulationEvaluatorKind.SequentialTff
-            or SimulationEvaluatorKind.SequentialShiftRegister
-            or SimulationEvaluatorKind.SequentialCounter;
+        return kind == SimulationEvaluatorKind.ClockSource || IsSequential(kind);
     }
 
     public static bool IsSequential(SimulationEvaluatorKind kind)

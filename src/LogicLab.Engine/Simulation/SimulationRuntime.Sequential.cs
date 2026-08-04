@@ -55,7 +55,7 @@ public static partial class SimulationRuntime
         return [.. next];
     }
 
-    private static void SettleSequential(
+    private static bool TrySettleSequential(
         CompilationArtifact artifact,
         LogicVector[] previousNetValues,
         ref LogicVector[] netValues,
@@ -81,7 +81,7 @@ public static partial class SimulationRuntime
                 cancellationToken);
             if (triggered.Length == 0)
             {
-                return;
+                return true;
             }
 
             CountWork(
@@ -162,13 +162,16 @@ public static partial class SimulationRuntime
                 work,
                 cancellationToken);
             netValues = settlement.NetValues;
-            zeroTimeStates.Observe(
+            if (!zeroTimeStates.TryObserve(
                 previous,
                 netValues,
                 driverValues,
                 sequentialStates,
                 policy,
-                cancellationToken);
+                cancellationToken))
+            {
+                return false;
+            }
         }
     }
 
@@ -239,16 +242,30 @@ public static partial class SimulationRuntime
         CancellationToken cancellationToken)
     {
         var triggered = new List<int>();
-        foreach (var evaluator in artifact.SimulationIr.Evaluators.Where(evaluator =>
-            SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind)))
+        foreach (var evaluator in artifact.SimulationIr.Evaluators)
         {
+            if (!SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind))
+            {
+                continue;
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
             if (evaluator.Kind is SimulationEvaluatorKind.SequentialDLatch
                 or SimulationEvaluatorKind.SequentialSrLatch)
             {
-                if (evaluator.InputNetOrdinals.Any(netOrdinal => !ValuesEqual(
-                        previousNetValues[netOrdinal],
-                        currentNetValues[netOrdinal])))
+                var inputChanged = false;
+                foreach (var netOrdinal in evaluator.InputNetOrdinals)
+                {
+                    if (!ValuesEqual(
+                            previousNetValues[netOrdinal],
+                            currentNetValues[netOrdinal]))
+                    {
+                        inputChanged = true;
+                        break;
+                    }
+                }
+
+                if (inputChanged)
                 {
                     triggered.Add(evaluator.Ordinal);
                 }
@@ -314,7 +331,7 @@ public static partial class SimulationRuntime
         private ulong observed;
         private ulong observedCanonicalWords;
 
-        public void Observe(
+        public bool TryObserve(
             LogicVector[] previousNetValues,
             LogicVector[] netValues,
             LogicVector[] driverValues,
@@ -334,7 +351,7 @@ public static partial class SimulationRuntime
                     out var fingerprint,
                     cancellationToken))
             {
-                throw new ZeroTimeOscillationException();
+                return false;
             }
 
             CountWork(
@@ -347,6 +364,7 @@ public static partial class SimulationRuntime
                 ref observedCanonicalWords,
                 candidate.CanonicalWordCount);
             states.Add(fingerprint, candidate.Retain());
+            return true;
         }
     }
 
@@ -623,6 +641,4 @@ public static partial class SimulationRuntime
             }
         }
     }
-
-    private sealed class ZeroTimeOscillationException : Exception;
 }
