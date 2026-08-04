@@ -8,29 +8,9 @@ internal static class CompilerCanonicalizer
     public static CompilerDiagnostic[] Diagnostics(
         IEnumerable<CompilerDiagnostic> diagnostics)
     {
-        var ordered = diagnostics
-            .OrderBy(item => item, CompilerDiagnosticComparer.Instance)
-            .ToArray();
-        if (ordered.Length < 2)
-        {
-            return ordered;
-        }
-
-        var canonical = new List<CompilerDiagnostic>(ordered.Length)
-        {
-            ordered[0],
-        };
-        for (var index = 1; index < ordered.Length; index++)
-        {
-            if (CompilerDiagnosticComparer.Instance.Compare(
-                    ordered[index - 1],
-                    ordered[index]) != 0)
-            {
-                canonical.Add(ordered[index]);
-            }
-        }
-
-        return [.. canonical];
+        return [.. new SortedSet<CompilerDiagnostic>(
+            diagnostics,
+            CompilerDiagnosticComparer.Instance)];
     }
 
     private sealed class CompilerDiagnosticComparer : IComparer<CompilerDiagnostic>

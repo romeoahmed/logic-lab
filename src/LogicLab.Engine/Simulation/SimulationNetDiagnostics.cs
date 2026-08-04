@@ -100,29 +100,9 @@ internal static class SimulationNetDiagnostics
     public static SimulationDiagnostic[] Canonicalize(
         IEnumerable<SimulationDiagnostic> diagnostics)
     {
-        var ordered = diagnostics
-            .OrderBy(diagnostic => diagnostic, SimulationNetDiagnosticComparer.Instance)
-            .ToArray();
-        if (ordered.Length < 2)
-        {
-            return ordered;
-        }
-
-        var canonical = new List<SimulationDiagnostic>(ordered.Length)
-        {
-            ordered[0],
-        };
-        for (var index = 1; index < ordered.Length; index++)
-        {
-            if (SimulationNetDiagnosticComparer.Instance.Compare(
-                    ordered[index - 1],
-                    ordered[index]) != 0)
-            {
-                canonical.Add(ordered[index]);
-            }
-        }
-
-        return [.. canonical];
+        return [.. new SortedSet<SimulationDiagnostic>(
+            diagnostics,
+            SimulationNetDiagnosticComparer.Instance)];
     }
 
     private static void AddIndeterminateFeedbackDiagnostics(
