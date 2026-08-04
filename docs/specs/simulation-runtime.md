@@ -282,7 +282,7 @@ Latches follow the same causal batching rule. Their state changes can initiate m
 
 ### 4.2 Zero-time oscillation
 
-Sequential feedback or generated clocks can toggle indefinitely without advancing Logical Time. After each Trigger Batch commit, the Runtime may hash the complete canonical working state and pending frontier as a fast filter. The canonical form contains every value that can affect the next semantic transition, including Driver and Net planes, component and memory state, generator state, and normalized frontier ordering; it excludes hashes, allocation identities, diagnostics, and monotonic work counters. Only exact equality after a full comparison proves Zero-time Oscillation.
+Sequential feedback or generated clocks can toggle indefinitely without advancing Logical Time. After each Trigger Batch commit, the Runtime may hash the complete canonical working state and pending frontier as a fast filter. The canonical form contains every value that can affect the next semantic transition, including Driver and Net planes, component and memory state, generator state, and normalized frontier ordering; it excludes hashes, allocation identities, diagnostics, and monotonic work counters. Only exact equality after a full comparison proves Zero-time Oscillation. Before retaining a distinct witness, Runtime charges both its state count and its cumulative canonical 64-bit-word representation; either limit can stop the advance before snapshot allocation.
 
 A proven repetition fails the entire advance with `ZeroTimeOscillation`; the previous Quiescent Boundary remains committed. If a work or cancellation limit occurs before proof, the distinct result is `ResourceLimit` or `Cancelled`. No partial state, memory, time, or Trace is published.
 

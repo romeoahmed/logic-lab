@@ -16,6 +16,7 @@ public sealed class SimulationContractTests
         "working_layer_slot_count",
         "trigger_batch_count",
         "zero_time_state_count",
+        "zero_time_state_word_count",
         "probe_count",
         "retained_transition_count",
         "sealed_chunk_count",

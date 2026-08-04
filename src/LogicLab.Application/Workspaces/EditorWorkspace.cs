@@ -457,7 +457,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             new OpenSimulationRequest(
                 artifact,
                 new SimulationSessionConfiguration(
-                    new SimulationPolicyReference("workbench-simulation", "1"),
+                    new SimulationPolicyReference("workbench-simulation", "2"),
                     new TracePolicyReference("workbench-trace", "1"),
                     probeSources),
                 DevelopmentSimulationPolicy,
@@ -804,7 +804,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
     private static SimulationPolicy DevelopmentSimulationPolicy { get; } = new(
         "workbench-simulation",
-        "1",
+        "2",
         [
             new SimulationLimit(SimulationDimension.ScheduledBatchCount, 10_000),
             new SimulationLimit(SimulationDimension.ScheduledAssignmentCount, 100_000),
@@ -813,6 +813,9 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             new SimulationLimit(SimulationDimension.WorkingLayerSlotCount, 1_000_000),
             new SimulationLimit(SimulationDimension.TriggerBatchCount, 100_000),
             new SimulationLimit(SimulationDimension.ZeroTimeStateCount, 100_000),
+            new SimulationLimit(
+                SimulationDimension.ZeroTimeStateWordCount,
+                10_000_000),
         ]);
 
     private static TracePolicy DevelopmentTracePolicy { get; } = new(
