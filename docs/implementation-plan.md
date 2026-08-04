@@ -1,7 +1,7 @@
 # Logic Lab V1 Implementation Plan
 
 > Status: approved non-normative execution plan
-> Delivery status reviewed: 2026-08-03
+> Delivery status reviewed: 2026-08-04
 > Scope: documentation baseline to V1 implementation, conformance, and one qualified production deployment profile
 
 This plan translates the repository's closed V1 design into context-sized implementation slices. It does not own product behavior, Module interfaces, policy semantics, or deployment requirements. [Architecture](../ARCHITECTURE.md), [Workbench](../WORKBENCH.md), the [specifications](./specs/), [seam contracts](./contracts/README.md), [Policy Catalog](./policies/catalog.md), and [ADRs](./adr/README.md) remain authoritative. If a plan item conflicts with an owning document, repair this plan rather than changing behavior to match it.
@@ -42,7 +42,7 @@ The first required product tracer is complete at item `06`. Infrastructure bread
 
 ## Delivery status
 
-Phase A items `01` through `06` and Phase B items `07` through `13` are complete. The [Development Readiness](./README.md#development-readiness) table owns the current executable evidence, verification snapshot, and remaining qualification gaps.
+Phase A items `01` through `06` and Phase B items `07` through `14` are complete. The [Development Readiness](./README.md#development-readiness) table owns the current executable evidence, verification snapshot, and remaining qualification gaps.
 
 ## Phase B — Authoring, Component Contracts, and Runtime breadth
 
@@ -112,9 +112,9 @@ Only item `43` authorizes describing the selected deployment profile as producti
 
 ## Dependency frontier
 
-The initial frontier contained only item `01`; implementation has now completed through item `13`. The current frontier begins with `14`, `17`, and `23`, opening these primary streams as their named prerequisites land:
+The initial frontier contained only item `01`; implementation has now completed through item `14`. The current frontier begins with `15`, `16`, `17`, and `23`, opening these primary streams as their named prerequisites land:
 
-- remaining Component Contract and Runtime breadth (`14`–`16`);
+- remaining Component Contract and Runtime breadth (`15`–`16`);
 - Workspace continuity (`17`);
 - TeachingMixed generation once the relevant contracts exist (`23`–`25`); and
 - Boolean explanation once hierarchy, combinational contracts, and Workspace operations exist (`28`–`32`).
