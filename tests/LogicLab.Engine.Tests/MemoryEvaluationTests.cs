@@ -71,12 +71,14 @@ public sealed class MemoryEvaluationTests
                 foreach (var writeEnable in AddressValues)
                 {
                     var address = new LogicVector([low, high]);
-                    var actual = MemoryEvaluation.Write(
-                        words,
+                    var actual = words.ToArray();
+                    var writes = MemoryEvaluation.SampleWrite(
+                        actual,
                         address,
                         data,
                         writeEnable,
                         CancellationToken.None);
+                    MemoryEvaluation.ApplyWrites(actual, writes, CancellationToken.None);
 
                     for (var wordIndex = 0; wordIndex < words.Length; wordIndex++)
                     {
