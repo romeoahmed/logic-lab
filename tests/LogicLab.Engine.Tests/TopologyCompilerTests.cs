@@ -6,7 +6,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class TopologyCompilerTests
+internal sealed class TopologyCompilerTests
 {
     [Test]
     public async Task Compile_FlatTopologyCircuit_LowersEveryContractWithTotalSourceMap()

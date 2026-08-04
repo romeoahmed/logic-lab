@@ -7,7 +7,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class CombinationalPipelineTests
+internal sealed class CombinationalPipelineTests
 {
     [Test]
     public async Task Compile_PowerOfTwoPortShapeBeyondPolicy_ReturnsStructuredExhaustion()

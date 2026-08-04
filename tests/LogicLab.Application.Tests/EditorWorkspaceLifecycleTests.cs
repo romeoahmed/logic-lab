@@ -2,7 +2,7 @@ using LogicLab.Application.Workspaces;
 
 namespace LogicLab.Application.Tests;
 
-public sealed class EditorWorkspaceLifecycleTests
+internal sealed class EditorWorkspaceLifecycleTests
 {
     [Test]
     public async Task OpenAsync_GlobalLimitReached_RejectsAdditionalWorkspace()

@@ -3,7 +3,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class CoreLibrarySchemaTests
+internal sealed class CoreLibrarySchemaTests
 {
     [Test]
     public async Task Contracts_LogicFamily_HasExactCanonicalOrder()

@@ -4,9 +4,9 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class ProjectEditorCircuitTests
+internal sealed class ProjectEditorCircuitTests
 {
-    public enum InvalidParameterScenario
+    internal enum InvalidParameterScenario
     {
         ZeroWidth,
         WrongKind,

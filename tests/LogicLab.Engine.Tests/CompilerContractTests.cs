@@ -3,7 +3,7 @@ using LogicLab.Engine.Compilation;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class CompilerContractTests
+internal sealed class CompilerContractTests
 {
     [Test]
     public async Task CompilationSource_NullIdentity_ThrowsArgumentNullException()

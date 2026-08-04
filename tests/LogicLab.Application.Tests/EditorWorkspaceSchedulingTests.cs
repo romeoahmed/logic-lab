@@ -3,7 +3,7 @@ using LogicLab.Engine.Compilation;
 
 namespace LogicLab.Application.Tests;
 
-public sealed class EditorWorkspaceSchedulingTests
+internal sealed class EditorWorkspaceSchedulingTests
 {
     [Test, Timeout(30_000)]
     public async Task DispatchAsync_CompilationQueueFull_RejectsThroughWorkspaceBoundary(

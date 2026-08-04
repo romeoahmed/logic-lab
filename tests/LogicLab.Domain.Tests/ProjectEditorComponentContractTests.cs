@@ -4,9 +4,9 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class ProjectEditorComponentContractTests
+internal sealed class ProjectEditorComponentContractTests
 {
-    public enum InvalidParameterEnvelope
+    internal enum InvalidParameterEnvelope
     {
         Missing,
         Duplicate,
@@ -15,7 +15,7 @@ public sealed class ProjectEditorComponentContractTests
         WrongKind,
     }
 
-    public enum InvalidParameterShape
+    internal enum InvalidParameterShape
     {
         ConstantHighImpedance,
         ConstantVectorWidth,

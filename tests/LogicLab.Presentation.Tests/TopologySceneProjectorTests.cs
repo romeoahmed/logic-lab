@@ -6,7 +6,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Presentation.Tests;
 
-public sealed class TopologySceneProjectorTests
+internal sealed class TopologySceneProjectorTests
 {
     [Test]
     public async Task Project_WidthConversionContracts_ExposeResolvedPortsInCatalogOrder()

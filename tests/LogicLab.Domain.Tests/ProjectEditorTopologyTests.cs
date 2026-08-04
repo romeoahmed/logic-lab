@@ -4,9 +4,9 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class ProjectEditorTopologyTests
+internal sealed class ProjectEditorTopologyTests
 {
-    public enum InvalidRouteScenario
+    internal enum InvalidRouteScenario
     {
         TooShort,
         AdjacentDuplicate,

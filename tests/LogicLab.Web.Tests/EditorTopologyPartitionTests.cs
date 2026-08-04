@@ -6,7 +6,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
-public sealed class EditorTopologyPartitionTests
+internal sealed class EditorTopologyPartitionTests
 {
     [Test]
     public async Task Editor_CreateSampleTopologyPartitions_ReverseCreationOrder_PreservesElectricalPairs()

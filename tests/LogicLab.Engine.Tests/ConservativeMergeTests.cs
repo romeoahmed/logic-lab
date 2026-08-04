@@ -2,7 +2,7 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class ConservativeMergeTests
+internal sealed class ConservativeMergeTests
 {
     [Test]
     [Arguments(LogicValue.Zero)]

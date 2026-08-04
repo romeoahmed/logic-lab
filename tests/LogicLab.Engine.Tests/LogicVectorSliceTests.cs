@@ -6,7 +6,7 @@ using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class LogicVectorSliceTests
+internal sealed class LogicVectorSliceTests
 {
     [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
     public Property Slice_ContainedPositiveRange_MatchesScalarProjection(

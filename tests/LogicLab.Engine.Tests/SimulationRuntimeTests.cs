@@ -5,7 +5,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class SimulationRuntimeTests
+internal sealed class SimulationRuntimeTests
 {
     [Test]
     public async Task Open_CompleteCircuit_CommitsTimeZeroProbeAndInitialTrace()

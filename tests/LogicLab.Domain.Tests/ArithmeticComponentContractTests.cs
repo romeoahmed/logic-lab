@@ -4,7 +4,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class ArithmeticComponentContractTests
+internal sealed class ArithmeticComponentContractTests
 {
     [Test]
     [Arguments(

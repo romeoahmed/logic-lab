@@ -5,7 +5,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class CompilerSuccessTests
+internal sealed class CompilerSuccessTests
 {
     [Test]
     public async Task Compile_CompleteFlatInverter_PublishesArtifactAndEvidence()

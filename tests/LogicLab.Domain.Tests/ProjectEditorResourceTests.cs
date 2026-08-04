@@ -5,7 +5,7 @@ using static LogicLab.Domain.Tests.ProjectEditorTestContext;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class ProjectEditorResourceTests
+internal sealed class ProjectEditorResourceTests
 {
     [Test]
     public async Task Apply_MemoryImageReference_RequiresExistingExactShape()

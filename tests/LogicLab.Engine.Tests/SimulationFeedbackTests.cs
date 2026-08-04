@@ -6,7 +6,7 @@ using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class SimulationFeedbackTests
+internal sealed class SimulationFeedbackTests
 {
     [Test]
     public async Task Open_AndZeroFeedback_SettlesKnownLeastInformationFixedPoint()

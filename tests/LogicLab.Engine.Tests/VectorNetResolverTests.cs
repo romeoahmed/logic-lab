@@ -6,7 +6,7 @@ using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class VectorNetResolverTests
+internal sealed class VectorNetResolverTests
 {
     [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
     public Property Resolve_ValidDriverSets_MatchesScalarValueAndCausesAtEveryBit(

@@ -5,7 +5,7 @@ using TUnit.FsCheck;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class ProjectValueTests
+internal sealed class ProjectValueTests
 {
     [Test]
     public async Task OrthogonalWireRoute_InputMutation_DoesNotChangeOwnedPoints()

@@ -3,7 +3,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class ProjectEditorGenesisTests
+internal sealed class ProjectEditorGenesisTests
 {
     [Test]
     public async Task Begin_ValidNewProjectSeed_CommitsEmptyEntryDefinition()

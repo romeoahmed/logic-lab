@@ -3,7 +3,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class ClockEventCalendarTests
+internal sealed class ClockEventCalendarTests
 {
     [Test]
     public async Task ReadTimeBucket_SimultaneousEvents_ReturnsStableNonConsumingSnapshot()

@@ -5,7 +5,7 @@ using static LogicLab.Domain.Tests.ProjectEditorTestContext;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class ProjectEditorCatalogTests
+internal sealed class ProjectEditorCatalogTests
 {
     [Test]
     public async Task Apply_RenameDefinitionAndInstance_PreservesIdentities()

@@ -5,7 +5,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class SequentialComponentContractTests
+internal sealed class SequentialComponentContractTests
 {
     [Test]
     public async Task FindContract_ClockSource_HasExactSchema()

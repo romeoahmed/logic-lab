@@ -6,7 +6,7 @@ using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class VectorLogicTests
+internal sealed class VectorLogicTests
 {
     [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
     public Property NormalizeInput_ValidVector_MatchesScalarOracleAtEveryBit(

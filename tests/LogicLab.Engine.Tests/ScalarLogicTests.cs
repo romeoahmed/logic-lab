@@ -2,7 +2,7 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class ScalarLogicTests
+internal sealed class ScalarLogicTests
 {
     [Test]
     [Arguments(LogicValue.Zero, LogicValue.Zero)]

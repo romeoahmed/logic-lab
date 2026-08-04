@@ -4,7 +4,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class MemoryEvaluationTests
+internal sealed class MemoryEvaluationTests
 {
     private static readonly LogicValue[] AddressValues =
     [

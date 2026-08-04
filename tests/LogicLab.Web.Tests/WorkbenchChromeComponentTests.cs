@@ -8,7 +8,7 @@ using Microsoft.FluentUI.AspNetCore.Components;
 
 namespace LogicLab.Web.Tests;
 
-public sealed class WorkbenchChromeComponentTests
+internal sealed class WorkbenchChromeComponentTests
 {
     private static readonly string[] WorkbenchCommands =
     [

@@ -3,7 +3,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class ArithmeticEvaluationTests
+internal sealed class ArithmeticEvaluationTests
 {
     [Test]
     [Arguments(

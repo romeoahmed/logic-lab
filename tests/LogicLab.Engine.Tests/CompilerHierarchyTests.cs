@@ -6,7 +6,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class CompilerHierarchyTests
+internal sealed class CompilerHierarchyTests
 {
     [Test]
     public async Task Compile_HierarchicalInverter_FlattensBoundariesWithCompleteProvenance()
