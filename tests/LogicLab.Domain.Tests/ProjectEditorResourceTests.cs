@@ -1,6 +1,7 @@
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
+using static LogicLab.Domain.Tests.ProjectEditorTestContext;
 
 namespace LogicLab.Domain.Tests;
 
@@ -10,7 +11,7 @@ public sealed class ProjectEditorResourceTests
     public async Task Apply_MemoryImageReference_RequiresExistingExactShape()
     {
         var revision = BeginProject();
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new CreateMemoryImageIntent(
                 "Exact",
@@ -21,7 +22,7 @@ public sealed class ProjectEditorResourceTests
                     new MemoryImageWord([LogicValue.X, LogicValue.Zero]),
                 ])));
         var exactImageId = revision.Document.MemoryImages.Single().Id;
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new CreateMemoryImageIntent(
                 "Stale",
@@ -30,7 +31,7 @@ public sealed class ProjectEditorResourceTests
                 [new MemoryImageWord([LogicValue.X])])));
         var staleImageId = revision.Document.MemoryImages.Single(image =>
             image.Id != exactImageId).Id;
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new RemoveMemoryImageIntent(staleImageId)));
         var definitionId = revision.Document.EntryCircuitDefinitionId;
@@ -39,21 +40,21 @@ public sealed class ProjectEditorResourceTests
             revision,
             new PlaceComponentInstanceIntent(
                 definitionId,
-                ProjectEditorCatalogTests.Contract("memory.rom"),
+                Contract("memory.rom"),
                 MemoryParameters(1, 2, exactImageId),
                 new ComponentPlacement(new GridPoint(0, 0))));
         var wrongShape = ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 definitionId,
-                ProjectEditorCatalogTests.Contract("memory.rom"),
+                Contract("memory.rom"),
                 MemoryParameters(2, 2, exactImageId),
                 new ComponentPlacement(new GridPoint(4, 0))));
         var missing = ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 definitionId,
-                ProjectEditorCatalogTests.Contract("memory.rom"),
+                Contract("memory.rom"),
                 MemoryParameters(0, 1, staleImageId),
                 new ComponentPlacement(new GridPoint(8, 0))));
 
@@ -84,7 +85,7 @@ public sealed class ProjectEditorResourceTests
     public async Task Apply_ReplaceMemoryImage_ValidatesCandidateAndReportsMigratedInstance()
     {
         var revision = BeginProject();
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new CreateMemoryImageIntent(
                 "Program",
@@ -92,11 +93,11 @@ public sealed class ProjectEditorResourceTests
                 2,
                 CreateUnknownWords(width: 2, depth: 2))));
         var imageId = revision.Document.MemoryImages.Single().Id;
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 revision.Document.EntryCircuitDefinitionId,
-                ProjectEditorCatalogTests.Contract("memory.rom"),
+                Contract("memory.rom"),
                 MemoryParameters(1, 2, imageId),
                 new ComponentPlacement(new GridPoint(0, 0)))));
         var definitionId = revision.Document.EntryCircuitDefinitionId;
@@ -163,7 +164,7 @@ public sealed class ProjectEditorResourceTests
     public async Task Apply_ReplaceMemoryImage_PortSchemaChanges_RequireChangedPortsUnconnected()
     {
         var revision = BeginProject();
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new CreateMemoryImageIntent(
                 "Program",
@@ -172,19 +173,19 @@ public sealed class ProjectEditorResourceTests
                 CreateUnknownWords(width: 2, depth: 2))));
         var imageId = revision.Document.MemoryImages.Single().Id;
         var definitionId = revision.Document.EntryCircuitDefinitionId;
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 definitionId,
-                ProjectEditorCatalogTests.Contract("memory.rom"),
+                Contract("memory.rom"),
                 MemoryParameters(1, 2, imageId),
                 new ComponentPlacement(new GridPoint(0, 0)))));
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 definitionId,
-                ProjectEditorCatalogTests.Contract("sink.output"),
-                ProjectEditorCatalogTests.SinkParameters(2),
+                Contract("sink.output"),
+                SinkParameters(2),
                 new ComponentPlacement(new GridPoint(4, 0)))));
         var definition = revision.Document.EntryCircuitDefinition;
         var rom = definition.ComponentInstances.Single(instance =>
@@ -193,7 +194,7 @@ public sealed class ProjectEditorResourceTests
         var sink = definition.ComponentInstances.Single(instance =>
             instance.Target is LibraryComponentTarget library
             && library.ContractKey.ContractId == "sink.output");
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new ConnectTerminalsIntent(
                 [
@@ -416,12 +417,12 @@ public sealed class ProjectEditorResourceTests
     {
         var revision = BeginProject();
         var definitionId = revision.Document.EntryCircuitDefinitionId;
-        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+        revision = Commit(ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 definitionId,
-                ProjectEditorCatalogTests.Contract("logic.not"),
-                ProjectEditorCatalogTests.WidthParameters(1),
+                Contract("logic.not"),
+                WidthParameters(1),
                 new ComponentPlacement(new GridPoint(0, 0)))));
         var instanceId = revision.Document.EntryCircuitDefinition.ComponentInstances.Single().Id;
 
@@ -440,7 +441,7 @@ public sealed class ProjectEditorResourceTests
         var profile = ProjectEditor.Apply(
             revision,
             new SetSymbolProfileIntent(
-                ProjectEditorCatalogTests.TeachingMixedProfile(),
+                TeachingMixedProfile(),
                 []));
 
         var committedVariant = await Assert.That(compatible).IsTypeOf<EditCommitted>();
@@ -457,7 +458,7 @@ public sealed class ProjectEditorResourceTests
             await Assert.That(rejectedVariant.Diagnostics.Single().Code)
                 .IsEqualTo("authoring_symbol_variant_incompatible");
             await Assert.That(committedProfile.Revision.Document.SymbolProfile)
-                .IsEqualTo(ProjectEditorCatalogTests.TeachingMixedProfile());
+                .IsEqualTo(TeachingMixedProfile());
             await Assert.That(committedProfile.ChangedSources)
                 .Contains(new ProjectRootSourceIdentity(revision.Document.ProjectId));
         }
@@ -468,7 +469,7 @@ public sealed class ProjectEditorResourceTests
         return ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
             "Resource fixture",
             LibrarySnapshot.Core,
-            ProjectEditorCatalogTests.TeachingMixedProfile(),
+            TeachingMixedProfile(),
             "Main"))).Revision;
     }
 

@@ -1,6 +1,7 @@
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
+using static LogicLab.Domain.Tests.ProjectEditorTestContext;
 
 namespace LogicLab.Domain.Tests;
 
@@ -265,56 +266,4 @@ public sealed class ProjectEditorCatalogTests
         return Commit(outcome);
     }
 
-    internal static ProjectRevision Commit(EditOutcome outcome)
-    {
-        return ((EditCommitted)outcome).Revision;
-    }
-
-    internal static ComponentContractKey Contract(string contractId)
-    {
-        return new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId);
-    }
-
-    internal static SymbolProfileReference TeachingMixedProfile()
-    {
-        return new SymbolProfileReference(
-            "TeachingMixed",
-            "1.0.0",
-            IndicationConvention.Negation);
-    }
-
-    internal static ComponentParameterBinding[] WidthParameters(uint width)
-    {
-        return [new ComponentParameterBinding("width", new Unsigned32ParameterValue(width))];
-    }
-
-    internal static ComponentParameterBinding[] GateParameters(uint width, uint fanIn)
-    {
-        return
-        [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(width)),
-            new ComponentParameterBinding("fanIn", new Unsigned32ParameterValue(fanIn)),
-        ];
-    }
-
-    internal static ComponentParameterBinding[] ConstantParameters(
-        params LogicValue[] values)
-    {
-        return
-        [
-            new ComponentParameterBinding(
-                "width",
-                new Unsigned32ParameterValue(checked((uint)values.Length))),
-            new ComponentParameterBinding("value", new LogicVectorParameterValue(values)),
-        ];
-    }
-
-    internal static ComponentParameterBinding[] SinkParameters(uint width)
-    {
-        return
-        [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(width)),
-            new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
-        ];
-    }
 }

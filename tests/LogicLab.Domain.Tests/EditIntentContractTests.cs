@@ -73,7 +73,7 @@ public sealed class EditIntentContractTests
     }
 
     [Test]
-    public async Task Item12MigrationValues_NullIdentity_ThrowsArgumentNullException()
+    public async Task MigrationValues_NullIdentity_ThrowArgumentNullException()
     {
         using (Assert.Multiple())
         {
