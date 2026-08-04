@@ -529,6 +529,42 @@ public static class SimulationRuntime
         SettlementWork work,
         CancellationToken cancellationToken)
     {
+        return SettleCombinational(
+            ir,
+            driverValues,
+            policy,
+            work,
+            Comparer<int>.Default,
+            cancellationToken);
+    }
+
+    internal static LogicVector[] SettleCombinational(
+        CompilationArtifact artifact,
+        SimulationPolicy policy,
+        IComparer<int> cyclicEvaluatorOrder,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(artifact);
+        ArgumentNullException.ThrowIfNull(policy);
+        ArgumentNullException.ThrowIfNull(cyclicEvaluatorOrder);
+        var driverValues = CreateDriverValues(artifact.SimulationIr);
+        return SettleCombinational(
+            artifact.SimulationIr,
+            driverValues,
+            policy,
+            new SettlementWork(),
+            cyclicEvaluatorOrder,
+            cancellationToken).NetValues;
+    }
+
+    private static SettlementResult SettleCombinational(
+        SimulationIr ir,
+        LogicVector[] driverValues,
+        SimulationPolicy policy,
+        SettlementWork work,
+        IComparer<int> cyclicEvaluatorOrder,
+        CancellationToken cancellationToken)
+    {
         var netValues = new LogicVector[ir.Nets.Count];
         var netResolutions = new VectorNetResolution[ir.Nets.Count];
         for (var netOrdinal = 0; netOrdinal < ir.Nets.Count; netOrdinal++)
@@ -555,6 +591,7 @@ public static class SimulationRuntime
                     driverValues,
                     policy,
                     work,
+                    cyclicEvaluatorOrder,
                     cancellationToken);
                 continue;
             }
@@ -607,6 +644,7 @@ public static class SimulationRuntime
         LogicVector[] driverValues,
         SimulationPolicy policy,
         SettlementWork work,
+        IComparer<int> evaluatorOrder,
         CancellationToken cancellationToken)
     {
         var componentMembers = component.EvaluatorOrdinals.ToHashSet();
@@ -640,7 +678,9 @@ public static class SimulationRuntime
             netValues[netOrdinal] = resolution.Value;
         }
 
-        var pendingEvaluators = new SortedSet<int>(component.EvaluatorOrdinals);
+        var pendingEvaluators = new SortedSet<int>(
+            component.EvaluatorOrdinals,
+            evaluatorOrder);
         while (pendingEvaluators.Count != 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
