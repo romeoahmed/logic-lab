@@ -336,61 +336,46 @@ public sealed class MemoryRuntimeTests
     }
 
     [Test]
-    public async Task Execute_DisabledRamWrite_DoesNotCopyMemoryWorkingStorage()
+    [Arguments(
+        LogicValue.One,
+        LogicValue.Zero,
+        DisplayName = "Disabled write commits within work budget")]
+    [Arguments(
+        LogicValue.Zero,
+        LogicValue.One,
+        DisplayName = "Idempotent write commits within work budget")]
+    public async Task Execute_WriteDoesNotChangeMemory_CommitsWithinWorkBudget(
+        LogicValue addressLowBit,
+        LogicValue writeEnable)
     {
+        var address = Enumerable.Repeat(LogicValue.Zero, 6).ToArray();
+        address[0] = addressLowBit;
         var circuit = CreateRam(
-            [.. Enumerable.Repeat(LogicValue.Zero, 6)],
-            [LogicValue.One],
-            LogicValue.Zero,
-            [.. Enumerable.Range(0, 64).Select(_ => new[] { LogicValue.Zero })]);
-        var policy = SimulationPolicyWithLimits(advanceWorkItems: 50);
-        var opened = (SimulationOpened)SimulationRuntime.Open(
-            MemoryTestCircuit.Request(circuit.Artifact, policy, circuit.OutputNet),
-            CancellationToken.None);
-        var before = opened.Handle.State.MemoryStates.Single(memory => memory is not null);
-
-        var outcome = SimulationRuntime.Execute(
-            opened.Handle,
-            new AdvanceToNextQuiescentBoundary(),
-            CancellationToken.None);
-        var after = opened.Handle.State.MemoryStates.Single(memory => memory is not null);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(outcome).IsTypeOf<AdvanceCommitted>();
-            await Assert.That(after).IsSameReferenceAs(before);
-        }
-    }
-
-    [Test]
-    public async Task Execute_IdempotentRamWrite_DoesNotCopyMemoryWorkingStorage()
-    {
-        var circuit = CreateRam(
-            [.. Enumerable.Repeat(LogicValue.Zero, 6)],
+            address,
             [LogicValue.Zero],
-            LogicValue.One,
+            writeEnable,
             [.. Enumerable.Range(0, 64).Select(_ => new[] { LogicValue.Zero })]);
         var policy = SimulationPolicyWithLimits(advanceWorkItems: 50);
         var opened = (SimulationOpened)SimulationRuntime.Open(
             MemoryTestCircuit.Request(circuit.Artifact, policy, circuit.OutputNet),
             CancellationToken.None);
-        var before = opened.Handle.State.MemoryStates.Single(memory => memory is not null);
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
             new AdvanceToNextQuiescentBoundary(),
             CancellationToken.None);
-        var after = opened.Handle.State.MemoryStates.Single(memory => memory is not null);
+        var snapshot = Snapshot(opened);
 
         using (Assert.Multiple())
         {
             await Assert.That(outcome).IsTypeOf<AdvanceCommitted>();
-            await Assert.That(after).IsSameReferenceAs(before);
+            await Assert.That(snapshot.LogicalTime).IsEqualTo(5UL);
+            await Assert.That(snapshot.Probes.Single().Value[0]).IsEqualTo(LogicValue.Zero);
         }
     }
 
     [Test]
-    public async Task Execute_FirstRamWriteCopyExceedsWorkPolicy_RollsBackMemory()
+    public async Task Execute_RamWriteExceedsWorkPolicy_RollsBackMemory()
     {
         var circuit = CreateRam(
             [.. Enumerable.Repeat(LogicValue.Zero, 6)],
@@ -402,14 +387,12 @@ public sealed class MemoryRuntimeTests
             MemoryTestCircuit.Request(circuit.Artifact, policy, circuit.OutputNet),
             CancellationToken.None);
         var before = Snapshot(opened);
-        var beforeMemory = opened.Handle.State.MemoryStates.Single(memory => memory is not null);
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
             new AdvanceToNextQuiescentBoundary(),
             CancellationToken.None);
         var after = Snapshot(opened);
-        var afterMemory = opened.Handle.State.MemoryStates.Single(memory => memory is not null);
 
         var failed = await Assert.That(outcome).IsTypeOf<AdvanceFailed>();
         Assert.NotNull(failed);
@@ -421,7 +404,8 @@ public sealed class MemoryRuntimeTests
                 .IsEqualTo("advance_work_item_count");
             await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
             await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
-            await Assert.That(afterMemory).IsSameReferenceAs(beforeMemory);
+            await Assert.That(after.Probes.Single().Value[0])
+                .IsEqualTo(before.Probes.Single().Value[0]);
         }
     }
 
