@@ -46,7 +46,7 @@ public static partial class SimulationRuntime
 
             var sequentialStates = CreateSequentialStates(ir);
             var driverValues = CreateDriverValues(ir, sequentialStates);
-            var scheduledClockTransitions = CreateClockEventCalendar(ir);
+            var clockEvents = CreateClockEventCalendar(ir);
             var settlement = SettleCombinational(
                 ir,
                 driverValues,
@@ -80,7 +80,7 @@ public static partial class SimulationRuntime
                 Diagnostics = diagnostics,
                 SessionVersion = 1,
                 LogicalTime = 0,
-                ScheduledClockTransitions = scheduledClockTransitions,
+                ClockEvents = clockEvents,
             };
             var handle = new SimulationSessionHandle(state);
             var evidence = Evidence(request, work);
@@ -230,7 +230,7 @@ public static partial class SimulationRuntime
         state.ScheduledBatches = new();
         state.ScheduledAssignmentsByTime = [];
         state.ScheduledAssignmentCount = 0;
-        state.ScheduledClockTransitions = new();
+        state.ClockEvents = new();
         state.Trace = new(state.TracePolicy);
         state.Diagnostics = [];
         return new SessionClosed(state.SessionId);
@@ -353,7 +353,7 @@ public static partial class SimulationRuntime
         CancellationToken cancellationToken)
     {
         var nextStimulusTime = PeekStimulusTime(state.ScheduledBatches);
-        var nextClockTime = PeekClockTime(state.ScheduledClockTransitions);
+        var nextClockTime = state.ClockEvents.PeekLogicalTime();
         if (nextStimulusTime is null && nextClockTime is null)
         {
             return new NoScheduledStimulus(
@@ -382,9 +382,7 @@ public static partial class SimulationRuntime
             }
         }
 
-        var clockTransitions = ClockTransitionsAt(
-            state.ScheduledClockTransitions,
-            logicalTime);
+        var clockTransitions = state.ClockEvents.ReadTimeBucket(logicalTime);
         foreach (var transition in clockTransitions)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -459,7 +457,7 @@ public static partial class SimulationRuntime
         _ = state.ScheduledAssignmentsByTime.Remove(logicalTime);
         if (clockTransitions.Length > 0)
         {
-            state.ScheduledClockTransitions.CommitTimeBucket(
+            state.ClockEvents.CommitTimeBucket(
                 logicalTime,
                 nextClockTransitions);
         }

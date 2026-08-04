@@ -1,6 +1,6 @@
 namespace LogicLab.Engine.Simulation;
 
-internal sealed record ScheduledClockTransition(
+internal readonly record struct ScheduledClockTransition(
     int EvaluatorOrdinal,
     int DriverOrdinal);
 
@@ -10,36 +10,30 @@ internal readonly record struct ScheduledClockEvent(
 
 internal sealed class ClockEventCalendar
 {
-    private readonly PriorityQueue<ulong, ulong> logicalTimes = new();
-    private readonly Dictionary<
+    private readonly SortedDictionary<
         ulong,
-        SortedDictionary<int, ScheduledClockTransition>> transitionsByTime = [];
+        SortedDictionary<int, ScheduledClockTransition>> buckets = [];
 
     public ulong? PeekLogicalTime()
     {
-        return logicalTimes.TryPeek(out var logicalTime, out _)
-            ? logicalTime
-            : null;
+        return buckets.Count == 0 ? null : buckets.First().Key;
     }
 
     public ScheduledClockTransition[] ReadTimeBucket(ulong logicalTime)
     {
-        return transitionsByTime.TryGetValue(logicalTime, out var transitions)
+        return buckets.TryGetValue(logicalTime, out var transitions)
             ? [.. transitions.Values]
             : [];
     }
 
     public void Schedule(ScheduledClockEvent scheduledEvent)
     {
-        if (!transitionsByTime.TryGetValue(
+        if (!buckets.TryGetValue(
                 scheduledEvent.LogicalTime,
                 out var transitions))
         {
             transitions = [];
-            transitionsByTime.Add(scheduledEvent.LogicalTime, transitions);
-            logicalTimes.Enqueue(
-                scheduledEvent.LogicalTime,
-                scheduledEvent.LogicalTime);
+            buckets.Add(scheduledEvent.LogicalTime, transitions);
         }
 
         transitions.Add(
@@ -51,16 +45,13 @@ internal sealed class ClockEventCalendar
         ulong logicalTime,
         IReadOnlyList<ScheduledClockEvent> nextEvents)
     {
-        if (!logicalTimes.TryPeek(out var earliestTime, out _)
-            || earliestTime != logicalTime
-            || !transitionsByTime.ContainsKey(logicalTime))
+        if (buckets.Count == 0 || buckets.First().Key != logicalTime)
         {
             throw new InvalidOperationException(
                 "The committed clock-event bucket is not the earliest bucket.");
         }
 
-        _ = logicalTimes.Dequeue();
-        _ = transitionsByTime.Remove(logicalTime);
+        _ = buckets.Remove(logicalTime);
         foreach (var scheduledEvent in nextEvents)
         {
             Schedule(scheduledEvent);
