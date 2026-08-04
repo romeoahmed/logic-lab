@@ -7,4 +7,5 @@ public enum ComponentParameterKind
     Choice,
     Slices,
     Widths,
+    MemoryImage,
 }

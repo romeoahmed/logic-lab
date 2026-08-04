@@ -41,6 +41,40 @@ public static partial class ProjectEditor
             RemoveWireGeometryIntent removeWireGeometry =>
                 ApplyRemoveWireGeometry(revision, removeWireGeometry),
             MoveComponentInstancesIntent move => ApplyMove(revision, move),
+            RenameCircuitDefinitionIntent renameDefinition =>
+                ApplyRenameDefinition(revision, renameDefinition),
+            ChangePublicPortContractIntent changePorts =>
+                ApplyChangePublicPortContract(revision, changePorts),
+            MoveDefinitionPortsIntent movePorts =>
+                ApplyMoveDefinitionPorts(revision, movePorts),
+            RemoveCircuitDefinitionIntent removeDefinition =>
+                ApplyRemoveDefinition(revision, removeDefinition),
+            RenameComponentInstanceIntent renameInstance =>
+                ApplyRenameInstance(revision, renameInstance),
+            SetInstanceParametersIntent setParameters =>
+                ApplySetInstanceParameters(revision, setParameters),
+            ChangeInstanceContractIntent changeContract =>
+                ApplyChangeInstanceContract(revision, changeContract),
+            RemoveComponentInstancesIntent removeInstances =>
+                ApplyRemoveInstances(revision, removeInstances),
+            CreateMemoryImageIntent createImage =>
+                ApplyCreateMemoryImage(revision, createImage),
+            ReplaceMemoryImageIntent replaceImage =>
+                ApplyReplaceMemoryImage(revision, replaceImage),
+            RemoveMemoryImageIntent removeImage =>
+                ApplyRemoveMemoryImage(revision, removeImage),
+            SetSymbolProfileIntent setProfile =>
+                ApplySetSymbolProfile(revision, setProfile),
+            SetSymbolVariantIntent setVariant =>
+                ApplySetSymbolVariant(revision, setVariant),
+            CreateAnnotationIntent createAnnotation =>
+                ApplyCreateAnnotation(revision, createAnnotation),
+            ChangeAnnotationIntent changeAnnotation =>
+                ApplyChangeAnnotation(revision, changeAnnotation),
+            MoveAnnotationsIntent moveAnnotations =>
+                ApplyMoveAnnotations(revision, moveAnnotations),
+            RemoveAnnotationIntent removeAnnotation =>
+                ApplyRemoveAnnotation(revision, removeAnnotation),
             _ => throw new InvalidOperationException("The Edit Intent variant is undefined."),
         };
     }

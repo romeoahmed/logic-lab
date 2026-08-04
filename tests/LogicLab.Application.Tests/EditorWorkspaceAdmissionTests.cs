@@ -11,6 +11,118 @@ namespace LogicLab.Application.Tests;
 public sealed class EditorWorkspaceAdmissionTests
 {
     [Test]
+    public async Task AuthoringAdmission_Item12Catalog_AdmitsEveryClosedIntent()
+    {
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "Admission catalog",
+            LibrarySnapshot.Core,
+            new SymbolProfileReference(
+                "TeachingMixed",
+                "1.0.0",
+                IndicationConvention.Negation),
+            "Main"))).Revision;
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        revision = ((EditCommitted)ProjectEditor.Apply(
+            revision,
+            new CreateCircuitDefinitionIntent(
+                "Child",
+                [
+                    new DefinitionPortDeclaration(
+                        "A",
+                        PortDirection.Input,
+                        1,
+                        new DefinitionPortPlacement(
+                            new GridPoint(0, 0),
+                            CardinalDirection.West)),
+                ]))).Revision;
+        var child = revision.Document.CircuitDefinitions.Single(definition =>
+            definition.Id != definitionId);
+        revision = ((EditCommitted)ProjectEditor.Apply(
+            revision,
+            new PlaceComponentInstanceIntent(
+                definitionId,
+                new CircuitDefinitionComponentTarget(child.Id),
+                [],
+                new ComponentPlacement(new GridPoint(0, 0))))).Revision;
+        var instanceId = revision.Document.EntryCircuitDefinition.ComponentInstances.Single().Id;
+        revision = ((EditCommitted)ProjectEditor.Apply(
+            revision,
+            new CreateMemoryImageIntent(
+                "Image",
+                1,
+                1,
+                [new MemoryImageWord([LogicValue.X])]))).Revision;
+        var imageId = revision.Document.MemoryImages.Single().Id;
+        revision = ((EditCommitted)ProjectEditor.Apply(
+            revision,
+            new CreateAnnotationIntent(
+                definitionId,
+                new AnnotationValue(
+                    "Note",
+                    new GridPoint(0, 0),
+                    AnnotationAlignment.Start)))).Revision;
+        var annotationId = revision.Document.EntryCircuitDefinition.Annotations.Single().Id;
+        EditIntent[] intents =
+        [
+            new RenameCircuitDefinitionIntent(definitionId, "Renamed"),
+            new ChangePublicPortContractIntent(child.Id, [], []),
+            new MoveDefinitionPortsIntent(
+                child.Id,
+                [new DefinitionPortMove(
+                    child.Ports.Single().Id,
+                    child.Ports.Single().Placement)]),
+            new RemoveCircuitDefinitionIntent(child.Id),
+            new RenameComponentInstanceIntent(definitionId, instanceId, "Instance"),
+            new SetInstanceParametersIntent(definitionId, instanceId, []),
+            new ChangeInstanceContractIntent(
+                definitionId,
+                instanceId,
+                new CircuitDefinitionComponentTarget(child.Id),
+                [],
+                [new InstancePortMigration(child.Ports.Single().Id.Value, null)],
+                null),
+            new RemoveComponentInstancesIntent(definitionId, [instanceId]),
+            new CreateMemoryImageIntent(
+                "Second",
+                1,
+                1,
+                [new MemoryImageWord([LogicValue.Zero])]),
+            new ReplaceMemoryImageIntent(imageId, "Changed", 1, 1,
+                [new MemoryImageWord([LogicValue.One])], []),
+            new RemoveMemoryImageIntent(imageId),
+            new SetSymbolProfileIntent(revision.Document.SymbolProfile, []),
+            new SetSymbolVariantIntent(definitionId, instanceId, null),
+            new CreateAnnotationIntent(
+                definitionId,
+                new AnnotationValue("New", new GridPoint(1, 1), AnnotationAlignment.End)),
+            new ChangeAnnotationIntent(
+                definitionId,
+                annotationId,
+                new AnnotationValue(
+                    "Changed",
+                    new GridPoint(2, 2),
+                    AnnotationAlignment.Center)),
+            new MoveAnnotationsIntent(
+                definitionId,
+                [new AnnotationMove(annotationId, new GridPoint(3, 3))]),
+            new RemoveAnnotationIntent(definitionId, annotationId),
+        ];
+        var policy = new WorkspacePolicy(
+            1,
+            TimeSpan.FromMinutes(1),
+            new WorkspaceAuthoringLimits(10, 100, 100));
+
+        var admitted = intents.Select(intent =>
+            AuthoringAdmission.AdmitsCommand(intent, policy)).ToArray();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(admitted.All(value => value)).IsTrue();
+            await Assert.That(admitted).Count().IsEqualTo(intents.Length);
+        }
+    }
+
+    [Test]
     public async Task AuthoringAdmissionBudget_SharedOwners_ConsumeOneBudget()
     {
         var budget = new AuthoringAdmissionBudget(maximum: 1);
