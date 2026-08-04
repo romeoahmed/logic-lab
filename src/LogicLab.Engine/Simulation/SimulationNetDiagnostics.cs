@@ -86,8 +86,79 @@ internal static class SimulationNetDiagnostics
             }
         }
 
+        AddIndeterminateFeedbackDiagnostics(
+            artifact,
+            driverValues,
+            resolutions,
+            diagnostics);
+
         diagnostics.Sort(SimulationNetDiagnosticComparer.Instance);
         return diagnostics.ToArray();
+    }
+
+    private static void AddIndeterminateFeedbackDiagnostics(
+        CompilationArtifact artifact,
+        LogicVector[] driverValues,
+        VectorNetResolution[] resolutions,
+        List<SimulationDiagnostic> diagnostics)
+    {
+        var ir = artifact.SimulationIr;
+        var netSources = artifact.SourceMap.Nets.ToDictionary(
+            entry => entry.Ordinal,
+            entry => entry.Source);
+        foreach (var component in ir.StronglyConnectedComponents.Where(
+            item => item.IsCyclic))
+        {
+            var internalDriverOrdinals = component.EvaluatorOrdinals
+                .SelectMany(evaluatorOrdinal =>
+                    ir.Evaluators[evaluatorOrdinal].OutputDriverOrdinals)
+                .Order()
+                .ToArray();
+            var internalNetOrdinals = internalDriverOrdinals
+                .Select(driverOrdinal => ir.Drivers[driverOrdinal].NetOrdinal)
+                .OfType<int>()
+                .Distinct()
+                .Order()
+                .ToArray();
+            var unknownCoordinates = internalDriverOrdinals.Aggregate(
+                0UL,
+                (count, driverOrdinal) => checked(
+                    count + CountUnknown(driverValues[driverOrdinal])))
+                + internalNetOrdinals.Aggregate(
+                    0UL,
+                    (count, netOrdinal) => checked(
+                        count + CountUnknown(resolutions[netOrdinal].Value)));
+            if (unknownCoordinates == 0)
+            {
+                continue;
+            }
+
+            var primaryNetOrdinal = internalNetOrdinals[0];
+            diagnostics.Add(new SimulationDiagnostic(
+                "simulation_indeterminate_feedback",
+                SimulationDiagnosticSeverity.Warning,
+                [
+                    new SimulationDiagnosticArgument(
+                        "unknownCoordinates",
+                        new SimulationUnsignedDecimalValue(unknownCoordinates)),
+                ],
+                netSources[primaryNetOrdinal],
+                []));
+        }
+    }
+
+    private static ulong CountUnknown(LogicVector vector)
+    {
+        ulong count = 0;
+        for (var bit = 0; bit < vector.Width; bit++)
+        {
+            if (vector[bit] == LogicValue.X)
+            {
+                count = checked(count + 1);
+            }
+        }
+
+        return count;
     }
 
     private static bool HasCause(
