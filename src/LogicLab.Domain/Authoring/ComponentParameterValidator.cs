@@ -123,6 +123,15 @@ internal static class ComponentParameterValidator
                 GetInvalidWidthsRule(schema, widths, cancellationToken),
             (ComponentParameterKind.MemoryImage, MemoryImageParameterValue image) =>
                 GetInvalidMemoryImageRule(schema, image, allParameters, document),
+            (ComponentParameterKind.BinaryLogicValue,
+                LogicVectorParameterValue binary) =>
+                binary.Values is [LogicValue.Zero or LogicValue.One]
+                    ? null
+                    : "binaryLogicValue",
+            (ComponentParameterKind.PositiveUnsigned64,
+                Unsigned64ParameterValue { Value: > 0 }) => null,
+            (ComponentParameterKind.PositiveUnsigned64, Unsigned64ParameterValue) =>
+                "positiveUnsigned64",
             _ => "parameterKind",
         };
     }

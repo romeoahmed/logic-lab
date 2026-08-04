@@ -24,6 +24,24 @@ public static class CoreLibrarySchema
             new ComponentPortSchema("Q", PortDirection.Output, "width"),
         ]);
 
+    private static readonly ComponentContractSchema SourceClock = new(
+        new ComponentContractKey(LibraryId, "source.clock"),
+        [
+            new ComponentParameterSchema(
+                "initialValue",
+                ComponentParameterKind.BinaryLogicValue),
+            new ComponentParameterSchema(
+                "firstTransition",
+                ComponentParameterKind.PositiveUnsigned64),
+            new ComponentParameterSchema(
+                "highDuration",
+                ComponentParameterKind.PositiveUnsigned64),
+            new ComponentParameterSchema(
+                "lowDuration",
+                ComponentParameterKind.PositiveUnsigned64),
+        ],
+        [FixedOnePort("Q", PortDirection.Output)]);
+
     private static readonly ComponentContractSchema LogicNot = new(
         new ComponentContractKey(LibraryId, "logic.not"),
         [
@@ -159,6 +177,27 @@ public static class CoreLibrarySchema
     private static readonly ComponentContractSchema MemoryRamSinglePort =
         CreateMemoryContract("memory.ram_single_port", writable: true);
 
+    private static readonly ComponentContractSchema SequentialDLatch = new(
+        new ComponentContractKey(LibraryId, "sequential.d_latch"),
+        [
+            WidthParameter("width"),
+            new ComponentParameterSchema(
+                "initialState",
+                ComponentParameterKind.LogicVector,
+                widthParameterId: "width"),
+        ],
+        [
+            new ComponentPortSchema("D", PortDirection.Input, "width"),
+            FixedOnePort("EN", PortDirection.Input),
+            new ComponentPortSchema("Q", PortDirection.Output, "width"),
+        ]);
+
+    private static readonly ComponentContractSchema SequentialDff =
+        CreateEdgeStateContract("sequential.dff", includeEnable: false);
+
+    private static readonly ComponentContractSchema SequentialRegister =
+        CreateEdgeStateContract("sequential.register", includeEnable: true);
+
     private static readonly ComponentContractSchema SourceConstant = new(
         new ComponentContractKey(LibraryId, "source.constant"),
         [
@@ -264,7 +303,11 @@ public static class CoreLibrarySchema
         LogicXor,
         MemoryRamSinglePort,
         MemoryRom,
+        SequentialDLatch,
+        SequentialDff,
+        SequentialRegister,
         SinkOutput,
+        SourceClock,
         SourceConstant,
         SourceInput,
         TopologyConcat,
@@ -329,6 +372,34 @@ public static class CoreLibrarySchema
                 new ComponentPortSchema("D", PortDirection.Input, "inputWidth"),
                 new ComponentPortSchema("Q", PortDirection.Output, "outputWidth"),
             ]);
+    }
+
+    private static ComponentContractSchema CreateEdgeStateContract(
+        string contractId,
+        bool includeEnable)
+    {
+        var ports = new List<ComponentPortSchema>
+        {
+            new("D", PortDirection.Input, "width"),
+            FixedOnePort("CLK", PortDirection.Input),
+        };
+        if (includeEnable)
+        {
+            ports.Add(FixedOnePort("EN", PortDirection.Input));
+        }
+
+        ports.Add(new ComponentPortSchema("Q", PortDirection.Output, "width"));
+        return new ComponentContractSchema(
+            new ComponentContractKey(LibraryId, contractId),
+            [
+                WidthParameter("width"),
+                ChoiceParameter("edge", "rising", "falling"),
+                new ComponentParameterSchema(
+                    "initialState",
+                    ComponentParameterKind.LogicVector,
+                    widthParameterId: "width"),
+            ],
+            [.. ports]);
     }
 
     private static ComponentContractSchema CreateUnaryLogicContract(string contractId)
