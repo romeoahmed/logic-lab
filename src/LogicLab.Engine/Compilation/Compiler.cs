@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
@@ -983,7 +984,7 @@ public static partial class Compiler
         ComponentInstance instance,
         ComponentContractSchema schema,
         CancellationToken cancellationToken,
-        out ComponentPortResolution resolution)
+        [NotNullWhen(true)] out ComponentPortResolution? resolution)
     {
         try
         {
@@ -994,7 +995,7 @@ public static partial class Compiler
         }
         catch (ArgumentException)
         {
-            resolution = null!;
+            resolution = null;
             return false;
         }
     }
