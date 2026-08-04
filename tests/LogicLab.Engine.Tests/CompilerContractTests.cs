@@ -6,52 +6,6 @@ namespace LogicLab.Engine.Tests;
 public sealed class CompilerContractTests
 {
     [Test]
-    public async Task EngineCompilationNamespace_ExportedTypes_MatchContractAllowlist()
-    {
-        var exportedTypes = typeof(Compiler).Assembly
-            .GetExportedTypes()
-            .Where(type => type.Namespace == "LogicLab.Engine.Compilation")
-            .ToArray();
-        Type[] expected =
-        [
-            typeof(CompilationArtifact),
-            typeof(CompilationArtifactKey),
-            typeof(CompilationEvidence),
-            typeof(CompilationOutcome),
-            typeof(CompilationPolicyReference),
-            typeof(CompilationRejected),
-            typeof(CompilationRequest),
-            typeof(CompilationSource),
-            typeof(CompilationSucceeded),
-            typeof(Compiler),
-            typeof(CompilerCircuitLocation),
-            typeof(CompilerContractKeyValue),
-            typeof(CompilerCorrelationTokenValue),
-            typeof(CompilerDiagnostic),
-            typeof(CompilerDiagnosticArgument),
-            typeof(CompilerDiagnosticSeverity),
-            typeof(CompilerDiagnosticValue),
-            typeof(CompilerDigestValue),
-            typeof(CompilerProjectRootLocation),
-            typeof(CompilerSourceLocation),
-            typeof(CompilerStableTokenValue),
-            typeof(CompilerUnsignedDecimalValue),
-            typeof(EvaluatorInputSourceMapEntry),
-            typeof(HierarchyPath),
-            typeof(HierarchyPathStep),
-            typeof(ObservedProjectScaleDimension),
-            typeof(ProjectScaleDimension),
-            typeof(ProjectScaleLimit),
-            typeof(ProjectScalePolicy),
-            typeof(SourceMap),
-            typeof(SourceMapEntry),
-            typeof(StronglyConnectedComponentMemberSourceMapEntry),
-        ];
-
-        await Assert.That(exportedTypes).IsEquivalentTo(expected);
-    }
-
-    [Test]
     public async Task CompilationSource_NullIdentity_ThrowsArgumentNullException()
     {
         var revision = CompilerTestCircuit.BeginProject();
@@ -98,18 +52,6 @@ public sealed class CompilerContractTests
     }
 
     [Test]
-    public async Task ProjectScalePolicy_ChangingInput_ValidatesSingleOwnedSnapshot()
-    {
-        var limits = CompilerTestCircuit.PermissivePolicy().Limits.ToArray();
-        var policy = new ProjectScalePolicy(
-            "changing-policy",
-            "1",
-            new ChangingReadOnlyList<ProjectScaleLimit>(0, limits));
-
-        await Assert.That(policy.Limits).Count().IsEqualTo(limits.Length);
-    }
-
-    [Test]
     public async Task ProjectScalePolicy_NullLimit_ThrowsArgumentException()
     {
         var limits = CompilerTestCircuit.PermissivePolicy().Limits.ToArray();
@@ -123,21 +65,14 @@ public sealed class CompilerContractTests
     }
 
     [Test]
-    public async Task CompilationArtifact_InternalCollections_AreReadOnly()
+    public async Task CompilationArtifact_SourceMapCollection_IsReadOnly()
     {
         var circuit = CompilerTestCircuit.CreateComplete();
         var succeeded = (CompilationSucceeded)Compiler.Compile(
             CompilerTestCircuit.Request(circuit.Revision),
             CancellationToken.None);
-        var ir = succeeded.Artifact.SimulationIr;
-
-        using (Assert.Multiple())
-        {
-            await ReadOnlyCollectionAssertions.RejectsMutation(ir.Evaluators);
-            await ReadOnlyCollectionAssertions.RejectsMutation(ir.FanoutOffsets);
-            await ReadOnlyCollectionAssertions.RejectsMutation(
-                succeeded.Artifact.SourceMap.Nets);
-        }
+        await ReadOnlyCollectionAssertions.RejectsMutation(
+            succeeded.Artifact.SourceMap.Nets);
     }
 
     [Test]

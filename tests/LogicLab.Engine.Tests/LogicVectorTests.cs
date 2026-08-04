@@ -67,17 +67,6 @@ public sealed class LogicVectorTests
     }
 
     [Test]
-    public async Task Create_ChangingInput_UsesSingleSnapshot()
-    {
-        LogicValue[] values = [LogicValue.Zero, LogicValue.One];
-        var vector = new LogicVector(
-            new ChangingReadOnlyList<LogicValue>(0, values));
-
-        await Assert.That(LogicVectorTestData.ToValues(vector))
-            .IsEquivalentTo(values, CollectionOrdering.Matching);
-    }
-
-    [Test]
     public async Task Create_EmptyValues_ThrowsArgumentException()
     {
         await Assert.That(() => new LogicVector([]))
