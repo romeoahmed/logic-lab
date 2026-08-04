@@ -287,10 +287,10 @@ public sealed class CombinationalPipelineTests
                     new ChoiceParameterValue("left")),
             ],
             [
-                Enumerable.Repeat(LogicValue.One, 8).ToArray(),
+                [.. Enumerable.Repeat(LogicValue.One, 8)],
                 [LogicValue.X, LogicValue.X, LogicValue.X],
             ],
-            [Enumerable.Repeat(LogicValue.X, 8).ToArray()]);
+            [[.. Enumerable.Repeat(LogicValue.X, 8)]]);
         var compilation = (CompilationSucceeded)Compiler.Compile(
             CompilerTestCircuit.Request(circuit.Revision),
             CancellationToken.None);
@@ -592,11 +592,11 @@ public sealed class CombinationalPipelineTests
     {
         return Commit(ProjectEditor.Apply(
             revision,
-            new ConnectTerminalsIntent(terminals.Select(terminal =>
+            new ConnectTerminalsIntent([.. terminals.Select(terminal =>
                 (AuthoredTerminalReference)new InstanceTerminalReference(
                     definitionId,
                     terminal.Instance.Id,
-                    terminal.PortId)).ToArray())));
+                    terminal.PortId))])));
     }
 
     private static ProjectRevision Commit(EditOutcome outcome)
@@ -615,7 +615,7 @@ public sealed class CombinationalPipelineTests
         [new("width", new Unsigned32ParameterValue(width))];
 
     private static LogicValue[] Values(LogicVector vector) =>
-        Enumerable.Range(0, vector.Width).Select(index => vector[index]).ToArray();
+        [.. Enumerable.Range(0, vector.Width).Select(index => vector[index])];
 
     private sealed record SteeringScenario(
         ProjectRevision Revision,

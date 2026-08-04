@@ -182,7 +182,7 @@ public sealed class ProjectEditorCatalogTests
             revision,
             new RemoveComponentInstancesIntent(
                 definitionId,
-                instances.Select(instance => instance.Id).ToArray()));
+                [.. instances.Select(instance => instance.Id)]));
 
         var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
         Assert.NotNull(committed);

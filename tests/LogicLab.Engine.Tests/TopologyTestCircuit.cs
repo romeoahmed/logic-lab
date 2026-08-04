@@ -56,7 +56,7 @@ internal static class TopologyTestCircuit
             revision,
             definitionId,
             "topology.concat",
-            ConcatParameters(slices.Select(slice => slice.Length).ToArray()));
+            ConcatParameters([.. slices.Select(slice => slice.Length)]));
         (revision, components["zero"]) = Place(
             revision,
             definitionId,
@@ -323,9 +323,9 @@ internal static class TopologyTestCircuit
             new ComponentParameterBinding(
                 "initialValue",
                 new LogicVectorParameterValue(
-                    Enumerable.Repeat(
+                    [.. Enumerable.Repeat(
                         LogicValue.Zero,
-                        checked((int)width)).ToArray())),
+                        checked((int)width))])),
         ];
     }
 
@@ -373,11 +373,9 @@ internal static class TopologyTestCircuit
         {
             "topology.split" => SplitParameters(
                 checked((uint)itemCount),
-                Enumerable.Range(0, itemCount)
-                    .Select(index => new BitSlice(checked((uint)index), 1))
-                    .ToArray()),
+                [.. Enumerable.Range(0, itemCount).Select(index => new BitSlice(checked((uint)index), 1))]),
             "topology.concat" => ConcatParameters(
-                Enumerable.Repeat(1U, itemCount).ToArray()),
+                [.. Enumerable.Repeat(1U, itemCount)]),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(contractId),
                 contractId,

@@ -85,7 +85,7 @@ internal static class ComponentParameterValidator
                 "unknownParameter"));
         }
 
-        return diagnostics.ToArray();
+        return [.. diagnostics];
     }
 
     private static string? GetInvalidValueRule(

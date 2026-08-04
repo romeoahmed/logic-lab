@@ -106,7 +106,7 @@ public static partial class ProjectEditor
 
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var definitionId = CircuitDefinitionId.Create();
@@ -132,7 +132,7 @@ public static partial class ProjectEditor
                 port.Id))
             .Prepend(new CircuitRootSourceIdentity(definitionId))
             .ToArray();
-        return Commit(revision, document, changedSources);
+        return Commit(document, changedSources);
     }
 
     private static EditOutcome ApplySetEntryDefinition(
@@ -153,7 +153,6 @@ public static partial class ProjectEditor
         var document = revision.Document.WithEntryCircuitDefinition(
             intent.CircuitDefinitionId);
         return Commit(
-            revision,
             document,
             [new ProjectRootSourceIdentity(document.ProjectId)]);
     }
@@ -182,7 +181,7 @@ public static partial class ProjectEditor
 
         if (diagnostics.Count != 0)
         {
-            return new ProjectGenesisRejected(diagnostics.ToArray());
+            return new ProjectGenesisRejected([.. diagnostics]);
         }
 
         var projectId = ProjectId.Create();
@@ -288,13 +287,13 @@ public static partial class ProjectEditor
 
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var instance = new ComponentInstance(
             ComponentInstanceId.Create(),
             intent.Target,
-            intent.Parameters.ToArray(),
+            [.. intent.Parameters],
             intent.Placement,
             intent.DisplayName);
         var updatedDefinition = definition.AddComponentInstance(instance);
@@ -349,10 +348,10 @@ public static partial class ProjectEditor
 
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
-        var updatedDefinition = definition.ReplaceComponentInstances(replacements.ToArray());
+        var updatedDefinition = definition.ReplaceComponentInstances([.. replacements]);
         var changedSources = replacements
             .Select(instance => (AuthoredSourceIdentity)new ComponentInstanceSourceIdentity(
                 definition.Id,
@@ -368,11 +367,10 @@ public static partial class ProjectEditor
         AuthoredSourceIdentity[]? removedSources = null)
     {
         var document = previousRevision.Document.ReplaceCircuitDefinition(updatedDefinition);
-        return Commit(previousRevision, document, changedSources, removedSources);
+        return Commit(document, changedSources, removedSources);
     }
 
     private static EditCommitted Commit(
-        ProjectRevision previousRevision,
         ProjectDocument document,
         AuthoredSourceIdentity[] changedSources,
         AuthoredSourceIdentity[]? removedSources = null)

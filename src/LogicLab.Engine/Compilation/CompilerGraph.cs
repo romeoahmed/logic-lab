@@ -65,7 +65,7 @@ internal static class CompilerGraph
             }
 
             members.Sort();
-            memberSets.Add(members.ToArray());
+            memberSets.Add([.. members]);
         }
 
         memberSets.Sort(static (left, right) => left[0].CompareTo(right[0]));
@@ -150,7 +150,7 @@ internal static class CompilerGraph
             }
         }
 
-        return condensationOrder.ToArray();
+        return [.. condensationOrder];
     }
 
     private static List<int> ComputeFinishOrder(
@@ -173,11 +173,11 @@ internal static class CompilerGraph
             while (stack.Count != 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var frame = stack.Pop();
-                if (frame.NextChild < adjacency[frame.Node].Length)
+                var (node, nextChild) = stack.Pop();
+                if (nextChild < adjacency[node].Length)
                 {
-                    stack.Push((frame.Node, frame.NextChild + 1));
-                    var child = adjacency[frame.Node][frame.NextChild];
+                    stack.Push((node, nextChild + 1));
+                    var child = adjacency[node][nextChild];
                     if (!visited[child])
                     {
                         visited[child] = true;
@@ -187,7 +187,7 @@ internal static class CompilerGraph
                     continue;
                 }
 
-                finishOrder.Add(frame.Node);
+                finishOrder.Add(node);
             }
         }
 
@@ -215,7 +215,7 @@ internal static class CompilerGraph
         for (var ordinal = 0; ordinal < reverse.Length; ordinal++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            canonical[ordinal] = reverse[ordinal].Order().ToArray();
+            canonical[ordinal] = [.. reverse[ordinal].Order()];
         }
 
         return canonical;

@@ -56,10 +56,10 @@ public sealed class AccessibleSceneProjectorTests
                     "direction",
                     new ChoiceParameterValue("right")),
             }
-            : new[]
-            {
+            :
+            [
                 new ComponentParameterBinding("width", new Unsigned32ParameterValue(5)),
-            };
+            ];
         revision = Place(revision, contractId, parameters, new GridPoint(0, 0));
 
         var component = Project(revision).Components.Single();

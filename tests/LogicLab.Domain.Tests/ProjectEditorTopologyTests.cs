@@ -299,8 +299,8 @@ public sealed class ProjectEditorTopologyTests
                     new NetPartition(topology.Net.Terminals, [], []),
                     new NetPartition(
                         [],
-                        topology.Junctions.Select(item => item.Id).ToArray(),
-                        topology.WireGeometries.Select(item => item.Id).ToArray()),
+                        [.. topology.Junctions.Select(item => item.Id)],
+                        [.. topology.WireGeometries.Select(item => item.Id)]),
                 ]))).Revision;
         var topologyOnlyNet = withoutTerminals.Document.EntryCircuitDefinition.Nets
             .Single(net => net.Terminals.Count == 0);
@@ -313,12 +313,12 @@ public sealed class ProjectEditorTopologyTests
                 [
                     new NetPartition(
                         [],
-                        topology.Junctions.Select(item => item.Id).ToArray(),
+                        [.. topology.Junctions.Select(item => item.Id)],
                         []),
                     new NetPartition(
                         [],
                         [],
-                        topology.WireGeometries.Select(item => item.Id).ToArray()),
+                        [.. topology.WireGeometries.Select(item => item.Id)]),
                 ]))).Revision;
         var afterJunctionPriority = splitJunctionsFromWires.Document.EntryCircuitDefinition;
         var retainedByJunction = afterJunctionPriority.FindNet(topologyOnlyNet.Id);
@@ -372,8 +372,8 @@ public sealed class ProjectEditorTopologyTests
                 definition.Id,
                 topology.Net.Id,
                 [
-                    new NetPartition(terminals.Take(2).ToArray(), [], []),
-                    new NetPartition(terminals.Skip(2).ToArray(), [], []),
+                    new NetPartition([.. terminals.Take(2)], [], []),
+                    new NetPartition([.. terminals.Skip(2)], [], []),
                 ]));
 
         var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
@@ -450,7 +450,7 @@ public sealed class ProjectEditorTopologyTests
                 [
                     new NetPartition(
                         topology.Net.Terminals,
-                        topology.Junctions.Select(item => item.Id).ToArray(),
+                        [.. topology.Junctions.Select(item => item.Id)],
                         [topology.WireGeometries[0].Id]),
                     new NetPartition([], [], [topology.WireGeometries[1].Id]),
                 ]))).Revision;
@@ -571,13 +571,13 @@ public sealed class ProjectEditorTopologyTests
         var terminals = topology.Net.Terminals.ToArray();
         var first = new JunctionRemovalPartition(
             new NetPartition(
-                terminals.Take(2).ToArray(),
+                [.. terminals.Take(2)],
                 [],
                 [replacedGeometry.Id]),
             [new UnroutedWireRoute()]);
         var second = new JunctionRemovalPartition(
             new NetPartition(
-                terminals.Skip(2).ToArray(),
+                [.. terminals.Skip(2)],
                 [retainedJunction.Id],
                 []),
             [new OrthogonalWireRoute(
@@ -687,8 +687,8 @@ public sealed class ProjectEditorTopologyTests
         return new MergedTopology(
             merged,
             definition.FindNet(topology.FirstNet.Id)!,
-            definition.Junctions.ToArray(),
-            definition.WireGeometries.ToArray());
+            [.. definition.Junctions],
+            [.. definition.WireGeometries]);
     }
 
     private static ProjectRevision Connect(
@@ -748,7 +748,7 @@ public sealed class ProjectEditorTopologyTests
             new ComponentParameterBinding(
                 "initialValue",
                 new LogicVectorParameterValue(
-                    Enumerable.Repeat(LogicValue.Zero, checked((int)width)).ToArray())),
+                    [.. Enumerable.Repeat(LogicValue.Zero, checked((int)width))])),
         ];
     }
 

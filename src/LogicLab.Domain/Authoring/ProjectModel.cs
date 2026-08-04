@@ -181,7 +181,7 @@ public sealed class ProjectDocument
             LibrarySnapshot,
             SymbolProfile,
             EntryCircuitDefinitionId,
-            circuitDefinitions.Where(definition => definition.Id != id).ToArray(),
+            [.. circuitDefinitions.Where(definition => definition.Id != id)],
             memoryImages);
     }
 
@@ -484,7 +484,7 @@ public sealed record LogicVectorParameterValue : ComponentParameterValue
     public LogicVectorParameterValue(IReadOnlyList<LogicValue> values)
     {
         ArgumentNullException.ThrowIfNull(values);
-        this.values = values.ToArray();
+        this.values = [.. values];
         Values = Array.AsReadOnly(this.values);
     }
 
@@ -517,7 +517,7 @@ public sealed record SlicesParameterValue : ComponentParameterValue
     public SlicesParameterValue(IReadOnlyList<BitSlice> values)
     {
         ArgumentNullException.ThrowIfNull(values);
-        this.values = values.ToArray();
+        this.values = [.. values];
         Values = Array.AsReadOnly(this.values);
     }
 
@@ -548,7 +548,7 @@ public sealed record WidthsParameterValue : ComponentParameterValue
     public WidthsParameterValue(IReadOnlyList<uint> values)
     {
         ArgumentNullException.ThrowIfNull(values);
-        this.values = values.ToArray();
+        this.values = [.. values];
         Values = Array.AsReadOnly(this.values);
     }
 

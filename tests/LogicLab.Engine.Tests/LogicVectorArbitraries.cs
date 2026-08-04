@@ -183,15 +183,15 @@ public static class LogicVectorArbitraries
     {
         for (var index = 0; index < sample.Vectors.Length && sample.Vectors.Length > 1; index++)
         {
-            yield return new LogicVectorMergeCase(sample.Vectors
-                .Where((_, candidateIndex) => candidateIndex != index)
-                .ToArray());
+            yield return new LogicVectorMergeCase(
+                [.. sample.Vectors.Where(
+                    (_, candidateIndex) => candidateIndex != index)]);
         }
 
         foreach (var width in ShrinkWidth(sample.Width))
         {
             yield return new LogicVectorMergeCase(
-                sample.Vectors.Select(values => values[..width]).ToArray());
+                [.. sample.Vectors.Select(values => values[..width])]);
         }
 
         foreach (var vectors in ShrinkVectorValues(sample.Vectors))
@@ -207,9 +207,7 @@ public static class LogicVectorArbitraries
         {
             yield return sample with
             {
-                Drivers = sample.Drivers
-                    .Where((_, candidateIndex) => candidateIndex != index)
-                    .ToArray(),
+                Drivers = [.. sample.Drivers.Where((_, candidateIndex) => candidateIndex != index)],
             };
         }
 
@@ -217,7 +215,7 @@ public static class LogicVectorArbitraries
         {
             yield return new LogicVectorDriverCase(
                 width,
-                sample.Drivers.Select(values => values[..width]).ToArray());
+                [.. sample.Drivers.Select(values => values[..width])]);
         }
 
         foreach (var drivers in ShrinkVectorValues(sample.Drivers))

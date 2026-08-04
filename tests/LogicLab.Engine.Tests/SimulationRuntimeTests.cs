@@ -76,7 +76,7 @@ public sealed class SimulationRuntimeTests
         {
             await Assert.That(firstSnapshot.Probes.Select(probe => probe.Source))
                 .IsEquivalentTo(
-                    new[] { outputSource, inputSource },
+                    [outputSource, inputSource],
                     CollectionOrdering.Matching);
             await Assert.That(first.ProbeIds).Count().IsEqualTo(2);
             await Assert.That(first.ProbeIds.Distinct()).Count().IsEqualTo(2);
@@ -323,7 +323,7 @@ public sealed class SimulationRuntimeTests
             await Assert.That(snapshot.Probes[0].Value[0]).IsEqualTo(LogicValue.Zero);
             await Assert.That(trace.Transitions.Select(item => item.Value[0]))
                 .IsEquivalentTo(
-                    new[] { LogicValue.One, LogicValue.Zero },
+                    [LogicValue.One, LogicValue.Zero],
                     CollectionOrdering.Matching);
             await Assert.That(trace.Transitions.Select(item => item.LogicalTime))
                 .IsEquivalentTo(new ulong[] { 0, 10 }, CollectionOrdering.Matching);
@@ -608,15 +608,15 @@ public sealed class SimulationRuntimeTests
 
         for (var index = 0; index < stimuli.Length; index++)
         {
-            var stimulus = stimuli[index];
+            var (logicalTime, value) = stimuli[index];
             var scheduled = (StimulusBatchScheduled)SimulationRuntime.Execute(
                 opened.Handle,
-                Schedule(context, stimulus.LogicalTime, stimulus.Value),
+                Schedule(context, logicalTime, value),
                 CancellationToken.None);
             using (Assert.Multiple())
             {
                 await Assert.That(scheduled.ScheduledLogicalTime)
-                    .IsEqualTo(stimulus.LogicalTime);
+                    .IsEqualTo(logicalTime);
                 await Assert.That(scheduled.StableSequence).IsEqualTo((ulong)index + 1UL);
                 await Assert.That(scheduled.SessionVersion).IsEqualTo((ulong)index + 2UL);
             }
@@ -638,18 +638,18 @@ public sealed class SimulationRuntimeTests
         var expectedOrder = stimuli.OrderBy(stimulus => stimulus.LogicalTime).ToArray();
         for (var index = 0; index < expectedOrder.Length; index++)
         {
-            var expected = expectedOrder[index];
+            var (logicalTime, value) = expectedOrder[index];
             var committed = (AdvanceCommitted)SimulationRuntime.Execute(
                 opened.Handle,
                 new AdvanceToNextQuiescentBoundary(),
                 CancellationToken.None);
             using (Assert.Multiple())
             {
-                await Assert.That(committed.LogicalTime).IsEqualTo(expected.LogicalTime);
+                await Assert.That(committed.LogicalTime).IsEqualTo(logicalTime);
                 await Assert.That(committed.SessionVersion)
                     .IsEqualTo((ulong)stimuli.Length + (ulong)index + 2UL);
                 await Assert.That(committed.ObservedProbePatch.Single().Value[0])
-                    .IsEqualTo(ScalarLogic.Not(expected.Value));
+                    .IsEqualTo(ScalarLogic.Not(value));
             }
         }
 

@@ -17,7 +17,7 @@ public sealed class VectorConservativeMergeTests
             .ToArray();
         var expected = Enumerable.Range(0, sample.Width)
             .Select(bitIndex => ConservativeMerge.Merge(
-                sample.Vectors.Select(values => values[bitIndex]).ToArray()))
+                [.. sample.Vectors.Select(values => values[bitIndex])]))
             .ToArray();
         var actual = VectorConservativeMerge.Merge(vectors);
         var matches = LogicVectorTestData.Matches(actual, expected);

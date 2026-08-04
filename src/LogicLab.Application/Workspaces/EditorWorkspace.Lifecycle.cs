@@ -18,7 +18,7 @@ internal sealed partial class EditorWorkspace
             }
 
             isDisposed = true;
-            retired = workspaces.Values.ToArray();
+            retired = [.. workspaces.Values];
             workspaces.Clear();
             foreach (var state in retired)
             {

@@ -29,15 +29,12 @@ public class VectorNetResolutionBenchmarks
                 .Select(bitIndex => Value(bitIndex, driverIndex))
                 .ToArray())
             .ToArray();
-        vectorDrivers = valuesByDriver
-            .Select(values => new LogicVector(values))
-            .ToArray();
-        driverOrdinals = Enumerable.Range(0, Case.DriverCount).ToArray();
-        scalarDriversByBit = Enumerable.Range(0, Case.Width)
+        vectorDrivers = [.. valuesByDriver.Select(values => new LogicVector(values))];
+        driverOrdinals = [.. Enumerable.Range(0, Case.DriverCount)];
+        scalarDriversByBit = [.. Enumerable.Range(0, Case.Width)
             .Select(bitIndex => valuesByDriver
                 .Select(values => values[bitIndex])
-                .ToArray())
-            .ToArray();
+                .ToArray())];
     }
 
     [Benchmark(Baseline = true)]
@@ -67,7 +64,7 @@ public class VectorNetResolutionBenchmarks
     {
         return VectorNetResolver.Resolve(
             Case.Width,
-            driverOrdinals.Select(ordinal => vectorDrivers[ordinal]).ToArray());
+            [.. driverOrdinals.Select(ordinal => vectorDrivers[ordinal])]);
     }
 
     private static LogicValue Value(int bitIndex, int driverIndex)

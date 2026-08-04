@@ -9,7 +9,7 @@ public sealed record MemoryImageWord
     public MemoryImageWord(IReadOnlyList<LogicValue> values)
     {
         ArgumentNullException.ThrowIfNull(values);
-        this.values = values.ToArray();
+        this.values = [.. values];
         Values = Array.AsReadOnly(this.values);
     }
 

@@ -58,7 +58,7 @@ public partial class Editor
         if (await Apply(new MergeNetsIntent(
                 Definition.Id,
                 nets[0].Id,
-                nets.Skip(1).Select(net => net.Id).ToArray())))
+                [.. nets.Skip(1).Select(net => net.Id)])))
         {
             Status = "Nets merged into the canonical destination.";
         }

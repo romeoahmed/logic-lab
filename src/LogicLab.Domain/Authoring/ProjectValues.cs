@@ -89,7 +89,7 @@ public sealed record OrthogonalWireRoute : WireRoute
     public OrthogonalWireRoute(IReadOnlyList<GridPoint> points)
     {
         ArgumentNullException.ThrowIfNull(points);
-        this.points = points.ToArray();
+        this.points = [.. points];
         Points = Array.AsReadOnly(this.points);
     }
 

@@ -219,7 +219,7 @@ public static partial class Compiler
                 }
 
                 witness.Add(currentWitness);
-                return witness.ToArray();
+                return [.. witness];
             }
 
             if (completed.Contains(targetId))
@@ -410,7 +410,7 @@ public static partial class Compiler
             }
         }
 
-        return pending.ToArray();
+        return [.. pending];
     }
 
     private static HierarchyResolvedInstance[] MaterializeHierarchyInstances(
@@ -566,7 +566,7 @@ public static partial class Compiler
         var groups = scopedNets
             .GroupBy(net => union.Find(net.Index))
             .Select(group => new HierarchyNetGroup(
-                group.OrderBy(ScopedNetKey, StringComparer.Ordinal).ToArray()))
+                [.. group.OrderBy(ScopedNetKey, StringComparer.Ordinal)]))
             .OrderBy(group => ScopedNetKey(group.Members[0]), StringComparer.Ordinal)
             .ToArray();
         var runtimeNetByScopedNet = new int[scopedNets.Count];
@@ -826,9 +826,10 @@ public static partial class Compiler
     {
         return new HierarchyPath(
             path.EntryCircuitDefinitionId,
-            path.Steps
-                .Append(new HierarchyPathStep(containingDefinitionId, instanceId))
-                .ToArray());
+            [
+                .. path.Steps,
+                new HierarchyPathStep(containingDefinitionId, instanceId),
+            ]);
     }
 
     private static string PathKey(HierarchyPath path)
@@ -857,54 +858,35 @@ public static partial class Compiler
         };
     }
 
-    private sealed class HierarchyDfsFrame
+    private sealed class HierarchyDfsFrame(
+        CircuitDefinition definition,
+        HierarchyPath path,
+        Compiler.HierarchyCallWitness? incomingCall)
     {
-        public HierarchyDfsFrame(
-            CircuitDefinition definition,
-            HierarchyPath path,
-            HierarchyCallWitness? incomingCall)
-        {
-            Definition = definition;
-            Path = path;
-            IncomingCall = incomingCall;
-            Calls = definition.ComponentInstances
+        public CircuitDefinition Definition { get; } = definition;
+
+        public HierarchyPath Path { get; } = path;
+
+        public HierarchyCallWitness? IncomingCall { get; } = incomingCall;
+
+        public ComponentInstance[] Calls { get; } =
+            [.. definition.ComponentInstances
                 .Where(instance => instance.Target is CircuitDefinitionComponentTarget)
-                .OrderBy(instance => instance.Id.Value, StringComparer.Ordinal)
-                .ToArray();
-        }
-
-        public CircuitDefinition Definition { get; }
-
-        public HierarchyPath Path { get; }
-
-        public HierarchyCallWitness? IncomingCall { get; }
-
-        public ComponentInstance[] Calls { get; }
+                .OrderBy(instance => instance.Id.Value, StringComparer.Ordinal)];
 
         public int NextCallIndex { get; set; }
     }
 
-    private sealed class HierarchyOccurrence
+    private sealed class HierarchyOccurrence(CircuitDefinition definition, HierarchyPath path)
     {
-        public HierarchyOccurrence(CircuitDefinition definition, HierarchyPath path)
-        {
-            Definition = definition;
-            Path = path;
-        }
+        public CircuitDefinition Definition { get; } = definition;
 
-        public CircuitDefinition Definition { get; }
-
-        public HierarchyPath Path { get; }
+        public HierarchyPath Path { get; } = path;
     }
 
-    private sealed class HierarchyNetUnion
+    private sealed class HierarchyNetUnion(int count)
     {
-        private readonly int[] parents;
-
-        public HierarchyNetUnion(int count)
-        {
-            parents = Enumerable.Range(0, count).ToArray();
-        }
+        private readonly int[] parents = [.. Enumerable.Range(0, count)];
 
         public int Find(int value)
         {
