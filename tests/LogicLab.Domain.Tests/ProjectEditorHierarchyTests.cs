@@ -158,7 +158,7 @@ public sealed class ProjectEditorHierarchyTests
     }
 
     [Test]
-    public async Task Apply_SetCurrentEntryDefinition_PreservesRevision()
+    public async Task Apply_SetCurrentEntryDefinition_CommitsNewRevision()
     {
         var revision = BeginProject();
 
@@ -169,10 +169,15 @@ public sealed class ProjectEditorHierarchyTests
 
         var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
         Assert.NotNull(committed);
+        var changedSource = await Assert.That(committed.ChangedSources).HasSingleItem();
         using (Assert.Multiple())
         {
-            await Assert.That(committed.Revision).IsSameReferenceAs(revision);
-            await Assert.That(committed.ChangedSources).IsEmpty();
+            await Assert.That(committed.Revision.RevisionId)
+                .IsNotEqualTo(revision.RevisionId);
+            await Assert.That(committed.Revision.Document.EntryCircuitDefinitionId)
+                .IsEqualTo(revision.Document.EntryCircuitDefinitionId);
+            await Assert.That(changedSource).IsEqualTo(
+                new ProjectRootSourceIdentity(revision.Document.ProjectId));
             await Assert.That(committed.RemovedSources).IsEmpty();
         }
     }
