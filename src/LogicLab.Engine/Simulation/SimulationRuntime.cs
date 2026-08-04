@@ -457,15 +457,11 @@ public static partial class SimulationRuntime
         }
 
         _ = state.ScheduledAssignmentsByTime.Remove(logicalTime);
-        while (state.ScheduledClockTransitions.TryPeek(out _, out var clockPriority)
-            && clockPriority.LogicalTime == logicalTime)
+        if (clockTransitions.Length > 0)
         {
-            _ = state.ScheduledClockTransitions.Dequeue();
-        }
-
-        foreach (var (transition, priority) in nextClockTransitions)
-        {
-            state.ScheduledClockTransitions.Enqueue(transition, priority);
+            state.ScheduledClockTransitions.CommitTimeBucket(
+                logicalTime,
+                nextClockTransitions);
         }
 
         state.DriverValues = driverValues;
