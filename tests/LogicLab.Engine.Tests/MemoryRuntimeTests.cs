@@ -116,6 +116,84 @@ public sealed class MemoryRuntimeTests
     }
 
     [Test]
+    public async Task Open_RamOutputFedBackToWriteData_DoesNotReportCombinationalFeedback()
+    {
+        var circuit = MemoryTestCircuit.Create();
+        var image = circuit.CreateMemoryImage(
+            "Write feedback",
+            [LogicValue.X],
+            [LogicValue.X]);
+        var address = circuit.Place("source.input", MemoryTestCircuit.Input(LogicValue.Zero));
+        var writeEnable = circuit.Place(
+            "source.input",
+            MemoryTestCircuit.Input(LogicValue.Zero));
+        var clock = circuit.Place("source.clock", MemoryTestCircuit.Clock());
+        var ram = circuit.Place(
+            "memory.ram_single_port",
+            MemoryTestCircuit.Memory(1, 1, image));
+        var sink = circuit.Place("sink.output", MemoryTestCircuit.Sink(1));
+        _ = circuit.Connect((address, "Q"), (ram, "A"));
+        _ = circuit.Connect((writeEnable, "Q"), (ram, "WE"));
+        _ = circuit.Connect((clock, "Q"), (ram, "CLK"));
+        var outputNet = circuit.Connect((ram, "Q"), (ram, "D"), (sink, "D"));
+        var artifact = ((CompilationSucceeded)circuit.Compile(MemoryPolicy(2))).Artifact;
+
+        var opened = (SimulationOpened)SimulationRuntime.Open(
+            MemoryTestCircuit.Request(
+                artifact,
+                SimulationTestContext.PermissiveSimulationPolicy(),
+                outputNet),
+            CancellationToken.None);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(opened.Diagnostics.Select(diagnostic => diagnostic.Code))
+                .DoesNotContain("simulation_indeterminate_feedback");
+            await Assert.That(Snapshot(opened).Probes.Single().Value[0])
+                .IsEqualTo(LogicValue.X);
+        }
+    }
+
+    [Test]
+    public async Task Open_RamOutputFedBackToAddress_ReportsCombinationalFeedback()
+    {
+        var circuit = MemoryTestCircuit.Create();
+        var image = circuit.CreateMemoryImage(
+            "Read feedback",
+            [LogicValue.Zero],
+            [LogicValue.One]);
+        var data = circuit.Place("source.input", MemoryTestCircuit.Input(LogicValue.Zero));
+        var writeEnable = circuit.Place(
+            "source.input",
+            MemoryTestCircuit.Input(LogicValue.Zero));
+        var clock = circuit.Place("source.clock", MemoryTestCircuit.Clock());
+        var ram = circuit.Place(
+            "memory.ram_single_port",
+            MemoryTestCircuit.Memory(1, 1, image));
+        var sink = circuit.Place("sink.output", MemoryTestCircuit.Sink(1));
+        _ = circuit.Connect((data, "Q"), (ram, "D"));
+        _ = circuit.Connect((writeEnable, "Q"), (ram, "WE"));
+        _ = circuit.Connect((clock, "Q"), (ram, "CLK"));
+        var outputNet = circuit.Connect((ram, "Q"), (ram, "A"), (sink, "D"));
+        var artifact = ((CompilationSucceeded)circuit.Compile(MemoryPolicy(2))).Artifact;
+
+        var opened = (SimulationOpened)SimulationRuntime.Open(
+            MemoryTestCircuit.Request(
+                artifact,
+                SimulationTestContext.PermissiveSimulationPolicy(),
+                outputNet),
+            CancellationToken.None);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(opened.Diagnostics.Select(diagnostic => diagnostic.Code))
+                .Contains("simulation_indeterminate_feedback");
+            await Assert.That(Snapshot(opened).Probes.Single().Value[0])
+                .IsEqualTo(LogicValue.X);
+        }
+    }
+
+    [Test]
     public async Task Execute_RamKnownAddressOnRisingEdge_CommitsWriteBeforeAsyncRead()
     {
         var circuit = CreateRam(

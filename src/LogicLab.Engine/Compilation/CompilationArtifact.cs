@@ -78,6 +78,14 @@ internal static class SimulationEvaluatorKindFacts
         return IsSequential(kind)
             || kind == SimulationEvaluatorKind.MemoryRamSinglePort;
     }
+
+    public static bool ConsumesNetCombinationally(
+        SimulationEvaluator evaluator,
+        int netOrdinal)
+    {
+        return evaluator.Kind != SimulationEvaluatorKind.MemoryRamSinglePort
+            || evaluator.InputNetOrdinals[0] == netOrdinal;
+    }
 }
 
 internal sealed record ClockSchedule(
