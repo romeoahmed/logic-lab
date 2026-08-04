@@ -295,11 +295,10 @@ public static partial class ProjectEditor
             return new EditRejected(diagnostics.ToArray());
         }
 
-        var nets = MigrateInstanceTerminals(
+        var topology = MigrateInstanceTerminals(
             definition,
             instance.Id,
-            migration!,
-            out var removedNetIds);
+            migration!);
         var replacement = instance.WithContract(
             intent.Target,
             intent.Parameters.ToArray(),
@@ -307,12 +306,12 @@ public static partial class ProjectEditor
         var updated = definition.WithComponentsAndTopology(
             definition.ComponentInstances.Select(candidate =>
                 candidate.Id == instance.Id ? replacement : candidate).ToArray(),
-            nets);
-        var changed = nets.Select(net => (AuthoredSourceIdentity)
-                new NetSourceIdentity(definition.Id, net.Id))
+            topology.Nets);
+        var changed = topology.ChangedNetIds.Select(id => (AuthoredSourceIdentity)
+                new NetSourceIdentity(definition.Id, id))
             .Append(new ComponentInstanceSourceIdentity(definition.Id, instance.Id))
             .ToArray();
-        var removed = removedNetIds.Select(id => (AuthoredSourceIdentity)
+        var removed = topology.RemovedNetIds.Select(id => (AuthoredSourceIdentity)
             new NetSourceIdentity(definition.Id, id)).ToArray();
         return Commit(revision, updated, changed, removed);
     }
@@ -348,10 +347,20 @@ public static partial class ProjectEditor
             return new EditRejected(diagnostics.ToArray());
         }
 
+        var newPortIds = newPorts.Select(port => port.Id).ToHashSet();
+        var targetTopology = RemoveObsoleteDefinitionTerminals(target, newPortIds);
+        var updatedTarget = target.WithPorts(newPorts);
+        updatedTarget = updatedTarget.WithComponentsAndTopology(
+            updatedTarget.ComponentInstances.ToArray(),
+            targetTopology.Nets);
         var replacements = new Dictionary<CircuitDefinitionId, CircuitDefinition>
         {
-            [target.Id] = target.WithPorts(newPorts),
+            [target.Id] = updatedTarget,
         };
+        var changedTopology = targetTopology.ChangedNetIds.Select(id =>
+            (AuthoredSourceIdentity)new NetSourceIdentity(target.Id, id)).ToList();
+        var removedTopology = targetTopology.RemovedNetIds.Select(id =>
+            (AuthoredSourceIdentity)new NetSourceIdentity(target.Id, id)).ToList();
         foreach (var callSite in callSites)
         {
             var current = replacements.GetValueOrDefault(
@@ -359,25 +368,30 @@ public static partial class ProjectEditor
                 callSite.Definition);
             var migration = migrationByCallSite![
                 (callSite.Definition.Id, callSite.Instance.Id)];
-            var nets = MigrateInstanceTerminals(
+            var topology = MigrateInstanceTerminals(
                 current,
                 callSite.Instance.Id,
-                migration,
-                out _);
+                migration);
             replacements[current.Id] = current.WithComponentsAndTopology(
                 current.ComponentInstances.ToArray(),
-                nets);
+                topology.Nets);
+            changedTopology.AddRange(topology.ChangedNetIds.Select(id =>
+                (AuthoredSourceIdentity)new NetSourceIdentity(current.Id, id)));
+            removedTopology.AddRange(topology.RemovedNetIds.Select(id =>
+                (AuthoredSourceIdentity)new NetSourceIdentity(current.Id, id)));
         }
 
         var oldIds = target.Ports.Select(port => port.Id).ToHashSet();
-        var newIds = newPorts.Select(port => port.Id).ToHashSet();
-        var removed = oldIds.Except(newIds).Select(id => (AuthoredSourceIdentity)
-            new DefinitionPortSourceIdentity(target.Id, id)).ToArray();
+        var removed = oldIds.Except(newPortIds).Select(id => (AuthoredSourceIdentity)
+                new DefinitionPortSourceIdentity(target.Id, id))
+            .Concat(removedTopology)
+            .ToArray();
         var changed = newPorts.Select(port => (AuthoredSourceIdentity)
                 new DefinitionPortSourceIdentity(target.Id, port.Id))
             .Prepend(new CircuitRootSourceIdentity(target.Id))
             .Concat(callSites.Select(item => (AuthoredSourceIdentity)
                 new ComponentInstanceSourceIdentity(item.Definition.Id, item.Instance.Id)))
+            .Concat(changedTopology)
             .ToArray();
         return Commit(
             revision,
@@ -587,33 +601,54 @@ public static partial class ProjectEditor
         return diagnostics.Count == 0 ? result : null;
     }
 
-    private static Net[] MigrateInstanceTerminals(
+    private static TerminalMigrationResult MigrateInstanceTerminals(
         CircuitDefinition definition,
         ComponentInstanceId instanceId,
-        Dictionary<string, string?> migration,
-        out NetId[] removedNetIds)
+        Dictionary<string, string?> migration)
+    {
+        return RewriteTerminals(definition, terminal =>
+        {
+            if (terminal is not InstanceTerminalReference instance
+                || instance.ComponentInstanceId != instanceId)
+            {
+                return terminal;
+            }
+
+            var destination = migration[instance.PortId];
+            return destination is null
+                ? null
+                : new InstanceTerminalReference(
+                    definition.Id,
+                    instanceId,
+                    destination);
+        });
+    }
+
+    private static TerminalMigrationResult RemoveObsoleteDefinitionTerminals(
+        CircuitDefinition definition,
+        HashSet<DefinitionPortId> retainedPortIds)
+    {
+        return RewriteTerminals(definition, terminal =>
+            terminal is DefinitionTerminalReference boundary
+                && !retainedPortIds.Contains(boundary.DefinitionPortId)
+                ? null
+                : terminal);
+    }
+
+    private static TerminalMigrationResult RewriteTerminals(
+        CircuitDefinition definition,
+        Func<AuthoredTerminalReference, AuthoredTerminalReference?> rewrite)
     {
         var removed = new List<NetId>();
+        var changed = new List<NetId>();
         var nets = new List<Net>();
         foreach (var net in definition.Nets)
         {
-            var terminals = net.Terminals.Select(terminal =>
-            {
-                if (terminal is not InstanceTerminalReference instance
-                    || instance.ComponentInstanceId != instanceId)
-                {
-                    return terminal;
-                }
-
-                var destination = migration[instance.PortId];
-                return destination is null
-                    ? null
-                    : new InstanceTerminalReference(
-                        definition.Id,
-                        instanceId,
-                        destination);
-            }).Where(terminal => terminal is not null).Cast<AuthoredTerminalReference>()
+            var terminals = net.Terminals.Select(rewrite)
+                .Where(terminal => terminal is not null)
+                .Cast<AuthoredTerminalReference>()
                 .ToArray();
+            var membershipChanged = !net.Terminals.SequenceEqual(terminals);
             var hasGeometry = definition.WireGeometries.Any(geometry =>
                 geometry.NetId == net.Id);
             if (terminals.Length == 0 && net.JunctionIds.Count == 0 && !hasGeometry)
@@ -622,12 +657,20 @@ public static partial class ProjectEditor
             }
             else
             {
-                nets.Add(net.WithMembership(terminals, net.JunctionIds.ToArray()));
+                nets.Add(membershipChanged
+                    ? net.WithMembership(terminals, net.JunctionIds.ToArray())
+                    : net);
+                if (membershipChanged)
+                {
+                    changed.Add(net.Id);
+                }
             }
         }
 
-        removedNetIds = removed.ToArray();
-        return nets.ToArray();
+        return new TerminalMigrationResult(
+            nets.ToArray(),
+            changed.ToArray(),
+            removed.ToArray());
     }
 
     private static ResolvedAuthoringPort[] ResolveTargetPorts(
@@ -649,7 +692,8 @@ public static partial class ProjectEditor
                 var parameterDiagnostics = ComponentParameterValidator.Validate(
                     library.ContractKey,
                     schema,
-                    parameters);
+                    parameters,
+                    document: document);
                 diagnostics.AddRange(parameterDiagnostics);
                 if (parameterDiagnostics.Length != 0)
                 {
@@ -834,4 +878,9 @@ public static partial class ProjectEditor
         string Id,
         PortDirection Direction,
         uint Width);
+
+    private sealed record TerminalMigrationResult(
+        Net[] Nets,
+        NetId[] ChangedNetIds,
+        NetId[] RemovedNetIds);
 }

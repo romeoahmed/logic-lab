@@ -45,6 +45,15 @@ internal static class ComponentContractSchemaDigest
                     .Append(parameter.MinimumValue.ToString(CultureInfo.InvariantCulture))
                     .Append('\n');
             }
+
+            if (parameter.MemoryImageWidthParameterId is not null)
+            {
+                canonical.Append("memoryImageShape\u001f")
+                    .Append(parameter.Id).Append('\u001f')
+                    .Append(parameter.MemoryImageWidthParameterId).Append('\u001f')
+                    .Append(parameter.MemoryImageAddressWidthParameterId)
+                    .Append('\n');
+            }
         }
     }
 

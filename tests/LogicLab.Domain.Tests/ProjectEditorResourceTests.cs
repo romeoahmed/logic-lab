@@ -7,6 +7,162 @@ namespace LogicLab.Domain.Tests;
 public sealed class ProjectEditorResourceTests
 {
     [Test]
+    public async Task Apply_MemoryImageReference_RequiresExistingExactShape()
+    {
+        var revision = BeginProject();
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new CreateMemoryImageIntent(
+                "Exact",
+                2,
+                2,
+                [
+                    new MemoryImageWord([LogicValue.Zero, LogicValue.One]),
+                    new MemoryImageWord([LogicValue.X, LogicValue.Zero]),
+                ])));
+        var exactImageId = revision.Document.MemoryImages.Single().Id;
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new CreateMemoryImageIntent(
+                "Stale",
+                1,
+                1,
+                [new MemoryImageWord([LogicValue.X])])));
+        var staleImageId = revision.Document.MemoryImages.Single(image =>
+            image.Id != exactImageId).Id;
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new RemoveMemoryImageIntent(staleImageId)));
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+
+        var matching = ProjectEditor.Apply(
+            revision,
+            new PlaceComponentInstanceIntent(
+                definitionId,
+                ProjectEditorCatalogTests.Contract("memory.rom"),
+                MemoryParameters(1, 2, exactImageId),
+                new ComponentPlacement(new GridPoint(0, 0))));
+        var wrongShape = ProjectEditor.Apply(
+            revision,
+            new PlaceComponentInstanceIntent(
+                definitionId,
+                ProjectEditorCatalogTests.Contract("memory.rom"),
+                MemoryParameters(2, 2, exactImageId),
+                new ComponentPlacement(new GridPoint(4, 0))));
+        var missing = ProjectEditor.Apply(
+            revision,
+            new PlaceComponentInstanceIntent(
+                definitionId,
+                ProjectEditorCatalogTests.Contract("memory.rom"),
+                MemoryParameters(0, 1, staleImageId),
+                new ComponentPlacement(new GridPoint(8, 0))));
+
+        var committed = await Assert.That(matching).IsTypeOf<EditCommitted>();
+        var rejectedShape = await Assert.That(wrongShape).IsTypeOf<EditRejected>();
+        var rejectedMissing = await Assert.That(missing).IsTypeOf<EditRejected>();
+        Assert.NotNull(committed);
+        Assert.NotNull(rejectedShape);
+        Assert.NotNull(rejectedMissing);
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.Revision.Document.EntryCircuitDefinition
+                .ComponentInstances.Single().Parameters.Last().Value)
+                .IsEqualTo(new MemoryImageParameterValue(exactImageId));
+            await Assert.That(rejectedShape.Diagnostics.SelectMany(item => item.Arguments)
+                .OfType<AuthoringDiagnosticArgument>()
+                .Select(item => item.Value)
+                .OfType<StableTokenDiagnosticValue>()
+                .Any(item => item.Value == "memoryImageShape")).IsTrue();
+            await Assert.That(rejectedMissing.Diagnostics.SelectMany(item => item.Arguments)
+                .Select(item => item.Value)
+                .OfType<StableTokenDiagnosticValue>()
+                .Any(item => item.Value == "memoryImageReference")).IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task Apply_ReplaceMemoryImage_ValidatesCandidateAndReportsMigratedInstance()
+    {
+        var revision = BeginProject();
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new CreateMemoryImageIntent(
+                "Program",
+                2,
+                2,
+                [
+                    new MemoryImageWord([LogicValue.Zero, LogicValue.One]),
+                    new MemoryImageWord([LogicValue.One, LogicValue.Zero]),
+                ])));
+        var imageId = revision.Document.MemoryImages.Single().Id;
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new PlaceComponentInstanceIntent(
+                revision.Document.EntryCircuitDefinitionId,
+                ProjectEditorCatalogTests.Contract("memory.rom"),
+                MemoryParameters(1, 2, imageId),
+                new ComponentPlacement(new GridPoint(0, 0)))));
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        var instanceId = revision.Document.EntryCircuitDefinition.ComponentInstances.Single().Id;
+        MemoryImageWord[] replacementWords =
+        [
+            new([LogicValue.Zero, LogicValue.Zero, LogicValue.Zero, LogicValue.Zero]),
+            new([LogicValue.Zero, LogicValue.Zero, LogicValue.Zero, LogicValue.One]),
+            new([LogicValue.Zero, LogicValue.Zero, LogicValue.One, LogicValue.Zero]),
+            new([LogicValue.Zero, LogicValue.Zero, LogicValue.One, LogicValue.One]),
+        ];
+
+        var incompatible = ProjectEditor.Apply(
+            revision,
+            new ReplaceMemoryImageIntent(
+                imageId,
+                "Program v2",
+                4,
+                4,
+                replacementWords,
+                [
+                    new InstanceParameterMigration(
+                        definitionId,
+                        instanceId,
+                        MemoryParameters(1, 2, imageId)),
+                ]));
+        var outcome = ProjectEditor.Apply(
+            revision,
+            new ReplaceMemoryImageIntent(
+                imageId,
+                "Program v2",
+                4,
+                4,
+                replacementWords,
+                [
+                    new InstanceParameterMigration(
+                        definitionId,
+                        instanceId,
+                        MemoryParameters(2, 4, imageId)),
+                ]));
+
+        var rejected = await Assert.That(incompatible).IsTypeOf<EditRejected>();
+        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
+        Assert.NotNull(rejected);
+        Assert.NotNull(committed);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Diagnostics.SelectMany(item => item.Arguments)
+                .Select(item => item.Value)
+                .OfType<StableTokenDiagnosticValue>()
+                .Any(item => item.Value == "memoryImageShape")).IsTrue();
+            await Assert.That(revision.Document.MemoryImages.Single().Width).IsEqualTo(2u);
+            await Assert.That(revision.Document.MemoryImages.Single().Depth).IsEqualTo(2u);
+            await Assert.That(committed.Revision.Document.MemoryImages.Single().Width)
+                .IsEqualTo(4u);
+            await Assert.That(committed.Revision.Document.MemoryImages.Single().Depth)
+                .IsEqualTo(4u);
+            await Assert.That(committed.ChangedSources)
+                .Contains(new ComponentInstanceSourceIdentity(definitionId, instanceId));
+        }
+    }
+
+    [Test]
     public async Task Apply_MemoryImageLifecycle_UsesCompleteImmutableWords()
     {
         var revision = BeginProject();
@@ -204,6 +360,8 @@ public sealed class ProjectEditorResourceTests
                 .IsEqualTo("authoring_symbol_variant_incompatible");
             await Assert.That(committedProfile.Revision.Document.SymbolProfile)
                 .IsEqualTo(ProjectEditorCatalogTests.TeachingMixedProfile());
+            await Assert.That(committedProfile.ChangedSources)
+                .Contains(new ProjectRootSourceIdentity(revision.Document.ProjectId));
         }
     }
 
@@ -214,5 +372,24 @@ public sealed class ProjectEditorResourceTests
             LibrarySnapshot.Core,
             ProjectEditorCatalogTests.TeachingMixedProfile(),
             "Main"))).Revision;
+    }
+
+    private static ComponentParameterBinding[] MemoryParameters(
+        uint addressWidth,
+        uint wordWidth,
+        MemoryImageId imageId)
+    {
+        return
+        [
+            new ComponentParameterBinding(
+                "addressWidth",
+                new Unsigned32ParameterValue(addressWidth)),
+            new ComponentParameterBinding(
+                "wordWidth",
+                new Unsigned32ParameterValue(wordWidth)),
+            new ComponentParameterBinding(
+                "initialImage",
+                new MemoryImageParameterValue(imageId)),
+        ];
     }
 }

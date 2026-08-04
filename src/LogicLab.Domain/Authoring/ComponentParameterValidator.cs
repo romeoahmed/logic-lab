@@ -9,6 +9,7 @@ internal static class ComponentParameterValidator
         ComponentContractKey contractKey,
         ComponentContractSchema schema,
         ReadOnlyCollection<ComponentParameterBinding> parameters,
+        ProjectDocument? document = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -33,6 +34,7 @@ internal static class ComponentParameterValidator
                 expected,
                 actual.Value,
                 parameters,
+                document,
                 cancellationToken);
             if (rule is not null)
             {
@@ -65,6 +67,7 @@ internal static class ComponentParameterValidator
         ComponentParameterSchema schema,
         ComponentParameterValue? value,
         ReadOnlyCollection<ComponentParameterBinding> allParameters,
+        ProjectDocument? document,
         CancellationToken cancellationToken)
     {
         return (schema.Kind, value) switch
@@ -93,9 +96,49 @@ internal static class ComponentParameterValidator
                     cancellationToken),
             (ComponentParameterKind.Widths, WidthsParameterValue widths) =>
                 GetInvalidWidthsRule(schema, widths, cancellationToken),
-            (ComponentParameterKind.MemoryImage, MemoryImageParameterValue) => null,
+            (ComponentParameterKind.MemoryImage, MemoryImageParameterValue image) =>
+                GetInvalidMemoryImageRule(schema, image, allParameters, document),
             _ => "parameterKind",
         };
+    }
+
+    private static string? GetInvalidMemoryImageRule(
+        ComponentParameterSchema schema,
+        MemoryImageParameterValue reference,
+        IReadOnlyList<ComponentParameterBinding> allParameters,
+        ProjectDocument? document)
+    {
+        if (document is null)
+        {
+            return null;
+        }
+
+        var image = document.FindMemoryImage(reference.MemoryImageId);
+        if (image is null)
+        {
+            return "memoryImageReference";
+        }
+
+        var wordWidth = FindUnsignedWidth(
+            allParameters,
+            schema.MemoryImageWidthParameterId);
+        var addressWidth = FindUnsignedWidth(
+            allParameters,
+            schema.MemoryImageAddressWidthParameterId);
+        if (wordWidth == 0 || addressWidth == 0)
+        {
+            return null;
+        }
+
+        if (addressWidth >= 32)
+        {
+            return "memoryImageShape";
+        }
+
+        var expectedDepth = 1u << checked((int)addressWidth);
+        return image.Width == wordWidth && image.Depth == expectedDepth
+            ? null
+            : "memoryImageShape";
     }
 
     private static string? GetInvalidWidthRule(

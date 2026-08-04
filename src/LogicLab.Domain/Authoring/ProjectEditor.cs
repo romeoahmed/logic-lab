@@ -246,7 +246,8 @@ public static partial class ProjectEditor
                     diagnostics.AddRange(ComponentParameterValidator.Validate(
                         library.ContractKey,
                         schema,
-                        intent.Parameters));
+                        intent.Parameters,
+                        document: revision.Document));
                 }
 
                 break;
