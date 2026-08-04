@@ -66,81 +66,43 @@ public sealed class SequentialComponentContractTests
     }
 
     [Test]
-    public async Task FindContract_FirstSequentialFamily_HasExactOrderedSchemas()
+    public async Task FindContract_SequentialFamily_HasExactOrderedSchemas()
     {
-        var latch = Find("sequential.d_latch");
-        var dff = Find("sequential.dff");
-        var register = Find("sequential.register");
+        string[] contractIds =
+        [
+            "sequential.sr_latch",
+            "sequential.d_latch",
+            "sequential.dff",
+            "sequential.jkff",
+            "sequential.tff",
+            "sequential.register",
+            "sequential.shift_register",
+            "sequential.counter",
+        ];
+        var actual = contractIds.Select(Project).ToArray();
+        SequentialContractShape[] expected =
+        [
+            new("sequential.sr_latch", "initialState", "S,R,Q,QN", ""),
+            new("sequential.d_latch", "width,initialState", "D,EN,Q", ""),
+            new("sequential.dff", "width,edge,initialState", "D,CLK,Q", "edge=rising/falling"),
+            new("sequential.jkff", "edge,initialState", "J,K,CLK,Q,QN", "edge=rising/falling"),
+            new("sequential.tff", "edge,initialState", "T,CLK,Q,QN", "edge=rising/falling"),
+            new("sequential.register", "width,edge,initialState", "D,CLK,EN,Q", "edge=rising/falling"),
+            new(
+                "sequential.shift_register",
+                "width,direction,edge,initialState",
+                "PARALLEL,SERIAL,LOAD,CLK,EN,Q,SERIAL_OUT",
+                "direction=towardHigh/towardLow;edge=rising/falling"),
+            new(
+                "sequential.counter",
+                "width,direction,edge,initialState",
+                "LOAD_VALUE,LOAD,CLK,EN,Q,TERMINAL",
+                "direction=up/down;edge=rising/falling"),
+        ];
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(latch.Parameters.Select(parameter => parameter.Id))
-                .IsEquivalentTo(["width", "initialState"], CollectionOrdering.Matching);
-            await Assert.That(latch.Ports.Select(port => port.Id))
-                .IsEquivalentTo(["D", "EN", "Q"], CollectionOrdering.Matching);
-            await Assert.That(dff.Parameters.Select(parameter => parameter.Id))
-                .IsEquivalentTo(
-                    ["width", "edge", "initialState"],
-                    CollectionOrdering.Matching);
-            await Assert.That(dff.Ports.Select(port => port.Id))
-                .IsEquivalentTo(["D", "CLK", "Q"], CollectionOrdering.Matching);
-            await Assert.That(register.Parameters.Select(parameter => parameter.Id))
-                .IsEquivalentTo(
-                    ["width", "edge", "initialState"],
-                    CollectionOrdering.Matching);
-            await Assert.That(register.Ports.Select(port => port.Id))
-                .IsEquivalentTo(["D", "CLK", "EN", "Q"], CollectionOrdering.Matching);
-            await Assert.That(dff.Parameters[1].AllowedValues)
-                .IsEquivalentTo(["rising", "falling"], CollectionOrdering.Matching);
-        }
-    }
-
-    [Test]
-    public async Task FindContract_RemainingSequentialFamily_HasExactOrderedSchemas()
-    {
-        var srLatch = Find("sequential.sr_latch");
-        var jkff = Find("sequential.jkff");
-        var tff = Find("sequential.tff");
-        var shiftRegister = Find("sequential.shift_register");
-        var counter = Find("sequential.counter");
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(srLatch.Parameters.Select(item => item.Id))
-                .IsEquivalentTo(["initialState"], CollectionOrdering.Matching);
-            await Assert.That(srLatch.Ports.Select(item => item.Id))
-                .IsEquivalentTo(["S", "R", "Q", "QN"], CollectionOrdering.Matching);
-            await Assert.That(jkff.Parameters.Select(item => item.Id))
-                .IsEquivalentTo(["edge", "initialState"], CollectionOrdering.Matching);
-            await Assert.That(jkff.Ports.Select(item => item.Id))
-                .IsEquivalentTo(["J", "K", "CLK", "Q", "QN"], CollectionOrdering.Matching);
-            await Assert.That(tff.Parameters.Select(item => item.Id))
-                .IsEquivalentTo(["edge", "initialState"], CollectionOrdering.Matching);
-            await Assert.That(tff.Ports.Select(item => item.Id))
-                .IsEquivalentTo(["T", "CLK", "Q", "QN"], CollectionOrdering.Matching);
-            await Assert.That(shiftRegister.Parameters.Select(item => item.Id))
-                .IsEquivalentTo(
-                    ["width", "direction", "edge", "initialState"],
-                    CollectionOrdering.Matching);
-            await Assert.That(shiftRegister.Ports.Select(item => item.Id))
-                .IsEquivalentTo(
-                    ["PARALLEL", "SERIAL", "LOAD", "CLK", "EN", "Q", "SERIAL_OUT"],
-                    CollectionOrdering.Matching);
-            await Assert.That(counter.Parameters.Select(item => item.Id))
-                .IsEquivalentTo(
-                    ["width", "direction", "edge", "initialState"],
-                    CollectionOrdering.Matching);
-            await Assert.That(counter.Ports.Select(item => item.Id))
-                .IsEquivalentTo(
-                    ["LOAD_VALUE", "LOAD", "CLK", "EN", "Q", "TERMINAL"],
-                    CollectionOrdering.Matching);
-            await Assert.That(shiftRegister.Parameters[1].AllowedValues)
-                .IsEquivalentTo(
-                    ["towardHigh", "towardLow"],
-                    CollectionOrdering.Matching);
-            await Assert.That(counter.Parameters[1].AllowedValues)
-                .IsEquivalentTo(["up", "down"], CollectionOrdering.Matching);
-        }
+        await Assert.That(actual).IsEquivalentTo(
+            expected,
+            CollectionOrdering.Matching);
     }
 
     [Test]
@@ -204,4 +166,23 @@ public sealed class SequentialComponentContractTests
             contractId)) ?? throw new InvalidOperationException(
                 $"The {contractId} contract is missing.");
     }
+
+    private static SequentialContractShape Project(string contractId)
+    {
+        var contract = Find(contractId);
+        return new SequentialContractShape(
+            contractId,
+            string.Join(',', contract.Parameters.Select(parameter => parameter.Id)),
+            string.Join(',', contract.Ports.Select(port => port.Id)),
+            string.Join(';', contract.Parameters
+                .Where(parameter => parameter.AllowedValues.Count > 0)
+                .Select(parameter =>
+                    $"{parameter.Id}={string.Join('/', parameter.AllowedValues)}")));
+    }
+
+    private sealed record SequentialContractShape(
+        string ContractId,
+        string Parameters,
+        string Ports,
+        string Choices);
 }

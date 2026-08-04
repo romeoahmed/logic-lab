@@ -168,13 +168,12 @@ public sealed class ComponentContractSchemaTests
                 new SlicesParameterValue(
                     [new BitSlice(0, 2), new BitSlice(2, 2)])),
         ]);
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        var cancellationToken = new CancellationToken(canceled: true);
 
         await Assert.That(() => resolution.TryMaterialize(
                 100,
                 out _,
-                cancellation.Token))
+                cancellationToken))
             .ThrowsExactly<OperationCanceledException>();
     }
 
