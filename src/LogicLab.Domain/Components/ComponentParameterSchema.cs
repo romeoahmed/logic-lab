@@ -11,13 +11,27 @@ public sealed class ComponentParameterSchema
         string[]? allowedValues = null,
         int minimumItemCount = 0,
         string? greaterThanParameterId = null,
-        uint minimumValue = 1)
+        uint minimumValue = 1,
+        string? memoryImageWidthParameterId = null,
+        string? memoryImageAddressWidthParameterId = null)
     {
         if (minimumValue == 0)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(minimumValue),
                 "A positive-width parameter minimum must be positive.");
+        }
+
+        var hasAnyMemoryImageShape = memoryImageWidthParameterId is not null
+            || memoryImageAddressWidthParameterId is not null;
+        var hasCompleteMemoryImageShape = memoryImageWidthParameterId is not null
+            && memoryImageAddressWidthParameterId is not null;
+        if (kind == ComponentParameterKind.MemoryImage
+                ? !hasCompleteMemoryImageShape
+                : hasAnyMemoryImageShape)
+        {
+            throw new ArgumentException(
+                "A Memory Image parameter must declare both shape parameter IDs, and no other kind may declare them.");
         }
 
         Id = id;
@@ -28,6 +42,8 @@ public sealed class ComponentParameterSchema
         MinimumItemCount = minimumItemCount;
         GreaterThanParameterId = greaterThanParameterId;
         MinimumValue = minimumValue;
+        MemoryImageWidthParameterId = memoryImageWidthParameterId;
+        MemoryImageAddressWidthParameterId = memoryImageAddressWidthParameterId;
     }
 
     public string Id { get; }
@@ -43,4 +59,8 @@ public sealed class ComponentParameterSchema
     public string? GreaterThanParameterId { get; }
 
     public uint MinimumValue { get; }
+
+    public string? MemoryImageWidthParameterId { get; }
+
+    public string? MemoryImageAddressWidthParameterId { get; }
 }
