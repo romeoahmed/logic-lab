@@ -96,24 +96,102 @@ public sealed class SequentialComponentContractTests
     }
 
     [Test]
+    public async Task FindContract_RemainingSequentialFamily_HasExactOrderedSchemas()
+    {
+        var srLatch = Find("sequential.sr_latch");
+        var jkff = Find("sequential.jkff");
+        var tff = Find("sequential.tff");
+        var shiftRegister = Find("sequential.shift_register");
+        var counter = Find("sequential.counter");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(srLatch.Parameters.Select(item => item.Id))
+                .IsEquivalentTo(["initialState"], CollectionOrdering.Matching);
+            await Assert.That(srLatch.Ports.Select(item => item.Id))
+                .IsEquivalentTo(["S", "R", "Q", "QN"], CollectionOrdering.Matching);
+            await Assert.That(jkff.Parameters.Select(item => item.Id))
+                .IsEquivalentTo(["edge", "initialState"], CollectionOrdering.Matching);
+            await Assert.That(jkff.Ports.Select(item => item.Id))
+                .IsEquivalentTo(["J", "K", "CLK", "Q", "QN"], CollectionOrdering.Matching);
+            await Assert.That(tff.Parameters.Select(item => item.Id))
+                .IsEquivalentTo(["edge", "initialState"], CollectionOrdering.Matching);
+            await Assert.That(tff.Ports.Select(item => item.Id))
+                .IsEquivalentTo(["T", "CLK", "Q", "QN"], CollectionOrdering.Matching);
+            await Assert.That(shiftRegister.Parameters.Select(item => item.Id))
+                .IsEquivalentTo(
+                    ["width", "direction", "edge", "initialState"],
+                    CollectionOrdering.Matching);
+            await Assert.That(shiftRegister.Ports.Select(item => item.Id))
+                .IsEquivalentTo(
+                    ["PARALLEL", "SERIAL", "LOAD", "CLK", "EN", "Q", "SERIAL_OUT"],
+                    CollectionOrdering.Matching);
+            await Assert.That(counter.Parameters.Select(item => item.Id))
+                .IsEquivalentTo(
+                    ["width", "direction", "edge", "initialState"],
+                    CollectionOrdering.Matching);
+            await Assert.That(counter.Ports.Select(item => item.Id))
+                .IsEquivalentTo(
+                    ["LOAD_VALUE", "LOAD", "CLK", "EN", "Q", "TERMINAL"],
+                    CollectionOrdering.Matching);
+            await Assert.That(shiftRegister.Parameters[1].AllowedValues)
+                .IsEquivalentTo(
+                    ["towardHigh", "towardLow"],
+                    CollectionOrdering.Matching);
+            await Assert.That(counter.Parameters[1].AllowedValues)
+                .IsEquivalentTo(["up", "down"], CollectionOrdering.Matching);
+        }
+    }
+
+    [Test]
     [Arguments("sequential.d_latch")]
     [Arguments("sequential.dff")]
     [Arguments("sequential.register")]
+    [Arguments("sequential.sr_latch")]
+    [Arguments("sequential.jkff")]
+    [Arguments("sequential.tff")]
+    [Arguments("sequential.shift_register")]
+    [Arguments("sequential.counter")]
     public async Task ResolvePorts_HighImpedanceInitialState_RejectsStoredValue(
         string contractId)
     {
-        var parameters = contractId == "sequential.d_latch"
-            ? new ComponentParameterBinding[]
-            {
+        ComponentParameterBinding[] parameters = contractId switch
+        {
+            "sequential.d_latch" =>
+            [
                 new("width", new Unsigned32ParameterValue(1)),
                 new("initialState", new LogicVectorParameterValue([LogicValue.Z])),
-            }
-            :
+            ],
+            "sequential.sr_latch" =>
+            [
+                new("initialState", new LogicVectorParameterValue([LogicValue.Z])),
+            ],
+            "sequential.jkff" or "sequential.tff" =>
+            [
+                new("edge", new ChoiceParameterValue("rising")),
+                new("initialState", new LogicVectorParameterValue([LogicValue.Z])),
+            ],
+            "sequential.shift_register" =>
+            [
+                new("width", new Unsigned32ParameterValue(1)),
+                new("direction", new ChoiceParameterValue("towardHigh")),
+                new("edge", new ChoiceParameterValue("rising")),
+                new("initialState", new LogicVectorParameterValue([LogicValue.Z])),
+            ],
+            "sequential.counter" =>
+            [
+                new("width", new Unsigned32ParameterValue(1)),
+                new("direction", new ChoiceParameterValue("up")),
+                new("edge", new ChoiceParameterValue("rising")),
+                new("initialState", new LogicVectorParameterValue([LogicValue.Z])),
+            ],
+            _ =>
             [
                 new("width", new Unsigned32ParameterValue(1)),
                 new("edge", new ChoiceParameterValue("rising")),
                 new("initialState", new LogicVectorParameterValue([LogicValue.Z])),
-            ];
+            ],
+        };
 
         await Assert.That(() => Find(contractId).ResolvePorts(parameters))
             .ThrowsExactly<ArgumentException>();

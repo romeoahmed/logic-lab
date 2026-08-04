@@ -388,6 +388,275 @@ public sealed class SequentialRuntimeTests
     }
 
     [Test]
+    public async Task Execute_SrLatchConflict_DrivesComplementAndEmitsSourceBoundDiagnostic()
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var set = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.Zero));
+        var reset = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.Zero));
+        var latch = circuit.Place(
+            "sequential.sr_latch",
+            SequentialTestCircuit.SrLatch(LogicValue.Zero));
+        var qSink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        var qnSink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        _ = circuit.Connect((set, "Q"), (latch, "S"));
+        _ = circuit.Connect((reset, "Q"), (latch, "R"));
+        var qNet = circuit.Connect((latch, "Q"), (qSink, "D"));
+        var qnNet = circuit.Connect((latch, "QN"), (qnSink, "D"));
+        var artifact = circuit.Compile();
+        var opened = Open(artifact, qNet, qnNet);
+        _ = SimulationRuntime.Execute(
+            opened.Handle,
+            new ScheduleStimulusBatch(new StimulusBatch(5,
+            [
+                new StimulusAssignment(
+                    SequentialTestCircuit.DriverSource(artifact, set),
+                    new LogicVector([LogicValue.One])),
+                new StimulusAssignment(
+                    SequentialTestCircuit.DriverSource(artifact, reset),
+                    new LogicVector([LogicValue.One])),
+            ])),
+            CancellationToken.None);
+
+        var committed = Advance(opened);
+        var conflict = committed.Diagnostics.Single(diagnostic =>
+            diagnostic.Code == "simulation_control_conflict");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.ObservedProbePatch.Select(item => item.Value[0]))
+                .IsEquivalentTo([LogicValue.X, LogicValue.X], CollectionOrdering.Matching);
+            await Assert.That(conflict.Severity)
+                .IsEqualTo(SimulationDiagnosticSeverity.Error);
+            await Assert.That(conflict.Arguments.Single().Value)
+                .IsEqualTo(new SimulationStableTokenValue("set_reset"));
+            var primary = await Assert.That(conflict.Primary?.Identity)
+                .IsTypeOf<ComponentInstanceSourceIdentity>();
+            Assert.NotNull(primary);
+            await Assert.That(primary.ComponentInstanceId).IsEqualTo(latch.Id);
+        }
+    }
+
+    [Test]
+    public async Task Execute_JkAndTFlipFlops_OnSharedEdgePublishQAndComplement()
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var one = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.One));
+        var clock = circuit.Place("source.clock", SequentialTestCircuit.Clock());
+        var jk = circuit.Place(
+            "sequential.jkff",
+            SequentialTestCircuit.ScalarState(LogicValue.Zero));
+        var tff = circuit.Place(
+            "sequential.tff",
+            SequentialTestCircuit.ScalarState(LogicValue.One));
+        var jkSink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        var tSink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        _ = circuit.Connect((one, "Q"), (jk, "J"), (jk, "K"), (tff, "T"));
+        _ = circuit.Connect((clock, "Q"), (jk, "CLK"), (tff, "CLK"));
+        var jkNet = circuit.Connect((jk, "Q"), (jkSink, "D"));
+        var tComplementNet = circuit.Connect((tff, "QN"), (tSink, "D"));
+        var opened = Open(circuit.Compile(), jkNet, tComplementNet);
+
+        var committed = Advance(opened);
+
+        await Assert.That(committed.ObservedProbePatch.Select(item => item.Value[0]))
+            .IsEquivalentTo([LogicValue.One, LogicValue.One], CollectionOrdering.Matching);
+    }
+
+    [Test]
+    public async Task Execute_ShiftRegister_LoadThenShift_RespectsPriorityAndSerialOutput()
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var parallel = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.InputVector(
+                LogicValue.One,
+                LogicValue.Zero,
+                LogicValue.One));
+        var serial = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.Zero));
+        var load = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.One));
+        var enable = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.One));
+        var clock = circuit.Place("source.clock", SequentialTestCircuit.Clock());
+        var shift = circuit.Place(
+            "sequential.shift_register",
+            SequentialTestCircuit.ShiftRegister(
+                "towardHigh",
+                LogicValue.Zero,
+                LogicValue.Zero,
+                LogicValue.Zero));
+        var qSink = circuit.Place("sink.output", SequentialTestCircuit.Sink(width: 3));
+        var serialSink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        _ = circuit.Connect((parallel, "Q"), (shift, "PARALLEL"));
+        _ = circuit.Connect((serial, "Q"), (shift, "SERIAL"));
+        _ = circuit.Connect((load, "Q"), (shift, "LOAD"));
+        _ = circuit.Connect((clock, "Q"), (shift, "CLK"));
+        _ = circuit.Connect((enable, "Q"), (shift, "EN"));
+        var qNet = circuit.Connect((shift, "Q"), (qSink, "D"));
+        var serialNet = circuit.Connect((shift, "SERIAL_OUT"), (serialSink, "D"));
+        var artifact = circuit.Compile();
+        var opened = Open(artifact, qNet, serialNet);
+
+        _ = Advance(opened);
+        _ = SimulationRuntime.Execute(
+            opened.Handle,
+            new ScheduleStimulusBatch(new StimulusBatch(8,
+            [
+                new StimulusAssignment(
+                    SequentialTestCircuit.DriverSource(artifact, load),
+                    new LogicVector([LogicValue.Zero])),
+                new StimulusAssignment(
+                    SequentialTestCircuit.DriverSource(artifact, serial),
+                    new LogicVector([LogicValue.One])),
+            ])),
+            CancellationToken.None);
+        _ = Advance(opened);
+        _ = Advance(opened);
+        var shifted = Advance(opened);
+        var snapshot = Snapshot(opened);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(shifted.LogicalTime).IsEqualTo(10UL);
+            await Assert.That(Enumerable.Range(0, 3).Select(bit =>
+                    snapshot.Probes[0].Value[bit]))
+                .IsEquivalentTo(
+                    [LogicValue.One, LogicValue.One, LogicValue.Zero],
+                    CollectionOrdering.Matching);
+            await Assert.That(snapshot.Probes[1].Value[0]).IsEqualTo(LogicValue.Zero);
+        }
+    }
+
+    [Test]
+    public async Task Execute_UpCounter_FromTerminalStateWrapsModuloWidth()
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var loadValue = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.InputVector(LogicValue.Zero, LogicValue.Zero));
+        var load = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.Zero));
+        var enable = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.One));
+        var clock = circuit.Place("source.clock", SequentialTestCircuit.Clock());
+        var counter = circuit.Place(
+            "sequential.counter",
+            SequentialTestCircuit.Counter(
+                "up",
+                LogicValue.One,
+                LogicValue.One));
+        var qSink = circuit.Place("sink.output", SequentialTestCircuit.Sink(width: 2));
+        var terminalSink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        _ = circuit.Connect((loadValue, "Q"), (counter, "LOAD_VALUE"));
+        _ = circuit.Connect((load, "Q"), (counter, "LOAD"));
+        _ = circuit.Connect((clock, "Q"), (counter, "CLK"));
+        _ = circuit.Connect((enable, "Q"), (counter, "EN"));
+        var qNet = circuit.Connect((counter, "Q"), (qSink, "D"));
+        var terminalNet = circuit.Connect((counter, "TERMINAL"), (terminalSink, "D"));
+        var opened = Open(circuit.Compile(), qNet, terminalNet);
+
+        var committed = Advance(opened);
+        var snapshot = Snapshot(opened);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.ObservedProbePatch.Count).IsEqualTo(2);
+            await Assert.That(Enumerable.Range(0, 2).Select(bit =>
+                    snapshot.Probes[0].Value[bit]))
+                .IsEquivalentTo(
+                    [LogicValue.Zero, LogicValue.Zero],
+                    CollectionOrdering.Matching);
+            await Assert.That(snapshot.Probes[1].Value[0]).IsEqualTo(LogicValue.Zero);
+        }
+    }
+
+    [Test]
+    public async Task Execute_DerivedClock_ProducesSecondTriggerBatchAtSameLogicalTime()
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var one = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.One));
+        var clock = circuit.Place("source.clock", SequentialTestCircuit.Clock());
+        var dff = circuit.Place("sequential.dff", SequentialTestCircuit.Dff(LogicValue.Zero));
+        var tff = circuit.Place(
+            "sequential.tff",
+            SequentialTestCircuit.ScalarState(LogicValue.Zero));
+        var sink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        _ = circuit.Connect((one, "Q"), (dff, "D"), (tff, "T"));
+        _ = circuit.Connect((clock, "Q"), (dff, "CLK"));
+        _ = circuit.Connect((dff, "Q"), (tff, "CLK"));
+        var outputNet = circuit.Connect((tff, "Q"), (sink, "D"));
+        var opened = Open(circuit.Compile(), outputNet);
+
+        var committed = Advance(opened);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.LogicalTime).IsEqualTo(5UL);
+            await Assert.That(committed.ObservedProbePatch.Single().Value[0])
+                .IsEqualTo(LogicValue.One);
+        }
+    }
+
+    [Test]
+    public async Task Execute_ExactRepeatedWorkingState_ProvesOscillationAndRollsBack()
+    {
+        var (opened, _) = CreateTransparentLatchOscillator(zeroTimeStateLimit: 2);
+        var before = Snapshot(opened);
+
+        var failed = SimulationRuntime.Execute(
+            opened.Handle,
+            new AdvanceToNextQuiescentBoundary(),
+            CancellationToken.None);
+        var after = Snapshot(opened);
+        var retry = SimulationRuntime.Execute(
+            opened.Handle,
+            new AdvanceToNextQuiescentBoundary(),
+            CancellationToken.None);
+
+        var firstFailure = await Assert.That(failed).IsTypeOf<AdvanceFailed>();
+        var retryFailure = await Assert.That(retry).IsTypeOf<AdvanceFailed>();
+        Assert.NotNull(firstFailure);
+        Assert.NotNull(retryFailure);
+        using (Assert.Multiple())
+        {
+            await Assert.That(firstFailure.Reason)
+                .IsEqualTo(SimulationFailureReason.ZeroTimeOscillation);
+            await Assert.That(firstFailure.PolicyEvidence).IsNull();
+            await Assert.That(retryFailure.Reason).IsEqualTo(firstFailure.Reason);
+            await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
+            await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
+            await Assert.That(after.TraceCursor).IsEqualTo(before.TraceCursor);
+            await Assert.That(after.Probes[0].Value[0])
+                .IsEqualTo(before.Probes[0].Value[0]);
+        }
+    }
+
+    [Test]
+    public async Task Execute_ZeroTimeStateLimitBeforeRepeat_ReturnsResourceLimitNotOscillation()
+    {
+        var (opened, _) = CreateTransparentLatchOscillator(zeroTimeStateLimit: 1);
+        var before = Snapshot(opened);
+
+        var failed = SimulationRuntime.Execute(
+            opened.Handle,
+            new AdvanceToNextQuiescentBoundary(),
+            CancellationToken.None);
+        var after = Snapshot(opened);
+
+        var failure = await Assert.That(failed).IsTypeOf<AdvanceFailed>();
+        Assert.NotNull(failure);
+        var policyEvidence = failure.PolicyEvidence;
+        Assert.NotNull(policyEvidence);
+        using (Assert.Multiple())
+        {
+            await Assert.That(failure.Reason)
+                .IsEqualTo(SimulationFailureReason.SimulationResourceLimit);
+            await Assert.That(policyEvidence.Dimension)
+                .IsEqualTo("zero_time_state_count");
+            await Assert.That(policyEvidence.Observed).IsEqualTo(2UL);
+            await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
+            await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
+            await Assert.That(after.TraceCursor).IsEqualTo(before.TraceCursor);
+        }
+    }
+
+    [Test]
     public async Task Execute_TriggerBatchLimitExceeded_RollsBackStateTraceAndClockEvent()
     {
         var circuit = SequentialTestCircuit.Create();
@@ -488,7 +757,44 @@ public sealed class SequentialRuntimeTests
             CancellationToken.None);
     }
 
-    private static SimulationPolicy PolicyWithTriggerBatchLimit(ulong limit)
+    private static (SimulationOpened Opened, CompilationArtifact Artifact)
+        CreateTransparentLatchOscillator(ulong zeroTimeStateLimit)
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var enable = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.Zero));
+        var inverter = circuit.Place(
+            "logic.not",
+            new ComponentParameterBinding(
+                "width",
+                new Unsigned32ParameterValue(1)));
+        var latch = circuit.Place(
+            "sequential.d_latch",
+            SequentialTestCircuit.Latch(LogicValue.Zero));
+        var sink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        _ = circuit.Connect((latch, "Q"), (inverter, "A"), (sink, "D"));
+        _ = circuit.Connect((inverter, "Q"), (latch, "D"));
+        _ = circuit.Connect((enable, "Q"), (latch, "EN"));
+        var outputNet = circuit.Revision.Document.EntryCircuitDefinition.Nets.Single(net =>
+            net.Terminals.OfType<InstanceTerminalReference>().Any(terminal =>
+                terminal.ComponentInstanceId == sink.Id));
+        var artifact = circuit.Compile();
+        var policy = PolicyWithTriggerBatchLimit(100_000, zeroTimeStateLimit);
+        var opened = Open(artifact, policy, outputNet);
+        _ = SimulationRuntime.Execute(
+            opened.Handle,
+            new ScheduleStimulusBatch(new StimulusBatch(5,
+            [
+                new StimulusAssignment(
+                    SequentialTestCircuit.DriverSource(artifact, enable),
+                    new LogicVector([LogicValue.One])),
+            ])),
+            CancellationToken.None);
+        return (opened, artifact);
+    }
+
+    private static SimulationPolicy PolicyWithTriggerBatchLimit(
+        ulong limit,
+        ulong zeroTimeStateLimit = 100_000)
     {
         return new SimulationPolicy(
             "test-simulation",
@@ -500,7 +806,9 @@ public sealed class SequentialRuntimeTests
                 new SimulationLimit(SimulationDimension.AdvanceFrontierItemCount, 100_000),
                 new SimulationLimit(SimulationDimension.WorkingLayerSlotCount, 100_000),
                 new SimulationLimit(SimulationDimension.TriggerBatchCount, limit),
-                new SimulationLimit(SimulationDimension.ZeroTimeStateCount, 100_000),
+                new SimulationLimit(
+                    SimulationDimension.ZeroTimeStateCount,
+                    zeroTimeStateLimit),
             ]);
     }
 }

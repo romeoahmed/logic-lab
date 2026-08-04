@@ -195,8 +195,59 @@ public static class CoreLibrarySchema
     private static readonly ComponentContractSchema SequentialDff =
         CreateEdgeStateContract("sequential.dff", includeEnable: false);
 
+    private static readonly ComponentContractSchema SequentialSrLatch = new(
+        new ComponentContractKey(LibraryId, "sequential.sr_latch"),
+        [FixedLogicParameter("initialState")],
+        [
+            FixedOnePort("S", PortDirection.Input),
+            FixedOnePort("R", PortDirection.Input),
+            FixedOnePort("Q", PortDirection.Output),
+            FixedOnePort("QN", PortDirection.Output),
+        ]);
+
+    private static readonly ComponentContractSchema SequentialJkff =
+        CreateScalarEdgeStateContract("sequential.jkff", "J", "K");
+
+    private static readonly ComponentContractSchema SequentialTff =
+        CreateScalarEdgeStateContract("sequential.tff", "T");
+
     private static readonly ComponentContractSchema SequentialRegister =
         CreateEdgeStateContract("sequential.register", includeEnable: true);
+
+    private static readonly ComponentContractSchema SequentialShiftRegister = new(
+        new ComponentContractKey(LibraryId, "sequential.shift_register"),
+        [
+            WidthParameter("width"),
+            ChoiceParameter("direction", "towardHigh", "towardLow"),
+            ChoiceParameter("edge", "rising", "falling"),
+            StateParameter("width"),
+        ],
+        [
+            new ComponentPortSchema("PARALLEL", PortDirection.Input, "width"),
+            FixedOnePort("SERIAL", PortDirection.Input),
+            FixedOnePort("LOAD", PortDirection.Input),
+            FixedOnePort("CLK", PortDirection.Input),
+            FixedOnePort("EN", PortDirection.Input),
+            new ComponentPortSchema("Q", PortDirection.Output, "width"),
+            FixedOnePort("SERIAL_OUT", PortDirection.Output),
+        ]);
+
+    private static readonly ComponentContractSchema SequentialCounter = new(
+        new ComponentContractKey(LibraryId, "sequential.counter"),
+        [
+            WidthParameter("width"),
+            ChoiceParameter("direction", "up", "down"),
+            ChoiceParameter("edge", "rising", "falling"),
+            StateParameter("width"),
+        ],
+        [
+            new ComponentPortSchema("LOAD_VALUE", PortDirection.Input, "width"),
+            FixedOnePort("LOAD", PortDirection.Input),
+            FixedOnePort("CLK", PortDirection.Input),
+            FixedOnePort("EN", PortDirection.Input),
+            new ComponentPortSchema("Q", PortDirection.Output, "width"),
+            FixedOnePort("TERMINAL", PortDirection.Output),
+        ]);
 
     private static readonly ComponentContractSchema SourceConstant = new(
         new ComponentContractKey(LibraryId, "source.constant"),
@@ -303,9 +354,14 @@ public static class CoreLibrarySchema
         LogicXor,
         MemoryRamSinglePort,
         MemoryRom,
+        SequentialCounter,
         SequentialDLatch,
         SequentialDff,
+        SequentialJkff,
         SequentialRegister,
+        SequentialShiftRegister,
+        SequentialSrLatch,
+        SequentialTff,
         SinkOutput,
         SourceClock,
         SourceConstant,
@@ -394,12 +450,27 @@ public static class CoreLibrarySchema
             [
                 WidthParameter("width"),
                 ChoiceParameter("edge", "rising", "falling"),
-                new ComponentParameterSchema(
-                    "initialState",
-                    ComponentParameterKind.LogicVector,
-                    widthParameterId: "width"),
+                StateParameter("width"),
             ],
             [.. ports]);
+    }
+
+    private static ComponentContractSchema CreateScalarEdgeStateContract(
+        string contractId,
+        params string[] controlPortIds)
+    {
+        return new ComponentContractSchema(
+            new ComponentContractKey(LibraryId, contractId),
+            [
+                ChoiceParameter("edge", "rising", "falling"),
+                FixedLogicParameter("initialState"),
+            ],
+            [
+                .. controlPortIds.Select(id => FixedOnePort(id, PortDirection.Input)),
+                FixedOnePort("CLK", PortDirection.Input),
+                FixedOnePort("Q", PortDirection.Output),
+                FixedOnePort("QN", PortDirection.Output),
+            ]);
     }
 
     private static ComponentContractSchema CreateUnaryLogicContract(string contractId)
@@ -492,6 +563,22 @@ public static class CoreLibrarySchema
             id,
             ComponentParameterKind.Choice,
             allowedValues: values);
+    }
+
+    private static ComponentParameterSchema StateParameter(string widthParameterId)
+    {
+        return new ComponentParameterSchema(
+            "initialState",
+            ComponentParameterKind.LogicVector,
+            widthParameterId: widthParameterId);
+    }
+
+    private static ComponentParameterSchema FixedLogicParameter(string id)
+    {
+        return new ComponentParameterSchema(
+            id,
+            ComponentParameterKind.LogicVector,
+            fixedWidth: 1);
     }
 
     private static ComponentPortSchema FixedOnePort(string id, PortDirection direction)

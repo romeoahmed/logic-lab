@@ -69,6 +69,7 @@ public static partial class SimulationRuntime
     {
         var ir = artifact.SimulationIr;
         var previous = previousNetValues;
+        var zeroTimeStates = new ZeroTimeStateTracker();
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -95,6 +96,13 @@ public static partial class SimulationRuntime
                 var currentState = sequentialStates[evaluator.Ordinal]!;
                 sampled[index] = evaluator.Kind switch
                 {
+                    SimulationEvaluatorKind.SequentialSrLatch =>
+                        SampleSrLatch(
+                            artifact,
+                            evaluator,
+                            currentState,
+                            netValues,
+                            clockDiagnostics),
                     SimulationEvaluatorKind.SequentialDLatch =>
                         SequentialEvaluation.WithEnable(
                             currentState,
@@ -108,6 +116,32 @@ public static partial class SimulationRuntime
                             currentState,
                             netValues[evaluator.InputNetOrdinals[0]],
                             netValues[evaluator.InputNetOrdinals[2]][0]),
+                    SimulationEvaluatorKind.SequentialJkff =>
+                        SequentialEvaluation.JkFlipFlop(
+                            currentState[0],
+                            netValues[evaluator.InputNetOrdinals[0]][0],
+                            netValues[evaluator.InputNetOrdinals[1]][0]),
+                    SimulationEvaluatorKind.SequentialTff =>
+                        SequentialEvaluation.TFlipFlop(
+                            currentState[0],
+                            netValues[evaluator.InputNetOrdinals[0]][0]),
+                    SimulationEvaluatorKind.SequentialShiftRegister =>
+                        SequentialEvaluation.ShiftRegister(
+                            currentState,
+                            netValues[evaluator.InputNetOrdinals[0]],
+                            netValues[evaluator.InputNetOrdinals[1]][0],
+                            netValues[evaluator.InputNetOrdinals[2]][0],
+                            netValues[evaluator.InputNetOrdinals[4]][0],
+                            evaluator.SequentialOptions!.Direction
+                                == SequentialDirection.TowardHigh),
+                    SimulationEvaluatorKind.SequentialCounter =>
+                        SequentialEvaluation.Counter(
+                            currentState,
+                            netValues[evaluator.InputNetOrdinals[0]],
+                            netValues[evaluator.InputNetOrdinals[1]][0],
+                            netValues[evaluator.InputNetOrdinals[3]][0],
+                            evaluator.SequentialOptions!.Direction
+                                == SequentialDirection.Up),
                     _ => throw new InvalidOperationException(
                         "The triggered evaluator is not sequential."),
                 };
@@ -117,7 +151,7 @@ public static partial class SimulationRuntime
             {
                 var evaluator = ir.Evaluators[triggered[index]];
                 sequentialStates[evaluator.Ordinal] = sampled[index];
-                driverValues[evaluator.OutputDriverOrdinals[0]] = sampled[index];
+                UpdateSequentialDrivers(evaluator, sampled[index], driverValues);
             }
 
             previous = netValues;
@@ -128,6 +162,72 @@ public static partial class SimulationRuntime
                 work,
                 cancellationToken);
             netValues = settlement.NetValues;
+            zeroTimeStates.Observe(
+                previous,
+                netValues,
+                driverValues,
+                sequentialStates,
+                policy,
+                cancellationToken);
+        }
+    }
+
+    private static LogicVector SampleSrLatch(
+        CompilationArtifact artifact,
+        SimulationEvaluator evaluator,
+        LogicVector currentState,
+        LogicVector[] netValues,
+        List<SimulationDiagnostic> diagnostics)
+    {
+        var result = SequentialEvaluation.SrLatch(
+            currentState[0],
+            netValues[evaluator.InputNetOrdinals[0]][0],
+            netValues[evaluator.InputNetOrdinals[1]][0]);
+        if (result.HasControlConflict)
+        {
+            diagnostics.Add(new SimulationDiagnostic(
+                "simulation_control_conflict",
+                SimulationDiagnosticSeverity.Error,
+                [
+                    new SimulationDiagnosticArgument(
+                        "controlKind",
+                        new SimulationStableTokenValue("set_reset")),
+                ],
+                artifact.SourceMap.Evaluators[evaluator.Ordinal].Source,
+                []));
+        }
+
+        return result.State;
+    }
+
+    private static void UpdateSequentialDrivers(
+        SimulationEvaluator evaluator,
+        LogicVector state,
+        LogicVector[] driverValues)
+    {
+        driverValues[evaluator.OutputDriverOrdinals[0]] = state;
+        switch (evaluator.Kind)
+        {
+            case SimulationEvaluatorKind.SequentialSrLatch:
+            case SimulationEvaluatorKind.SequentialJkff:
+            case SimulationEvaluatorKind.SequentialTff:
+                driverValues[evaluator.OutputDriverOrdinals[1]] = VectorLogic.Not(state);
+                break;
+            case SimulationEvaluatorKind.SequentialShiftRegister:
+                driverValues[evaluator.OutputDriverOrdinals[1]] = new LogicVector([
+                    SequentialEvaluation.ShiftSerialOutput(
+                        state,
+                        evaluator.SequentialOptions!.Direction
+                            == SequentialDirection.TowardHigh),
+                ]);
+                break;
+            case SimulationEvaluatorKind.SequentialCounter:
+                driverValues[evaluator.OutputDriverOrdinals[1]] = new LogicVector([
+                    SequentialEvaluation.CounterTerminal(
+                        state,
+                        evaluator.SequentialOptions!.Direction == SequentialDirection.Up),
+                ]);
+                break;
         }
     }
 
@@ -143,7 +243,8 @@ public static partial class SimulationRuntime
             SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind)))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (evaluator.Kind == SimulationEvaluatorKind.SequentialDLatch)
+            if (evaluator.Kind is SimulationEvaluatorKind.SequentialDLatch
+                or SimulationEvaluatorKind.SequentialSrLatch)
             {
                 if (evaluator.InputNetOrdinals.Any(netOrdinal => !ValuesEqual(
                         previousNetValues[netOrdinal],
@@ -155,7 +256,9 @@ public static partial class SimulationRuntime
                 continue;
             }
 
-            var clockNetOrdinal = evaluator.InputNetOrdinals[1];
+            var options = evaluator.SequentialOptions!;
+            var clockNetOrdinal = evaluator.InputNetOrdinals[
+                options.ClockInputOrdinal!.Value];
             var previous = previousNetValues[clockNetOrdinal][0];
             var current = currentNetValues[clockNetOrdinal][0];
             if (SequentialEvaluation.IsIndefiniteTransition(previous, current))
@@ -170,7 +273,7 @@ public static partial class SimulationRuntime
             if (SequentialEvaluation.IsConfiguredDefiniteEdge(
                     previous,
                     current,
-                    evaluator.Option))
+                    options.RisingEdge))
             {
                 triggered.Add(evaluator.Ordinal);
             }
@@ -199,4 +302,104 @@ public static partial class SimulationRuntime
             artifact.SourceMap.Nets[clockNetOrdinal].Source,
             []);
     }
+
+    private sealed class ZeroTimeStateTracker
+    {
+        private readonly List<ZeroTimeWorkingState> states = [];
+        private ulong observed;
+
+        public void Observe(
+            LogicVector[] previousNetValues,
+            LogicVector[] netValues,
+            LogicVector[] driverValues,
+            LogicVector?[] sequentialStates,
+            SimulationPolicy policy,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var candidate = new ZeroTimeWorkingState(
+                previousNetValues,
+                netValues,
+                driverValues,
+                sequentialStates);
+            if (states.Any(candidate.ExactlyEquals))
+            {
+                throw new ZeroTimeOscillationException();
+            }
+
+            CountWork(
+                policy,
+                SimulationDimension.ZeroTimeStateCount,
+                ref observed);
+            states.Add(candidate);
+        }
+    }
+
+    private sealed class ZeroTimeWorkingState
+    {
+        private readonly LogicVector[] previousNetValues;
+        private readonly LogicVector[] netValues;
+        private readonly LogicVector[] driverValues;
+        private readonly LogicVector?[] sequentialStates;
+
+        public ZeroTimeWorkingState(
+            LogicVector[] previousNetValues,
+            LogicVector[] netValues,
+            LogicVector[] driverValues,
+            LogicVector?[] sequentialStates)
+        {
+            this.previousNetValues = (LogicVector[])previousNetValues.Clone();
+            this.netValues = (LogicVector[])netValues.Clone();
+            this.driverValues = (LogicVector[])driverValues.Clone();
+            this.sequentialStates = (LogicVector?[])sequentialStates.Clone();
+        }
+
+        public bool ExactlyEquals(ZeroTimeWorkingState other)
+        {
+            return VectorArraysEqual(previousNetValues, other.previousNetValues)
+                && VectorArraysEqual(netValues, other.netValues)
+                && VectorArraysEqual(driverValues, other.driverValues)
+                && NullableVectorArraysEqual(
+                    sequentialStates,
+                    other.sequentialStates);
+        }
+
+        private static bool VectorArraysEqual(
+            LogicVector[] left,
+            LogicVector[] right)
+        {
+            return left.Length == right.Length
+                && left.Select((value, index) => ValuesEqual(value, right[index]))
+                    .All(equal => equal);
+        }
+
+        private static bool NullableVectorArraysEqual(
+            LogicVector?[] left,
+            LogicVector?[] right)
+        {
+            if (left.Length != right.Length)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < left.Length; index++)
+            {
+                if (left[index] is null || right[index] is null)
+                {
+                    if (left[index] is not null || right[index] is not null)
+                    {
+                        return false;
+                    }
+                }
+                else if (!ValuesEqual(left[index]!, right[index]!))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+
+    private sealed class ZeroTimeOscillationException : Exception;
 }

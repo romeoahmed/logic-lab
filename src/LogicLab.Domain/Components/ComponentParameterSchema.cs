@@ -13,7 +13,8 @@ public sealed class ComponentParameterSchema
         string? greaterThanParameterId = null,
         uint minimumValue = 1,
         string? memoryImageWidthParameterId = null,
-        string? memoryImageAddressWidthParameterId = null)
+        string? memoryImageAddressWidthParameterId = null,
+        uint? fixedWidth = null)
     {
         if (minimumValue == 0)
         {
@@ -34,6 +35,18 @@ public sealed class ComponentParameterSchema
                 "A Memory Image parameter must declare both shape parameter IDs, and no other kind may declare them.");
         }
 
+        if (fixedWidth == 0
+            || (fixedWidth is not null && kind != ComponentParameterKind.LogicVector)
+            || (fixedWidth is not null && widthParameterId is not null)
+            || (kind == ComponentParameterKind.LogicVector
+                && fixedWidth is null
+                && widthParameterId is null))
+        {
+            throw new ArgumentException(
+                "A fixed width is positive, belongs only to a Logic Vector, and cannot be combined with a width parameter.",
+                nameof(fixedWidth));
+        }
+
         Id = id;
         Kind = kind;
         WidthParameterId = widthParameterId;
@@ -44,6 +57,7 @@ public sealed class ComponentParameterSchema
         MinimumValue = minimumValue;
         MemoryImageWidthParameterId = memoryImageWidthParameterId;
         MemoryImageAddressWidthParameterId = memoryImageAddressWidthParameterId;
+        FixedWidth = fixedWidth;
     }
 
     public string Id { get; }
@@ -63,4 +77,6 @@ public sealed class ComponentParameterSchema
     public string? MemoryImageWidthParameterId { get; }
 
     public string? MemoryImageAddressWidthParameterId { get; }
+
+    public uint? FixedWidth { get; }
 }

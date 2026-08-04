@@ -213,7 +213,8 @@ internal static class ComponentParameterValidator
             }
         }
 
-        var width = FindUnsignedWidth(allParameters, schema.WidthParameterId);
+        var width = schema.FixedWidth
+            ?? FindUnsignedWidth(allParameters, schema.WidthParameterId);
 
         return width == 0 || vector.Values.Count != width
             ? "vectorWidth"
