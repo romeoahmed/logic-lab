@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
@@ -694,7 +695,7 @@ public static partial class Compiler
         HierarchyOccurrence occurrence,
         AuthoredTerminalReference terminal,
         Dictionary<HierarchyInstanceKey, HierarchyResolvedInstance> resolvedByInstance,
-        out HierarchyPort port)
+        [NotNullWhen(true)] out HierarchyPort? port)
     {
         switch (terminal)
         {
@@ -703,7 +704,7 @@ public static partial class Compiler
                     definitionTerminal.DefinitionPortId);
                 if (definitionPort is null)
                 {
-                    port = default!;
+                    port = null;
                     return false;
                 }
 
@@ -718,7 +719,7 @@ public static partial class Compiler
                     instanceTerminal.ComponentInstanceId);
                 if (instance is null)
                 {
-                    port = default!;
+                    port = null;
                     return false;
                 }
 
@@ -728,7 +729,7 @@ public static partial class Compiler
                             new HierarchyInstanceKey(occurrence, instance.Id),
                             out var resolved))
                     {
-                        port = default!;
+                        port = null;
                         return false;
                     }
 
@@ -739,7 +740,7 @@ public static partial class Compiler
                             StringComparison.Ordinal));
                     if (componentPort is null)
                     {
-                        port = default!;
+                        port = null;
                         return false;
                     }
 
@@ -758,7 +759,7 @@ public static partial class Compiler
                 var targetPort = target?.FindPort(instanceTerminal.PortId);
                 if (targetPort is null)
                 {
-                    port = default!;
+                    port = null;
                     return false;
                 }
 
