@@ -90,6 +90,7 @@ internal static class SimulationNetDiagnostics
             artifact,
             driverValues,
             resolutions,
+            sources,
             diagnostics);
 
         diagnostics.Sort(SimulationNetDiagnosticComparer.Instance);
@@ -100,12 +101,10 @@ internal static class SimulationNetDiagnostics
         CompilationArtifact artifact,
         LogicVector[] driverValues,
         VectorNetResolution[] resolutions,
+        Dictionary<int, CompilationSource> netSources,
         List<SimulationDiagnostic> diagnostics)
     {
         var ir = artifact.SimulationIr;
-        var netSources = artifact.SourceMap.Nets.ToDictionary(
-            entry => entry.Ordinal,
-            entry => entry.Source);
         foreach (var component in ir.StronglyConnectedComponents.Where(
             item => item.IsCyclic))
         {

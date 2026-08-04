@@ -203,6 +203,100 @@ public sealed class SimulationFeedbackTests
     }
 
     [Test]
+    public async Task SettleCombinational_FairAndPermutedWorklistOrders_MatchOracle()
+    {
+        var circuits = new[]
+        {
+            CreateAndZeroFeedback(),
+            CreateSelfInvertingFeedback(),
+            CreateCrossCoupledInverters(),
+            CreateContendedFeedback(),
+            CreateTwoEvaluatorKnownFeedback(reverseGates: false),
+            CreateTwoEvaluatorKnownFeedback(reverseGates: true),
+            CreateThreeEvaluatorKnownFeedback(),
+        };
+        var worklistOrders = new IComparer<int>[]
+        {
+            Comparer<int>.Default,
+            Comparer<int>.Create((left, right) => right.CompareTo(left)),
+            Comparer<int>.Create(ComparePermutedOrdinals),
+        };
+        var scheduleWitness = circuits[^1].Artifact.SimulationIr
+            .StronglyConnectedComponents.Single(component => component.IsCyclic);
+        var distinctInitialOrders = worklistOrders
+            .Select(order => string.Join(
+                ",",
+                scheduleWitness.EvaluatorOrdinals.Order(order)))
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+
+        await Assert.That(distinctInitialOrders).IsEqualTo(worklistOrders.Length);
+
+        foreach (var circuit in circuits)
+        {
+            var expected = SettleSynchronouslyFromBottom(circuit.Artifact);
+            foreach (var worklistOrder in worklistOrders)
+            {
+                var actual = SimulationRuntime.SettleCombinational(
+                    circuit.Artifact,
+                    SimulationTestContext.PermissiveSimulationPolicy(),
+                    worklistOrder,
+                    CancellationToken.None);
+
+                await Assert.That(actual.Select(value => value[0])
+                        .SequenceEqual(expected))
+                    .IsTrue();
+            }
+        }
+    }
+
+    [Test]
+    public async Task SettleCombinational_DependentVisitedBeforeRefinement_RequeuesIt()
+    {
+        var circuit = CreateTwoEvaluatorKnownFeedback(reverseGates: false);
+        var logicNotOrdinal = circuit.Artifact.SimulationIr.Evaluators.Single(
+            evaluator => evaluator.Kind == SimulationEvaluatorKind.LogicNot).Ordinal;
+        var logicNotFirst = Comparer<int>.Create((left, right) =>
+        {
+            if (left == right)
+            {
+                return 0;
+            }
+
+            if (left == logicNotOrdinal)
+            {
+                return -1;
+            }
+
+            if (right == logicNotOrdinal)
+            {
+                return 1;
+            }
+
+            return left.CompareTo(right);
+        });
+
+        var actual = SimulationRuntime.SettleCombinational(
+            circuit.Artifact,
+            SimulationTestContext.PermissiveSimulationPolicy(),
+            logicNotFirst,
+            CancellationToken.None);
+        using (Assert.Multiple())
+        {
+            await Assert.That(OutputNetValue(
+                    circuit.Artifact,
+                    actual,
+                    SimulationEvaluatorKind.LogicAnd))
+                .IsEqualTo(LogicValue.Zero);
+            await Assert.That(OutputNetValue(
+                    circuit.Artifact,
+                    actual,
+                    SimulationEvaluatorKind.LogicNot))
+                .IsEqualTo(LogicValue.One);
+        }
+    }
+
+    [Test]
     public async Task Advance_BoundaryChanges_RestartsFeedbackEpochFromUnknown()
     {
         var circuit = CreateBoundaryDrivenOrFeedback();
@@ -374,6 +468,37 @@ public sealed class SimulationFeedbackTests
             (logicNot, "Q"),
             (logicAnd, "A0"),
             (oneSink, "D"));
+        return Compile(revision);
+    }
+
+    private static FeedbackCircuit CreateThreeEvaluatorKnownFeedback()
+    {
+        var revision = CompilerTestCircuit.BeginProject();
+        (revision, var zero) = Place(revision, "source.constant", SourceParameters(
+            "value",
+            new LogicVectorParameterValue([LogicValue.Zero])));
+        (revision, var logicAnd) = Place(revision, "logic.and", GateParameters());
+        (revision, var logicNot) = Place(revision, "logic.not", WidthParameters());
+        (revision, var buffer) = Place(revision, "logic.buffer", WidthParameters());
+        (revision, var zeroSink) = Place(revision, "sink.output", SinkParameters());
+        (revision, var oneSink) = Place(revision, "sink.output", SinkParameters());
+        (revision, var feedbackSink) = Place(revision, "sink.output", SinkParameters());
+        revision = Connect(revision, (zero, "Q"), (logicAnd, "A1"));
+        revision = Connect(
+            revision,
+            (logicAnd, "Q"),
+            (logicNot, "A"),
+            (zeroSink, "D"));
+        revision = Connect(
+            revision,
+            (logicNot, "Q"),
+            (buffer, "A"),
+            (oneSink, "D"));
+        revision = Connect(
+            revision,
+            (buffer, "Q"),
+            (logicAnd, "A0"),
+            (feedbackSink, "D"));
         return Compile(revision);
     }
 
@@ -663,6 +788,37 @@ public sealed class SimulationFeedbackTests
         return NetResolver.Resolve(ir.Nets[netOrdinal].DriverOrdinals
             .Select(driverOrdinal => driverValues[driverOrdinal])
             .ToArray()).Value;
+    }
+
+    private static int ComparePermutedOrdinals(int left, int right)
+    {
+        var bucketComparison = (left & 1).CompareTo(right & 1);
+        if (bucketComparison != 0)
+        {
+            return bucketComparison;
+        }
+
+        var keyComparison = PermuteOrdinal(left).CompareTo(PermuteOrdinal(right));
+        return keyComparison != 0 ? keyComparison : left.CompareTo(right);
+    }
+
+    private static uint PermuteOrdinal(int ordinal)
+    {
+        return unchecked(((uint)ordinal * 2_654_435_761U) ^ 0x9e3779b9U);
+    }
+
+    private static LogicValue OutputNetValue(
+        CompilationArtifact artifact,
+        LogicVector[] netValues,
+        SimulationEvaluatorKind evaluatorKind)
+    {
+        var evaluator = artifact.SimulationIr.Evaluators.Single(
+            item => item.Kind == evaluatorKind);
+        var driverOrdinal = evaluator.OutputDriverOrdinals.Single();
+        var netOrdinal = artifact.SimulationIr.Drivers[driverOrdinal].NetOrdinal
+            ?? throw new InvalidOperationException(
+                "The feedback evidence output Driver is unconnected.");
+        return netValues[netOrdinal][0];
     }
 
     private sealed record FeedbackCircuit(
