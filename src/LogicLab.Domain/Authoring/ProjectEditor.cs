@@ -123,6 +123,7 @@ public static partial class ProjectEditor
             [],
             [],
             [],
+            [],
             []);
         var document = revision.Document.AddCircuitDefinition(definition);
         var changedSources = ports
@@ -193,6 +194,7 @@ public static partial class ProjectEditor
             [],
             [],
             [],
+            [],
             []);
         var document = new ProjectDocument(
             projectId,
@@ -200,7 +202,8 @@ public static partial class ProjectEditor
             seed.LibrarySnapshot!,
             seed.SymbolProfile!,
             circuitDefinitionId,
-            [definition]);
+            [definition],
+            []);
         var revision = new ProjectRevision(ProjectRevisionId.Create(), document);
 
         return new ProjectGenesisCommitted(
@@ -243,11 +246,11 @@ public static partial class ProjectEditor
                 }
                 else
                 {
-                    diagnostics.AddRange(ComponentParameterValidator.Validate(
+                    diagnostics.AddRange(ComponentParameterValidator.ValidateForDocument(
                         library.ContractKey,
                         schema,
                         intent.Parameters,
-                        document: revision.Document));
+                        revision.Document));
                 }
 
                 break;

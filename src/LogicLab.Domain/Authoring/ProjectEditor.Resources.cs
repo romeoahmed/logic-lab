@@ -58,7 +58,8 @@ public static partial class ProjectEditor
                 .Select(image => image.Id == original.Id ? replacement : image)
                 .ToArray());
         var references = FindMemoryImageReferences(revision.Document, original.Id);
-        var migrations = new Dictionary<(CircuitDefinitionId, ComponentInstanceId),
+        var migrations = new Dictionary<
+            (CircuitDefinitionId DefinitionId, ComponentInstanceId InstanceId),
             InstanceParameterMigration>();
         foreach (var migration in intent.AffectedInstances)
         {
@@ -87,9 +88,9 @@ public static partial class ProjectEditor
             }
 
             var definition = definitionReplacements.GetValueOrDefault(
-                reference.Item1,
-                revision.Document.FindCircuitDefinition(reference.Item1)!);
-            var instance = definition.FindComponentInstance(reference.Item2)!;
+                reference.DefinitionId,
+                revision.Document.FindCircuitDefinition(reference.DefinitionId)!);
+            var instance = definition.FindComponentInstance(reference.InstanceId)!;
             var parameterDiagnostics = new List<AuthoringDiagnostic>();
             var oldPorts = ResolveTargetPorts(
                 revision.Document,
@@ -129,7 +130,9 @@ public static partial class ProjectEditor
         var document = candidateDocument.ReplaceCircuitDefinitions(
             definitionReplacements.Values.ToArray());
         var changed = references.Select(reference => (AuthoredSourceIdentity)
-                new ComponentInstanceSourceIdentity(reference.Item1, reference.Item2))
+                new ComponentInstanceSourceIdentity(
+                    reference.DefinitionId,
+                    reference.InstanceId))
             .Prepend(new MemoryImageSourceIdentity(document.ProjectId, original.Id))
             .ToArray();
         return Commit(
@@ -238,17 +241,19 @@ public static partial class ProjectEditor
             var current = replacements.GetValueOrDefault(definition.Id, definition);
             foreach (var instance in current.ComponentInstances)
             {
-                if (instance.SymbolVariantId is not null
-                    && !SymbolVariantCatalog.IsCompatible(
+                if (instance.SymbolVariantId is null
+                    || SymbolVariantCatalog.IsCompatible(
                         intent.SymbolProfile,
                         instance.Target,
                         instance.Parameters,
                         instance.SymbolVariantId))
                 {
-                    if (!migratedIds.Contains((definition.Id, instance.Id)))
-                    {
-                        diagnostics.Add(MissingReference("symbolVariantMigration"));
-                    }
+                    continue;
+                }
+
+                if (!migratedIds.Contains((definition.Id, instance.Id)))
+                {
+                    diagnostics.Add(MissingReference("symbolVariantMigration"));
                 }
             }
         }
@@ -494,7 +499,9 @@ public static partial class ProjectEditor
             : "normalizationFormC";
     }
 
-    private static HashSet<(CircuitDefinitionId, ComponentInstanceId)>
+    private static HashSet<(
+        CircuitDefinitionId DefinitionId,
+        ComponentInstanceId InstanceId)>
         FindMemoryImageReferences(ProjectDocument document, MemoryImageId imageId)
     {
         return document.CircuitDefinitions.SelectMany(definition =>

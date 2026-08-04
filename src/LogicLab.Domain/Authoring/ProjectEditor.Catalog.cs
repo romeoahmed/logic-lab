@@ -689,11 +689,11 @@ public static partial class ProjectEditor
                     return [];
                 }
 
-                var parameterDiagnostics = ComponentParameterValidator.Validate(
+                var parameterDiagnostics = ComponentParameterValidator.ValidateForDocument(
                     library.ContractKey,
                     schema,
                     parameters,
-                    document: document);
+                    document);
                 diagnostics.AddRange(parameterDiagnostics);
                 if (parameterDiagnostics.Length != 0)
                 {

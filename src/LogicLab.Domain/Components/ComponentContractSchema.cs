@@ -40,7 +40,7 @@ public sealed class ComponentContractSchema
                 Key,
                 this,
                 ownedParameters,
-                cancellationToken: cancellationToken).Length > 0)
+                cancellationToken).Length > 0)
         {
             throw InvalidParameters(nameof(parameters));
         }
@@ -71,7 +71,7 @@ public sealed class ComponentContractSchema
                 Key,
                 this,
                 ownedParameters,
-                cancellationToken: cancellationToken).Length > 0)
+                cancellationToken).Length > 0)
         {
             port = null;
             return false;
