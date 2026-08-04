@@ -20,8 +20,8 @@ public sealed class CompilerRejectionTests
 
         var outcome = Compiler.Compile(request, CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<CompilationRejected>();
-        var rejected = (CompilationRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason).IsEqualTo("compilation_invalid");
@@ -32,7 +32,6 @@ public sealed class CompilerRejectionTests
                 .IsEqualTo(new CompilerProjectRootLocation(
                     circuit.Revision.Document.ProjectId));
             await Assert.That(rejected.Evidence.ObservedDimensions).IsEmpty();
-            await Assert.That(outcome is CompilationSucceeded).IsFalse();
         }
     }
 
@@ -134,8 +133,8 @@ public sealed class CompilerRejectionTests
             CompilerTestCircuit.Request(circuit.Revision, policy),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<CompilationRejected>();
-        var rejected = (CompilationRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
+        Assert.NotNull(rejected);
         var expectedBreach = new ObservedProjectScaleDimension(
             ProjectScaleDimension.EntityCount,
             5);
@@ -167,7 +166,6 @@ public sealed class CompilerRejectionTests
                 .IsEqualTo(expectedBreach);
             await Assert.That(rejected.Evidence.ObservedDimensions[^1])
                 .IsEqualTo(expectedBreach);
-            await Assert.That(outcome is CompilationSucceeded).IsFalse();
         }
     }
 
@@ -182,15 +180,14 @@ public sealed class CompilerRejectionTests
             CompilerTestCircuit.Request(circuit.Revision),
             cancellation.Token);
 
-        await Assert.That(outcome).IsTypeOf<CompilationRejected>();
-        var rejected = (CompilationRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason).IsEqualTo("compilation_cancelled");
             await Assert.That(rejected.Diagnostics).IsEmpty();
             await Assert.That(rejected.Evidence.ObservedDimensions).IsEmpty();
             await Assert.That(rejected.Evidence.PolicyLimitBreach).IsNull();
-            await Assert.That(outcome is CompilationSucceeded).IsFalse();
         }
     }
 }
