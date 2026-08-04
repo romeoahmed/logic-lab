@@ -52,7 +52,7 @@ internal sealed class SimulationSessionState
 
     public ulong ScheduledAssignmentCount { get; set; }
 
-    public ClockEventCalendar ScheduledClockTransitions { get; set; } = new();
+    public ClockEventCalendar ClockEvents { get; set; } = new();
 }
 
 internal sealed record ProbeState(

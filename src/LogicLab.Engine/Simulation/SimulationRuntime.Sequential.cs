@@ -13,19 +13,6 @@ public static partial class SimulationRuntime
             : null;
     }
 
-    private static ulong? PeekClockTime(
-        ClockEventCalendar calendar)
-    {
-        return calendar.PeekLogicalTime();
-    }
-
-    private static ScheduledClockTransition[] ClockTransitionsAt(
-        ClockEventCalendar calendar,
-        ulong logicalTime)
-    {
-        return calendar.ReadTimeBucket(logicalTime);
-    }
-
     private static ClockEventCalendar CreateClockEventCalendar(SimulationIr ir)
     {
         var calendar = new ClockEventCalendar();
