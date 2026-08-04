@@ -1,6 +1,6 @@
 namespace LogicLab.Engine;
 
-public sealed class VectorNetResolution
+internal sealed class VectorNetResolution
 {
     private readonly ulong[] undrivenBits;
     private readonly ulong[] unknownDriverBits;

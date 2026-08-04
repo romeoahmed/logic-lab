@@ -2,7 +2,7 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine;
 
-public static class NetResolver
+internal static class NetResolver
 {
     public static NetResolution Resolve(IReadOnlyList<LogicValue> drivers)
     {

@@ -1,6 +1,6 @@
 namespace LogicLab.Engine;
 
-public static class VectorNetResolver
+internal static class VectorNetResolver
 {
     public static VectorNetResolution Resolve(
         int width,

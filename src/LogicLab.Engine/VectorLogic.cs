@@ -2,7 +2,7 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine;
 
-public static class VectorLogic
+internal static class VectorLogic
 {
     public static LogicVector NormalizeInput(LogicVector value)
     {
