@@ -4,20 +4,16 @@ using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Scene;
 using LogicLab.Web.Components.Editor;
-using Microsoft.AspNetCore.Components;
 
 namespace LogicLab.Web.Components.Pages;
 
-public partial class Editor
+public partial class Editor(IEditorWorkspace workspace)
 {
     private const ulong MaximumScenePortCount = 100_000;
     private readonly FixedWindowCommandAdmissionGate commandAdmission = new(
         maximumAdmissions: 30,
         window: TimeSpan.FromSeconds(1),
         TimeProvider.System);
-
-    [Inject]
-    private IEditorWorkspace Workspace { get; set; } = null!;
 
     private WorkspaceProjection? Projection { get; set; }
 
@@ -121,7 +117,7 @@ public partial class Editor
 
     private async Task CreateProject()
     {
-        var outcome = await Workspace.OpenAsync(
+        var outcome = await workspace.OpenAsync(
             new CreateSandbox("Sandbox Project", "Main"),
             CancellationToken.None);
         if (outcome is not WorkspaceOpened opened)
@@ -262,7 +258,7 @@ public partial class Editor
 
     private async Task<WorkspaceCommandOutcome> Execute(WorkspaceCommand command)
     {
-        var outcome = await Workspace.DispatchAsync(command, CancellationToken.None);
+        var outcome = await workspace.DispatchAsync(command, CancellationToken.None);
         await Refresh();
         return outcome;
     }
@@ -274,7 +270,7 @@ public partial class Editor
             return;
         }
 
-        var read = await Workspace.ReadAsync(Projection.WorkspaceId, CancellationToken.None);
+        var read = await workspace.ReadAsync(Projection.WorkspaceId, CancellationToken.None);
         if (read is ProjectionSnapshot snapshot)
         {
             Projection = snapshot.Projection;
