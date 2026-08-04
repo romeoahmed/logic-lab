@@ -383,7 +383,7 @@ public sealed class CompilerHierarchyTests
             revision.Document.EntryCircuitDefinition,
             revision.Document.FindCircuitDefinition(child.Id)!,
             childNot,
-            childInstances.ToArray());
+            [.. childInstances]);
     }
 
     private static ProjectRevision BeginProject()

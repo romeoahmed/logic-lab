@@ -560,11 +560,11 @@ public sealed class SimulationFeedbackTests
         var definitionId = revision.Document.EntryCircuitDefinitionId;
         return Commit(ProjectEditor.Apply(
             revision,
-            new ConnectTerminalsIntent(terminals.Select(item =>
+            new ConnectTerminalsIntent([.. terminals.Select(item =>
                 (AuthoredTerminalReference)new InstanceTerminalReference(
                     definitionId,
                     item.Instance.Id,
-                    item.PortId)).ToArray())));
+                    item.PortId))])));
     }
 
     private static ProjectRevision Commit(EditOutcome outcome)
@@ -792,9 +792,9 @@ public sealed class SimulationFeedbackTests
         LogicValue[] driverValues,
         int netOrdinal)
     {
-        return NetResolver.Resolve(ir.Nets[netOrdinal].DriverOrdinals
-            .Select(driverOrdinal => driverValues[driverOrdinal])
-            .ToArray()).Value;
+        return NetResolver.Resolve(
+            [.. ir.Nets[netOrdinal].DriverOrdinals.Select(
+                driverOrdinal => driverValues[driverOrdinal])]).Value;
     }
 
     private static int CompareRotatedOrdinals(int left, int right, int pivot)

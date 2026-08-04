@@ -710,7 +710,7 @@ public sealed class ProjectEditorCircuitTests
             new ComponentParameterBinding(
                 "initialValue",
                 new LogicVectorParameterValue(
-                    Enumerable.Repeat(LogicValue.Zero, checked((int)width)).ToArray())),
+                    [.. Enumerable.Repeat(LogicValue.Zero, checked((int)width))])),
         ];
     }
 

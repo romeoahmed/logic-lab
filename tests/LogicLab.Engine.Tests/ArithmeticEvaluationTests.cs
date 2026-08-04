@@ -27,7 +27,7 @@ public sealed class ArithmeticEvaluationTests
             Vector(left),
             Vector(right));
 
-        await Assert.That(new[] { result.LessThan, result.Equal, result.GreaterThan })
+        await Assert.That([result.LessThan, result.Equal, result.GreaterThan])
             .IsEquivalentTo(expected, CollectionOrdering.Matching);
     }
 
@@ -38,7 +38,7 @@ public sealed class ArithmeticEvaluationTests
             Vector(LogicValue.Z, LogicValue.Zero),
             Vector(LogicValue.Zero, LogicValue.Zero));
 
-        await Assert.That(new[] { result.LessThan, result.Equal, result.GreaterThan })
+        await Assert.That([result.LessThan, result.Equal, result.GreaterThan])
             .IsEquivalentTo(
                 [LogicValue.Zero, LogicValue.X, LogicValue.X],
                 CollectionOrdering.Matching);
@@ -239,7 +239,7 @@ public sealed class ArithmeticEvaluationTests
 
     private static LogicValue[] Values(LogicVector vector)
     {
-        return Enumerable.Range(0, vector.Width).Select(index => vector[index]).ToArray();
+        return [.. Enumerable.Range(0, vector.Width).Select(index => vector[index])];
     }
 
     private static LogicValue[] ScalarShiftOracle(
@@ -262,7 +262,7 @@ public sealed class ArithmeticEvaluationTests
                     shift |= ((combination >> index) & 1) << unknownBits[index];
                 }
 
-                return new LogicVector(Enumerable.Range(0, data.Length)
+                return new LogicVector([.. Enumerable.Range(0, data.Length)
                     .Select(outputBit =>
                     {
                         var sourceBit = direction == LogicalShiftDirection.Left
@@ -271,8 +271,7 @@ public sealed class ArithmeticEvaluationTests
                         return sourceBit >= 0 && sourceBit < data.Length
                             ? ScalarLogic.NormalizeInput(data[sourceBit])
                             : LogicValue.Zero;
-                    })
-                    .ToArray());
+                    })]);
             })
             .ToArray();
         return Values(VectorConservativeMerge.Merge(possible));

@@ -78,22 +78,17 @@ internal readonly record struct ScheduledStimulusPriority(
     }
 }
 
-internal sealed class SimulationTraceStore
+internal sealed class SimulationTraceStore(TracePolicy policy)
 {
     private const ulong TransitionBaseBytes = 48;
     private const int InitialChunkCapacity = 4;
-    private readonly TracePolicy policy;
+    private readonly TracePolicy policy = policy;
     private TraceChunk?[] chunks = new TraceChunk?[InitialChunkCapacity];
     private int head;
     private int chunkCount;
     private ulong retainedBytes;
     private ulong retainedTransitionCount;
     private bool hasEvicted;
-
-    public SimulationTraceStore(TracePolicy policy)
-    {
-        this.policy = policy;
-    }
 
     public ulong LatestSequence { get; private set; }
 
@@ -126,14 +121,14 @@ internal sealed class SimulationTraceStore
         ulong bytes = 0;
         for (var index = 0; index < observations.Count; index++)
         {
-            var observation = observations[index];
+            var (probe, value) = observations[index];
             var sequence = checked(LatestSequence + (ulong)index + 1UL);
             transitions[index] = new TraceTransition(
                 sequence,
-                observation.Probe.ProbeId,
+                probe.ProbeId,
                 logicalTime,
-                observation.Value);
-            bytes = checked(bytes + TransitionBytes(observation.Value));
+                value);
+            bytes = checked(bytes + TransitionBytes(value));
         }
 
         var nextRetainedTransitionCount = checked(
@@ -190,7 +185,7 @@ internal sealed class SimulationTraceStore
         }
 
         return new TraceTransitionsAvailable(
-            transitions.ToArray(),
+            [.. transitions],
             request.Range,
             earliest,
             LatestSequence);

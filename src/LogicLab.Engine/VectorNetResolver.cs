@@ -10,7 +10,7 @@ public static class VectorNetResolver
         ArgumentNullException.ThrowIfNull(drivers);
 
         var wordCount = LogicVector.GetWordCount(width);
-        var driverArray = drivers as LogicVector[] ?? drivers.ToArray();
+        var driverArray = drivers as LogicVector[] ?? [.. drivers];
 
         foreach (var driver in driverArray)
         {

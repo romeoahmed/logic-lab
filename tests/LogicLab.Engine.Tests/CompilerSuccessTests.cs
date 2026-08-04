@@ -525,10 +525,9 @@ public sealed class CompilerSuccessTests
 
     private static int[] Fanout(SimulationIr ir, int netOrdinal)
     {
-        return ir.FanoutEvaluatorOrdinals
+        return [.. ir.FanoutEvaluatorOrdinals
             .Skip(ir.FanoutOffsets[netOrdinal])
-            .Take(ir.FanoutOffsets[netOrdinal + 1] - ir.FanoutOffsets[netOrdinal])
-            .ToArray();
+            .Take(ir.FanoutOffsets[netOrdinal + 1] - ir.FanoutOffsets[netOrdinal])];
     }
 
     private static ProjectRevision PlaceInput(

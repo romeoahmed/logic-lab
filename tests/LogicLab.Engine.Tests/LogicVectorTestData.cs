@@ -6,9 +6,7 @@ internal static class LogicVectorTestData
 {
     internal static LogicValue[] ToValues(LogicVector vector)
     {
-        return Enumerable.Range(0, vector.Width)
-            .Select(index => vector[index])
-            .ToArray();
+        return [.. Enumerable.Range(0, vector.Width).Select(index => vector[index])];
     }
 
     internal static bool Matches(

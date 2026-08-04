@@ -102,6 +102,6 @@ public sealed class SteeringLogicTests
 
     private static LogicValue[] Values(LogicVector vector)
     {
-        return Enumerable.Range(0, vector.Width).Select(index => vector[index]).ToArray();
+        return [.. Enumerable.Range(0, vector.Width).Select(index => vector[index])];
     }
 }

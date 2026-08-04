@@ -8,10 +8,9 @@ internal static class AuthoringCanonicalizer
     public static AuthoredSourceIdentity[] Sources(
         IEnumerable<AuthoredSourceIdentity> sources)
     {
-        return sources
+        return [.. sources
             .Distinct()
-            .OrderBy(source => source, AuthoredSourceIdentityComparer.Instance)
-            .ToArray();
+            .OrderBy(source => source, AuthoredSourceIdentityComparer.Instance)];
     }
 
     public static AuthoringDiagnostic[] Diagnostics(
@@ -39,7 +38,7 @@ internal static class AuthoringCanonicalizer
             }
         }
 
-        return canonical.ToArray();
+        return [.. canonical];
     }
 
     private sealed class AuthoringDiagnosticComparer : IComparer<AuthoringDiagnostic>

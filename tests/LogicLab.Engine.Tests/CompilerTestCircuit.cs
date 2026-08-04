@@ -26,7 +26,7 @@ internal sealed record CompilerTestCircuit(
                 new ComponentParameterBinding(
                     "initialValue",
                     new LogicVectorParameterValue(
-                        Enumerable.Repeat(LogicValue.Zero, checked((int)width)).ToArray())),
+                        [.. Enumerable.Repeat(LogicValue.Zero, checked((int)width))])),
             ],
             new GridPoint(0, 0));
         var input = FindByContract(revision, "source.input");

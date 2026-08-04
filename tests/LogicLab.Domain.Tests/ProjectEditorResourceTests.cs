@@ -494,9 +494,8 @@ public sealed class ProjectEditorResourceTests
 
     private static MemoryImageWord[] CreateUnknownWords(int width, int depth)
     {
-        return Enumerable.Range(0, depth)
+        return [.. Enumerable.Range(0, depth)
             .Select(_ => new MemoryImageWord(
-                Enumerable.Repeat(LogicValue.X, width).ToArray()))
-            .ToArray();
+                [.. Enumerable.Repeat(LogicValue.X, width)]))];
     }
 }

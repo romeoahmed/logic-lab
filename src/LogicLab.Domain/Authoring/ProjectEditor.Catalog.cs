@@ -19,7 +19,7 @@ public static partial class ProjectEditor
         ValidateDisplayText(intent.DisplayName, "displayName", diagnostics);
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         return Commit(
@@ -67,7 +67,7 @@ public static partial class ProjectEditor
 
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var ports = definition.Ports.Select(port =>
@@ -83,8 +83,8 @@ public static partial class ProjectEditor
         return Commit(
             revision,
             definition.WithPorts(ports),
-            moves.Keys.Select(id => (AuthoredSourceIdentity)
-                new DefinitionPortSourceIdentity(definition.Id, id)).ToArray());
+            [.. moves.Keys.Select(id => (AuthoredSourceIdentity)
+                new DefinitionPortSourceIdentity(definition.Id, id))]);
     }
 
     private static EditOutcome ApplyRemoveDefinition(
@@ -113,7 +113,6 @@ public static partial class ProjectEditor
 
         var removed = DefinitionSources(definition).ToArray();
         return Commit(
-            revision,
             revision.Document.RemoveCircuitDefinition(intent.CircuitDefinitionId),
             [],
             removed);
@@ -139,7 +138,7 @@ public static partial class ProjectEditor
 
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var updated = definition.ReplaceComponentInstances(
@@ -180,10 +179,10 @@ public static partial class ProjectEditor
 
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
-        var replacement = instance.WithParameters(intent.Parameters.ToArray());
+        var replacement = instance.WithParameters([.. intent.Parameters]);
         return Commit(
             revision,
             definition.ReplaceComponentInstances([replacement]),
@@ -221,7 +220,7 @@ public static partial class ProjectEditor
 
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var removedNetIds = new HashSet<NetId>();
@@ -238,7 +237,7 @@ public static partial class ProjectEditor
                 removedNetIds.Add(net.Id);
             }
 
-            return net.WithMembership(terminals, net.JunctionIds.ToArray());
+            return net.WithMembership(terminals, [.. net.JunctionIds]);
         }).Where(net => !removedNetIds.Contains(net.Id)).ToArray();
         var instances = definition.ComponentInstances
             .Where(instance => !ids.Contains(instance.Id))
@@ -292,7 +291,7 @@ public static partial class ProjectEditor
             diagnostics);
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var topology = MigrateInstanceTerminals(
@@ -301,11 +300,11 @@ public static partial class ProjectEditor
             migration!);
         var replacement = instance.WithContract(
             intent.Target,
-            intent.Parameters.ToArray(),
+            [.. intent.Parameters],
             intent.SymbolVariantId);
         var updated = definition.WithComponentsAndTopology(
-            definition.ComponentInstances.Select(candidate =>
-                candidate.Id == instance.Id ? replacement : candidate).ToArray(),
+            [.. definition.ComponentInstances.Select(candidate =>
+                candidate.Id == instance.Id ? replacement : candidate)],
             topology.Nets);
         var changed = topology.ChangedNetIds.Select(id => (AuthoredSourceIdentity)
                 new NetSourceIdentity(definition.Id, id))
@@ -344,14 +343,14 @@ public static partial class ProjectEditor
             diagnostics);
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var newPortIds = newPorts.Select(port => port.Id).ToHashSet();
         var targetTopology = RemoveObsoleteDefinitionTerminals(target, newPortIds);
         var updatedTarget = target.WithPorts(newPorts);
         updatedTarget = updatedTarget.WithComponentsAndTopology(
-            updatedTarget.ComponentInstances.ToArray(),
+            [.. updatedTarget.ComponentInstances],
             targetTopology.Nets);
         var replacements = new Dictionary<CircuitDefinitionId, CircuitDefinition>
         {
@@ -361,19 +360,19 @@ public static partial class ProjectEditor
             (AuthoredSourceIdentity)new NetSourceIdentity(target.Id, id)).ToList();
         var removedTopology = targetTopology.RemovedNetIds.Select(id =>
             (AuthoredSourceIdentity)new NetSourceIdentity(target.Id, id)).ToList();
-        foreach (var callSite in callSites)
+        foreach (var (definition, instance) in callSites)
         {
             var current = replacements.GetValueOrDefault(
-                callSite.Definition.Id,
-                callSite.Definition);
+                definition.Id,
+                definition);
             var migration = migrationByCallSite![
-                (callSite.Definition.Id, callSite.Instance.Id)];
+                (definition.Id, instance.Id)];
             var topology = MigrateInstanceTerminals(
                 current,
-                callSite.Instance.Id,
+                instance.Id,
                 migration);
             replacements[current.Id] = current.WithComponentsAndTopology(
-                current.ComponentInstances.ToArray(),
+                [.. current.ComponentInstances],
                 topology.Nets);
             changedTopology.AddRange(topology.ChangedNetIds.Select(id =>
                 (AuthoredSourceIdentity)new NetSourceIdentity(current.Id, id)));
@@ -394,8 +393,7 @@ public static partial class ProjectEditor
             .Concat(changedTopology)
             .ToArray();
         return Commit(
-            revision,
-            revision.Document.ReplaceCircuitDefinitions(replacements.Values.ToArray()),
+            revision.Document.ReplaceCircuitDefinitions([.. replacements.Values]),
             changed,
             removed);
     }
@@ -658,7 +656,7 @@ public static partial class ProjectEditor
             else
             {
                 nets.Add(membershipChanged
-                    ? net.WithMembership(terminals, net.JunctionIds.ToArray())
+                    ? net.WithMembership(terminals, [.. net.JunctionIds])
                     : net);
                 if (membershipChanged)
                 {
@@ -668,9 +666,9 @@ public static partial class ProjectEditor
         }
 
         return new TerminalMigrationResult(
-            nets.ToArray(),
-            changed.ToArray(),
-            removed.ToArray());
+            [.. nets],
+            [.. changed],
+            [.. removed]);
     }
 
     private static ResolvedAuthoringPort[] ResolveTargetPorts(
@@ -709,10 +707,10 @@ public static partial class ProjectEditor
                     return [];
                 }
 
-                return ports.Select(port => new ResolvedAuthoringPort(
+                return [.. ports.Select(port => new ResolvedAuthoringPort(
                     port.Id,
                     port.Direction,
-                    port.Width)).ToArray();
+                    port.Width))];
             case CircuitDefinitionComponentTarget definitionTarget:
                 var definition = document.FindCircuitDefinition(
                     definitionTarget.CircuitDefinitionId);
@@ -728,10 +726,10 @@ public static partial class ProjectEditor
                     return [];
                 }
 
-                return definition.Ports.Select(port => new ResolvedAuthoringPort(
+                return [.. definition.Ports.Select(port => new ResolvedAuthoringPort(
                     port.Id.Value,
                     port.Direction,
-                    port.Width)).ToArray();
+                    port.Width))];
             default:
                 throw new InvalidOperationException(
                     "The Component Target variant is undefined.");

@@ -122,11 +122,11 @@ public sealed class EditorWorkspaceHierarchyTests
             await Assert.That(compiled).IsTypeOf<CompilationPublished>();
             await Assert.That(sessionCreated).IsTypeOf<SimulationSessionCreated>();
             await Assert.That(initial.Simulation!.Probes.Single().Value)
-                .IsEquivalentTo(new[] { LogicValue.One });
+                .IsEquivalentTo([LogicValue.One]);
             await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
             await Assert.That(stepped).IsTypeOf<SessionStepped>();
             await Assert.That(afterStep.Simulation!.Probes.Single().Value)
-                .IsEquivalentTo(new[] { LogicValue.Zero });
+                .IsEquivalentTo([LogicValue.Zero]);
         }
     }
 

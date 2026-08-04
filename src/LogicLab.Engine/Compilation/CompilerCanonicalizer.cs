@@ -31,7 +31,7 @@ internal static class CompilerCanonicalizer
             }
         }
 
-        return canonical.ToArray();
+        return [.. canonical];
     }
 
     private sealed class CompilerDiagnosticComparer : IComparer<CompilerDiagnostic>

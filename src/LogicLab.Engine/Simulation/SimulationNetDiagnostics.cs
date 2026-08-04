@@ -94,7 +94,7 @@ internal static class SimulationNetDiagnostics
             diagnostics);
 
         diagnostics.Sort(SimulationNetDiagnosticComparer.Instance);
-        return diagnostics.ToArray();
+        return [.. diagnostics];
     }
 
     private static void AddIndeterminateFeedbackDiagnostics(

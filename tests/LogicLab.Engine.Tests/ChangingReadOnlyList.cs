@@ -2,17 +2,12 @@ using System.Collections;
 
 namespace LogicLab.Engine.Tests;
 
-internal sealed class ChangingReadOnlyList<T> : IReadOnlyList<T>
+internal sealed class ChangingReadOnlyList<T>(params IReadOnlyList<T>[] snapshots) : IReadOnlyList<T>
 {
     private readonly int? initialReportedCount;
-    private readonly IReadOnlyList<T>[] snapshots;
+    private readonly IReadOnlyList<T>[] snapshots = snapshots;
     private int countReadCount;
     private int enumerationCount;
-
-    public ChangingReadOnlyList(params IReadOnlyList<T>[] snapshots)
-    {
-        this.snapshots = snapshots;
-    }
 
     public ChangingReadOnlyList(
         int initialReportedCount,

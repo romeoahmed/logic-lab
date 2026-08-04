@@ -127,7 +127,6 @@ public sealed class ProjectValueTests
 
     private static BitSlice[] ToSlices(uint[] offsets, uint[] lengths)
     {
-        return offsets.Zip(lengths, static (offset, length) => new BitSlice(offset, length))
-            .ToArray();
+        return [.. offsets.Zip(lengths, static (offset, length) => new BitSlice(offset, length))];
     }
 }

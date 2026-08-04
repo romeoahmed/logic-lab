@@ -16,16 +16,14 @@ public sealed class VectorNetResolverTests
             .Select(values => new LogicVector(values))
             .ToArray();
         var arrayResolution = VectorNetResolver.Resolve(sample.Width, drivers);
-        var listResolution = VectorNetResolver.Resolve(sample.Width, drivers.ToList());
+        var listResolution = VectorNetResolver.Resolve(sample.Width, [.. drivers]);
         var matches = true;
         var label = "array and list carriers match the scalar oracle";
 
         for (var bitIndex = 0; bitIndex < sample.Width; bitIndex++)
         {
             var expected = NetResolver.Resolve(
-                sample.Drivers
-                    .Select(values => values[bitIndex])
-                    .ToArray());
+                [.. sample.Drivers.Select(values => values[bitIndex])]);
             var arrayValue = arrayResolution.Value[bitIndex];
             var arrayCauses = arrayResolution.GetCauses(bitIndex);
             var listValue = listResolution.Value[bitIndex];
@@ -70,7 +68,7 @@ public sealed class VectorNetResolverTests
     public async Task Resolve_AllHighImpedanceDrivers_ReturnsUndrivenForEveryBit()
     {
         var highImpedance = new LogicVector(
-            Enumerable.Repeat(LogicValue.Z, 130).ToArray());
+            [.. Enumerable.Repeat(LogicValue.Z, 130)]);
 
         var actual = VectorNetResolver.Resolve(
             130,
@@ -179,10 +177,9 @@ public sealed class VectorNetResolverTests
 
     private static NetResolution[] ToScalarResolutions(VectorNetResolution resolution)
     {
-        return Enumerable.Range(0, resolution.Value.Width)
+        return [.. Enumerable.Range(0, resolution.Value.Width)
             .Select(bitIndex => new NetResolution(
                 resolution.Value[bitIndex],
-                resolution.GetCauses(bitIndex)))
-            .ToArray();
+                resolution.GetCauses(bitIndex)))];
     }
 }
