@@ -215,14 +215,21 @@ public sealed class SimulationFeedbackTests
             CreateTwoEvaluatorKnownFeedback(reverseGates: true),
             CreateThreeEvaluatorKnownFeedback(),
         };
+        var scheduleWitness = circuits[^1].Artifact.SimulationIr
+            .StronglyConnectedComponents.Single(component => component.IsCyclic);
+        var rotatedOrderPivot = scheduleWitness.EvaluatorOrdinals
+            .Order()
+            .Skip(1)
+            .First();
         var worklistOrders = new IComparer<int>[]
         {
             Comparer<int>.Default,
             Comparer<int>.Create((left, right) => right.CompareTo(left)),
-            Comparer<int>.Create(ComparePermutedOrdinals),
+            Comparer<int>.Create((left, right) => CompareRotatedOrdinals(
+                left,
+                right,
+                rotatedOrderPivot)),
         };
-        var scheduleWitness = circuits[^1].Artifact.SimulationIr
-            .StronglyConnectedComponents.Single(component => component.IsCyclic);
         var distinctInitialOrders = worklistOrders
             .Select(order => string.Join(
                 ",",
@@ -790,21 +797,17 @@ public sealed class SimulationFeedbackTests
             .ToArray()).Value;
     }
 
-    private static int ComparePermutedOrdinals(int left, int right)
+    private static int CompareRotatedOrdinals(int left, int right, int pivot)
     {
-        var bucketComparison = (left & 1).CompareTo(right & 1);
+        var leftBucket = left >= pivot ? 0 : 1;
+        var rightBucket = right >= pivot ? 0 : 1;
+        var bucketComparison = leftBucket.CompareTo(rightBucket);
         if (bucketComparison != 0)
         {
             return bucketComparison;
         }
 
-        var keyComparison = PermuteOrdinal(left).CompareTo(PermuteOrdinal(right));
-        return keyComparison != 0 ? keyComparison : left.CompareTo(right);
-    }
-
-    private static uint PermuteOrdinal(int ordinal)
-    {
-        return unchecked(((uint)ordinal * 2_654_435_761U) ^ 0x9e3779b9U);
+        return left.CompareTo(right);
     }
 
     private static LogicValue OutputNetValue(
