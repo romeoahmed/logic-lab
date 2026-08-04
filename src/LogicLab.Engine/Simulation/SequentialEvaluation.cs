@@ -2,7 +2,7 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine.Simulation;
 
-internal sealed record SrLatchEvaluation(
+internal readonly record struct SrLatchEvaluation(
     LogicVector State,
     bool HasControlConflict);
 
@@ -199,7 +199,7 @@ internal static class SequentialEvaluation
                 || current is LogicValue.X or LogicValue.Z);
     }
 
-    private static bool[] ReachableControlValues(LogicValue value)
+    private static ReadOnlySpan<bool> ReachableControlValues(LogicValue value)
     {
         return value switch
         {

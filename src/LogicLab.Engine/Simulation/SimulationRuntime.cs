@@ -167,14 +167,6 @@ public static partial class SimulationRuntime
                     DimensionToken(exception.Dimension),
                     exception.Observed));
         }
-        catch (ZeroTimeOscillationException)
-        {
-            return Failure(
-                state,
-                command,
-                SimulationFailureReason.ZeroTimeOscillation,
-                policyEvidence: null);
-        }
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
             return Failure(
@@ -411,7 +403,7 @@ public static partial class SimulationRuntime
             cancellationToken);
         var netValues = settlement.NetValues;
         var clockDiagnostics = new List<SimulationDiagnostic>();
-        SettleSequential(
+        if (!TrySettleSequential(
             state.Artifact!,
             state.NetValues,
             ref netValues,
@@ -421,7 +413,15 @@ public static partial class SimulationRuntime
             state.SimulationPolicy,
             settlementWork,
             clockDiagnostics,
-            cancellationToken);
+            cancellationToken))
+        {
+            return new AdvanceFailed(
+                state.SessionVersion,
+                state.LogicalTime,
+                SimulationFailureReason.ZeroTimeOscillation,
+                [],
+                policyEvidence: null);
+        }
         var diagnostics = SimulationNetDiagnostics.Canonicalize(
             SimulationNetDiagnostics.Create(
                 state.Artifact!,
@@ -855,19 +855,16 @@ public static partial class SimulationRuntime
         SettlementWork work,
         CancellationToken cancellationToken)
     {
+        if (SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind))
+        {
+            return;
+        }
+
         switch (evaluator.Kind)
         {
             case SimulationEvaluatorKind.InputSource:
             case SimulationEvaluatorKind.ConstantSource:
             case SimulationEvaluatorKind.ClockSource:
-            case SimulationEvaluatorKind.SequentialDLatch:
-            case SimulationEvaluatorKind.SequentialDff:
-            case SimulationEvaluatorKind.SequentialRegister:
-            case SimulationEvaluatorKind.SequentialSrLatch:
-            case SimulationEvaluatorKind.SequentialJkff:
-            case SimulationEvaluatorKind.SequentialTff:
-            case SimulationEvaluatorKind.SequentialShiftRegister:
-            case SimulationEvaluatorKind.SequentialCounter:
             case SimulationEvaluatorKind.OutputSink:
                 return;
             case SimulationEvaluatorKind.LogicNot:

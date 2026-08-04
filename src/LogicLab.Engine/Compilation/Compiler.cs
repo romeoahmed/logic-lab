@@ -1041,21 +1041,15 @@ public static partial class Compiler
         SimulationEvaluatorKind kind,
         IReadOnlyList<ComponentParameterBinding> parameters)
     {
-        var parameterId = kind switch
-        {
-            SimulationEvaluatorKind.InputSource => "initialValue",
-            SimulationEvaluatorKind.ConstantSource => "value",
-            SimulationEvaluatorKind.ClockSource => "initialValue",
-            SimulationEvaluatorKind.SequentialDLatch
-                or SimulationEvaluatorKind.SequentialDff
-                or SimulationEvaluatorKind.SequentialRegister
-                or SimulationEvaluatorKind.SequentialSrLatch
-                or SimulationEvaluatorKind.SequentialJkff
-                or SimulationEvaluatorKind.SequentialTff
-                or SimulationEvaluatorKind.SequentialShiftRegister
-                or SimulationEvaluatorKind.SequentialCounter => "initialState",
-            _ => null,
-        };
+        var parameterId = SimulationEvaluatorKindFacts.IsSequential(kind)
+            ? "initialState"
+            : kind switch
+            {
+                SimulationEvaluatorKind.InputSource => "initialValue",
+                SimulationEvaluatorKind.ConstantSource => "value",
+                SimulationEvaluatorKind.ClockSource => "initialValue",
+                _ => null,
+            };
         if (parameterId is null)
         {
             return null;
