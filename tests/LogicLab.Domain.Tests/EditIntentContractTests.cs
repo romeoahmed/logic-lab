@@ -72,6 +72,28 @@ public sealed class EditIntentContractTests
             .ThrowsExactly<ArgumentNullException>();
     }
 
+    [Test]
+    public async Task Item12MigrationValues_NullIdentity_ThrowsArgumentNullException()
+    {
+        using (Assert.Multiple())
+        {
+            await Assert.That(() => new DefinitionPortMove(
+                    null!,
+                    new DefinitionPortPlacement(
+                        new GridPoint(0, 0),
+                        CardinalDirection.West)))
+                .ThrowsExactly<ArgumentNullException>();
+            await Assert.That(() => new PortTerminalMigration(null!, null))
+                .ThrowsExactly<ArgumentNullException>();
+            await Assert.That(() => new InstancePortMigration(null!, null))
+                .ThrowsExactly<ArgumentNullException>();
+            await Assert.That(() => new SymbolVariantMigration(null!, null!, null))
+                .ThrowsExactly<ArgumentNullException>();
+            await Assert.That(() => new AnnotationMove(null!, new GridPoint(0, 0)))
+                .ThrowsExactly<ArgumentNullException>();
+        }
+    }
+
     private static CircuitDefinitionId EntryDefinitionId()
     {
         var outcome = (ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(

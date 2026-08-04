@@ -119,3 +119,33 @@ public sealed record WireGeometryId
         return new WireGeometryId(Guid.CreateVersion7().ToString("N"));
     }
 }
+
+public sealed record MemoryImageId
+{
+    internal MemoryImageId(string value)
+    {
+        Value = value;
+    }
+
+    public string Value { get; }
+
+    internal static MemoryImageId Create()
+    {
+        return new MemoryImageId(Guid.CreateVersion7().ToString("N"));
+    }
+}
+
+public sealed record AnnotationId
+{
+    internal AnnotationId(string value)
+    {
+        Value = value;
+    }
+
+    public string Value { get; }
+
+    internal static AnnotationId Create()
+    {
+        return new AnnotationId(Guid.CreateVersion7().ToString("N"));
+    }
+}

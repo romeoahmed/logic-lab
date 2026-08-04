@@ -42,7 +42,7 @@ The first required product tracer is complete at item `06`. Infrastructure bread
 
 ## Delivery status
 
-Phase A items `01` through `06` and Phase B items `07` through `11` are complete. The [Development Readiness](./README.md#development-readiness) table owns the current executable evidence, verification snapshot, and remaining qualification gaps.
+Phase A items `01` through `06` and Phase B items `07` through `12` are complete. The [Development Readiness](./README.md#development-readiness) table owns the current executable evidence, verification snapshot, and remaining qualification gaps.
 
 ## Phase B — Authoring, Component Contracts, and Runtime breadth
 
@@ -112,7 +112,7 @@ Only item `43` authorizes describing the selected deployment profile as producti
 
 ## Dependency frontier
 
-The initial frontier contained only item `01`; implementation has now completed through item `11`. The current frontier begins with `12`, `13`, `17`, and `23`, opening these primary streams as their named prerequisites land:
+The initial frontier contained only item `01`; implementation has now completed through item `12`. The current frontier begins with `13`, `17`, and `23`, opening these primary streams as their named prerequisites land:
 
 - remaining Component Contract and Runtime breadth (`12`–`16`);
 - Workspace continuity (`17`);

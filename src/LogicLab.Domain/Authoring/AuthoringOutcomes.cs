@@ -61,6 +61,10 @@ public abstract record AuthoredSourceIdentity
 public sealed record ProjectRootSourceIdentity(ProjectId ProjectId)
     : AuthoredSourceIdentity;
 
+public sealed record MemoryImageSourceIdentity(
+    ProjectId ProjectId,
+    MemoryImageId MemoryImageId) : AuthoredSourceIdentity;
+
 public sealed record CircuitRootSourceIdentity(CircuitDefinitionId CircuitDefinitionId)
     : AuthoredSourceIdentity;
 
@@ -88,6 +92,10 @@ public sealed record JunctionSourceIdentity(
 public sealed record WireGeometrySourceIdentity(
     CircuitDefinitionId CircuitDefinitionId,
     WireGeometryId WireGeometryId) : AuthoredSourceIdentity;
+
+public sealed record AnnotationSourceIdentity(
+    CircuitDefinitionId CircuitDefinitionId,
+    AnnotationId AnnotationId) : AuthoredSourceIdentity;
 
 public abstract record ProjectGenesisOutcome
 {

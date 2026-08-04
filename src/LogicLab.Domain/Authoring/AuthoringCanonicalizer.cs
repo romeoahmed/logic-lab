@@ -184,6 +184,8 @@ internal static class AuthoringCanonicalizer
             {
                 (ProjectRootSourceIdentity l, ProjectRootSourceIdentity r) =>
                     string.CompareOrdinal(l.ProjectId.Value, r.ProjectId.Value),
+                (MemoryImageSourceIdentity l, MemoryImageSourceIdentity r) =>
+                    CompareProjectResources(l, r),
                 (CircuitRootSourceIdentity l, CircuitRootSourceIdentity r) =>
                     string.CompareOrdinal(
                         l.CircuitDefinitionId.Value,
@@ -197,13 +199,15 @@ internal static class AuthoringCanonicalizer
             return identity switch
             {
                 ProjectRootSourceIdentity => 0,
-                CircuitRootSourceIdentity => 1,
+                MemoryImageSourceIdentity => 1,
+                CircuitRootSourceIdentity => 2,
                 DefinitionPortSourceIdentity or
                     ComponentInstanceSourceIdentity or
                     InstancePortSourceIdentity or
                     NetSourceIdentity or
                     JunctionSourceIdentity or
-                    WireGeometrySourceIdentity => 2,
+                    WireGeometrySourceIdentity or
+                    AnnotationSourceIdentity => 3,
                 _ => throw new InvalidOperationException(
                     "The Authored Source Identity variant is undefined."),
             };
@@ -249,6 +253,7 @@ internal static class AuthoringCanonicalizer
                 NetSourceIdentity source => source.CircuitDefinitionId,
                 JunctionSourceIdentity source => source.CircuitDefinitionId,
                 WireGeometrySourceIdentity source => source.CircuitDefinitionId,
+                AnnotationSourceIdentity source => source.CircuitDefinitionId,
                 _ => throw new InvalidOperationException(
                     "The circuit Source Identity variant is undefined."),
             };
@@ -263,6 +268,7 @@ internal static class AuthoringCanonicalizer
                 NetSourceIdentity => 2,
                 JunctionSourceIdentity => 3,
                 WireGeometrySourceIdentity => 4,
+                AnnotationSourceIdentity => 5,
                 _ => throw new InvalidOperationException(
                     "The circuit entity Source Identity variant is undefined."),
             };
@@ -279,6 +285,7 @@ internal static class AuthoringCanonicalizer
                 NetSourceIdentity source => source.NetId.Value,
                 JunctionSourceIdentity source => source.JunctionId.Value,
                 WireGeometrySourceIdentity source => source.WireGeometryId.Value,
+                AnnotationSourceIdentity source => source.AnnotationId.Value,
                 _ => throw new InvalidOperationException(
                     "The circuit entity Source Identity variant is undefined."),
             };
@@ -292,6 +299,20 @@ internal static class AuthoringCanonicalizer
             }
 
             return right is null ? 1 : string.CompareOrdinal(left, right);
+        }
+
+        private static int CompareProjectResources(
+            MemoryImageSourceIdentity left,
+            MemoryImageSourceIdentity right)
+        {
+            var projectComparison = string.CompareOrdinal(
+                left.ProjectId.Value,
+                right.ProjectId.Value);
+            return projectComparison != 0
+                ? projectComparison
+                : string.CompareOrdinal(
+                    left.MemoryImageId.Value,
+                    right.MemoryImageId.Value);
         }
     }
 }
