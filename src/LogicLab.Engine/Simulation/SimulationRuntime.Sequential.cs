@@ -14,73 +14,58 @@ public static partial class SimulationRuntime
     }
 
     private static ulong? PeekClockTime(
-        PriorityQueue<ScheduledClockTransition, ScheduledClockPriority> calendar)
+        ClockEventCalendar calendar)
     {
-        return calendar.TryPeek(out _, out var priority)
-            ? priority.LogicalTime
-            : null;
+        return calendar.PeekLogicalTime();
     }
 
     private static ScheduledClockTransition[] ClockTransitionsAt(
-        PriorityQueue<ScheduledClockTransition, ScheduledClockPriority> calendar,
+        ClockEventCalendar calendar,
         ulong logicalTime)
     {
-        return calendar.UnorderedItems
-            .Where(item => item.Priority.LogicalTime == logicalTime)
-            .OrderBy(item => item.Priority.EvaluatorOrdinal)
-            .Select(item => item.Element)
-            .ToArray();
+        return calendar.ReadTimeBucket(logicalTime);
     }
 
-    private static PriorityQueue<ScheduledClockTransition, ScheduledClockPriority>
-        CreateClockEventCalendar(SimulationIr ir)
+    private static ClockEventCalendar CreateClockEventCalendar(SimulationIr ir)
     {
-        var calendar = new PriorityQueue<
-            ScheduledClockTransition,
-            ScheduledClockPriority>();
+        var calendar = new ClockEventCalendar();
         foreach (var evaluator in ir.Evaluators.Where(evaluator =>
             evaluator.Kind == SimulationEvaluatorKind.ClockSource))
         {
             var transition = new ScheduledClockTransition(
                 evaluator.Ordinal,
                 evaluator.OutputDriverOrdinals[0]);
-            calendar.Enqueue(
+            calendar.Schedule(new ScheduledClockEvent(
                 transition,
-                new ScheduledClockPriority(
-                    evaluator.ClockSchedule!.FirstTransition,
-                    evaluator.Ordinal));
+                evaluator.ClockSchedule!.FirstTransition));
         }
 
         return calendar;
     }
 
-    private static (
-        ScheduledClockTransition Transition,
-        ScheduledClockPriority Priority)[] StageNextClockTransitions(
+    private static ScheduledClockEvent[] StageNextClockTransitions(
         SimulationIr ir,
         ScheduledClockTransition[] currentTransitions,
         LogicVector[] driverValues,
         ulong logicalTime)
     {
-        var next = new (
-            ScheduledClockTransition Transition,
-            ScheduledClockPriority Priority)[currentTransitions.Length];
-        for (var index = 0; index < currentTransitions.Length; index++)
+        var next = new List<ScheduledClockEvent>(currentTransitions.Length);
+        foreach (var transition in currentTransitions)
         {
-            var transition = currentTransitions[index];
             var evaluator = ir.Evaluators[transition.EvaluatorOrdinal];
             var schedule = evaluator.ClockSchedule!;
             var duration = driverValues[transition.DriverOrdinal][0] == LogicValue.One
                 ? schedule.HighDuration
                 : schedule.LowDuration;
-            next[index] = (
-                transition,
-                new ScheduledClockPriority(
-                    checked(logicalTime + duration),
-                    transition.EvaluatorOrdinal));
+            if (duration <= ulong.MaxValue - logicalTime)
+            {
+                next.Add(new ScheduledClockEvent(
+                    transition,
+                    checked(logicalTime + duration)));
+            }
         }
 
-        return next;
+        return [.. next];
     }
 
     private static void SettleSequential(

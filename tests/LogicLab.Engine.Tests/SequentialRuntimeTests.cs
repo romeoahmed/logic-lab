@@ -2,6 +2,7 @@ using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
@@ -33,6 +34,82 @@ public sealed class SequentialRuntimeTests
             await Assert.That(falling.LogicalTime).IsEqualTo(7UL);
             await Assert.That(falling.ObservedProbePatch).IsEmpty();
             await Assert.That(nextRising.LogicalTime).IsEqualTo(10UL);
+        }
+    }
+
+    [Test]
+    public async Task Execute_ClockAtMaximumLogicalTime_CommitsFinalRepresentableTransition()
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var data = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.One));
+        var clock = circuit.Place(
+            "source.clock",
+            SequentialTestCircuit.Clock(firstTransition: ulong.MaxValue));
+        var dff = circuit.Place("sequential.dff", SequentialTestCircuit.Dff(LogicValue.Zero));
+        var sink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        _ = circuit.Connect((data, "Q"), (dff, "D"));
+        _ = circuit.Connect((clock, "Q"), (dff, "CLK"));
+        var outputNet = circuit.Connect((dff, "Q"), (sink, "D"));
+        var opened = Open(circuit.Compile(), outputNet);
+
+        var committed = Advance(opened);
+        var exhausted = SimulationRuntime.Execute(
+            opened.Handle,
+            new AdvanceToNextQuiescentBoundary(),
+            CancellationToken.None);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.LogicalTime).IsEqualTo(ulong.MaxValue);
+            await Assert.That(committed.ObservedProbePatch.Single().Value[0])
+                .IsEqualTo(LogicValue.One);
+            await Assert.That(exhausted).IsTypeOf<NoScheduledStimulus>();
+            await Assert.That(((NoScheduledStimulus)exhausted).LogicalTime)
+                .IsEqualTo(ulong.MaxValue);
+        }
+    }
+
+    [Test]
+    public async Task Execute_SimultaneousClocks_AdvanceOneStableTimeBucket()
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var leftClock = circuit.Place(
+            "source.clock",
+            SequentialTestCircuit.Clock(highDuration: 2));
+        var rightClock = circuit.Place(
+            "source.clock",
+            SequentialTestCircuit.Clock(highDuration: 4));
+        var leftSink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        var rightSink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        var leftNet = circuit.Connect((leftClock, "Q"), (leftSink, "D"));
+        var rightNet = circuit.Connect((rightClock, "Q"), (rightSink, "D"));
+        var opened = Open(circuit.Compile(), leftNet, rightNet);
+
+        var simultaneous = Advance(opened);
+        var leftFalling = Advance(opened);
+        var rightFalling = Advance(opened);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(simultaneous.LogicalTime).IsEqualTo(5UL);
+            await Assert.That(simultaneous.ObservedProbePatch.Count).IsEqualTo(2);
+            await Assert.That(simultaneous.ObservedProbePatch.Select(
+                    observation => observation.Value[0]))
+                .IsEquivalentTo(
+                    [LogicValue.One, LogicValue.One],
+                    CollectionOrdering.Matching);
+            await Assert.That(leftFalling.LogicalTime).IsEqualTo(7UL);
+            await Assert.That(leftFalling.ObservedProbePatch.Count).IsEqualTo(1);
+            await Assert.That(leftFalling.ObservedProbePatch[0].ProbeId)
+                .IsEqualTo(opened.ProbeIds[0]);
+            await Assert.That(leftFalling.ObservedProbePatch[0].Value[0])
+                .IsEqualTo(LogicValue.Zero);
+            await Assert.That(rightFalling.LogicalTime).IsEqualTo(9UL);
+            await Assert.That(rightFalling.ObservedProbePatch.Count).IsEqualTo(1);
+            await Assert.That(rightFalling.ObservedProbePatch[0].ProbeId)
+                .IsEqualTo(opened.ProbeIds[1]);
+            await Assert.That(rightFalling.ObservedProbePatch[0].Value[0])
+                .IsEqualTo(LogicValue.Zero);
         }
     }
 

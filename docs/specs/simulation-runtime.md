@@ -242,6 +242,8 @@ Session creation begins at Logical Time zero:
 
 A Clock Source has an initial value, first-transition time, positive high duration, and positive low duration. It stores only generator state and its next transition; it does not pre-materialize an infinite event sequence.
 
+Logical Time is the full `u64` domain exposed by the Runtime contracts. A Clock Source transition at `2^64 - 1` commits normally. When adding the next positive duration would exceed `2^64 - 1`, no later transition exists in the representable Logical-time domain; the source retains its last committed value and contributes no event beyond that horizon.
+
 Future Stimulus Batches are held in a min-heap ordered by `(LogicalTime, stableSequence)`. `Step` pops the earliest non-empty time bucket; it never scans empty ticks. Scheduling in the committed past or at the current Logical Time is rejected. Multiple same-time changes to one Driver must normalize to one identical value or the batch is rejected.
 
 Wall-clock pacing controls only how quickly `Run` requests advances. It cannot change event order or results.
