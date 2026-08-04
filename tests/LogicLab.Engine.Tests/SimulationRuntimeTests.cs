@@ -17,8 +17,8 @@ public sealed class SimulationRuntimeTests
             context.Request(outputSource),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<SimulationOpened>();
-        var opened = (SimulationOpened)outcome;
+        var opened = await Assert.That(outcome).IsTypeOf<SimulationOpened>();
+        Assert.NotNull(opened);
         var snapshotOutcome = SimulationRuntime.Read(
             opened.Handle,
             new ReadSessionSnapshot(),
@@ -31,10 +31,10 @@ public sealed class SimulationRuntimeTests
                 afterSequence: null)),
             CancellationToken.None);
 
-        await Assert.That(snapshotOutcome).IsTypeOf<SessionSnapshotRead>();
-        await Assert.That(traceOutcome).IsTypeOf<TraceTransitionsAvailable>();
-        var snapshot = (SessionSnapshotRead)snapshotOutcome;
-        var trace = (TraceTransitionsAvailable)traceOutcome;
+        var snapshot = await Assert.That(snapshotOutcome).IsTypeOf<SessionSnapshotRead>();
+        var trace = await Assert.That(traceOutcome).IsTypeOf<TraceTransitionsAvailable>();
+        Assert.NotNull(snapshot);
+        Assert.NotNull(trace);
         using (Assert.Multiple())
         {
             await Assert.That(opened.LogicalTime).IsEqualTo(0UL);
@@ -96,8 +96,8 @@ public sealed class SimulationRuntimeTests
             context.Request(foreignSource),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<InitialProbeBindingsInvalid>();
-        var invalid = (InitialProbeBindingsInvalid)outcome;
+        var invalid = await Assert.That(outcome).IsTypeOf<InitialProbeBindingsInvalid>();
+        Assert.NotNull(invalid);
         using (Assert.Multiple())
         {
             await Assert.That(invalid.Rule)
@@ -119,8 +119,8 @@ public sealed class SimulationRuntimeTests
             context.Request(outputSource, outputSource),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<InitialProbeBindingsInvalid>();
-        var invalid = (InitialProbeBindingsInvalid)outcome;
+        var invalid = await Assert.That(outcome).IsTypeOf<InitialProbeBindingsInvalid>();
+        Assert.NotNull(invalid);
         using (Assert.Multiple())
         {
             await Assert.That(invalid.Rule)
@@ -155,10 +155,10 @@ public sealed class SimulationRuntimeTests
                 context.NetSource(context.Circuit.OutputNet.Id)),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
-        var rejected = (SimulationOpenRejected)outcome;
-        await Assert.That(rejected.WorkEvidence.PolicyLimitBreach).IsNotNull();
-        var breach = rejected.WorkEvidence.PolicyLimitBreach!;
+        var rejected = await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
+        Assert.NotNull(rejected);
+        var breach = rejected.WorkEvidence.PolicyLimitBreach;
+        Assert.NotNull(breach);
         var observed = ObservedDimension(
             rejected.WorkEvidence,
             SimulationWorkPolicy.Trace,
@@ -190,10 +190,10 @@ public sealed class SimulationRuntimeTests
                 context.NetSource(context.Circuit.OutputNet.Id)),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
-        var rejected = (SimulationOpenRejected)outcome;
-        await Assert.That(rejected.WorkEvidence.PolicyLimitBreach).IsNotNull();
-        var breach = rejected.WorkEvidence.PolicyLimitBreach!;
+        var rejected = await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
+        Assert.NotNull(rejected);
+        var breach = rejected.WorkEvidence.PolicyLimitBreach;
+        Assert.NotNull(breach);
         var observed = ObservedDimension(
             rejected.WorkEvidence,
             SimulationWorkPolicy.Simulation,
@@ -230,10 +230,10 @@ public sealed class SimulationRuntimeTests
                 context.NetSource(context.Circuit.OutputNet.Id)),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
-        var rejected = (SimulationOpenRejected)outcome;
-        await Assert.That(rejected.WorkEvidence.PolicyLimitBreach).IsNotNull();
-        var breach = rejected.WorkEvidence.PolicyLimitBreach!;
+        var rejected = await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
+        Assert.NotNull(rejected);
+        var breach = rejected.WorkEvidence.PolicyLimitBreach;
+        Assert.NotNull(breach);
         var observedWork = ObservedDimension(
             rejected.WorkEvidence,
             SimulationWorkPolicy.Simulation,
@@ -277,8 +277,9 @@ public sealed class SimulationRuntimeTests
             context.Request(context.NetSource(context.Circuit.OutputNet.Id)),
             cancellation.Token);
 
-        await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
-        await Assert.That(((SimulationOpenRejected)outcome).Reason)
+        var rejected = await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
+        Assert.NotNull(rejected);
+        await Assert.That(rejected.Reason)
             .IsEqualTo(SimulationFailureReason.SimulationCancelled);
     }
 
@@ -297,8 +298,8 @@ public sealed class SimulationRuntimeTests
             new AdvanceToNextQuiescentBoundary(),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<AdvanceCommitted>();
-        var committed = (AdvanceCommitted)outcome;
+        var committed = await Assert.That(outcome).IsTypeOf<AdvanceCommitted>();
+        Assert.NotNull(committed);
         var snapshot = (SessionSnapshotRead)SimulationRuntime.Read(
             opened.Handle,
             new ReadSessionSnapshot(),
@@ -346,8 +347,8 @@ public sealed class SimulationRuntimeTests
             new ReadSessionSnapshot(),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<StimulusBatchInvalid>();
-        var invalid = (StimulusBatchInvalid)outcome;
+        var invalid = await Assert.That(outcome).IsTypeOf<StimulusBatchInvalid>();
+        Assert.NotNull(invalid);
         using (Assert.Multiple())
         {
             await Assert.That(invalid.Rule)
@@ -378,8 +379,8 @@ public sealed class SimulationRuntimeTests
             new ReadSessionSnapshot(),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<StimulusBatchInvalid>();
-        var invalid = (StimulusBatchInvalid)outcome;
+        var invalid = await Assert.That(outcome).IsTypeOf<StimulusBatchInvalid>();
+        Assert.NotNull(invalid);
         using (Assert.Multiple())
         {
             await Assert.That(invalid.Rule)
@@ -453,10 +454,10 @@ public sealed class SimulationRuntimeTests
             new AdvanceToNextQuiescentBoundary(),
             CancellationToken.None);
 
-        await Assert.That(rejected).IsTypeOf<SimulationCommandFailed>();
-        var failed = (SimulationCommandFailed)rejected;
-        await Assert.That(failed.PolicyEvidence).IsNotNull();
-        var policyEvidence = failed.PolicyEvidence!;
+        var failed = await Assert.That(rejected).IsTypeOf<SimulationCommandFailed>();
+        Assert.NotNull(failed);
+        var policyEvidence = failed.PolicyEvidence;
+        Assert.NotNull(policyEvidence);
         using (Assert.Multiple())
         {
             await Assert.That(failed.Reason)
@@ -481,8 +482,8 @@ public sealed class SimulationRuntimeTests
             new AdvanceToNextQuiescentBoundary(),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<NoScheduledStimulus>();
-        var noStimulus = (NoScheduledStimulus)outcome;
+        var noStimulus = await Assert.That(outcome).IsTypeOf<NoScheduledStimulus>();
+        Assert.NotNull(noStimulus);
         using (Assert.Multiple())
         {
             await Assert.That(noStimulus.SessionVersion).IsEqualTo(1UL);
@@ -515,8 +516,8 @@ public sealed class SimulationRuntimeTests
             new ReadSessionSnapshot(),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<AdvanceFailed>();
-        var failed = (AdvanceFailed)outcome;
+        var failed = await Assert.That(outcome).IsTypeOf<AdvanceFailed>();
+        Assert.NotNull(failed);
         using (Assert.Multiple())
         {
             await Assert.That(failed.Reason)
@@ -557,10 +558,10 @@ public sealed class SimulationRuntimeTests
             new ReadSessionSnapshot(),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<AdvanceFailed>();
-        var failed = (AdvanceFailed)outcome;
-        await Assert.That(failed.PolicyEvidence).IsNotNull();
-        var policyEvidence = failed.PolicyEvidence!;
+        var failed = await Assert.That(outcome).IsTypeOf<AdvanceFailed>();
+        Assert.NotNull(failed);
+        var policyEvidence = failed.PolicyEvidence;
+        Assert.NotNull(policyEvidence);
         using (Assert.Multiple())
         {
             await Assert.That(failed.Reason)
@@ -720,8 +721,8 @@ public sealed class SimulationRuntimeTests
             CancellationToken.None);
 
         await Assert.That(unavailable).IsTypeOf<TraceRangeUnavailable>();
-        await Assert.That(retained).IsTypeOf<TraceTransitionsAvailable>();
-        var available = (TraceTransitionsAvailable)retained;
+        var available = await Assert.That(retained).IsTypeOf<TraceTransitionsAvailable>();
+        Assert.NotNull(available);
         using (Assert.Multiple())
         {
             await Assert.That(committed.LogicalTime).IsEqualTo(10UL);
@@ -777,8 +778,8 @@ public sealed class SimulationRuntimeTests
             CancellationToken.None);
 
         await Assert.That(unavailable).IsTypeOf<TraceRangeUnavailable>();
-        await Assert.That(retained).IsTypeOf<TraceTransitionsAvailable>();
-        var available = (TraceTransitionsAvailable)retained;
+        var available = await Assert.That(retained).IsTypeOf<TraceTransitionsAvailable>();
+        Assert.NotNull(available);
         using (Assert.Multiple())
         {
             await Assert.That(available.EarliestAvailable).IsEqualTo(6UL);
@@ -807,8 +808,8 @@ public sealed class SimulationRuntimeTests
             new ReadSessionSnapshot(),
             cancellation.Token);
 
-        await Assert.That(outcome).IsTypeOf<SimulationReadFailed>();
-        var failed = (SimulationReadFailed)outcome;
+        var failed = await Assert.That(outcome).IsTypeOf<SimulationReadFailed>();
+        Assert.NotNull(failed);
         using (Assert.Multiple())
         {
             await Assert.That(failed.Reason)

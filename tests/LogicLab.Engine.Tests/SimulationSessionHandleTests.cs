@@ -51,10 +51,10 @@ public sealed class SimulationSessionHandleTests
                 afterSequence: null)),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<TraceRangeUnavailable>();
-        await Assert.That(retainedOutcome).IsTypeOf<TraceTransitionsAvailable>();
-        var unavailable = (TraceRangeUnavailable)outcome;
-        var retained = (TraceTransitionsAvailable)retainedOutcome;
+        var unavailable = await Assert.That(outcome).IsTypeOf<TraceRangeUnavailable>();
+        var retained = await Assert.That(retainedOutcome).IsTypeOf<TraceTransitionsAvailable>();
+        Assert.NotNull(unavailable);
+        Assert.NotNull(retained);
         using (Assert.Multiple())
         {
             await Assert.That(committed.ObservedProbePatch).Count().IsEqualTo(1);
