@@ -12,6 +12,7 @@ public enum SimulationDimension
     WorkingLayerSlotCount,
     TriggerBatchCount,
     ZeroTimeStateCount,
+    ZeroTimeStateWordCount,
 }
 
 public sealed record SimulationLimit(

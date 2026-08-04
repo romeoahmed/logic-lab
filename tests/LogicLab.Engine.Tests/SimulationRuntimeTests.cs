@@ -863,6 +863,9 @@ public sealed class SimulationRuntimeTests
                     workingLayerSlotCount),
                 new SimulationLimit(SimulationDimension.TriggerBatchCount, 100_000),
                 new SimulationLimit(SimulationDimension.ZeroTimeStateCount, 100_000),
+                new SimulationLimit(
+                    SimulationDimension.ZeroTimeStateWordCount,
+                    10_000_000),
             ]);
     }
 

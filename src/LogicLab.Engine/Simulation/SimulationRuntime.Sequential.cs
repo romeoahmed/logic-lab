@@ -312,6 +312,7 @@ public static partial class SimulationRuntime
                 (candidate, retained, cancellationToken) =>
                     candidate.ExactlyEquals(retained, cancellationToken));
         private ulong observed;
+        private ulong observedCanonicalWords;
 
         public void Observe(
             LogicVector[] previousNetValues,
@@ -340,6 +341,11 @@ public static partial class SimulationRuntime
                 policy,
                 SimulationDimension.ZeroTimeStateCount,
                 ref observed);
+            CountWork(
+                policy,
+                SimulationDimension.ZeroTimeStateWordCount,
+                ref observedCanonicalWords,
+                candidate.CanonicalWordCount);
             states.Add(fingerprint, candidate.Retain());
         }
     }
@@ -347,6 +353,10 @@ public static partial class SimulationRuntime
     private readonly record struct ZeroTimeStateFingerprint(
         ulong First,
         ulong Second);
+
+    private readonly record struct ZeroTimeStateDescriptor(
+        ZeroTimeStateFingerprint Fingerprint,
+        ulong CanonicalWordCount);
 
     private sealed class ZeroTimeWorkingState
     {
@@ -360,16 +370,19 @@ public static partial class SimulationRuntime
             LogicVector[] netValues,
             LogicVector[] driverValues,
             LogicVector?[] sequentialStates,
-            ZeroTimeStateFingerprint fingerprint)
+            ZeroTimeStateDescriptor descriptor)
         {
             this.previousNetValues = previousNetValues;
             this.netValues = netValues;
             this.driverValues = driverValues;
             this.sequentialStates = sequentialStates;
-            Fingerprint = fingerprint;
+            Fingerprint = descriptor.Fingerprint;
+            CanonicalWordCount = descriptor.CanonicalWordCount;
         }
 
         public ZeroTimeStateFingerprint Fingerprint { get; }
+
+        public ulong CanonicalWordCount { get; }
 
         public static ZeroTimeWorkingState CreateView(
             LogicVector[] previousNetValues,
@@ -383,7 +396,7 @@ public static partial class SimulationRuntime
                 netValues,
                 driverValues,
                 sequentialStates,
-                ComputeFingerprint(
+                ComputeDescriptor(
                     previousNetValues,
                     netValues,
                     driverValues,
@@ -398,7 +411,7 @@ public static partial class SimulationRuntime
                 (LogicVector[])netValues.Clone(),
                 (LogicVector[])driverValues.Clone(),
                 (LogicVector?[])sequentialStates.Clone(),
-                Fingerprint);
+                new ZeroTimeStateDescriptor(Fingerprint, CanonicalWordCount));
         }
 
         public bool ExactlyEquals(
@@ -500,112 +513,113 @@ public static partial class SimulationRuntime
             return true;
         }
 
-        private static ZeroTimeStateFingerprint ComputeFingerprint(
+        private static ZeroTimeStateDescriptor ComputeDescriptor(
             LogicVector[] previousNetValues,
             LogicVector[] netValues,
             LogicVector[] driverValues,
             LogicVector?[] sequentialStates,
             CancellationToken cancellationToken)
         {
-            var first = 14695981039346656037UL;
-            var second = 7809847782465536322UL;
+            var accumulator = new ZeroTimeStateAccumulator();
             AppendVectors(
-                ref first,
-                ref second,
+                ref accumulator,
                 1,
                 previousNetValues,
                 cancellationToken);
             AppendVectors(
-                ref first,
-                ref second,
+                ref accumulator,
                 2,
                 netValues,
                 cancellationToken);
             AppendVectors(
-                ref first,
-                ref second,
+                ref accumulator,
                 3,
                 driverValues,
                 cancellationToken);
             AppendNullableVectors(
-                ref first,
-                ref second,
+                ref accumulator,
                 4,
                 sequentialStates,
                 cancellationToken);
-            return new ZeroTimeStateFingerprint(first, second);
+            return accumulator.Descriptor;
         }
 
         private static void AppendVectors(
-            ref ulong first,
-            ref ulong second,
+            ref ZeroTimeStateAccumulator accumulator,
             ulong domain,
             LogicVector[] values,
             CancellationToken cancellationToken)
         {
-            Append(ref first, ref second, domain);
-            Append(ref first, ref second, checked((ulong)values.Length));
+            accumulator.Append(domain);
+            accumulator.Append(checked((ulong)values.Length));
             foreach (var value in values)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                AppendVector(
-                    ref first,
-                    ref second,
-                    value,
-                    cancellationToken);
+                AppendVector(ref accumulator, value, cancellationToken);
             }
         }
 
         private static void AppendNullableVectors(
-            ref ulong first,
-            ref ulong second,
+            ref ZeroTimeStateAccumulator accumulator,
             ulong domain,
             LogicVector?[] values,
             CancellationToken cancellationToken)
         {
-            Append(ref first, ref second, domain);
-            Append(ref first, ref second, checked((ulong)values.Length));
+            accumulator.Append(domain);
+            accumulator.Append(checked((ulong)values.Length));
             foreach (var value in values)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                Append(ref first, ref second, value is null ? 0UL : 1UL);
+                accumulator.Append(value is null ? 0UL : 1UL);
                 if (value is not null)
                 {
-                    AppendVector(
-                        ref first,
-                        ref second,
-                        value,
-                        cancellationToken);
+                    AppendVector(ref accumulator, value, cancellationToken);
                 }
             }
         }
 
         private static void AppendVector(
-            ref ulong first,
-            ref ulong second,
+            ref ZeroTimeStateAccumulator accumulator,
             LogicVector value,
             CancellationToken cancellationToken)
         {
-            Append(ref first, ref second, checked((ulong)value.Width));
-            Append(ref first, ref second, checked((ulong)value.WordCount));
+            accumulator.Append(checked((ulong)value.Width));
+            accumulator.Append(checked((ulong)value.WordCount));
             for (var wordIndex = 0; wordIndex < value.WordCount; wordIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                Append(ref first, ref second, value.GetLowWord(wordIndex));
-                Append(ref first, ref second, value.GetHighWord(wordIndex));
+                accumulator.Append(value.GetLowWord(wordIndex));
+                accumulator.Append(value.GetHighWord(wordIndex));
             }
         }
 
-        private static void Append(
-            ref ulong first,
-            ref ulong second,
-            ulong value)
+        private struct ZeroTimeStateAccumulator
         {
-            unchecked
+            private ulong first;
+            private ulong second;
+
+            public ZeroTimeStateAccumulator()
             {
-                first = (first ^ value) * 1099511628211UL;
-                second = (second ^ (value + 0x9E3779B97F4A7C15UL))
-                    * 14029467366897019727UL;
+                first = 14695981039346656037UL;
+                second = 7809847782465536322UL;
+                CanonicalWordCount = 0;
+            }
+
+            public ulong CanonicalWordCount { get; private set; }
+
+            public readonly ZeroTimeStateDescriptor Descriptor => new(
+                new ZeroTimeStateFingerprint(first, second),
+                CanonicalWordCount);
+
+            public void Append(ulong value)
+            {
+                CanonicalWordCount = checked(CanonicalWordCount + 1);
+                unchecked
+                {
+                    first = (first ^ value) * 1099511628211UL;
+                    second = (second ^ (value + 0x9E3779B97F4A7C15UL))
+                        * 14029467366897019727UL;
+                }
             }
         }
     }

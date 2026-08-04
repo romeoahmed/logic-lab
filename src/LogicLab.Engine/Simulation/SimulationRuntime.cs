@@ -1185,6 +1185,7 @@ public static partial class SimulationRuntime
                 work.WorkingLayerSlots),
             Observation(SimulationDimension.TriggerBatchCount, 0),
             Observation(SimulationDimension.ZeroTimeStateCount, 0),
+            Observation(SimulationDimension.ZeroTimeStateWordCount, 0),
             Observation(TraceDimension.ProbeCount, work.ProbeCount),
             Observation(
                 TraceDimension.RetainedTransitionCount,
@@ -1236,6 +1237,8 @@ public static partial class SimulationRuntime
             SimulationDimension.WorkingLayerSlotCount => "working_layer_slot_count",
             SimulationDimension.TriggerBatchCount => "trigger_batch_count",
             SimulationDimension.ZeroTimeStateCount => "zero_time_state_count",
+            SimulationDimension.ZeroTimeStateWordCount =>
+                "zero_time_state_word_count",
             _ => throw new InvalidOperationException(
                 "The Simulation Policy dimension is undefined."),
         };
