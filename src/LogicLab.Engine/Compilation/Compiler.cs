@@ -8,7 +8,7 @@ namespace LogicLab.Engine.Compilation;
 
 public static partial class Compiler
 {
-    public const string SemanticVersion = "logiclab.compiler.sequential-v5";
+    public const string SemanticVersion = "logiclab.compiler.memory-v1";
 
     public static CompilationOutcome Compile(
         CompilationRequest request,
@@ -135,7 +135,11 @@ public static partial class Compiler
         var memoryRejection = Observe(
             request,
             ProjectScaleDimension.MemoryCellCount,
-            0,
+            CountMemoryCells(
+                request.ProjectRevision.Document,
+                pendingInstances
+                    .Where(instance => SimulationEvaluatorKindFacts.IsMemory(instance.Kind))
+                    .Select(instance => instance.Instance)),
             observations);
         if (memoryRejection is not null)
         {
@@ -615,6 +619,7 @@ public static partial class Compiler
             cancellationToken);
         var (evaluators, evaluatorSources, evaluatorInputSources) = BuildEvaluators(
             path,
+            request.ProjectRevision.Document,
             definition,
             resolvedInstances,
             netByTerminal,
@@ -728,6 +733,7 @@ public static partial class Compiler
         SourceMapEntry[] Sources,
         EvaluatorInputSourceMapEntry[] InputSources) BuildEvaluators(
         HierarchyPath path,
+        ProjectDocument document,
         CircuitDefinition definition,
         ResolvedInstance[] resolvedInstances,
         Dictionary<TerminalKey, int> netByTerminal,
@@ -764,7 +770,11 @@ public static partial class Compiler
                 GetSlices(resolved.Kind, resolved.Instance.Parameters),
                 GetOption(resolved.Kind, resolved.Instance.Parameters),
                 GetClockSchedule(resolved.Kind, resolved.Instance.Parameters),
-                GetSequentialOptions(resolved.Kind, resolved.Instance.Parameters));
+                GetSequentialOptions(resolved.Kind, resolved.Instance.Parameters),
+                GetInitialMemory(
+                    document,
+                    resolved.Kind,
+                    resolved.Instance.Parameters));
             evaluatorSources[resolved.Ordinal] = new SourceMapEntry(
                 resolved.Ordinal,
                 Source(
@@ -990,6 +1000,12 @@ public static partial class Compiler
             case "sequential.counter":
                 kind = SimulationEvaluatorKind.SequentialCounter;
                 return true;
+            case "memory.rom":
+                kind = SimulationEvaluatorKind.MemoryRom;
+                return true;
+            case "memory.ram_single_port":
+                kind = SimulationEvaluatorKind.MemoryRamSinglePort;
+                return true;
             default:
                 kind = default;
                 return false;
@@ -1156,6 +1172,48 @@ public static partial class Compiler
             clockInputOrdinal,
             risingEdge,
             direction);
+    }
+
+    private static LogicVector[]? GetInitialMemory(
+        ProjectDocument document,
+        SimulationEvaluatorKind kind,
+        IReadOnlyList<ComponentParameterBinding> parameters)
+    {
+        if (!SimulationEvaluatorKindFacts.IsMemory(kind))
+        {
+            return null;
+        }
+
+        var reference = (MemoryImageParameterValue)parameters.Single(binding =>
+            string.Equals(
+                binding.ParameterId,
+                "initialImage",
+                StringComparison.Ordinal)).Value;
+        var image = document.FindMemoryImage(reference.MemoryImageId)
+            ?? throw new InvalidOperationException(
+                "A compiled memory evaluator references a missing Memory Image.");
+        return [.. image.Words.Select(word => new LogicVector(word.Values))];
+    }
+
+    private static ulong CountMemoryCells(
+        ProjectDocument document,
+        IEnumerable<ComponentInstance> instances)
+    {
+        ulong cells = 0;
+        foreach (var instance in instances)
+        {
+            var reference = (MemoryImageParameterValue)instance.Parameters.Single(binding =>
+                string.Equals(
+                    binding.ParameterId,
+                    "initialImage",
+                    StringComparison.Ordinal)).Value;
+            var image = document.FindMemoryImage(reference.MemoryImageId)
+                ?? throw new InvalidOperationException(
+                    "A compiled memory evaluator references a missing Memory Image.");
+            cells = checked(cells + image.Depth);
+        }
+
+        return cells;
     }
 
     private static string Choice(

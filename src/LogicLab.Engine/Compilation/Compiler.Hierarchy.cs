@@ -97,7 +97,11 @@ public static partial class Compiler
         var memoryRejection = Observe(
             request,
             ProjectScaleDimension.MemoryCellCount,
-            0,
+            CountMemoryCells(
+                request.ProjectRevision.Document,
+                pendingInstances
+                    .Where(instance => SimulationEvaluatorKindFacts.IsMemory(instance.Kind))
+                    .Select(instance => instance.Instance)),
             observations);
         if (memoryRejection is not null)
         {

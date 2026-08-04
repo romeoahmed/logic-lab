@@ -62,6 +62,7 @@ public static partial class SimulationRuntime
         ref SettlementResult settlement,
         LogicVector[] driverValues,
         LogicVector?[] sequentialStates,
+        LogicVector[]?[] memoryStates,
         SimulationPolicy policy,
         SettlementWork work,
         List<SimulationDiagnostic> clockDiagnostics,
@@ -88,13 +89,36 @@ public static partial class SimulationRuntime
                 policy,
                 SimulationDimension.TriggerBatchCount,
                 ref work.TriggerBatches);
-            var sampled = new LogicVector[triggered.Length];
+            var sampledStates = new LogicVector?[triggered.Length];
+            var sampledMemories = new LogicVector[]?[triggered.Length];
             for (var index = 0; index < triggered.Length; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var evaluator = ir.Evaluators[triggered[index]];
+                if (evaluator.Kind == SimulationEvaluatorKind.MemoryRamSinglePort)
+                {
+                    var address = netValues[evaluator.InputNetOrdinals[0]];
+                    var writeEnable = netValues[evaluator.InputNetOrdinals[2]][0];
+                    if (writeEnable != LogicValue.Zero)
+                    {
+                        CountWork(
+                            policy,
+                            SimulationDimension.AdvanceWorkItemCount,
+                            ref work.WorkItems,
+                            MemoryEvaluation.ReachableAddressCount(address));
+                    }
+
+                    sampledMemories[index] = MemoryEvaluation.Write(
+                        memoryStates[evaluator.Ordinal]!,
+                        address,
+                        netValues[evaluator.InputNetOrdinals[1]],
+                        writeEnable,
+                        cancellationToken);
+                    continue;
+                }
+
                 var currentState = sequentialStates[evaluator.Ordinal]!;
-                sampled[index] = evaluator.Kind switch
+                sampledStates[index] = evaluator.Kind switch
                 {
                     SimulationEvaluatorKind.SequentialSrLatch =>
                         SampleSrLatch(
@@ -150,14 +174,21 @@ public static partial class SimulationRuntime
             for (var index = 0; index < triggered.Length; index++)
             {
                 var evaluator = ir.Evaluators[triggered[index]];
-                sequentialStates[evaluator.Ordinal] = sampled[index];
-                UpdateSequentialDrivers(evaluator, sampled[index], driverValues);
+                if (evaluator.Kind == SimulationEvaluatorKind.MemoryRamSinglePort)
+                {
+                    memoryStates[evaluator.Ordinal] = sampledMemories[index]!;
+                    continue;
+                }
+
+                sequentialStates[evaluator.Ordinal] = sampledStates[index];
+                UpdateSequentialDrivers(evaluator, sampledStates[index]!, driverValues);
             }
 
             previous = netValues;
             settlement = SettleCombinational(
                 ir,
                 driverValues,
+                memoryStates,
                 policy,
                 work,
                 cancellationToken);
@@ -167,6 +198,7 @@ public static partial class SimulationRuntime
                 netValues,
                 driverValues,
                 sequentialStates,
+                memoryStates,
                 policy,
                 cancellationToken))
             {
@@ -244,7 +276,7 @@ public static partial class SimulationRuntime
         var triggered = new List<int>();
         foreach (var evaluator in artifact.SimulationIr.Evaluators)
         {
-            if (!SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind))
+            if (!SimulationEvaluatorKindFacts.IsTriggeredState(evaluator.Kind))
             {
                 continue;
             }
@@ -273,9 +305,12 @@ public static partial class SimulationRuntime
                 continue;
             }
 
-            var options = evaluator.SequentialOptions!;
-            var clockNetOrdinal = evaluator.InputNetOrdinals[
-                options.ClockInputOrdinal!.Value];
+            var options = evaluator.SequentialOptions;
+            var clockInputOrdinal = evaluator.Kind
+                == SimulationEvaluatorKind.MemoryRamSinglePort
+                ? 3
+                : options!.ClockInputOrdinal!.Value;
+            var clockNetOrdinal = evaluator.InputNetOrdinals[clockInputOrdinal];
             var previous = previousNetValues[clockNetOrdinal][0];
             var current = currentNetValues[clockNetOrdinal][0];
             if (SequentialEvaluation.IsIndefiniteTransition(previous, current))
@@ -290,7 +325,8 @@ public static partial class SimulationRuntime
             if (SequentialEvaluation.IsConfiguredDefiniteEdge(
                     previous,
                     current,
-                    options.RisingEdge))
+                    evaluator.Kind == SimulationEvaluatorKind.MemoryRamSinglePort
+                        || options!.RisingEdge))
             {
                 triggered.Add(evaluator.Ordinal);
             }
@@ -336,6 +372,7 @@ public static partial class SimulationRuntime
             LogicVector[] netValues,
             LogicVector[] driverValues,
             LogicVector?[] sequentialStates,
+            LogicVector[]?[] memoryStates,
             SimulationPolicy policy,
             CancellationToken cancellationToken)
         {
@@ -345,6 +382,7 @@ public static partial class SimulationRuntime
                 netValues,
                 driverValues,
                 sequentialStates,
+                memoryStates,
                 cancellationToken);
             if (states.Contains(
                     candidate,
@@ -382,18 +420,21 @@ public static partial class SimulationRuntime
         private readonly LogicVector[] netValues;
         private readonly LogicVector[] driverValues;
         private readonly LogicVector?[] sequentialStates;
+        private readonly LogicVector[]?[] memoryStates;
 
         private ZeroTimeWorkingState(
             LogicVector[] previousNetValues,
             LogicVector[] netValues,
             LogicVector[] driverValues,
             LogicVector?[] sequentialStates,
+            LogicVector[]?[] memoryStates,
             ZeroTimeStateDescriptor descriptor)
         {
             this.previousNetValues = previousNetValues;
             this.netValues = netValues;
             this.driverValues = driverValues;
             this.sequentialStates = sequentialStates;
+            this.memoryStates = memoryStates;
             Fingerprint = descriptor.Fingerprint;
             CanonicalWordCount = descriptor.CanonicalWordCount;
         }
@@ -407,6 +448,7 @@ public static partial class SimulationRuntime
             LogicVector[] netValues,
             LogicVector[] driverValues,
             LogicVector?[] sequentialStates,
+            LogicVector[]?[] memoryStates,
             CancellationToken cancellationToken)
         {
             return new ZeroTimeWorkingState(
@@ -414,11 +456,13 @@ public static partial class SimulationRuntime
                 netValues,
                 driverValues,
                 sequentialStates,
+                memoryStates,
                 ComputeDescriptor(
                     previousNetValues,
                     netValues,
                     driverValues,
                     sequentialStates,
+                    memoryStates,
                     cancellationToken));
         }
 
@@ -429,6 +473,7 @@ public static partial class SimulationRuntime
                 (LogicVector[])netValues.Clone(),
                 (LogicVector[])driverValues.Clone(),
                 (LogicVector?[])sequentialStates.Clone(),
+                CloneMemoryStates(memoryStates),
                 new ZeroTimeStateDescriptor(Fingerprint, CanonicalWordCount));
         }
 
@@ -451,6 +496,10 @@ public static partial class SimulationRuntime
                 && NullableVectorArraysEqual(
                     sequentialStates,
                     other.sequentialStates,
+                    cancellationToken)
+                && MemoryArraysEqual(
+                    memoryStates,
+                    other.memoryStates,
                     cancellationToken);
         }
 
@@ -508,6 +557,38 @@ public static partial class SimulationRuntime
             return true;
         }
 
+        private static bool MemoryArraysEqual(
+            LogicVector[]?[] left,
+            LogicVector[]?[] right,
+            CancellationToken cancellationToken)
+        {
+            if (left.Length != right.Length)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < left.Length; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (left[index] is null || right[index] is null)
+                {
+                    if (left[index] is not null || right[index] is not null)
+                    {
+                        return false;
+                    }
+                }
+                else if (!VectorArraysEqual(
+                        left[index]!,
+                        right[index]!,
+                        cancellationToken))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private static bool VectorsEqual(
             LogicVector left,
             LogicVector right,
@@ -536,6 +617,7 @@ public static partial class SimulationRuntime
             LogicVector[] netValues,
             LogicVector[] driverValues,
             LogicVector?[] sequentialStates,
+            LogicVector[]?[] memoryStates,
             CancellationToken cancellationToken)
         {
             var accumulator = new ZeroTimeStateAccumulator();
@@ -559,7 +641,35 @@ public static partial class SimulationRuntime
                 4,
                 sequentialStates,
                 cancellationToken);
+            AppendMemoryVectors(
+                ref accumulator,
+                5,
+                memoryStates,
+                cancellationToken);
             return accumulator.Descriptor;
+        }
+
+        private static void AppendMemoryVectors(
+            ref ZeroTimeStateAccumulator accumulator,
+            ulong domain,
+            LogicVector[]?[] values,
+            CancellationToken cancellationToken)
+        {
+            accumulator.Append(domain);
+            accumulator.Append(checked((ulong)values.Length));
+            foreach (var memory in values)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                accumulator.Append(memory is null ? 0UL : 1UL);
+                if (memory is not null)
+                {
+                    AppendVectors(
+                        ref accumulator,
+                        domain: 0,
+                        memory,
+                        cancellationToken);
+                }
+            }
         }
 
         private static void AppendVectors(

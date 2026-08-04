@@ -25,6 +25,7 @@ public static partial class Compiler
             cancellationToken);
         var (evaluators, evaluatorSources, evaluatorInputSources) =
             BuildHierarchyEvaluators(
+                request.ProjectRevision.Document,
                 resolvedInstances,
                 runtimeNetByTerminal,
                 driverByInstancePort,
@@ -132,6 +133,7 @@ public static partial class Compiler
         SimulationEvaluator[] Evaluators,
         SourceMapEntry[] Sources,
         EvaluatorInputSourceMapEntry[] InputSources) BuildHierarchyEvaluators(
+            ProjectDocument document,
             IReadOnlyList<HierarchyResolvedInstance> resolvedInstances,
             IReadOnlyDictionary<HierarchyTerminalKey, int> runtimeNetByTerminal,
             IReadOnlyDictionary<HierarchyInstancePortKey, int> driverByInstancePort,
@@ -171,7 +173,11 @@ public static partial class Compiler
                 GetSlices(resolved.Kind, resolved.Instance.Parameters),
                 GetOption(resolved.Kind, resolved.Instance.Parameters),
                 GetClockSchedule(resolved.Kind, resolved.Instance.Parameters),
-                GetSequentialOptions(resolved.Kind, resolved.Instance.Parameters));
+                GetSequentialOptions(resolved.Kind, resolved.Instance.Parameters),
+                GetInitialMemory(
+                    document,
+                    resolved.Kind,
+                    resolved.Instance.Parameters));
             sources[resolved.Ordinal] = new SourceMapEntry(
                 resolved.Ordinal,
                 Source(
