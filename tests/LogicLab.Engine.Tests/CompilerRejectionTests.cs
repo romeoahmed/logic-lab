@@ -173,12 +173,11 @@ public sealed class CompilerRejectionTests
     public async Task Compile_PreCancelledRequest_RejectsWithoutDiagnosticsOrArtifact()
     {
         var circuit = CompilerTestCircuit.CreateComplete();
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        var cancellationToken = new CancellationToken(canceled: true);
 
         var outcome = Compiler.Compile(
             CompilerTestCircuit.Request(circuit.Revision),
-            cancellation.Token);
+            cancellationToken);
 
         var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
         Assert.NotNull(rejected);

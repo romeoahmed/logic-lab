@@ -619,12 +619,9 @@ public sealed class SequentialRuntimeTests
                 .IsEqualTo(SimulationFailureReason.ZeroTimeOscillation);
             await Assert.That(firstFailure.PolicyEvidence).IsNull();
             await Assert.That(retryFailure.Reason).IsEqualTo(firstFailure.Reason);
-            await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
-            await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
-            await Assert.That(after.TraceCursor).IsEqualTo(before.TraceCursor);
-            await Assert.That(after.Probes[0].Value[0])
-                .IsEqualTo(before.Probes[0].Value[0]);
         }
+
+        await AssertRolledBack(before, after);
     }
 
     [Test]
@@ -650,12 +647,9 @@ public sealed class SequentialRuntimeTests
             await Assert.That(policyEvidence.Dimension)
                 .IsEqualTo("zero_time_state_count");
             await Assert.That(policyEvidence.Observed).IsEqualTo(2UL);
-            await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
-            await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
-            await Assert.That(after.TraceCursor).IsEqualTo(before.TraceCursor);
-            await Assert.That(after.Probes[0].Value[0])
-                .IsEqualTo(before.Probes[0].Value[0]);
         }
+
+        await AssertRolledBack(before, after);
     }
 
     [Test]
@@ -683,12 +677,9 @@ public sealed class SequentialRuntimeTests
             await Assert.That(policyEvidence.Dimension)
                 .IsEqualTo("zero_time_state_word_count");
             await Assert.That(policyEvidence.Observed).IsEqualTo(2UL);
-            await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
-            await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
-            await Assert.That(after.TraceCursor).IsEqualTo(before.TraceCursor);
-            await Assert.That(after.Probes[0].Value[0])
-                .IsEqualTo(before.Probes[0].Value[0]);
         }
+
+        await AssertRolledBack(before, after);
     }
 
     [Test]
@@ -734,21 +725,17 @@ public sealed class SequentialRuntimeTests
         Assert.NotNull(retryPolicyEvidence);
         using (Assert.Multiple())
         {
+            await Assert.That(firstFailure.Reason)
+                .IsEqualTo(SimulationFailureReason.SimulationResourceLimit);
             await Assert.That(firstPolicyEvidence.Dimension)
                 .IsEqualTo("trigger_batch_count");
             await Assert.That(firstPolicyEvidence.Observed)
                 .IsEqualTo(2UL);
-            await Assert.That(afterFirst.SessionVersion).IsEqualTo(before.SessionVersion);
-            await Assert.That(afterFirst.LogicalTime).IsEqualTo(0UL);
-            await Assert.That(afterFirst.TraceCursor).IsEqualTo(before.TraceCursor);
-            await Assert.That(afterFirst.Probes[0].Value[0]).IsEqualTo(LogicValue.Zero);
             await Assert.That(retryPolicyEvidence).IsEqualTo(firstPolicyEvidence);
-            await Assert.That(afterRetry.SessionVersion).IsEqualTo(afterFirst.SessionVersion);
-            await Assert.That(afterRetry.LogicalTime).IsEqualTo(afterFirst.LogicalTime);
-            await Assert.That(afterRetry.TraceCursor).IsEqualTo(afterFirst.TraceCursor);
-            await Assert.That(afterRetry.Probes[0].Value[0])
-                .IsEqualTo(afterFirst.Probes[0].Value[0]);
         }
+
+        await AssertRolledBack(before, afterFirst);
+        await AssertRolledBack(afterFirst, afterRetry);
     }
 
     private static SimulationOpened Open(
@@ -790,6 +777,30 @@ public sealed class SequentialRuntimeTests
             opened.Handle,
             new ReadSessionSnapshot(),
             CancellationToken.None);
+    }
+
+    private static async Task AssertRolledBack(
+        SessionSnapshotRead before,
+        SessionSnapshotRead after)
+    {
+        using (Assert.Multiple())
+        {
+            await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
+            await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
+            await Assert.That(after.TraceCursor).IsEqualTo(before.TraceCursor);
+            await Assert.That(after.Probes.Count).IsEqualTo(before.Probes.Count);
+
+            var comparableProbeCount = Math.Min(before.Probes.Count, after.Probes.Count);
+            for (var index = 0; index < comparableProbeCount; index++)
+            {
+                await Assert.That(after.Probes[index].ProbeId)
+                    .IsEqualTo(before.Probes[index].ProbeId);
+                await Assert.That(LogicVectorTestData.ToValues(after.Probes[index].Value))
+                    .IsEquivalentTo(
+                        LogicVectorTestData.ToValues(before.Probes[index].Value),
+                        CollectionOrdering.Matching);
+            }
+        }
     }
 
     private static (SimulationOpened Opened, CompilationArtifact Artifact)
