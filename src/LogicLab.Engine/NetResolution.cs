@@ -3,7 +3,7 @@ using LogicLab.Domain;
 namespace LogicLab.Engine;
 
 [Flags]
-public enum NetResolutionCauses
+internal enum NetResolutionCauses
 {
     None = 0,
     Undriven = 1 << 0,
@@ -11,6 +11,6 @@ public enum NetResolutionCauses
     Contention = 1 << 2,
 }
 
-public readonly record struct NetResolution(
+internal readonly record struct NetResolution(
     LogicValue Value,
     NetResolutionCauses Causes);

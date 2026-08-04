@@ -1,6 +1,6 @@
 namespace LogicLab.Engine;
 
-public static class VectorConservativeMerge
+internal static class VectorConservativeMerge
 {
     public static LogicVector Merge(IReadOnlyList<LogicVector> values)
     {

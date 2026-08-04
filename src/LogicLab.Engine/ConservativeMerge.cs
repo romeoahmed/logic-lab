@@ -2,7 +2,7 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine;
 
-public static class ConservativeMerge
+internal static class ConservativeMerge
 {
     public static LogicValue Merge(IReadOnlyList<LogicValue> values)
     {

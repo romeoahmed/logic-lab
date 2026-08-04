@@ -54,17 +54,17 @@ public class VectorNetResolutionBenchmarks
     }
 
     [Benchmark]
-    public VectorNetResolution PackedKernel()
+    public LogicVector PackedKernel()
     {
-        return VectorNetResolver.Resolve(Case.Width, vectorDrivers);
+        return VectorNetResolver.Resolve(Case.Width, vectorDrivers).Value;
     }
 
     [Benchmark]
-    public VectorNetResolution ProductionCallShape()
+    public LogicVector ProductionCallShape()
     {
         return VectorNetResolver.Resolve(
             Case.Width,
-            [.. driverOrdinals.Select(ordinal => vectorDrivers[ordinal])]);
+            [.. driverOrdinals.Select(ordinal => vectorDrivers[ordinal])]).Value;
     }
 
     private static LogicValue Value(int bitIndex, int driverIndex)

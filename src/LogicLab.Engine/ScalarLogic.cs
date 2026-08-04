@@ -2,7 +2,7 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine;
 
-public static class ScalarLogic
+internal static class ScalarLogic
 {
     public static LogicValue NormalizeInput(LogicValue value)
     {
