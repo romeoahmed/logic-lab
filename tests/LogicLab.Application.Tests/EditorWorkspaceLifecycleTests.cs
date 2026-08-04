@@ -16,13 +16,13 @@ public sealed class EditorWorkspaceLifecycleTests
             new CreateSandbox("Rejected", "Main"),
             CancellationToken.None);
 
+        var openRejection = await Assert.That(rejected).IsTypeOf<WorkspaceOpenRejected>();
+        Assert.NotNull(openRejection);
         using (Assert.Multiple())
         {
             await Assert.That(first).IsTypeOf<WorkspaceOpened>();
             await Assert.That(second).IsTypeOf<WorkspaceOpened>();
-            await Assert.That(rejected).IsTypeOf<WorkspaceOpenRejected>();
-            await Assert.That(((WorkspaceOpenRejected)rejected).Code)
-                .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(openRejection.Code).IsEqualTo("workspace_admission_rejected");
         }
     }
 
@@ -39,9 +39,9 @@ public sealed class EditorWorkspaceLifecycleTests
         timeProvider.Advance(TimeSpan.FromMinutes(5));
         var outcome = await workspace.ReadAsync(opened.WorkspaceId, CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<WorkspaceReadRejected>();
-        await Assert.That(((WorkspaceReadRejected)outcome).Code)
-            .IsEqualTo("workspace_expired");
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceReadRejected>();
+        Assert.NotNull(rejected);
+        await Assert.That(rejected.Code).IsEqualTo("workspace_expired");
     }
 
     [Test]
@@ -91,12 +91,12 @@ public sealed class EditorWorkspaceLifecycleTests
         var read = await workspace.ReadAsync(opened.WorkspaceId, CancellationToken.None);
         var replacement = await Open(workspace);
 
+        var readRejection = await Assert.That(read).IsTypeOf<WorkspaceReadRejected>();
+        Assert.NotNull(readRejection);
         using (Assert.Multiple())
         {
             await Assert.That(closed).IsTypeOf<WorkspaceClosed>();
-            await Assert.That(read).IsTypeOf<WorkspaceReadRejected>();
-            await Assert.That(((WorkspaceReadRejected)read).Code)
-                .IsEqualTo("workspace_not_found");
+            await Assert.That(readRejection.Code).IsEqualTo("workspace_not_found");
             await Assert.That(replacement).IsTypeOf<WorkspaceOpened>();
         }
     }

@@ -118,14 +118,16 @@ public sealed class EditorWorkspaceTests
             CancellationToken.None);
         var projection = await Read(workspace, opened.WorkspaceId);
 
-        await Assert.That(compilation).IsTypeOf<WorkspaceCommandRejected>();
-        await Assert.That(session).IsTypeOf<WorkspaceCommandRejected>();
+        var compilationRejection = await Assert.That(compilation)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        var sessionRejection = await Assert.That(session)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(compilationRejection);
+        Assert.NotNull(sessionRejection);
         using (Assert.Multiple())
         {
-            await Assert.That(((WorkspaceCommandRejected)compilation).Code)
-                .IsEqualTo("compilation_invalid");
-            await Assert.That(((WorkspaceCommandRejected)session).Code)
-                .IsEqualTo("session_precondition_failed");
+            await Assert.That(compilationRejection.Code).IsEqualTo("compilation_invalid");
+            await Assert.That(sessionRejection.Code).IsEqualTo("session_precondition_failed");
             await Assert.That(projection.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.Rejected);
             await Assert.That(projection.Compilation.ArtifactKey).IsNull();
@@ -147,11 +149,11 @@ public sealed class EditorWorkspaceTests
             cancellation.Token);
         var after = await Read(workspace, opened.WorkspaceId);
 
-        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
-            await Assert.That(((WorkspaceCommandRejected)outcome).Code)
-                .IsEqualTo("workspace_cancelled");
+            await Assert.That(rejected.Code).IsEqualTo("workspace_cancelled");
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
             await Assert.That(after.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.NotRequested);
@@ -242,11 +244,11 @@ public sealed class EditorWorkspaceTests
             cancellation.Token);
         var after = await Read(workspace, opened.WorkspaceId);
 
-        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
-            await Assert.That(((WorkspaceCommandRejected)outcome).Code)
-                .IsEqualTo("workspace_cancelled");
+            await Assert.That(rejected.Code).IsEqualTo("workspace_cancelled");
             await Assert.That(after.ProjectRevision.RevisionId)
                 .IsEqualTo(before.ProjectRevision.RevisionId);
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
@@ -346,9 +348,9 @@ public sealed class EditorWorkspaceTests
                 [new InputStimulusAssignment(input.Id, [])]),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        await Assert.That(((WorkspaceCommandRejected)outcome).Code)
-            .IsEqualTo("session_precondition_failed");
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
+        await Assert.That(rejected.Code).IsEqualTo("session_precondition_failed");
     }
 
     [Test]
@@ -364,9 +366,9 @@ public sealed class EditorWorkspaceTests
                 [new InputStimulusAssignment(input.Id, [LogicValue.Zero, LogicValue.One])]),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        await Assert.That(((WorkspaceCommandRejected)outcome).Code)
-            .IsEqualTo("session_precondition_failed");
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
+        await Assert.That(rejected.Code).IsEqualTo("session_precondition_failed");
     }
 
     [Test]
@@ -379,9 +381,9 @@ public sealed class EditorWorkspaceTests
             new StepSession(opened.WorkspaceId),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        await Assert.That(((WorkspaceCommandRejected)outcome).Code)
-            .IsEqualTo("no_scheduled_stimulus");
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
+        await Assert.That(rejected.Code).IsEqualTo("no_scheduled_stimulus");
     }
 
     [Test, Timeout(30_000)]
