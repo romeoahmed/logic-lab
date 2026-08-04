@@ -4,10 +4,10 @@
     <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
     <CentralPackageVersionOverrideEnabled>false</CentralPackageVersionOverrideEnabled>
   </PropertyGroup>
-
+  
   <ItemGroup>
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
-    <PackageVersion Include="bunit" Version="2.8.6" />
+    <PackageVersion Include="bunit" Version="2.9.0" />
     <PackageVersion Include="FsCheck" Version="3.3.4" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
     <PackageVersion Include="Microsoft.FluentUI.AspNetCore.Components" Version="5.0.0-rc.4-26180.1" />
