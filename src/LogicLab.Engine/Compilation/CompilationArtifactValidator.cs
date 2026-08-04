@@ -43,6 +43,8 @@ internal static class CompilationArtifactValidator
             {
                 Invalid("An evaluator output does not own its Driver.");
             }
+
+            ValidateSequentialOptions(evaluator);
         }
 
         foreach (var driver in ir.Drivers)
@@ -82,6 +84,51 @@ internal static class CompilationArtifactValidator
         ValidateFanout(ir, cancellationToken);
         ValidateStronglyConnectedComponents(ir, cancellationToken);
         ValidateSourceMap(ir, sourceMap, cancellationToken);
+    }
+
+    private static void ValidateSequentialOptions(SimulationEvaluator evaluator)
+    {
+        var isSequential = SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind);
+        if (isSequential != (evaluator.SequentialOptions is not null))
+        {
+            Invalid("Sequential evaluator metadata does not match its kind.");
+        }
+
+        if (!isSequential)
+        {
+            return;
+        }
+
+        var options = evaluator.SequentialOptions!;
+        var isLatch = evaluator.Kind is SimulationEvaluatorKind.SequentialDLatch
+            or SimulationEvaluatorKind.SequentialSrLatch;
+        if (isLatch != (options.ClockInputOrdinal is null))
+        {
+            Invalid("Sequential clock metadata does not match latch behavior.");
+        }
+
+        if (options.ClockInputOrdinal is { } clockInputOrdinal)
+        {
+            RequireInBounds(
+                clockInputOrdinal,
+                evaluator.InputNetOrdinals.Count,
+                "sequential clock input");
+        }
+
+        var directionIsValid = evaluator.Kind switch
+        {
+            SimulationEvaluatorKind.SequentialShiftRegister =>
+                options.Direction is SequentialDirection.TowardHigh
+                    or SequentialDirection.TowardLow,
+            SimulationEvaluatorKind.SequentialCounter =>
+                options.Direction is SequentialDirection.Up
+                    or SequentialDirection.Down,
+            _ => options.Direction == SequentialDirection.None,
+        };
+        if (!directionIsValid)
+        {
+            Invalid("Sequential direction metadata does not match its contract.");
+        }
     }
 
     private static void ValidateFanout(

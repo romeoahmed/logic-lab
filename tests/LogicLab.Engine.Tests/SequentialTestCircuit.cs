@@ -71,6 +71,12 @@ internal sealed class SequentialTestCircuit
             [.. Enumerable.Repeat(initialValue, checked((int)width))])),
     ];
 
+    public static ComponentParameterBinding[] InputVector(params LogicValue[] values) =>
+    [
+        new("width", new Unsigned32ParameterValue(checked((uint)values.Length))),
+        new("initialValue", new LogicVectorParameterValue(values)),
+    ];
+
     public static ComponentParameterBinding[] Clock(
         LogicValue initialValue = LogicValue.Zero,
         ulong firstTransition = 5,
@@ -101,6 +107,39 @@ internal sealed class SequentialTestCircuit
         new("width", new Unsigned32ParameterValue(width)),
         new("initialState", new LogicVectorParameterValue(
             [.. Enumerable.Repeat(initialState, checked((int)width))])),
+    ];
+
+    public static ComponentParameterBinding[] ScalarState(
+        LogicValue initialState,
+        string edge = "rising") =>
+    [
+        new("edge", new ChoiceParameterValue(edge)),
+        new("initialState", new LogicVectorParameterValue([initialState])),
+    ];
+
+    public static ComponentParameterBinding[] SrLatch(LogicValue initialState) =>
+    [
+        new("initialState", new LogicVectorParameterValue([initialState])),
+    ];
+
+    public static ComponentParameterBinding[] ShiftRegister(
+        string direction,
+        params LogicValue[] initialState) =>
+    [
+        new("width", new Unsigned32ParameterValue(checked((uint)initialState.Length))),
+        new("direction", new ChoiceParameterValue(direction)),
+        new("edge", new ChoiceParameterValue("rising")),
+        new("initialState", new LogicVectorParameterValue(initialState)),
+    ];
+
+    public static ComponentParameterBinding[] Counter(
+        string direction,
+        params LogicValue[] initialState) =>
+    [
+        new("width", new Unsigned32ParameterValue(checked((uint)initialState.Length))),
+        new("direction", new ChoiceParameterValue(direction)),
+        new("edge", new ChoiceParameterValue("rising")),
+        new("initialState", new LogicVectorParameterValue(initialState)),
     ];
 
     public static ComponentParameterBinding[] TriState(uint width = 1) =>
