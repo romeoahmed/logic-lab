@@ -38,7 +38,7 @@ public static partial class Compiler
             simulationNets,
             cancellationToken);
         var adjacency = BuildEvaluatorAdjacency(
-            evaluators.Length,
+            evaluators,
             drivers,
             simulationNets,
             cancellationToken);
@@ -169,7 +169,8 @@ public static partial class Compiler
                 outputDrivers,
                 GetInitialValue(resolved.Kind, resolved.Instance.Parameters),
                 GetSlices(resolved.Kind, resolved.Instance.Parameters),
-                GetOption(resolved.Kind, resolved.Instance.Parameters));
+                GetOption(resolved.Kind, resolved.Instance.Parameters),
+                GetClockSchedule(resolved.Kind, resolved.Instance.Parameters));
             sources[resolved.Ordinal] = new SourceMapEntry(
                 resolved.Ordinal,
                 Source(

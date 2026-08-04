@@ -8,4 +8,6 @@ public enum ComponentParameterKind
     Slices,
     Widths,
     MemoryImage,
+    BinaryLogicValue,
+    PositiveUnsigned64,
 }
