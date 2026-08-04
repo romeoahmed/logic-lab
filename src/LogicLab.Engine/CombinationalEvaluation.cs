@@ -93,13 +93,12 @@ internal static class CombinationalEvaluation
         var normalizedData = VectorLogic.NormalizeInput(data);
         var zero = Uniform(data.Width, LogicValue.Zero);
         var selectorIsKnown = IsKnown(normalizedSelector);
-        return Enumerable.Range(0, outputCount)
+        return [.. Enumerable.Range(0, outputCount)
             .Select(index => IsCompatibleIndex(normalizedSelector, checked((uint)index))
                 ? selectorIsKnown
                     ? normalizedData
                     : VectorConservativeMerge.Merge([normalizedData, zero])
-                : zero)
-            .ToArray();
+                : zero)];
     }
 
     public static LogicVector[] Decoder(
@@ -113,7 +112,7 @@ internal static class CombinationalEvaluation
         var active = activeHigh ? normalizedEnable : ScalarLogic.Not(normalizedEnable);
         var outputCount = OutputCount(address.Width);
         var addressIsKnown = IsKnown(normalizedAddress);
-        return Enumerable.Range(0, outputCount)
+        return [.. Enumerable.Range(0, outputCount)
             .Select(index =>
             {
                 var possible = new List<LogicValue>(3);
@@ -139,8 +138,7 @@ internal static class CombinationalEvaluation
                 }
 
                 return Uniform(1, ConservativeMerge.Merge(possible));
-            })
-            .ToArray();
+            })];
     }
 
     public static PriorityEncoderResult PriorityEncoder(
@@ -183,7 +181,7 @@ internal static class CombinationalEvaluation
             .ToArray();
         return new PriorityEncoderResult(
             VectorConservativeMerge.Merge(indices),
-            ConservativeMerge.Merge(possibleResults.Select(result => result.Valid).ToArray()));
+            ConservativeMerge.Merge([.. possibleResults.Select(result => result.Valid)]));
     }
 
     private static bool IsCompatibleIndex(LogicVector selector, uint index)
@@ -207,7 +205,7 @@ internal static class CombinationalEvaluation
 
     private static LogicVector Uniform(int width, LogicValue value)
     {
-        return new LogicVector(Enumerable.Repeat(value, width).ToArray());
+        return new LogicVector([.. Enumerable.Repeat(value, width)]);
     }
 
     private static int OutputCount(int selectorWidth)
@@ -223,8 +221,10 @@ internal static class CombinationalEvaluation
 
     private static LogicVector UnsignedVector(uint value, int width)
     {
-        return new LogicVector(Enumerable.Range(0, width)
-            .Select(bit => ((value >> bit) & 1U) == 0 ? LogicValue.Zero : LogicValue.One)
-            .ToArray());
+        return new LogicVector(
+            [.. Enumerable.Range(0, width).Select(bit =>
+                ((value >> bit) & 1U) == 0
+                    ? LogicValue.Zero
+                    : LogicValue.One)]);
     }
 }

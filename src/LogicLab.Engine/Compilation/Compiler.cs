@@ -416,7 +416,7 @@ public static partial class Compiler
                 portResolution));
         }
 
-        return pending.ToArray();
+        return [.. pending];
     }
 
     private static ResolvedInstance[] MaterializeInstances(
@@ -873,7 +873,7 @@ public static partial class Compiler
             }
         }
 
-        return adjacency.Select(edges => edges.ToArray()).ToArray();
+        return [.. adjacency.Select(edges => edges.ToArray())];
     }
 
     private static bool TryGetEvaluatorKind(
@@ -1114,12 +1114,11 @@ public static partial class Compiler
             new CompilationPolicyReference(
                 request.Policy.PolicyId,
                 request.Policy.PolicyRevision),
-            observations
+            [.. observations
                 .OrderBy(
                     row => DimensionToken(row.Key),
                     StringComparer.Ordinal)
-                .Select(row => new ObservedProjectScaleDimension(row.Key, row.Value))
-                .ToArray(),
+                .Select(row => new ObservedProjectScaleDimension(row.Key, row.Value))],
             breach);
     }
 

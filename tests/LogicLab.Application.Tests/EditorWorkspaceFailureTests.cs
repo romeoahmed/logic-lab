@@ -228,7 +228,7 @@ public sealed class EditorWorkspaceFailureTests
             await Assert.That(after.Simulation!.SessionVersion).IsEqualTo(3UL);
             await Assert.That(after.Simulation.LogicalTime).IsEqualTo(1UL);
             await Assert.That(after.Simulation.Probes[0].Value)
-                .IsEquivalentTo(new[] { LogicValue.One });
+                .IsEquivalentTo([LogicValue.One]);
         }
     }
 

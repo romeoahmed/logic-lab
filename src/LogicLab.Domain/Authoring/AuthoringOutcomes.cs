@@ -120,10 +120,10 @@ public sealed record ProjectGenesisCommitted : ProjectGenesisOutcome
     public ReadOnlyCollection<AuthoredSourceIdentity> ChangedSources { get; }
 
     public ReadOnlyCollection<AuthoredSourceIdentity> RemovedSources { get; } =
-        ReadOnlyCollection<AuthoredSourceIdentity>.Empty;
+        [];
 
     public ReadOnlyCollection<AuthoringDiagnostic> Diagnostics { get; } =
-        ReadOnlyCollection<AuthoringDiagnostic>.Empty;
+        [];
 }
 
 public sealed record ProjectGenesisRejected : ProjectGenesisOutcome
@@ -167,7 +167,7 @@ public sealed record EditCommitted : EditOutcome
     public ReadOnlyCollection<AuthoredSourceIdentity> RemovedSources { get; }
 
     public ReadOnlyCollection<AuthoringDiagnostic> Diagnostics { get; } =
-        ReadOnlyCollection<AuthoringDiagnostic>.Empty;
+        [];
 }
 
 public sealed record EditRejected : EditOutcome

@@ -85,7 +85,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             {
                 return Task.FromResult<WorkspaceOpenOutcome>(new WorkspaceOpenRejected(
                         rejected.Reason,
-                        rejected.Diagnostics.Select(item => item.Code).ToArray()));
+                        [.. rejected.Diagnostics.Select(item => item.Code)]));
             }
 
             var committed = (ProjectGenesisCommitted)genesis;
@@ -371,7 +371,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                     state.Compilation = new CompilationProjection(
                         CompilationPublicationStatus.Published,
                         succeeded.Artifact.Key,
-                        succeeded.Diagnostics.Select(item => item.Code).ToArray());
+                        [.. succeeded.Diagnostics.Select(item => item.Code)]);
                     published = new CompilationPublished(
                         succeeded.Artifact.Key,
                         state.ProjectionVersion);
@@ -631,7 +631,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     {
         var observationsByProbe = observations.ToDictionary(
             observation => observation.ProbeId);
-        return probes.Select(probe =>
+        return [.. probes.Select(probe =>
         {
             if (!observationsByProbe.TryGetValue(probe.ProbeId, out var observation))
             {
@@ -642,7 +642,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 observation.ProbeId,
                 observation.Source.Identity,
                 Values(observation.Value));
-        }).ToArray();
+        })];
     }
 
     private static CompilationSource[] OutputProbeSources(
@@ -662,12 +662,11 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             .Select(net => net.Id)
             .ToHashSet();
 
-        return artifact.SourceMap.Nets
+        return [.. artifact.SourceMap.Nets
             .Select(item => item.Source)
             .Where(source => source.Identity is NetSourceIdentity net
                 && netIds.Contains(net.NetId))
-            .OrderBy(source => ((NetSourceIdentity)source.Identity).NetId.Value)
-            .ToArray();
+            .OrderBy(source => ((NetSourceIdentity)source.Identity).NetId.Value)];
     }
 
     private static bool TryCreateStimulusAssignment(
@@ -686,15 +685,14 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
         var input = definition.ComponentInstances.SingleOrDefault(instance =>
             instance.Id == assignment.InputComponentInstanceId);
-        var width = input?.Parameters
+        if (input is null
+            || !IsInputSource(input)
+            || input.Parameters
             .SingleOrDefault(parameter => string.Equals(
                 parameter.ParameterId,
                 "width",
                 StringComparison.Ordinal))
-            ?.Value as Unsigned32ParameterValue;
-        if (input is null
-            || !IsInputSource(input)
-            || width is null
+            ?.Value is not Unsigned32ParameterValue width
             || assignment.Value.Count != checked((int)width.Value))
         {
             return false;
@@ -759,16 +757,16 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             snapshot.SessionVersion,
             snapshot.LogicalTime,
             snapshot.TraceCursor,
-            snapshot.Probes.Select(probe => new ProbeProjection(
+            [.. snapshot.Probes.Select(probe => new ProbeProjection(
                 probe.ProbeId,
                 probe.Source.Identity,
-                Values(probe.Value))).ToArray());
+                Values(probe.Value)))]);
         return null;
     }
 
     private static LogicValue[] Values(LogicVector vector)
     {
-        return Enumerable.Range(0, vector.Width).Select(index => vector[index]).ToArray();
+        return [.. Enumerable.Range(0, vector.Width).Select(index => vector[index])];
     }
 
     private static WorkspaceProjection Project(WorkspaceState state)

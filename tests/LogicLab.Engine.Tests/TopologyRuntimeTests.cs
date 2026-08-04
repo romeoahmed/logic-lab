@@ -448,15 +448,14 @@ public sealed class TopologyRuntimeTests
 
     private static LogicValue[] ToValues(LogicVector vector)
     {
-        return Enumerable.Range(0, vector.Width).Select(index => vector[index]).ToArray();
+        return [.. Enumerable.Range(0, vector.Width).Select(index => vector[index])];
     }
 
     private static LogicValue[] Slice(LogicValue[] values, BitSlice slice)
     {
-        return values
+        return [.. values
             .Skip(checked((int)slice.Offset))
-            .Take(checked((int)slice.Length))
-            .ToArray();
+            .Take(checked((int)slice.Length))];
     }
 
     private static bool RangesOverlap(BitSlice left, BitSlice right)

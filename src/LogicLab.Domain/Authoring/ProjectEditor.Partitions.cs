@@ -76,10 +76,11 @@ public static partial class ProjectEditor
             .Concat(newGeometries)
             .ToArray();
         var updatedDefinition = definition.WithTopology(
-            definition.Nets
-                .Where(item => item.Id != net.Id)
-                .Concat(newNets)
-                .ToArray(),
+            [
+                .. definition.Nets
+                    .Where(item => item.Id != net.Id),
+                .. newNets,
+            ],
             updatedJunctions,
             updatedGeometries);
         var changedSources = newNets

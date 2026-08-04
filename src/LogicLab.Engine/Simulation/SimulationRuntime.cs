@@ -54,7 +54,7 @@ public static class SimulationRuntime
             var trace = new SimulationTraceStore(request.TracePolicy);
             trace.Append(
                 0,
-                probes.Select(probe => (probe, netValues[probe.NetOrdinal])).ToArray());
+                [.. probes.Select(probe => (probe, netValues[probe.NetOrdinal]))]);
             work.Trace = trace;
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -81,7 +81,7 @@ public static class SimulationRuntime
                 state.SessionVersion,
                 request.CompilationArtifact.Key,
                 state.LogicalTime,
-                probes.Select(probe => probe.ProbeId).ToArray(),
+                [.. probes.Select(probe => probe.ProbeId)],
                 trace.Cursor,
                 diagnostics,
                 evidence);
@@ -316,7 +316,7 @@ public static class SimulationRuntime
             sequence,
             scheduledAssignments);
         var mergedAssignments = assignmentsAtTime is null
-            ? new SortedDictionary<int, LogicVector>()
+            ? []
             : new SortedDictionary<int, LogicVector>(assignmentsAtTime);
         foreach (var assignment in normalized)
         {
@@ -412,7 +412,7 @@ public static class SimulationRuntime
         return new AdvanceCommitted(
             state.SessionVersion,
             state.LogicalTime,
-            observations.ToArray(),
+            [.. observations],
             state.Diagnostics,
             state.Trace.Cursor);
     }
@@ -781,9 +781,7 @@ public static class SimulationRuntime
                 driverValues[evaluator.OutputDriverOrdinals[0]] =
                     CombinationalEvaluation.Gate(
                         evaluator.Kind,
-                        evaluator.InputNetOrdinals
-                            .Select(ordinal => netValues[ordinal])
-                            .ToArray());
+                        [.. evaluator.InputNetOrdinals.Select(ordinal => netValues[ordinal])]);
                 return;
             case SimulationEvaluatorKind.LogicTristate:
                 driverValues[evaluator.OutputDriverOrdinals[0]] =
@@ -795,10 +793,9 @@ public static class SimulationRuntime
             case SimulationEvaluatorKind.LogicMux:
                 driverValues[evaluator.OutputDriverOrdinals[0]] =
                     CombinationalEvaluation.Mux(
-                        evaluator.InputNetOrdinals
+                        [.. evaluator.InputNetOrdinals
                             .Take(evaluator.InputNetOrdinals.Count - 1)
-                            .Select(ordinal => netValues[ordinal])
-                            .ToArray(),
+                            .Select(ordinal => netValues[ordinal])],
                         netValues[evaluator.InputNetOrdinals[^1]]);
                 return;
             case SimulationEvaluatorKind.LogicDemux:
@@ -820,9 +817,7 @@ public static class SimulationRuntime
                 return;
             case SimulationEvaluatorKind.LogicPriorityEncoder:
                 var priority = CombinationalEvaluation.PriorityEncoder(
-                    evaluator.InputNetOrdinals
-                        .Select(ordinal => netValues[ordinal][0])
-                        .ToArray(),
+                    [.. evaluator.InputNetOrdinals.Select(ordinal => netValues[ordinal][0])],
                     evaluator.Option);
                 driverValues[evaluator.OutputDriverOrdinals[0]] = priority.Index;
                 driverValues[evaluator.OutputDriverOrdinals[1]] =
@@ -887,9 +882,7 @@ public static class SimulationRuntime
                 return;
             case SimulationEvaluatorKind.TopologyConcat:
                 driverValues[evaluator.OutputDriverOrdinals[0]] = VectorLogic.Concat(
-                    evaluator.InputNetOrdinals
-                        .Select(ordinal => netValues[ordinal])
-                        .ToArray());
+                    [.. evaluator.InputNetOrdinals.Select(ordinal => netValues[ordinal])]);
                 return;
             case SimulationEvaluatorKind.TopologyZeroExtend:
                 driverValues[evaluator.OutputDriverOrdinals[0]] = VectorLogic.ZeroExtend(
@@ -932,7 +925,7 @@ public static class SimulationRuntime
         var net = ir.Nets[netOrdinal];
         return VectorNetResolver.Resolve(
             checked((int)net.Width),
-            net.DriverOrdinals.Select(ordinal => driverValues[ordinal]).ToArray());
+            [.. net.DriverOrdinals.Select(ordinal => driverValues[ordinal])]);
     }
 
     private static void CountWork(
@@ -1033,7 +1026,7 @@ public static class SimulationRuntime
     private static LogicVector Uniform(uint width, LogicValue value)
     {
         return new LogicVector(
-            Enumerable.Repeat(value, checked((int)width)).ToArray());
+            [.. Enumerable.Repeat(value, checked((int)width))]);
     }
 
     private static SimulationOpenRejected Rejected(

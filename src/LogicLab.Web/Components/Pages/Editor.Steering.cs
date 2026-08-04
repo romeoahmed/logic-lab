@@ -67,9 +67,9 @@ public partial class Editor
                             new Unsigned32ParameterValue(input.Width)),
                         new ComponentParameterBinding(
                             "value",
-                            new LogicVectorParameterValue(Enumerable.Repeat(
+                            new LogicVectorParameterValue([.. Enumerable.Repeat(
                                 GalleryInputValue(input.Id),
-                                checked((int)input.Width)).ToArray())),
+                                checked((int)input.Width))])),
                     ],
                     $"{component.DisplayName} {input.Id}",
                     placementIndex++);

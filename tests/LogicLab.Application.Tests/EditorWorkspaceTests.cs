@@ -72,7 +72,7 @@ public sealed class EditorWorkspaceTests
         {
             await Assert.That(initial.Simulation.LogicalTime).IsEqualTo(0UL);
             await Assert.That(initialProbe.Value).IsEquivalentTo(
-                new[] { LogicValue.One });
+                [LogicValue.One]);
         }
 
         var scheduled = await workspace.DispatchAsync(
@@ -94,7 +94,7 @@ public sealed class EditorWorkspaceTests
         {
             await Assert.That(afterStep.Simulation.LogicalTime).IsEqualTo(1UL);
             await Assert.That(afterStepProbe.Value).IsEquivalentTo(
-                new[] { LogicValue.Zero });
+                [LogicValue.Zero]);
         }
     }
 

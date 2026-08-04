@@ -16,7 +16,7 @@ public static partial class ProjectEditor
             intent.Words);
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var image = new MemoryImage(
@@ -24,10 +24,9 @@ public static partial class ProjectEditor
             intent.DisplayName,
             intent.Width,
             intent.Depth,
-            intent.Words.ToArray());
+            [.. intent.Words]);
         var images = revision.Document.MemoryImages.Append(image).ToArray();
         return Commit(
-            revision,
             revision.Document.WithMemoryImages(images),
             [new MemoryImageSourceIdentity(revision.Document.ProjectId, image.Id)]);
     }
@@ -52,11 +51,10 @@ public static partial class ProjectEditor
             intent.DisplayName,
             intent.Width,
             intent.Depth,
-            intent.Words.ToArray());
+            [.. intent.Words]);
         var candidateDocument = revision.Document.WithMemoryImages(
-            revision.Document.MemoryImages
-                .Select(image => image.Id == original.Id ? replacement : image)
-                .ToArray());
+            [.. revision.Document.MemoryImages.Select(image =>
+                image.Id == original.Id ? replacement : image)]);
         var references = FindMemoryImageReferences(revision.Document, original.Id);
         var migrations = new Dictionary<
             (CircuitDefinitionId DefinitionId, ComponentInstanceId InstanceId),
@@ -118,17 +116,17 @@ public static partial class ProjectEditor
             if (parameterDiagnostics.Count == 0)
             {
                 definitionReplacements[definition.Id] = definition.ReplaceComponentInstances(
-                    [instance.WithParameters(migration.Parameters.ToArray())]);
+                    [instance.WithParameters([.. migration.Parameters])]);
             }
         }
 
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var document = candidateDocument.ReplaceCircuitDefinitions(
-            definitionReplacements.Values.ToArray());
+            [.. definitionReplacements.Values]);
         var changed = references.Select(reference => (AuthoredSourceIdentity)
                 new ComponentInstanceSourceIdentity(
                     reference.DefinitionId,
@@ -136,7 +134,6 @@ public static partial class ProjectEditor
             .Prepend(new MemoryImageSourceIdentity(document.ProjectId, original.Id))
             .ToArray();
         return Commit(
-            revision,
             document,
             changed);
     }
@@ -158,10 +155,9 @@ public static partial class ProjectEditor
         }
 
         return Commit(
-            revision,
-            revision.Document.WithMemoryImages(revision.Document.MemoryImages
-                .Where(candidate => candidate.Id != image.Id)
-                .ToArray()),
+            revision.Document.WithMemoryImages(
+                [.. revision.Document.MemoryImages.Where(
+                    candidate => candidate.Id != image.Id)]),
             [],
             [new MemoryImageSourceIdentity(revision.Document.ProjectId, image.Id)]);
     }
@@ -187,7 +183,7 @@ public static partial class ProjectEditor
             diagnostics);
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var updated = definition.ReplaceComponentInstances(
@@ -260,21 +256,19 @@ public static partial class ProjectEditor
 
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var document = revision.Document.ReplaceCircuitDefinitions(
-            replacements.Values.ToArray()).WithSymbolProfile(intent.SymbolProfile);
+            [.. replacements.Values]).WithSymbolProfile(intent.SymbolProfile);
         return Commit(
-            revision,
             document,
-            replacements.Values.SelectMany(definition =>
+            [.. replacements.Values.SelectMany(definition =>
                 definition.ComponentInstances
                     .Where(instance => migratedIds.Contains((definition.Id, instance.Id)))
                     .Select(instance => (AuthoredSourceIdentity)
                         new ComponentInstanceSourceIdentity(definition.Id, instance.Id)))
-                .Prepend(new ProjectRootSourceIdentity(document.ProjectId))
-                .ToArray());
+                .Prepend(new ProjectRootSourceIdentity(document.ProjectId))]);
     }
 
     private static EditOutcome ApplyCreateAnnotation(
@@ -290,13 +284,13 @@ public static partial class ProjectEditor
         var diagnostics = ValidateAnnotation(intent.Value);
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var annotation = new Annotation(AnnotationId.Create(), intent.Value);
         return Commit(
             revision,
-            definition.WithAnnotations(definition.Annotations.Append(annotation).ToArray()),
+            definition.WithAnnotations([.. definition.Annotations, annotation]),
             [new AnnotationSourceIdentity(definition.Id, annotation.Id)]);
     }
 
@@ -315,7 +309,7 @@ public static partial class ProjectEditor
         var diagnostics = ValidateAnnotation(intent.Value);
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var annotations = definition.Annotations.Select(candidate =>
@@ -358,7 +352,7 @@ public static partial class ProjectEditor
 
         if (diagnostics.Count != 0)
         {
-            return new EditRejected(diagnostics.ToArray());
+            return new EditRejected([.. diagnostics]);
         }
 
         var annotations = definition.Annotations.Select(annotation =>
@@ -368,8 +362,8 @@ public static partial class ProjectEditor
         return Commit(
             revision,
             definition.WithAnnotations(annotations),
-            moves.Keys.Select(id => (AuthoredSourceIdentity)
-                new AnnotationSourceIdentity(definition.Id, id)).ToArray());
+            [.. moves.Keys.Select(id => (AuthoredSourceIdentity)
+                new AnnotationSourceIdentity(definition.Id, id))]);
     }
 
     private static EditOutcome ApplyRemoveAnnotation(
@@ -386,9 +380,9 @@ public static partial class ProjectEditor
 
         return Commit(
             revision,
-            definition.WithAnnotations(definition.Annotations
-                .Where(candidate => candidate.Id != annotation.Id)
-                .ToArray()),
+            definition.WithAnnotations(
+                [.. definition.Annotations.Where(
+                    candidate => candidate.Id != annotation.Id)]),
             [],
             [new AnnotationSourceIdentity(definition.Id, annotation.Id)]);
     }
@@ -504,13 +498,12 @@ public static partial class ProjectEditor
         ComponentInstanceId InstanceId)>
         FindMemoryImageReferences(ProjectDocument document, MemoryImageId imageId)
     {
-        return document.CircuitDefinitions.SelectMany(definition =>
+        return [.. document.CircuitDefinitions.SelectMany(definition =>
                 definition.ComponentInstances
                     .Where(instance => instance.Parameters.Any(parameter =>
                         parameter.Value is MemoryImageParameterValue reference
                         && reference.MemoryImageId == imageId))
-                    .Select(instance => (definition.Id, instance.Id)))
-            .ToHashSet();
+                    .Select(instance => (definition.Id, instance.Id)))];
     }
 
     private static bool ConnectedPortSchemasMatch(

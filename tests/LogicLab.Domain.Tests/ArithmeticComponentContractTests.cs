@@ -90,7 +90,7 @@ public sealed class ArithmeticComponentContractTests
             throw new InvalidOperationException("The test Port set must fit its fixed budget.");
         }
 
-        return ports.ToArray();
+        return [.. ports];
     }
 
     private static ComponentContractSchema Find(string contractId)

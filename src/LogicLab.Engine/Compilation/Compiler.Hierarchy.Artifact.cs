@@ -248,8 +248,8 @@ public static partial class Compiler
             nets[netOrdinal] = new SimulationNet(
                 netOrdinal,
                 group.Members[0].Net.Width,
-                drivers.ToArray(),
-                receivers.ToArray());
+                [.. drivers],
+                [.. receivers]);
             var bindings = group.Members.Select(member => new SourceMapEntry(
                 netOrdinal,
                 Source(
