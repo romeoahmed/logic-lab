@@ -669,8 +669,8 @@ public sealed class ProjectEditorCircuitTests
                 parameters,
                 new ComponentPlacement(origin)));
 
-        await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        var committed = (EditCommitted)outcome;
+        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
+        Assert.NotNull(committed);
         var instance = committed.Revision.Document.EntryCircuitDefinition.ComponentInstances
             .Single(candidate => candidate.Target is LibraryComponentTarget library
                 && library.ContractKey.ContractId == contractId);

@@ -28,8 +28,8 @@ public sealed class ProjectEditorHierarchyTests
             revision,
             new CreateCircuitDefinitionIntent("Inverter", declarations));
 
-        await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        var committed = (EditCommitted)outcome;
+        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
+        Assert.NotNull(committed);
         var definition = committed.Revision.Document.CircuitDefinitions
             .Single(candidate => candidate.DisplayName == "Inverter");
         declarations[0] = new DefinitionPortDeclaration(
@@ -110,8 +110,8 @@ public sealed class ProjectEditorHierarchyTests
                 placement,
                 "Nested inverter"));
 
-        await Assert.That(instanceOutcome).IsTypeOf<EditCommitted>();
-        var committed = (EditCommitted)instanceOutcome;
+        var committed = await Assert.That(instanceOutcome).IsTypeOf<EditCommitted>();
+        Assert.NotNull(committed);
         var instance = committed.Revision.Document.EntryCircuitDefinition.ComponentInstances
             .Single();
         using (Assert.Multiple())
@@ -142,8 +142,8 @@ public sealed class ProjectEditorHierarchyTests
             withChild,
             new SetEntryCircuitDefinitionIntent(child.Id));
 
-        await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        var committed = (EditCommitted)outcome;
+        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
+        Assert.NotNull(committed);
         using (Assert.Multiple())
         {
             await Assert.That(committed.Revision.Document.EntryCircuitDefinitionId)
@@ -167,8 +167,8 @@ public sealed class ProjectEditorHierarchyTests
             new SetEntryCircuitDefinitionIntent(
                 revision.Document.EntryCircuitDefinitionId));
 
-        await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        var committed = (EditCommitted)outcome;
+        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
+        Assert.NotNull(committed);
         using (Assert.Multiple())
         {
             await Assert.That(committed.Revision).IsSameReferenceAs(revision);
@@ -196,8 +196,8 @@ public sealed class ProjectEditorHierarchyTests
                             (CardinalDirection)99)),
                 ]));
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
@@ -228,8 +228,8 @@ public sealed class ProjectEditorHierarchyTests
                 [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
                 new ComponentPlacement(new GridPoint(0, 0))));
 
-        await Assert.That(outcome).IsTypeOf<EditRejected>();
-        var rejected = (EditRejected)outcome;
+        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
