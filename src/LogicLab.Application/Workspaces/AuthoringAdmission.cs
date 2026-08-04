@@ -56,6 +56,33 @@ internal static class AuthoringAdmission
             SetWireGeometryIntent setWire => TryAdmitRoute(setWire.Route, budget),
             RemoveWireGeometryIntent => budget.TryConsume(1),
             MoveComponentInstancesIntent move => budget.TryConsume(move.Moves.Count),
+            RenameCircuitDefinitionIntent => budget.TryConsume(1),
+            ChangePublicPortContractIntent changePorts =>
+                TryAdmitPublicPortChange(changePorts, budget),
+            MoveDefinitionPortsIntent movePorts => budget.TryConsume(movePorts.Moves.Count),
+            RemoveCircuitDefinitionIntent => budget.TryConsume(1),
+            RenameComponentInstanceIntent => budget.TryConsume(1),
+            SetInstanceParametersIntent setParameters =>
+                TryAdmitParameters(setParameters.Parameters, budget),
+            ChangeInstanceContractIntent changeContract => budget.TryConsume(1)
+                && TryAdmitParameters(changeContract.Parameters, budget)
+                && budget.TryConsume(changeContract.Ports.Count),
+            RemoveComponentInstancesIntent removeInstances =>
+                budget.TryConsume(removeInstances.ComponentInstanceIds.Count),
+            CreateMemoryImageIntent createImage =>
+                TryAdmitMemoryImage(createImage.Words, budget),
+            ReplaceMemoryImageIntent replaceImage =>
+                TryAdmitMemoryImage(replaceImage.Words, budget)
+                && TryAdmitParameterMigrations(replaceImage.AffectedInstances, budget),
+            RemoveMemoryImageIntent => budget.TryConsume(1),
+            SetSymbolProfileIntent setProfile => budget.TryConsume(1)
+                && budget.TryConsume(setProfile.Variants.Count),
+            SetSymbolVariantIntent => budget.TryConsume(1),
+            CreateAnnotationIntent => budget.TryConsume(1),
+            ChangeAnnotationIntent => budget.TryConsume(1),
+            MoveAnnotationsIntent moveAnnotations =>
+                budget.TryConsume(moveAnnotations.Moves.Count),
+            RemoveAnnotationIntent => budget.TryConsume(1),
             _ => false,
         };
     }
@@ -76,13 +103,14 @@ internal static class AuthoringAdmission
                 || !budget.TryConsume(definition.ComponentInstances.Count)
                 || !budget.TryConsume(definition.Nets.Count)
                 || !budget.TryConsume(definition.Junctions.Count)
-                || !budget.TryConsume(definition.WireGeometries.Count))
+                || !budget.TryConsume(definition.WireGeometries.Count)
+                || !budget.TryConsume(definition.Annotations.Count))
             {
                 return false;
             }
         }
 
-        return true;
+        return budget.TryConsume(document.MemoryImages.Count);
     }
 
     private static bool TryAdmitParameters(
@@ -119,6 +147,64 @@ internal static class AuthoringAdmission
         foreach (var partition in partitions)
         {
             if (!TryAdmitPartition(partition, budget))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryAdmitPublicPortChange(
+        ChangePublicPortContractIntent intent,
+        AuthoringAdmissionBudget budget)
+    {
+        if (!budget.TryConsume(intent.Ports.Count)
+            || !budget.TryConsume(intent.CallSites.Count))
+        {
+            return false;
+        }
+
+        foreach (var callSite in intent.CallSites)
+        {
+            if (!budget.TryConsume(callSite.Ports.Count))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryAdmitMemoryImage(
+        IEnumerable<MemoryImageWord> words,
+        AuthoringAdmissionBudget budget)
+    {
+        if (!budget.TryConsume(1))
+        {
+            return false;
+        }
+
+        foreach (var word in words)
+        {
+            if (!budget.TryConsume(1)
+                || !budget.TryConsume(word.Values.Count))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryAdmitParameterMigrations(
+        IEnumerable<InstanceParameterMigration> migrations,
+        AuthoringAdmissionBudget budget)
+    {
+        foreach (var migration in migrations)
+        {
+            if (!budget.TryConsume(1)
+                || !TryAdmitParameters(migration.Parameters, budget))
             {
                 return false;
             }

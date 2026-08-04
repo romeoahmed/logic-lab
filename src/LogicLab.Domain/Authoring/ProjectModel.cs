@@ -19,6 +19,7 @@ public sealed class ProjectRevision
 public sealed class ProjectDocument
 {
     private readonly CircuitDefinition[] circuitDefinitions;
+    private readonly MemoryImage[] memoryImages;
 
     internal ProjectDocument(
         ProjectId projectId,
@@ -26,7 +27,8 @@ public sealed class ProjectDocument
         LibrarySnapshot librarySnapshot,
         SymbolProfileReference symbolProfile,
         CircuitDefinitionId entryCircuitDefinitionId,
-        CircuitDefinition[] circuitDefinitions)
+        CircuitDefinition[] circuitDefinitions,
+        MemoryImage[]? memoryImages = null)
     {
         ProjectId = projectId;
         DisplayName = displayName;
@@ -34,7 +36,11 @@ public sealed class ProjectDocument
         SymbolProfile = symbolProfile;
         EntryCircuitDefinitionId = entryCircuitDefinitionId;
         this.circuitDefinitions = (CircuitDefinition[])circuitDefinitions.Clone();
+        this.memoryImages = memoryImages is null
+            ? []
+            : (MemoryImage[])memoryImages.Clone();
         CircuitDefinitions = Array.AsReadOnly(this.circuitDefinitions);
+        MemoryImages = Array.AsReadOnly(this.memoryImages);
     }
 
     public ProjectId ProjectId { get; }
@@ -49,6 +55,8 @@ public sealed class ProjectDocument
 
     public ReadOnlyCollection<CircuitDefinition> CircuitDefinitions { get; }
 
+    public ReadOnlyCollection<MemoryImage> MemoryImages { get; }
+
     public CircuitDefinition EntryCircuitDefinition =>
         FindCircuitDefinition(EntryCircuitDefinitionId)
         ?? throw new InvalidOperationException(
@@ -58,6 +66,12 @@ public sealed class ProjectDocument
     {
         ArgumentNullException.ThrowIfNull(id);
         return Array.Find(circuitDefinitions, definition => definition.Id == id);
+    }
+
+    public MemoryImage? FindMemoryImage(MemoryImageId id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return Array.Find(memoryImages, image => image.Id == id);
     }
 
     internal ProjectDocument ReplaceCircuitDefinition(CircuitDefinition replacement)
@@ -84,7 +98,8 @@ public sealed class ProjectDocument
             LibrarySnapshot,
             SymbolProfile,
             EntryCircuitDefinitionId,
-            definitions);
+            definitions,
+            memoryImages);
     }
 
     internal ProjectDocument AddCircuitDefinition(CircuitDefinition definition)
@@ -102,7 +117,8 @@ public sealed class ProjectDocument
             LibrarySnapshot,
             SymbolProfile,
             EntryCircuitDefinitionId,
-            definitions);
+            definitions,
+            memoryImages);
     }
 
     internal ProjectDocument WithEntryCircuitDefinition(
@@ -114,7 +130,76 @@ public sealed class ProjectDocument
             LibrarySnapshot,
             SymbolProfile,
             entryCircuitDefinitionId,
-            circuitDefinitions);
+            circuitDefinitions,
+            memoryImages);
+    }
+
+    internal ProjectDocument WithDisplayName(string displayName)
+    {
+        return new ProjectDocument(
+            ProjectId,
+            displayName,
+            LibrarySnapshot,
+            SymbolProfile,
+            EntryCircuitDefinitionId,
+            circuitDefinitions,
+            memoryImages);
+    }
+
+    internal ProjectDocument WithSymbolProfile(SymbolProfileReference symbolProfile)
+    {
+        return new ProjectDocument(
+            ProjectId,
+            DisplayName,
+            LibrarySnapshot,
+            symbolProfile,
+            EntryCircuitDefinitionId,
+            circuitDefinitions,
+            memoryImages);
+    }
+
+    internal ProjectDocument ReplaceCircuitDefinitions(
+        IReadOnlyList<CircuitDefinition> replacements)
+    {
+        var replacementById = replacements.ToDictionary(definition => definition.Id);
+        var definitions = circuitDefinitions
+            .Select(definition => replacementById.GetValueOrDefault(definition.Id, definition))
+            .ToArray();
+        return new ProjectDocument(
+            ProjectId,
+            DisplayName,
+            LibrarySnapshot,
+            SymbolProfile,
+            EntryCircuitDefinitionId,
+            definitions,
+            memoryImages);
+    }
+
+    internal ProjectDocument RemoveCircuitDefinition(CircuitDefinitionId id)
+    {
+        return new ProjectDocument(
+            ProjectId,
+            DisplayName,
+            LibrarySnapshot,
+            SymbolProfile,
+            EntryCircuitDefinitionId,
+            circuitDefinitions.Where(definition => definition.Id != id).ToArray(),
+            memoryImages);
+    }
+
+    internal ProjectDocument WithMemoryImages(MemoryImage[] images)
+    {
+        Array.Sort(
+            images,
+            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
+        return new ProjectDocument(
+            ProjectId,
+            DisplayName,
+            LibrarySnapshot,
+            SymbolProfile,
+            EntryCircuitDefinitionId,
+            circuitDefinitions,
+            images);
     }
 }
 
@@ -125,6 +210,7 @@ public sealed class CircuitDefinition
     private readonly Net[] nets;
     private readonly Junction[] junctions;
     private readonly WireGeometry[] wireGeometries;
+    private readonly Annotation[] annotations;
 
     internal CircuitDefinition(
         CircuitDefinitionId id,
@@ -133,7 +219,8 @@ public sealed class CircuitDefinition
         ComponentInstance[] componentInstances,
         Net[] nets,
         Junction[] junctions,
-        WireGeometry[] wireGeometries)
+        WireGeometry[] wireGeometries,
+        Annotation[]? annotations = null)
     {
         Id = id;
         DisplayName = displayName;
@@ -142,11 +229,15 @@ public sealed class CircuitDefinition
         this.nets = (Net[])nets.Clone();
         this.junctions = (Junction[])junctions.Clone();
         this.wireGeometries = (WireGeometry[])wireGeometries.Clone();
+        this.annotations = annotations is null
+            ? []
+            : (Annotation[])annotations.Clone();
         Ports = Array.AsReadOnly(this.ports);
         ComponentInstances = Array.AsReadOnly(this.componentInstances);
         Nets = Array.AsReadOnly(this.nets);
         Junctions = Array.AsReadOnly(this.junctions);
         WireGeometries = Array.AsReadOnly(this.wireGeometries);
+        Annotations = Array.AsReadOnly(this.annotations);
     }
 
     public CircuitDefinitionId Id { get; }
@@ -162,6 +253,8 @@ public sealed class CircuitDefinition
     public ReadOnlyCollection<Junction> Junctions { get; }
 
     public ReadOnlyCollection<WireGeometry> WireGeometries { get; }
+
+    public ReadOnlyCollection<Annotation> Annotations { get; }
 
     public ComponentInstance? FindComponentInstance(ComponentInstanceId id)
     {
@@ -201,6 +294,12 @@ public sealed class CircuitDefinition
             port => string.Equals(port.Id.Value, id, StringComparison.Ordinal));
     }
 
+    public Annotation? FindAnnotation(AnnotationId id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return Array.Find(annotations, annotation => annotation.Id == id);
+    }
+
     internal CircuitDefinition AddComponentInstance(ComponentInstance instance)
     {
         var instances = new ComponentInstance[componentInstances.Length + 1];
@@ -217,7 +316,8 @@ public sealed class CircuitDefinition
             instances,
             nets,
             junctions,
-            wireGeometries);
+            wireGeometries,
+            annotations);
     }
 
     internal CircuitDefinition ReplaceComponentInstances(ComponentInstance[] replacements)
@@ -233,7 +333,8 @@ public sealed class CircuitDefinition
             instances,
             nets,
             junctions,
-            wireGeometries);
+            wireGeometries,
+            annotations);
     }
 
     internal CircuitDefinition WithTopology(
@@ -257,7 +358,68 @@ public sealed class CircuitDefinition
             componentInstances,
             updatedNets,
             updatedJunctions,
-            updatedWireGeometries);
+            updatedWireGeometries,
+            annotations);
+    }
+
+    internal CircuitDefinition WithDisplayName(string displayName)
+    {
+        return new CircuitDefinition(
+            Id,
+            displayName,
+            ports,
+            componentInstances,
+            nets,
+            junctions,
+            wireGeometries,
+            annotations);
+    }
+
+    internal CircuitDefinition WithPorts(DefinitionPort[] updatedPorts)
+    {
+        return new CircuitDefinition(
+            Id,
+            DisplayName,
+            updatedPorts,
+            componentInstances,
+            nets,
+            junctions,
+            wireGeometries,
+            annotations);
+    }
+
+    internal CircuitDefinition WithComponentsAndTopology(
+        ComponentInstance[] updatedInstances,
+        Net[] updatedNets)
+    {
+        Array.Sort(
+            updatedInstances,
+            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
+        Array.Sort(
+            updatedNets,
+            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
+        return new CircuitDefinition(
+            Id,
+            DisplayName,
+            ports,
+            updatedInstances,
+            updatedNets,
+            junctions,
+            wireGeometries,
+            annotations);
+    }
+
+    internal CircuitDefinition WithAnnotations(Annotation[] updatedAnnotations)
+    {
+        return new CircuitDefinition(
+            Id,
+            DisplayName,
+            ports,
+            componentInstances,
+            nets,
+            junctions,
+            wireGeometries,
+            updatedAnnotations);
     }
 }
 
@@ -293,6 +455,17 @@ public abstract record ComponentParameterValue
     private protected ComponentParameterValue()
     {
     }
+}
+
+public sealed record MemoryImageParameterValue : ComponentParameterValue
+{
+    public MemoryImageParameterValue(MemoryImageId memoryImageId)
+    {
+        ArgumentNullException.ThrowIfNull(memoryImageId);
+        MemoryImageId = memoryImageId;
+    }
+
+    public MemoryImageId MemoryImageId { get; }
 }
 
 public sealed record Unsigned32ParameterValue(uint Value) : ComponentParameterValue;
@@ -429,7 +602,8 @@ public sealed class ComponentInstance
         ComponentTarget target,
         ComponentParameterBinding[] parameters,
         ComponentPlacement placement,
-        string? displayName)
+        string? displayName,
+        string? symbolVariantId = null)
     {
         Id = id;
         Target = target;
@@ -437,6 +611,7 @@ public sealed class ComponentInstance
         Parameters = Array.AsReadOnly(this.parameters);
         Placement = placement;
         DisplayName = displayName;
+        SymbolVariantId = symbolVariantId;
     }
 
     public ComponentInstanceId Id { get; }
@@ -449,6 +624,8 @@ public sealed class ComponentInstance
 
     public string? DisplayName { get; }
 
+    public string? SymbolVariantId { get; }
+
     internal ComponentInstance WithPlacement(ComponentPlacement placement)
     {
         return new ComponentInstance(
@@ -456,7 +633,55 @@ public sealed class ComponentInstance
             Target,
             parameters,
             placement,
-            DisplayName);
+            DisplayName,
+            SymbolVariantId);
+    }
+
+    internal ComponentInstance WithDisplayName(string? displayName)
+    {
+        return new ComponentInstance(
+            Id,
+            Target,
+            parameters,
+            Placement,
+            displayName,
+            SymbolVariantId);
+    }
+
+    internal ComponentInstance WithParameters(ComponentParameterBinding[] updatedParameters)
+    {
+        return new ComponentInstance(
+            Id,
+            Target,
+            updatedParameters,
+            Placement,
+            DisplayName,
+            SymbolVariantId);
+    }
+
+    internal ComponentInstance WithContract(
+        ComponentTarget target,
+        ComponentParameterBinding[] updatedParameters,
+        string? symbolVariantId)
+    {
+        return new ComponentInstance(
+            Id,
+            target,
+            updatedParameters,
+            Placement,
+            DisplayName,
+            symbolVariantId);
+    }
+
+    internal ComponentInstance WithSymbolVariant(string? symbolVariantId)
+    {
+        return new ComponentInstance(
+            Id,
+            Target,
+            parameters,
+            Placement,
+            DisplayName,
+            symbolVariantId);
     }
 }
 

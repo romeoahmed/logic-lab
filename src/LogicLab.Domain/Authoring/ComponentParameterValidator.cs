@@ -93,6 +93,7 @@ internal static class ComponentParameterValidator
                     cancellationToken),
             (ComponentParameterKind.Widths, WidthsParameterValue widths) =>
                 GetInvalidWidthsRule(schema, widths, cancellationToken),
+            (ComponentParameterKind.MemoryImage, MemoryImageParameterValue) => null,
             _ => "parameterKind",
         };
     }
