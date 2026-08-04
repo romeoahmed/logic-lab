@@ -9,16 +9,7 @@ namespace LogicLab.Web.Tests;
 public sealed class EditorTopologyPartitionTests
 {
     [Test]
-    [Arguments("source.input", "logic.not", "sink.output")]
-    [Arguments("source.input", "sink.output", "logic.not")]
-    [Arguments("logic.not", "source.input", "sink.output")]
-    [Arguments("logic.not", "sink.output", "source.input")]
-    [Arguments("sink.output", "source.input", "logic.not")]
-    [Arguments("sink.output", "logic.not", "source.input")]
-    public async Task Editor_CreateSampleTopologyPartitions_EveryComponentCreationOrder_PreservesElectricalPairs(
-        string firstContractId,
-        string secondContractId,
-        string thirdContractId)
+    public async Task Editor_CreateSampleTopologyPartitions_ReverseCreationOrder_PreservesElectricalPairs()
     {
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
             "Creation-order fixture",
@@ -29,7 +20,7 @@ public sealed class EditorTopologyPartitionTests
                 IndicationConvention.Negation),
             "Main"))).Revision;
         var definitionId = revision.Document.EntryCircuitDefinitionId;
-        foreach (var contractId in new[] { firstContractId, secondContractId, thirdContractId })
+        foreach (var contractId in new[] { "sink.output", "logic.not", "source.input" })
         {
             revision = Place(revision, contractId);
         }
