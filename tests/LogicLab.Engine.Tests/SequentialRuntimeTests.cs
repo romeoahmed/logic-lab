@@ -6,7 +6,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class SequentialRuntimeTests
+internal sealed class SequentialRuntimeTests
 {
     [Test]
     public async Task Execute_ClockSourceAndDff_StepsLazyAlternatingEventCalendar()

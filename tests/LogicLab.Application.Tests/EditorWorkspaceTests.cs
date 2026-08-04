@@ -6,7 +6,7 @@ using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Application.Tests;
 
-public sealed class EditorWorkspaceTests
+internal sealed class EditorWorkspaceTests
 {
     [Test]
     public async Task DispatchAsync_ValidNarrowCircuit_ObservesProbeAcrossOneStep()

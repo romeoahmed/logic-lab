@@ -6,7 +6,7 @@ using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class LogicVectorTests
+internal sealed class LogicVectorTests
 {
     [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
     public Property Create_ValidVector_RoundTripsEveryValueInBitIndexOrder(

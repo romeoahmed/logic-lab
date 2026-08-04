@@ -10,7 +10,7 @@ using Microsoft.FluentUI.AspNetCore.Components;
 
 namespace LogicLab.Web.Tests;
 
-public sealed class WorkbenchComponentTests
+internal sealed class WorkbenchComponentTests
 {
     private static readonly string[] WorkbenchCommands =
     [

@@ -5,7 +5,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class CompilerRejectionTests
+internal sealed class CompilerRejectionTests
 {
     [Test]
     public async Task Compile_MissingEntryDefinition_RejectsWithProjectBoundDiagnosticAndNoArtifact()

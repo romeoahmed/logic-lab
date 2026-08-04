@@ -5,7 +5,7 @@ using LogicLab.Domain.Components;
 
 namespace LogicLab.Application.Tests;
 
-public sealed class EditorWorkspaceFailureTests
+internal sealed class EditorWorkspaceFailureTests
 {
     [Test]
     [Arguments(false, "workspace_internal_defect")]

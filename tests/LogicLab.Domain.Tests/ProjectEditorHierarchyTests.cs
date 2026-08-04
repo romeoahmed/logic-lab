@@ -4,7 +4,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class ProjectEditorHierarchyTests
+internal sealed class ProjectEditorHierarchyTests
 {
     [Test]
     public async Task Apply_CreateDefinition_CommitsOrderedPublicContract()

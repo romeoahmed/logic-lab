@@ -2,7 +2,7 @@ using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class ExactStateIndexTests
+internal sealed class ExactStateIndexTests
 {
     [Test]
     public async Task Contains_HashCollision_RequiresExactStateEquality()

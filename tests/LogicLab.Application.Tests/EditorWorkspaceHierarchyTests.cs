@@ -5,7 +5,7 @@ using LogicLab.Domain.Components;
 
 namespace LogicLab.Application.Tests;
 
-public sealed class EditorWorkspaceHierarchyTests
+internal sealed class EditorWorkspaceHierarchyTests
 {
     [Test]
     public async Task DispatchAsync_HierarchicalCircuit_CompilesAndSimulatesAcrossBoundary()

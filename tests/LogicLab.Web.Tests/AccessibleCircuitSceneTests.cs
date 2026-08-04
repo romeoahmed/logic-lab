@@ -9,7 +9,7 @@ using Microsoft.FluentUI.AspNetCore.Components;
 
 namespace LogicLab.Web.Tests;
 
-public sealed class AccessibleCircuitSceneTests
+internal sealed class AccessibleCircuitSceneTests
 {
     [Test]
     public async Task AccessibleCircuitScene_CompleteCircuit_RendersReachableTopology()

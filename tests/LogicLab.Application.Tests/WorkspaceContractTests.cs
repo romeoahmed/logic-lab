@@ -3,7 +3,7 @@ using LogicLab.Domain.Authoring;
 
 namespace LogicLab.Application.Tests;
 
-public sealed class WorkspaceContractTests
+internal sealed class WorkspaceContractTests
 {
     [Test]
     public async Task WorkspacePolicy_ExplicitAuthoringLimits_AreExposedAsOneValue()

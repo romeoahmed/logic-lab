@@ -5,7 +5,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class SimulationContractTests
+internal sealed class SimulationContractTests
 {
     private static readonly string[] CanonicalDimensionTokens =
     [

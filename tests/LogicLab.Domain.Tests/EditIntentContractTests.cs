@@ -3,7 +3,7 @@ using LogicLab.Domain.Components;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class EditIntentContractTests
+internal sealed class EditIntentContractTests
 {
     [Test]
     public async Task ComponentParameterBinding_NullParameterId_ThrowsArgumentNullException()

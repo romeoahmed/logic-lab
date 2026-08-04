@@ -10,7 +10,7 @@ using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed record TopologyRuntimeCase(
+internal sealed record TopologyRuntimeCase(
     LogicValue[] Values,
     BitSlice FirstSlice,
     BitSlice SecondSlice,
@@ -21,7 +21,7 @@ public sealed record TopologyRuntimeCase(
         + $"second={SecondSlice}, extension={ExtensionWidth})";
 }
 
-public static class TopologyRuntimeArbitraries
+internal static class TopologyRuntimeArbitraries
 {
     public static Arbitrary<TopologyRuntimeCase> TopologyRuntime()
     {
@@ -118,7 +118,7 @@ public static class TopologyRuntimeArbitraries
     }
 }
 
-public sealed class TopologyRuntimeTests
+internal sealed class TopologyRuntimeTests
 {
     [Test]
     public async Task Open_FlatTopologyCircuit_SettlesExactValuesAtTimeZero()

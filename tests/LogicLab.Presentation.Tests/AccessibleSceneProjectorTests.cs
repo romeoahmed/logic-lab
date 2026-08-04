@@ -6,7 +6,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Presentation.Tests;
 
-public sealed class AccessibleSceneProjectorTests
+internal sealed class AccessibleSceneProjectorTests
 {
     [Test]
     [Arguments(

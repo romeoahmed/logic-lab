@@ -7,7 +7,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class MemoryRuntimeTests
+internal sealed class MemoryRuntimeTests
 {
     [Test]
     public async Task Compile_RomAndRam_PublishesExplicitMemoryAndExactCellEvidence()

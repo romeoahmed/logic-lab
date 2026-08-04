@@ -2,7 +2,7 @@ using LogicLab.Web.Components.Pages;
 
 namespace LogicLab.Web.Tests;
 
-public sealed class FixedWindowCommandAdmissionGateTests
+internal sealed class FixedWindowCommandAdmissionGateTests
 {
     [Test]
     [Arguments(999, false)]

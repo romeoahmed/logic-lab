@@ -5,7 +5,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class SimulationNetDiagnosticsTests
+internal sealed class SimulationNetDiagnosticsTests
 {
     [Test]
     public async Task Canonicalize_DuplicateAndDistinctArguments_CollapsesAndOrdersExactly()

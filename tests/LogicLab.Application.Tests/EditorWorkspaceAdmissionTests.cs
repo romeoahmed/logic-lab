@@ -5,7 +5,7 @@ using LogicLab.Domain.Components;
 
 namespace LogicLab.Application.Tests;
 
-public sealed class EditorWorkspaceAdmissionTests
+internal sealed class EditorWorkspaceAdmissionTests
 {
     [Test]
     public async Task DispatchAsync_AuthoringLimitsAtMaximum_CommitThenRejectNextDefinition()

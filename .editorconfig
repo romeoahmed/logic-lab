@@ -24,8 +24,10 @@ dotnet_code_quality.CA1852.ignore_internalsvisibleto = true
 [src/LogicLab.Web/SecurityHeadersMiddleware.cs]
 dotnet_diagnostic.CA1812.severity = none
 
+# Test executables expose no reusable API; keep their implementation types internal.
 # Test names intentionally follow the repository's Method_Scenario_Outcome contract.
 [tests/**/*.cs]
+dotnet_diagnostic.CA1515.severity = warning
 dotnet_diagnostic.CA1707.severity = none
 
 [*.{json,yml,yaml}]

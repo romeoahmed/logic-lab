@@ -5,7 +5,7 @@ using static LogicLab.Domain.Tests.ProjectEditorTestContext;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class ProjectEditorMigrationTests
+internal sealed class ProjectEditorMigrationTests
 {
     [Test]
     public async Task Apply_ChangePublicPortContract_RemovesObsoleteBoundaryTerminal()

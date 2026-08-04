@@ -2,7 +2,7 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class NetResolverTests
+internal sealed class NetResolverTests
 {
     [Test]
     public async Task Resolve_NoEffectiveDriver_ReturnsHighImpedanceWithUndrivenCause()

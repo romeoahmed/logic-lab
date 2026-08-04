@@ -3,7 +3,7 @@ using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class SimulationSessionHandleTests
+internal sealed class SimulationSessionHandleTests
 {
     [Test]
     public async Task Read_UnchangedProbeBaselineWasEvicted_ReturnsTraceRangeUnavailable()

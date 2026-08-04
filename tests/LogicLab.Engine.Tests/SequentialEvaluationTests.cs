@@ -4,7 +4,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class SequentialEvaluationTests
+internal sealed class SequentialEvaluationTests
 {
     [Test]
     [Arguments(LogicValue.Zero, LogicValue.Zero, LogicValue.Zero, LogicValue.Zero, false)]

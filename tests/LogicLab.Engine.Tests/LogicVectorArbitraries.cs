@@ -4,14 +4,14 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed record LogicVectorCase(LogicValue[] Values)
+internal sealed record LogicVectorCase(LogicValue[] Values)
 {
     public int Width => Values.Length;
 
     public override string ToString() => $"Vector(width={Width})";
 }
 
-public sealed record LogicVectorSliceCase(
+internal sealed record LogicVectorSliceCase(
     LogicValue[] Values,
     int Offset,
     int Length)
@@ -22,7 +22,7 @@ public sealed record LogicVectorSliceCase(
         $"Slice(width={Width}, offset={Offset}, length={Length})";
 }
 
-public sealed record LogicVectorPairCase(
+internal sealed record LogicVectorPairCase(
     LogicValue[] Left,
     LogicValue[] Right)
 {
@@ -31,7 +31,7 @@ public sealed record LogicVectorPairCase(
     public override string ToString() => $"Pair(width={Width})";
 }
 
-public sealed record LogicVectorMergeCase(LogicValue[][] Vectors)
+internal sealed record LogicVectorMergeCase(LogicValue[][] Vectors)
 {
     public int Width => Vectors[0].Length;
 
@@ -39,7 +39,7 @@ public sealed record LogicVectorMergeCase(LogicValue[][] Vectors)
         $"Merge(width={Width}, vectors={Vectors.Length})";
 }
 
-public sealed record LogicVectorDriverCase(
+internal sealed record LogicVectorDriverCase(
     int Width,
     LogicValue[][] Drivers)
 {
@@ -47,7 +47,7 @@ public sealed record LogicVectorDriverCase(
         $"Drivers(width={Width}, drivers={Drivers.Length})";
 }
 
-public static class LogicVectorArbitraries
+internal static class LogicVectorArbitraries
 {
     private static readonly int[] BoundaryWidths =
         [1, 63, 64, 65, 127, 128, 129, 130, 255, 256, 257];

@@ -5,7 +5,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Domain.Tests;
 
-public sealed class SteeringComponentContractTests
+internal sealed class SteeringComponentContractTests
 {
     [Test]
     public async Task ResolvePorts_Mux_GeneratesPowerOfTwoInputs()

@@ -10,7 +10,7 @@ using TUnit.AspNetCore;
 
 namespace LogicLab.Web.Tests;
 
-public sealed class LogicLabWebFactory : TestWebApplicationFactory<Program>
+internal sealed class LogicLabWebFactory : TestWebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -20,7 +20,7 @@ public sealed class LogicLabWebFactory : TestWebApplicationFactory<Program>
 }
 
 [ClassDataSource<LogicLabWebFactory>(Shared = SharedType.PerTestSession)]
-public sealed class WebHostSecurityTests(LogicLabWebFactory factory)
+internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
 {
     private const string ExpectedContentSecurityPolicy =
         "default-src 'self'; "

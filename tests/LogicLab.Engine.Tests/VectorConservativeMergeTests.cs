@@ -6,7 +6,7 @@ using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class VectorConservativeMergeTests
+internal sealed class VectorConservativeMergeTests
 {
     [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
     public Property Merge_NonemptySameWidthVectors_MatchesScalarOracleAtEveryBit(

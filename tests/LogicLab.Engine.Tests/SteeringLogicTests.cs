@@ -4,7 +4,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-public sealed class SteeringLogicTests
+internal sealed class SteeringLogicTests
 {
     [Test]
     [Arguments("and", LogicValue.Zero)]
