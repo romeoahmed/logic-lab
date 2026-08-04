@@ -9,8 +9,33 @@ internal static class ComponentParameterValidator
         ComponentContractKey contractKey,
         ComponentContractSchema schema,
         ReadOnlyCollection<ComponentParameterBinding> parameters,
-        ProjectDocument? document = null,
         CancellationToken cancellationToken = default)
+    {
+        return ValidateCore(
+            contractKey,
+            schema,
+            parameters,
+            document: null,
+            cancellationToken);
+    }
+
+    public static AuthoringDiagnostic[] ValidateForDocument(
+        ComponentContractKey contractKey,
+        ComponentContractSchema schema,
+        ReadOnlyCollection<ComponentParameterBinding> parameters,
+        ProjectDocument document,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        return ValidateCore(contractKey, schema, parameters, document, cancellationToken);
+    }
+
+    private static AuthoringDiagnostic[] ValidateCore(
+        ComponentContractKey contractKey,
+        ComponentContractSchema schema,
+        ReadOnlyCollection<ComponentParameterBinding> parameters,
+        ProjectDocument? document,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var diagnostics = new List<AuthoringDiagnostic>();

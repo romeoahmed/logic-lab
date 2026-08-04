@@ -28,7 +28,7 @@ public sealed class ProjectDocument
         SymbolProfileReference symbolProfile,
         CircuitDefinitionId entryCircuitDefinitionId,
         CircuitDefinition[] circuitDefinitions,
-        MemoryImage[]? memoryImages = null)
+        MemoryImage[] memoryImages)
     {
         ProjectId = projectId;
         DisplayName = displayName;
@@ -36,9 +36,7 @@ public sealed class ProjectDocument
         SymbolProfile = symbolProfile;
         EntryCircuitDefinitionId = entryCircuitDefinitionId;
         this.circuitDefinitions = (CircuitDefinition[])circuitDefinitions.Clone();
-        this.memoryImages = memoryImages is null
-            ? []
-            : (MemoryImage[])memoryImages.Clone();
+        this.memoryImages = (MemoryImage[])memoryImages.Clone();
         CircuitDefinitions = Array.AsReadOnly(this.circuitDefinitions);
         MemoryImages = Array.AsReadOnly(this.memoryImages);
     }
@@ -220,7 +218,7 @@ public sealed class CircuitDefinition
         Net[] nets,
         Junction[] junctions,
         WireGeometry[] wireGeometries,
-        Annotation[]? annotations = null)
+        Annotation[] annotations)
     {
         Id = id;
         DisplayName = displayName;
@@ -229,9 +227,7 @@ public sealed class CircuitDefinition
         this.nets = (Net[])nets.Clone();
         this.junctions = (Junction[])junctions.Clone();
         this.wireGeometries = (WireGeometry[])wireGeometries.Clone();
-        this.annotations = annotations is null
-            ? []
-            : (Annotation[])annotations.Clone();
+        this.annotations = (Annotation[])annotations.Clone();
         Ports = Array.AsReadOnly(this.ports);
         ComponentInstances = Array.AsReadOnly(this.componentInstances);
         Nets = Array.AsReadOnly(this.nets);
