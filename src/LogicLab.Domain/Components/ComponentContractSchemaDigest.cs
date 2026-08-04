@@ -54,6 +54,14 @@ internal static class ComponentContractSchemaDigest
                     .Append(parameter.MemoryImageAddressWidthParameterId)
                     .Append('\n');
             }
+
+            if (parameter.FixedWidth is { } fixedWidth)
+            {
+                canonical.Append("fixedWidth\u001f")
+                    .Append(parameter.Id).Append('\u001f')
+                    .Append(fixedWidth.ToString(CultureInfo.InvariantCulture))
+                    .Append('\n');
+            }
         }
     }
 

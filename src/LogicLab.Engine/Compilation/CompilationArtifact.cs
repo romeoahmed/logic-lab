@@ -39,6 +39,11 @@ internal enum SimulationEvaluatorKind
     SequentialDLatch,
     SequentialDff,
     SequentialRegister,
+    SequentialSrLatch,
+    SequentialJkff,
+    SequentialTff,
+    SequentialShiftRegister,
+    SequentialCounter,
 }
 
 internal static class SimulationEvaluatorKindFacts
@@ -48,14 +53,24 @@ internal static class SimulationEvaluatorKindFacts
         return kind is SimulationEvaluatorKind.ClockSource
             or SimulationEvaluatorKind.SequentialDLatch
             or SimulationEvaluatorKind.SequentialDff
-            or SimulationEvaluatorKind.SequentialRegister;
+            or SimulationEvaluatorKind.SequentialRegister
+            or SimulationEvaluatorKind.SequentialSrLatch
+            or SimulationEvaluatorKind.SequentialJkff
+            or SimulationEvaluatorKind.SequentialTff
+            or SimulationEvaluatorKind.SequentialShiftRegister
+            or SimulationEvaluatorKind.SequentialCounter;
     }
 
     public static bool IsSequential(SimulationEvaluatorKind kind)
     {
         return kind is SimulationEvaluatorKind.SequentialDLatch
             or SimulationEvaluatorKind.SequentialDff
-            or SimulationEvaluatorKind.SequentialRegister;
+            or SimulationEvaluatorKind.SequentialRegister
+            or SimulationEvaluatorKind.SequentialSrLatch
+            or SimulationEvaluatorKind.SequentialJkff
+            or SimulationEvaluatorKind.SequentialTff
+            or SimulationEvaluatorKind.SequentialShiftRegister
+            or SimulationEvaluatorKind.SequentialCounter;
     }
 }
 
@@ -63,6 +78,20 @@ internal sealed record ClockSchedule(
     ulong FirstTransition,
     ulong HighDuration,
     ulong LowDuration);
+
+internal enum SequentialDirection
+{
+    None,
+    TowardHigh,
+    TowardLow,
+    Up,
+    Down,
+}
+
+internal sealed record SequentialEvaluatorOptions(
+    int? ClockInputOrdinal,
+    bool RisingEdge,
+    SequentialDirection Direction);
 
 internal sealed class SimulationEvaluator
 {
@@ -75,7 +104,8 @@ internal sealed class SimulationEvaluator
         LogicVector? initialValue,
         IReadOnlyList<BitSlice>? slices = null,
         bool option = false,
-        ClockSchedule? clockSchedule = null)
+        ClockSchedule? clockSchedule = null,
+        SequentialEvaluatorOptions? sequentialOptions = null)
     {
         Ordinal = ordinal;
         Kind = kind;
@@ -87,6 +117,7 @@ internal sealed class SimulationEvaluator
             slices is null ? [] : slices.ToArray());
         Option = option;
         ClockSchedule = clockSchedule;
+        SequentialOptions = sequentialOptions;
     }
 
     public int Ordinal { get; }
@@ -106,6 +137,8 @@ internal sealed class SimulationEvaluator
     public bool Option { get; }
 
     public ClockSchedule? ClockSchedule { get; }
+
+    public SequentialEvaluatorOptions? SequentialOptions { get; }
 }
 
 internal sealed record SimulationDriver(

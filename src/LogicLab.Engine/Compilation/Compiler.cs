@@ -8,7 +8,7 @@ namespace LogicLab.Engine.Compilation;
 
 public static partial class Compiler
 {
-    public const string SemanticVersion = "logiclab.compiler.sequential-v4";
+    public const string SemanticVersion = "logiclab.compiler.sequential-v5";
 
     public static CompilationOutcome Compile(
         CompilationRequest request,
@@ -763,7 +763,8 @@ public static partial class Compiler
                 GetInitialValue(resolved.Kind, resolved.Instance.Parameters),
                 GetSlices(resolved.Kind, resolved.Instance.Parameters),
                 GetOption(resolved.Kind, resolved.Instance.Parameters),
-                GetClockSchedule(resolved.Kind, resolved.Instance.Parameters));
+                GetClockSchedule(resolved.Kind, resolved.Instance.Parameters),
+                GetSequentialOptions(resolved.Kind, resolved.Instance.Parameters));
             evaluatorSources[resolved.Ordinal] = new SourceMapEntry(
                 resolved.Ordinal,
                 Source(
@@ -974,6 +975,21 @@ public static partial class Compiler
             case "sequential.register":
                 kind = SimulationEvaluatorKind.SequentialRegister;
                 return true;
+            case "sequential.sr_latch":
+                kind = SimulationEvaluatorKind.SequentialSrLatch;
+                return true;
+            case "sequential.jkff":
+                kind = SimulationEvaluatorKind.SequentialJkff;
+                return true;
+            case "sequential.tff":
+                kind = SimulationEvaluatorKind.SequentialTff;
+                return true;
+            case "sequential.shift_register":
+                kind = SimulationEvaluatorKind.SequentialShiftRegister;
+                return true;
+            case "sequential.counter":
+                kind = SimulationEvaluatorKind.SequentialCounter;
+                return true;
             default:
                 kind = default;
                 return false;
@@ -1032,7 +1048,12 @@ public static partial class Compiler
             SimulationEvaluatorKind.ClockSource => "initialValue",
             SimulationEvaluatorKind.SequentialDLatch
                 or SimulationEvaluatorKind.SequentialDff
-                or SimulationEvaluatorKind.SequentialRegister => "initialState",
+                or SimulationEvaluatorKind.SequentialRegister
+                or SimulationEvaluatorKind.SequentialSrLatch
+                or SimulationEvaluatorKind.SequentialJkff
+                or SimulationEvaluatorKind.SequentialTff
+                or SimulationEvaluatorKind.SequentialShiftRegister
+                or SimulationEvaluatorKind.SequentialCounter => "initialState",
             _ => null,
         };
         if (parameterId is null)
@@ -1072,9 +1093,6 @@ public static partial class Compiler
                 ("priority", "lowestIndex"),
             SimulationEvaluatorKind.LogicShift =>
                 ("direction", "left"),
-            SimulationEvaluatorKind.SequentialDff
-                or SimulationEvaluatorKind.SequentialRegister =>
-                ("edge", "rising"),
             _ => (null, null),
         };
         if (parameterId is null)
@@ -1102,6 +1120,58 @@ public static partial class Compiler
             Unsigned64(parameters, "firstTransition"),
             Unsigned64(parameters, "highDuration"),
             Unsigned64(parameters, "lowDuration"));
+    }
+
+    private static SequentialEvaluatorOptions? GetSequentialOptions(
+        SimulationEvaluatorKind kind,
+        IReadOnlyList<ComponentParameterBinding> parameters)
+    {
+        if (!SimulationEvaluatorKindFacts.IsSequential(kind))
+        {
+            return null;
+        }
+
+        int? clockInputOrdinal = kind switch
+        {
+            SimulationEvaluatorKind.SequentialDLatch
+                or SimulationEvaluatorKind.SequentialSrLatch => null,
+            SimulationEvaluatorKind.SequentialDff
+                or SimulationEvaluatorKind.SequentialRegister
+                or SimulationEvaluatorKind.SequentialTff => 1,
+            SimulationEvaluatorKind.SequentialJkff
+                or SimulationEvaluatorKind.SequentialCounter => 2,
+            SimulationEvaluatorKind.SequentialShiftRegister => 3,
+            _ => throw new InvalidOperationException(
+                "The sequential evaluator kind is undefined."),
+        };
+        var risingEdge = clockInputOrdinal is null
+            || Choice(parameters, "edge") == "rising";
+        var direction = kind switch
+        {
+            SimulationEvaluatorKind.SequentialShiftRegister =>
+                Choice(parameters, "direction") == "towardHigh"
+                    ? SequentialDirection.TowardHigh
+                    : SequentialDirection.TowardLow,
+            SimulationEvaluatorKind.SequentialCounter =>
+                Choice(parameters, "direction") == "up"
+                    ? SequentialDirection.Up
+                    : SequentialDirection.Down,
+            _ => SequentialDirection.None,
+        };
+        return new SequentialEvaluatorOptions(
+            clockInputOrdinal,
+            risingEdge,
+            direction);
+    }
+
+    private static string Choice(
+        IEnumerable<ComponentParameterBinding> parameters,
+        string parameterId)
+    {
+        return ((ChoiceParameterValue)parameters.Single(binding => string.Equals(
+            binding.ParameterId,
+            parameterId,
+            StringComparison.Ordinal)).Value).Value;
     }
 
     private static ulong Unsigned64(

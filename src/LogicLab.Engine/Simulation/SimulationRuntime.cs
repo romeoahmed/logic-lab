@@ -167,6 +167,14 @@ public static partial class SimulationRuntime
                     DimensionToken(exception.Dimension),
                     exception.Observed));
         }
+        catch (ZeroTimeOscillationException)
+        {
+            return Failure(
+                state,
+                command,
+                SimulationFailureReason.ZeroTimeOscillation,
+                policyEvidence: null);
+        }
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
             return Failure(
@@ -596,8 +604,10 @@ public static partial class SimulationRuntime
         foreach (var evaluator in ir.Evaluators.Where(evaluator =>
             SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind)))
         {
-            driverValues[evaluator.OutputDriverOrdinals[0]] =
-                sequentialStates[evaluator.Ordinal]!;
+            UpdateSequentialDrivers(
+                evaluator,
+                sequentialStates[evaluator.Ordinal]!,
+                driverValues);
         }
 
         return driverValues;
@@ -853,6 +863,11 @@ public static partial class SimulationRuntime
             case SimulationEvaluatorKind.SequentialDLatch:
             case SimulationEvaluatorKind.SequentialDff:
             case SimulationEvaluatorKind.SequentialRegister:
+            case SimulationEvaluatorKind.SequentialSrLatch:
+            case SimulationEvaluatorKind.SequentialJkff:
+            case SimulationEvaluatorKind.SequentialTff:
+            case SimulationEvaluatorKind.SequentialShiftRegister:
+            case SimulationEvaluatorKind.SequentialCounter:
             case SimulationEvaluatorKind.OutputSink:
                 return;
             case SimulationEvaluatorKind.LogicNot:
