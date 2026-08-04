@@ -90,10 +90,7 @@ public sealed class ProjectEditorResourceTests
                 "Program",
                 2,
                 2,
-                [
-                    new MemoryImageWord([LogicValue.Zero, LogicValue.One]),
-                    new MemoryImageWord([LogicValue.One, LogicValue.Zero]),
-                ])));
+                CreateUnknownWords(width: 2, depth: 2))));
         var imageId = revision.Document.MemoryImages.Single().Id;
         revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
             revision,
@@ -159,6 +156,107 @@ public sealed class ProjectEditorResourceTests
                 .IsEqualTo(4u);
             await Assert.That(committed.ChangedSources)
                 .Contains(new ComponentInstanceSourceIdentity(definitionId, instanceId));
+        }
+    }
+
+    [Test]
+    public async Task Apply_ReplaceMemoryImage_PortSchemaChanges_RequireChangedPortsUnconnected()
+    {
+        var revision = BeginProject();
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new CreateMemoryImageIntent(
+                "Program",
+                2,
+                2,
+                CreateUnknownWords(width: 2, depth: 2))));
+        var imageId = revision.Document.MemoryImages.Single().Id;
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new PlaceComponentInstanceIntent(
+                definitionId,
+                ProjectEditorCatalogTests.Contract("memory.rom"),
+                MemoryParameters(1, 2, imageId),
+                new ComponentPlacement(new GridPoint(0, 0)))));
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new PlaceComponentInstanceIntent(
+                definitionId,
+                ProjectEditorCatalogTests.Contract("sink.output"),
+                ProjectEditorCatalogTests.SinkParameters(2),
+                new ComponentPlacement(new GridPoint(4, 0)))));
+        var definition = revision.Document.EntryCircuitDefinition;
+        var rom = definition.ComponentInstances.Single(instance =>
+            instance.Target is LibraryComponentTarget library
+            && library.ContractKey.ContractId == "memory.rom");
+        var sink = definition.ComponentInstances.Single(instance =>
+            instance.Target is LibraryComponentTarget library
+            && library.ContractKey.ContractId == "sink.output");
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new ConnectTerminalsIntent(
+                [
+                    new InstanceTerminalReference(definitionId, rom.Id, "Q"),
+                    new InstanceTerminalReference(definitionId, sink.Id, "D"),
+                ])));
+        var originalNet = revision.Document.EntryCircuitDefinition.Nets.Single();
+
+        var permittedOutcome = ProjectEditor.Apply(
+            revision,
+            new ReplaceMemoryImageIntent(
+                imageId,
+                "Program v2",
+                2,
+                4,
+                CreateUnknownWords(width: 2, depth: 4),
+                [
+                    new InstanceParameterMigration(
+                        definitionId,
+                        rom.Id,
+                        MemoryParameters(2, 2, imageId)),
+                ]));
+        var permitted = await Assert.That(permittedOutcome).IsTypeOf<EditCommitted>();
+        Assert.NotNull(permitted);
+
+        var rejectedOutcome = ProjectEditor.Apply(
+            permitted.Revision,
+            new ReplaceMemoryImageIntent(
+                imageId,
+                "Program v3",
+                4,
+                4,
+                CreateUnknownWords(width: 4, depth: 4),
+                [
+                    new InstanceParameterMigration(
+                        definitionId,
+                        rom.Id,
+                        MemoryParameters(2, 4, imageId)),
+                ]));
+
+        var rejected = await Assert.That(rejectedOutcome).IsTypeOf<EditRejected>();
+        Assert.NotNull(rejected);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Diagnostics.SelectMany(item => item.Arguments)
+                .Select(item => item.Value)
+                .OfType<StableTokenDiagnosticValue>()
+                .Any(item => item.Value == "connectedPortSchemaChanged")).IsTrue();
+            await Assert.That(permitted.Revision.Document.MemoryImages.Single().Width)
+                .IsEqualTo(2u);
+            await Assert.That(permitted.Revision.Document.MemoryImages.Single().Depth)
+                .IsEqualTo(4u);
+            await Assert.That(permitted.Revision.Document.EntryCircuitDefinition
+                .FindComponentInstance(rom.Id)!.Parameters)
+                .IsEquivalentTo(
+                    MemoryParameters(2, 2, imageId),
+                    CollectionOrdering.Matching);
+            await Assert.That(permitted.Revision.Document.EntryCircuitDefinition
+                .Nets.Single().Width)
+                .IsEqualTo(originalNet.Width);
+            await Assert.That(permitted.Revision.Document.EntryCircuitDefinition
+                .Nets.Single().Terminals)
+                .Contains(new InstanceTerminalReference(definitionId, rom.Id, "Q"));
         }
     }
 
@@ -391,5 +489,13 @@ public sealed class ProjectEditorResourceTests
                 "initialImage",
                 new MemoryImageParameterValue(imageId)),
         ];
+    }
+
+    private static MemoryImageWord[] CreateUnknownWords(int width, int depth)
+    {
+        return Enumerable.Range(0, depth)
+            .Select(_ => new MemoryImageWord(
+                Enumerable.Repeat(LogicValue.X, width).ToArray()))
+            .ToArray();
     }
 }

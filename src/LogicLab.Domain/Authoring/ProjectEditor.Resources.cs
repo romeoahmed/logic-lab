@@ -91,14 +91,34 @@ public static partial class ProjectEditor
                 revision.Document.FindCircuitDefinition(reference.Item1)!);
             var instance = definition.FindComponentInstance(reference.Item2)!;
             var parameterDiagnostics = new List<AuthoringDiagnostic>();
-            ResolveTargetPorts(
+            var oldPorts = ResolveTargetPorts(
+                revision.Document,
+                instance.Target,
+                instance.Parameters,
+                parameterDiagnostics);
+            var newPorts = ResolveTargetPorts(
                 candidateDocument,
                 instance.Target,
                 migration.Parameters,
                 parameterDiagnostics);
+            if (parameterDiagnostics.Count == 0
+                && !ConnectedPortSchemasMatch(
+                    definition,
+                    instance.Id,
+                    oldPorts,
+                    newPorts))
+            {
+                parameterDiagnostics.Add(InvalidParameter(
+                    instance.Target,
+                    "connectedPortSchemaChanged"));
+            }
+
             diagnostics.AddRange(parameterDiagnostics);
-            definitionReplacements[definition.Id] = definition.ReplaceComponentInstances(
-                [instance.WithParameters(migration.Parameters.ToArray())]);
+            if (parameterDiagnostics.Count == 0)
+            {
+                definitionReplacements[definition.Id] = definition.ReplaceComponentInstances(
+                    [instance.WithParameters(migration.Parameters.ToArray())]);
+            }
         }
 
         if (diagnostics.Count != 0)
@@ -484,5 +504,31 @@ public static partial class ProjectEditor
                         && reference.MemoryImageId == imageId))
                     .Select(instance => (definition.Id, instance.Id)))
             .ToHashSet();
+    }
+
+    private static bool ConnectedPortSchemasMatch(
+        CircuitDefinition definition,
+        ComponentInstanceId instanceId,
+        IReadOnlyList<ResolvedAuthoringPort> oldPorts,
+        IReadOnlyList<ResolvedAuthoringPort> newPorts)
+    {
+        var connectedPortIds = definition.Nets
+            .SelectMany(net => net.Terminals)
+            .OfType<InstanceTerminalReference>()
+            .Where(terminal => terminal.ComponentInstanceId == instanceId)
+            .Select(terminal => terminal.PortId)
+            .ToHashSet(StringComparer.Ordinal);
+        if (connectedPortIds.Count == 0)
+        {
+            return true;
+        }
+
+        var oldById = oldPorts.ToDictionary(port => port.Id, StringComparer.Ordinal);
+        var newById = newPorts.ToDictionary(port => port.Id, StringComparer.Ordinal);
+        return connectedPortIds.All(portId =>
+            oldById.TryGetValue(portId, out var oldPort)
+            && newById.TryGetValue(portId, out var newPort)
+            && oldPort.Direction == newPort.Direction
+            && oldPort.Width == newPort.Width);
     }
 }
