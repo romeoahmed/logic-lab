@@ -23,18 +23,20 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private bool isDisposed;
 
     public EditorWorkspace(
-        WorkCoordinator workCoordinator,
+        SchedulingPolicy schedulingPolicy,
         WorkspacePolicy workspacePolicy,
         TimeProvider timeProvider,
         WorkspaceModuleOperations operations,
+        ILogger<WorkCoordinator> workCoordinatorLogger,
         ILogger<EditorWorkspace> logger)
     {
-        ArgumentNullException.ThrowIfNull(workCoordinator);
+        ArgumentNullException.ThrowIfNull(schedulingPolicy);
         ArgumentNullException.ThrowIfNull(workspacePolicy);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(operations);
+        ArgumentNullException.ThrowIfNull(workCoordinatorLogger);
         ArgumentNullException.ThrowIfNull(logger);
-        this.workCoordinator = workCoordinator;
+        workCoordinator = new WorkCoordinator(schedulingPolicy, workCoordinatorLogger);
         this.workspacePolicy = workspacePolicy;
         this.timeProvider = timeProvider;
         this.operations = operations;
