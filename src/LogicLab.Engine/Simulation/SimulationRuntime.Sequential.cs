@@ -305,7 +305,12 @@ public static partial class SimulationRuntime
 
     private sealed class ZeroTimeStateTracker
     {
-        private readonly List<ZeroTimeWorkingState> states = [];
+        private readonly ExactStateIndex<
+            ZeroTimeWorkingState,
+            ZeroTimeStateFingerprint> states = new(
+                (state, _) => state.Fingerprint,
+                (candidate, retained, cancellationToken) =>
+                    candidate.ExactlyEquals(retained, cancellationToken));
         private ulong observed;
 
         public void Observe(
@@ -317,12 +322,16 @@ public static partial class SimulationRuntime
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var candidate = new ZeroTimeWorkingState(
+            var candidate = ZeroTimeWorkingState.CreateView(
                 previousNetValues,
                 netValues,
                 driverValues,
-                sequentialStates);
-            if (states.Any(candidate.ExactlyEquals))
+                sequentialStates,
+                cancellationToken);
+            if (states.Contains(
+                    candidate,
+                    out var fingerprint,
+                    cancellationToken))
             {
                 throw new ZeroTimeOscillationException();
             }
@@ -331,9 +340,13 @@ public static partial class SimulationRuntime
                 policy,
                 SimulationDimension.ZeroTimeStateCount,
                 ref observed);
-            states.Add(candidate);
+            states.Add(fingerprint, candidate.Retain());
         }
     }
+
+    private readonly record struct ZeroTimeStateFingerprint(
+        ulong First,
+        ulong Second);
 
     private sealed class ZeroTimeWorkingState
     {
@@ -342,40 +355,78 @@ public static partial class SimulationRuntime
         private readonly LogicVector[] driverValues;
         private readonly LogicVector?[] sequentialStates;
 
-        public ZeroTimeWorkingState(
+        private ZeroTimeWorkingState(
             LogicVector[] previousNetValues,
             LogicVector[] netValues,
             LogicVector[] driverValues,
-            LogicVector?[] sequentialStates)
+            LogicVector?[] sequentialStates,
+            ZeroTimeStateFingerprint fingerprint)
         {
-            this.previousNetValues = (LogicVector[])previousNetValues.Clone();
-            this.netValues = (LogicVector[])netValues.Clone();
-            this.driverValues = (LogicVector[])driverValues.Clone();
-            this.sequentialStates = (LogicVector?[])sequentialStates.Clone();
+            this.previousNetValues = previousNetValues;
+            this.netValues = netValues;
+            this.driverValues = driverValues;
+            this.sequentialStates = sequentialStates;
+            Fingerprint = fingerprint;
         }
 
-        public bool ExactlyEquals(ZeroTimeWorkingState other)
+        public ZeroTimeStateFingerprint Fingerprint { get; }
+
+        public static ZeroTimeWorkingState CreateView(
+            LogicVector[] previousNetValues,
+            LogicVector[] netValues,
+            LogicVector[] driverValues,
+            LogicVector?[] sequentialStates,
+            CancellationToken cancellationToken)
         {
-            return VectorArraysEqual(previousNetValues, other.previousNetValues)
-                && VectorArraysEqual(netValues, other.netValues)
-                && VectorArraysEqual(driverValues, other.driverValues)
+            return new ZeroTimeWorkingState(
+                previousNetValues,
+                netValues,
+                driverValues,
+                sequentialStates,
+                ComputeFingerprint(
+                    previousNetValues,
+                    netValues,
+                    driverValues,
+                    sequentialStates,
+                    cancellationToken));
+        }
+
+        public ZeroTimeWorkingState Retain()
+        {
+            return new ZeroTimeWorkingState(
+                (LogicVector[])previousNetValues.Clone(),
+                (LogicVector[])netValues.Clone(),
+                (LogicVector[])driverValues.Clone(),
+                (LogicVector?[])sequentialStates.Clone(),
+                Fingerprint);
+        }
+
+        public bool ExactlyEquals(
+            ZeroTimeWorkingState other,
+            CancellationToken cancellationToken)
+        {
+            return VectorArraysEqual(
+                    previousNetValues,
+                    other.previousNetValues,
+                    cancellationToken)
+                && VectorArraysEqual(
+                    netValues,
+                    other.netValues,
+                    cancellationToken)
+                && VectorArraysEqual(
+                    driverValues,
+                    other.driverValues,
+                    cancellationToken)
                 && NullableVectorArraysEqual(
                     sequentialStates,
-                    other.sequentialStates);
+                    other.sequentialStates,
+                    cancellationToken);
         }
 
         private static bool VectorArraysEqual(
             LogicVector[] left,
-            LogicVector[] right)
-        {
-            return left.Length == right.Length
-                && left.Select((value, index) => ValuesEqual(value, right[index]))
-                    .All(equal => equal);
-        }
-
-        private static bool NullableVectorArraysEqual(
-            LogicVector?[] left,
-            LogicVector?[] right)
+            LogicVector[] right,
+            CancellationToken cancellationToken)
         {
             if (left.Length != right.Length)
             {
@@ -384,6 +435,29 @@ public static partial class SimulationRuntime
 
             for (var index = 0; index < left.Length; index++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!VectorsEqual(left[index], right[index], cancellationToken))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool NullableVectorArraysEqual(
+            LogicVector?[] left,
+            LogicVector?[] right,
+            CancellationToken cancellationToken)
+        {
+            if (left.Length != right.Length)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < left.Length; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (left[index] is null || right[index] is null)
                 {
                     if (left[index] is not null || right[index] is not null)
@@ -391,13 +465,148 @@ public static partial class SimulationRuntime
                         return false;
                     }
                 }
-                else if (!ValuesEqual(left[index]!, right[index]!))
+                else if (!VectorsEqual(
+                        left[index]!,
+                        right[index]!,
+                        cancellationToken))
                 {
                     return false;
                 }
             }
 
             return true;
+        }
+
+        private static bool VectorsEqual(
+            LogicVector left,
+            LogicVector right,
+            CancellationToken cancellationToken)
+        {
+            if (left.Width != right.Width)
+            {
+                return false;
+            }
+
+            for (var wordIndex = 0; wordIndex < left.WordCount; wordIndex++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (left.GetLowWord(wordIndex) != right.GetLowWord(wordIndex)
+                    || left.GetHighWord(wordIndex) != right.GetHighWord(wordIndex))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static ZeroTimeStateFingerprint ComputeFingerprint(
+            LogicVector[] previousNetValues,
+            LogicVector[] netValues,
+            LogicVector[] driverValues,
+            LogicVector?[] sequentialStates,
+            CancellationToken cancellationToken)
+        {
+            var first = 14695981039346656037UL;
+            var second = 7809847782465536322UL;
+            AppendVectors(
+                ref first,
+                ref second,
+                1,
+                previousNetValues,
+                cancellationToken);
+            AppendVectors(
+                ref first,
+                ref second,
+                2,
+                netValues,
+                cancellationToken);
+            AppendVectors(
+                ref first,
+                ref second,
+                3,
+                driverValues,
+                cancellationToken);
+            AppendNullableVectors(
+                ref first,
+                ref second,
+                4,
+                sequentialStates,
+                cancellationToken);
+            return new ZeroTimeStateFingerprint(first, second);
+        }
+
+        private static void AppendVectors(
+            ref ulong first,
+            ref ulong second,
+            ulong domain,
+            LogicVector[] values,
+            CancellationToken cancellationToken)
+        {
+            Append(ref first, ref second, domain);
+            Append(ref first, ref second, checked((ulong)values.Length));
+            foreach (var value in values)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                AppendVector(
+                    ref first,
+                    ref second,
+                    value,
+                    cancellationToken);
+            }
+        }
+
+        private static void AppendNullableVectors(
+            ref ulong first,
+            ref ulong second,
+            ulong domain,
+            LogicVector?[] values,
+            CancellationToken cancellationToken)
+        {
+            Append(ref first, ref second, domain);
+            Append(ref first, ref second, checked((ulong)values.Length));
+            foreach (var value in values)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Append(ref first, ref second, value is null ? 0UL : 1UL);
+                if (value is not null)
+                {
+                    AppendVector(
+                        ref first,
+                        ref second,
+                        value,
+                        cancellationToken);
+                }
+            }
+        }
+
+        private static void AppendVector(
+            ref ulong first,
+            ref ulong second,
+            LogicVector value,
+            CancellationToken cancellationToken)
+        {
+            Append(ref first, ref second, checked((ulong)value.Width));
+            Append(ref first, ref second, checked((ulong)value.WordCount));
+            for (var wordIndex = 0; wordIndex < value.WordCount; wordIndex++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Append(ref first, ref second, value.GetLowWord(wordIndex));
+                Append(ref first, ref second, value.GetHighWord(wordIndex));
+            }
+        }
+
+        private static void Append(
+            ref ulong first,
+            ref ulong second,
+            ulong value)
+        {
+            unchecked
+            {
+                first = (first ^ value) * 1099511628211UL;
+                second = (second ^ (value + 0x9E3779B97F4A7C15UL))
+                    * 14029467366897019727UL;
+            }
         }
     }
 
