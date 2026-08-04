@@ -52,9 +52,7 @@ internal sealed class SimulationSessionState
 
     public ulong ScheduledAssignmentCount { get; set; }
 
-    public PriorityQueue<ScheduledClockTransition, ScheduledClockPriority>
-        ScheduledClockTransitions
-    { get; set; } = new();
+    public ClockEventCalendar ScheduledClockTransitions { get; set; } = new();
 }
 
 internal sealed record ProbeState(
@@ -81,23 +79,6 @@ internal readonly record struct ScheduledStimulusPriority(
         return timeComparison != 0
             ? timeComparison
             : StableSequence.CompareTo(other.StableSequence);
-    }
-}
-
-internal sealed record ScheduledClockTransition(
-    int EvaluatorOrdinal,
-    int DriverOrdinal);
-
-internal readonly record struct ScheduledClockPriority(
-    ulong LogicalTime,
-    int EvaluatorOrdinal) : IComparable<ScheduledClockPriority>
-{
-    public int CompareTo(ScheduledClockPriority other)
-    {
-        var timeComparison = LogicalTime.CompareTo(other.LogicalTime);
-        return timeComparison != 0
-            ? timeComparison
-            : EvaluatorOrdinal.CompareTo(other.EvaluatorOrdinal);
     }
 }
 
