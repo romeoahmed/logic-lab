@@ -24,7 +24,11 @@ public static partial class SimulationRuntime
                 + (ulong)ir.Evaluators.Count(evaluator =>
                     SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind))
                 + (ulong)ir.Evaluators.Count(evaluator =>
-                    evaluator.Kind == SimulationEvaluatorKind.ClockSource));
+                    evaluator.Kind == SimulationEvaluatorKind.ClockSource)
+                + ir.Evaluators.Aggregate(
+                    0UL,
+                    (count, evaluator) => checked(
+                        count + (ulong)(evaluator.InitialMemory?.Count ?? 0))));
             if (work.WorkingLayerSlots > request.SimulationPolicy.Maximum(
                 SimulationDimension.WorkingLayerSlotCount))
             {
@@ -45,11 +49,13 @@ public static partial class SimulationRuntime
             }
 
             var sequentialStates = CreateSequentialStates(ir);
+            var memoryStates = CreateMemoryStates(ir);
             var driverValues = CreateDriverValues(ir, sequentialStates);
             var clockEvents = CreateClockEventCalendar(ir);
             var settlement = SettleCombinational(
                 ir,
                 driverValues,
+                memoryStates,
                 request.SimulationPolicy,
                 work.Settlement,
                 cancellationToken);
@@ -75,6 +81,7 @@ public static partial class SimulationRuntime
                 DriverValues = driverValues,
                 NetValues = netValues,
                 SequentialStates = sequentialStates,
+                MemoryStates = memoryStates,
                 Probes = probes,
                 Trace = trace,
                 Diagnostics = diagnostics,
@@ -366,6 +373,7 @@ public static partial class SimulationRuntime
             nextClockTime ?? ulong.MaxValue);
         var driverValues = (LogicVector[])state.DriverValues.Clone();
         var sequentialStates = (LogicVector?[])state.SequentialStates.Clone();
+        var memoryStates = CloneMemoryStates(state.MemoryStates);
         var settlementWork = new SettlementWork();
         if (state.ScheduledAssignmentsByTime.TryGetValue(
                 logicalTime,
@@ -398,6 +406,7 @@ public static partial class SimulationRuntime
         var settlement = SettleCombinational(
             state.Artifact!.SimulationIr,
             driverValues,
+            memoryStates,
             state.SimulationPolicy,
             settlementWork,
             cancellationToken);
@@ -410,6 +419,7 @@ public static partial class SimulationRuntime
             ref settlement,
             driverValues,
             sequentialStates,
+            memoryStates,
             state.SimulationPolicy,
             settlementWork,
             clockDiagnostics,
@@ -473,6 +483,7 @@ public static partial class SimulationRuntime
         state.DriverValues = driverValues;
         state.NetValues = netValues;
         state.SequentialStates = sequentialStates;
+        state.MemoryStates = memoryStates;
         state.LogicalTime = logicalTime;
         state.SessionVersion = nextVersion;
         state.Diagnostics = diagnostics;
@@ -583,6 +594,24 @@ public static partial class SimulationRuntime
         return states;
     }
 
+    private static LogicVector[]?[] CreateMemoryStates(SimulationIr ir)
+    {
+        var states = new LogicVector[]?[ir.Evaluators.Count];
+        foreach (var evaluator in ir.Evaluators.Where(evaluator =>
+            SimulationEvaluatorKindFacts.IsMemory(evaluator.Kind)))
+        {
+            states[evaluator.Ordinal] = evaluator.InitialMemory!.ToArray();
+        }
+
+        return states;
+    }
+
+    private static LogicVector[]?[] CloneMemoryStates(LogicVector[]?[] states)
+    {
+        return [.. states.Select(memory =>
+            memory is null ? null : (LogicVector[])memory.Clone())];
+    }
+
     private static LogicVector[] CreateDriverValues(
         SimulationIr ir,
         LogicVector?[] sequentialStates)
@@ -622,6 +651,7 @@ public static partial class SimulationRuntime
     private static SettlementResult SettleCombinational(
         SimulationIr ir,
         LogicVector[] driverValues,
+        LogicVector[]?[] memoryStates,
         SimulationPolicy policy,
         SettlementWork work,
         CancellationToken cancellationToken)
@@ -629,6 +659,7 @@ public static partial class SimulationRuntime
         return SettleCombinational(
             ir,
             driverValues,
+            memoryStates,
             policy,
             work,
             Comparer<int>.Default,
@@ -645,9 +676,11 @@ public static partial class SimulationRuntime
         ArgumentNullException.ThrowIfNull(policy);
         ArgumentNullException.ThrowIfNull(cyclicEvaluatorOrder);
         var driverValues = CreateDriverValues(artifact.SimulationIr);
+        var memoryStates = CreateMemoryStates(artifact.SimulationIr);
         return SettleCombinational(
             artifact.SimulationIr,
             driverValues,
+            memoryStates,
             policy,
             new SettlementWork(),
             cyclicEvaluatorOrder,
@@ -657,6 +690,7 @@ public static partial class SimulationRuntime
     private static SettlementResult SettleCombinational(
         SimulationIr ir,
         LogicVector[] driverValues,
+        LogicVector[]?[] memoryStates,
         SimulationPolicy policy,
         SettlementWork work,
         IComparer<int> cyclicEvaluatorOrder,
@@ -686,6 +720,7 @@ public static partial class SimulationRuntime
                     netValues,
                     netResolutions,
                     driverValues,
+                    memoryStates,
                     policy,
                     work,
                     cyclicEvaluatorOrder,
@@ -705,6 +740,7 @@ public static partial class SimulationRuntime
                     evaluator,
                     netValues,
                     driverValues,
+                    memoryStates,
                     policy,
                     work,
                     cancellationToken);
@@ -739,6 +775,7 @@ public static partial class SimulationRuntime
         LogicVector[] netValues,
         VectorNetResolution[] netResolutions,
         LogicVector[] driverValues,
+        LogicVector[]?[] memoryStates,
         SimulationPolicy policy,
         SettlementWork work,
         IComparer<int> evaluatorOrder,
@@ -795,6 +832,7 @@ public static partial class SimulationRuntime
                 evaluator,
                 netValues,
                 driverValues,
+                memoryStates,
                 policy,
                 work,
                 cancellationToken);
@@ -851,6 +889,7 @@ public static partial class SimulationRuntime
         SimulationEvaluator evaluator,
         LogicVector[] netValues,
         LogicVector[] driverValues,
+        LogicVector[]?[] memoryStates,
         SimulationPolicy policy,
         SettlementWork work,
         CancellationToken cancellationToken)
@@ -866,6 +905,19 @@ public static partial class SimulationRuntime
             case SimulationEvaluatorKind.ConstantSource:
             case SimulationEvaluatorKind.ClockSource:
             case SimulationEvaluatorKind.OutputSink:
+                return;
+            case SimulationEvaluatorKind.MemoryRom:
+            case SimulationEvaluatorKind.MemoryRamSinglePort:
+                var address = netValues[evaluator.InputNetOrdinals[0]];
+                CountWork(
+                    policy,
+                    SimulationDimension.AdvanceWorkItemCount,
+                    ref work.WorkItems,
+                    MemoryEvaluation.ReachableAddressCount(address));
+                driverValues[evaluator.OutputDriverOrdinals[0]] = MemoryEvaluation.Read(
+                    memoryStates[evaluator.Ordinal]!,
+                    address,
+                    cancellationToken);
                 return;
             case SimulationEvaluatorKind.LogicNot:
                 driverValues[evaluator.OutputDriverOrdinals[0]] = VectorLogic.Not(

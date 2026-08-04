@@ -28,6 +28,8 @@ internal sealed class SimulationSessionState
 
     public required LogicVector?[] SequentialStates { get; set; }
 
+    public required LogicVector[]?[] MemoryStates { get; set; }
+
     public required ProbeState[] Probes { get; set; }
 
     public required SimulationTraceStore Trace { get; set; }

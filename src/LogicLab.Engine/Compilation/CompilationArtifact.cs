@@ -44,6 +44,8 @@ internal enum SimulationEvaluatorKind
     SequentialTff,
     SequentialShiftRegister,
     SequentialCounter,
+    MemoryRom,
+    MemoryRamSinglePort,
 }
 
 internal static class SimulationEvaluatorKindFacts
@@ -63,6 +65,18 @@ internal static class SimulationEvaluatorKindFacts
             or SimulationEvaluatorKind.SequentialTff
             or SimulationEvaluatorKind.SequentialShiftRegister
             or SimulationEvaluatorKind.SequentialCounter;
+    }
+
+    public static bool IsMemory(SimulationEvaluatorKind kind)
+    {
+        return kind is SimulationEvaluatorKind.MemoryRom
+            or SimulationEvaluatorKind.MemoryRamSinglePort;
+    }
+
+    public static bool IsTriggeredState(SimulationEvaluatorKind kind)
+    {
+        return IsSequential(kind)
+            || kind == SimulationEvaluatorKind.MemoryRamSinglePort;
     }
 }
 
@@ -97,7 +111,8 @@ internal sealed class SimulationEvaluator
         IReadOnlyList<BitSlice>? slices = null,
         bool option = false,
         ClockSchedule? clockSchedule = null,
-        SequentialEvaluatorOptions? sequentialOptions = null)
+        SequentialEvaluatorOptions? sequentialOptions = null,
+        IReadOnlyList<LogicVector>? initialMemory = null)
     {
         Ordinal = ordinal;
         Kind = kind;
@@ -110,6 +125,9 @@ internal sealed class SimulationEvaluator
         Option = option;
         ClockSchedule = clockSchedule;
         SequentialOptions = sequentialOptions;
+        InitialMemory = initialMemory is null
+            ? null
+            : Array.AsReadOnly(initialMemory.ToArray());
     }
 
     public int Ordinal { get; }
@@ -131,6 +149,8 @@ internal sealed class SimulationEvaluator
     public ClockSchedule? ClockSchedule { get; }
 
     public SequentialEvaluatorOptions? SequentialOptions { get; }
+
+    public ReadOnlyCollection<LogicVector>? InitialMemory { get; }
 }
 
 internal sealed record SimulationDriver(

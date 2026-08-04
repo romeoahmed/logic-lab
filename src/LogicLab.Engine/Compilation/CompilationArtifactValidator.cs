@@ -45,6 +45,7 @@ internal static class CompilationArtifactValidator
             }
 
             ValidateSequentialOptions(evaluator);
+            ValidateMemory(ir, evaluator);
         }
 
         foreach (var driver in ir.Drivers)
@@ -128,6 +129,48 @@ internal static class CompilationArtifactValidator
         if (!directionIsValid)
         {
             Invalid("Sequential direction metadata does not match its contract.");
+        }
+    }
+
+    private static void ValidateMemory(SimulationIr ir, SimulationEvaluator evaluator)
+    {
+        var isMemory = SimulationEvaluatorKindFacts.IsMemory(evaluator.Kind);
+        if (isMemory != (evaluator.InitialMemory is not null))
+        {
+            Invalid("Memory evaluator data does not match its kind.");
+        }
+
+        if (!isMemory)
+        {
+            return;
+        }
+
+        if (evaluator.InitialMemory!.Count == 0
+            || evaluator.InitialMemory.Any(word => word.Width != checked((int)evaluator.Width)))
+        {
+            Invalid("Memory evaluator data does not match its word shape.");
+        }
+
+        var expectedInputCount = evaluator.Kind == SimulationEvaluatorKind.MemoryRom ? 1 : 4;
+        if (evaluator.InputNetOrdinals.Count != expectedInputCount
+            || evaluator.OutputDriverOrdinals.Count != 1)
+        {
+            Invalid("Memory evaluator ports do not match its contract.");
+        }
+
+        var addressWidth = ir.Nets[evaluator.InputNetOrdinals[0]].Width;
+        if (addressWidth >= 31
+            || evaluator.InitialMemory.Count != 1 << checked((int)addressWidth))
+        {
+            Invalid("Memory evaluator data does not match its address space.");
+        }
+
+        if (evaluator.Kind == SimulationEvaluatorKind.MemoryRamSinglePort
+            && (ir.Nets[evaluator.InputNetOrdinals[1]].Width != evaluator.Width
+                || ir.Nets[evaluator.InputNetOrdinals[2]].Width != 1
+                || ir.Nets[evaluator.InputNetOrdinals[3]].Width != 1))
+        {
+            Invalid("RAM evaluator ports do not match its data and control widths.");
         }
     }
 
