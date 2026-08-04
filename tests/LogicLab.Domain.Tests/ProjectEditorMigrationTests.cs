@@ -7,6 +7,117 @@ namespace LogicLab.Domain.Tests;
 public sealed class ProjectEditorMigrationTests
 {
     [Test]
+    public async Task Apply_ChangePublicPortContract_RemovesObsoleteBoundaryTerminal()
+    {
+        var revision = BeginProject();
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new ChangePublicPortContractIntent(
+                definitionId,
+                [
+                    new NewDefinitionPortContract(Port("A", PortDirection.Input, 1)),
+                    new NewDefinitionPortContract(Port("Q", PortDirection.Output, 1)),
+                ],
+                [])));
+        var definition = revision.Document.EntryCircuitDefinition;
+        var input = definition.Ports.Single(port => port.Direction == PortDirection.Input);
+        var output = definition.Ports.Single(port => port.Direction == PortDirection.Output);
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new ConnectTerminalsIntent(
+                [
+                    new DefinitionTerminalReference(definitionId, input.Id),
+                    new DefinitionTerminalReference(definitionId, output.Id),
+                ])));
+        var netId = revision.Document.EntryCircuitDefinition.Nets.Single().Id;
+
+        var outcome = ProjectEditor.Apply(
+            revision,
+            new ChangePublicPortContractIntent(
+                definitionId,
+                [
+                    new RetainedDefinitionPortContract(
+                        input.Id,
+                        Port("A", PortDirection.Input, 1)),
+                ],
+                []));
+
+        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
+        Assert.NotNull(committed);
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.Revision.Document.EntryCircuitDefinition.Nets
+                .Single().Terminals)
+                .IsEquivalentTo(
+                    [
+                        (AuthoredTerminalReference)new DefinitionTerminalReference(
+                            definitionId,
+                            input.Id),
+                    ],
+                    CollectionOrdering.Matching);
+            await Assert.That(committed.ChangedSources)
+                .Contains(new NetSourceIdentity(definitionId, netId));
+            await Assert.That(committed.RemovedSources)
+                .Contains(new DefinitionPortSourceIdentity(definitionId, output.Id));
+        }
+    }
+
+    [Test]
+    public async Task Apply_ChangePublicPortContract_DisconnectsCallSiteAndReportsRemovedNet()
+    {
+        var revision = BeginProject();
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new CreateCircuitDefinitionIntent(
+                "Child",
+                [Port("A", PortDirection.Input, 1), Port("Q", PortDirection.Output, 1)])));
+        var child = revision.Document.CircuitDefinitions.Single(definition =>
+            definition.Id != revision.Document.EntryCircuitDefinitionId);
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new PlaceComponentInstanceIntent(
+                revision.Document.EntryCircuitDefinitionId,
+                new CircuitDefinitionComponentTarget(child.Id),
+                [],
+                new ComponentPlacement(new GridPoint(0, 0)))));
+        var parent = revision.Document.EntryCircuitDefinition;
+        var callSite = parent.ComponentInstances.Single();
+        revision = ProjectEditorCatalogTests.Commit(ProjectEditor.Apply(
+            revision,
+            new ConnectTerminalsIntent(
+                [
+                    new InstanceTerminalReference(parent.Id, callSite.Id, child.Ports[0].Id.Value),
+                    new InstanceTerminalReference(parent.Id, callSite.Id, child.Ports[1].Id.Value),
+                ])));
+        var removedNetId = revision.Document.EntryCircuitDefinition.Nets.Single().Id;
+
+        var outcome = ProjectEditor.Apply(
+            revision,
+            new ChangePublicPortContractIntent(
+                child.Id,
+                [],
+                [
+                    new CallSiteTerminalMigration(
+                        parent.Id,
+                        callSite.Id,
+                        [
+                            new PortTerminalMigration(child.Ports[0].Id, null),
+                            new PortTerminalMigration(child.Ports[1].Id, null),
+                        ]),
+                ]));
+
+        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
+        Assert.NotNull(committed);
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.Revision.Document.EntryCircuitDefinition.Nets).IsEmpty();
+            await Assert.That(committed.RemovedSources)
+                .Contains(new NetSourceIdentity(parent.Id, removedNetId));
+        }
+    }
+
+    [Test]
     public async Task Apply_ChangePublicPortContract_MigratesEveryCallSiteAtomically()
     {
         var revision = BeginProject();

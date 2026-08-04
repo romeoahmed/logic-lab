@@ -47,6 +47,16 @@ public static partial class ProjectEditor
             intent.Width,
             intent.Depth,
             intent.Words);
+        var replacement = new MemoryImage(
+            original.Id,
+            intent.DisplayName,
+            intent.Width,
+            intent.Depth,
+            intent.Words.ToArray());
+        var candidateDocument = revision.Document.WithMemoryImages(
+            revision.Document.MemoryImages
+                .Select(image => image.Id == original.Id ? replacement : image)
+                .ToArray());
         var references = FindMemoryImageReferences(revision.Document, original.Id);
         var migrations = new Dictionary<(CircuitDefinitionId, ComponentInstanceId),
             InstanceParameterMigration>();
@@ -82,7 +92,7 @@ public static partial class ProjectEditor
             var instance = definition.FindComponentInstance(reference.Item2)!;
             var parameterDiagnostics = new List<AuthoringDiagnostic>();
             ResolveTargetPorts(
-                revision.Document,
+                candidateDocument,
                 instance.Target,
                 migration.Parameters,
                 parameterDiagnostics);
@@ -96,21 +106,16 @@ public static partial class ProjectEditor
             return new EditRejected(diagnostics.ToArray());
         }
 
-        var replacement = new MemoryImage(
-            original.Id,
-            intent.DisplayName,
-            intent.Width,
-            intent.Depth,
-            intent.Words.ToArray());
-        var document = revision.Document.ReplaceCircuitDefinitions(
+        var document = candidateDocument.ReplaceCircuitDefinitions(
             definitionReplacements.Values.ToArray());
-        document = document.WithMemoryImages(document.MemoryImages
-            .Select(image => image.Id == original.Id ? replacement : image)
-            .ToArray());
+        var changed = references.Select(reference => (AuthoredSourceIdentity)
+                new ComponentInstanceSourceIdentity(reference.Item1, reference.Item2))
+            .Prepend(new MemoryImageSourceIdentity(document.ProjectId, original.Id))
+            .ToArray();
         return Commit(
             revision,
             document,
-            [new MemoryImageSourceIdentity(document.ProjectId, original.Id)]);
+            changed);
     }
 
     private static EditOutcome ApplyRemoveMemoryImage(

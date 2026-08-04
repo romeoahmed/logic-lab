@@ -133,6 +133,35 @@ public sealed class CoreLibrarySchemaTests
     }
 
     [Test]
+    public async Task FindContract_MemoryFamily_HasExactAuthoringSchemas()
+    {
+        var rom = await FindCoreContract("memory.rom");
+        var ram = await FindCoreContract("memory.ram_single_port");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rom.Parameters.Select(parameter => (
+                    parameter.Id,
+                    parameter.Kind)).ToArray())
+                .IsEquivalentTo(
+                    [
+                        ("addressWidth", ComponentParameterKind.PositiveWidth),
+                        ("wordWidth", ComponentParameterKind.PositiveWidth),
+                        ("initialImage", ComponentParameterKind.MemoryImage),
+                    ],
+                    CollectionOrdering.Matching);
+            await Assert.That(rom.Parameters[2].MemoryImageWidthParameterId)
+                .IsEqualTo("wordWidth");
+            await Assert.That(rom.Parameters[2].MemoryImageAddressWidthParameterId)
+                .IsEqualTo("addressWidth");
+            await Assert.That(rom.Ports.Select(port => port.Id).ToArray())
+                .IsEquivalentTo(["A", "Q"], CollectionOrdering.Matching);
+            await Assert.That(ram.Ports.Select(port => port.Id).ToArray())
+                .IsEquivalentTo(["A", "D", "WE", "CLK", "Q"], CollectionOrdering.Matching);
+        }
+    }
+
+    [Test]
     [Arguments("logiclab.core", "logic.unknown")]
     [Arguments("other.library", "logic.not")]
     public async Task FindContract_UnknownKey_ReturnsNull(

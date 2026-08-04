@@ -153,6 +153,12 @@ public static class CoreLibrarySchema
             new ComponentPortSchema("Q", PortDirection.Output, "width"),
         ]);
 
+    private static readonly ComponentContractSchema MemoryRom =
+        CreateMemoryContract("memory.rom", writable: false);
+
+    private static readonly ComponentContractSchema MemoryRamSinglePort =
+        CreateMemoryContract("memory.ram_single_port", writable: true);
+
     private static readonly ComponentContractSchema SourceConstant = new(
         new ComponentContractKey(LibraryId, "source.constant"),
         [
@@ -256,6 +262,8 @@ public static class CoreLibrarySchema
         LogicUnsignedCompare,
         LogicXnor,
         LogicXor,
+        MemoryRamSinglePort,
+        MemoryRom,
         SinkOutput,
         SourceConstant,
         SourceInput,
@@ -361,6 +369,38 @@ public static class CoreLibrarySchema
                 new ComponentPortSchema(resultId, PortDirection.Output, "width"),
                 FixedOnePort(carryOutputId, PortDirection.Output),
             ]);
+    }
+
+    private static ComponentContractSchema CreateMemoryContract(
+        string contractId,
+        bool writable)
+    {
+        var ports = writable
+            ? new[]
+            {
+                new ComponentPortSchema("A", PortDirection.Input, "addressWidth"),
+                new ComponentPortSchema("D", PortDirection.Input, "wordWidth"),
+                FixedOnePort("WE", PortDirection.Input),
+                FixedOnePort("CLK", PortDirection.Input),
+                new ComponentPortSchema("Q", PortDirection.Output, "wordWidth"),
+            }
+            :
+            [
+                new ComponentPortSchema("A", PortDirection.Input, "addressWidth"),
+                new ComponentPortSchema("Q", PortDirection.Output, "wordWidth"),
+            ];
+        return new ComponentContractSchema(
+            new ComponentContractKey(LibraryId, contractId),
+            [
+                WidthParameter("addressWidth"),
+                WidthParameter("wordWidth"),
+                new ComponentParameterSchema(
+                    "initialImage",
+                    ComponentParameterKind.MemoryImage,
+                    memoryImageWidthParameterId: "wordWidth",
+                    memoryImageAddressWidthParameterId: "addressWidth"),
+            ],
+            ports);
     }
 
     private static ComponentParameterSchema WidthParameter(
