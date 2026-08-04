@@ -40,7 +40,7 @@ public static class SimulationRuntime
             }
 
             var driverValues = CreateDriverValues(ir);
-            var settlement = SettleAcyclic(
+            var settlement = SettleCombinational(
                 ir,
                 driverValues,
                 request.SimulationPolicy,
@@ -363,7 +363,7 @@ public static class SimulationRuntime
             driverValues[assignment.Key] = assignment.Value;
         }
 
-        var settlement = SettleAcyclic(
+        var settlement = SettleCombinational(
             state.Artifact!.SimulationIr,
             driverValues,
             state.SimulationPolicy,
@@ -440,12 +440,6 @@ public static class SimulationRuntime
             request.CompilationArtifact.SimulationIr,
             request.CompilationArtifact.SourceMap,
             cancellationToken);
-        if (request.CompilationArtifact.SimulationIr.StronglyConnectedComponents.Any(
-            component => component.IsCyclic))
-        {
-            throw new InvalidOperationException(
-                "Cyclic combinational settlement is not available in this Runtime slice.");
-        }
     }
 
     private static ProbeState[] BindProbes(
@@ -528,7 +522,7 @@ public static class SimulationRuntime
         return driverValues;
     }
 
-    private static SettlementResult SettleAcyclic(
+    private static SettlementResult SettleCombinational(
         SimulationIr ir,
         LogicVector[] driverValues,
         SimulationPolicy policy,
@@ -551,6 +545,20 @@ public static class SimulationRuntime
         foreach (var componentOrdinal in ir.CondensationOrder)
         {
             var component = ir.StronglyConnectedComponents[componentOrdinal];
+            if (component.IsCyclic)
+            {
+                SettleCyclicComponent(
+                    ir,
+                    component,
+                    netValues,
+                    netResolutions,
+                    driverValues,
+                    policy,
+                    work,
+                    cancellationToken);
+                continue;
+            }
+
             foreach (var evaluatorOrdinal in component.EvaluatorOrdinals)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -589,6 +597,117 @@ public static class SimulationRuntime
         }
 
         return new SettlementResult(netValues, netResolutions);
+    }
+
+    private static void SettleCyclicComponent(
+        SimulationIr ir,
+        CombinationalStronglyConnectedComponent component,
+        LogicVector[] netValues,
+        VectorNetResolution[] netResolutions,
+        LogicVector[] driverValues,
+        SimulationPolicy policy,
+        SettlementWork work,
+        CancellationToken cancellationToken)
+    {
+        var componentMembers = component.EvaluatorOrdinals.ToHashSet();
+        var internalDriverOrdinals = component.EvaluatorOrdinals
+            .SelectMany(evaluatorOrdinal =>
+                ir.Evaluators[evaluatorOrdinal].OutputDriverOrdinals)
+            .Order()
+            .ToArray();
+        foreach (var driverOrdinal in internalDriverOrdinals)
+        {
+            driverValues[driverOrdinal] = Uniform(
+                ir.Drivers[driverOrdinal].Width,
+                LogicValue.X);
+        }
+
+        var internalNetOrdinals = internalDriverOrdinals
+            .Select(driverOrdinal => ir.Drivers[driverOrdinal].NetOrdinal)
+            .OfType<int>()
+            .Distinct()
+            .Order()
+            .ToArray();
+        foreach (var netOrdinal in internalNetOrdinals)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CountWork(
+                policy,
+                SimulationDimension.AdvanceWorkItemCount,
+                ref work.WorkItems);
+            var resolution = ResolveNet(ir, driverValues, netOrdinal);
+            netResolutions[netOrdinal] = resolution;
+            netValues[netOrdinal] = resolution.Value;
+        }
+
+        var pendingEvaluators = new SortedSet<int>(component.EvaluatorOrdinals);
+        while (pendingEvaluators.Count != 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var evaluatorOrdinal = pendingEvaluators.Min;
+            pendingEvaluators.Remove(evaluatorOrdinal);
+            CountWork(
+                policy,
+                SimulationDimension.AdvanceFrontierItemCount,
+                ref work.FrontierItems);
+            var evaluator = ir.Evaluators[evaluatorOrdinal];
+            var previousOutputs = evaluator.OutputDriverOrdinals
+                .Select(driverOrdinal => driverValues[driverOrdinal])
+                .ToArray();
+            Evaluate(
+                evaluator,
+                netValues,
+                driverValues,
+                policy,
+                work,
+                cancellationToken);
+
+            var refinedDrivers = new List<int>();
+            for (var outputIndex = 0;
+                outputIndex < evaluator.OutputDriverOrdinals.Count;
+                outputIndex++)
+            {
+                var driverOrdinal = evaluator.OutputDriverOrdinals[outputIndex];
+                var previous = previousOutputs[outputIndex];
+                var current = driverValues[driverOrdinal];
+                CombinationalRefinement.RequirePreservingOrRefining(
+                    previous,
+                    current);
+                if (!ValuesEqual(previous, current))
+                {
+                    refinedDrivers.Add(driverOrdinal);
+                }
+            }
+
+            foreach (var netOrdinal in refinedDrivers
+                .Select(driverOrdinal => ir.Drivers[driverOrdinal].NetOrdinal)
+                .OfType<int>()
+                .Distinct()
+                .Order())
+            {
+                CountWork(
+                    policy,
+                    SimulationDimension.AdvanceWorkItemCount,
+                    ref work.WorkItems);
+                var previous = netValues[netOrdinal];
+                var resolution = ResolveNet(ir, driverValues, netOrdinal);
+                CombinationalRefinement.RequirePreservingOrRefining(
+                    previous,
+                    resolution.Value);
+                netResolutions[netOrdinal] = resolution;
+                if (ValuesEqual(previous, resolution.Value))
+                {
+                    continue;
+                }
+
+                netValues[netOrdinal] = resolution.Value;
+                foreach (var dependentEvaluator in ir.Nets[netOrdinal]
+                    .ReceiverEvaluatorOrdinals.Where(componentMembers.Contains))
+                {
+                    pendingEvaluators.Add(dependentEvaluator);
+                }
+            }
+        }
     }
 
     private static void Evaluate(
