@@ -358,6 +358,35 @@ public sealed class SequentialRuntimeTests
     }
 
     [Test]
+    public async Task Execute_SharedIndefiniteClockTransition_CollapsesExactDiagnostics()
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var data = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.One));
+        var clock = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.X));
+        var left = circuit.Place("sequential.dff", SequentialTestCircuit.Dff(LogicValue.Zero));
+        var right = circuit.Place("sequential.dff", SequentialTestCircuit.Dff(LogicValue.Zero));
+        _ = circuit.Connect((data, "Q"), (left, "D"), (right, "D"));
+        _ = circuit.Connect((clock, "Q"), (left, "CLK"), (right, "CLK"));
+        var artifact = circuit.Compile();
+        var opened = Open(artifact);
+        _ = SimulationRuntime.Execute(
+            opened.Handle,
+            new ScheduleStimulusBatch(new StimulusBatch(5,
+            [
+                new StimulusAssignment(
+                    SequentialTestCircuit.DriverSource(artifact, clock),
+                    new LogicVector([LogicValue.Zero])),
+            ])),
+            CancellationToken.None);
+
+        var committed = Advance(opened);
+        var clockDiagnostics = committed.Diagnostics.Where(diagnostic =>
+            diagnostic.Code == "simulation_indefinite_clock_edge").ToArray();
+
+        await Assert.That(clockDiagnostics).HasSingleItem();
+    }
+
+    [Test]
     public async Task Execute_TriggerBatchLimitExceeded_RollsBackStateTraceAndClockEvent()
     {
         var circuit = SequentialTestCircuit.Create();

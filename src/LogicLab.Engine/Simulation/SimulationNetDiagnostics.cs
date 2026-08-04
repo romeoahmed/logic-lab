@@ -1,5 +1,6 @@
+using System.Collections.ObjectModel;
 using LogicLab.Domain;
-using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
 using LogicLab.Engine.Compilation;
 
 namespace LogicLab.Engine.Simulation;
@@ -99,8 +100,28 @@ internal static class SimulationNetDiagnostics
     public static SimulationDiagnostic[] Canonicalize(
         IEnumerable<SimulationDiagnostic> diagnostics)
     {
-        var canonical = diagnostics.ToList();
-        canonical.Sort(SimulationNetDiagnosticComparer.Instance);
+        var ordered = diagnostics
+            .OrderBy(diagnostic => diagnostic, SimulationNetDiagnosticComparer.Instance)
+            .ToArray();
+        if (ordered.Length < 2)
+        {
+            return ordered;
+        }
+
+        var canonical = new List<SimulationDiagnostic>(ordered.Length)
+        {
+            ordered[0],
+        };
+        for (var index = 1; index < ordered.Length; index++)
+        {
+            if (SimulationNetDiagnosticComparer.Instance.Compare(
+                    ordered[index - 1],
+                    ordered[index]) != 0)
+            {
+                canonical.Add(ordered[index]);
+            }
+        }
+
         return [.. canonical];
     }
 
@@ -218,78 +239,124 @@ internal static class SimulationNetDiagnostics
                 return 1;
             }
 
-            var primaryComparison = CompareSources(left.Primary, right.Primary);
-            return primaryComparison != 0
-                ? primaryComparison
-                : string.CompareOrdinal(left.Code, right.Code);
+            var primaryComparison = CompilationSourceComparer.Instance.Compare(
+                left.Primary,
+                right.Primary);
+            if (primaryComparison != 0)
+            {
+                return primaryComparison;
+            }
+
+            var codeComparison = string.CompareOrdinal(left.Code, right.Code);
+            if (codeComparison != 0)
+            {
+                return codeComparison;
+            }
+
+            var argumentsComparison = CompareArguments(left.Arguments, right.Arguments);
+            return argumentsComparison != 0
+                ? argumentsComparison
+                : CompareSourceCollections(left.Related, right.Related);
         }
 
-        private static int CompareSources(
-            CompilationSource? left,
-            CompilationSource? right)
+        private static int CompareArguments(
+            ReadOnlyCollection<SimulationDiagnosticArgument> left,
+            ReadOnlyCollection<SimulationDiagnosticArgument> right)
         {
-            if (ReferenceEquals(left, right))
-            {
-                return 0;
-            }
-
-            if (left is null)
-            {
-                return -1;
-            }
-
-            if (right is null)
-            {
-                return 1;
-            }
-
-            var leftNet = (NetSourceIdentity)left.Identity;
-            var rightNet = (NetSourceIdentity)right.Identity;
-            var circuitComparison = string.CompareOrdinal(
-                leftNet.CircuitDefinitionId.Value,
-                rightNet.CircuitDefinitionId.Value);
-            if (circuitComparison != 0)
-            {
-                return circuitComparison;
-            }
-
-            var pathComparison = ComparePaths(left.HierarchyPath, right.HierarchyPath);
-            return pathComparison != 0
-                ? pathComparison
-                : string.CompareOrdinal(leftNet.NetId.Value, rightNet.NetId.Value);
-        }
-
-        private static int ComparePaths(HierarchyPath left, HierarchyPath right)
-        {
-            var entryComparison = string.CompareOrdinal(
-                left.EntryCircuitDefinitionId.Value,
-                right.EntryCircuitDefinitionId.Value);
-            if (entryComparison != 0)
-            {
-                return entryComparison;
-            }
-
-            var commonCount = Math.Min(left.Steps.Count, right.Steps.Count);
+            var commonCount = Math.Min(left.Count, right.Count);
             for (var index = 0; index < commonCount; index++)
             {
-                var definitionComparison = string.CompareOrdinal(
-                    left.Steps[index].ContainingCircuitDefinitionId.Value,
-                    right.Steps[index].ContainingCircuitDefinitionId.Value);
-                if (definitionComparison != 0)
+                var nameComparison = string.CompareOrdinal(
+                    left[index].Name,
+                    right[index].Name);
+                if (nameComparison != 0)
                 {
-                    return definitionComparison;
+                    return nameComparison;
                 }
 
-                var instanceComparison = string.CompareOrdinal(
-                    left.Steps[index].ComponentInstanceId.Value,
-                    right.Steps[index].ComponentInstanceId.Value);
-                if (instanceComparison != 0)
+                var valueComparison = CompareValues(
+                    left[index].Value,
+                    right[index].Value);
+                if (valueComparison != 0)
                 {
-                    return instanceComparison;
+                    return valueComparison;
                 }
             }
 
-            return left.Steps.Count.CompareTo(right.Steps.Count);
+            return left.Count.CompareTo(right.Count);
+        }
+
+        private static int CompareValues(
+            SimulationDiagnosticValue left,
+            SimulationDiagnosticValue right)
+        {
+            var kindComparison = ValueKind(left).CompareTo(ValueKind(right));
+            if (kindComparison != 0)
+            {
+                return kindComparison;
+            }
+
+            return (left, right) switch
+            {
+                (SimulationStableTokenValue l, SimulationStableTokenValue r) =>
+                    string.CompareOrdinal(l.Value, r.Value),
+                (SimulationUnsignedDecimalValue l, SimulationUnsignedDecimalValue r) =>
+                    l.Value.CompareTo(r.Value),
+                (SimulationLogicValue l, SimulationLogicValue r) =>
+                    l.Value.CompareTo(r.Value),
+                (SimulationContractKeyValue l, SimulationContractKeyValue r) =>
+                    CompareContractKeys(l.Value, r.Value),
+                (SimulationCorrelationTokenValue l,
+                    SimulationCorrelationTokenValue r) =>
+                    string.CompareOrdinal(l.Value, r.Value),
+                _ => throw new InvalidOperationException(
+                    "The Simulation Diagnostic Value variant is undefined."),
+            };
+        }
+
+        private static int CompareSourceCollections(
+            ReadOnlyCollection<CompilationSource> left,
+            ReadOnlyCollection<CompilationSource> right)
+        {
+            var commonCount = Math.Min(left.Count, right.Count);
+            for (var index = 0; index < commonCount; index++)
+            {
+                var comparison = CompilationSourceComparer.Instance.Compare(
+                    left[index],
+                    right[index]);
+                if (comparison != 0)
+                {
+                    return comparison;
+                }
+            }
+
+            return left.Count.CompareTo(right.Count);
+        }
+
+        private static int CompareContractKeys(
+            ComponentContractKey left,
+            ComponentContractKey right)
+        {
+            var libraryComparison = string.CompareOrdinal(
+                left.LibraryId,
+                right.LibraryId);
+            return libraryComparison != 0
+                ? libraryComparison
+                : string.CompareOrdinal(left.ContractId, right.ContractId);
+        }
+
+        private static int ValueKind(SimulationDiagnosticValue value)
+        {
+            return value switch
+            {
+                SimulationStableTokenValue => 0,
+                SimulationUnsignedDecimalValue => 1,
+                SimulationLogicValue => 2,
+                SimulationContractKeyValue => 3,
+                SimulationCorrelationTokenValue => 4,
+                _ => throw new InvalidOperationException(
+                    "The Simulation Diagnostic Value variant is undefined."),
+            };
         }
     }
 }
