@@ -466,6 +466,8 @@ public sealed record MemoryImageParameterValue : ComponentParameterValue
 
 public sealed record Unsigned32ParameterValue(uint Value) : ComponentParameterValue;
 
+public sealed record Unsigned64ParameterValue(ulong Value) : ComponentParameterValue;
+
 public sealed record ChoiceParameterValue : ComponentParameterValue
 {
     public ChoiceParameterValue(string value)

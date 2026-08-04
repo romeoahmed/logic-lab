@@ -7,7 +7,7 @@ namespace LogicLab.Engine.Compilation;
 
 public static partial class Compiler
 {
-    public const string SemanticVersion = "logiclab.compiler.combinational-v3";
+    public const string SemanticVersion = "logiclab.compiler.sequential-v4";
 
     public static CompilationOutcome Compile(
         CompilationRequest request,
@@ -631,7 +631,7 @@ public static partial class Compiler
             simulationNets,
             cancellationToken);
         var adjacency = BuildEvaluatorAdjacency(
-            evaluators.Length,
+            evaluators,
             drivers,
             simulationNets,
             cancellationToken);
@@ -761,7 +761,8 @@ public static partial class Compiler
                 outputDrivers,
                 GetInitialValue(resolved.Kind, resolved.Instance.Parameters),
                 GetSlices(resolved.Kind, resolved.Instance.Parameters),
-                GetOption(resolved.Kind, resolved.Instance.Parameters));
+                GetOption(resolved.Kind, resolved.Instance.Parameters),
+                GetClockSchedule(resolved.Kind, resolved.Instance.Parameters));
             evaluatorSources[resolved.Ordinal] = new SourceMapEntry(
                 resolved.Ordinal,
                 Source(
@@ -854,17 +855,23 @@ public static partial class Compiler
     }
 
     private static int[][] BuildEvaluatorAdjacency(
-        int evaluatorCount,
+        SimulationEvaluator[] evaluators,
         SimulationDriver[] drivers,
         SimulationNet[] simulationNets,
         CancellationToken cancellationToken)
     {
-        var adjacency = Enumerable.Range(0, evaluatorCount)
+        var adjacency = Enumerable.Range(0, evaluators.Length)
             .Select(_ => new SortedSet<int>())
             .ToArray();
         foreach (var driver in drivers.Where(item => item.NetOrdinal is not null))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (SimulationEvaluatorKindFacts.IsStateBoundary(
+                    evaluators[driver.EvaluatorOrdinal].Kind))
+            {
+                continue;
+            }
+
             foreach (var receiver in simulationNets[driver.NetOrdinal!.Value]
                 .ReceiverEvaluatorOrdinals)
             {
@@ -887,6 +894,9 @@ public static partial class Compiler
                 return true;
             case "source.constant":
                 kind = SimulationEvaluatorKind.ConstantSource;
+                return true;
+            case "source.clock":
+                kind = SimulationEvaluatorKind.ClockSource;
                 return true;
             case "logic.not":
                 kind = SimulationEvaluatorKind.LogicNot;
@@ -954,6 +964,15 @@ public static partial class Compiler
             case "topology.sign_extend":
                 kind = SimulationEvaluatorKind.TopologySignExtend;
                 return true;
+            case "sequential.d_latch":
+                kind = SimulationEvaluatorKind.SequentialDLatch;
+                return true;
+            case "sequential.dff":
+                kind = SimulationEvaluatorKind.SequentialDff;
+                return true;
+            case "sequential.register":
+                kind = SimulationEvaluatorKind.SequentialRegister;
+                return true;
             default:
                 kind = default;
                 return false;
@@ -1009,6 +1028,10 @@ public static partial class Compiler
         {
             SimulationEvaluatorKind.InputSource => "initialValue",
             SimulationEvaluatorKind.ConstantSource => "value",
+            SimulationEvaluatorKind.ClockSource => "initialValue",
+            SimulationEvaluatorKind.SequentialDLatch
+                or SimulationEvaluatorKind.SequentialDff
+                or SimulationEvaluatorKind.SequentialRegister => "initialState",
             _ => null,
         };
         if (parameterId is null)
@@ -1048,6 +1071,9 @@ public static partial class Compiler
                 ("priority", "lowestIndex"),
             SimulationEvaluatorKind.LogicShift =>
                 ("direction", "left"),
+            SimulationEvaluatorKind.SequentialDff
+                or SimulationEvaluatorKind.SequentialRegister =>
+                ("edge", "rising"),
             _ => (null, null),
         };
         if (parameterId is null)
@@ -1060,6 +1086,31 @@ public static partial class Compiler
             parameterId,
             StringComparison.Ordinal)).Value;
         return string.Equals(choice.Value, trueValue, StringComparison.Ordinal);
+    }
+
+    private static ClockSchedule? GetClockSchedule(
+        SimulationEvaluatorKind kind,
+        IReadOnlyList<ComponentParameterBinding> parameters)
+    {
+        if (kind != SimulationEvaluatorKind.ClockSource)
+        {
+            return null;
+        }
+
+        return new ClockSchedule(
+            Unsigned64(parameters, "firstTransition"),
+            Unsigned64(parameters, "highDuration"),
+            Unsigned64(parameters, "lowDuration"));
+    }
+
+    private static ulong Unsigned64(
+        IEnumerable<ComponentParameterBinding> parameters,
+        string parameterId)
+    {
+        return ((Unsigned64ParameterValue)parameters.Single(binding => string.Equals(
+            binding.ParameterId,
+            parameterId,
+            StringComparison.Ordinal)).Value).Value;
     }
 
     private static CompilationSource Source(

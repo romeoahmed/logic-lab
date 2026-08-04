@@ -148,6 +148,12 @@ internal static class CompilationArtifactValidator
         foreach (var driver in ir.Drivers.Where(item => item.NetOrdinal is not null))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (SimulationEvaluatorKindFacts.IsStateBoundary(
+                    ir.Evaluators[driver.EvaluatorOrdinal].Kind))
+            {
+                continue;
+            }
+
             var sourceComponent = componentByEvaluator[driver.EvaluatorOrdinal];
             foreach (var receiver in ir.Nets[driver.NetOrdinal!.Value]
                 .ReceiverEvaluatorOrdinals)

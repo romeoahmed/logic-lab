@@ -91,6 +91,8 @@ internal static class ComponentContractSchemaDigest
             ComponentParameterKind.Slices => "slices",
             ComponentParameterKind.Widths => "widths",
             ComponentParameterKind.MemoryImage => "memoryImage",
+            ComponentParameterKind.BinaryLogicValue => "binaryLogicValue",
+            ComponentParameterKind.PositiveUnsigned64 => "positiveUnsigned64",
             _ => throw new InvalidOperationException(
                 "The component parameter kind is undefined."),
         };

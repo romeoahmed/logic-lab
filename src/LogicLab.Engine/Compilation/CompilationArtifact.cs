@@ -35,7 +35,34 @@ internal enum SimulationEvaluatorKind
     TopologyConcat,
     TopologyZeroExtend,
     TopologySignExtend,
+    ClockSource,
+    SequentialDLatch,
+    SequentialDff,
+    SequentialRegister,
 }
+
+internal static class SimulationEvaluatorKindFacts
+{
+    public static bool IsStateBoundary(SimulationEvaluatorKind kind)
+    {
+        return kind is SimulationEvaluatorKind.ClockSource
+            or SimulationEvaluatorKind.SequentialDLatch
+            or SimulationEvaluatorKind.SequentialDff
+            or SimulationEvaluatorKind.SequentialRegister;
+    }
+
+    public static bool IsSequential(SimulationEvaluatorKind kind)
+    {
+        return kind is SimulationEvaluatorKind.SequentialDLatch
+            or SimulationEvaluatorKind.SequentialDff
+            or SimulationEvaluatorKind.SequentialRegister;
+    }
+}
+
+internal sealed record ClockSchedule(
+    ulong FirstTransition,
+    ulong HighDuration,
+    ulong LowDuration);
 
 internal sealed class SimulationEvaluator
 {
@@ -47,7 +74,8 @@ internal sealed class SimulationEvaluator
         int[] outputDriverOrdinals,
         LogicVector? initialValue,
         IReadOnlyList<BitSlice>? slices = null,
-        bool option = false)
+        bool option = false,
+        ClockSchedule? clockSchedule = null)
     {
         Ordinal = ordinal;
         Kind = kind;
@@ -58,6 +86,7 @@ internal sealed class SimulationEvaluator
         Slices = Array.AsReadOnly(
             slices is null ? [] : slices.ToArray());
         Option = option;
+        ClockSchedule = clockSchedule;
     }
 
     public int Ordinal { get; }
@@ -75,6 +104,8 @@ internal sealed class SimulationEvaluator
     public ReadOnlyCollection<BitSlice> Slices { get; }
 
     public bool Option { get; }
+
+    public ClockSchedule? ClockSchedule { get; }
 }
 
 internal sealed record SimulationDriver(
