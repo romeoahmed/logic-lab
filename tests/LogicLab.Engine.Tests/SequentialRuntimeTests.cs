@@ -653,6 +653,41 @@ public sealed class SequentialRuntimeTests
             await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
             await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
             await Assert.That(after.TraceCursor).IsEqualTo(before.TraceCursor);
+            await Assert.That(after.Probes[0].Value[0])
+                .IsEqualTo(before.Probes[0].Value[0]);
+        }
+    }
+
+    [Test]
+    public async Task Execute_ZeroTimeStateWordLimitBeforeRetention_ReturnsResourceLimit()
+    {
+        var (opened, _) = CreateTransparentLatchOscillator(
+            zeroTimeStateLimit: 100_000,
+            zeroTimeStateWordLimit: 1);
+        var before = Snapshot(opened);
+
+        var failed = SimulationRuntime.Execute(
+            opened.Handle,
+            new AdvanceToNextQuiescentBoundary(),
+            CancellationToken.None);
+        var after = Snapshot(opened);
+
+        var failure = await Assert.That(failed).IsTypeOf<AdvanceFailed>();
+        Assert.NotNull(failure);
+        var policyEvidence = failure.PolicyEvidence;
+        Assert.NotNull(policyEvidence);
+        using (Assert.Multiple())
+        {
+            await Assert.That(failure.Reason)
+                .IsEqualTo(SimulationFailureReason.SimulationResourceLimit);
+            await Assert.That(policyEvidence.Dimension)
+                .IsEqualTo("zero_time_state_word_count");
+            await Assert.That(policyEvidence.Observed).IsEqualTo(2UL);
+            await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
+            await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
+            await Assert.That(after.TraceCursor).IsEqualTo(before.TraceCursor);
+            await Assert.That(after.Probes[0].Value[0])
+                .IsEqualTo(before.Probes[0].Value[0]);
         }
     }
 
@@ -758,7 +793,9 @@ public sealed class SequentialRuntimeTests
     }
 
     private static (SimulationOpened Opened, CompilationArtifact Artifact)
-        CreateTransparentLatchOscillator(ulong zeroTimeStateLimit)
+        CreateTransparentLatchOscillator(
+            ulong zeroTimeStateLimit,
+            ulong zeroTimeStateWordLimit = 10_000_000)
     {
         var circuit = SequentialTestCircuit.Create();
         var enable = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.Zero));
@@ -778,7 +815,10 @@ public sealed class SequentialRuntimeTests
             net.Terminals.OfType<InstanceTerminalReference>().Any(terminal =>
                 terminal.ComponentInstanceId == sink.Id));
         var artifact = circuit.Compile();
-        var policy = PolicyWithTriggerBatchLimit(100_000, zeroTimeStateLimit);
+        var policy = PolicyWithTriggerBatchLimit(
+            100_000,
+            zeroTimeStateLimit,
+            zeroTimeStateWordLimit);
         var opened = Open(artifact, policy, outputNet);
         _ = SimulationRuntime.Execute(
             opened.Handle,
@@ -794,7 +834,8 @@ public sealed class SequentialRuntimeTests
 
     private static SimulationPolicy PolicyWithTriggerBatchLimit(
         ulong limit,
-        ulong zeroTimeStateLimit = 100_000)
+        ulong zeroTimeStateLimit = 100_000,
+        ulong zeroTimeStateWordLimit = 10_000_000)
     {
         return new SimulationPolicy(
             "test-simulation",
@@ -809,6 +850,9 @@ public sealed class SequentialRuntimeTests
                 new SimulationLimit(
                     SimulationDimension.ZeroTimeStateCount,
                     zeroTimeStateLimit),
+                new SimulationLimit(
+                    SimulationDimension.ZeroTimeStateWordCount,
+                    zeroTimeStateWordLimit),
             ]);
     }
 }

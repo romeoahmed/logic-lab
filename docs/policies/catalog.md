@@ -93,9 +93,10 @@ advance_frontier_item_count
 working_layer_slot_count
 trigger_batch_count
 zero_time_state_count
+zero_time_state_word_count
 ```
 
-The first two bound retained future input; the next four bound one discardable Logical-time Advance; `zero_time_state_count` bounds exact repetition evidence, not a heuristic proof. Work counters increment before the corresponding item is admitted, use checked arithmetic, and roll the advance back when the maximum would be exceeded.
+The first two bound retained future input; the next four bound one discardable Logical-time Advance. `zero_time_state_count` bounds the number of distinct exact repetition witnesses. `zero_time_state_word_count` bounds their cumulative canonical 64-bit-word representation, including shape markers and both packed Logic planes, so circuit size and witness count cannot multiply into unbounded retained evidence. Neither dimension is a heuristic proof. Work counters increment before the corresponding item is admitted, use checked arithmetic, and roll the advance back when the maximum would be exceeded.
 Each reachable amount admitted by logical shift's explicit possible-case set consumes one `advance_work_item_count` item before case evaluation begins. The evaluator may stream the Conservative Merge without retaining every reachable result; symbolic logic that does not enumerate a case set is charged for its ordinary evaluator and Net work only.
 
 `TracePolicy` dimensions are:
