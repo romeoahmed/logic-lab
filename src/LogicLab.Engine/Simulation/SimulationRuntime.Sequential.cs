@@ -63,6 +63,7 @@ public static partial class SimulationRuntime
         LogicVector[] driverValues,
         LogicVector?[] sequentialStates,
         LogicVector[]?[] memoryStates,
+        bool[] ownedMemoryStates,
         SimulationPolicy policy,
         SettlementWork work,
         List<SimulationDiagnostic> clockDiagnostics,
@@ -90,7 +91,7 @@ public static partial class SimulationRuntime
                 SimulationDimension.TriggerBatchCount,
                 ref work.TriggerBatches);
             var sampledStates = new LogicVector?[triggered.Length];
-            var sampledMemories = new LogicVector[]?[triggered.Length];
+            var sampledMemoryWrites = new MemoryCellWrite[]?[triggered.Length];
             for (var index = 0; index < triggered.Length; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -108,7 +109,7 @@ public static partial class SimulationRuntime
                             MemoryEvaluation.ReachableAddressCount(address));
                     }
 
-                    sampledMemories[index] = MemoryEvaluation.Write(
+                    sampledMemoryWrites[index] = MemoryEvaluation.SampleWrite(
                         memoryStates[evaluator.Ordinal]!,
                         address,
                         netValues[evaluator.InputNetOrdinals[1]],
@@ -176,7 +177,14 @@ public static partial class SimulationRuntime
                 var evaluator = ir.Evaluators[triggered[index]];
                 if (evaluator.Kind == SimulationEvaluatorKind.MemoryRamSinglePort)
                 {
-                    memoryStates[evaluator.Ordinal] = sampledMemories[index]!;
+                    CommitMemoryWrites(
+                        evaluator.Ordinal,
+                        sampledMemoryWrites[index]!,
+                        memoryStates,
+                        ownedMemoryStates,
+                        policy,
+                        work,
+                        cancellationToken);
                     continue;
                 }
 
@@ -205,6 +213,52 @@ public static partial class SimulationRuntime
                 return false;
             }
         }
+    }
+
+    private static void CommitMemoryWrites(
+        int evaluatorOrdinal,
+        MemoryCellWrite[] writes,
+        LogicVector[]?[] memoryStates,
+        bool[] ownedMemoryStates,
+        SimulationPolicy policy,
+        SettlementWork work,
+        CancellationToken cancellationToken)
+    {
+        if (writes.Length == 0)
+        {
+            return;
+        }
+
+        var memory = memoryStates[evaluatorOrdinal]!;
+        var changesMemory = false;
+        foreach (var write in writes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!ValuesEqual(memory[write.Address], write.Value))
+            {
+                changesMemory = true;
+                break;
+            }
+        }
+
+        if (!changesMemory)
+        {
+            return;
+        }
+
+        if (!ownedMemoryStates[evaluatorOrdinal])
+        {
+            CountWork(
+                policy,
+                SimulationDimension.AdvanceWorkItemCount,
+                ref work.WorkItems,
+                checked((ulong)memory.Length));
+            memory = (LogicVector[])memory.Clone();
+            memoryStates[evaluatorOrdinal] = memory;
+            ownedMemoryStates[evaluatorOrdinal] = true;
+        }
+
+        MemoryEvaluation.ApplyWrites(memory, writes, cancellationToken);
     }
 
     private static LogicVector SampleSrLatch(

@@ -233,6 +233,7 @@ public static partial class SimulationRuntime
         state.DriverValues = [];
         state.NetValues = [];
         state.SequentialStates = [];
+        state.MemoryStates = [];
         state.Probes = [];
         state.ScheduledBatches = new();
         state.ScheduledAssignmentsByTime = [];
@@ -373,7 +374,8 @@ public static partial class SimulationRuntime
             nextClockTime ?? ulong.MaxValue);
         var driverValues = (LogicVector[])state.DriverValues.Clone();
         var sequentialStates = (LogicVector?[])state.SequentialStates.Clone();
-        var memoryStates = CloneMemoryStates(state.MemoryStates);
+        var memoryStates = (LogicVector[]?[])state.MemoryStates.Clone();
+        var ownedMemoryStates = new bool[memoryStates.Length];
         var settlementWork = new SettlementWork();
         if (state.ScheduledAssignmentsByTime.TryGetValue(
                 logicalTime,
@@ -420,6 +422,7 @@ public static partial class SimulationRuntime
             driverValues,
             sequentialStates,
             memoryStates,
+            ownedMemoryStates,
             state.SimulationPolicy,
             settlementWork,
             clockDiagnostics,

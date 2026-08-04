@@ -2,6 +2,10 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine.Simulation;
 
+internal readonly record struct MemoryCellWrite(
+    int Address,
+    LogicVector Value);
+
 internal static class MemoryEvaluation
 {
     public static ulong ReachableAddressCount(LogicVector address)
@@ -48,7 +52,7 @@ internal static class MemoryEvaluation
             : VectorConservativeMerge.Merge(reachable);
     }
 
-    public static LogicVector[] Write(
+    public static MemoryCellWrite[] SampleWrite(
         IReadOnlyList<LogicVector> words,
         LogicVector address,
         LogicVector data,
@@ -58,10 +62,9 @@ internal static class MemoryEvaluation
         ArgumentNullException.ThrowIfNull(words);
         ArgumentNullException.ThrowIfNull(address);
         ArgumentNullException.ThrowIfNull(data);
-        var result = words.ToArray();
         if (writeEnable == LogicValue.Zero)
         {
-            return result;
+            return [];
         }
 
         var normalizedData = VectorLogic.NormalizeInput(data);
@@ -76,15 +79,31 @@ internal static class MemoryEvaluation
         }
 
         var writeIsDefinite = writeEnable == LogicValue.One && addressIsKnown;
+        var writes = new List<MemoryCellWrite>();
         foreach (var index in ReachableAddresses(address))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            result[index] = writeIsDefinite
+            var value = writeIsDefinite
                 ? normalizedData
-                : VectorConservativeMerge.Merge([result[index], normalizedData]);
+                : VectorConservativeMerge.Merge([words[index], normalizedData]);
+            writes.Add(new MemoryCellWrite(index, value));
         }
 
-        return result;
+        return [.. writes];
+    }
+
+    public static void ApplyWrites(
+        LogicVector[] words,
+        IReadOnlyList<MemoryCellWrite> writes,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(words);
+        ArgumentNullException.ThrowIfNull(writes);
+        foreach (var write in writes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            words[write.Address] = write.Value;
+        }
     }
 
     private static IEnumerable<int> ReachableAddresses(LogicVector address)

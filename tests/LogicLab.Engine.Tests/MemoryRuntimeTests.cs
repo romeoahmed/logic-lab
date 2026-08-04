@@ -258,6 +258,118 @@ public sealed class MemoryRuntimeTests
     }
 
     [Test]
+    public async Task Execute_DisabledRamWrite_DoesNotCopyMemoryWorkingStorage()
+    {
+        var circuit = CreateRam(
+            Enumerable.Repeat(LogicValue.Zero, 6).ToArray(),
+            [LogicValue.One],
+            LogicValue.Zero,
+            Enumerable.Range(0, 64).Select(_ => new[] { LogicValue.Zero }).ToArray());
+        var policy = SimulationPolicyWithLimits(advanceWorkItems: 50);
+        var opened = (SimulationOpened)SimulationRuntime.Open(
+            MemoryTestCircuit.Request(circuit.Artifact, policy, circuit.OutputNet),
+            CancellationToken.None);
+        var before = opened.Handle.State.MemoryStates.Single(memory => memory is not null);
+
+        var outcome = SimulationRuntime.Execute(
+            opened.Handle,
+            new AdvanceToNextQuiescentBoundary(),
+            CancellationToken.None);
+        var after = opened.Handle.State.MemoryStates.Single(memory => memory is not null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(outcome).IsTypeOf<AdvanceCommitted>();
+            await Assert.That(after).IsSameReferenceAs(before);
+        }
+    }
+
+    [Test]
+    public async Task Execute_IdempotentRamWrite_DoesNotCopyMemoryWorkingStorage()
+    {
+        var circuit = CreateRam(
+            Enumerable.Repeat(LogicValue.Zero, 6).ToArray(),
+            [LogicValue.Zero],
+            LogicValue.One,
+            Enumerable.Range(0, 64).Select(_ => new[] { LogicValue.Zero }).ToArray());
+        var policy = SimulationPolicyWithLimits(advanceWorkItems: 50);
+        var opened = (SimulationOpened)SimulationRuntime.Open(
+            MemoryTestCircuit.Request(circuit.Artifact, policy, circuit.OutputNet),
+            CancellationToken.None);
+        var before = opened.Handle.State.MemoryStates.Single(memory => memory is not null);
+
+        var outcome = SimulationRuntime.Execute(
+            opened.Handle,
+            new AdvanceToNextQuiescentBoundary(),
+            CancellationToken.None);
+        var after = opened.Handle.State.MemoryStates.Single(memory => memory is not null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(outcome).IsTypeOf<AdvanceCommitted>();
+            await Assert.That(after).IsSameReferenceAs(before);
+        }
+    }
+
+    [Test]
+    public async Task Execute_FirstRamWriteCopyExceedsWorkPolicy_RollsBackMemory()
+    {
+        var circuit = CreateRam(
+            Enumerable.Repeat(LogicValue.Zero, 6).ToArray(),
+            [LogicValue.One],
+            LogicValue.One,
+            Enumerable.Range(0, 64).Select(_ => new[] { LogicValue.Zero }).ToArray());
+        var policy = SimulationPolicyWithLimits(advanceWorkItems: 50);
+        var opened = (SimulationOpened)SimulationRuntime.Open(
+            MemoryTestCircuit.Request(circuit.Artifact, policy, circuit.OutputNet),
+            CancellationToken.None);
+        var before = Snapshot(opened);
+        var beforeMemory = opened.Handle.State.MemoryStates.Single(memory => memory is not null);
+
+        var outcome = SimulationRuntime.Execute(
+            opened.Handle,
+            new AdvanceToNextQuiescentBoundary(),
+            CancellationToken.None);
+        var after = Snapshot(opened);
+        var afterMemory = opened.Handle.State.MemoryStates.Single(memory => memory is not null);
+
+        var failed = await Assert.That(outcome).IsTypeOf<AdvanceFailed>();
+        Assert.NotNull(failed);
+        using (Assert.Multiple())
+        {
+            await Assert.That(failed.Reason)
+                .IsEqualTo(SimulationFailureReason.SimulationResourceLimit);
+            await Assert.That(failed.PolicyEvidence!.Dimension)
+                .IsEqualTo("advance_work_item_count");
+            await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
+            await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
+            await Assert.That(afterMemory).IsSameReferenceAs(beforeMemory);
+        }
+    }
+
+    [Test]
+    public async Task Close_MemorySession_ReleasesMemoryStorage()
+    {
+        var circuit = CreateRam(
+            [LogicValue.Zero],
+            [LogicValue.Zero],
+            LogicValue.Zero,
+            [LogicValue.Zero],
+            [LogicValue.Zero]);
+        var opened = Open(circuit.Artifact, circuit.OutputNet);
+        await Assert.That(opened.Handle.State.MemoryStates.Any(memory => memory is not null))
+            .IsTrue();
+
+        var outcome = SimulationRuntime.Close(opened.Handle);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(outcome).IsTypeOf<SessionClosed>();
+            await Assert.That(opened.Handle.State.MemoryStates).IsEmpty();
+        }
+    }
+
+    [Test]
     public async Task Execute_RamWriteFollowedByTriggerLimitFailure_RollsBackMemoryAndRetry()
     {
         var circuit = MemoryTestCircuit.Create();
@@ -539,7 +651,8 @@ public sealed class MemoryRuntimeTests
 
     private static SimulationPolicy SimulationPolicyWithLimits(
         ulong workingLayerSlots = 100_000,
-        ulong triggerBatches = 100_000)
+        ulong triggerBatches = 100_000,
+        ulong advanceWorkItems = 100_000)
     {
         return new SimulationPolicy(
             "memory-simulation-test",
@@ -547,7 +660,9 @@ public sealed class MemoryRuntimeTests
             [
                 new SimulationLimit(SimulationDimension.ScheduledBatchCount, 1_000),
                 new SimulationLimit(SimulationDimension.ScheduledAssignmentCount, 10_000),
-                new SimulationLimit(SimulationDimension.AdvanceWorkItemCount, 100_000),
+                new SimulationLimit(
+                    SimulationDimension.AdvanceWorkItemCount,
+                    advanceWorkItems),
                 new SimulationLimit(SimulationDimension.AdvanceFrontierItemCount, 100_000),
                 new SimulationLimit(
                     SimulationDimension.WorkingLayerSlotCount,
