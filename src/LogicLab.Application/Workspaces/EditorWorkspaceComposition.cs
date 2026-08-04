@@ -114,18 +114,18 @@ public static class EditorWorkspaceFactory
     }
 
     internal static IEditorWorkspace CreateForTesting(
+        WorkspaceModuleOperations operations,
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
-        ILoggerFactory? loggerFactory = null,
-        WorkspaceModuleOperations? operations = null)
+        ILoggerFactory? loggerFactory = null)
     {
         return CreateCore(
             workspacePolicy,
             schedulingPolicy,
             timeProvider,
             loggerFactory,
-            operations ?? WorkspaceModuleOperations.Production);
+            operations);
     }
 
     private static EditorWorkspace CreateCore(
@@ -136,14 +136,12 @@ public static class EditorWorkspaceFactory
         WorkspaceModuleOperations operations)
     {
         var resolvedLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
-        var coordinator = new Work.WorkCoordinator(
-            schedulingPolicy ?? SchedulingPolicy.Default,
-            resolvedLoggerFactory.CreateLogger<Work.WorkCoordinator>());
         return new EditorWorkspace(
-            coordinator,
+            schedulingPolicy ?? SchedulingPolicy.Default,
             workspacePolicy ?? WorkspacePolicy.Default,
             timeProvider ?? TimeProvider.System,
             operations,
+            resolvedLoggerFactory.CreateLogger<Work.WorkCoordinator>(),
             resolvedLoggerFactory.CreateLogger<EditorWorkspace>());
     }
 }
