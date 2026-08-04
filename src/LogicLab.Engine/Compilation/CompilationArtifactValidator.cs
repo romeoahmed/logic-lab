@@ -249,6 +249,13 @@ internal static class CompilationArtifactValidator
                 .ReceiverEvaluatorOrdinals)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (!SimulationEvaluatorKindFacts.ConsumesNetCombinationally(
+                        ir.Evaluators[receiver],
+                        driver.NetOrdinal.Value))
+                {
+                    continue;
+                }
+
                 var destinationComponent = componentByEvaluator[receiver];
                 if (sourceComponent != destinationComponent
                     && orderByComponent[sourceComponent] >= orderByComponent[destinationComponent])

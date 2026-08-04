@@ -888,6 +888,13 @@ public static partial class Compiler
                 .ReceiverEvaluatorOrdinals)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (!SimulationEvaluatorKindFacts.ConsumesNetCombinationally(
+                        evaluators[receiver],
+                        driver.NetOrdinal.Value))
+                {
+                    continue;
+                }
+
                 adjacency[driver.EvaluatorOrdinal].Add(receiver);
             }
         }

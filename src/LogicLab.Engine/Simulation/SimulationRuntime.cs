@@ -880,7 +880,11 @@ public static partial class SimulationRuntime
 
                 netValues[netOrdinal] = resolution.Value;
                 foreach (var dependentEvaluator in ir.Nets[netOrdinal]
-                    .ReceiverEvaluatorOrdinals.Where(componentMembers.Contains))
+                    .ReceiverEvaluatorOrdinals.Where(evaluatorOrdinal =>
+                        componentMembers.Contains(evaluatorOrdinal)
+                        && SimulationEvaluatorKindFacts.ConsumesNetCombinationally(
+                            ir.Evaluators[evaluatorOrdinal],
+                            netOrdinal)))
                 {
                     pendingEvaluators.Add(dependentEvaluator);
                 }
