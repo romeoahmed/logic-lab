@@ -145,11 +145,6 @@ public static partial class ProjectEditor
             return Reject(MissingReference("circuitDefinition"));
         }
 
-        if (revision.Document.EntryCircuitDefinitionId == intent.CircuitDefinitionId)
-        {
-            return new EditCommitted(revision, [], []);
-        }
-
         var document = revision.Document.WithEntryCircuitDefinition(
             intent.CircuitDefinitionId);
         return Commit(
