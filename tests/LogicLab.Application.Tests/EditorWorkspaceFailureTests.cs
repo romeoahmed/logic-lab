@@ -30,12 +30,12 @@ public sealed class EditorWorkspaceFailureTests
             opened.WorkspaceId,
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
-            await Assert.That(((WorkspaceCommandRejected)outcome).Code)
-                .IsEqualTo(expectedCode);
-            await Assert.That(((WorkspaceCommandRejected)outcome).DiagnosticCodes).IsEmpty();
+            await Assert.That(rejected.Code).IsEqualTo(expectedCode);
+            await Assert.That(rejected.DiagnosticCodes).IsEmpty();
             await Assert.That(after.Projection.ProjectionVersion)
                 .IsEqualTo(before.ProjectionVersion);
             await Assert.That(after.Projection.Compilation.Status)
@@ -113,12 +113,12 @@ public sealed class EditorWorkspaceFailureTests
             opened.WorkspaceId,
             CancellationToken.None)).Projection;
 
-        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
-            await Assert.That(((WorkspaceCommandRejected)outcome).Code)
-                .IsEqualTo("workspace_infrastructure_failure");
-            await Assert.That(((WorkspaceCommandRejected)outcome).DiagnosticCodes).IsEmpty();
+            await Assert.That(rejected.Code).IsEqualTo("workspace_infrastructure_failure");
+            await Assert.That(rejected.DiagnosticCodes).IsEmpty();
             await Assert.That(closeCount).IsEqualTo(1);
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
             await Assert.That(after.Simulation).IsNull();
@@ -160,11 +160,11 @@ public sealed class EditorWorkspaceFailureTests
             opened.WorkspaceId,
             CancellationToken.None)).Projection;
 
-        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
-            await Assert.That(((WorkspaceCommandRejected)outcome).Code)
-                .IsEqualTo("workspace_cancelled");
+            await Assert.That(rejected.Code).IsEqualTo("workspace_cancelled");
             await Assert.That(closeCount).IsEqualTo(1);
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
             await Assert.That(after.Simulation).IsNull();

@@ -176,11 +176,11 @@ public sealed class EditorWorkspaceAdmissionTests
         WorkspaceProjection before,
         WorkspaceProjection after)
     {
-        await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
         using (Assert.Multiple())
         {
-            await Assert.That(((WorkspaceCommandRejected)outcome).Code)
-                .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(rejected.Code).IsEqualTo("workspace_admission_rejected");
             await Assert.That(after.ProjectRevision.RevisionId)
                 .IsEqualTo(before.ProjectRevision.RevisionId);
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
