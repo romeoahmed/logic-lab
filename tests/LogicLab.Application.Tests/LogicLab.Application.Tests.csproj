@@ -9,8 +9,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FsCheck" />
     <PackageReference Include="TUnit" />
-    <PackageReference Include="TUnit.FsCheck" />
   </ItemGroup>
 </Project>

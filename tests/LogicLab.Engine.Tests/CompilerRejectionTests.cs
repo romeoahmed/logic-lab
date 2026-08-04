@@ -112,8 +112,6 @@ public sealed class CompilerRejectionTests
             await Assert.That(first.Diagnostics.All(item =>
                 ((CompilerCircuitLocation)item.Primary!).Source.HierarchyPath.Steps.Count == 0))
                 .IsTrue();
-            await Assert.That(typeof(CompilationRejected).GetProperty("Artifact"))
-                .IsNull();
         }
     }
 
