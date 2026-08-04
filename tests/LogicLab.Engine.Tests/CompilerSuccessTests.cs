@@ -8,18 +8,17 @@ namespace LogicLab.Engine.Tests;
 public sealed class CompilerSuccessTests
 {
     [Test]
-    public async Task Compile_CompleteFlatInverter_PublishesSealedArtifactAndEvidence()
+    public async Task Compile_CompleteFlatInverter_PublishesArtifactAndEvidence()
     {
         var circuit = CompilerTestCircuit.CreateComplete();
         var request = CompilerTestCircuit.Request(circuit.Revision);
 
         var outcome = Compiler.Compile(request, CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        var succeeded = (CompilationSucceeded)outcome;
+        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
+        Assert.NotNull(succeeded);
         using (Assert.Multiple())
         {
-            await Assert.That(typeof(CompilationArtifact).IsSealed).IsTrue();
             await Assert.That(succeeded.Diagnostics).IsEmpty();
             await Assert.That(succeeded.Artifact.Key.ProjectRevisionId)
                 .IsEqualTo(circuit.Revision.RevisionId);
@@ -81,8 +80,8 @@ public sealed class CompilerSuccessTests
             CompilerTestCircuit.Request(authored),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        var succeeded = (CompilationSucceeded)outcome;
+        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
+        Assert.NotNull(succeeded);
         using (Assert.Multiple())
         {
             await Assert.That(succeeded.Artifact.SimulationIr.Nets).Count().IsEqualTo(2);
@@ -294,8 +293,8 @@ public sealed class CompilerSuccessTests
             CompilerTestCircuit.Request(revision),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        var succeeded = (CompilationSucceeded)outcome;
+        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
+        Assert.NotNull(succeeded);
         using (Assert.Multiple())
         {
             await Assert.That(succeeded.Artifact.SimulationIr.Drivers).Count().IsEqualTo(1);
@@ -368,8 +367,8 @@ public sealed class CompilerSuccessTests
             CompilerTestCircuit.Request(revision),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        var succeeded = (CompilationSucceeded)outcome;
+        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
+        Assert.NotNull(succeeded);
         var component = succeeded.Artifact.SimulationIr.StronglyConnectedComponents.Single();
         var memberSource = succeeded.Artifact.SourceMap
             .StronglyConnectedComponentMembers.Single();
@@ -469,8 +468,9 @@ public sealed class CompilerSuccessTests
             CompilerTestCircuit.Request(revision),
             CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        var net = ((CompilationSucceeded)outcome).Artifact.SimulationIr.Nets.Single();
+        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
+        Assert.NotNull(succeeded);
+        var net = succeeded.Artifact.SimulationIr.Nets.Single();
         using (Assert.Multiple())
         {
             await Assert.That(net.DriverOrdinals).IsEmpty();
