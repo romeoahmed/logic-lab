@@ -141,12 +141,11 @@ public sealed class EditorWorkspaceTests
         await using var workspace = EditorWorkspaceFactory.Create();
         var opened = await Open(workspace);
         var before = await Read(workspace, opened.WorkspaceId);
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        var cancellationToken = new CancellationToken(canceled: true);
 
         var outcome = await workspace.DispatchAsync(
             new RequestCompilation(opened.WorkspaceId),
-            cancellation.Token);
+            cancellationToken);
         var after = await Read(workspace, opened.WorkspaceId);
 
         var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
@@ -231,8 +230,7 @@ public sealed class EditorWorkspaceTests
         var before = await Read(workspace, opened.WorkspaceId);
         var definition = before.ProjectRevision.Document.EntryCircuitDefinition;
         var net = definition.Nets.Single();
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        var cancellationToken = new CancellationToken(canceled: true);
 
         var outcome = await workspace.DispatchAsync(
             new ApplyEdit(
@@ -241,7 +239,7 @@ public sealed class EditorWorkspaceTests
                     definition.Id,
                     net.Id,
                     new UnroutedWireRoute())),
-            cancellation.Token);
+            cancellationToken);
         var after = await Read(workspace, opened.WorkspaceId);
 
         var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();

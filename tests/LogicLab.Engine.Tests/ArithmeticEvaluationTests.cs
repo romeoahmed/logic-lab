@@ -174,14 +174,13 @@ public sealed class ArithmeticEvaluationTests
     [Test]
     public async Task LogicalShift_CancelledCandidateEnumeration_StopsAtSafePoint()
     {
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        var cancellationToken = new CancellationToken(canceled: true);
 
         await Assert.That(() => ArithmeticEvaluation.LogicalShift(
             Vector(LogicValue.One, LogicValue.Zero),
             Vector(LogicValue.X),
             LogicalShiftDirection.Left,
-            cancellation.Token)).ThrowsExactly<OperationCanceledException>();
+            cancellationToken)).ThrowsExactly<OperationCanceledException>();
     }
 
     [Test]

@@ -270,12 +270,11 @@ public sealed class SimulationRuntimeTests
     public async Task Open_CancelledBeforeSettlement_RejectsWithoutHandle()
     {
         var context = SimulationTestContext.Create();
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        var cancellationToken = new CancellationToken(canceled: true);
 
         var outcome = SimulationRuntime.Open(
             context.Request(context.NetSource(context.Circuit.OutputNet.Id)),
-            cancellation.Token);
+            cancellationToken);
 
         var rejected = await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
         Assert.NotNull(rejected);
@@ -504,13 +503,12 @@ public sealed class SimulationRuntimeTests
             opened.Handle,
             new ReadSessionSnapshot(),
             CancellationToken.None);
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        var cancellationToken = new CancellationToken(canceled: true);
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
             new AdvanceToNextQuiescentBoundary(),
-            cancellation.Token);
+            cancellationToken);
         var after = (SessionSnapshotRead)SimulationRuntime.Read(
             opened.Handle,
             new ReadSessionSnapshot(),
@@ -800,13 +798,12 @@ public sealed class SimulationRuntimeTests
     {
         var context = SimulationTestContext.Create();
         var opened = OpenOutputProbe(context);
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        var cancellationToken = new CancellationToken(canceled: true);
 
         var outcome = SimulationRuntime.Read(
             opened.Handle,
             new ReadSessionSnapshot(),
-            cancellation.Token);
+            cancellationToken);
 
         var failed = await Assert.That(outcome).IsTypeOf<SimulationReadFailed>();
         Assert.NotNull(failed);

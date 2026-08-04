@@ -44,7 +44,7 @@ public sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         HttpStatusCode expectedStatus)
     {
         using var client = factory.CreateClient();
-        using var response = await client.GetAsync(path);
+        using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
         var contentSecurityPolicy = Header(response, "Content-Security-Policy");
 
         using (Assert.Multiple())
@@ -77,7 +77,7 @@ public sealed class WebHostSecurityTests(LogicLabWebFactory factory)
             }));
         using var client = host.CreateClient();
         using var negotiate = await client.PostAsync(
-            "/_blazor/negotiate?negotiateVersion=1",
+            new Uri("/_blazor/negotiate?negotiateVersion=1", UriKind.Relative),
             content: null);
         negotiate.EnsureSuccessStatusCode();
         using var payload = await JsonDocument.ParseAsync(
