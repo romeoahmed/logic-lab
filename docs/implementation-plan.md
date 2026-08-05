@@ -42,7 +42,7 @@ The first required product tracer is complete at item `06`. Infrastructure bread
 
 ## Delivery status
 
-Phase A items `01` through `06` and Phase B items `07` through `16` are complete. The [Development Readiness](./README.md#development-readiness) table owns the current executable evidence, verification snapshot, and remaining qualification gaps.
+Phase A items `01` through `06` and Phase B items `07` through `16` are complete at the Domain, Compiler, Runtime, and applicable Application seams promised below. The [Development Readiness](./README.md#development-readiness) table owns the current Web surface, executable evidence, verification snapshot, and remaining qualification gaps.
 
 ## Phase B — Authoring, Component Contracts, and Runtime breadth
 
@@ -56,8 +56,10 @@ Phase A items `01` through `06` and Phase B items `07` through `16` are complete
 | 12 | Close the Project Editor V1 Edit Intent catalog | 08, 09, 10, 11 | Rename, public-Port migration, parameter/contract change, deletion, Memory Image, Symbol Profile/Variant, Annotation, and remaining presentation intentions commit atomically or leave no revision. |
 | 13 | Settle cyclic combinational feedback | 07, 10 | A Combinational Feedback Region computes its Least Information Fixed Point from all `X`, with fair-worklist differential evidence and correct Indeterminate Feedback, contention, defect, and exhaustion behavior. |
 | 14 | Run the first clocked state circuit | 13 | Clock Source, D latch, DFF/register, event calendar, Definite Edge, and causal Trigger Batch behavior can be stepped with atomic rollback. |
-| 15 | Complete the remaining sequential contract family | 12, 14 | SR latch, JK/T flip-flops, shift register, counter, unknown controls, derived clocks, and exact-state Zero-time Oscillation work end to end. |
-| 16 | Run ROM and single-port RAM end to end | 12, 14 | Explicit Memory Images, asynchronous reads, conservative unknown addressing, Trigger Batch writes, and rollback are authorable, simulatable, observable, and bounded. |
+| 15 | Complete the remaining sequential contract family | 12, 14 | SR latch, JK/T flip-flops, shift register, counter, unknown controls, derived clocks, and exact-state Zero-time Oscillation are authorable and execute through Compiler, Runtime, and Application evidence. |
+| 16 | Run ROM and single-port RAM end to end | 12, 14 | Explicit Memory Images, asynchronous reads, conservative unknown addressing, Trigger Batch writes, and rollback are authorable and bounded through Domain, Compiler, Runtime, and Application evidence. |
+
+Items `15` and `16` do not claim sequential or memory rendering and browser workflows. Their TeachingMixed projection remains item `25`, and complete Scene/browser interaction remains item `26`.
 
 ## Phase C — Workspace continuity, persistence, and transfer
 
