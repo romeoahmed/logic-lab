@@ -101,21 +101,37 @@ internal sealed class EditorWorkspaceTests
     }
 
     [Test]
-    public async Task DispatchAsync_UndoWithExistingSession_MovesHistoryAndRetainsSession()
+    public async Task DispatchAsync_UndoWithExistingSession_RetainsUsableSession()
     {
         await using var workspace = EditorWorkspaceFactory.Create();
-        var (opened, _) = await OpenInputOutputSession(workspace);
+        var (opened, input) = await OpenInputOutputSession(workspace);
         var before = await Read(workspace, opened);
         var attachment = opened.Attachment;
 
-        var outcome = await workspace.DispatchAsync(
-            new Undo(
-                Context(opened.WorkspaceId, attachment, "undo"),
-                new AuthoringPrecondition(before.ProjectRevision.RevisionId)),
-            CancellationToken.None);
-        var committed = await Assert.That(outcome).IsTypeOf<AuthoringCommitted>();
+        AuthoringCommitted? committed = null;
+        for (var index = 0; index < 3; index++)
+        {
+            var current = await Read(workspace, opened);
+            var outcome = await workspace.DispatchAsync(
+                new Undo(
+                    Context(opened.WorkspaceId, attachment, $"undo-{index}"),
+                    new AuthoringPrecondition(current.ProjectRevision.RevisionId)),
+                CancellationToken.None);
+            committed = await Assert.That(outcome).IsTypeOf<AuthoringCommitted>();
+        }
+
         Assert.NotNull(committed);
         var after = await Read(workspace, opened);
+        var scheduled = await workspace.DispatchAsync(
+            new ScheduleInputStimulus(
+                Context(opened.WorkspaceId, attachment, "schedule-after-undo"),
+                new SessionMutationPrecondition(
+                    after.Simulation!.SessionId,
+                    after.Simulation.SessionVersion,
+                    after.Simulation.CompilationArtifactKey),
+                logicalTime: 1,
+                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+            CancellationToken.None);
 
         using (Assert.Multiple())
         {
@@ -124,9 +140,15 @@ internal sealed class EditorWorkspaceTests
             await Assert.That(after.Simulation).IsNotNull();
             await Assert.That(after.Simulation!.SessionId)
                 .IsEqualTo(before.Simulation!.SessionId);
+            await Assert.That(after.Simulation.CompilationArtifactKey)
+                .IsEqualTo(before.Compilation.ArtifactKey);
             await Assert.That(after.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.NotRequested);
+            await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition
+                    .ComponentInstances)
+                .IsEmpty();
             await Assert.That(after.History.CanRedo).IsTrue();
+            await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
         }
     }
 

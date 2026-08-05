@@ -313,14 +313,17 @@ public sealed record SimulationProjection
     public SimulationProjection(
         SimulationSessionId sessionId,
         ulong sessionVersion,
+        CompilationArtifactKey compilationArtifactKey,
         ulong logicalTime,
         TraceCursor traceCursor,
         IReadOnlyList<ProbeProjection> probes)
     {
         ArgumentNullException.ThrowIfNull(sessionId);
+        ArgumentNullException.ThrowIfNull(compilationArtifactKey);
         ArgumentNullException.ThrowIfNull(probes);
         SessionId = sessionId;
         SessionVersion = sessionVersion;
+        CompilationArtifactKey = compilationArtifactKey;
         LogicalTime = logicalTime;
         TraceCursor = traceCursor;
         Probes = Array.AsReadOnly(probes.ToArray());
@@ -329,6 +332,8 @@ public sealed record SimulationProjection
     public SimulationSessionId SessionId { get; }
 
     public ulong SessionVersion { get; }
+
+    public CompilationArtifactKey CompilationArtifactKey { get; }
 
     public ulong LogicalTime { get; }
 

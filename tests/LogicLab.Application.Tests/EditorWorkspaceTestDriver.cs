@@ -63,7 +63,6 @@ internal static class EditorWorkspaceTestDriver
         return new SessionMutationPrecondition(
             simulation.SessionId,
             simulation.SessionVersion,
-            projection.Compilation.ArtifactKey
-            ?? throw new InvalidOperationException("Compilation is not published."));
+            simulation.CompilationArtifactKey);
     }
 }
