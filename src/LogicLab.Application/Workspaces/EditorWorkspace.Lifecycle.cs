@@ -190,7 +190,7 @@ internal sealed partial class EditorWorkspace
         {
             _ = operations.CloseSimulation(handle);
         }
-        catch (Exception exception) when (!FatalExceptionClassifier.IsFatal(exception))
+        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
             var correlation = Guid.CreateVersion7().ToString("N");
             LogSimulationCleanupFailure(logger, exception, correlation);

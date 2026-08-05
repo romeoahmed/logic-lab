@@ -102,8 +102,10 @@ public static partial class SimulationRuntime
                 diagnostics,
                 evidence);
         }
-        catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                cancellationToken))
         {
             return Rejected(
                 request,
@@ -164,8 +166,10 @@ public static partial class SimulationRuntime
                     "The Simulation command variant is undefined."),
             };
         }
-        catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                cancellationToken))
         {
             return Failure(
                 state,
@@ -220,8 +224,10 @@ public static partial class SimulationRuntime
                     "The Simulation query variant is undefined."),
             };
         }
-        catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                cancellationToken))
         {
             return new SimulationReadFailed(
                 SimulationFailureReason.SimulationCancelled,
@@ -866,7 +872,7 @@ public static partial class SimulationRuntime
                 var driverOrdinal = evaluator.OutputDriverOrdinals[outputIndex];
                 var previous = previousOutputs[outputIndex];
                 var current = driverValues[driverOrdinal];
-                CombinationalRefinement.RequirePreservingOrRefining(
+                CombinationalRefinement.RequireComponentOutputPreservingOrRefining(
                     previous,
                     current,
                     evaluator.ContractKey,
@@ -890,12 +896,9 @@ public static partial class SimulationRuntime
                     ref work.WorkItems);
                 var previous = netValues[netOrdinal];
                 var resolution = ResolveNet(ir, driverValues, netOrdinal);
-                CombinationalRefinement.RequirePreservingOrRefining(
+                CombinationalRefinement.RequireNetResolutionPreservingOrRefining(
                     previous,
-                    resolution.Value,
-                    evaluator.ContractKey,
-                    artifact.SourceMap.Evaluators[evaluatorOrdinal].Source,
-                    artifact.SourceMap.Nets[netOrdinal].Source);
+                    resolution.Value);
                 netResolutions[netOrdinal] = resolution;
                 if (ValuesEqual(previous, resolution.Value))
                 {

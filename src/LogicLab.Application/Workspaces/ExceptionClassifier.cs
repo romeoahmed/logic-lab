@@ -1,4 +1,4 @@
-namespace LogicLab.Engine;
+namespace LogicLab.Application.Workspaces;
 
 internal static class ExceptionClassifier
 {

@@ -6,32 +6,54 @@ namespace LogicLab.Engine.Simulation;
 
 internal static class CombinationalRefinement
 {
-    public static void RequirePreservingOrRefining(
+    private const string CoordinateShapeRule = "coordinate_shape";
+    private const string InformationOrderRule = "information_order";
+
+    public static void RequireComponentOutputPreservingOrRefining(
         LogicVector previous,
         LogicVector current,
         ComponentContractKey contractKey,
         CompilationSource primary,
         CompilationSource related)
     {
-        if (previous.Width != current.Width)
+        var rule = FindDefectRule(previous, current);
+        if (rule is not null)
         {
             throw new SimulationContractDefectException(
                 contractKey,
-                "coordinate_shape",
+                rule,
                 primary,
                 related);
+        }
+    }
+
+    public static void RequireNetResolutionPreservingOrRefining(
+        LogicVector previous,
+        LogicVector current)
+    {
+        var rule = FindDefectRule(previous, current);
+        if (rule is not null)
+        {
+            throw new InvalidOperationException(
+                $"A Runtime-owned Net resolution equation violated the {rule} invariant.");
+        }
+    }
+
+    private static string? FindDefectRule(LogicVector previous, LogicVector current)
+    {
+        if (previous.Width != current.Width)
+        {
+            return CoordinateShapeRule;
         }
 
         for (var bit = 0; bit < previous.Width; bit++)
         {
             if (previous[bit] != LogicValue.X && previous[bit] != current[bit])
             {
-                throw new SimulationContractDefectException(
-                    contractKey,
-                    "information_order",
-                    primary,
-                    related);
+                return InformationOrderRule;
             }
         }
+
+        return null;
     }
 }
