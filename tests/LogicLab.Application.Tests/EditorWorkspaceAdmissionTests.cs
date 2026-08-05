@@ -14,7 +14,7 @@ internal sealed class EditorWorkspaceAdmissionTests
             new WorkspaceAuthoringLimits(2, 10, 1));
         var opened = await OpenWorkspace(workspace, "Boundary limit");
         var atMaximum = await workspace.DispatchAsync(
-            new ApplyEdit(opened.WorkspaceId, new CreateCircuitDefinitionIntent(
+            Edit(opened, opened.Projection, new CreateCircuitDefinitionIntent(
                 "Allowed",
                 [new DefinitionPortDeclaration(
                     "A",
@@ -24,14 +24,14 @@ internal sealed class EditorWorkspaceAdmissionTests
                         new GridPoint(0, 0),
                         CardinalDirection.West))])),
             CancellationToken.None);
-        var beforeRejected = await ReadProjection(workspace, opened.WorkspaceId);
+        var beforeRejected = await ReadProjection(workspace, opened);
 
         var rejected = await workspace.DispatchAsync(
-            new ApplyEdit(opened.WorkspaceId, new CreateCircuitDefinitionIntent(
+            Edit(opened, beforeRejected, new CreateCircuitDefinitionIntent(
                 "Rejected",
                 [])),
             CancellationToken.None);
-        var afterRejected = await ReadProjection(workspace, opened.WorkspaceId);
+        var afterRejected = await ReadProjection(workspace, opened);
 
         await Assert.That(atMaximum).IsTypeOf<AuthoringCommitted>();
         await AssertRejectedWithoutPublication(
@@ -51,22 +51,22 @@ internal sealed class EditorWorkspaceAdmissionTests
         var definitionId = opened.Projection.ProjectRevision.Document
             .EntryCircuitDefinitionId;
         var first = await workspace.DispatchAsync(
-            new ApplyEdit(opened.WorkspaceId, new PlaceComponentInstanceIntent(
+            Edit(opened, opened.Projection, new PlaceComponentInstanceIntent(
                 definitionId,
                 new ComponentContractKey(CoreLibrarySchema.LibraryId, "logic.not"),
                 [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
                 new ComponentPlacement(new GridPoint(0, 0)))),
             CancellationToken.None);
-        var beforeRejected = await ReadProjection(workspace, opened.WorkspaceId);
+        var beforeRejected = await ReadProjection(workspace, opened);
 
         var rejected = await workspace.DispatchAsync(
-            new ApplyEdit(opened.WorkspaceId, new PlaceComponentInstanceIntent(
+            Edit(opened, beforeRejected, new PlaceComponentInstanceIntent(
                 definitionId,
                 new ComponentContractKey(CoreLibrarySchema.LibraryId, "logic.not"),
                 [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
                 new ComponentPlacement(new GridPoint(4, 0)))),
             CancellationToken.None);
-        var afterRejected = await ReadProjection(workspace, opened.WorkspaceId);
+        var afterRejected = await ReadProjection(workspace, opened);
 
         await Assert.That(first).IsTypeOf<AuthoringCommitted>();
         await AssertRejectedWithoutPublication(
@@ -86,7 +86,7 @@ internal sealed class EditorWorkspaceAdmissionTests
         var before = opened.Projection;
 
         var rejected = await workspace.DispatchAsync(
-            new ApplyEdit(opened.WorkspaceId, new CreateCircuitDefinitionIntent(
+            Edit(opened, before, new CreateCircuitDefinitionIntent(
                 "Too wide",
                 [
                     new DefinitionPortDeclaration(
@@ -105,7 +105,7 @@ internal sealed class EditorWorkspaceAdmissionTests
                             CardinalDirection.East)),
                 ])),
             CancellationToken.None);
-        var after = await ReadProjection(workspace, opened.WorkspaceId);
+        var after = await ReadProjection(workspace, opened);
 
         await AssertRejectedWithoutPublication(rejected, before, after);
         await Assert.That(after.ProjectRevision.Document.CircuitDefinitions)
@@ -134,13 +134,14 @@ internal sealed class EditorWorkspaceAdmissionTests
         var before = opened.Projection;
 
         var rejected = await workspace.DispatchAsync(
-            new ApplyEdit(
-                opened.WorkspaceId,
+            Edit(
+                opened,
+                before,
                 NestedParameterIntent(
                     before.ProjectRevision.Document.EntryCircuitDefinitionId,
                     contractId)),
             CancellationToken.None);
-        var after = await ReadProjection(workspace, opened.WorkspaceId);
+        var after = await ReadProjection(workspace, opened);
 
         await AssertRejectedWithoutPublication(rejected, before, after);
         await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition
@@ -153,22 +154,41 @@ internal sealed class EditorWorkspaceAdmissionTests
             workspacePolicy: new WorkspacePolicy(128, TimeSpan.FromMinutes(30), limits));
     }
 
-    private static async Task<WorkspaceOpened> OpenWorkspace(
+    private static async Task<ControlledWorkspace> OpenWorkspace(
         IEditorWorkspace workspace,
         string projectName)
     {
-        return (WorkspaceOpened)await workspace.OpenAsync(
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox(projectName, "Main"),
             CancellationToken.None);
+        var attached = await EditorWorkspaceTestDriver.AttachAsync(
+            workspace,
+            opened.WorkspaceId);
+        return new ControlledWorkspace(opened, attached);
     }
 
     private static async Task<WorkspaceProjection> ReadProjection(
         IEditorWorkspace workspace,
-        WorkspaceId workspaceId)
+        ControlledWorkspace controlled)
     {
         return ((ProjectionSnapshot)await workspace.ReadAsync(
-            workspaceId,
+            EditorWorkspaceTestDriver.Query(
+                controlled.WorkspaceId,
+                controlled.Attached),
             CancellationToken.None)).Projection;
+    }
+
+    private static ApplyEdit Edit(
+        ControlledWorkspace controlled,
+        WorkspaceProjection projection,
+        EditIntent intent)
+    {
+        return new ApplyEdit(
+            EditorWorkspaceTestDriver.Command(
+                controlled.WorkspaceId,
+                controlled.Attached),
+            new AuthoringPrecondition(projection.ProjectRevision.RevisionId),
+            intent);
     }
 
     private static async Task AssertRejectedWithoutPublication(
@@ -217,5 +237,14 @@ internal sealed class EditorWorkspaceAdmissionTests
             new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
             parameters,
             new ComponentPlacement(new GridPoint(0, 0)));
+    }
+
+    private sealed record ControlledWorkspace(
+        WorkspaceOpened Opened,
+        Attached Attached)
+    {
+        public WorkspaceId WorkspaceId => Opened.WorkspaceId;
+
+        public WorkspaceProjection Projection => Attached.Projection;
     }
 }

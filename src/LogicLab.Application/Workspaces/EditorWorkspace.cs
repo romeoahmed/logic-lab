@@ -156,69 +156,35 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
         using var lease = acquisition.Lease;
         var state = lease.State;
-        if (command.Context is not null)
+        return command switch
         {
-            return command switch
-            {
-                RequestCompilation request => await QueueCompilationAsync(
-                    state,
-                    request,
-                    cancellationToken).ConfigureAwait(false),
-                CreateSession or ScheduleInputStimulus or StepSession =>
-                    await QueueContextualSessionAsync(
-                        state.Id,
-                        state,
-                        command,
-                        cancellationToken).ConfigureAwait(false),
-                _ => await ExecuteContextualCommandAsync(
+            RequestCompilation request => await QueueCompilationAsync(
+                state,
+                request,
+                cancellationToken).ConfigureAwait(false),
+            CreateSession or ScheduleInputStimulus or StepSession =>
+                await QueueContextualSessionAsync(
                     state,
                     command,
                     cancellationToken).ConfigureAwait(false),
-            };
-        }
-
-        return command switch
-        {
-            ApplyEdit apply => await ExecuteWithGateAsync(
+            _ => await ExecuteContextualCommandAsync(
                 state,
-                token => state.AttachmentId is null
-                    ? Apply(state, apply, token)
-                    : Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment),
+                command,
                 cancellationToken).ConfigureAwait(false),
-            RequestCompilation => await QueueCompilationAsync(
-                state,
-                cancellationToken).ConfigureAwait(false),
-            CreateSession or ScheduleInputStimulus or StepSession =>
-                await workCoordinator.RunSessionAsync(
-                    state.Id,
-                    token => ExecuteWithGateAsync(
-                        state,
-                        innerToken => state.AttachmentId is null
-                            ? ExecuteSessionCommand(state, command, innerToken)
-                            : Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment),
-                        token),
-                    cancellationToken).ConfigureAwait(false),
-            CloseWorkspace => await ExecuteWithGateAsync(
-                state,
-                token => state.AttachmentId is null
-                    ? Close(state, token)
-                    : Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment),
-                cancellationToken).ConfigureAwait(false),
-            _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
         };
     }
 
     public async Task<WorkspaceReadOutcome> ReadAsync(
-        WorkspaceId workspaceId,
+        WorkspaceQueryContext context,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(workspaceId);
+        ArgumentNullException.ThrowIfNull(context);
         if (cancellationToken.IsCancellationRequested)
         {
             return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
-        var acquisition = AcquireWorkspace(workspaceId);
+        var acquisition = AcquireWorkspace(context.WorkspaceId);
         if (acquisition.Lease is null)
         {
             return new WorkspaceReadRejected(acquisition.RejectionReason!);
@@ -243,6 +209,15 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             if (state.IsRetired)
             {
                 return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceNotFound);
+            }
+
+            lock (state.ContinuityGate)
+            {
+                if (!HasCurrentAttachmentUnderLock(state, context))
+                {
+                    return new WorkspaceReadRejected(
+                        WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
+                }
             }
 
             return new ProjectionSnapshot(Project(state));
@@ -301,28 +276,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
     private async Task<WorkspaceCommandOutcome> QueueCompilationAsync(
         WorkspaceState state,
-        CancellationToken cancellationToken)
-    {
-        return await QueueCompilationCoreAsync(
-            state,
-            command: null,
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task<WorkspaceCommandOutcome> QueueCompilationAsync(
-        WorkspaceState state,
         RequestCompilation command,
-        CancellationToken cancellationToken)
-    {
-        return await QueueCompilationCoreAsync(
-            state,
-            command,
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task<WorkspaceCommandOutcome> QueueCompilationCoreAsync(
-        WorkspaceState state,
-        RequestCompilation? command,
         CancellationToken cancellationToken)
     {
         Task<WorkspaceCommandOutcome>? completion = null;
@@ -348,44 +302,35 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
 
-            if (command is null && state.AttachmentId is not null)
+            lock (state.ContinuityGate)
             {
-                return Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
-            }
-
-            if (command is not null)
-            {
-                lock (state.ContinuityGate)
+                switch (InspectContextualIntentUnderLock(state, command))
                 {
-                    switch (InspectContextualIntentUnderLock(state, command))
-                    {
-                        case ContextualIntentTerminal terminal:
-                            return terminal.Outcome;
-                        case ContextualIntentReplay replay:
-                            completion = replay.Completion;
-                            shouldQueue = false;
-                            break;
-                        case ContextualIntentAccepted accepted:
-                            var precondition = command.Precondition!;
-                            if (precondition.ProjectRevisionId != state.Revision.RevisionId
-                                || precondition.EntryCircuitDefinitionId
-                                != state.Revision.Document.EntryCircuitDefinitionId
-                                || !string.Equals(
-                                    precondition.LibrarySnapshotFingerprint,
-                                    state.Revision.Document.LibrarySnapshot.Fingerprint,
-                                    StringComparison.Ordinal))
-                            {
-                                return Reject(
-                                    WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
-                            }
-
-                            publication = ReserveContextualIntentUnderLock(
+                    case ContextualIntentTerminal terminal:
+                        return terminal.Outcome;
+                    case ContextualIntentReplay replay:
+                        completion = replay.Completion;
+                        shouldQueue = false;
+                        break;
+                    case ContextualIntentAccepted accepted:
+                        if (!MatchesCompilationPrecondition(state, command.Precondition))
+                        {
+                            var rejected = Reject(
+                                WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
+                            RecordIdempotencyUnderLock(
                                 state,
-                                command,
-                                accepted.CanonicalIdentity);
-                            ownsPendingRecord = true;
-                            break;
-                    }
+                                command.Context.ClientIntentId,
+                                accepted.CanonicalIdentity,
+                                rejected);
+                            return rejected;
+                        }
+
+                        publication = ReserveContextualIntentUnderLock(
+                            state,
+                            command,
+                            accepted.CanonicalIdentity);
+                        ownsPendingRecord = true;
+                        break;
                 }
             }
 
@@ -415,6 +360,19 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
 
         return completed;
+    }
+
+    private static bool MatchesCompilationPrecondition(
+        WorkspaceState state,
+        CompilationPrecondition precondition)
+    {
+        return precondition.ProjectRevisionId == state.Revision.RevisionId
+            && precondition.EntryCircuitDefinitionId
+            == state.Revision.Document.EntryCircuitDefinitionId
+            && string.Equals(
+                precondition.LibrarySnapshotFingerprint,
+                state.Revision.Document.LibrarySnapshot.Fingerprint,
+                StringComparison.Ordinal);
     }
 
     private async ValueTask<WorkspaceCommandOutcome> CompileAsync(
@@ -535,52 +493,6 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
 
         return published!;
-    }
-
-    private WorkspaceCommandOutcome ExecuteSessionCommand(
-        WorkspaceState state,
-        WorkspaceCommand command,
-        CancellationToken cancellationToken)
-    {
-        return command switch
-        {
-            CreateSession => OpenSession(state, cancellationToken),
-            ScheduleInputStimulus schedule => Schedule(state, schedule, cancellationToken),
-            StepSession => Step(state, cancellationToken),
-            _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
-        };
-    }
-
-    private static async ValueTask<WorkspaceCommandOutcome> ExecuteWithGateAsync(
-        WorkspaceState state,
-        Func<CancellationToken, WorkspaceCommandOutcome> operation,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException exception)
-            when (ExceptionClassifier.IsCooperativeCancellation(
-                exception,
-                cancellationToken))
-        {
-            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
-        }
-
-        try
-        {
-            if (state.IsRetired)
-            {
-                return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
-            }
-
-            return operation(cancellationToken);
-        }
-        finally
-        {
-            state.CommandGate.Release();
-        }
     }
 
     private WorkspaceCommandOutcome OpenSession(

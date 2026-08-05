@@ -2,6 +2,7 @@ using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
+using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Application.Tests;
@@ -13,8 +14,8 @@ internal sealed class EditorWorkspaceTests
     {
         await using var workspace = EditorWorkspaceFactory.Create();
         var (opened, input) = await OpenInputOutputProject(workspace);
-        var attachment = await Attach(workspace, opened.WorkspaceId);
-        var beforeCompilation = await Read(workspace, opened.WorkspaceId);
+        var attachment = opened.Attachment;
+        var beforeCompilation = await Read(workspace, opened);
 
         var compilationCommand = new RequestCompilation(
             Context(opened.WorkspaceId, attachment, "compile"),
@@ -42,7 +43,7 @@ internal sealed class EditorWorkspaceTests
             CancellationToken.None);
         var created = await Assert.That(session).IsTypeOf<SimulationSessionCreated>();
         Assert.NotNull(created);
-        var afterCreate = await Read(workspace, opened.WorkspaceId);
+        var afterCreate = await Read(workspace, opened);
         var simulation = afterCreate.Simulation!;
 
         var scheduled = await workspace.DispatchAsync(
@@ -55,7 +56,7 @@ internal sealed class EditorWorkspaceTests
                 1,
                 [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
             CancellationToken.None);
-        var afterSchedule = await Read(workspace, opened.WorkspaceId);
+        var afterSchedule = await Read(workspace, opened);
         var staleStep = await workspace.DispatchAsync(
             new StepSession(
                 Context(opened.WorkspaceId, attachment, "stale-step"),
@@ -77,7 +78,7 @@ internal sealed class EditorWorkspaceTests
                 Context(opened.WorkspaceId, attachment, "close")),
             CancellationToken.None);
         var readAfterClose = await workspace.ReadAsync(
-            opened.WorkspaceId,
+            EditorWorkspaceTestDriver.Query(opened.WorkspaceId, attachment),
             CancellationToken.None);
 
         var readRejection = await Assert.That(readAfterClose)
@@ -104,8 +105,8 @@ internal sealed class EditorWorkspaceTests
     {
         await using var workspace = EditorWorkspaceFactory.Create();
         var (opened, _) = await OpenInputOutputSession(workspace);
-        var before = await Read(workspace, opened.WorkspaceId);
-        var attachment = await Attach(workspace, opened.WorkspaceId);
+        var before = await Read(workspace, opened);
+        var attachment = opened.Attachment;
 
         var outcome = await workspace.DispatchAsync(
             new Undo(
@@ -114,7 +115,7 @@ internal sealed class EditorWorkspaceTests
             CancellationToken.None);
         var committed = await Assert.That(outcome).IsTypeOf<AuthoringCommitted>();
         Assert.NotNull(committed);
-        var after = await Read(workspace, opened.WorkspaceId);
+        var after = await Read(workspace, opened);
 
         using (Assert.Multiple())
         {
@@ -148,8 +149,8 @@ internal sealed class EditorWorkspaceTests
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var (opened, _) = await OpenInputOutputProject(workspace);
-        var attachment = await Attach(workspace, opened.WorkspaceId);
-        var projection = await Read(workspace, opened.WorkspaceId);
+        var attachment = opened.Attachment;
+        var projection = await Read(workspace, opened);
         var command = new RequestCompilation(
             Context(opened.WorkspaceId, attachment, "compile"),
             new CompilationPrecondition(
@@ -220,8 +221,8 @@ internal sealed class EditorWorkspaceTests
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var (opened, _) = await OpenInputOutputProject(workspace);
-        var firstAttachment = await Attach(workspace, opened.WorkspaceId);
-        var projection = await Read(workspace, opened.WorkspaceId);
+        var firstAttachment = opened.Attachment;
+        var projection = await Read(workspace, opened);
         var first = workspace.DispatchAsync(
             Compilation(opened.WorkspaceId, firstAttachment, projection),
             cancellationToken);
@@ -272,7 +273,7 @@ internal sealed class EditorWorkspaceTests
         var revision = opened.Projection.ProjectRevision;
         var definitionId = revision.Document.EntryCircuitDefinitionId;
 
-        await Apply(workspace, opened.WorkspaceId, Place(
+        await Apply(workspace, opened, Place(
             definitionId,
             "source.input",
             [
@@ -282,16 +283,16 @@ internal sealed class EditorWorkspaceTests
                     new LogicVectorParameterValue([LogicValue.Zero])),
             ],
             new GridPoint(0, 0)));
-        var input = await FindByContract(workspace, opened.WorkspaceId, "source.input");
+        var input = await FindByContract(workspace, opened, "source.input");
 
-        await Apply(workspace, opened.WorkspaceId, Place(
+        await Apply(workspace, opened, Place(
             definitionId,
             "logic.not",
             [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
             new GridPoint(4, 0)));
-        var logicNot = await FindByContract(workspace, opened.WorkspaceId, "logic.not");
+        var logicNot = await FindByContract(workspace, opened, "logic.not");
 
-        await Apply(workspace, opened.WorkspaceId, Place(
+        await Apply(workspace, opened, Place(
             definitionId,
             "sink.output",
             [
@@ -299,26 +300,28 @@ internal sealed class EditorWorkspaceTests
                 new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
             ],
             new GridPoint(8, 0)));
-        var output = await FindByContract(workspace, opened.WorkspaceId, "sink.output");
+        var output = await FindByContract(workspace, opened, "sink.output");
 
-        await Apply(workspace, opened.WorkspaceId, new ConnectTerminalsIntent(
+        await Apply(workspace, opened, new ConnectTerminalsIntent(
             [
                 Terminal(definitionId, input, "Q"),
                 Terminal(definitionId, logicNot, "A"),
             ]));
-        await Apply(workspace, opened.WorkspaceId, new ConnectTerminalsIntent(
+        await Apply(workspace, opened, new ConnectTerminalsIntent(
             [
                 Terminal(definitionId, logicNot, "Q"),
                 Terminal(definitionId, output, "D"),
             ]));
 
+        var beforeCompilation = await Read(workspace, opened);
         var compiled = await workspace.DispatchAsync(
-            new RequestCompilation(opened.WorkspaceId),
+            Compilation(opened, beforeCompilation),
             CancellationToken.None);
+        var afterCompilation = await Read(workspace, opened);
         var sessionCreated = await workspace.DispatchAsync(
-            new CreateSession(opened.WorkspaceId),
+            Session(opened, afterCompilation),
             CancellationToken.None);
-        var initial = await Read(workspace, opened.WorkspaceId);
+        var initial = await Read(workspace, opened);
 
         await Assert.That(compiled).IsTypeOf<CompilationPublished>();
         await Assert.That(sessionCreated).IsTypeOf<SimulationSessionCreated>();
@@ -333,14 +336,16 @@ internal sealed class EditorWorkspaceTests
 
         var scheduled = await workspace.DispatchAsync(
             new ScheduleInputStimulus(
-                opened.WorkspaceId,
+                Context(opened.WorkspaceId, opened.Attachment, "schedule"),
+                EditorWorkspaceTestDriver.SessionMutation(initial),
                 1,
                 [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
             CancellationToken.None);
+        var afterSchedule = await Read(workspace, opened);
         var stepped = await workspace.DispatchAsync(
-            new StepSession(opened.WorkspaceId),
+            Step(opened, afterSchedule),
             CancellationToken.None);
-        var afterStep = await Read(workspace, opened.WorkspaceId);
+        var afterStep = await Read(workspace, opened);
 
         await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
         await Assert.That(stepped).IsTypeOf<SessionStepped>();
@@ -360,19 +365,30 @@ internal sealed class EditorWorkspaceTests
         await using var workspace = EditorWorkspaceFactory.Create();
         var opened = await Open(workspace);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
-        await Apply(workspace, opened.WorkspaceId, Place(
+        await Apply(workspace, opened, Place(
             definitionId,
             "logic.not",
             [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
             new GridPoint(4, 0)));
 
+        var beforeCompilation = await Read(workspace, opened);
         var compilation = await workspace.DispatchAsync(
-            new RequestCompilation(opened.WorkspaceId),
+            Compilation(opened, beforeCompilation),
             CancellationToken.None);
+        var afterCompilation = await Read(workspace, opened);
         var session = await workspace.DispatchAsync(
-            new CreateSession(opened.WorkspaceId),
+            new CreateSession(
+                Context(opened.WorkspaceId, opened.Attachment, "session"),
+                new SessionCreationPrecondition(
+                    afterCompilation.Compilation.ArtifactKey
+                    ?? new CompilationArtifactKey(
+                        beforeCompilation.ProjectRevision.RevisionId,
+                        beforeCompilation.ProjectRevision.Document
+                            .EntryCircuitDefinitionId,
+                        beforeCompilation.ProjectRevision.Document.LibrarySnapshot.Fingerprint,
+                        "missing"))),
             CancellationToken.None);
-        var projection = await Read(workspace, opened.WorkspaceId);
+        var projection = await Read(workspace, opened);
 
         var compilationRejection = await Assert.That(compilation)
             .IsTypeOf<WorkspaceCommandRejected>();
@@ -396,13 +412,13 @@ internal sealed class EditorWorkspaceTests
     {
         await using var workspace = EditorWorkspaceFactory.Create();
         var opened = await Open(workspace);
-        var before = await Read(workspace, opened.WorkspaceId);
+        var before = await Read(workspace, opened);
         var cancellationToken = new CancellationToken(canceled: true);
 
         var outcome = await workspace.DispatchAsync(
-            new RequestCompilation(opened.WorkspaceId),
+            Compilation(opened, before),
             cancellationToken);
-        var after = await Read(workspace, opened.WorkspaceId);
+        var after = await Read(workspace, opened);
 
         var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
         Assert.NotNull(rejected);
@@ -422,7 +438,7 @@ internal sealed class EditorWorkspaceTests
         await using var workspace = EditorWorkspaceFactory.Create();
         var opened = await Open(workspace);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
-        await Apply(workspace, opened.WorkspaceId, Place(
+        await Apply(workspace, opened, Place(
             definitionId,
             "source.input",
             [
@@ -432,8 +448,8 @@ internal sealed class EditorWorkspaceTests
                     new LogicVectorParameterValue([LogicValue.Zero])),
             ],
             new GridPoint(0, 0)));
-        var input = await FindByContract(workspace, opened.WorkspaceId, "source.input");
-        await Apply(workspace, opened.WorkspaceId, Place(
+        var input = await FindByContract(workspace, opened, "source.input");
+        await Apply(workspace, opened, Place(
             definitionId,
             "sink.output",
             [
@@ -441,18 +457,19 @@ internal sealed class EditorWorkspaceTests
                 new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
             ],
             new GridPoint(4, 0)));
-        var output = await FindByContract(workspace, opened.WorkspaceId, "sink.output");
-        await Apply(workspace, opened.WorkspaceId, new ConnectTerminalsIntent(
+        var output = await FindByContract(workspace, opened, "sink.output");
+        await Apply(workspace, opened, new ConnectTerminalsIntent(
             [
                 Terminal(definitionId, input, "Q"),
                 Terminal(definitionId, output, "D"),
             ]));
-        var before = await Read(workspace, opened.WorkspaceId);
+        var before = await Read(workspace, opened);
         var net = before.ProjectRevision.Document.EntryCircuitDefinition.Nets.Single();
 
         var outcome = await workspace.DispatchAsync(
             new ApplyEdit(
-                opened.WorkspaceId,
+                Context(opened.WorkspaceId, opened.Attachment, "junction"),
+                new AuthoringPrecondition(before.ProjectRevision.RevisionId),
                 new AddJunctionIntent(
                     definitionId,
                     net.Id,
@@ -462,7 +479,7 @@ internal sealed class EditorWorkspaceTests
                     [],
                     [])),
             CancellationToken.None);
-        var after = await Read(workspace, opened.WorkspaceId);
+        var after = await Read(workspace, opened);
 
         await Assert.That(outcome).IsTypeOf<AuthoringCommitted>();
         using (Assert.Multiple())
@@ -483,20 +500,21 @@ internal sealed class EditorWorkspaceTests
     {
         await using var workspace = EditorWorkspaceFactory.Create();
         var (opened, _) = await OpenInputOutputSession(workspace);
-        var before = await Read(workspace, opened.WorkspaceId);
+        var before = await Read(workspace, opened);
         var definition = before.ProjectRevision.Document.EntryCircuitDefinition;
         var net = definition.Nets.Single();
         var cancellationToken = new CancellationToken(canceled: true);
 
         var outcome = await workspace.DispatchAsync(
             new ApplyEdit(
-                opened.WorkspaceId,
+                Context(opened.WorkspaceId, opened.Attachment, "wire"),
+                new AuthoringPrecondition(before.ProjectRevision.RevisionId),
                 new AddWireGeometryIntent(
                     definition.Id,
                     net.Id,
                     new UnroutedWireRoute())),
             cancellationToken);
-        var after = await Read(workspace, opened.WorkspaceId);
+        var after = await Read(workspace, opened);
 
         var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
         Assert.NotNull(rejected);
@@ -530,7 +548,7 @@ internal sealed class EditorWorkspaceTests
             operations: operations);
         var opened = await Open(workspace);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
-        await Apply(workspace, opened.WorkspaceId, Place(
+        await Apply(workspace, opened, Place(
             definitionId,
             "source.input",
             [
@@ -540,8 +558,8 @@ internal sealed class EditorWorkspaceTests
                     new LogicVectorParameterValue([LogicValue.Zero])),
             ],
             new GridPoint(0, 0)));
-        var input = await FindByContract(workspace, opened.WorkspaceId, "source.input");
-        await Apply(workspace, opened.WorkspaceId, Place(
+        var input = await FindByContract(workspace, opened, "source.input");
+        await Apply(workspace, opened, Place(
             definitionId,
             "sink.output",
             [
@@ -549,22 +567,23 @@ internal sealed class EditorWorkspaceTests
                 new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
             ],
             new GridPoint(4, 0)));
-        var output = await FindByContract(workspace, opened.WorkspaceId, "sink.output");
+        var output = await FindByContract(workspace, opened, "sink.output");
 
+        var beforeCompilation = await Read(workspace, opened);
         var compilation = workspace.DispatchAsync(
-            new RequestCompilation(opened.WorkspaceId),
+            Compilation(opened, beforeCompilation),
             cancellationToken);
         WorkspaceProjection edited;
 
         try
         {
             await compilationGate.Started.WaitAsync(cancellationToken);
-            await Apply(workspace, opened.WorkspaceId, new ConnectTerminalsIntent(
+            await Apply(workspace, opened, new ConnectTerminalsIntent(
                 [
                     Terminal(definitionId, input, "Q"),
                     Terminal(definitionId, output, "D"),
                 ]));
-            edited = await Read(workspace, opened.WorkspaceId);
+            edited = await Read(workspace, opened);
         }
         finally
         {
@@ -572,7 +591,7 @@ internal sealed class EditorWorkspaceTests
         }
 
         var outcome = await compilation.WaitAsync(cancellationToken);
-        var afterCompilation = await Read(workspace, opened.WorkspaceId);
+        var afterCompilation = await Read(workspace, opened);
         var rejection = await Assert.That(outcome)
             .IsTypeOf<WorkspaceCommandRejected>();
         Assert.NotNull(rejection);
@@ -597,7 +616,9 @@ internal sealed class EditorWorkspaceTests
 
         var outcome = await workspace.DispatchAsync(
             new ScheduleInputStimulus(
-                opened.WorkspaceId,
+                Context(opened.WorkspaceId, opened.Attachment, "empty"),
+                EditorWorkspaceTestDriver.SessionMutation(
+                    await Read(workspace, opened)),
                 1,
                 [new InputStimulusAssignment(input.Id, [])]),
             CancellationToken.None);
@@ -615,7 +636,9 @@ internal sealed class EditorWorkspaceTests
 
         var outcome = await workspace.DispatchAsync(
             new ScheduleInputStimulus(
-                opened.WorkspaceId,
+                Context(opened.WorkspaceId, opened.Attachment, "width"),
+                EditorWorkspaceTestDriver.SessionMutation(
+                    await Read(workspace, opened)),
                 1,
                 [new InputStimulusAssignment(input.Id, [LogicValue.Zero, LogicValue.One])]),
             CancellationToken.None);
@@ -632,7 +655,7 @@ internal sealed class EditorWorkspaceTests
         var (opened, _) = await OpenInputOutputSession(workspace);
 
         var outcome = await workspace.DispatchAsync(
-            new StepSession(opened.WorkspaceId),
+            Step(opened, await Read(workspace, opened)),
             CancellationToken.None);
 
         var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
@@ -641,7 +664,7 @@ internal sealed class EditorWorkspaceTests
     }
 
     [Test, Timeout(30_000)]
-    public async Task DispatchAsync_ConcurrentSessionSteps_SerializeInAdmissionOrder(
+    public async Task DispatchAsync_ConcurrentSessionSteps_RejectsStaleSecondPrecondition(
         CancellationToken cancellationToken)
     {
         var stepGate = new BlockingOperationGate();
@@ -668,13 +691,19 @@ internal sealed class EditorWorkspaceTests
         var (opened, input) = await OpenInputOutputSession(workspace);
         var scheduled = await workspace.DispatchAsync(
             new ScheduleInputStimulus(
-                opened.WorkspaceId,
+                Context(opened.WorkspaceId, opened.Attachment, "schedule"),
+                EditorWorkspaceTestDriver.SessionMutation(
+                    await Read(workspace, opened)),
                 1,
                 [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
             cancellationToken);
 
+        var stepPrecondition = EditorWorkspaceTestDriver.SessionMutation(
+            await Read(workspace, opened));
         var first = workspace.DispatchAsync(
-            new StepSession(opened.WorkspaceId),
+            new StepSession(
+                Context(opened.WorkspaceId, opened.Attachment, "first-step"),
+                stepPrecondition),
             cancellationToken);
         Task<WorkspaceCommandOutcome> second;
 
@@ -682,7 +711,9 @@ internal sealed class EditorWorkspaceTests
         {
             await stepGate.Started.WaitAsync(cancellationToken);
             second = workspace.DispatchAsync(
-                new StepSession(opened.WorkspaceId),
+                new StepSession(
+                    Context(opened.WorkspaceId, opened.Attachment, "second-step"),
+                    stepPrecondition),
                 cancellationToken);
         }
         finally
@@ -691,7 +722,7 @@ internal sealed class EditorWorkspaceTests
         }
 
         var outcomes = await Task.WhenAll(first, second).WaitAsync(cancellationToken);
-        var projection = await Read(workspace, opened.WorkspaceId);
+        var projection = await Read(workspace, opened);
         var secondRejection = await Assert.That(outcomes[1])
             .IsTypeOf<WorkspaceCommandRejected>();
         Assert.NotNull(secondRejection);
@@ -701,7 +732,7 @@ internal sealed class EditorWorkspaceTests
             await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
             await Assert.That(outcomes[0]).IsTypeOf<SessionStepped>();
             await Assert.That(secondRejection.Code)
-                .IsEqualTo("no_scheduled_stimulus");
+                .IsEqualTo("session_precondition_failed");
             await Assert.That(projection.Simulation!.LogicalTime).IsEqualTo(1UL);
         }
     }
@@ -729,8 +760,8 @@ internal sealed class EditorWorkspaceTests
             operations,
             schedulingPolicy: new SchedulingPolicy(1, 1));
         var (opened, _) = await OpenInputOutputProject(workspace);
-        var attachment = await Attach(workspace, opened.WorkspaceId);
-        var beforeCompilation = await Read(workspace, opened.WorkspaceId);
+        var attachment = opened.Attachment;
+        var beforeCompilation = await Read(workspace, opened);
         var compilation = await workspace.DispatchAsync(
             new RequestCompilation(
                 Context(opened.WorkspaceId, attachment, "compile"),
@@ -786,7 +817,9 @@ internal sealed class EditorWorkspaceTests
             new CloseWorkspace(
                 Context(opened.WorkspaceId, attachment, "rejected")),
             cancellationToken);
-        var after = await workspace.ReadAsync(opened.WorkspaceId, cancellationToken);
+        var after = await workspace.ReadAsync(
+            EditorWorkspaceTestDriver.Query(opened.WorkspaceId, attachment),
+            cancellationToken);
         var rejection = await Assert.That(rejected)
             .IsTypeOf<WorkspaceCommandRejected>();
         var conflictRejection = await Assert.That(conflict)
@@ -810,25 +843,27 @@ internal sealed class EditorWorkspaceTests
         }
     }
 
-    private static async Task<(WorkspaceOpened Opened, ComponentInstance Input)>
+    private static async Task<(ControlledWorkspace Opened, ComponentInstance Input)>
         OpenInputOutputSession(IEditorWorkspace workspace)
     {
         var (opened, input) = await OpenInputOutputProject(workspace);
+        var beforeCompilation = await Read(workspace, opened);
         _ = await workspace.DispatchAsync(
-            new RequestCompilation(opened.WorkspaceId),
+            Compilation(opened, beforeCompilation),
             CancellationToken.None);
+        var afterCompilation = await Read(workspace, opened);
         _ = await workspace.DispatchAsync(
-            new CreateSession(opened.WorkspaceId),
+            Session(opened, afterCompilation),
             CancellationToken.None);
         return (opened, input);
     }
 
-    private static async Task<(WorkspaceOpened Opened, ComponentInstance Input)>
+    private static async Task<(ControlledWorkspace Opened, ComponentInstance Input)>
         OpenInputOutputProject(IEditorWorkspace workspace)
     {
         var opened = await Open(workspace);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
-        await Apply(workspace, opened.WorkspaceId, Place(
+        await Apply(workspace, opened, Place(
             definitionId,
             "source.input",
             [
@@ -838,8 +873,8 @@ internal sealed class EditorWorkspaceTests
                     new LogicVectorParameterValue([LogicValue.Zero])),
             ],
             new GridPoint(0, 0)));
-        var input = await FindByContract(workspace, opened.WorkspaceId, "source.input");
-        await Apply(workspace, opened.WorkspaceId, Place(
+        var input = await FindByContract(workspace, opened, "source.input");
+        await Apply(workspace, opened, Place(
             definitionId,
             "sink.output",
             [
@@ -847,8 +882,8 @@ internal sealed class EditorWorkspaceTests
                 new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
             ],
             new GridPoint(4, 0)));
-        var output = await FindByContract(workspace, opened.WorkspaceId, "sink.output");
-        await Apply(workspace, opened.WorkspaceId, new ConnectTerminalsIntent(
+        var output = await FindByContract(workspace, opened, "sink.output");
+        await Apply(workspace, opened, new ConnectTerminalsIntent(
             [
                 Terminal(definitionId, input, "Q"),
                 Terminal(definitionId, output, "D"),
@@ -892,32 +927,78 @@ internal sealed class EditorWorkspaceTests
                 projection.ProjectRevision.Document.LibrarySnapshot.Fingerprint));
     }
 
-    private static async Task<WorkspaceOpened> Open(IEditorWorkspace workspace)
+    private static RequestCompilation Compilation(
+        ControlledWorkspace controlled,
+        WorkspaceProjection projection)
+    {
+        return new RequestCompilation(
+            Context(
+                controlled.WorkspaceId,
+                controlled.Attachment,
+                Guid.CreateVersion7().ToString("N")),
+            EditorWorkspaceTestDriver.Compilation(projection));
+    }
+
+    private static CreateSession Session(
+        ControlledWorkspace controlled,
+        WorkspaceProjection projection)
+    {
+        return new CreateSession(
+            Context(
+                controlled.WorkspaceId,
+                controlled.Attachment,
+                Guid.CreateVersion7().ToString("N")),
+            EditorWorkspaceTestDriver.SessionCreation(projection));
+    }
+
+    private static StepSession Step(
+        ControlledWorkspace controlled,
+        WorkspaceProjection projection)
+    {
+        return new StepSession(
+            Context(
+                controlled.WorkspaceId,
+                controlled.Attachment,
+                Guid.CreateVersion7().ToString("N")),
+            EditorWorkspaceTestDriver.SessionMutation(projection));
+    }
+
+    private static async Task<ControlledWorkspace> Open(IEditorWorkspace workspace)
     {
         var outcome = await workspace.OpenAsync(
             new CreateSandbox("Test project", "Main"),
             CancellationToken.None);
         var opened = await Assert.That(outcome).IsTypeOf<WorkspaceOpened>();
         Assert.NotNull(opened);
-        return opened;
+        var attached = await Attach(workspace, opened.WorkspaceId);
+        return new ControlledWorkspace(opened, attached);
     }
 
     private static async Task Apply(
         IEditorWorkspace workspace,
-        WorkspaceId workspaceId,
+        ControlledWorkspace controlled,
         EditIntent intent)
     {
+        var projection = await Read(workspace, controlled);
         var outcome = await workspace.DispatchAsync(
-            new ApplyEdit(workspaceId, intent),
+            new ApplyEdit(
+                Context(controlled.WorkspaceId, controlled.Attachment, Guid.CreateVersion7()
+                    .ToString("N")),
+                new AuthoringPrecondition(projection.ProjectRevision.RevisionId),
+                intent),
             CancellationToken.None);
         await Assert.That(outcome).IsTypeOf<AuthoringCommitted>();
     }
 
     private static async Task<WorkspaceProjection> Read(
         IEditorWorkspace workspace,
-        WorkspaceId workspaceId)
+        ControlledWorkspace controlled)
     {
-        var outcome = await workspace.ReadAsync(workspaceId, CancellationToken.None);
+        var outcome = await workspace.ReadAsync(
+            EditorWorkspaceTestDriver.Query(
+                controlled.WorkspaceId,
+                controlled.Attachment),
+            CancellationToken.None);
         var snapshot = await Assert.That(outcome).IsTypeOf<ProjectionSnapshot>();
         Assert.NotNull(snapshot);
         return snapshot.Projection;
@@ -925,10 +1006,10 @@ internal sealed class EditorWorkspaceTests
 
     private static async Task<ComponentInstance> FindByContract(
         IEditorWorkspace workspace,
-        WorkspaceId workspaceId,
+        ControlledWorkspace controlled,
         string contractId)
     {
-        return (await Read(workspace, workspaceId))
+        return (await Read(workspace, controlled))
             .ProjectRevision
             .Document
             .EntryCircuitDefinition
@@ -956,5 +1037,14 @@ internal sealed class EditorWorkspaceTests
         string portId)
     {
         return new InstanceTerminalReference(definitionId, component.Id, portId);
+    }
+
+    private sealed record ControlledWorkspace(
+        WorkspaceOpened Opened,
+        Attached Attachment)
+    {
+        public WorkspaceId WorkspaceId => Opened.WorkspaceId;
+
+        public WorkspaceProjection Projection => Attachment.Projection;
     }
 }

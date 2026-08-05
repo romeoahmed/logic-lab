@@ -305,7 +305,7 @@ internal sealed partial class EditorWorkspace
 
             lock (state.ContinuityGate)
             {
-                var context = command.Context!;
+                var context = command.Context;
                 switch (InspectContextualIntentUnderLock(state, command))
                 {
                     case ContextualIntentTerminal terminal:
@@ -353,11 +353,20 @@ internal sealed partial class EditorWorkspace
             && state.AttachmentGeneration == context.AttachmentGeneration;
     }
 
+    private static bool HasCurrentAttachmentUnderLock(
+        WorkspaceState state,
+        WorkspaceQueryContext context)
+    {
+        return state.IsAttached
+            && state.AttachmentId == context.AttachmentId
+            && state.AttachmentGeneration == context.AttachmentGeneration;
+    }
+
     private static ContextualIntentInspection InspectContextualIntentUnderLock(
         WorkspaceState state,
         WorkspaceCommand command)
     {
-        var context = command.Context!;
+        var context = command.Context;
         if (!HasCurrentAttachmentUnderLock(state, context))
         {
             return new ContextualIntentTerminal(
@@ -406,10 +415,10 @@ internal sealed partial class EditorWorkspace
             new TaskCompletionSource<WorkspaceCommandOutcome>(
                 TaskCreationOptions.RunContinuationsAsynchronously));
         var publication = new ContextualCommandPublication(
-            command.Context!,
+            command.Context,
             canonicalIdentity,
             pending);
-        state.PendingIntents.Add(command.Context!.ClientIntentId, pending);
+        state.PendingIntents.Add(command.Context.ClientIntentId, pending);
         return publication;
     }
 
@@ -418,7 +427,7 @@ internal sealed partial class EditorWorkspace
         ApplyEdit command,
         CancellationToken cancellationToken)
     {
-        if (command.Precondition!.ProjectRevisionId != state.Revision.RevisionId)
+        if (command.Precondition.ProjectRevisionId != state.Revision.RevisionId)
         {
             return Reject(WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
         }
@@ -457,7 +466,7 @@ internal sealed partial class EditorWorkspace
         CreateSession command,
         CancellationToken cancellationToken)
     {
-        if (state.Artifact?.Key != command.Precondition!.CompilationArtifactKey)
+        if (state.Artifact?.Key != command.Precondition.CompilationArtifactKey)
         {
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
@@ -470,7 +479,7 @@ internal sealed partial class EditorWorkspace
         ScheduleInputStimulus command,
         CancellationToken cancellationToken)
     {
-        if (!MatchesSessionPrecondition(state, command.Precondition!))
+        if (!MatchesSessionPrecondition(state, command.Precondition))
         {
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
@@ -483,7 +492,7 @@ internal sealed partial class EditorWorkspace
         StepSession command,
         CancellationToken cancellationToken)
     {
-        if (!MatchesSessionPrecondition(state, command.Precondition!))
+        if (!MatchesSessionPrecondition(state, command.Precondition))
         {
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
@@ -586,7 +595,7 @@ internal sealed partial class EditorWorkspace
             ApplyEdit apply => string.Concat(
                 nameof(ApplyEdit),
                 '|',
-                apply.Precondition!.ProjectRevisionId.Value,
+                apply.Precondition.ProjectRevisionId.Value,
                 '|',
                 apply.Intent.GetType().FullName,
                 '|',
@@ -602,7 +611,7 @@ internal sealed partial class EditorWorkspace
             RequestCompilation request => string.Concat(
                 nameof(RequestCompilation),
                 '|',
-                request.Precondition!.ProjectRevisionId.Value,
+                request.Precondition.ProjectRevisionId.Value,
                 '|',
                 request.Precondition.EntryCircuitDefinitionId.Value,
                 '|',
@@ -611,11 +620,11 @@ internal sealed partial class EditorWorkspace
                 nameof(CreateSession),
                 '|',
                 JsonSerializer.Serialize(
-                    create.Precondition!.CompilationArtifactKey)),
+                    create.Precondition.CompilationArtifactKey)),
             ScheduleInputStimulus schedule => string.Concat(
                 nameof(ScheduleInputStimulus),
                 '|',
-                schedule.Precondition!.SessionId.Value,
+                schedule.Precondition.SessionId.Value,
                 '|',
                 schedule.Precondition.SessionVersion,
                 '|',
@@ -628,7 +637,7 @@ internal sealed partial class EditorWorkspace
             StepSession step => string.Concat(
                 nameof(StepSession),
                 '|',
-                step.Precondition!.SessionId.Value,
+                step.Precondition.SessionId.Value,
                 '|',
                 step.Precondition.SessionVersion,
                 '|',

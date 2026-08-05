@@ -15,9 +15,10 @@ internal sealed class EditorWorkspaceHierarchyTests
             new CreateSandbox("Hierarchy project", "Main"),
             CancellationToken.None);
         var workspaceId = opened.WorkspaceId;
+        var attached = await EditorWorkspaceTestDriver.AttachAsync(workspace, workspaceId);
         var mainId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
 
-        await Apply(workspace, workspaceId, new CreateCircuitDefinitionIntent(
+        await Apply(workspace, workspaceId, attached, new CreateCircuitDefinitionIntent(
             "Inverter",
             [
                 new DefinitionPortDeclaration(
@@ -35,30 +36,30 @@ internal sealed class EditorWorkspaceHierarchyTests
                         new GridPoint(8, 2),
                         CardinalDirection.East)),
             ]));
-        var child = (await Read(workspace, workspaceId)).ProjectRevision.Document
+        var child = (await Read(workspace, workspaceId, attached)).ProjectRevision.Document
             .CircuitDefinitions.Single(definition => definition.DisplayName == "Inverter");
-        await Apply(workspace, workspaceId, PlaceLibrary(
+        await Apply(workspace, workspaceId, attached, PlaceLibrary(
             child.Id,
             "logic.not",
             [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
             new GridPoint(4, 2)));
-        child = (await Read(workspace, workspaceId)).ProjectRevision.Document
+        child = (await Read(workspace, workspaceId, attached)).ProjectRevision.Document
             .FindCircuitDefinition(child.Id)!;
         var childNot = child.ComponentInstances.Single();
         var inputPort = child.Ports.Single(port => port.Direction == PortDirection.Input);
         var outputPort = child.Ports.Single(port => port.Direction == PortDirection.Output);
-        await Apply(workspace, workspaceId, new ConnectTerminalsIntent(
+        await Apply(workspace, workspaceId, attached, new ConnectTerminalsIntent(
             [
                 new DefinitionTerminalReference(child.Id, inputPort.Id),
                 new InstanceTerminalReference(child.Id, childNot.Id, "A"),
             ]));
-        await Apply(workspace, workspaceId, new ConnectTerminalsIntent(
+        await Apply(workspace, workspaceId, attached, new ConnectTerminalsIntent(
             [
                 new InstanceTerminalReference(child.Id, childNot.Id, "Q"),
                 new DefinitionTerminalReference(child.Id, outputPort.Id),
             ]));
 
-        await Apply(workspace, workspaceId, PlaceLibrary(
+        await Apply(workspace, workspaceId, attached, PlaceLibrary(
             mainId,
             "source.input",
             [
@@ -68,13 +69,13 @@ internal sealed class EditorWorkspaceHierarchyTests
                     new LogicVectorParameterValue([LogicValue.Zero])),
             ],
             new GridPoint(0, 0)));
-        await Apply(workspace, workspaceId, new PlaceComponentInstanceIntent(
+        await Apply(workspace, workspaceId, attached, new PlaceComponentInstanceIntent(
             mainId,
             new CircuitDefinitionComponentTarget(child.Id),
             [],
             new ComponentPlacement(new GridPoint(4, 0)),
             "Inverter"));
-        await Apply(workspace, workspaceId, PlaceLibrary(
+        await Apply(workspace, workspaceId, attached, PlaceLibrary(
             mainId,
             "sink.output",
             [
@@ -82,40 +83,50 @@ internal sealed class EditorWorkspaceHierarchyTests
                 new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
             ],
             new GridPoint(8, 0)));
-        var main = (await Read(workspace, workspaceId)).ProjectRevision.Document
+        var main = (await Read(workspace, workspaceId, attached)).ProjectRevision.Document
             .EntryCircuitDefinition;
         var source = LibraryInstance(main, "source.input");
         var call = main.ComponentInstances.Single(instance =>
             instance.Target is CircuitDefinitionComponentTarget);
         var sink = LibraryInstance(main, "sink.output");
-        await Apply(workspace, workspaceId, new ConnectTerminalsIntent(
+        await Apply(workspace, workspaceId, attached, new ConnectTerminalsIntent(
             [
                 new InstanceTerminalReference(mainId, source.Id, "Q"),
                 new InstanceTerminalReference(mainId, call.Id, inputPort.Id.Value),
             ]));
-        await Apply(workspace, workspaceId, new ConnectTerminalsIntent(
+        await Apply(workspace, workspaceId, attached, new ConnectTerminalsIntent(
             [
                 new InstanceTerminalReference(mainId, call.Id, outputPort.Id.Value),
                 new InstanceTerminalReference(mainId, sink.Id, "D"),
             ]));
 
+        var beforeCompilation = await Read(workspace, workspaceId, attached);
         var compiled = await workspace.DispatchAsync(
-            new RequestCompilation(workspaceId),
+            new RequestCompilation(
+                EditorWorkspaceTestDriver.Command(workspaceId, attached),
+                EditorWorkspaceTestDriver.Compilation(beforeCompilation)),
             CancellationToken.None);
+        var compiledProjection = await Read(workspace, workspaceId, attached);
         var sessionCreated = await workspace.DispatchAsync(
-            new CreateSession(workspaceId),
+            new CreateSession(
+                EditorWorkspaceTestDriver.Command(workspaceId, attached),
+                EditorWorkspaceTestDriver.SessionCreation(compiledProjection)),
             CancellationToken.None);
-        var initial = await Read(workspace, workspaceId);
+        var initial = await Read(workspace, workspaceId, attached);
         var scheduled = await workspace.DispatchAsync(
             new ScheduleInputStimulus(
-                workspaceId,
+                EditorWorkspaceTestDriver.Command(workspaceId, attached),
+                EditorWorkspaceTestDriver.SessionMutation(initial),
                 1,
                 [new InputStimulusAssignment(source.Id, [LogicValue.One])]),
             CancellationToken.None);
+        var scheduledProjection = await Read(workspace, workspaceId, attached);
         var stepped = await workspace.DispatchAsync(
-            new StepSession(workspaceId),
+            new StepSession(
+                EditorWorkspaceTestDriver.Command(workspaceId, attached),
+                EditorWorkspaceTestDriver.SessionMutation(scheduledProjection)),
             CancellationToken.None);
-        var afterStep = await Read(workspace, workspaceId);
+        var afterStep = await Read(workspace, workspaceId, attached);
 
         using (Assert.Multiple())
         {
@@ -133,20 +144,26 @@ internal sealed class EditorWorkspaceHierarchyTests
     private static async Task Apply(
         IEditorWorkspace workspace,
         WorkspaceId workspaceId,
+        Attached attached,
         EditIntent intent)
     {
+        var projection = await Read(workspace, workspaceId, attached);
         var outcome = await workspace.DispatchAsync(
-            new ApplyEdit(workspaceId, intent),
+            new ApplyEdit(
+                EditorWorkspaceTestDriver.Command(workspaceId, attached),
+                new AuthoringPrecondition(projection.ProjectRevision.RevisionId),
+                intent),
             CancellationToken.None);
         await Assert.That(outcome).IsTypeOf<AuthoringCommitted>();
     }
 
     private static async Task<WorkspaceProjection> Read(
         IEditorWorkspace workspace,
-        WorkspaceId workspaceId)
+        WorkspaceId workspaceId,
+        Attached attached)
     {
         return ((ProjectionSnapshot)await workspace.ReadAsync(
-            workspaceId,
+            EditorWorkspaceTestDriver.Query(workspaceId, attached),
             CancellationToken.None)).Projection;
     }
 
