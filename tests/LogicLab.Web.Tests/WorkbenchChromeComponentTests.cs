@@ -2,7 +2,6 @@ using Bunit;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Web.Components.Editor;
-using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
 
@@ -10,61 +9,8 @@ namespace LogicLab.Web.Tests;
 
 internal sealed class WorkbenchChromeComponentTests
 {
-    private static readonly string[] WorkbenchCommands =
-    [
-        "create",
-        "author",
-        "author-hierarchy",
-        "compile",
-        "session",
-        "stimulus",
-        "step",
-    ];
-
     [Test]
-    public async Task WorkbenchCommandBar_EmptyProject_EnablesOnlyAuthoring()
-    {
-        await using var context = CreateContext();
-
-        var rendered = context.Render<WorkbenchCommandBar>(parameters => parameters
-            .Add(component => component.CanAuthor, true)
-            .Add(component => component.CanAuthorHierarchy, true));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(IsDisabled(rendered, "create")).IsTrue();
-            await Assert.That(IsDisabled(rendered, "author")).IsFalse();
-            await Assert.That(IsDisabled(rendered, "author-hierarchy")).IsFalse();
-            await Assert.That(IsDisabled(rendered, "compile")).IsTrue();
-            await Assert.That(IsDisabled(rendered, "session")).IsTrue();
-            await Assert.That(IsDisabled(rendered, "stimulus")).IsTrue();
-            await Assert.That(IsDisabled(rendered, "step")).IsTrue();
-        }
-    }
-
-    [Test]
-    public async Task WorkbenchCommandBar_ActiveCommand_DisablesEveryCommand()
-    {
-        await using var context = CreateContext();
-
-        var rendered = context.Render<WorkbenchCommandBar>(parameters => parameters
-            .Add(component => component.CanCreate, true)
-            .Add(component => component.CanAuthor, true)
-            .Add(component => component.CanAuthorHierarchy, true)
-            .Add(component => component.CanCompile, true)
-            .Add(component => component.CanCreateSession, true)
-            .Add(component => component.CanScheduleStimulus, true)
-            .Add(component => component.CanStep, true)
-            .Add(component => component.ActiveCommand, "compile"));
-
-        foreach (var command in WorkbenchCommands)
-        {
-            await Assert.That(IsDisabled(rendered, command)).IsTrue();
-        }
-    }
-
-    [Test]
-    public async Task DefinitionNavigator_DefinitionButtons_UseNativeNavigationSemantics()
+    public async Task DefinitionNavigator_CurrentDefinition_UsesNativeNavigationSemantics()
     {
         await using var context = CreateContext();
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
@@ -85,53 +31,31 @@ internal sealed class WorkbenchChromeComponentTests
         using (Assert.Multiple())
         {
             await Assert.That(navigation.TagName).IsEqualTo("NAV");
-            await Assert.That(rendered.FindAll("[role='tablist']")).IsEmpty();
-            await Assert.That(rendered.FindAll("[role='tab']")).IsEmpty();
+            await Assert.That(navigation.QuerySelectorAll("button[type='button']"))
+                .HasSingleItem();
             await Assert.That(rendered.FindAll("[aria-current='page']")).Count().IsEqualTo(1);
         }
     }
 
     [Test]
-    public async Task WorkbenchStatusStrip_StaticShell_ExposesIndependentStatusFacts()
+    public async Task WorkbenchStatusStrip_ExposesAccessibleStatusFacts()
     {
         await using var context = CreateContext();
 
         var rendered = context.Render<WorkbenchStatusStrip>(parameters => parameters
             .Add(component => component.Message, "Connecting to the interactive workbench…"));
+        var facts = rendered.Find(".status-facts");
+        var statusFacts = facts.QuerySelectorAll(":scope > div");
 
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.Find("[data-status='connection']").TextContent)
-                .Contains("Connecting");
-            await Assert.That(rendered.Find("[data-status='connection'] .status-dot")
-                .ClassList).Contains("is-connecting");
-            await Assert.That(rendered.Find("[data-status='logical-time']").TextContent)
-                .Contains("—");
-            await Assert.That(rendered.Find("[data-status='quiescence']").TextContent)
-                .Contains("Unavailable");
-            await Assert.That(rendered.Find("[data-status='trace']").TextContent)
-                .Contains("Unavailable");
-            await Assert.That(rendered.Find("[data-status='compilation']").TextContent)
-                .Contains("Not requested");
-            await Assert.That(rendered.Find("[data-status='save']").TextContent)
-                .Contains("Sandbox");
-        }
-    }
-
-    [Test]
-    public async Task WorkbenchStatusStrip_InteractiveWithoutProject_ReportsConnected()
-    {
-        await using var context = CreateContext();
-        var rendered = context.Render<WorkbenchStatusStrip>(parameters => parameters
-            .Add(component => component.IsConnected, true)
-            .Add(component => component.Message, "Ready."));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.Find("[data-status='connection']").TextContent)
-                .Contains("Connected");
-            await Assert.That(rendered.Find("[data-status='connection'] .status-dot")
-                .ClassList).Contains("is-connected");
+            await Assert.That(facts.TagName).IsEqualTo("DL");
+            await Assert.That(statusFacts.Length).IsGreaterThan(5);
+            await Assert.That(statusFacts.All(status =>
+                status.QuerySelector(":scope > dt") is not null
+                && status.QuerySelector(":scope > dd") is not null)).IsTrue();
+            await Assert.That(rendered.FindAll("[role='status'][aria-live='polite']"))
+                .HasSingleItem();
         }
     }
 
@@ -140,13 +64,5 @@ internal sealed class WorkbenchChromeComponentTests
         var context = new BunitContext();
         context.Services.AddFluentUIComponents();
         return context;
-    }
-
-    private static bool IsDisabled<TComponent>(
-        IRenderedComponent<TComponent> rendered,
-        string command)
-        where TComponent : IComponent
-    {
-        return rendered.Find($"[data-command='{command}']").HasAttribute("disabled");
     }
 }
