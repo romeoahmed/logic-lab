@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using LogicLab.Domain.Authoring;
 
 namespace LogicLab.Application.Workspaces;
@@ -303,7 +305,9 @@ internal sealed partial class EditorWorkspace
         {
             if (state.IsRetired)
             {
-                return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
+                return command is CloseWorkspace
+                    ? new WorkspaceClosed(command.WorkspaceId)
+                    : Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
 
             lock (state.ContinuityGate)
@@ -593,8 +597,6 @@ internal sealed partial class EditorWorkspace
 
     private static string CanonicalIdentity(WorkspaceCommand command)
     {
-        // Supplying the closed runtime type includes the derived intent's public shape.
-        // Source: https://learn.microsoft.com/dotnet/standard/serialization/system-text-json/polymorphism
         return command switch
         {
             ApplyEdit apply => string.Concat(
@@ -602,9 +604,9 @@ internal sealed partial class EditorWorkspace
                 '|',
                 apply.Precondition.ProjectRevisionId.Value,
                 '|',
-                apply.Intent.GetType().FullName,
-                '|',
-                JsonSerializer.Serialize(apply.Intent, apply.Intent.GetType())),
+                JsonSerializer.Serialize<EditIntent>(
+                    apply.Intent,
+                    CanonicalJsonOptions)),
             Undo undo => string.Concat(
                 nameof(Undo),
                 '|',
@@ -625,7 +627,8 @@ internal sealed partial class EditorWorkspace
                 nameof(CreateSession),
                 '|',
                 JsonSerializer.Serialize(
-                    create.Precondition.CompilationArtifactKey)),
+                    create.Precondition.CompilationArtifactKey,
+                    CanonicalJsonOptions)),
             ScheduleInputStimulus schedule => string.Concat(
                 nameof(ScheduleInputStimulus),
                 '|',
@@ -634,11 +637,14 @@ internal sealed partial class EditorWorkspace
                 schedule.Precondition.SessionVersion,
                 '|',
                 JsonSerializer.Serialize(
-                    schedule.Precondition.CompilationArtifactKey),
+                    schedule.Precondition.CompilationArtifactKey,
+                    CanonicalJsonOptions),
                 '|',
                 schedule.LogicalTime,
                 '|',
-                JsonSerializer.Serialize(schedule.Assignments)),
+                JsonSerializer.Serialize(
+                    schedule.Assignments,
+                    CanonicalJsonOptions)),
             StepSession step => string.Concat(
                 nameof(StepSession),
                 '|',
@@ -647,10 +653,59 @@ internal sealed partial class EditorWorkspace
                 step.Precondition.SessionVersion,
                 '|',
                 JsonSerializer.Serialize(
-                    step.Precondition.CompilationArtifactKey)),
+                    step.Precondition.CompilationArtifactKey,
+                    CanonicalJsonOptions)),
             CloseWorkspace => nameof(CloseWorkspace),
             _ => command.GetType().FullName ?? command.GetType().Name,
         };
+    }
+
+    private static JsonSerializerOptions CanonicalJsonOptions { get; } = new()
+    {
+        TypeInfoResolver = new DomainPolymorphicTypeResolver(),
+    };
+
+    private sealed class DomainPolymorphicTypeResolver : DefaultJsonTypeInfoResolver
+    {
+        private static readonly Type[] ConcreteDomainTypes =
+        [
+            .. typeof(EditIntent).Assembly
+                .GetTypes()
+                .Where(type => !type.IsAbstract && !type.IsInterface)
+                .OrderBy(type => type.FullName, StringComparer.Ordinal),
+        ];
+
+        public override JsonTypeInfo GetTypeInfo(
+            Type type,
+            JsonSerializerOptions options)
+        {
+            var typeInfo = base.GetTypeInfo(type, options);
+            if (!type.IsAbstract || type.Assembly != typeof(EditIntent).Assembly)
+            {
+                return typeInfo;
+            }
+
+            var derivedTypes = ConcreteDomainTypes
+                .Where(candidate => candidate.IsAssignableTo(type))
+                .ToArray();
+            if (derivedTypes.Length == 0)
+            {
+                return typeInfo;
+            }
+
+            typeInfo.PolymorphismOptions = new JsonPolymorphismOptions
+            {
+                TypeDiscriminatorPropertyName = "$type",
+                UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization,
+            };
+            foreach (var derivedType in derivedTypes)
+            {
+                typeInfo.PolymorphismOptions.DerivedTypes.Add(
+                    new JsonDerivedType(derivedType, derivedType.FullName!));
+            }
+
+            return typeInfo;
+        }
     }
 
     private sealed record ContextualCommandPublication(

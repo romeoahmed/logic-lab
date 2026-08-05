@@ -281,6 +281,10 @@ The Workspace mutation and idempotency result share one in-memory commit section
 
 Reusing a Client Intent ID for a different typed command returns `IdempotencyKeyConflict`. A new attachment generation starts a new scope and does not replay unacknowledged old commands automatically.
 
+`CloseWorkspace` is absence-idempotent: closing an already absent or expired Workspace returns
+`WorkspaceClosed` without recreating state. Other commands against the absent Workspace return
+`workspace_not_found`.
+
 Application enforces Workspace Policy authoring admission independently of browser shape
 validation and Compiler policy. It counts the complete nested Edit Intent before execution,
 then counts definitions and authored entities in the candidate Project Document before atomic
