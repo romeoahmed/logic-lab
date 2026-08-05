@@ -21,7 +21,8 @@ internal sealed class ProjectEditorGenesisTests
         using (Assert.Multiple())
         {
             await Assert.That(document.DisplayName).IsEqualTo("Half Adder");
-            await Assert.That(document.LibrarySnapshot).IsSameReferenceAs(LibrarySnapshot.Core);
+            await Assert.That(document.LibrarySnapshot.Fingerprint)
+                .IsEqualTo(seed.LibrarySnapshot.Fingerprint);
             await Assert.That(document.SymbolProfile).IsEqualTo(seed.SymbolProfile);
             await Assert.That(document.CircuitDefinitions).Count().IsEqualTo(1);
             await Assert.That(entryDefinition.DisplayName).IsEqualTo("Main");

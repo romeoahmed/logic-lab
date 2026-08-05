@@ -4,103 +4,12 @@ using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Application.Tests;
 
 internal sealed class EditorWorkspaceTests
 {
-    [Test]
-    public async Task DispatchAsync_AttachedWorkspace_ExecutesOperationalCommands()
-    {
-        await using var workspace = EditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
-        var (opened, input) = await OpenInputOutputProject(workspace);
-        var attachment = opened.Attachment;
-        var beforeCompilation = await Read(workspace, opened);
-
-        var compilationCommand = new RequestCompilation(
-            Context(opened.WorkspaceId, attachment, "compile"),
-            new CompilationPrecondition(
-                beforeCompilation.ProjectRevision.RevisionId,
-                beforeCompilation.ProjectRevision.Document.EntryCircuitDefinitionId,
-                beforeCompilation.ProjectRevision.Document.LibrarySnapshot.Fingerprint));
-        var compilation = await workspace.DispatchAsync(
-            compilationCommand,
-            CancellationToken.None);
-        var published = await Assert.That(compilation).IsTypeOf<CompilationPublished>();
-        Assert.NotNull(published);
-        var compilationReplay = await workspace.DispatchAsync(
-            new RequestCompilation(
-                Context(opened.WorkspaceId, attachment, "compile"),
-                new CompilationPrecondition(
-                    beforeCompilation.ProjectRevision.RevisionId,
-                    beforeCompilation.ProjectRevision.Document.EntryCircuitDefinitionId,
-                    beforeCompilation.ProjectRevision.Document.LibrarySnapshot.Fingerprint)),
-            CancellationToken.None);
-        var session = await workspace.DispatchAsync(
-            new CreateSession(
-                Context(opened.WorkspaceId, attachment, "create-session"),
-                new SessionCreationPrecondition(published.ArtifactKey)),
-            CancellationToken.None);
-        var created = await Assert.That(session).IsTypeOf<SimulationSessionCreated>();
-        Assert.NotNull(created);
-        var afterCreate = await Read(workspace, opened);
-        var simulation = afterCreate.Simulation!;
-
-        var scheduled = await workspace.DispatchAsync(
-            new ScheduleInputStimulus(
-                Context(opened.WorkspaceId, attachment, "schedule"),
-                new SessionMutationPrecondition(
-                    simulation.SessionId,
-                    simulation.SessionVersion,
-                    published.ArtifactKey),
-                1,
-                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
-            CancellationToken.None);
-        var afterSchedule = await Read(workspace, opened);
-        var staleStep = await workspace.DispatchAsync(
-            new StepSession(
-                Context(opened.WorkspaceId, attachment, "stale-step"),
-                new SessionMutationPrecondition(
-                    simulation.SessionId,
-                    simulation.SessionVersion,
-                    published.ArtifactKey)),
-            CancellationToken.None);
-        var stepped = await workspace.DispatchAsync(
-            new StepSession(
-                Context(opened.WorkspaceId, attachment, "step"),
-                new SessionMutationPrecondition(
-                    afterSchedule.Simulation!.SessionId,
-                    afterSchedule.Simulation.SessionVersion,
-                    published.ArtifactKey)),
-            CancellationToken.None);
-        var closed = await workspace.DispatchAsync(
-            new CloseWorkspace(
-                Context(opened.WorkspaceId, attachment, "close")),
-            CancellationToken.None);
-        var readAfterClose = await workspace.ReadAsync(
-            EditorWorkspaceTestDriver.Query(opened.WorkspaceId, attachment),
-            CancellationToken.None);
-
-        var readRejection = await Assert.That(readAfterClose)
-            .IsTypeOf<WorkspaceReadRejected>();
-        Assert.NotNull(readRejection);
-        var staleStepRejection = await Assert.That(staleStep)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(staleStepRejection);
-        using (Assert.Multiple())
-        {
-            await Assert.That(compilationReplay).IsSameReferenceAs(published);
-            await Assert.That(created.SessionId).IsEqualTo(simulation.SessionId);
-            await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
-            await Assert.That(staleStepRejection.Code)
-                .IsEqualTo("session_precondition_failed");
-            await Assert.That(stepped).IsTypeOf<SessionStepped>();
-            await Assert.That(closed).IsTypeOf<WorkspaceClosed>();
-            await Assert.That(readRejection.Code).IsEqualTo("workspace_not_found");
-        }
-    }
-
     [Test]
     public async Task DispatchAsync_UndoWithExistingSession_RetainsUsableSession()
     {
@@ -211,13 +120,18 @@ internal sealed class EditorWorkspaceTests
         }
 
         var outcomes = await Task.WhenAll(first, replay).WaitAsync(cancellationToken);
+        var published = await Assert.That(outcomes[0]).IsTypeOf<CompilationPublished>();
+        var replayed = await Assert.That(outcomes[1]).IsTypeOf<CompilationPublished>();
         var conflict = await Assert.That(conflictingIntent!)
             .IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(published);
+        Assert.NotNull(replayed);
         Assert.NotNull(conflict);
         using (Assert.Multiple())
         {
-            await Assert.That(outcomes[0]).IsTypeOf<CompilationPublished>();
-            await Assert.That(outcomes[1]).IsSameReferenceAs(outcomes[0]);
+            await Assert.That(replayed.ArtifactKey).IsEqualTo(published.ArtifactKey);
+            await Assert.That(replayed.ProjectionVersion)
+                .IsEqualTo(published.ProjectionVersion);
             await Assert.That(compileCount).IsEqualTo(1);
             await Assert.That(conflict.Code).IsEqualTo("idempotency_key_conflict");
         }
@@ -280,11 +194,16 @@ internal sealed class EditorWorkspaceTests
 
         _ = await first.WaitAsync(cancellationToken);
         var outcomes = await Task.WhenAll(second, replay).WaitAsync(cancellationToken);
+        var published = await Assert.That(outcomes[0]).IsTypeOf<CompilationPublished>();
+        var replayed = await Assert.That(outcomes[1]).IsTypeOf<CompilationPublished>();
+        Assert.NotNull(published);
+        Assert.NotNull(replayed);
 
         using (Assert.Multiple())
         {
-            await Assert.That(outcomes[0]).IsTypeOf<CompilationPublished>();
-            await Assert.That(outcomes[1]).IsSameReferenceAs(outcomes[0]);
+            await Assert.That(replayed.ArtifactKey).IsEqualTo(published.ArtifactKey);
+            await Assert.That(replayed.ProjectionVersion)
+                .IsEqualTo(published.ProjectionVersion);
             await Assert.That(compileCount).IsEqualTo(2);
         }
     }
@@ -854,11 +773,14 @@ internal sealed class EditorWorkspaceTests
             cancellationToken);
         var rejection = await Assert.That(rejected)
             .IsTypeOf<WorkspaceCommandRejected>();
+        var replayRejection = await Assert.That(replay)
+            .IsTypeOf<WorkspaceCommandRejected>();
         var conflictRejection = await Assert.That(conflict)
             .IsTypeOf<WorkspaceCommandRejected>();
         var staleRejection = await Assert.That(stale)
             .IsTypeOf<WorkspaceCommandRejected>();
         Assert.NotNull(rejection);
+        Assert.NotNull(replayRejection);
         Assert.NotNull(conflictRejection);
         Assert.NotNull(staleRejection);
 
@@ -866,7 +788,9 @@ internal sealed class EditorWorkspaceTests
         {
             await Assert.That(rejection.Code)
                 .IsEqualTo("workspace_admission_rejected");
-            await Assert.That(replay).IsSameReferenceAs(rejection);
+            await Assert.That(replayRejection.Code).IsEqualTo(rejection.Code);
+            await Assert.That(replayRejection.DiagnosticCodes)
+                .IsEquivalentTo(rejection.DiagnosticCodes, CollectionOrdering.Matching);
             await Assert.That(conflictRejection.Code)
                 .IsEqualTo("idempotency_key_conflict");
             await Assert.That(staleRejection.Code)

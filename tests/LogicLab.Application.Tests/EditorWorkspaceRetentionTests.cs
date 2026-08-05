@@ -326,25 +326,4 @@ internal sealed class EditorWorkspaceRetentionTests
         var typed = await Assert.That(actual).IsTypeOf<T>();
         return typed!;
     }
-
-    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        private DateTimeOffset utcNow = utcNow;
-
-        private long timestamp;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-
-        public override DateTimeOffset GetUtcNow() => utcNow;
-
-        public override long GetTimestamp() => timestamp;
-
-        public void AdjustUtc(TimeSpan duration) => utcNow += duration;
-
-        public void Advance(TimeSpan duration)
-        {
-            utcNow += duration;
-            timestamp += duration.Ticks;
-        }
-    }
 }
