@@ -410,6 +410,7 @@ public static partial class Compiler
                 pending.Add(new PendingHierarchyResolvedInstance(
                     occurrence,
                     instance,
+                    key,
                     kind,
                     portResolution));
             }
@@ -442,6 +443,7 @@ public static partial class Compiler
                 index,
                 pending.Occurrence,
                 pending.Instance,
+                pending.ContractKey,
                 pending.Kind,
                 ports,
                 GetEvaluatorWidth(pending.Kind, ports));
@@ -940,6 +942,7 @@ public static partial class Compiler
         int Ordinal,
         HierarchyOccurrence Occurrence,
         ComponentInstance Instance,
+        ComponentContractKey ContractKey,
         SimulationEvaluatorKind Kind,
         ResolvedComponentPortSchema[] Ports,
         uint Width);
@@ -947,6 +950,7 @@ public static partial class Compiler
     private sealed record PendingHierarchyResolvedInstance(
         HierarchyOccurrence Occurrence,
         ComponentInstance Instance,
+        ComponentContractKey ContractKey,
         SimulationEvaluatorKind Kind,
         ComponentPortResolution PortResolution);
 

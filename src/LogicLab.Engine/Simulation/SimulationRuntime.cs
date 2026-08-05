@@ -53,7 +53,7 @@ public static partial class SimulationRuntime
             var driverValues = CreateDriverValues(ir, sequentialStates);
             var clockEvents = CreateClockEventCalendar(ir);
             var settlement = SettleCombinational(
-                ir,
+                request.CompilationArtifact,
                 driverValues,
                 memoryStates,
                 request.SimulationPolicy,
@@ -103,6 +103,7 @@ public static partial class SimulationRuntime
                 evidence);
         }
         catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
         {
             return Rejected(
                 request,
@@ -117,6 +118,15 @@ public static partial class SimulationRuntime
                 work,
                 SimulationFailureReason.SimulationResourceLimit,
                 Observation(exception.Dimension, exception.Observed));
+        }
+        catch (SimulationContractDefectException exception)
+        {
+            return Rejected(
+                request,
+                work,
+                SimulationFailureReason.SimulationInternalDefect,
+                policyLimitBreach: null,
+                diagnostics: [SimulationContractDefectDiagnostic.Create(exception)]);
         }
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
@@ -155,6 +165,7 @@ public static partial class SimulationRuntime
             };
         }
         catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
         {
             return Failure(
                 state,
@@ -173,6 +184,10 @@ public static partial class SimulationRuntime
                     state.SimulationPolicy.PolicyRevision,
                     DimensionToken(exception.Dimension),
                     exception.Observed));
+        }
+        catch (SimulationContractDefectException exception)
+        {
+            return ContractDefectFailure(state, command, exception);
         }
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
@@ -206,6 +221,7 @@ public static partial class SimulationRuntime
             };
         }
         catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
         {
             return new SimulationReadFailed(
                 SimulationFailureReason.SimulationCancelled,
@@ -406,7 +422,7 @@ public static partial class SimulationRuntime
         }
 
         var settlement = SettleCombinational(
-            state.Artifact!.SimulationIr,
+            state.Artifact!,
             driverValues,
             memoryStates,
             state.SimulationPolicy,
@@ -652,7 +668,7 @@ public static partial class SimulationRuntime
     }
 
     private static SettlementResult SettleCombinational(
-        SimulationIr ir,
+        CompilationArtifact artifact,
         LogicVector[] driverValues,
         LogicVector[]?[] memoryStates,
         SimulationPolicy policy,
@@ -660,7 +676,7 @@ public static partial class SimulationRuntime
         CancellationToken cancellationToken)
     {
         return SettleCombinational(
-            ir,
+            artifact,
             driverValues,
             memoryStates,
             policy,
@@ -681,7 +697,7 @@ public static partial class SimulationRuntime
         var driverValues = CreateDriverValues(artifact.SimulationIr);
         var memoryStates = CreateMemoryStates(artifact.SimulationIr);
         return SettleCombinational(
-            artifact.SimulationIr,
+            artifact,
             driverValues,
             memoryStates,
             policy,
@@ -691,7 +707,7 @@ public static partial class SimulationRuntime
     }
 
     private static SettlementResult SettleCombinational(
-        SimulationIr ir,
+        CompilationArtifact artifact,
         LogicVector[] driverValues,
         LogicVector[]?[] memoryStates,
         SimulationPolicy policy,
@@ -699,6 +715,7 @@ public static partial class SimulationRuntime
         IComparer<int> cyclicEvaluatorOrder,
         CancellationToken cancellationToken)
     {
+        var ir = artifact.SimulationIr;
         var netValues = new LogicVector[ir.Nets.Count];
         var netResolutions = new VectorNetResolution[ir.Nets.Count];
         for (var netOrdinal = 0; netOrdinal < ir.Nets.Count; netOrdinal++)
@@ -718,7 +735,7 @@ public static partial class SimulationRuntime
             if (component.IsCyclic)
             {
                 SettleCyclicComponent(
-                    ir,
+                    artifact,
                     component,
                     netValues,
                     netResolutions,
@@ -773,7 +790,7 @@ public static partial class SimulationRuntime
     }
 
     private static void SettleCyclicComponent(
-        SimulationIr ir,
+        CompilationArtifact artifact,
         CombinationalStronglyConnectedComponent component,
         LogicVector[] netValues,
         VectorNetResolution[] netResolutions,
@@ -784,6 +801,7 @@ public static partial class SimulationRuntime
         IComparer<int> evaluatorOrder,
         CancellationToken cancellationToken)
     {
+        var ir = artifact.SimulationIr;
         var componentMembers = component.EvaluatorOrdinals.ToHashSet();
         var internalDriverOrdinals = component.EvaluatorOrdinals
             .SelectMany(evaluatorOrdinal =>
@@ -850,7 +868,10 @@ public static partial class SimulationRuntime
                 var current = driverValues[driverOrdinal];
                 CombinationalRefinement.RequirePreservingOrRefining(
                     previous,
-                    current);
+                    current,
+                    evaluator.ContractKey,
+                    artifact.SourceMap.Evaluators[evaluatorOrdinal].Source,
+                    artifact.SourceMap.Drivers[driverOrdinal].Source);
                 if (!ValuesEqual(previous, current))
                 {
                     refinedDrivers.Add(driverOrdinal);
@@ -871,7 +892,10 @@ public static partial class SimulationRuntime
                 var resolution = ResolveNet(ir, driverValues, netOrdinal);
                 CombinationalRefinement.RequirePreservingOrRefining(
                     previous,
-                    resolution.Value);
+                    resolution.Value,
+                    evaluator.ContractKey,
+                    artifact.SourceMap.Evaluators[evaluatorOrdinal].Source,
+                    artifact.SourceMap.Nets[netOrdinal].Source);
                 netResolutions[netOrdinal] = resolution;
                 if (ValuesEqual(previous, resolution.Value))
                 {
@@ -1133,20 +1157,22 @@ public static partial class SimulationRuntime
         SimulationSessionState state,
         SimulationCommand command,
         SimulationFailureReason reason,
-        SimulationPolicyEvidence? policyEvidence)
+        SimulationPolicyEvidence? policyEvidence,
+        SimulationDiagnostic[]? diagnostics = null)
     {
+        diagnostics ??= [];
         return command is AdvanceToNextQuiescentBoundary
             ? new AdvanceFailed(
                 state.SessionVersion,
                 state.LogicalTime,
                 reason,
-                [],
+                diagnostics,
                 policyEvidence)
             : new SimulationCommandFailed(
                 state.SessionVersion,
                 state.LogicalTime,
                 reason,
-                [],
+                diagnostics,
                 policyEvidence);
     }
 
@@ -1195,11 +1221,12 @@ public static partial class SimulationRuntime
         OpenSimulationRequest request,
         OpenWorkAccumulator work,
         SimulationFailureReason reason,
-        SimulationWorkObservation? policyLimitBreach)
+        SimulationWorkObservation? policyLimitBreach,
+        params SimulationDiagnostic[] diagnostics)
     {
         return new SimulationOpenRejected(
             reason,
-            [],
+            diagnostics,
             Evidence(
                 request,
                 work,

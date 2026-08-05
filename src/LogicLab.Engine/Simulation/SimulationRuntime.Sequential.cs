@@ -194,7 +194,7 @@ public static partial class SimulationRuntime
 
             previous = netValues;
             settlement = SettleCombinational(
-                ir,
+                artifact,
                 driverValues,
                 memoryStates,
                 policy,
