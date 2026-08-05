@@ -151,6 +151,14 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         var acquisition = AcquireWorkspace(command.WorkspaceId);
         if (acquisition.Lease is null)
         {
+            if (command is CloseWorkspace
+                && acquisition.RejectionReason is
+                    WorkspaceOutcomeReasons.WorkspaceNotFound
+                    or WorkspaceOutcomeReasons.WorkspaceExpired)
+            {
+                return new WorkspaceClosed(command.WorkspaceId);
+            }
+
             return Reject(acquisition.RejectionReason!);
         }
 
@@ -238,11 +246,6 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         if (cancellationToken.IsCancellationRequested)
         {
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
-        }
-
-        if (state.ActiveSession is not null)
-        {
-            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
         if (!AuthoringAdmission.AdmitsCommand(command.Intent, workspacePolicy))

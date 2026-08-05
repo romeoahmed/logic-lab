@@ -1,5 +1,7 @@
 using LogicLab.Application.Workspaces;
+using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
 
 namespace LogicLab.Application.Tests;
 
@@ -563,6 +565,80 @@ internal sealed class EditorWorkspaceContinuityTests
             await Assert.That(rejection.Code).IsEqualTo("idempotency_key_conflict");
             await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.DisplayName)
                 .IsEqualTo("First");
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_ReusedClientIntentWithDifferentPolymorphicPayload_RejectsConflict()
+    {
+        await using var workspace = EditorWorkspaceFactory.Create(
+            buildFingerprint: BuildFingerprint);
+        var opened = await Open(workspace);
+        var attached = await Attach(workspace, opened.WorkspaceId);
+        var revision = opened.Projection.ProjectRevision;
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        var context = Context(opened.WorkspaceId, attached, "same");
+        var precondition = new AuthoringPrecondition(revision.RevisionId);
+        var contract = new ComponentContractKey(
+            CoreLibrarySchema.LibraryId,
+            "logic.not");
+        _ = await IsType<AuthoringCommitted>(await workspace.DispatchAsync(
+            new ApplyEdit(
+                context,
+                precondition,
+                new PlaceComponentInstanceIntent(
+                    definitionId,
+                    contract,
+                    [new ComponentParameterBinding(
+                        "width",
+                        new Unsigned32ParameterValue(1))],
+                    new ComponentPlacement(new GridPoint(0, 0)))),
+            CancellationToken.None));
+
+        var conflict = await workspace.DispatchAsync(
+            new ApplyEdit(
+                context,
+                precondition,
+                new PlaceComponentInstanceIntent(
+                    definitionId,
+                    contract,
+                    [new ComponentParameterBinding(
+                        "width",
+                        new Unsigned32ParameterValue(2))],
+                    new ComponentPlacement(new GridPoint(0, 0)))),
+            CancellationToken.None);
+
+        var rejection = await IsType<WorkspaceCommandRejected>(conflict);
+        var component = (await Read(workspace, opened.WorkspaceId, attached))
+            .ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejection.Code).IsEqualTo("idempotency_key_conflict");
+            await Assert.That(((Unsigned32ParameterValue)component.Parameters.Single().Value)
+                    .Value)
+                .IsEqualTo(1U);
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_ReplayedCloseWorkspace_ReturnsSameSuccess()
+    {
+        await using var workspace = EditorWorkspaceFactory.Create(
+            buildFingerprint: BuildFingerprint);
+        var opened = await Open(workspace);
+        var attached = await Attach(workspace, opened.WorkspaceId);
+        var command = new CloseWorkspace(
+            Context(opened.WorkspaceId, attached, "close"));
+
+        var first = await workspace.DispatchAsync(command, CancellationToken.None);
+        var replay = await workspace.DispatchAsync(command, CancellationToken.None);
+
+        var firstClosed = await IsType<WorkspaceClosed>(first);
+        var replayedClosed = await IsType<WorkspaceClosed>(replay);
+        using (Assert.Multiple())
+        {
+            await Assert.That(firstClosed.WorkspaceId).IsEqualTo(opened.WorkspaceId);
+            await Assert.That(replayedClosed.WorkspaceId).IsEqualTo(opened.WorkspaceId);
         }
     }
 

@@ -11,6 +11,49 @@ namespace LogicLab.Application.Tests;
 internal sealed class EditorWorkspaceTests
 {
     [Test]
+    public async Task DispatchAsync_EditWithExistingSession_CommitsAndRetainsUsableSession()
+    {
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint);
+        var (opened, input) = await OpenInputOutputSession(workspace);
+        var before = await Read(workspace, opened);
+
+        var edit = await workspace.DispatchAsync(
+            new ApplyEdit(
+                Context(opened.WorkspaceId, opened.Attachment, "rename-with-session"),
+                new AuthoringPrecondition(before.ProjectRevision.RevisionId),
+                new RenameCircuitDefinitionIntent(
+                    before.ProjectRevision.Document.EntryCircuitDefinitionId,
+                    "Renamed while simulating")),
+            CancellationToken.None);
+        var after = await Read(workspace, opened);
+        var scheduled = await workspace.DispatchAsync(
+            new ScheduleInputStimulus(
+                Context(opened.WorkspaceId, opened.Attachment, "schedule-after-edit"),
+                new SessionMutationPrecondition(
+                    after.Simulation!.SessionId,
+                    after.Simulation.SessionVersion,
+                    after.Simulation.CompilationArtifactKey),
+                logicalTime: 1,
+                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+            CancellationToken.None);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(edit).IsTypeOf<AuthoringCommitted>();
+            await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.DisplayName)
+                .IsEqualTo("Renamed while simulating");
+            await Assert.That(after.Compilation.Status)
+                .IsEqualTo(CompilationPublicationStatus.NotRequested);
+            await Assert.That(after.Simulation.SessionId)
+                .IsEqualTo(before.Simulation!.SessionId);
+            await Assert.That(after.Simulation.CompilationArtifactKey)
+                .IsEqualTo(before.Simulation.CompilationArtifactKey);
+            await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_UndoWithExistingSession_RetainsUsableSession()
     {
         await using var workspace = EditorWorkspaceFactory.Create(
