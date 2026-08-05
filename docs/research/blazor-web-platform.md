@@ -66,11 +66,13 @@ These facts support one ownership rule: browser adapters own dense pixels, point
 
 Blazor scoped lifetime is per circuit, and circuits can disconnect or be replaced. A long-running analysis or durable edit history should therefore be Application-owned rather than component-owned.
 
-The project uses three typed execution lanes because their lifecycle differs:
+The target Work Coordinator uses three typed execution lanes because their lifecycle differs:
 
 - Compilation coalesces per Workspace and keeps the newest request;
 - Session commands serialize per Session and expose Run/Pause control;
 - analysis queues under bounded global and per-identity fairness and outlives observers.
+
+The current implementation exercises only the bounded Compilation and Session lanes. The Analysis lane arrives with the Boolean Analysis slices; [Development Readiness](../README.md#development-readiness) owns that implementation boundary.
 
 ASP.NET Core hosted-service guidance requires creating an explicit service scope when background work consumes scoped dependencies. Razor event handlers should not create unbounded `Task.Run` work or secondary queues.
 
@@ -99,11 +101,11 @@ Download guidance favors a normal authorized URL for server-generated files, avo
 
 Microsoft's Blazor/EF guidance warns that a scoped `DbContext` can be inappropriate for a long-lived circuit and recommends one context per operation or `IDbContextFactory<T>`.
 
-The initial repository uses EF Core 10 with SQLite because deployment is one ASP.NET Core process. It stores ownership, immutable Project Revision payloads, current pointers, and idempotency records—not a mutable row per gate and wire.
+The planned Infrastructure slice uses EF Core 10 with SQLite because the first deployment is one ASP.NET Core process. That slice is not present in the current solution. Its repository stores ownership, immutable Project Revision payloads, current pointers, and idempotency records—not a mutable row per gate and wire.
 
 Read paths project only needed columns; entity-returning read-only queries use no tracking, with identity resolution chosen deliberately when duplicate materialization matters. Lazy-loading proxies are absent. Save and idempotency use one transaction. A future multi-instance database is a repository adapter and deployment decision, not a Domain change.
 
-ASP.NET Core Identity supplies cookie authentication and account management. Static SSR account pages retain normal HTTP and antiforgery behavior. Every Workspace, Project, Session, Operation, Proposal, upload, and download action still authorizes independently; a locator ID or existing circuit is not authority.
+The target Web Host uses ASP.NET Core Identity for cookie authentication and account management; the current Sandbox tracer has no Identity or durable account surface. When implemented, Static SSR account pages retain normal HTTP and antiforgery behavior. Every Workspace, Project, Session, Operation, Proposal, upload, and download action still authorizes independently; a locator ID or existing circuit is not authority.
 
 ## 8. Security model
 
@@ -122,7 +124,7 @@ Interactive Server compression can create side-channel risk when secrets and att
 
 ## 9. Fluent UI Blazor v5
 
-The [official NuGet version index](https://api.nuget.org/v3-flatcontainer/microsoft.fluentui.aspnetcore.components/index.json), inspected on 2026-07-29, contains only RC builds for v5; its latest listed v5 build is `5.0.0-rc.4-26180.1`, while v4 remains the stable line. [Architecture](../../ARCHITECTURE.md#82-net-and-dependencies) owns the selected package and qualification policy; the exact build must be resolved again when projects are created.
+The [official NuGet version index](https://api.nuget.org/v3-flatcontainer/microsoft.fluentui.aspnetcore.components/index.json), inspected on 2026-07-29 and rechecked on 2026-08-05, contains only RC builds for v5; its latest listed v5 build is `5.0.0-rc.4-26180.1`, while v4 remains the stable line. The Web project now consumes that exact centrally pinned build. [Architecture](../../ARCHITECTURE.md#82-net-and-dependencies) owns package containment and qualification; changing the pin requires a fresh package and browser review.
 
 ## 10. Project handoff
 

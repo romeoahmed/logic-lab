@@ -57,7 +57,7 @@ The inspected checkout is the clean local `../ChezScheme/` repository at commit 
 
 ### 3.2 What Nanopass does—and does not—imply
 
-- **Source fact:** The Nanopass guide describes small, single-purpose passes as easier to inspect, debug, test, and insert. It also identifies raw S-expression costs: pattern-matching/rebuild overhead, traversal boilerplate, and an unenforced grammar. `define-language` and `define-pass` address those costs with formal grammars, record-based terms, generated traversal, and output-language checks ([local `../ChezScheme/nanopass/doc/user-guide.stex`](https://github.com/cisco/ChezScheme/blob/814fa4e063665ef24a48a530ad5534c386c46501/nanopass/doc/user-guide.stex); original framework paper: [Sarkar, Waddell, and Dybvig, 2004](https://doi.org/10.1145/1016850.1016878); commercial compiler report: [Keep and Dybvig, 2013](https://doi.org/10.1145/2500365.2500618)).
+- **Source fact:** The Nanopass guide describes small, single-purpose passes as easier to inspect, debug, test, and insert. It also identifies raw S-expression costs: pattern-matching/rebuild overhead, traversal boilerplate, and an unenforced grammar. `define-language` and `define-pass` address those costs with formal grammars, record-based terms, generated traversal, and output-language checks ([Nanopass framework guide](https://github.com/nanopass/nanopass-framework-scheme/blob/main/doc/user-guide.stex); original framework paper: [Sarkar, Waddell, and Dybvig, 2004](https://doi.org/10.1145/1016850.1016878); commercial compiler report: [Keep and Dybvig, 2013](https://doi.org/10.1145/2500365.2500618)).
 
 **Logic Lab inference:** Chez supports three disciplined choices:
 

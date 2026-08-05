@@ -23,9 +23,9 @@ Conflating these states either blocks implementation on operational facts that c
 
 ## 2. Readiness verdict
 
-The original baseline found Logic Lab ready to begin narrow implementation slices. As of the 2026-08-02 addendum, Phase A items `01` through `06` are executable and the repository can claim a verified implementation build, but not V1 completion or a production release.
+The original baseline found Logic Lab ready to begin narrow implementation slices. The dated 2026-08-02 addendum recorded Phase A items `01` through `06` as executable. That checkpoint is historical; the [Implementation Plan](../implementation-plan.md#delivery-status) is the only maintained completion ledger.
 
-The maintained area-by-area status is the [Development Readiness](../README.md#development-readiness) table. Phase A proved one deep path through the intended seams and established the repository gates. The remaining distance is mostly **implementation breadth and qualification evidence**, including later projects, calibrated policies, and one provider-specific deployment profile—not more general baseline architecture.
+The maintained area-by-area status is the [Development Readiness](../README.md#development-readiness) table. The checkpoint proved one deep path through the intended seams and established the repository gates. Its conclusion remains: implementation breadth and qualification evidence—not more general baseline architecture—separate the executable repository from V1 completion and a production-qualified deployment.
 
 ## 3. SDK, target framework, language, and analyzers
 

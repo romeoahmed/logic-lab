@@ -49,8 +49,8 @@ official release, and the 0.15 line includes .NET 10 support
 
 ## 3. Audit method
 
-The review followed repository ownership from Domain through Engine, Application,
-Presentation, and Web, plus all tests and build infrastructure. It combined:
+At the dated review checkpoint, the audit followed repository ownership from Domain through
+Engine, Application, Presentation, and Web, plus all tests and build infrastructure. It combined:
 
 1. locked restore, warning-clean build, 582-test baseline, formatting, and whitespace gates;
 2. an additional non-incremental `AnalysisLevel=10-all` build to expose optional analyzer
