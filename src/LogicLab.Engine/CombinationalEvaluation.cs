@@ -14,7 +14,7 @@ internal static class CombinationalEvaluation
         IReadOnlyList<LogicVector> inputs)
     {
         ArgumentNullException.ThrowIfNull(inputs);
-        if (inputs.Count < 2 || inputs.Any(input => input is null))
+        if (inputs.Count < 2 || ContainsNull(inputs))
         {
             throw new ArgumentException("A gate requires at least two inputs.", nameof(inputs));
         }
@@ -32,9 +32,12 @@ internal static class CombinationalEvaluation
                 kind,
                 "The evaluator is not a gate family."),
         };
-        var result = inputs.Skip(1).Aggregate(
-            VectorLogic.NormalizeInput(inputs[0]),
-            operation);
+        var result = VectorLogic.NormalizeInput(inputs[0]);
+        for (var index = 1; index < inputs.Count; index++)
+        {
+            result = operation(result, inputs[index]);
+        }
+
         return kind is SimulationEvaluatorKind.LogicNand
             or SimulationEvaluatorKind.LogicNor
             or SimulationEvaluatorKind.LogicXnor
@@ -69,7 +72,7 @@ internal static class CombinationalEvaluation
         ArgumentNullException.ThrowIfNull(selector);
         var expectedCount = OutputCount(selector.Width);
         if (dataInputs.Count != expectedCount
-            || dataInputs.Any(input => input is null))
+            || ContainsNull(dataInputs))
         {
             throw new ArgumentException(
                 "MUX data input count must equal two to the selector width.",
@@ -77,10 +80,15 @@ internal static class CombinationalEvaluation
         }
 
         var normalizedSelector = VectorLogic.NormalizeInput(selector);
-        var reachable = dataInputs
-            .Where((_, index) => IsCompatibleIndex(normalizedSelector, checked((uint)index)))
-            .Select(VectorLogic.NormalizeInput)
-            .ToArray();
+        var reachable = new List<LogicVector>(dataInputs.Count);
+        for (var index = 0; index < dataInputs.Count; index++)
+        {
+            if (IsCompatibleIndex(normalizedSelector, checked((uint)index)))
+            {
+                reachable.Add(VectorLogic.NormalizeInput(dataInputs[index]));
+            }
+        }
+
         return VectorConservativeMerge.Merge(reachable);
     }
 
@@ -93,12 +101,18 @@ internal static class CombinationalEvaluation
         var normalizedData = VectorLogic.NormalizeInput(data);
         var zero = Uniform(data.Width, LogicValue.Zero);
         var selectorIsKnown = IsKnown(normalizedSelector);
-        return [.. Enumerable.Range(0, outputCount)
-            .Select(index => IsCompatibleIndex(normalizedSelector, checked((uint)index))
-                ? selectorIsKnown
-                    ? normalizedData
-                    : VectorConservativeMerge.Merge([normalizedData, zero])
-                : zero)];
+        var selectedData = selectorIsKnown
+            ? normalizedData
+            : VectorConservativeMerge.Merge([normalizedData, zero]);
+        var outputs = new LogicVector[outputCount];
+        for (var index = 0; index < outputs.Length; index++)
+        {
+            outputs[index] = IsCompatibleIndex(normalizedSelector, checked((uint)index))
+                ? selectedData
+                : zero;
+        }
+
+        return outputs;
     }
 
     public static LogicVector[] Decoder(
@@ -112,33 +126,22 @@ internal static class CombinationalEvaluation
         var active = activeHigh ? normalizedEnable : ScalarLogic.Not(normalizedEnable);
         var outputCount = OutputCount(address.Width);
         var addressIsKnown = IsKnown(normalizedAddress);
-        return [.. Enumerable.Range(0, outputCount)
-            .Select(index =>
+        var outputs = new LogicVector[outputCount];
+        for (var index = 0; index < outputs.Length; index++)
+        {
+            var addressMatchesIndex = IsCompatibleIndex(
+                normalizedAddress,
+                checked((uint)index));
+            var output = (active, addressMatchesIndex, addressIsKnown) switch
             {
-                var possible = new List<LogicValue>(3);
-                var addressMatchesIndex = IsCompatibleIndex(
-                    normalizedAddress,
-                    checked((uint)index));
-                if (active is LogicValue.Zero or LogicValue.X)
-                {
-                    possible.Add(LogicValue.Zero);
-                }
+                (_, false, _) or (LogicValue.Zero, _, _) => LogicValue.Zero,
+                (LogicValue.One, true, true) => LogicValue.One,
+                _ => LogicValue.X,
+            };
+            outputs[index] = Uniform(1, output);
+        }
 
-                if (active is LogicValue.One or LogicValue.X)
-                {
-                    if (addressMatchesIndex)
-                    {
-                        possible.Add(LogicValue.One);
-                    }
-
-                    if (!addressIsKnown || !addressMatchesIndex)
-                    {
-                        possible.Add(LogicValue.Zero);
-                    }
-                }
-
-                return Uniform(1, ConservativeMerge.Merge(possible));
-            })];
+        return outputs;
     }
 
     public static PriorityEncoderResult PriorityEncoder(
@@ -153,7 +156,12 @@ internal static class CombinationalEvaluation
                 nameof(inputs));
         }
 
-        var normalized = inputs.Select(ScalarLogic.NormalizeInput).ToArray();
+        var normalized = new LogicValue[inputs.Count];
+        for (var index = 0; index < normalized.Length; index++)
+        {
+            normalized[index] = ScalarLogic.NormalizeInput(inputs[index]);
+        }
+
         var possibleResults = new List<(uint Index, LogicValue Valid)>();
         var candidate = lowestIndex ? 0 : inputs.Count - 1;
         var step = lowestIndex ? 1 : -1;
@@ -176,12 +184,18 @@ internal static class CombinationalEvaluation
 
         var width = Math.Max(1, System.Numerics.BitOperations.Log2(
             checked((uint)inputs.Count - 1)) + 1);
-        var indices = possibleResults
-            .Select(result => UnsignedVector(result.Index, width))
-            .ToArray();
+        var indices = new LogicVector[possibleResults.Count];
+        var validValues = new LogicValue[possibleResults.Count];
+        for (var index = 0; index < possibleResults.Count; index++)
+        {
+            var result = possibleResults[index];
+            indices[index] = UnsignedVector(result.Index, width);
+            validValues[index] = result.Valid;
+        }
+
         return new PriorityEncoderResult(
             VectorConservativeMerge.Merge(indices),
-            ConservativeMerge.Merge([.. possibleResults.Select(result => result.Valid)]));
+            ConservativeMerge.Merge(validValues));
     }
 
     private static bool IsCompatibleIndex(LogicVector selector, uint index)
@@ -200,12 +214,22 @@ internal static class CombinationalEvaluation
 
     private static bool IsKnown(LogicVector value)
     {
-        return Enumerable.Range(0, value.Width).All(index => value[index] != LogicValue.X);
+        for (var index = 0; index < value.Width; index++)
+        {
+            if (value[index] == LogicValue.X)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static LogicVector Uniform(int width, LogicValue value)
     {
-        return new LogicVector([.. Enumerable.Repeat(value, width)]);
+        var values = new LogicValue[width];
+        Array.Fill(values, value);
+        return new LogicVector(values);
     }
 
     private static int OutputCount(int selectorWidth)
@@ -221,10 +245,27 @@ internal static class CombinationalEvaluation
 
     private static LogicVector UnsignedVector(uint value, int width)
     {
-        return new LogicVector(
-            [.. Enumerable.Range(0, width).Select(bit =>
-                ((value >> bit) & 1U) == 0
-                    ? LogicValue.Zero
-                    : LogicValue.One)]);
+        var values = new LogicValue[width];
+        for (var bit = 0; bit < values.Length; bit++)
+        {
+            values[bit] = ((value >> bit) & 1U) == 0
+                ? LogicValue.Zero
+                : LogicValue.One;
+        }
+
+        return new LogicVector(values);
+    }
+
+    private static bool ContainsNull(IReadOnlyList<LogicVector> values)
+    {
+        for (var index = 0; index < values.Count; index++)
+        {
+            if (values[index] is null)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
