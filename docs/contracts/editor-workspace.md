@@ -119,6 +119,8 @@ Success returns `Detached { WorkspaceId, generation }` without changing Projecti
 a stale fence returns `DetachRejected { reason = stale_workspace_attachment }`. Detach is
 idempotent only through the caller's connection-lifecycle coordination: repeating it after
 success is stale. The detached-retention clock starts at the successful transition.
+Its deadline is fixed: reads, rejected commands, and failed reattachment attempts do not
+extend it. A successful reattachment clears that deadline.
 
 Every command context contains:
 
@@ -248,6 +250,12 @@ The snapshot is an in-process composition of owned immutable values, not a seria
 | Run Control | pause an active run | Session ID and Run Generation |
 | Operation | cancel analysis | Operation ID and optional expected terminal/running state |
 | Proposal | accept simplification | Proposal ID, source Project Revision ID, region digest |
+
+The Compilation precondition carries the base Project Revision ID, entry Circuit
+Definition ID, and Library Snapshot fingerprint. Session Creation carries the target
+Compilation Artifact Key. Session Mutation carries the Session ID, expected Session Version,
+and Compilation Artifact Key. These values are compared before execution and are part of the
+canonical Client Intent identity.
 
 `Pause` does not require the rapidly changing Session Version. `StartRun` creates a monotonic Run Generation; Pause targets that generation and becomes effective at the next committed or rolled-back boundary. A delayed Pause cannot stop a later run generation.
 
