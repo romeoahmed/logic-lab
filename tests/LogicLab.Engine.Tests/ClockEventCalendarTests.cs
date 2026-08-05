@@ -1,29 +1,55 @@
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Engine.Simulation;
-using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
 internal sealed class ClockEventCalendarTests
 {
-    [Test]
-    public async Task ReadTimeBucket_SimultaneousEvents_ReturnsStableNonConsumingSnapshot()
+    private const uint LogicalTimeBucketCount = 17;
+
+    [Test, FsCheckProperty]
+    public Property Schedule_ArbitraryBuckets_ReturnsStableSortedSnapshots(
+        int[] logicalTimes)
     {
         var calendar = new ClockEventCalendar();
-        calendar.Schedule(Event(evaluatorOrdinal: 2, logicalTime: 5));
-        calendar.Schedule(Event(evaluatorOrdinal: 0, logicalTime: 5));
-        calendar.Schedule(Event(evaluatorOrdinal: 1, logicalTime: 5));
-
-        var first = calendar.ReadTimeBucket(5);
-        var second = calendar.ReadTimeBucket(5);
-
-        using (Assert.Multiple())
+        var events = logicalTimes
+            .Select((logicalTime, evaluatorOrdinal) => Event(
+                evaluatorOrdinal,
+                unchecked((uint)logicalTime) % LogicalTimeBucketCount))
+            .ToArray();
+        foreach (var scheduledEvent in events.Reverse())
         {
-            await Assert.That(first.Select(item => item.EvaluatorOrdinal))
-                .IsEquivalentTo([0, 1, 2], CollectionOrdering.Matching);
-            await Assert.That(second.Select(item => item.EvaluatorOrdinal))
-                .IsEquivalentTo([0, 1, 2], CollectionOrdering.Matching);
-            await Assert.That(calendar.PeekLogicalTime()).IsEqualTo(5UL);
+            calendar.Schedule(scheduledEvent);
         }
+
+        var expectedBuckets = events
+            .GroupBy(static scheduledEvent => scheduledEvent.LogicalTime)
+            .ToDictionary(
+                static group => group.Key,
+                static group => group
+                    .Select(static scheduledEvent =>
+                        scheduledEvent.Transition.EvaluatorOrdinal)
+                    .Order()
+                    .ToArray());
+        var expectedTime = expectedBuckets.Count == 0
+            ? (ulong?)null
+            : expectedBuckets.Keys.Min();
+        var matches = calendar.PeekLogicalTime() == expectedTime
+            && expectedBuckets.All(bucket =>
+                calendar.ReadTimeBucket(bucket.Key)
+                    .Select(static transition => transition.EvaluatorOrdinal)
+                    .SequenceEqual(bucket.Value)
+                && calendar.ReadTimeBucket(bucket.Key)
+                    .Select(static transition => transition.EvaluatorOrdinal)
+                    .SequenceEqual(bucket.Value))
+            && calendar.PeekLogicalTime() == expectedTime;
+
+        return matches
+            .Label("calendar matches the stable sorted bucket model")
+            .Collect(CountBucket(events.Length))
+            .Collect($"buckets={expectedBuckets.Count}");
     }
 
     [Test]
@@ -57,5 +83,17 @@ internal sealed class ClockEventCalendarTests
                 evaluatorOrdinal,
                 DriverOrdinal: evaluatorOrdinal),
             logicalTime);
+    }
+
+    private static string CountBucket(int count)
+    {
+        return count switch
+        {
+            0 => "events=0",
+            1 => "events=1",
+            <= 8 => "events=2..8",
+            <= 32 => "events=9..32",
+            _ => "events=33+",
+        };
     }
 }

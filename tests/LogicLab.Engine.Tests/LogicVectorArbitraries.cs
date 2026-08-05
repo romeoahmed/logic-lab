@@ -31,12 +31,12 @@ internal sealed record LogicVectorPairCase(
     public override string ToString() => $"Pair(width={Width})";
 }
 
-internal sealed record LogicVectorMergeCase(LogicValue[][] Vectors)
+internal sealed record LogicVectorSetCase(LogicValue[][] Vectors)
 {
     public int Width => Vectors[0].Length;
 
     public override string ToString() =>
-        $"Merge(width={Width}, vectors={Vectors.Length})";
+        $"VectorSet(width={Width}, vectors={Vectors.Length})";
 }
 
 internal sealed record LogicVectorDriverCase(
@@ -101,15 +101,15 @@ internal static class LogicVectorArbitraries
         return Arb.From(generator, ShrinkPair);
     }
 
-    public static Arbitrary<LogicVectorMergeCase> LogicVectorMerge()
+    public static Arbitrary<LogicVectorSetCase> LogicVectorSet()
     {
         var generator =
             from width in WidthGenerator
             from count in Gen.Choose(1, 5)
             from vectors in IndependentVectors(width, count)
-            select new LogicVectorMergeCase(vectors);
+            select new LogicVectorSetCase(vectors);
 
-        return Arb.From(generator, ShrinkMerge);
+        return Arb.From(generator, ShrinkSet);
     }
 
     public static Arbitrary<LogicVectorDriverCase> LogicVectorDrivers()
@@ -203,25 +203,25 @@ internal static class LogicVectorArbitraries
         }
     }
 
-    private static IEnumerable<LogicVectorMergeCase> ShrinkMerge(
-        LogicVectorMergeCase sample)
+    private static IEnumerable<LogicVectorSetCase> ShrinkSet(
+        LogicVectorSetCase sample)
     {
         for (var index = 0; index < sample.Vectors.Length && sample.Vectors.Length > 1; index++)
         {
-            yield return new LogicVectorMergeCase(
+            yield return new LogicVectorSetCase(
                 [.. sample.Vectors.Where(
                     (_, candidateIndex) => candidateIndex != index)]);
         }
 
         foreach (var width in ShrinkWidth(sample.Width))
         {
-            yield return new LogicVectorMergeCase(
+            yield return new LogicVectorSetCase(
                 [.. sample.Vectors.Select(values => values[..width])]);
         }
 
         foreach (var vectors in ShrinkVectorValues(sample.Vectors))
         {
-            yield return new LogicVectorMergeCase(vectors);
+            yield return new LogicVectorSetCase(vectors);
         }
     }
 

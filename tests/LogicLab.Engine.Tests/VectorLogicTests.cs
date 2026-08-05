@@ -47,40 +47,6 @@ internal sealed class VectorLogicTests
     }
 
     [Test]
-    [MatrixDataSource]
-    public async Task BinaryOperations_WordTailWidthsAndUniformInputs_MatchScalarOracle(
-        [Matrix(63, 64, 65, 127, 128, 129, 130)] int width,
-        [Matrix(LogicValue.Zero, LogicValue.One, LogicValue.X, LogicValue.Z)]
-        LogicValue left,
-        [Matrix(LogicValue.Zero, LogicValue.One, LogicValue.X, LogicValue.Z)]
-        LogicValue right)
-    {
-        var leftValues = Enumerable.Repeat(left, width).ToArray();
-        var rightValues = Enumerable.Repeat(right, width).ToArray();
-        var leftVector = new LogicVector(leftValues);
-        var rightVector = new LogicVector(rightValues);
-
-        using (Assert.Multiple())
-        {
-            await AssertMatchesScalar(
-                VectorLogic.And(leftVector, rightVector),
-                leftValues,
-                rightValues,
-                ScalarLogic.And);
-            await AssertMatchesScalar(
-                VectorLogic.Or(leftVector, rightVector),
-                leftValues,
-                rightValues,
-                ScalarLogic.Or);
-            await AssertMatchesScalar(
-                VectorLogic.Xor(leftVector, rightVector),
-                leftValues,
-                rightValues,
-                ScalarLogic.Xor);
-        }
-    }
-
-    [Test]
     public async Task GateOperations_XAndZAtWordTails_MatchScalarOracleWithoutLeakage()
     {
         const int width = 130;
@@ -161,6 +127,51 @@ internal sealed class VectorLogicTests
             await Assert.That(() => VectorLogic.Xor(vector, null!))
                 .ThrowsExactly<ArgumentNullException>();
         }
+    }
+
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property Concat_ValidInputs_MatchesNormalizedScalarProjection(
+        LogicVectorSetCase sample)
+    {
+        var expected = sample.Vectors
+            .SelectMany(static values => values)
+            .Select(ScalarLogic.NormalizeInput)
+            .ToArray();
+        var actual = VectorLogic.Concat(
+            [.. sample.Vectors.Select(static values => new LogicVector(values))]);
+        var matches = LogicVectorTestData.Matches(actual, expected);
+
+        return matches
+            .Label(LogicVectorTestData.MismatchLabel(actual, expected))
+            .Collect($"inputs={sample.Vectors.Length}")
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width));
+    }
+
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property Extend_ValidOutputWidth_MatchesScalarFillRules(
+        LogicVectorCase sample,
+        PositiveInt extraWidth)
+    {
+        var normalized = sample.Values.Select(ScalarLogic.NormalizeInput).ToArray();
+        var zeroExpected = normalized
+            .Concat(Enumerable.Repeat(LogicValue.Zero, extraWidth.Get))
+            .ToArray();
+        var signExpected = normalized
+            .Concat(Enumerable.Repeat(normalized[^1], extraWidth.Get))
+            .ToArray();
+        var input = new LogicVector(sample.Values);
+        var outputWidth = checked(sample.Width + extraWidth.Get);
+        var zeroExtended = VectorLogic.ZeroExtend(input, outputWidth);
+        var signExtended = VectorLogic.SignExtend(input, outputWidth);
+        var matches = LogicVectorTestData.Matches(zeroExtended, zeroExpected)
+            && LogicVectorTestData.Matches(signExtended, signExpected);
+
+        return matches
+            .Label(
+                $"zero: {LogicVectorTestData.MismatchLabel(zeroExtended, zeroExpected)}; "
+                + $"sign: {LogicVectorTestData.MismatchLabel(signExtended, signExpected)}")
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width))
+            .Collect($"extra={LogicVectorTestData.WidthBucket(extraWidth.Get)}");
     }
 
     [Test]

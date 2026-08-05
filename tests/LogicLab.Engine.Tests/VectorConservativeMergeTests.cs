@@ -10,7 +10,7 @@ internal sealed class VectorConservativeMergeTests
 {
     [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
     public Property Merge_NonemptySameWidthVectors_MatchesScalarOracleAtEveryBit(
-        LogicVectorMergeCase sample)
+        LogicVectorSetCase sample)
     {
         var vectors = sample.Vectors
             .Select(values => new LogicVector(values))
