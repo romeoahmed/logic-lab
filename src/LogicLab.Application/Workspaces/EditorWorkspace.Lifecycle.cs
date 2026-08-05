@@ -135,10 +135,12 @@ internal sealed partial class EditorWorkspace
 
     private bool IsExpired(WorkspaceState state, DateTimeOffset now)
     {
-        var retention = state.AttachmentId is not null && !state.IsAttached
-            ? workspacePolicy.DetachedRetention
-            : workspacePolicy.SandboxRetention;
-        return now - state.LastAccessUtc >= retention;
+        if (state.DetachedAtUtc is { } detachedAtUtc)
+        {
+            return now - detachedAtUtc >= workspacePolicy.DetachedRetention;
+        }
+
+        return now - state.LastAccessUtc >= workspacePolicy.SandboxRetention;
     }
 
     private void Release(WorkspaceState state)
@@ -230,7 +232,11 @@ internal sealed partial class EditorWorkspace
 
         public bool IsAttached { get; set; }
 
+        public DateTimeOffset? DetachedAtUtc { get; set; }
+
         public Dictionary<ClientIntentId, IdempotencyRecord> IdempotencyRecords { get; } = [];
+
+        public Dictionary<ClientIntentId, PendingIntent> PendingIntents { get; } = [];
 
         public Queue<ClientIntentId> IdempotencyOrder { get; } = [];
 
@@ -258,6 +264,10 @@ internal sealed partial class EditorWorkspace
     private sealed record IdempotencyRecord(
         string CanonicalIdentity,
         WorkspaceCommandOutcome Outcome);
+
+    private sealed record PendingIntent(
+        string CanonicalIdentity,
+        TaskCompletionSource<WorkspaceCommandOutcome> Completion);
 
     private sealed class WorkspaceLease(EditorWorkspace owner, WorkspaceState state) : IDisposable
     {

@@ -158,10 +158,22 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         var state = lease.State;
         if (command.Context is not null)
         {
-            return await ExecuteContextualCommandAsync(
-                state,
-                command,
-                cancellationToken).ConfigureAwait(false);
+            return command switch
+            {
+                RequestCompilation request => await QueueCompilationAsync(
+                    state,
+                    request,
+                    cancellationToken).ConfigureAwait(false),
+                CreateSession or ScheduleInputStimulus or StepSession =>
+                    await workCoordinator.RunSessionAsync(
+                        state.Id,
+                        token => ExecuteContextualCommandAsync(state, command, token),
+                        cancellationToken).ConfigureAwait(false),
+                _ => await ExecuteContextualCommandAsync(
+                    state,
+                    command,
+                    cancellationToken).ConfigureAwait(false),
+            };
         }
 
         return command switch
@@ -290,7 +302,32 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         WorkspaceState state,
         CancellationToken cancellationToken)
     {
-        Task<WorkspaceCommandOutcome> completion;
+        return await QueueCompilationCoreAsync(
+            state,
+            command: null,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<WorkspaceCommandOutcome> QueueCompilationAsync(
+        WorkspaceState state,
+        RequestCompilation command,
+        CancellationToken cancellationToken)
+    {
+        return await QueueCompilationCoreAsync(
+            state,
+            command,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<WorkspaceCommandOutcome> QueueCompilationCoreAsync(
+        WorkspaceState state,
+        RequestCompilation? command,
+        CancellationToken cancellationToken)
+    {
+        Task<WorkspaceCommandOutcome>? completion = null;
+        ContextualCommandPublication? publication = null;
+        var ownsPendingRecord = false;
+        var shouldQueue = true;
         try
         {
             await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -310,28 +347,114 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
 
-            if (state.AttachmentId is not null)
+            if (command is null && state.AttachmentId is not null)
             {
                 return Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
             }
 
-            var requestedRevision = state.Revision;
-            completion = workCoordinator.RunCompilationAsync(
-                state.Id,
-                context => CompileAsync(state, requestedRevision, context),
-                cancellationToken);
+            if (command is not null)
+            {
+                var context = command.Context!;
+                if (!HasCurrentAttachment(state, context))
+                {
+                    return Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
+                }
+
+                var identity = CanonicalIdentity(command);
+                if (state.IdempotencyRecords.TryGetValue(
+                    context.ClientIntentId,
+                    out var retained))
+                {
+                    return string.Equals(
+                        retained.CanonicalIdentity,
+                        identity,
+                        StringComparison.Ordinal)
+                        ? retained.Outcome
+                        : Reject(WorkspaceOutcomeReasons.IdempotencyKeyConflict);
+                }
+
+                if (state.PendingIntents.TryGetValue(
+                    context.ClientIntentId,
+                    out var pending))
+                {
+                    if (!string.Equals(
+                        pending.CanonicalIdentity,
+                        identity,
+                        StringComparison.Ordinal))
+                    {
+                        return Reject(WorkspaceOutcomeReasons.IdempotencyKeyConflict);
+                    }
+
+                    completion = pending.Completion.Task;
+                    shouldQueue = false;
+                }
+                else
+                {
+                    if (state.IsIdempotencyWindowClosed)
+                    {
+                        return Reject(WorkspaceOutcomeReasons.IdempotencyWindowExpired);
+                    }
+
+                    var precondition = command.Precondition!;
+                    if (precondition.ProjectRevisionId != state.Revision.RevisionId
+                        || precondition.EntryCircuitDefinitionId
+                        != state.Revision.Document.EntryCircuitDefinitionId
+                        || !string.Equals(
+                            precondition.LibrarySnapshotFingerprint,
+                            state.Revision.Document.LibrarySnapshot.Fingerprint,
+                            StringComparison.Ordinal))
+                    {
+                        return Reject(
+                            WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
+                    }
+
+                    publication = new ContextualCommandPublication(
+                        context,
+                        identity);
+                    state.PendingIntents.Add(
+                        context.ClientIntentId,
+                        new PendingIntent(
+                            identity,
+                            new TaskCompletionSource<WorkspaceCommandOutcome>(
+                                TaskCreationOptions.RunContinuationsAsynchronously)));
+                    ownsPendingRecord = true;
+                }
+            }
+
+            if (shouldQueue)
+            {
+                var requestedRevision = state.Revision;
+                completion = workCoordinator.RunCompilationAsync(
+                    state.Id,
+                    context => CompileAsync(
+                        state,
+                        requestedRevision,
+                        publication,
+                        context),
+                    cancellationToken);
+            }
         }
         finally
         {
             state.CommandGate.Release();
         }
 
-        return await completion.ConfigureAwait(false);
+        var completed = await completion!.ConfigureAwait(false);
+        if (ownsPendingRecord)
+        {
+            await CompletePendingIdempotencyAsync(
+                state,
+                publication!,
+                completed).ConfigureAwait(false);
+        }
+
+        return completed;
     }
 
     private async ValueTask<WorkspaceCommandOutcome> CompileAsync(
         WorkspaceState state,
         ProjectRevision requestedRevision,
+        ContextualCommandPublication? publication,
         CompilationWorkContext context)
     {
         var outcome = operations.Compile(
@@ -341,13 +464,14 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 requestedRevision.Document.LibrarySnapshot,
                 DevelopmentProjectScalePolicy),
             context.CancellationToken);
+        WorkspaceCommandOutcome? completed = null;
         if (outcome is CompilationRejected cancelled
             && string.Equals(
                 cancelled.Reason,
                 "compilation_cancelled",
                 StringComparison.Ordinal))
         {
-            return Reject(
+            completed = Reject(
                 cancelled.Reason,
                 cancelled.Diagnostics.Select(item => item.Code));
         }
@@ -368,20 +492,46 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         {
             if (state.IsRetired)
             {
-                return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
+                completed = Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
-
-            if (state.Revision.RevisionId != requestedRevision.RevisionId)
+            else if (publication is not null
+                && !HasCurrentAttachment(state, publication.Context))
             {
-                return Reject(WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
+                completed = Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
             }
-
-            if (state.SessionHandle is not null)
+            else if (state.Revision.RevisionId != requestedRevision.RevisionId)
             {
-                return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
+                completed = Reject(
+                    WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
+            }
+            else if (state.SessionHandle is not null)
+            {
+                completed = Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
             }
 
-            return PublishCompilation(state, outcome, context);
+            completed ??= PublishCompilation(state, outcome, context);
+            if (publication is not null)
+            {
+                CompletePendingIdempotency(state, publication, completed);
+            }
+
+            return completed;
+        }
+        finally
+        {
+            state.CommandGate.Release();
+        }
+    }
+
+    private async ValueTask CompletePendingIdempotencyAsync(
+        WorkspaceState state,
+        ContextualCommandPublication publication,
+        WorkspaceCommandOutcome outcome)
+    {
+        await state.CommandGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            CompletePendingIdempotency(state, publication, outcome);
         }
         finally
         {

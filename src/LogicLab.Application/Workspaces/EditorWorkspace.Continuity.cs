@@ -126,7 +126,7 @@ internal sealed partial class EditorWorkspace
             }
 
             state.IsAttached = false;
-            state.LastAccessUtc = timeProvider.GetUtcNow();
+            state.DetachedAtUtc = timeProvider.GetUtcNow();
             return new Detached(state.Id, state.AttachmentGeneration);
         }
         finally
@@ -137,10 +137,18 @@ internal sealed partial class EditorWorkspace
 
     private static Attached PublishAttachment(WorkspaceState state, ulong generation)
     {
+        foreach (var pending in state.PendingIntents.Values)
+        {
+            pending.Completion.TrySetResult(
+                Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment));
+        }
+
         state.AttachmentId = WorkspaceAttachmentId.Create();
         state.AttachmentGeneration = generation;
         state.IsAttached = true;
+        state.DetachedAtUtc = null;
         state.IdempotencyRecords.Clear();
+        state.PendingIntents.Clear();
         state.IdempotencyOrder.Clear();
         state.IsIdempotencyWindowClosed = false;
         return new Attached(state.AttachmentId, generation, Project(state));
@@ -248,11 +256,13 @@ internal sealed partial class EditorWorkspace
         }
     }
 
-    private async Task<WorkspaceCommandOutcome> ExecuteContextualCommandAsync(
+    private async ValueTask<WorkspaceCommandOutcome> ExecuteContextualCommandAsync(
         WorkspaceState state,
         WorkspaceCommand command,
         CancellationToken cancellationToken)
     {
+        Task<WorkspaceCommandOutcome>? pendingCompletion = null;
+        WorkspaceCommandOutcome? completed = null;
         try
         {
             await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -273,9 +283,7 @@ internal sealed partial class EditorWorkspace
             }
 
             var context = command.Context!;
-            if (!state.IsAttached
-                || state.AttachmentId != context.AttachmentId
-                || state.AttachmentGeneration != context.AttachmentGeneration)
+            if (!HasCurrentAttachment(state, context))
             {
                 return Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
             }
@@ -293,25 +301,74 @@ internal sealed partial class EditorWorkspace
                     : Reject(WorkspaceOutcomeReasons.IdempotencyKeyConflict);
             }
 
-            if (state.IsIdempotencyWindowClosed)
+            if (state.PendingIntents.TryGetValue(
+                context.ClientIntentId,
+                out var pending))
             {
-                return Reject(WorkspaceOutcomeReasons.IdempotencyWindowExpired);
-            }
+                if (!string.Equals(
+                    pending.CanonicalIdentity,
+                    identity,
+                    StringComparison.Ordinal))
+                {
+                    return Reject(WorkspaceOutcomeReasons.IdempotencyKeyConflict);
+                }
 
-            var outcome = command switch
+                pendingCompletion = pending.Completion.Task;
+            }
+            else
             {
-                ApplyEdit apply => ApplyWithPrecondition(state, apply, cancellationToken),
-                Undo undo => MoveHistory(state, undo.Precondition, offset: -1),
-                Redo redo => MoveHistory(state, redo.Precondition, offset: 1),
-                _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
-            };
-            RecordIdempotency(state, context.ClientIntentId, identity, outcome);
-            return outcome;
+                if (state.IsIdempotencyWindowClosed)
+                {
+                    return Reject(WorkspaceOutcomeReasons.IdempotencyWindowExpired);
+                }
+
+                completed = command switch
+                {
+                    ApplyEdit apply => ApplyWithPrecondition(
+                        state,
+                        apply,
+                        cancellationToken),
+                    Undo undo => MoveHistory(state, undo.Precondition, offset: -1),
+                    Redo redo => MoveHistory(state, redo.Precondition, offset: 1),
+                    CreateSession create => OpenSessionWithPrecondition(
+                        state,
+                        create,
+                        cancellationToken),
+                    ScheduleInputStimulus schedule => ScheduleWithPrecondition(
+                        state,
+                        schedule,
+                        cancellationToken),
+                    StepSession step => StepWithPrecondition(
+                        state,
+                        step,
+                        cancellationToken),
+                    CloseWorkspace => Close(state, cancellationToken),
+                    _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
+                };
+                RecordIdempotency(
+                    state,
+                    context.ClientIntentId,
+                    identity,
+                    completed);
+            }
         }
         finally
         {
             state.CommandGate.Release();
         }
+
+        return pendingCompletion is null
+            ? completed!
+            : await pendingCompletion.ConfigureAwait(false);
+    }
+
+    private static bool HasCurrentAttachment(
+        WorkspaceState state,
+        WorkspaceCommandContext context)
+    {
+        return state.IsAttached
+            && state.AttachmentId == context.AttachmentId
+            && state.AttachmentGeneration == context.AttachmentGeneration;
     }
 
     private WorkspaceCommandOutcome ApplyWithPrecondition(
@@ -332,8 +389,7 @@ internal sealed partial class EditorWorkspace
         AuthoringPrecondition precondition,
         int offset)
     {
-        if (state.SessionHandle is not null
-            || precondition.ProjectRevisionId != state.Revision.RevisionId)
+        if (precondition.ProjectRevisionId != state.Revision.RevisionId)
         {
             return Reject(WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
         }
@@ -352,6 +408,55 @@ internal sealed partial class EditorWorkspace
         return new AuthoringCommitted(
             state.Revision.RevisionId,
             state.ProjectionVersion);
+    }
+
+    private WorkspaceCommandOutcome OpenSessionWithPrecondition(
+        WorkspaceState state,
+        CreateSession command,
+        CancellationToken cancellationToken)
+    {
+        if (state.Artifact?.Key != command.Precondition!.CompilationArtifactKey)
+        {
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
+        }
+
+        return OpenSession(state, cancellationToken);
+    }
+
+    private WorkspaceCommandOutcome ScheduleWithPrecondition(
+        WorkspaceState state,
+        ScheduleInputStimulus command,
+        CancellationToken cancellationToken)
+    {
+        if (!MatchesSessionPrecondition(state, command.Precondition!))
+        {
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
+        }
+
+        return Schedule(state, command, cancellationToken);
+    }
+
+    private WorkspaceCommandOutcome StepWithPrecondition(
+        WorkspaceState state,
+        StepSession command,
+        CancellationToken cancellationToken)
+    {
+        if (!MatchesSessionPrecondition(state, command.Precondition!))
+        {
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
+        }
+
+        return Step(state, cancellationToken);
+    }
+
+    private static bool MatchesSessionPrecondition(
+        WorkspaceState state,
+        SessionMutationPrecondition precondition)
+    {
+        return state.Artifact?.Key == precondition.CompilationArtifactKey
+            && state.Simulation is { } simulation
+            && simulation.SessionId == precondition.SessionId
+            && simulation.SessionVersion == precondition.SessionVersion;
     }
 
     private AuthoringCommitted CommitAuthoringRevision(
@@ -401,6 +506,31 @@ internal sealed partial class EditorWorkspace
         }
     }
 
+    private void CompletePendingIdempotency(
+        WorkspaceState state,
+        ContextualCommandPublication publication,
+        WorkspaceCommandOutcome outcome)
+    {
+        var clientIntentId = publication.Context.ClientIntentId;
+        if (!state.PendingIntents.Remove(
+            clientIntentId,
+            out var pending))
+        {
+            return;
+        }
+
+        if (HasCurrentAttachment(state, publication.Context))
+        {
+            RecordIdempotency(
+                state,
+                clientIntentId,
+                publication.CanonicalIdentity,
+                outcome);
+        }
+
+        pending.Completion.TrySetResult(outcome);
+    }
+
     private static string CanonicalIdentity(WorkspaceCommand command)
     {
         // Supplying the closed runtime type includes the derived intent's public shape.
@@ -423,7 +553,47 @@ internal sealed partial class EditorWorkspace
                 nameof(Redo),
                 '|',
                 redo.Precondition.ProjectRevisionId.Value),
+            RequestCompilation request => string.Concat(
+                nameof(RequestCompilation),
+                '|',
+                request.Precondition!.ProjectRevisionId.Value,
+                '|',
+                request.Precondition.EntryCircuitDefinitionId.Value,
+                '|',
+                request.Precondition.LibrarySnapshotFingerprint),
+            CreateSession create => string.Concat(
+                nameof(CreateSession),
+                '|',
+                JsonSerializer.Serialize(
+                    create.Precondition!.CompilationArtifactKey)),
+            ScheduleInputStimulus schedule => string.Concat(
+                nameof(ScheduleInputStimulus),
+                '|',
+                schedule.Precondition!.SessionId.Value,
+                '|',
+                schedule.Precondition.SessionVersion,
+                '|',
+                JsonSerializer.Serialize(
+                    schedule.Precondition.CompilationArtifactKey),
+                '|',
+                schedule.LogicalTime,
+                '|',
+                JsonSerializer.Serialize(schedule.Assignments)),
+            StepSession step => string.Concat(
+                nameof(StepSession),
+                '|',
+                step.Precondition!.SessionId.Value,
+                '|',
+                step.Precondition.SessionVersion,
+                '|',
+                JsonSerializer.Serialize(
+                    step.Precondition.CompilationArtifactKey)),
+            CloseWorkspace => nameof(CloseWorkspace),
             _ => command.GetType().FullName ?? command.GetType().Name,
         };
     }
+
+    private sealed record ContextualCommandPublication(
+        WorkspaceCommandContext Context,
+        string CanonicalIdentity);
 }

@@ -1,4 +1,6 @@
 using LogicLab.Domain.Authoring;
+using LogicLab.Engine.Compilation;
+using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Application.Workspaces;
 
@@ -68,6 +70,60 @@ public sealed record AuthoringPrecondition
     }
 
     public ProjectRevisionId ProjectRevisionId { get; }
+}
+
+public sealed record CompilationPrecondition
+{
+    public CompilationPrecondition(
+        ProjectRevisionId projectRevisionId,
+        CircuitDefinitionId entryCircuitDefinitionId,
+        string librarySnapshotFingerprint)
+    {
+        ArgumentNullException.ThrowIfNull(projectRevisionId);
+        ArgumentNullException.ThrowIfNull(entryCircuitDefinitionId);
+        ArgumentException.ThrowIfNullOrEmpty(librarySnapshotFingerprint);
+        ProjectRevisionId = projectRevisionId;
+        EntryCircuitDefinitionId = entryCircuitDefinitionId;
+        LibrarySnapshotFingerprint = librarySnapshotFingerprint;
+    }
+
+    public ProjectRevisionId ProjectRevisionId { get; }
+
+    public CircuitDefinitionId EntryCircuitDefinitionId { get; }
+
+    public string LibrarySnapshotFingerprint { get; }
+}
+
+public sealed record SessionCreationPrecondition
+{
+    public SessionCreationPrecondition(CompilationArtifactKey compilationArtifactKey)
+    {
+        ArgumentNullException.ThrowIfNull(compilationArtifactKey);
+        CompilationArtifactKey = compilationArtifactKey;
+    }
+
+    public CompilationArtifactKey CompilationArtifactKey { get; }
+}
+
+public sealed record SessionMutationPrecondition
+{
+    public SessionMutationPrecondition(
+        SimulationSessionId sessionId,
+        ulong sessionVersion,
+        CompilationArtifactKey compilationArtifactKey)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+        ArgumentNullException.ThrowIfNull(compilationArtifactKey);
+        SessionId = sessionId;
+        SessionVersion = sessionVersion;
+        CompilationArtifactKey = compilationArtifactKey;
+    }
+
+    public SimulationSessionId SessionId { get; }
+
+    public ulong SessionVersion { get; }
+
+    public CompilationArtifactKey CompilationArtifactKey { get; }
 }
 
 public sealed record TransactionHistoryAvailability(

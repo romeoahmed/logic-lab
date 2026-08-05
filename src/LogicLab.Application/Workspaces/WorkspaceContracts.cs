@@ -122,6 +122,17 @@ public sealed record RequestCompilation : WorkspaceCommand
         : base(workspaceId)
     {
     }
+
+    public RequestCompilation(
+        WorkspaceCommandContext context,
+        CompilationPrecondition precondition)
+        : base(context)
+    {
+        ArgumentNullException.ThrowIfNull(precondition);
+        Precondition = precondition;
+    }
+
+    public CompilationPrecondition? Precondition { get; }
 }
 
 public sealed record CreateSession : WorkspaceCommand
@@ -130,6 +141,17 @@ public sealed record CreateSession : WorkspaceCommand
         : base(workspaceId)
     {
     }
+
+    public CreateSession(
+        WorkspaceCommandContext context,
+        SessionCreationPrecondition precondition)
+        : base(context)
+    {
+        ArgumentNullException.ThrowIfNull(precondition);
+        Precondition = precondition;
+    }
+
+    public SessionCreationPrecondition? Precondition { get; }
 }
 
 public sealed record InputStimulusAssignment
@@ -161,9 +183,24 @@ public sealed record ScheduleInputStimulus : WorkspaceCommand
         Assignments = CopyAssignments(assignments);
     }
 
+    public ScheduleInputStimulus(
+        WorkspaceCommandContext context,
+        SessionMutationPrecondition precondition,
+        ulong logicalTime,
+        IReadOnlyList<InputStimulusAssignment> assignments)
+        : base(context)
+    {
+        ArgumentNullException.ThrowIfNull(precondition);
+        Precondition = precondition;
+        LogicalTime = logicalTime;
+        Assignments = CopyAssignments(assignments);
+    }
+
     public ulong LogicalTime { get; }
 
     public ReadOnlyCollection<InputStimulusAssignment> Assignments { get; }
+
+    public SessionMutationPrecondition? Precondition { get; }
 
     private static ReadOnlyCollection<InputStimulusAssignment> CopyAssignments(
         IReadOnlyList<InputStimulusAssignment> assignments)
@@ -187,12 +224,28 @@ public sealed record StepSession : WorkspaceCommand
         : base(workspaceId)
     {
     }
+
+    public StepSession(
+        WorkspaceCommandContext context,
+        SessionMutationPrecondition precondition)
+        : base(context)
+    {
+        ArgumentNullException.ThrowIfNull(precondition);
+        Precondition = precondition;
+    }
+
+    public SessionMutationPrecondition? Precondition { get; }
 }
 
 public sealed record CloseWorkspace : WorkspaceCommand
 {
     public CloseWorkspace(WorkspaceId workspaceId)
         : base(workspaceId)
+    {
+    }
+
+    public CloseWorkspace(WorkspaceCommandContext context)
+        : base(context)
     {
     }
 }

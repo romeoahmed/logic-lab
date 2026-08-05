@@ -99,6 +99,45 @@ internal sealed class EditorWorkspaceContinuityTests
     }
 
     [Test]
+    public async Task AttachAsync_DetachedRead_DoesNotExtendRetention()
+    {
+        var timeProvider = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
+        await using var workspace = EditorWorkspaceFactory.Create(
+            Policy(detachedRetention: TimeSpan.FromMinutes(5)),
+            timeProvider: timeProvider,
+            buildFingerprint: BuildFingerprint);
+        var opened = await Open(workspace);
+        var attached = await Attach(workspace, opened.WorkspaceId);
+        _ = await IsType<Detached>(await workspace.DetachAsync(
+            new DetachRequest(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation),
+            CancellationToken.None));
+        timeProvider.Advance(TimeSpan.FromMinutes(4));
+
+        var detachedRead = await workspace.ReadAsync(
+            opened.WorkspaceId,
+            CancellationToken.None);
+        timeProvider.Advance(TimeSpan.FromMinutes(1));
+        var outcome = await workspace.AttachAsync(
+            new Reattach(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                attached.Projection.ProjectionVersion,
+                BuildFingerprint),
+            CancellationToken.None);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(detachedRead).IsTypeOf<ProjectionSnapshot>();
+            await Assert.That(outcome).IsTypeOf<Expired>();
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_DetachedWorkspace_RejectsCommandsUntilReattached()
     {
         await using var workspace = EditorWorkspaceFactory.Create(
