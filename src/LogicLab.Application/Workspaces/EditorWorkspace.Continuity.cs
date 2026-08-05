@@ -504,7 +504,7 @@ internal sealed partial class EditorWorkspace
         WorkspaceState state,
         SessionMutationPrecondition precondition)
     {
-        return state.Artifact?.Key == precondition.CompilationArtifactKey
+        return state.ActiveSession?.Artifact.Key == precondition.CompilationArtifactKey
             && state.Simulation is { } simulation
             && simulation.SessionId == precondition.SessionId
             && simulation.SessionVersion == precondition.SessionVersion;

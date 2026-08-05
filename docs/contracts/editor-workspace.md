@@ -257,6 +257,11 @@ Compilation Artifact Key. Session Mutation carries the Session ID, expected Sess
 and Compilation Artifact Key. These values are compared before execution and are part of the
 canonical Client Intent identity.
 
+The Session summary retains its Compilation Artifact Key independently of the current
+Compilation state. Undo, Redo, or a later edit can make the current Project Revision require
+new Compilation while the existing Session continues against the Project Revision and Artifact
+that created it.
+
 `Pause` does not require the rapidly changing Session Version. `StartRun` creates a monotonic Run Generation; Pause targets that generation and becomes effective at the next committed or rolled-back boundary. A delayed Pause cannot stop a later run generation.
 
 `CreateSession` allocates its Session ID and version on success. `ClaimSandbox` allocates its Durable Project ID and initial Durable Version on success. These are closed absence preconditions, not null sentinels.

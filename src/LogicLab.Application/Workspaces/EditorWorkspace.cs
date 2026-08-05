@@ -238,7 +238,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
-        if (state.SessionHandle is not null)
+        if (state.ActiveSession is not null)
         {
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
@@ -428,7 +428,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 completed = Reject(
                     WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
             }
-            else if (state.SessionHandle is not null)
+            else if (state.ActiveSession is not null)
             {
                 completed = Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
             }
@@ -500,7 +500,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         CancellationToken cancellationToken)
     {
         var artifact = state.Artifact;
-        if (state.SessionHandle is not null || artifact is null)
+        if (state.ActiveSession is not null || artifact is null)
         {
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
@@ -565,7 +565,10 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
-        state.SessionHandle = opened.Handle;
+        state.ActiveSession = new ActiveSessionContext(
+            opened.Handle,
+            state.Revision,
+            artifact);
         state.Simulation = simulation!;
         state.ProjectionVersion++;
         return new SimulationSessionCreated(
@@ -578,10 +581,9 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         ScheduleInputStimulus command,
         CancellationToken cancellationToken)
     {
-        var sessionHandle = state.SessionHandle;
-        var artifact = state.Artifact;
+        var activeSession = state.ActiveSession;
         var simulation = state.Simulation;
-        if (sessionHandle is null || artifact is null || simulation is null)
+        if (activeSession is null || simulation is null)
         {
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
@@ -592,11 +594,11 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
 
         var assignments = new List<StimulusAssignment>(command.Assignments.Count);
-        var definition = state.Revision.Document.EntryCircuitDefinition;
+        var definition = activeSession.ProjectRevision.Document.EntryCircuitDefinition;
         foreach (var assignment in command.Assignments)
         {
             if (!TryCreateStimulusAssignment(
-                    artifact,
+                    activeSession.Artifact,
                     definition,
                     assignment,
                     out var stimulusAssignment))
@@ -608,7 +610,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
 
         var outcome = operations.ExecuteSimulation(
-            sessionHandle,
+            activeSession.Handle,
             new LogicLab.Engine.Simulation.ScheduleStimulusBatch(
                 new StimulusBatch(command.LogicalTime, assignments)),
             cancellationToken);
@@ -632,6 +634,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         state.Simulation = new SimulationProjection(
             simulation.SessionId,
             scheduled.SessionVersion,
+            simulation.CompilationArtifactKey,
             simulation.LogicalTime,
             simulation.TraceCursor,
             simulation.Probes);
@@ -645,15 +648,15 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         WorkspaceState state,
         CancellationToken cancellationToken)
     {
-        var sessionHandle = state.SessionHandle;
+        var activeSession = state.ActiveSession;
         var simulation = state.Simulation;
-        if (sessionHandle is null || simulation is null)
+        if (activeSession is null || simulation is null)
         {
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
         var outcome = operations.ExecuteSimulation(
-            sessionHandle,
+            activeSession.Handle,
             new AdvanceToNextQuiescentBoundary(),
             cancellationToken);
         if (outcome is NoScheduledStimulus)
@@ -676,6 +679,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         state.Simulation = new SimulationProjection(
             simulation.SessionId,
             committed.SessionVersion,
+            simulation.CompilationArtifactKey,
             committed.LogicalTime,
             committed.TraceCursor,
             ApplyProbePatch(simulation.Probes, committed.ObservedProbePatch));
@@ -815,6 +819,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         simulation = new SimulationProjection(
             snapshot.SessionId,
             snapshot.SessionVersion,
+            snapshot.CompilationArtifactKey,
             snapshot.LogicalTime,
             snapshot.TraceCursor,
             [.. snapshot.Probes.Select(probe => new ProbeProjection(

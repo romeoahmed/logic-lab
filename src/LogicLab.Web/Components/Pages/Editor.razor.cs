@@ -390,12 +390,10 @@ public partial class Editor(IEditorWorkspace workspace) : IAsyncDisposable
             ?? throw new InvalidOperationException("Workspace is not open.");
         var simulation = projection.Simulation
             ?? throw new InvalidOperationException("Simulation Session is not open.");
-        var artifactKey = projection.Compilation.ArtifactKey
-            ?? throw new InvalidOperationException("Compilation is not published.");
         return new SessionMutationPrecondition(
             simulation.SessionId,
             simulation.SessionVersion,
-            artifactKey);
+            simulation.CompilationArtifactKey);
     }
 
     private void ProjectScene()
