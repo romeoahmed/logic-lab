@@ -67,8 +67,12 @@ public partial class Editor(IEditorWorkspace workspace)
         && Projection?.Simulation is null
         && Projection?.Compilation.Status is CompilationPublicationStatus.Published;
 
+    private bool HasProgrammableInputs => Projection?.ProjectRevision.Document
+        .EntryCircuitDefinition.ComponentInstances.Any(IsProgrammableInput) is true;
+
     private bool CanScheduleStimulus => CommandsAvailable
         && Projection?.Simulation is not null
+        && HasProgrammableInputs
         && !StimulusIsScheduled;
 
     private bool CanStep => CommandsAvailable
@@ -209,22 +213,33 @@ public partial class Editor(IEditorWorkspace workspace)
     private async Task CreateSimulationSession()
     {
         var outcome = await Execute(new CreateSession(Projection!.WorkspaceId));
-        Status = outcome is SimulationSessionCreated
+        if (outcome is not SimulationSessionCreated)
+        {
+            Status = $"Session creation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+            return;
+        }
+
+        Status = HasProgrammableInputs
             ? "Simulation Session created at Logical Time 0."
-            : $"Session creation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+            : "Simulation Session created at Logical Time 0. "
+                + "This circuit has no programmable inputs, so stimulus is unavailable.";
     }
 
     private async Task ScheduleStimulus()
     {
-        var input = Find("source.input");
+        var assignments = Projection!.ProjectRevision.Document.EntryCircuitDefinition
+            .ComponentInstances
+            .Where(IsProgrammableInput)
+            .Select(CreateHighStimulus)
+            .ToArray();
         var logicalTime = checked(Projection!.Simulation!.LogicalTime + 1);
         var outcome = await Execute(new ScheduleInputStimulus(
             Projection.WorkspaceId,
             logicalTime,
-            [new InputStimulusAssignment(input.Id, [LogicValue.One])]));
+            assignments));
         StimulusIsScheduled = outcome is StimulusScheduled;
         Status = StimulusIsScheduled
-            ? $"Input 1 scheduled for Logical Time {logicalTime}."
+            ? $"Programmable inputs set to 1 at Logical Time {logicalTime}."
             : $"Stimulus rejected: {((WorkspaceCommandRejected)outcome).Code}.";
     }
 
@@ -233,7 +248,7 @@ public partial class Editor(IEditorWorkspace workspace)
         var outcome = await Execute(new StepSession(Projection!.WorkspaceId));
         StimulusIsScheduled = false;
         Status = outcome is SessionStepped stepped
-            ? $"Step committed at Logical Time {stepped.LogicalTime}; output probe is now 0."
+            ? $"Step committed at Logical Time {stepped.LogicalTime}."
             : $"Step rejected: {((WorkspaceCommandRejected)outcome).Code}.";
     }
 
@@ -318,9 +333,36 @@ public partial class Editor(IEditorWorkspace workspace)
 
     private ComponentInstance Find(string contractId)
     {
+        var key = Contract(contractId);
         return Projection!.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances
             .Single(instance => instance.Target is LibraryComponentTarget library
-                && library.ContractKey.ContractId == contractId);
+                && library.ContractKey == key);
+    }
+
+    private static bool IsProgrammableInput(ComponentInstance instance)
+    {
+        return instance.Target is LibraryComponentTarget library
+            && string.Equals(
+                library.ContractKey.LibraryId,
+                CoreLibrarySchema.LibraryId,
+                StringComparison.Ordinal)
+            && string.Equals(
+                library.ContractKey.ContractId,
+                "source.input",
+                StringComparison.Ordinal);
+    }
+
+    private static InputStimulusAssignment CreateHighStimulus(ComponentInstance input)
+    {
+        var width = input.Parameters.Single(parameter => string.Equals(
+            parameter.ParameterId,
+            "width",
+            StringComparison.Ordinal)).Value as Unsigned32ParameterValue
+            ?? throw new InvalidOperationException(
+                "A programmable input must define its validated width.");
+        return new InputStimulusAssignment(
+            input.Id,
+            [.. Enumerable.Repeat(LogicValue.One, checked((int)width.Value))]);
     }
 
     private static ComponentContractKey Contract(string contractId)

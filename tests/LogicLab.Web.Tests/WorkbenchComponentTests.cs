@@ -120,7 +120,7 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task Editor_AuthorSteeringGallery_RendersGeneratedPortsAndCompiles()
+    public async Task Editor_SteeringGallery_CreatesSessionWithoutOfferingUnavailableStimulus()
     {
         await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
@@ -161,10 +161,16 @@ internal sealed class WorkbenchComponentTests
             "compile",
             () => rendered.Find("[role='status']").TextContent
                 .Contains("Compilation Artifact published", StringComparison.Ordinal));
+        await ClickAndWaitForState(
+            rendered,
+            "session",
+            () => IsDisabled(rendered, "stimulus")
+                && rendered.Find("[role='status']").TextContent
+                    .Contains("no programmable inputs", StringComparison.Ordinal));
     }
 
     [Test]
-    public async Task Editor_AuthorArithmeticGallery_RendersExactCheckedPorts()
+    public async Task Editor_ArithmeticGallery_CreatesSessionWithoutOfferingUnavailableStimulus()
     {
         await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
@@ -196,6 +202,17 @@ internal sealed class WorkbenchComponentTests
             await Assert.That(shift.TextContent).Contains("AMOUNT · Input · 2 bit");
             await Assert.That(shift.TextContent).Contains("Q · Output · 3 bit");
         }
+
+        await ClickAndWaitForState(
+            rendered,
+            "compile",
+            () => !IsDisabled(rendered, "session"));
+        await ClickAndWaitForState(
+            rendered,
+            "session",
+            () => IsDisabled(rendered, "stimulus")
+                && rendered.Find("[role='status']").TextContent
+                    .Contains("no programmable inputs", StringComparison.Ordinal));
     }
 
     [Test]

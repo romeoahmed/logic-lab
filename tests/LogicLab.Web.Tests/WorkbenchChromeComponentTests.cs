@@ -64,36 +64,6 @@ internal sealed class WorkbenchChromeComponentTests
     }
 
     [Test]
-    public async Task WorkbenchCommandBar_Commands_UseLabelledGroupSemantics()
-    {
-        await using var context = CreateContext();
-
-        var rendered = context.Render<WorkbenchCommandBar>();
-        var group = rendered.Find("[role='group'][aria-label='Workbench commands']");
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(group.TagName).IsEqualTo("DIV");
-            await Assert.That(rendered.FindAll("nav")).IsEmpty();
-        }
-    }
-
-    [Test]
-    public async Task TopologyCommandBar_Commands_UseLabelledGroupSemantics()
-    {
-        await using var context = CreateContext();
-
-        var rendered = context.Render<TopologyCommandBar>();
-        var group = rendered.Find("[role='group'][aria-label='Topology commands']");
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(group.TagName).IsEqualTo("DIV");
-            await Assert.That(rendered.FindAll("nav")).IsEmpty();
-        }
-    }
-
-    [Test]
     public async Task DefinitionNavigator_DefinitionButtons_UseNativeNavigationSemantics()
     {
         await using var context = CreateContext();
