@@ -10,7 +10,8 @@ internal sealed class EditorWorkspaceHierarchyTests
     [Test]
     public async Task DispatchAsync_HierarchicalCircuit_CompilesAndSimulatesAcrossBoundary()
     {
-        await using var workspace = EditorWorkspaceFactory.Create();
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint);
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Hierarchy project", "Main"),
             CancellationToken.None);

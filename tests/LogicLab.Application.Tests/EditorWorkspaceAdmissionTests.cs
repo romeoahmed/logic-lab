@@ -151,7 +151,14 @@ internal sealed class EditorWorkspaceAdmissionTests
     private static IEditorWorkspace CreateWorkspace(WorkspaceAuthoringLimits limits)
     {
         return EditorWorkspaceFactory.Create(
-            workspacePolicy: new WorkspacePolicy(128, TimeSpan.FromMinutes(30), limits));
+            WorkspaceBuild.DevelopmentFingerprint,
+            workspacePolicy: new WorkspacePolicy(
+                globalWorkspaceLimit: 128,
+                sandboxRetention: TimeSpan.FromMinutes(30),
+                authoringLimits: limits,
+                historyRevisionCount: 128,
+                idempotencyRecordCount: 1_024,
+                detachedRetention: TimeSpan.FromMinutes(30)));
     }
 
     private static async Task<ControlledWorkspace> OpenWorkspace(

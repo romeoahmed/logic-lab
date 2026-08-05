@@ -12,7 +12,8 @@ internal sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_AttachedWorkspace_ExecutesOperationalCommands()
     {
-        await using var workspace = EditorWorkspaceFactory.Create();
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint);
         var (opened, input) = await OpenInputOutputProject(workspace);
         var attachment = opened.Attachment;
         var beforeCompilation = await Read(workspace, opened);
@@ -103,7 +104,8 @@ internal sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_UndoWithExistingSession_RetainsUsableSession()
     {
-        await using var workspace = EditorWorkspaceFactory.Create();
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint);
         var (opened, input) = await OpenInputOutputSession(workspace);
         var before = await Read(workspace, opened);
         var attachment = opened.Attachment;
@@ -290,7 +292,8 @@ internal sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_ValidNarrowCircuit_ObservesProbeAcrossOneStep()
     {
-        await using var workspace = EditorWorkspaceFactory.Create();
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint);
         var opened = await Open(workspace);
         var revision = opened.Projection.ProjectRevision;
         var definitionId = revision.Document.EntryCircuitDefinitionId;
@@ -384,7 +387,8 @@ internal sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_IncompleteCircuit_DoesNotPublishArtifactOrCreateSession()
     {
-        await using var workspace = EditorWorkspaceFactory.Create();
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint);
         var opened = await Open(workspace);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
         await Apply(workspace, opened, Place(
@@ -432,7 +436,8 @@ internal sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_CancelledCompilation_DoesNotChangeProjection()
     {
-        await using var workspace = EditorWorkspaceFactory.Create();
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint);
         var opened = await Open(workspace);
         var before = await Read(workspace, opened);
         var cancellationToken = new CancellationToken(canceled: true);
@@ -457,7 +462,8 @@ internal sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_ExplicitTopologyEdit_PublishesWholeRevision()
     {
-        await using var workspace = EditorWorkspaceFactory.Create();
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint);
         var opened = await Open(workspace);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
         await Apply(workspace, opened, Place(
@@ -520,7 +526,8 @@ internal sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_CancelledTopologyEdit_EmitsNoProjectRevision()
     {
-        await using var workspace = EditorWorkspaceFactory.Create();
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint);
         var (opened, _) = await OpenInputOutputSession(workspace);
         var before = await Read(workspace, opened);
         var definition = before.ProjectRevision.Document.EntryCircuitDefinition;
@@ -633,7 +640,8 @@ internal sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_EmptyInputStimulus_ReturnsClosedPreconditionRejection()
     {
-        await using var workspace = EditorWorkspaceFactory.Create();
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint);
         var (opened, input) = await OpenInputOutputSession(workspace);
 
         var outcome = await workspace.DispatchAsync(
@@ -653,7 +661,8 @@ internal sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_WrongWidthInputStimulus_ReturnsClosedPreconditionRejection()
     {
-        await using var workspace = EditorWorkspaceFactory.Create();
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint);
         var (opened, input) = await OpenInputOutputSession(workspace);
 
         var outcome = await workspace.DispatchAsync(
@@ -673,7 +682,8 @@ internal sealed class EditorWorkspaceTests
     [Test]
     public async Task DispatchAsync_StepWithoutScheduledStimulus_ReturnsSimulationReason()
     {
-        await using var workspace = EditorWorkspaceFactory.Create();
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint);
         var (opened, _) = await OpenInputOutputSession(workspace);
 
         var outcome = await workspace.DispatchAsync(

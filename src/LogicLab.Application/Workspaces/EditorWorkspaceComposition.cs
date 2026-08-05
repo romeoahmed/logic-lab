@@ -61,20 +61,6 @@ public sealed record WorkspacePolicy
     public WorkspacePolicy(
         int globalWorkspaceLimit,
         TimeSpan sandboxRetention,
-        WorkspaceAuthoringLimits authoringLimits)
-        : this(
-            globalWorkspaceLimit,
-            sandboxRetention,
-            authoringLimits,
-            historyRevisionCount: 128,
-            idempotencyRecordCount: 1_024,
-            detachedRetention: sandboxRetention)
-    {
-    }
-
-    public WorkspacePolicy(
-        int globalWorkspaceLimit,
-        TimeSpan sandboxRetention,
         WorkspaceAuthoringLimits authoringLimits,
         int historyRevisionCount,
         int idempotencyRecordCount,
@@ -114,7 +100,10 @@ public sealed record WorkspacePolicy
     public static WorkspacePolicy Default { get; } = new(
         globalWorkspaceLimit: 128,
         sandboxRetention: TimeSpan.FromMinutes(30),
-        authoringLimits: WorkspaceAuthoringLimits.Default);
+        authoringLimits: WorkspaceAuthoringLimits.Default,
+        historyRevisionCount: 128,
+        idempotencyRecordCount: 1_024,
+        detachedRetention: TimeSpan.FromMinutes(30));
 }
 
 public sealed record SchedulingPolicy
@@ -139,11 +128,11 @@ public sealed record SchedulingPolicy
 public static class EditorWorkspaceFactory
 {
     public static IEditorWorkspace Create(
+        string buildFingerprint,
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
-        ILoggerFactory? loggerFactory = null,
-        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint)
+        ILoggerFactory? loggerFactory = null)
     {
         return CreateCore(
             workspacePolicy,
