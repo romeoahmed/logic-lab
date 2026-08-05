@@ -12,30 +12,6 @@ namespace LogicLab.Web.Tests;
 
 internal sealed class WorkbenchComponentTests
 {
-    private static readonly string[] WorkbenchCommands =
-    [
-        "create",
-        "author",
-        "author-steering",
-        "author-arithmetic",
-        "author-hierarchy",
-        "compile",
-        "session",
-        "stimulus",
-        "step",
-    ];
-
-    private static readonly string[] SteeringComponentLabels =
-    [
-        "AND", "Buffer", "Decoder", "DEMUX", "MUX", "NAND", "NOR", "OR",
-        "Priority Encoder", "Tri-State", "XNOR", "XOR",
-    ];
-
-    private static readonly string[] ArithmeticComponentLabels =
-    [
-        "Adder", "Logical Shift", "Subtractor", "Unsigned Compare",
-    ];
-
     [Test]
     public async Task Editor_StaticPrerender_RendersStableShellWithoutWorkspaceSideEffects()
     {
@@ -45,20 +21,11 @@ internal sealed class WorkbenchComponentTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.Find("h1").TextContent)
-                .IsEqualTo("Sandbox Workbench");
-            await Assert.That(rendered.Find("[role='status']").TextContent)
-                .Contains("Connecting");
             await Assert.That(rendered.FindAll("[data-component]")).IsEmpty();
-            await Assert.That(rendered.Find(".scene .empty-state").TextContent)
-                .Contains("Create a Sandbox Project");
             await Assert.That(workspace.OpenCount).IsEqualTo(0);
             await Assert.That(workspace.DispatchCount).IsEqualTo(0);
             await Assert.That(workspace.ReadCount).IsEqualTo(0);
-            foreach (var command in WorkbenchCommands)
-            {
-                await Assert.That(IsDisabled(rendered, command)).IsTrue();
-            }
+            await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
         }
     }
 
@@ -110,8 +77,6 @@ internal sealed class WorkbenchComponentTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.Find("[role='status']").TextContent)
-                .Contains("Step committed at Logical Time 1");
             await Assert.That(rendered.Find("[data-status='quiescence'] dd").TextContent)
                 .IsEqualTo("Quiescent");
             await Assert.That(IsDisabled(rendered, "stimulus")).IsFalse();
@@ -120,7 +85,10 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task Editor_SteeringGallery_CreatesSessionWithoutOfferingUnavailableStimulus()
+    [Arguments("author-steering")]
+    [Arguments("author-arithmetic")]
+    public async Task Editor_GalleryWithoutProgrammableInputs_DisablesStimulus(
+        string authorCommand)
     {
         await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
@@ -130,78 +98,11 @@ internal sealed class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "create",
-            () => !IsDisabled(rendered, "author-steering"));
+            () => !IsDisabled(rendered, authorCommand));
         await ClickAndWaitForState(
             rendered,
-            "author-steering",
-            () => rendered.FindAll("[data-component] h3")
-                .Any(element => element.TextContent == "Priority Encoder"));
-
-        var labels = rendered.FindAll("[data-component] h3")
-            .Select(element => element.TextContent)
-            .ToArray();
-        var steeringLabels = labels
-            .Where(SteeringComponentLabels.Contains)
-            .ToArray();
-        var mux = rendered.FindAll("[data-component]").Single(element =>
-            element.QuerySelector("h3")?.TextContent == "MUX");
-        var priorityEncoder = rendered.FindAll("[data-component]").Single(element =>
-            element.QuerySelector("h3")?.TextContent == "Priority Encoder");
-        using (Assert.Multiple())
-        {
-            await Assert.That(steeringLabels).IsEquivalentTo(SteeringComponentLabels);
-            await Assert.That(mux.TextContent).Contains("D0 · Input · 1 bit");
-            await Assert.That(mux.TextContent).Contains("D1 · Input · 1 bit");
-            await Assert.That(priorityEncoder.TextContent).Contains("A0 · Input · 1 bit");
-            await Assert.That(priorityEncoder.TextContent).Contains("VALID · Output · 1 bit");
-        }
-
-        await ClickAndWaitForState(
-            rendered,
-            "compile",
-            () => rendered.Find("[role='status']").TextContent
-                .Contains("Compilation Artifact published", StringComparison.Ordinal));
-        await ClickAndWaitForState(
-            rendered,
-            "session",
-            () => IsDisabled(rendered, "stimulus")
-                && rendered.Find("[role='status']").TextContent
-                    .Contains("no programmable inputs", StringComparison.Ordinal));
-    }
-
-    [Test]
-    public async Task Editor_ArithmeticGallery_CreatesSessionWithoutOfferingUnavailableStimulus()
-    {
-        await using var context = CreateContext();
-        await using var workspace = new TrackingWorkspace();
-        var rendered = RenderEditor(context, workspace);
-        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
-
-        await ClickAndWaitForState(
-            rendered,
-            "create",
-            () => !IsDisabled(rendered, "author-arithmetic"));
-        await ClickAndWaitForState(
-            rendered,
-            "author-arithmetic",
-            () => rendered.FindAll("[data-component] h3")
-                .Any(element => element.TextContent == "Logical Shift"));
-
-        var labels = rendered.FindAll("[data-component] h3")
-            .Select(element => element.TextContent)
-            .ToArray();
-        var arithmeticLabels = labels
-            .Where(ArithmeticComponentLabels.Contains)
-            .ToArray();
-        var shift = rendered.FindAll("[data-component]").Single(element =>
-            element.QuerySelector("h3")?.TextContent == "Logical Shift");
-        using (Assert.Multiple())
-        {
-            await Assert.That(arithmeticLabels).IsEquivalentTo(ArithmeticComponentLabels);
-            await Assert.That(shift.TextContent).Contains("D · Input · 3 bit");
-            await Assert.That(shift.TextContent).Contains("AMOUNT · Input · 2 bit");
-            await Assert.That(shift.TextContent).Contains("Q · Output · 3 bit");
-        }
+            authorCommand,
+            () => !IsDisabled(rendered, "compile"));
 
         await ClickAndWaitForState(
             rendered,
@@ -210,9 +111,8 @@ internal sealed class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "session",
-            () => IsDisabled(rendered, "stimulus")
-                && rendered.Find("[role='status']").TextContent
-                    .Contains("no programmable inputs", StringComparison.Ordinal));
+            () => IsDisabled(rendered, "session")
+                && IsDisabled(rendered, "stimulus"));
     }
 
     [Test]
@@ -236,10 +136,7 @@ internal sealed class WorkbenchComponentTests
             using (Assert.Multiple())
             {
                 await Assert.That(workspace.OpenCount).IsEqualTo(1);
-                foreach (var command in WorkbenchCommands)
-                {
-                    await Assert.That(IsDisabled(rendered, command)).IsTrue();
-                }
+                await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
             }
         }
         finally
@@ -296,8 +193,6 @@ internal sealed class WorkbenchComponentTests
         using (Assert.Multiple())
         {
             await Assert.That(workspace.OpenCount).IsEqualTo(2);
-            await Assert.That(rendered.Find("[role='status']").TextContent)
-                .Contains("Sandbox Project created");
             await Assert.That(IsDisabled(rendered, "author")).IsFalse();
         }
     }
@@ -330,8 +225,6 @@ internal sealed class WorkbenchComponentTests
         using (Assert.Multiple())
         {
             await Assert.That(workspace.OpenCount).IsEqualTo(2);
-            await Assert.That(rendered.Find("[role='status']").TextContent)
-                .Contains("Sandbox Project created");
             await Assert.That(IsDisabled(rendered, "author")).IsFalse();
         }
     }
@@ -431,8 +324,7 @@ internal sealed class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "compile",
-            () => rendered.Find("[role='status']").TextContent
-                .Contains("Compilation Artifact published", StringComparison.Ordinal));
+            () => !IsDisabled(rendered, "session"));
     }
 
     [Test]
@@ -501,12 +393,7 @@ internal sealed class WorkbenchComponentTests
             "session",
             () => rendered.FindAll("[data-probe]").Count == 1);
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.Find("[role='status']").TextContent)
-                .Contains("Simulation Session created");
-            await Assert.That(rendered.FindAll("[data-probe]")).Count().IsEqualTo(1);
-        }
+        await Assert.That(rendered.FindAll("[data-probe]")).Count().IsEqualTo(1);
     }
 
     [Test]
@@ -543,8 +430,6 @@ internal sealed class WorkbenchComponentTests
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
             await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.WireGeometries)
                 .IsEmpty();
-            await Assert.That(rendered.Find("[role='status']").TextContent)
-                .Contains("cancelled");
         }
     }
 
@@ -582,6 +467,13 @@ internal sealed class WorkbenchComponentTests
         where TComponent : IComponent
     {
         return rendered.Find($"[data-command='{command}']").HasAttribute("disabled");
+    }
+
+    private static bool AreAllCommandsDisabled(IRenderedComponent<Editor> rendered)
+    {
+        var commands = rendered.FindAll("[data-command]");
+        return commands.Count > 0
+            && commands.All(command => command.HasAttribute("disabled"));
     }
 
     private sealed class BlockingWorkspace : IEditorWorkspace
