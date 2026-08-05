@@ -165,9 +165,10 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                     request,
                     cancellationToken).ConfigureAwait(false),
                 CreateSession or ScheduleInputStimulus or StepSession =>
-                    await workCoordinator.RunSessionAsync(
+                    await QueueContextualSessionAsync(
                         state.Id,
-                        token => ExecuteContextualCommandAsync(state, command, token),
+                        state,
+                        command,
                         cancellationToken).ConfigureAwait(false),
                 _ => await ExecuteContextualCommandAsync(
                     state,
@@ -354,70 +355,37 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
             if (command is not null)
             {
-                var context = command.Context!;
-                if (!HasCurrentAttachment(state, context))
+                lock (state.ContinuityGate)
                 {
-                    return Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
-                }
-
-                var identity = CanonicalIdentity(command);
-                if (state.IdempotencyRecords.TryGetValue(
-                    context.ClientIntentId,
-                    out var retained))
-                {
-                    return string.Equals(
-                        retained.CanonicalIdentity,
-                        identity,
-                        StringComparison.Ordinal)
-                        ? retained.Outcome
-                        : Reject(WorkspaceOutcomeReasons.IdempotencyKeyConflict);
-                }
-
-                if (state.PendingIntents.TryGetValue(
-                    context.ClientIntentId,
-                    out var pending))
-                {
-                    if (!string.Equals(
-                        pending.CanonicalIdentity,
-                        identity,
-                        StringComparison.Ordinal))
+                    switch (InspectContextualIntentUnderLock(state, command))
                     {
-                        return Reject(WorkspaceOutcomeReasons.IdempotencyKeyConflict);
-                    }
+                        case ContextualIntentTerminal terminal:
+                            return terminal.Outcome;
+                        case ContextualIntentReplay replay:
+                            completion = replay.Completion;
+                            shouldQueue = false;
+                            break;
+                        case ContextualIntentAccepted accepted:
+                            var precondition = command.Precondition!;
+                            if (precondition.ProjectRevisionId != state.Revision.RevisionId
+                                || precondition.EntryCircuitDefinitionId
+                                != state.Revision.Document.EntryCircuitDefinitionId
+                                || !string.Equals(
+                                    precondition.LibrarySnapshotFingerprint,
+                                    state.Revision.Document.LibrarySnapshot.Fingerprint,
+                                    StringComparison.Ordinal))
+                            {
+                                return Reject(
+                                    WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
+                            }
 
-                    completion = pending.Completion.Task;
-                    shouldQueue = false;
-                }
-                else
-                {
-                    if (state.IsIdempotencyWindowClosed)
-                    {
-                        return Reject(WorkspaceOutcomeReasons.IdempotencyWindowExpired);
+                            publication = ReserveContextualIntentUnderLock(
+                                state,
+                                command,
+                                accepted.CanonicalIdentity);
+                            ownsPendingRecord = true;
+                            break;
                     }
-
-                    var precondition = command.Precondition!;
-                    if (precondition.ProjectRevisionId != state.Revision.RevisionId
-                        || precondition.EntryCircuitDefinitionId
-                        != state.Revision.Document.EntryCircuitDefinitionId
-                        || !string.Equals(
-                            precondition.LibrarySnapshotFingerprint,
-                            state.Revision.Document.LibrarySnapshot.Fingerprint,
-                            StringComparison.Ordinal))
-                    {
-                        return Reject(
-                            WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
-                    }
-
-                    publication = new ContextualCommandPublication(
-                        context,
-                        identity);
-                    state.PendingIntents.Add(
-                        context.ClientIntentId,
-                        new PendingIntent(
-                            identity,
-                            new TaskCompletionSource<WorkspaceCommandOutcome>(
-                                TaskCreationOptions.RunContinuationsAsynchronously)));
-                    ownsPendingRecord = true;
                 }
             }
 
@@ -442,10 +410,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         var completed = await completion!.ConfigureAwait(false);
         if (ownsPendingRecord)
         {
-            await CompletePendingIdempotencyAsync(
-                state,
-                publication!,
-                completed).ConfigureAwait(false);
+            CompletePendingIdempotency(state, publication!, completed);
+            return await publication!.PendingIntent.Completion.Task.ConfigureAwait(false);
         }
 
         return completed;
@@ -495,7 +461,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 completed = Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
             else if (publication is not null
-                && !HasCurrentAttachment(state, publication.Context))
+                && !HasCurrentAttachmentSafely(state, publication.Context))
             {
                 completed = Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
             }
@@ -523,19 +489,13 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
     }
 
-    private async ValueTask CompletePendingIdempotencyAsync(
+    private static bool HasCurrentAttachmentSafely(
         WorkspaceState state,
-        ContextualCommandPublication publication,
-        WorkspaceCommandOutcome outcome)
+        WorkspaceCommandContext context)
     {
-        await state.CommandGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-        try
+        lock (state.ContinuityGate)
         {
-            CompletePendingIdempotency(state, publication, outcome);
-        }
-        finally
-        {
-            state.CommandGate.Release();
+            return HasCurrentAttachmentUnderLock(state, context);
         }
     }
 
