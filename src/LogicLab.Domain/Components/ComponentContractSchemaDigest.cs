@@ -10,12 +10,20 @@ internal static class ComponentContractSchemaDigest
     public static string Compute(
         ComponentContractKey key,
         ReadOnlyCollection<ComponentParameterSchema> parameters,
-        ReadOnlyCollection<ComponentPortSchema> ports)
+        ReadOnlyCollection<ComponentPortSchema> ports,
+        string stateShapeId,
+        string semanticRuleVersion)
     {
         var canonical = new StringBuilder();
-        canonical.Append("componentContractSchemaV1\u001f")
+        canonical.Append("componentContractSchemaV2\u001f")
             .Append(key.LibraryId).Append('\u001f')
             .Append(key.ContractId).Append('\n');
+        canonical.Append("stateShape\u001f")
+            .Append(stateShapeId)
+            .Append('\n');
+        canonical.Append("semanticRuleVersion\u001f")
+            .Append(semanticRuleVersion)
+            .Append('\n');
         AppendParameters(canonical, parameters);
         AppendPorts(canonical, ports);
 

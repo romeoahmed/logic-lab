@@ -10,15 +10,20 @@ public sealed class ComponentContractSchema
         ComponentParameterSchema[] parameters,
         ComponentPortSchema[] ports)
     {
+        var metadata = ComponentContractMetadataCatalog.Get(key);
         Key = key;
         Parameters = Array.AsReadOnly(
             (ComponentParameterSchema[])parameters.Clone());
         Ports = Array.AsReadOnly(
             (ComponentPortSchema[])ports.Clone());
+        StateShapeId = metadata.StateShapeId;
+        SemanticRuleVersion = metadata.SemanticRuleVersion;
         SchemaDigest = ComponentContractSchemaDigest.Compute(
             Key,
             Parameters,
-            Ports);
+            Ports,
+            StateShapeId,
+            SemanticRuleVersion);
     }
 
     public ComponentContractKey Key { get; }
@@ -26,6 +31,10 @@ public sealed class ComponentContractSchema
     public ReadOnlyCollection<ComponentParameterSchema> Parameters { get; }
 
     public ReadOnlyCollection<ComponentPortSchema> Ports { get; }
+
+    internal string StateShapeId { get; }
+
+    internal string SemanticRuleVersion { get; }
 
     public string SchemaDigest { get; }
 
