@@ -11,6 +11,14 @@ public interface IEditorWorkspace : IAsyncDisposable
         OpenWorkspaceRequest request,
         CancellationToken cancellationToken);
 
+    Task<WorkspaceAttachOutcome> AttachAsync(
+        AttachRequest request,
+        CancellationToken cancellationToken);
+
+    Task<WorkspaceDetachOutcome> DetachAsync(
+        DetachRequest request,
+        CancellationToken cancellationToken);
+
     Task<WorkspaceCommandOutcome> DispatchAsync(
         WorkspaceCommand command,
         CancellationToken cancellationToken);
@@ -54,16 +62,41 @@ public sealed record WorkspacePolicy
         int globalWorkspaceLimit,
         TimeSpan sandboxRetention,
         WorkspaceAuthoringLimits authoringLimits)
+        : this(
+            globalWorkspaceLimit,
+            sandboxRetention,
+            authoringLimits,
+            historyRevisionCount: 128,
+            idempotencyRecordCount: 1_024,
+            detachedRetention: sandboxRetention)
+    {
+    }
+
+    public WorkspacePolicy(
+        int globalWorkspaceLimit,
+        TimeSpan sandboxRetention,
+        WorkspaceAuthoringLimits authoringLimits,
+        int historyRevisionCount,
+        int idempotencyRecordCount,
+        TimeSpan detachedRetention)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(globalWorkspaceLimit);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
             sandboxRetention,
             TimeSpan.Zero);
         ArgumentNullException.ThrowIfNull(authoringLimits);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(historyRevisionCount);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(idempotencyRecordCount);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
+            detachedRetention,
+            TimeSpan.Zero);
 
         GlobalWorkspaceLimit = globalWorkspaceLimit;
         SandboxRetention = sandboxRetention;
         AuthoringLimits = authoringLimits;
+        HistoryRevisionCount = historyRevisionCount;
+        IdempotencyRecordCount = idempotencyRecordCount;
+        DetachedRetention = detachedRetention;
     }
 
     public int GlobalWorkspaceLimit { get; }
@@ -71,6 +104,12 @@ public sealed record WorkspacePolicy
     public TimeSpan SandboxRetention { get; }
 
     public WorkspaceAuthoringLimits AuthoringLimits { get; }
+
+    public int HistoryRevisionCount { get; }
+
+    public int IdempotencyRecordCount { get; }
+
+    public TimeSpan DetachedRetention { get; }
 
     public static WorkspacePolicy Default { get; } = new(
         globalWorkspaceLimit: 128,
@@ -103,13 +142,15 @@ public static class EditorWorkspaceFactory
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint)
     {
         return CreateCore(
             workspacePolicy,
             schedulingPolicy,
             timeProvider,
             loggerFactory,
+            buildFingerprint,
             WorkspaceModuleOperations.Production);
     }
 
@@ -118,13 +159,15 @@ public static class EditorWorkspaceFactory
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint)
     {
         return CreateCore(
             workspacePolicy,
             schedulingPolicy,
             timeProvider,
             loggerFactory,
+            buildFingerprint,
             operations);
     }
 
@@ -133,13 +176,16 @@ public static class EditorWorkspaceFactory
         SchedulingPolicy? schedulingPolicy,
         TimeProvider? timeProvider,
         ILoggerFactory? loggerFactory,
+        string buildFingerprint,
         WorkspaceModuleOperations operations)
     {
+        ArgumentException.ThrowIfNullOrEmpty(buildFingerprint);
         var resolvedLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         return new EditorWorkspace(
             schedulingPolicy ?? SchedulingPolicy.Default,
             workspacePolicy ?? WorkspacePolicy.Default,
             timeProvider ?? TimeProvider.System,
+            buildFingerprint,
             operations,
             resolvedLoggerFactory.CreateLogger<Work.WorkCoordinator>(),
             resolvedLoggerFactory.CreateLogger<EditorWorkspace>());

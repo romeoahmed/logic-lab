@@ -135,7 +135,10 @@ internal sealed partial class EditorWorkspace
 
     private bool IsExpired(WorkspaceState state, DateTimeOffset now)
     {
-        return now - state.LastAccessUtc >= workspacePolicy.SandboxRetention;
+        var retention = state.AttachmentId is not null && !state.IsAttached
+            ? workspacePolicy.DetachedRetention
+            : workspacePolicy.SandboxRetention;
+        return now - state.LastAccessUtc >= retention;
     }
 
     private void Release(WorkspaceState state)
@@ -217,6 +220,22 @@ internal sealed partial class EditorWorkspace
 
         public ProjectRevision Revision { get; set; } = revision;
 
+        public List<ProjectRevision> History { get; } = [revision];
+
+        public int HistoryCursor { get; set; }
+
+        public WorkspaceAttachmentId? AttachmentId { get; set; }
+
+        public ulong AttachmentGeneration { get; set; }
+
+        public bool IsAttached { get; set; }
+
+        public Dictionary<ClientIntentId, IdempotencyRecord> IdempotencyRecords { get; } = [];
+
+        public Queue<ClientIntentId> IdempotencyOrder { get; } = [];
+
+        public bool IsIdempotencyWindowClosed { get; set; }
+
         public CompilationArtifact? Artifact { get; set; }
 
         public CompilationProjection Compilation { get; set; } = NotRequestedCompilation();
@@ -235,6 +254,10 @@ internal sealed partial class EditorWorkspace
 
         public SemaphoreSlim CommandGate { get; } = new(1, 1);
     }
+
+    private sealed record IdempotencyRecord(
+        string CanonicalIdentity,
+        WorkspaceCommandOutcome Outcome);
 
     private sealed class WorkspaceLease(EditorWorkspace owner, WorkspaceState state) : IDisposable
     {
