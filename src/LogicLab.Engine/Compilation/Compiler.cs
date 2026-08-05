@@ -21,7 +21,10 @@ public static partial class Compiler
         {
             return CompileCore(request, observations, cancellationToken);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                cancellationToken))
         {
             return Reject(request, "compilation_cancelled", [], observations);
         }

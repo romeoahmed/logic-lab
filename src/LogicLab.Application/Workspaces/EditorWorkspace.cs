@@ -194,7 +194,10 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         {
             await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                cancellationToken))
         {
             return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
@@ -275,7 +278,10 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         {
             await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                cancellationToken))
         {
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
@@ -328,7 +334,10 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         {
             await state.CommandGate.WaitAsync(context.CancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                context.CancellationToken))
         {
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
@@ -419,7 +428,10 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         {
             await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                cancellationToken))
         {
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
@@ -497,7 +509,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 return readFailure;
             }
         }
-        catch (Exception exception) when (!FatalExceptionClassifier.IsFatal(exception))
+        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
             CloseSimulationForCleanup(opened.Handle);
             throw;

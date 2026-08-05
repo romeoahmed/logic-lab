@@ -121,6 +121,15 @@ Recursion uses the related-location sequence as the canonical witness path. Inte
 
 Undriven, unknown-driver, and contention evidence is computed from final Driver contributions at a Quiescent Boundary. Cause changes that leave the Logic Value unchanged replace prior evidence; they do not trigger propagation. A contract defect fails the whole Logical-time Advance.
 
+`simulation_contract_defect` identifies only a generated component evaluator whose output violates its Component Contract. Its closed `rule` values are:
+
+| Rule | Meaning |
+|---|---|
+| `coordinate_shape` | An evaluator returned an output vector whose width differs from the compiled Driver width. |
+| `information_order` | During cyclic settlement, an evaluator changed a previously non-`X` output bit instead of preserving it. |
+
+A Runtime-owned Net resolver invariant failure must not be attributed to the evaluator that happened to trigger Net reevaluation; it fails as a generic `SimulationInternalDefect` unless a Runtime-owned diagnostic is defined by a later contract.
+
 ## 8. Project Format diagnostics
 
 | Code | Severity | Ordered arguments |

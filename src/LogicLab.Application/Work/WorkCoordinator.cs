@@ -161,11 +161,14 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                         ? CancellationOutcome()
                         : outcome);
             }
-            catch (OperationCanceledException) when (item.CancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException exception)
+                when (ExceptionClassifier.IsCooperativeCancellation(
+                    exception,
+                    item.CancellationToken))
             {
                 item.Completion.TrySetResult(CancellationOutcome());
             }
-            catch (Exception exception) when (!FatalExceptionClassifier.IsFatal(exception))
+            catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
             {
                 item.Completion.TrySetResult(FailureOutcome(exception, "compilation"));
             }
@@ -194,12 +197,15 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 var outcome = await item.Operation(item.CancellationToken).ConfigureAwait(false);
                 item.Completion.TrySetResult(outcome);
             }
-            catch (OperationCanceledException) when (item.CancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException exception)
+                when (ExceptionClassifier.IsCooperativeCancellation(
+                    exception,
+                    item.CancellationToken))
             {
                 item.Completion.TrySetResult(
                     Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
             }
-            catch (Exception exception) when (!FatalExceptionClassifier.IsFatal(exception))
+            catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
             {
                 item.Completion.TrySetResult(FailureOutcome(exception, "session"));
             }

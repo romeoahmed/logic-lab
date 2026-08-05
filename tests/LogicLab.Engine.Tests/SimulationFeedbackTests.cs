@@ -143,7 +143,7 @@ internal sealed class SimulationFeedbackTests
     }
 
     [Test]
-    public async Task RequirePreservingOrRefining_KnownCoordinateChanges_ReportsInformationOrderDefect()
+    public async Task RequireComponentOutputPreservingOrRefining_KnownCoordinateChanges_ReportsInformationOrderDefect()
     {
         var circuit = CreateSelfInvertingFeedback();
         var evaluator = circuit.Artifact.SimulationIr.Evaluators.Single(
@@ -151,7 +151,7 @@ internal sealed class SimulationFeedbackTests
         var primary = circuit.Artifact.SourceMap.Evaluators[evaluator.Ordinal].Source;
         var related = circuit.Artifact.SourceMap.Drivers[
             evaluator.OutputDriverOrdinals.Single()].Source;
-        CombinationalRefinement.RequirePreservingOrRefining(
+        CombinationalRefinement.RequireComponentOutputPreservingOrRefining(
             new LogicVector([LogicValue.X]),
             new LogicVector([LogicValue.Zero]),
             evaluator.ContractKey,
@@ -159,7 +159,7 @@ internal sealed class SimulationFeedbackTests
             related);
 
         var defect = CaptureDefect(() =>
-            CombinationalRefinement.RequirePreservingOrRefining(
+            CombinationalRefinement.RequireComponentOutputPreservingOrRefining(
                 new LogicVector([LogicValue.Zero]),
                 new LogicVector([LogicValue.One]),
                 evaluator.ContractKey,
@@ -176,7 +176,7 @@ internal sealed class SimulationFeedbackTests
     }
 
     [Test]
-    public async Task RequirePreservingOrRefining_CoordinateShapeChanges_ReportsShapeDefect()
+    public async Task RequireComponentOutputPreservingOrRefining_CoordinateShapeChanges_ReportsShapeDefect()
     {
         var circuit = CreateSelfInvertingFeedback();
         var evaluator = circuit.Artifact.SimulationIr.Evaluators.Single(
@@ -186,7 +186,7 @@ internal sealed class SimulationFeedbackTests
             evaluator.OutputDriverOrdinals.Single()].Source;
 
         var defect = CaptureDefect(() =>
-            CombinationalRefinement.RequirePreservingOrRefining(
+            CombinationalRefinement.RequireComponentOutputPreservingOrRefining(
                 new LogicVector([LogicValue.X]),
                 new LogicVector([LogicValue.X, LogicValue.X]),
                 evaluator.ContractKey,
@@ -194,6 +194,16 @@ internal sealed class SimulationFeedbackTests
                 related));
 
         await Assert.That(defect.Rule).IsEqualTo("coordinate_shape");
+    }
+
+    [Test]
+    public async Task RequireNetResolutionPreservingOrRefining_KnownCoordinateChanges_RejectsRuntimeInvariant()
+    {
+        await Assert.That(() =>
+                CombinationalRefinement.RequireNetResolutionPreservingOrRefining(
+                    new LogicVector([LogicValue.Zero]),
+                    new LogicVector([LogicValue.One])))
+            .ThrowsExactly<InvalidOperationException>();
     }
 
     [Test]
