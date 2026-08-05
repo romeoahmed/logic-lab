@@ -30,6 +30,27 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
+    public async Task Editor_InteractiveWorkspace_DisposalDetachesAttachment()
+    {
+        var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author"));
+
+        await context.DisposeAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(workspace.AttachCount).IsEqualTo(1);
+            await Assert.That(workspace.DetachCount).IsEqualTo(1);
+        }
+    }
+
+    [Test]
     public async Task Editor_CompleteSimulationWorkflow_ProjectsProbeAndLogicalTime()
     {
         await using var context = CreateContext();
@@ -478,7 +499,8 @@ internal sealed class WorkbenchComponentTests
 
     private sealed class BlockingWorkspace : IEditorWorkspace
     {
-        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create();
+        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create(
+            buildFingerprint: LogicLabWebBuild.Fingerprint);
         private readonly TaskCompletionSource release = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource started = new(
@@ -521,10 +543,10 @@ internal sealed class WorkbenchComponentTests
         }
 
         public Task<WorkspaceReadOutcome> ReadAsync(
-            WorkspaceId workspaceId,
+            WorkspaceQueryContext context,
             CancellationToken cancellationToken)
         {
-            return inner.ReadAsync(workspaceId, cancellationToken);
+            return inner.ReadAsync(context, cancellationToken);
         }
 
         public ValueTask DisposeAsync() => inner.DisposeAsync();
@@ -534,7 +556,8 @@ internal sealed class WorkbenchComponentTests
 
     private sealed class RecoveringWorkspace : IEditorWorkspace
     {
-        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create();
+        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create(
+            buildFingerprint: LogicLabWebBuild.Fingerprint);
         private int openCount;
 
         public int OpenCount => Volatile.Read(ref openCount);
@@ -574,10 +597,10 @@ internal sealed class WorkbenchComponentTests
         }
 
         public Task<WorkspaceReadOutcome> ReadAsync(
-            WorkspaceId workspaceId,
+            WorkspaceQueryContext context,
             CancellationToken cancellationToken)
         {
-            return inner.ReadAsync(workspaceId, cancellationToken);
+            return inner.ReadAsync(context, cancellationToken);
         }
 
         public ValueTask DisposeAsync() => inner.DisposeAsync();
@@ -585,7 +608,8 @@ internal sealed class WorkbenchComponentTests
 
     private sealed class ExpiringWorkspace : IEditorWorkspace
     {
-        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create();
+        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create(
+            buildFingerprint: LogicLabWebBuild.Fingerprint);
         private int isExpired;
         private int openCount;
 
@@ -624,11 +648,11 @@ internal sealed class WorkbenchComponentTests
         }
 
         public Task<WorkspaceReadOutcome> ReadAsync(
-            WorkspaceId workspaceId,
+            WorkspaceQueryContext context,
             CancellationToken cancellationToken)
         {
             return Volatile.Read(ref isExpired) == 0
-                ? inner.ReadAsync(workspaceId, cancellationToken)
+                ? inner.ReadAsync(context, cancellationToken)
                 : Task.FromResult<WorkspaceReadOutcome>(
                     new WorkspaceReadRejected("workspace_not_found"));
         }
@@ -638,7 +662,8 @@ internal sealed class WorkbenchComponentTests
 
     private sealed class BlockingAuthorWorkspace : IEditorWorkspace
     {
-        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create();
+        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create(
+            buildFingerprint: LogicLabWebBuild.Fingerprint);
         private readonly TaskCompletionSource release = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource started = new(
@@ -684,10 +709,10 @@ internal sealed class WorkbenchComponentTests
         }
 
         public Task<WorkspaceReadOutcome> ReadAsync(
-            WorkspaceId workspaceId,
+            WorkspaceQueryContext context,
             CancellationToken cancellationToken)
         {
-            return inner.ReadAsync(workspaceId, cancellationToken);
+            return inner.ReadAsync(context, cancellationToken);
         }
 
         public ValueTask DisposeAsync() => inner.DisposeAsync();
@@ -697,13 +722,21 @@ internal sealed class WorkbenchComponentTests
 
     private sealed class TrackingWorkspace : IEditorWorkspace
     {
-        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create();
+        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create(
+            buildFingerprint: LogicLabWebBuild.Fingerprint);
+        private Attached? attachment;
+        private int attachCount;
+        private int detachCount;
         private WorkspaceId? workspaceId;
         private int dispatchCount;
         private int openCount;
         private int readCount;
 
         public int DispatchCount => Volatile.Read(ref dispatchCount);
+
+        public int AttachCount => Volatile.Read(ref attachCount);
+
+        public int DetachCount => Volatile.Read(ref detachCount);
 
         public int OpenCount => Volatile.Read(ref openCount);
 
@@ -731,32 +764,53 @@ internal sealed class WorkbenchComponentTests
             return inner.DispatchAsync(command, cancellationToken);
         }
 
-        public Task<WorkspaceAttachOutcome> AttachAsync(
+        public async Task<WorkspaceAttachOutcome> AttachAsync(
             AttachRequest request,
             CancellationToken cancellationToken)
         {
-            return inner.AttachAsync(request, cancellationToken);
+            Interlocked.Increment(ref attachCount);
+            var outcome = await inner.AttachAsync(request, cancellationToken);
+            if (outcome is Attached attached)
+            {
+                attachment = attached;
+            }
+
+            return outcome;
         }
 
-        public Task<WorkspaceDetachOutcome> DetachAsync(
+        public async Task<WorkspaceDetachOutcome> DetachAsync(
             DetachRequest request,
             CancellationToken cancellationToken)
         {
-            return inner.DetachAsync(request, cancellationToken);
+            Interlocked.Increment(ref detachCount);
+            var outcome = await inner.DetachAsync(request, cancellationToken);
+            if (outcome is Detached)
+            {
+                attachment = null;
+            }
+
+            return outcome;
         }
 
         public Task<WorkspaceReadOutcome> ReadAsync(
-            WorkspaceId requestedWorkspaceId,
+            WorkspaceQueryContext context,
             CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref readCount);
-            return inner.ReadAsync(requestedWorkspaceId, cancellationToken);
+            return inner.ReadAsync(context, cancellationToken);
         }
 
         public async Task<WorkspaceProjection> ReadCurrent()
         {
+            var currentWorkspaceId = workspaceId
+                ?? throw new InvalidOperationException("Workspace is not open.");
+            var currentAttachment = attachment
+                ?? throw new InvalidOperationException("Workspace is not attached.");
             var outcome = await inner.ReadAsync(
-                workspaceId ?? throw new InvalidOperationException("Workspace is not open."),
+                new WorkspaceQueryContext(
+                    currentWorkspaceId,
+                    currentAttachment.AttachmentId,
+                    currentAttachment.Generation),
                 CancellationToken.None);
             return ((ProjectionSnapshot)outcome).Projection;
         }

@@ -24,7 +24,7 @@ public interface IEditorWorkspace : IAsyncDisposable
         CancellationToken cancellationToken);
 
     Task<WorkspaceReadOutcome> ReadAsync(
-        WorkspaceId workspaceId,
+        WorkspaceQueryContext context,
         CancellationToken cancellationToken);
 }
 

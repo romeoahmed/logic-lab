@@ -31,7 +31,7 @@ internal sealed class EditorWorkspaceSchedulingTests
         var thirdWorkspace = await Open(workspace, "Third", cancellationToken);
 
         var first = workspace.DispatchAsync(
-            new RequestCompilation(firstWorkspace.WorkspaceId),
+            CompilationCommand(firstWorkspace, "first"),
             cancellationToken);
         Task<WorkspaceCommandOutcome> second;
         WorkspaceCommandOutcome rejected;
@@ -40,10 +40,10 @@ internal sealed class EditorWorkspaceSchedulingTests
         {
             await compilationGate.Started.WaitAsync(cancellationToken);
             second = workspace.DispatchAsync(
-                new RequestCompilation(secondWorkspace.WorkspaceId),
+                CompilationCommand(secondWorkspace, "second"),
                 cancellationToken);
             rejected = await workspace.DispatchAsync(
-                new RequestCompilation(thirdWorkspace.WorkspaceId),
+                CompilationCommand(thirdWorkspace, "third"),
                 cancellationToken);
         }
         finally
@@ -89,7 +89,7 @@ internal sealed class EditorWorkspaceSchedulingTests
         var opened = await Open(workspace, "Newest wins", cancellationToken);
 
         var first = workspace.DispatchAsync(
-            new RequestCompilation(opened.WorkspaceId),
+            CompilationCommand(opened, "first"),
             cancellationToken);
         Task<WorkspaceCommandOutcome> second;
 
@@ -97,7 +97,7 @@ internal sealed class EditorWorkspaceSchedulingTests
         {
             await compilationGate.Started.WaitAsync(cancellationToken);
             second = workspace.DispatchAsync(
-                new RequestCompilation(opened.WorkspaceId),
+                CompilationCommand(opened, "second"),
                 cancellationToken);
         }
         finally
@@ -138,7 +138,7 @@ internal sealed class EditorWorkspaceSchedulingTests
         var opened = await Open(workspace, "Close race", cancellationToken);
 
         var compilation = workspace.DispatchAsync(
-            new RequestCompilation(opened.WorkspaceId),
+            CompilationCommand(opened, "compile"),
             cancellationToken);
         WorkspaceCommandOutcome closed;
 
@@ -146,7 +146,10 @@ internal sealed class EditorWorkspaceSchedulingTests
         {
             await compilationGate.Started.WaitAsync(cancellationToken);
             closed = await workspace.DispatchAsync(
-                new CloseWorkspace(opened.WorkspaceId),
+                new CloseWorkspace(EditorWorkspaceTestDriver.Command(
+                    opened.Opened.WorkspaceId,
+                    opened.Attached,
+                    "close")),
                 cancellationToken);
         }
         finally
@@ -155,7 +158,11 @@ internal sealed class EditorWorkspaceSchedulingTests
         }
 
         var compilationOutcome = await compilation.WaitAsync(cancellationToken);
-        var read = await workspace.ReadAsync(opened.WorkspaceId, cancellationToken);
+        var read = await workspace.ReadAsync(
+            EditorWorkspaceTestDriver.Query(
+                opened.Opened.WorkspaceId,
+                opened.Attached),
+            cancellationToken);
         var compilationRejection = await Assert.That(compilationOutcome)
             .IsTypeOf<WorkspaceCommandRejected>();
         Assert.NotNull(compilationRejection);
@@ -169,7 +176,7 @@ internal sealed class EditorWorkspaceSchedulingTests
         }
     }
 
-    private static async Task<WorkspaceOpened> Open(
+    private static async Task<ControlledWorkspace> Open(
         IEditorWorkspace workspace,
         string projectDisplayName,
         CancellationToken cancellationToken)
@@ -180,6 +187,24 @@ internal sealed class EditorWorkspaceSchedulingTests
 
         var opened = await Assert.That(outcome).IsTypeOf<WorkspaceOpened>();
         Assert.NotNull(opened);
-        return opened;
+        var attached = await EditorWorkspaceTestDriver.AttachAsync(
+            workspace,
+            opened.WorkspaceId,
+            cancellationToken);
+        return new ControlledWorkspace(opened, attached);
     }
+
+    private static RequestCompilation CompilationCommand(
+        ControlledWorkspace workspace,
+        string intentId)
+    {
+        return new RequestCompilation(
+            EditorWorkspaceTestDriver.Command(
+                workspace.Opened.WorkspaceId,
+                workspace.Attached,
+                intentId),
+            EditorWorkspaceTestDriver.Compilation(workspace.Attached.Projection));
+    }
+
+    private sealed record ControlledWorkspace(WorkspaceOpened Opened, Attached Attached);
 }

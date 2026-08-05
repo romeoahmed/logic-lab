@@ -3,7 +3,6 @@ namespace LogicLab.Application.Workspaces;
 internal sealed partial class EditorWorkspace
 {
     private async Task<WorkspaceCommandOutcome> QueueContextualSessionAsync(
-        WorkspaceId workspaceId,
         WorkspaceState state,
         WorkspaceCommand command,
         CancellationToken cancellationToken)
@@ -39,7 +38,7 @@ internal sealed partial class EditorWorkspace
         }
 
         var completed = await workCoordinator.RunSessionAsync(
-            workspaceId,
+            state.Id,
             token => ExecuteReservedSessionCommandAsync(
                 state,
                 command,

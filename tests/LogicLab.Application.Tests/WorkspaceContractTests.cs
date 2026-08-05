@@ -1,5 +1,8 @@
+using System.Runtime.CompilerServices;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
+using LogicLab.Engine.Compilation;
+using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Application.Tests;
 
@@ -51,30 +54,56 @@ internal sealed class WorkspaceContractTests
     }
 
     [Test]
-    public async Task RequestCompilation_NullWorkspaceId_ThrowsArgumentNullException()
+    public async Task RequestCompilation_NullContext_ThrowsArgumentNullException()
     {
-        await Assert.That(() => new RequestCompilation(null!))
+        await Assert.That(() => new RequestCompilation(null!, null!))
             .ThrowsExactly<ArgumentNullException>();
     }
 
     [Test]
     public async Task ApplyEdit_NullIntent_ThrowsArgumentNullException()
     {
-        var workspaceId = new WorkspaceId("workspace");
-
-        await Assert.That(() => new ApplyEdit(workspaceId, null!))
+        await Assert.That(() => new ApplyEdit(
+                Context(),
+                new AuthoringPrecondition(UninitializedIdentifier<ProjectRevisionId>()),
+                null!))
             .ThrowsExactly<ArgumentNullException>();
     }
 
     [Test]
     public async Task ScheduleInputStimulus_NullAssignmentElement_ThrowsArgumentException()
     {
-        var workspaceId = new WorkspaceId("workspace");
-
         await Assert.That(() => new ScheduleInputStimulus(
-                workspaceId,
+                Context(),
+                new SessionMutationPrecondition(
+                    UninitializedIdentifier<SimulationSessionId>(),
+                    1,
+                    ArtifactKey()),
                 0,
                 [(InputStimulusAssignment)null!]))
             .ThrowsExactly<ArgumentException>();
+    }
+
+    private static WorkspaceCommandContext Context()
+    {
+        return new WorkspaceCommandContext(
+            new WorkspaceId("workspace"),
+            new WorkspaceAttachmentId("attachment"),
+            1,
+            new ClientIntentId("intent"));
+    }
+
+    private static CompilationArtifactKey ArtifactKey()
+    {
+        return new CompilationArtifactKey(
+            UninitializedIdentifier<ProjectRevisionId>(),
+            UninitializedIdentifier<CircuitDefinitionId>(),
+            "library",
+            "compiler");
+    }
+
+    private static T UninitializedIdentifier<T>() where T : class
+    {
+        return (T)RuntimeHelpers.GetUninitializedObject(typeof(T));
     }
 }

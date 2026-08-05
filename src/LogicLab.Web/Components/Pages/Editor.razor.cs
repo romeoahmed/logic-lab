@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
@@ -7,7 +8,7 @@ using LogicLab.Web.Components.Editor;
 
 namespace LogicLab.Web.Components.Pages;
 
-public partial class Editor(IEditorWorkspace workspace)
+public partial class Editor(IEditorWorkspace workspace) : IAsyncDisposable
 {
     private const ulong MaximumScenePortCount = 100_000;
     private readonly FixedWindowCommandAdmissionGate commandAdmission = new(
@@ -16,6 +17,8 @@ public partial class Editor(IEditorWorkspace workspace)
         TimeProvider.System);
 
     private WorkspaceProjection? Projection { get; set; }
+
+    private Attached? Attachment { get; set; }
 
     private AccessibleSceneProjection? Scene { get; set; }
 
@@ -130,8 +133,24 @@ public partial class Editor(IEditorWorkspace workspace)
             return;
         }
 
-        Projection = opened.Projection;
-        SelectedDefinitionId = opened.Projection.ProjectRevision.Document
+        var attachOutcome = await workspace.AttachAsync(
+            new InitialAttach(opened.WorkspaceId, LogicLabWebBuild.Fingerprint),
+            CancellationToken.None);
+        if (attachOutcome is not Attached attached)
+        {
+            var code = attachOutcome switch
+            {
+                AttachRejected rejected => rejected.Code,
+                Expired expired => expired.Code,
+                _ => throw new UnreachableException(),
+            };
+            Status = $"Workspace attachment rejected: {code}.";
+            return;
+        }
+
+        Attachment = attached;
+        Projection = attached.Projection;
+        SelectedDefinitionId = attached.Projection.ProjectRevision.Document
             .EntryCircuitDefinitionId;
         HierarchyNavigation.Clear();
         ProjectScene();
@@ -204,7 +223,14 @@ public partial class Editor(IEditorWorkspace workspace)
 
     private async Task Compile()
     {
-        var outcome = await Execute(new RequestCompilation(Projection!.WorkspaceId));
+        var projection = Projection!;
+        var revision = projection.ProjectRevision;
+        var outcome = await Execute(new RequestCompilation(
+            CommandContext(),
+            new CompilationPrecondition(
+                revision.RevisionId,
+                revision.Document.EntryCircuitDefinitionId,
+                revision.Document.LibrarySnapshot.Fingerprint)));
         Status = outcome is CompilationPublished
             ? "Compilation Artifact published atomically."
             : $"Compilation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
@@ -212,7 +238,10 @@ public partial class Editor(IEditorWorkspace workspace)
 
     private async Task CreateSimulationSession()
     {
-        var outcome = await Execute(new CreateSession(Projection!.WorkspaceId));
+        var outcome = await Execute(new CreateSession(
+            CommandContext(),
+            new SessionCreationPrecondition(
+                Projection!.Compilation.ArtifactKey!)));
         if (outcome is not SimulationSessionCreated)
         {
             Status = $"Session creation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
@@ -234,7 +263,8 @@ public partial class Editor(IEditorWorkspace workspace)
             .ToArray();
         var logicalTime = checked(Projection!.Simulation!.LogicalTime + 1);
         var outcome = await Execute(new ScheduleInputStimulus(
-            Projection.WorkspaceId,
+            CommandContext(),
+            SessionPrecondition(),
             logicalTime,
             assignments));
         StimulusIsScheduled = outcome is StimulusScheduled;
@@ -245,7 +275,9 @@ public partial class Editor(IEditorWorkspace workspace)
 
     private async Task Step()
     {
-        var outcome = await Execute(new StepSession(Projection!.WorkspaceId));
+        var outcome = await Execute(new StepSession(
+            CommandContext(),
+            SessionPrecondition()));
         StimulusIsScheduled = false;
         Status = outcome is SessionStepped stepped
             ? $"Step committed at Logical Time {stepped.LogicalTime}."
@@ -261,7 +293,10 @@ public partial class Editor(IEditorWorkspace workspace)
             return false;
         }
 
-        var outcome = await Execute(new ApplyEdit(projection.WorkspaceId, intent));
+        var outcome = await Execute(new ApplyEdit(
+            CommandContext(),
+            new AuthoringPrecondition(projection.ProjectRevision.RevisionId),
+            intent));
         if (outcome is AuthoringCommitted)
         {
             return true;
@@ -285,7 +320,7 @@ public partial class Editor(IEditorWorkspace workspace)
             return;
         }
 
-        var read = await workspace.ReadAsync(Projection.WorkspaceId, CancellationToken.None);
+        var read = await workspace.ReadAsync(QueryContext(), CancellationToken.None);
         if (read is ProjectionSnapshot snapshot)
         {
             Projection = snapshot.Projection;
@@ -294,11 +329,73 @@ public partial class Editor(IEditorWorkspace workspace)
         }
 
         Projection = null;
+        Attachment = null;
         Scene = null;
         SelectedDefinitionId = null;
         HierarchyNavigation.Clear();
         StimulusIsScheduled = false;
         RouteDraftActive = false;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (Attachment is not { } attachment)
+            {
+                return;
+            }
+
+            _ = await workspace.DetachAsync(
+                new DetachRequest(
+                    attachment.Projection.WorkspaceId,
+                    attachment.AttachmentId,
+                    attachment.Generation),
+                CancellationToken.None);
+        }
+        finally
+        {
+            GC.SuppressFinalize(this);
+        }
+    }
+
+    private WorkspaceCommandContext CommandContext()
+    {
+        var projection = Projection
+            ?? throw new InvalidOperationException("Workspace is not open.");
+        var attachment = Attachment
+            ?? throw new InvalidOperationException("Workspace is not attached.");
+        return new WorkspaceCommandContext(
+            projection.WorkspaceId,
+            attachment.AttachmentId,
+            attachment.Generation,
+            new ClientIntentId(Guid.CreateVersion7().ToString("N")));
+    }
+
+    private WorkspaceQueryContext QueryContext()
+    {
+        var projection = Projection
+            ?? throw new InvalidOperationException("Workspace is not open.");
+        var attachment = Attachment
+            ?? throw new InvalidOperationException("Workspace is not attached.");
+        return new WorkspaceQueryContext(
+            projection.WorkspaceId,
+            attachment.AttachmentId,
+            attachment.Generation);
+    }
+
+    private SessionMutationPrecondition SessionPrecondition()
+    {
+        var projection = Projection
+            ?? throw new InvalidOperationException("Workspace is not open.");
+        var simulation = projection.Simulation
+            ?? throw new InvalidOperationException("Simulation Session is not open.");
+        var artifactKey = projection.Compilation.ArtifactKey
+            ?? throw new InvalidOperationException("Compilation is not published.");
+        return new SessionMutationPrecondition(
+            simulation.SessionId,
+            simulation.SessionVersion,
+            artifactKey);
     }
 
     private void ProjectScene()

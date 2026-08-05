@@ -72,33 +72,19 @@ public sealed record WorkspaceOpenRejected : WorkspaceOpenOutcome
 
 public abstract record WorkspaceCommand
 {
-    private protected WorkspaceCommand(WorkspaceId workspaceId)
-    {
-        ArgumentNullException.ThrowIfNull(workspaceId);
-        WorkspaceId = workspaceId;
-    }
-
     private protected WorkspaceCommand(WorkspaceCommandContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        WorkspaceId = context.WorkspaceId;
         Context = context;
     }
 
-    public WorkspaceId WorkspaceId { get; }
+    public WorkspaceId WorkspaceId => Context.WorkspaceId;
 
-    public WorkspaceCommandContext? Context { get; }
+    public WorkspaceCommandContext Context { get; }
 }
 
 public sealed record ApplyEdit : WorkspaceCommand
 {
-    public ApplyEdit(WorkspaceId workspaceId, EditIntent intent)
-        : base(workspaceId)
-    {
-        ArgumentNullException.ThrowIfNull(intent);
-        Intent = intent;
-    }
-
     public ApplyEdit(
         WorkspaceCommandContext context,
         AuthoringPrecondition precondition,
@@ -113,16 +99,11 @@ public sealed record ApplyEdit : WorkspaceCommand
 
     public EditIntent Intent { get; }
 
-    public AuthoringPrecondition? Precondition { get; }
+    public AuthoringPrecondition Precondition { get; }
 }
 
 public sealed record RequestCompilation : WorkspaceCommand
 {
-    public RequestCompilation(WorkspaceId workspaceId)
-        : base(workspaceId)
-    {
-    }
-
     public RequestCompilation(
         WorkspaceCommandContext context,
         CompilationPrecondition precondition)
@@ -132,16 +113,11 @@ public sealed record RequestCompilation : WorkspaceCommand
         Precondition = precondition;
     }
 
-    public CompilationPrecondition? Precondition { get; }
+    public CompilationPrecondition Precondition { get; }
 }
 
 public sealed record CreateSession : WorkspaceCommand
 {
-    public CreateSession(WorkspaceId workspaceId)
-        : base(workspaceId)
-    {
-    }
-
     public CreateSession(
         WorkspaceCommandContext context,
         SessionCreationPrecondition precondition)
@@ -151,7 +127,7 @@ public sealed record CreateSession : WorkspaceCommand
         Precondition = precondition;
     }
 
-    public SessionCreationPrecondition? Precondition { get; }
+    public SessionCreationPrecondition Precondition { get; }
 }
 
 public sealed record InputStimulusAssignment
@@ -174,16 +150,6 @@ public sealed record InputStimulusAssignment
 public sealed record ScheduleInputStimulus : WorkspaceCommand
 {
     public ScheduleInputStimulus(
-        WorkspaceId workspaceId,
-        ulong logicalTime,
-        IReadOnlyList<InputStimulusAssignment> assignments)
-        : base(workspaceId)
-    {
-        LogicalTime = logicalTime;
-        Assignments = CopyAssignments(assignments);
-    }
-
-    public ScheduleInputStimulus(
         WorkspaceCommandContext context,
         SessionMutationPrecondition precondition,
         ulong logicalTime,
@@ -200,7 +166,7 @@ public sealed record ScheduleInputStimulus : WorkspaceCommand
 
     public ReadOnlyCollection<InputStimulusAssignment> Assignments { get; }
 
-    public SessionMutationPrecondition? Precondition { get; }
+    public SessionMutationPrecondition Precondition { get; }
 
     private static ReadOnlyCollection<InputStimulusAssignment> CopyAssignments(
         IReadOnlyList<InputStimulusAssignment> assignments)
@@ -220,11 +186,6 @@ public sealed record ScheduleInputStimulus : WorkspaceCommand
 
 public sealed record StepSession : WorkspaceCommand
 {
-    public StepSession(WorkspaceId workspaceId)
-        : base(workspaceId)
-    {
-    }
-
     public StepSession(
         WorkspaceCommandContext context,
         SessionMutationPrecondition precondition)
@@ -234,16 +195,11 @@ public sealed record StepSession : WorkspaceCommand
         Precondition = precondition;
     }
 
-    public SessionMutationPrecondition? Precondition { get; }
+    public SessionMutationPrecondition Precondition { get; }
 }
 
 public sealed record CloseWorkspace : WorkspaceCommand
 {
-    public CloseWorkspace(WorkspaceId workspaceId)
-        : base(workspaceId)
-    {
-    }
-
     public CloseWorkspace(WorkspaceCommandContext context)
         : base(context)
     {

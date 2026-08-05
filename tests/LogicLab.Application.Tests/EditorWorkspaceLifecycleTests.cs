@@ -35,9 +35,12 @@ internal sealed class EditorWorkspaceLifecycleTests
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider);
         var opened = (WorkspaceOpened)await Open(workspace);
+        var attached = await Attach(workspace, opened.WorkspaceId);
 
         timeProvider.Advance(TimeSpan.FromMinutes(5));
-        var outcome = await workspace.ReadAsync(opened.WorkspaceId, CancellationToken.None);
+        var outcome = await workspace.ReadAsync(
+            Query(opened.WorkspaceId, attached),
+            CancellationToken.None);
 
         var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceReadRejected>();
         Assert.NotNull(rejected);
@@ -84,11 +87,14 @@ internal sealed class EditorWorkspaceLifecycleTests
         await using var workspace = EditorWorkspaceFactory.Create(
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromHours(1)));
         var opened = (WorkspaceOpened)await Open(workspace);
+        var attached = await Attach(workspace, opened.WorkspaceId);
 
         var closed = await workspace.DispatchAsync(
-            new CloseWorkspace(opened.WorkspaceId),
+            new CloseWorkspace(Command(opened.WorkspaceId, attached, "close")),
             CancellationToken.None);
-        var read = await workspace.ReadAsync(opened.WorkspaceId, CancellationToken.None);
+        var read = await workspace.ReadAsync(
+            Query(opened.WorkspaceId, attached),
+            CancellationToken.None);
         var replacement = await Open(workspace);
 
         var readRejection = await Assert.That(read).IsTypeOf<WorkspaceReadRejected>();
@@ -154,6 +160,37 @@ internal sealed class EditorWorkspaceLifecycleTests
         return workspace.OpenAsync(
             new CreateSandbox("Test project", "Main"),
             CancellationToken.None);
+    }
+
+    private static async Task<Attached> Attach(
+        IEditorWorkspace workspace,
+        WorkspaceId workspaceId)
+    {
+        return (Attached)await workspace.AttachAsync(
+            new InitialAttach(workspaceId, WorkspaceBuild.DevelopmentFingerprint),
+            CancellationToken.None);
+    }
+
+    private static WorkspaceCommandContext Command(
+        WorkspaceId workspaceId,
+        Attached attached,
+        string intentId)
+    {
+        return new WorkspaceCommandContext(
+            workspaceId,
+            attached.AttachmentId,
+            attached.Generation,
+            new ClientIntentId(intentId));
+    }
+
+    private static WorkspaceQueryContext Query(
+        WorkspaceId workspaceId,
+        Attached attached)
+    {
+        return new WorkspaceQueryContext(
+            workspaceId,
+            attached.AttachmentId,
+            attached.Generation);
     }
 
     private static WorkspacePolicy Policy(

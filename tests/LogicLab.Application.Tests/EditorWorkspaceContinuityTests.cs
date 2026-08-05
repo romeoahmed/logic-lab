@@ -8,6 +8,23 @@ internal sealed class EditorWorkspaceContinuityTests
     private const string BuildFingerprint = "test-build";
 
     [Test]
+    public async Task WorkspaceCommand_PublicConstructors_RequireAttachmentContext()
+    {
+        var contextlessConstructors = typeof(WorkspaceCommand).Assembly
+            .GetTypes()
+            .Where(type => !type.IsAbstract && type.IsAssignableTo(typeof(WorkspaceCommand)))
+            .SelectMany(type => type.GetConstructors()
+                .Where(constructor => constructor.GetParameters() is not
+                    [{ ParameterType: { } parameterType }, ..]
+                    || parameterType != typeof(WorkspaceCommandContext))
+                .Select(constructor => $"{type.Name}{constructor}"))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        await Assert.That(contextlessConstructors).IsEmpty();
+    }
+
+    [Test]
     public async Task AttachAsync_Reattach_FencesPriorGeneration()
     {
         await using var workspace = EditorWorkspaceFactory.Create(
@@ -118,7 +135,7 @@ internal sealed class EditorWorkspaceContinuityTests
         timeProvider.Advance(TimeSpan.FromMinutes(4));
 
         var detachedRead = await workspace.ReadAsync(
-            opened.WorkspaceId,
+            Query(opened.WorkspaceId, attached),
             CancellationToken.None);
         timeProvider.Advance(TimeSpan.FromMinutes(1));
         var outcome = await workspace.AttachAsync(
@@ -132,9 +149,31 @@ internal sealed class EditorWorkspaceContinuityTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(detachedRead).IsTypeOf<ProjectionSnapshot>();
+            await Assert.That(detachedRead).IsTypeOf<WorkspaceReadRejected>();
             await Assert.That(outcome).IsTypeOf<Expired>();
         }
+    }
+
+    [Test]
+    public async Task ReadAsync_DetachedAttachment_RejectsStaleController()
+    {
+        await using var workspace = EditorWorkspaceFactory.Create(
+            buildFingerprint: BuildFingerprint);
+        var opened = await Open(workspace);
+        var attached = await Attach(workspace, opened.WorkspaceId);
+        _ = await IsType<Detached>(await workspace.DetachAsync(
+            new DetachRequest(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation),
+            CancellationToken.None));
+
+        var outcome = await workspace.ReadAsync(
+            Query(opened.WorkspaceId, attached),
+            CancellationToken.None);
+
+        var rejection = await IsType<WorkspaceReadRejected>(outcome);
+        await Assert.That(rejection.Code).IsEqualTo("stale_workspace_attachment");
     }
 
     [Test, Timeout(30_000)]
@@ -160,7 +199,7 @@ internal sealed class EditorWorkspaceContinuityTests
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
         var attached = await Attach(workspace, opened.WorkspaceId);
-        var projection = await Read(workspace, opened.WorkspaceId);
+        var projection = await Read(workspace, opened.WorkspaceId, attached);
         var compilation = workspace.DispatchAsync(
             new RequestCompilation(
                 Context(opened.WorkspaceId, attached, "compile"),
@@ -217,14 +256,6 @@ internal sealed class EditorWorkspaceContinuityTests
             Rename(opened, first, "detached", "Must not commit"),
             CancellationToken.None);
         var rejection = await IsType<WorkspaceCommandRejected>(detachedCommand);
-        var legacyCommand = await workspace.DispatchAsync(
-            new ApplyEdit(
-                opened.WorkspaceId,
-                new RenameCircuitDefinitionIntent(
-                    opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId,
-                    "Legacy must not commit")),
-            CancellationToken.None);
-        var legacyRejection = await IsType<WorkspaceCommandRejected>(legacyCommand);
         var second = await IsType<Attached>(await workspace.AttachAsync(
             new Reattach(
                 opened.WorkspaceId,
@@ -240,10 +271,8 @@ internal sealed class EditorWorkspaceContinuityTests
         using (Assert.Multiple())
         {
             await Assert.That(rejection.Code).IsEqualTo("stale_workspace_attachment");
-            await Assert.That(legacyRejection.Code)
-                .IsEqualTo("stale_workspace_attachment");
             await Assert.That(committed).IsTypeOf<AuthoringCommitted>();
-            await Assert.That((await Read(workspace, opened.WorkspaceId))
+            await Assert.That((await Read(workspace, opened.WorkspaceId, second))
                     .ProjectRevision.Document.EntryCircuitDefinition.DisplayName)
                 .IsEqualTo("Committed");
         }
@@ -265,14 +294,14 @@ internal sealed class EditorWorkspaceContinuityTests
                 new AuthoringPrecondition(edit.ProjectRevisionId)),
             CancellationToken.None);
         var undoCommit = await IsType<AuthoringCommitted>(undone);
-        var afterUndo = await Read(workspace, opened.WorkspaceId);
+        var afterUndo = await Read(workspace, opened.WorkspaceId, attached);
         var redone = await workspace.DispatchAsync(
             new Redo(
                 Context(opened.WorkspaceId, attached, "redo"),
                 new AuthoringPrecondition(undoCommit.ProjectRevisionId)),
             CancellationToken.None);
         var redoCommit = await IsType<AuthoringCommitted>(redone);
-        var afterRedo = await Read(workspace, opened.WorkspaceId);
+        var afterRedo = await Read(workspace, opened.WorkspaceId, attached);
 
         using (Assert.Multiple())
         {
@@ -295,7 +324,13 @@ internal sealed class EditorWorkspaceContinuityTests
         var first = await CommitRename(workspace, opened, attached, "first", "First");
         var second = await CommitRename(
             workspace,
-            opened with { Projection = (await ReadOutcome(workspace, opened.WorkspaceId)).Projection },
+            opened with
+            {
+                Projection = (await ReadOutcome(
+                    workspace,
+                    opened.WorkspaceId,
+                    attached)).Projection,
+            },
             attached,
             "second",
             "Second");
@@ -307,7 +342,13 @@ internal sealed class EditorWorkspaceContinuityTests
         var undoCommit = await IsType<AuthoringCommitted>(undone);
         _ = await CommitRename(
             workspace,
-            opened with { Projection = (await ReadOutcome(workspace, opened.WorkspaceId)).Projection },
+            opened with
+            {
+                Projection = (await ReadOutcome(
+                    workspace,
+                    opened.WorkspaceId,
+                    attached)).Projection,
+            },
             attached,
             "branch",
             "Branch");
@@ -315,11 +356,14 @@ internal sealed class EditorWorkspaceContinuityTests
         var redo = await workspace.DispatchAsync(
             new Redo(
                 Context(opened.WorkspaceId, attached, "redo"),
-                new AuthoringPrecondition((await Read(workspace, opened.WorkspaceId))
+                new AuthoringPrecondition((await Read(
+                        workspace,
+                        opened.WorkspaceId,
+                        attached))
                     .ProjectRevision.RevisionId)),
             CancellationToken.None);
         var rejection = await IsType<WorkspaceCommandRejected>(redo);
-        var projection = await Read(workspace, opened.WorkspaceId);
+        var projection = await Read(workspace, opened.WorkspaceId, attached);
 
         using (Assert.Multiple())
         {
@@ -337,7 +381,10 @@ internal sealed class EditorWorkspaceContinuityTests
         var source = await Open(workspace);
         var sourceAttachment = await Attach(workspace, source.WorkspaceId);
         var edit = await CommitRename(workspace, source, sourceAttachment, "edit", "Fork point");
-        var sourceProjection = await Read(workspace, source.WorkspaceId);
+        var sourceProjection = await Read(
+            workspace,
+            source.WorkspaceId,
+            sourceAttachment);
 
         var copyOutcome = await workspace.OpenAsync(
             new CopyWorkspace(
@@ -378,7 +425,7 @@ internal sealed class EditorWorkspaceContinuityTests
         var opened = await Open(workspace);
         var attached = await Attach(workspace, opened.WorkspaceId);
         _ = await CommitRename(workspace, opened, attached, "first", "First");
-        var before = await Read(workspace, opened.WorkspaceId);
+        var before = await Read(workspace, opened.WorkspaceId, attached);
 
         var outcome = await workspace.DispatchAsync(
             new ApplyEdit(
@@ -388,7 +435,7 @@ internal sealed class EditorWorkspaceContinuityTests
                     before.ProjectRevision.Document.EntryCircuitDefinitionId,
                     "Must not commit")),
             CancellationToken.None);
-        var after = await Read(workspace, opened.WorkspaceId);
+        var after = await Read(workspace, opened.WorkspaceId, attached);
         var rejection = await IsType<WorkspaceCommandRejected>(outcome);
 
         using (Assert.Multiple())
@@ -418,7 +465,7 @@ internal sealed class EditorWorkspaceContinuityTests
                 WorkspaceCopySaveTarget.Preserve),
             CancellationToken.None);
         var rejection = await IsType<WorkspaceOpenRejected>(outcome);
-        var sourceAfter = await Read(workspace, source.WorkspaceId);
+        var sourceAfter = await Read(workspace, source.WorkspaceId, attached);
 
         using (Assert.Multiple())
         {
@@ -446,7 +493,7 @@ internal sealed class EditorWorkspaceContinuityTests
                 WorkspaceCopySaveTarget.Preserve),
             CancellationToken.None);
         var rejection = await IsType<WorkspaceOpenRejected>(outcome);
-        var sourceAfter = await Read(workspace, source.WorkspaceId);
+        var sourceAfter = await Read(workspace, source.WorkspaceId, attached);
 
         using (Assert.Multiple())
         {
@@ -471,7 +518,7 @@ internal sealed class EditorWorkspaceContinuityTests
         var replay = await workspace.DispatchAsync(
             Rename(opened, attached, "same", "Once"),
             CancellationToken.None);
-        var projection = await Read(workspace, opened.WorkspaceId);
+        var projection = await Read(workspace, opened.WorkspaceId, attached);
 
         var firstCommit = await IsType<AuthoringCommitted>(first);
         var replayCommit = await IsType<AuthoringCommitted>(replay);
@@ -494,7 +541,7 @@ internal sealed class EditorWorkspaceContinuityTests
         _ = await workspace.DispatchAsync(
             Rename(opened, attached, "same", "First"),
             CancellationToken.None);
-        var current = await Read(workspace, opened.WorkspaceId);
+        var current = await Read(workspace, opened.WorkspaceId, attached);
 
         var conflict = await workspace.DispatchAsync(
             new ApplyEdit(
@@ -505,13 +552,49 @@ internal sealed class EditorWorkspaceContinuityTests
                     "Different")),
             CancellationToken.None);
         var rejection = await IsType<WorkspaceCommandRejected>(conflict);
-        var after = await Read(workspace, opened.WorkspaceId);
+        var after = await Read(workspace, opened.WorkspaceId, attached);
 
         using (Assert.Multiple())
         {
             await Assert.That(rejection.Code).IsEqualTo("idempotency_key_conflict");
             await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.DisplayName)
                 .IsEqualTo("First");
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_CompilationPreconditionRejection_RecordsClientIntent()
+    {
+        await using var workspace = EditorWorkspaceFactory.Create(
+            buildFingerprint: BuildFingerprint);
+        var opened = await Open(workspace);
+        var attached = await Attach(workspace, opened.WorkspaceId);
+        _ = await CommitRename(workspace, opened, attached, "edit", "Changed");
+        var current = await Read(workspace, opened.WorkspaceId, attached);
+        var stale = new RequestCompilation(
+            Context(opened.WorkspaceId, attached, "compile"),
+            new CompilationPrecondition(
+                opened.Projection.ProjectRevision.RevisionId,
+                opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId,
+                opened.Projection.ProjectRevision.Document.LibrarySnapshot.Fingerprint));
+
+        var first = await workspace.DispatchAsync(stale, CancellationToken.None);
+        var replay = await workspace.DispatchAsync(
+            new RequestCompilation(
+                Context(opened.WorkspaceId, attached, "compile"),
+                new CompilationPrecondition(
+                    current.ProjectRevision.RevisionId,
+                    current.ProjectRevision.Document.EntryCircuitDefinitionId,
+                    current.ProjectRevision.Document.LibrarySnapshot.Fingerprint)),
+            CancellationToken.None);
+
+        var firstRejection = await IsType<WorkspaceCommandRejected>(first);
+        var replayRejection = await IsType<WorkspaceCommandRejected>(replay);
+        using (Assert.Multiple())
+        {
+            await Assert.That(firstRejection.Code)
+                .IsEqualTo("project_revision_precondition_failed");
+            await Assert.That(replayRejection.Code).IsEqualTo("idempotency_key_conflict");
         }
     }
 
@@ -525,7 +608,7 @@ internal sealed class EditorWorkspaceContinuityTests
         var attached = await Attach(workspace, opened.WorkspaceId);
         var firstCommand = Rename(opened, attached, "first", "First");
         _ = await workspace.DispatchAsync(firstCommand, CancellationToken.None);
-        var afterFirst = await Read(workspace, opened.WorkspaceId);
+        var afterFirst = await Read(workspace, opened.WorkspaceId, attached);
         _ = await workspace.DispatchAsync(
             new ApplyEdit(
                 Context(opened.WorkspaceId, attached, "second"),
@@ -537,7 +620,7 @@ internal sealed class EditorWorkspaceContinuityTests
 
         var replay = await workspace.DispatchAsync(firstCommand, CancellationToken.None);
         var rejection = await IsType<WorkspaceCommandRejected>(replay);
-        var after = await Read(workspace, opened.WorkspaceId);
+        var after = await Read(workspace, opened.WorkspaceId, attached);
 
         using (Assert.Multiple())
         {
@@ -557,7 +640,7 @@ internal sealed class EditorWorkspaceContinuityTests
         _ = await workspace.DispatchAsync(
             Rename(opened, firstAttachment, "same", "First"),
             CancellationToken.None);
-        var afterFirst = await Read(workspace, opened.WorkspaceId);
+        var afterFirst = await Read(workspace, opened.WorkspaceId, firstAttachment);
         var secondAttachment = await IsType<Attached>(await workspace.AttachAsync(
                 new Reattach(
                     opened.WorkspaceId,
@@ -577,7 +660,7 @@ internal sealed class EditorWorkspaceContinuityTests
             CancellationToken.None);
 
         await Assert.That(second).IsTypeOf<AuthoringCommitted>();
-        await Assert.That((await Read(workspace, opened.WorkspaceId))
+        await Assert.That((await Read(workspace, opened.WorkspaceId, secondAttachment))
                 .ProjectRevision.Document.EntryCircuitDefinition.DisplayName)
             .IsEqualTo("Second");
     }
@@ -639,18 +722,30 @@ internal sealed class EditorWorkspaceContinuityTests
 
     private static async Task<ProjectionSnapshot> ReadOutcome(
         IEditorWorkspace workspace,
-        WorkspaceId workspaceId)
+        WorkspaceId workspaceId,
+        Attached attached)
     {
         return await IsType<ProjectionSnapshot>(await workspace.ReadAsync(
-                workspaceId,
+                Query(workspaceId, attached),
                 CancellationToken.None));
     }
 
     private static async Task<WorkspaceProjection> Read(
         IEditorWorkspace workspace,
-        WorkspaceId workspaceId)
+        WorkspaceId workspaceId,
+        Attached attached)
     {
-        return (await ReadOutcome(workspace, workspaceId)).Projection;
+        return (await ReadOutcome(workspace, workspaceId, attached)).Projection;
+    }
+
+    private static WorkspaceQueryContext Query(
+        WorkspaceId workspaceId,
+        Attached attached)
+    {
+        return new WorkspaceQueryContext(
+            workspaceId,
+            attached.AttachmentId,
+            attached.Generation);
     }
 
     private static WorkspacePolicy Policy(

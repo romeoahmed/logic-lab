@@ -7,7 +7,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<IEditorWorkspace>(services =>
     EditorWorkspaceFactory.Create(
-        loggerFactory: services.GetRequiredService<ILoggerFactory>()));
+        loggerFactory: services.GetRequiredService<ILoggerFactory>(),
+        buildFingerprint: LogicLabWebBuild.Fingerprint));
 builder.Services.AddFluentUIComponents();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();

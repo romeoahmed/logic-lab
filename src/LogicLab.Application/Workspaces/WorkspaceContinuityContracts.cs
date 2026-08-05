@@ -61,6 +61,28 @@ public sealed record WorkspaceCommandContext
     public ClientIntentId ClientIntentId { get; }
 }
 
+public sealed record WorkspaceQueryContext
+{
+    public WorkspaceQueryContext(
+        WorkspaceId workspaceId,
+        WorkspaceAttachmentId attachmentId,
+        ulong attachmentGeneration)
+    {
+        ArgumentNullException.ThrowIfNull(workspaceId);
+        ArgumentNullException.ThrowIfNull(attachmentId);
+        ArgumentOutOfRangeException.ThrowIfZero(attachmentGeneration);
+        WorkspaceId = workspaceId;
+        AttachmentId = attachmentId;
+        AttachmentGeneration = attachmentGeneration;
+    }
+
+    public WorkspaceId WorkspaceId { get; }
+
+    public WorkspaceAttachmentId AttachmentId { get; }
+
+    public ulong AttachmentGeneration { get; }
+}
+
 public sealed record AuthoringPrecondition
 {
     public AuthoringPrecondition(ProjectRevisionId projectRevisionId)
