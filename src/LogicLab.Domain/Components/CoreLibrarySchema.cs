@@ -396,7 +396,7 @@ public static class CoreLibrarySchema
     private static string ComputeContentDigest()
     {
         var canonical = new StringBuilder();
-        canonical.Append("componentLibrarySchemaV1\u001f")
+        canonical.Append("componentLibrarySchemaV2\u001f")
             .Append(LibraryId).Append('\u001f')
             .Append(Version).Append('\n');
         foreach (var contract in ContractSchemas)

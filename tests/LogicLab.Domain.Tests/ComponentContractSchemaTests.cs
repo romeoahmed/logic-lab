@@ -8,6 +8,62 @@ namespace LogicLab.Domain.Tests;
 internal sealed class ComponentContractSchemaTests
 {
     [Test]
+    public async Task CoreContracts_StateAndSemanticMetadata_AffectPublishedDigests()
+    {
+        var split = await FindCoreContract("topology.split");
+        var input = await FindCoreContract("source.input");
+        var clock = await FindCoreContract("source.clock");
+        var register = await FindCoreContract("sequential.register");
+        var memory = await FindCoreContract("memory.ram_single_port");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(split.StateShapeId).IsEqualTo("none");
+            await Assert.That(input.StateShapeId)
+                .IsEqualTo("logic-vector.parameter.width");
+            await Assert.That(clock.StateShapeId)
+                .IsEqualTo("logic-vector.fixed.1");
+            await Assert.That(register.StateShapeId)
+                .IsEqualTo("logic-vector.parameter.width");
+            await Assert.That(memory.StateShapeId)
+                .IsEqualTo("memory-image.parameter.wordWidth.addressWidth");
+            await Assert.That(CoreLibrarySchema.Contracts.Select(contract =>
+                    contract.SemanticRuleVersion).Distinct())
+                .IsEquivalentTo(["component-contract-catalog-v1"]);
+        }
+    }
+
+    [Test]
+    public async Task Compute_StateOrSemanticRuleChanges_ChangesDigest()
+    {
+        var contract = await FindCoreContract("topology.split");
+        var baseline = ComponentContractSchemaDigest.Compute(
+            contract.Key,
+            contract.Parameters,
+            contract.Ports,
+            contract.StateShapeId,
+            contract.SemanticRuleVersion);
+        var changedState = ComponentContractSchemaDigest.Compute(
+            contract.Key,
+            contract.Parameters,
+            contract.Ports,
+            "logic-vector.parameter.width",
+            contract.SemanticRuleVersion);
+        var changedSemantics = ComponentContractSchemaDigest.Compute(
+            contract.Key,
+            contract.Parameters,
+            contract.Ports,
+            contract.StateShapeId,
+            "component-contract-catalog-v2");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(changedState).IsNotEqualTo(baseline);
+            await Assert.That(changedSemantics).IsNotEqualTo(baseline);
+        }
+    }
+
+    [Test]
     public async Task FindContract_SourceConstant_HasExactSchema()
     {
         var contract = await FindCoreContract("source.constant");
@@ -148,11 +204,11 @@ internal sealed class ComponentContractSchemaTests
                     ],
                     CollectionOrdering.Matching);
             await Assert.That(split.SchemaDigest)
-                .IsEqualTo("3f3b2f05e7452c3599163a5a38d7f0c15f299d056742c6d84a1a66254027a45e");
+                .IsEqualTo("4fb2024fee7c219a65c39134167df2155484ec2c96d05e40ad89680c3a630ba4");
             await Assert.That(concat.SchemaDigest)
-                .IsEqualTo("e4605b5e65b0c8bd538d54fd829674a7f46d75ec003a9941bc6f9ff8114054e2");
+                .IsEqualTo("80d474b8635ce186f41cd714c63215d8616e3de87c5227b6ff6c777a6d7679f2");
             await Assert.That(CoreLibrarySchema.ContentDigest)
-                .IsEqualTo("b897d760eb10a7dd1bf5b6f21cd29d8e662937b7a323d12269fae83d1a87c61b");
+                .IsEqualTo("6eaf4153bdf1ce088af3c2a71f8083fc6ea4aba1aadaaa73ec4136d52d2c60f8");
         }
     }
 
