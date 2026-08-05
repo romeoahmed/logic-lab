@@ -137,6 +137,68 @@ internal sealed class EditorWorkspaceContinuityTests
         }
     }
 
+    [Test, Timeout(30_000)]
+    public async Task AttachAsync_DetachedCompilationLease_DoesNotBypassRetention(
+        CancellationToken cancellationToken)
+    {
+        var compilationGate = new BlockingOperationGate();
+        var timeProvider = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            Compile = (request, operationCancellationToken) =>
+            {
+                compilationGate.Block(operationCancellationToken);
+                return production.Compile(request, operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations,
+            workspacePolicy: Policy(detachedRetention: TimeSpan.FromMinutes(5)),
+            timeProvider: timeProvider,
+            buildFingerprint: BuildFingerprint);
+        var opened = await Open(workspace);
+        var attached = await Attach(workspace, opened.WorkspaceId);
+        var projection = await Read(workspace, opened.WorkspaceId);
+        var compilation = workspace.DispatchAsync(
+            new RequestCompilation(
+                Context(opened.WorkspaceId, attached, "compile"),
+                new CompilationPrecondition(
+                    projection.ProjectRevision.RevisionId,
+                    projection.ProjectRevision.Document.EntryCircuitDefinitionId,
+                    projection.ProjectRevision.Document.LibrarySnapshot.Fingerprint)),
+            cancellationToken);
+        WorkspaceAttachOutcome reattach;
+
+        try
+        {
+            await compilationGate.Started.WaitAsync(cancellationToken);
+            _ = await IsType<Detached>(await workspace.DetachAsync(
+                new DetachRequest(
+                    opened.WorkspaceId,
+                    attached.AttachmentId,
+                    attached.Generation),
+                cancellationToken));
+            timeProvider.Advance(TimeSpan.FromMinutes(5));
+            reattach = await workspace.AttachAsync(
+                new Reattach(
+                    opened.WorkspaceId,
+                    attached.AttachmentId,
+                    attached.Generation,
+                    projection.ProjectionVersion,
+                    BuildFingerprint),
+                cancellationToken);
+        }
+        finally
+        {
+            compilationGate.Release();
+        }
+
+        _ = await compilation.WaitAsync(cancellationToken);
+        await Assert.That(reattach).IsTypeOf<Expired>();
+    }
+
     [Test]
     public async Task DispatchAsync_DetachedWorkspace_RejectsCommandsUntilReattached()
     {

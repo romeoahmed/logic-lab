@@ -198,6 +198,72 @@ internal sealed class EditorWorkspaceTests
         }
     }
 
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_PriorGenerationCompilation_DoesNotCompleteNewIntent(
+        CancellationToken cancellationToken)
+    {
+        var firstCompilationGate = new BlockingOperationGate();
+        var compileCount = 0;
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            Compile = (request, operationCancellationToken) =>
+            {
+                if (Interlocked.Increment(ref compileCount) == 1)
+                {
+                    firstCompilationGate.Block(CancellationToken.None);
+                }
+
+                return production.Compile(request, operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations: operations);
+        var (opened, _) = await OpenInputOutputProject(workspace);
+        var firstAttachment = await Attach(workspace, opened.WorkspaceId);
+        var projection = await Read(workspace, opened.WorkspaceId);
+        var first = workspace.DispatchAsync(
+            Compilation(opened.WorkspaceId, firstAttachment, projection),
+            cancellationToken);
+        Task<WorkspaceCommandOutcome> second;
+        Task<WorkspaceCommandOutcome> replay;
+
+        try
+        {
+            await firstCompilationGate.Started.WaitAsync(cancellationToken);
+            var secondAttachment = await Assert.That(await workspace.AttachAsync(
+                    new Reattach(
+                        opened.WorkspaceId,
+                        firstAttachment.AttachmentId,
+                        firstAttachment.Generation,
+                        projection.ProjectionVersion,
+                        WorkspaceBuild.DevelopmentFingerprint),
+                    cancellationToken))
+                .IsTypeOf<Attached>();
+            Assert.NotNull(secondAttachment);
+            second = workspace.DispatchAsync(
+                Compilation(opened.WorkspaceId, secondAttachment, projection),
+                cancellationToken);
+            replay = workspace.DispatchAsync(
+                Compilation(opened.WorkspaceId, secondAttachment, projection),
+                cancellationToken);
+        }
+        finally
+        {
+            firstCompilationGate.Release();
+        }
+
+        _ = await first.WaitAsync(cancellationToken);
+        var outcomes = await Task.WhenAll(second, replay).WaitAsync(cancellationToken);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(outcomes[0]).IsTypeOf<CompilationPublished>();
+            await Assert.That(outcomes[1]).IsSameReferenceAs(outcomes[0]);
+            await Assert.That(compileCount).IsEqualTo(2);
+        }
+    }
+
     [Test]
     public async Task DispatchAsync_ValidNarrowCircuit_ObservesProbeAcrossOneStep()
     {
@@ -640,6 +706,110 @@ internal sealed class EditorWorkspaceTests
         }
     }
 
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_SessionQueueRejection_RecordsClientIntent(
+        CancellationToken cancellationToken)
+    {
+        var sessionGate = new BlockingOperationGate();
+        var openCount = 0;
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            OpenSimulation = (request, operationCancellationToken) =>
+            {
+                if (Interlocked.Increment(ref openCount) == 1)
+                {
+                    sessionGate.Block(operationCancellationToken);
+                }
+
+                return production.OpenSimulation(request, operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations,
+            schedulingPolicy: new SchedulingPolicy(1, 1));
+        var (opened, _) = await OpenInputOutputProject(workspace);
+        var attachment = await Attach(workspace, opened.WorkspaceId);
+        var beforeCompilation = await Read(workspace, opened.WorkspaceId);
+        var compilation = await workspace.DispatchAsync(
+            new RequestCompilation(
+                Context(opened.WorkspaceId, attachment, "compile"),
+                new CompilationPrecondition(
+                    beforeCompilation.ProjectRevision.RevisionId,
+                    beforeCompilation.ProjectRevision.Document.EntryCircuitDefinitionId,
+                    beforeCompilation.ProjectRevision.Document.LibrarySnapshot.Fingerprint)),
+            cancellationToken);
+        var published = await Assert.That(compilation).IsTypeOf<CompilationPublished>();
+        Assert.NotNull(published);
+        var firstCommand = new CreateSession(
+            Context(opened.WorkspaceId, attachment, "first"),
+            new SessionCreationPrecondition(published.ArtifactKey));
+        var secondCommand = new CreateSession(
+            Context(opened.WorkspaceId, attachment, "second"),
+            new SessionCreationPrecondition(published.ArtifactKey));
+        var rejectedCommand = new CreateSession(
+            Context(opened.WorkspaceId, attachment, "rejected"),
+            new SessionCreationPrecondition(published.ArtifactKey));
+
+        var first = workspace.DispatchAsync(firstCommand, cancellationToken);
+        Task<WorkspaceCommandOutcome> second;
+        WorkspaceCommandOutcome rejected;
+        WorkspaceCommandOutcome stale;
+        try
+        {
+            await sessionGate.Started.WaitAsync(cancellationToken);
+            second = workspace.DispatchAsync(secondCommand, cancellationToken);
+            rejected = await workspace.DispatchAsync(
+                rejectedCommand,
+                cancellationToken);
+            stale = await workspace.DispatchAsync(
+                new CreateSession(
+                    new WorkspaceCommandContext(
+                        opened.WorkspaceId,
+                        new WorkspaceAttachmentId("stale-attachment"),
+                        attachment.Generation,
+                        new ClientIntentId("stale")),
+                    new SessionCreationPrecondition(published.ArtifactKey)),
+                cancellationToken);
+        }
+        finally
+        {
+            sessionGate.Release();
+        }
+
+        _ = await first.WaitAsync(cancellationToken);
+        _ = await second.WaitAsync(cancellationToken);
+        var replay = await workspace.DispatchAsync(
+            rejectedCommand,
+            cancellationToken);
+        var conflict = await workspace.DispatchAsync(
+            new CloseWorkspace(
+                Context(opened.WorkspaceId, attachment, "rejected")),
+            cancellationToken);
+        var after = await workspace.ReadAsync(opened.WorkspaceId, cancellationToken);
+        var rejection = await Assert.That(rejected)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        var conflictRejection = await Assert.That(conflict)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        var staleRejection = await Assert.That(stale)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejection);
+        Assert.NotNull(conflictRejection);
+        Assert.NotNull(staleRejection);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejection.Code)
+                .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(replay).IsSameReferenceAs(rejection);
+            await Assert.That(conflictRejection.Code)
+                .IsEqualTo("idempotency_key_conflict");
+            await Assert.That(staleRejection.Code)
+                .IsEqualTo("stale_workspace_attachment");
+            await Assert.That(after).IsTypeOf<ProjectionSnapshot>();
+        }
+    }
+
     private static async Task<(WorkspaceOpened Opened, ComponentInstance Input)>
         OpenInputOutputSession(IEditorWorkspace workspace)
     {
@@ -707,6 +877,19 @@ internal sealed class EditorWorkspaceTests
             attachment.AttachmentId,
             attachment.Generation,
             new ClientIntentId(clientIntentId));
+    }
+
+    private static RequestCompilation Compilation(
+        WorkspaceId workspaceId,
+        Attached attachment,
+        WorkspaceProjection projection)
+    {
+        return new RequestCompilation(
+            Context(workspaceId, attachment, "compile"),
+            new CompilationPrecondition(
+                projection.ProjectRevision.RevisionId,
+                projection.ProjectRevision.Document.EntryCircuitDefinitionId,
+                projection.ProjectRevision.Document.LibrarySnapshot.Fingerprint));
     }
 
     private static async Task<WorkspaceOpened> Open(IEditorWorkspace workspace)

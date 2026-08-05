@@ -73,7 +73,7 @@ internal sealed partial class EditorWorkspace
             }
 
             var now = timeProvider.GetUtcNow();
-            if (state.LeaseCount != 0 || !IsExpired(state, now))
+            if (!IsExpired(state, now))
             {
                 state.LeaseCount++;
                 state.LastAccessUtc = now;
@@ -257,6 +257,8 @@ internal sealed partial class EditorWorkspace
         public bool IsRetired { get; set; }
 
         public bool ResourcesDisposed { get; set; }
+
+        public Lock ContinuityGate { get; } = new();
 
         public SemaphoreSlim CommandGate { get; } = new(1, 1);
     }
