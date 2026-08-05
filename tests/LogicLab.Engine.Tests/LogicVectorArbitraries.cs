@@ -47,6 +47,17 @@ internal sealed record LogicVectorDriverCase(
         $"Drivers(width={Width}, drivers={Drivers.Length})";
 }
 
+internal sealed record LogicVectorArithmeticCase(
+    LogicValue[] Left,
+    LogicValue[] Right,
+    LogicValue Control)
+{
+    public int Width => Left.Length;
+
+    public override string ToString() =>
+        $"Arithmetic(width={Width}, control={Control})";
+}
+
 internal static class LogicVectorArbitraries
 {
     private static readonly int[] BoundaryWidths =
@@ -110,6 +121,20 @@ internal static class LogicVectorArbitraries
             select new LogicVectorDriverCase(width, drivers);
 
         return Arb.From(generator, ShrinkDrivers);
+    }
+
+    public static Arbitrary<LogicVectorArithmeticCase> LogicVectorArithmetic()
+    {
+        var generator =
+            from width in WidthGenerator
+            from vectors in IndependentVectors(width, 2)
+            from control in LogicValueGenerator
+            select new LogicVectorArithmeticCase(
+                vectors[0],
+                vectors[1],
+                control);
+
+        return Arb.From(generator, ShrinkArithmetic);
     }
 
     private static Gen<LogicValue[]> VectorValues(int width) =>
@@ -221,6 +246,34 @@ internal static class LogicVectorArbitraries
         foreach (var drivers in ShrinkVectorValues(sample.Drivers))
         {
             yield return sample with { Drivers = drivers };
+        }
+    }
+
+    private static IEnumerable<LogicVectorArithmeticCase> ShrinkArithmetic(
+        LogicVectorArithmeticCase sample)
+    {
+        foreach (var width in ShrinkWidth(sample.Width))
+        {
+            yield return sample with
+            {
+                Left = sample.Left[..width],
+                Right = sample.Right[..width],
+            };
+        }
+
+        foreach (var values in ShrinkLogicValues(sample.Left))
+        {
+            yield return sample with { Left = values };
+        }
+
+        foreach (var values in ShrinkLogicValues(sample.Right))
+        {
+            yield return sample with { Right = values };
+        }
+
+        if (sample.Control != LogicValue.Zero)
+        {
+            yield return sample with { Control = LogicValue.Zero };
         }
     }
 
