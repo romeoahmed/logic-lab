@@ -763,6 +763,7 @@ public static partial class Compiler
             evaluators[resolved.Ordinal] = new SimulationEvaluator(
                 resolved.Ordinal,
                 resolved.Kind,
+                resolved.ContractKey,
                 resolved.Width,
                 inputNets,
                 outputDrivers,

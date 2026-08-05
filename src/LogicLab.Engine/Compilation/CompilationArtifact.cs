@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
 
 namespace LogicLab.Engine.Compilation;
 
@@ -112,6 +113,7 @@ internal sealed class SimulationEvaluator
     internal SimulationEvaluator(
         int ordinal,
         SimulationEvaluatorKind kind,
+        ComponentContractKey contractKey,
         uint width,
         int[] inputNetOrdinals,
         int[] outputDriverOrdinals,
@@ -124,6 +126,7 @@ internal sealed class SimulationEvaluator
     {
         Ordinal = ordinal;
         Kind = kind;
+        ContractKey = contractKey;
         Width = width;
         InputNetOrdinals = Array.AsReadOnly((int[])inputNetOrdinals.Clone());
         OutputDriverOrdinals = Array.AsReadOnly((int[])outputDriverOrdinals.Clone());
@@ -141,6 +144,8 @@ internal sealed class SimulationEvaluator
     public int Ordinal { get; }
 
     public SimulationEvaluatorKind Kind { get; }
+
+    public ComponentContractKey ContractKey { get; }
 
     public uint Width { get; }
 

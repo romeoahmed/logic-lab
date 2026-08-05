@@ -1,8 +1,10 @@
+using System.Text.RegularExpressions;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
@@ -141,16 +143,117 @@ internal sealed class SimulationFeedbackTests
     }
 
     [Test]
-    public async Task RequirePreservingOrRefining_KnownCoordinateChanges_RejectsDefect()
+    public async Task RequirePreservingOrRefining_KnownCoordinateChanges_ReportsInformationOrderDefect()
     {
+        var circuit = CreateSelfInvertingFeedback();
+        var evaluator = circuit.Artifact.SimulationIr.Evaluators.Single(
+            item => item.Kind == SimulationEvaluatorKind.LogicNot);
+        var primary = circuit.Artifact.SourceMap.Evaluators[evaluator.Ordinal].Source;
+        var related = circuit.Artifact.SourceMap.Drivers[
+            evaluator.OutputDriverOrdinals.Single()].Source;
         CombinationalRefinement.RequirePreservingOrRefining(
             new LogicVector([LogicValue.X]),
-            new LogicVector([LogicValue.Zero]));
+            new LogicVector([LogicValue.Zero]),
+            evaluator.ContractKey,
+            primary,
+            related);
 
-        await Assert.That(() => CombinationalRefinement.RequirePreservingOrRefining(
+        var defect = CaptureDefect(() =>
+            CombinationalRefinement.RequirePreservingOrRefining(
                 new LogicVector([LogicValue.Zero]),
-                new LogicVector([LogicValue.One])))
-            .ThrowsExactly<InvalidOperationException>();
+                new LogicVector([LogicValue.One]),
+                evaluator.ContractKey,
+                primary,
+                related));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(defect.ContractKey).IsEqualTo(evaluator.ContractKey);
+            await Assert.That(defect.Rule).IsEqualTo("information_order");
+            await Assert.That(defect.Primary).IsEqualTo(primary);
+            await Assert.That(defect.Related).IsEqualTo(related);
+        }
+    }
+
+    [Test]
+    public async Task RequirePreservingOrRefining_CoordinateShapeChanges_ReportsShapeDefect()
+    {
+        var circuit = CreateSelfInvertingFeedback();
+        var evaluator = circuit.Artifact.SimulationIr.Evaluators.Single(
+            item => item.Kind == SimulationEvaluatorKind.LogicNot);
+        var primary = circuit.Artifact.SourceMap.Evaluators[evaluator.Ordinal].Source;
+        var related = circuit.Artifact.SourceMap.Drivers[
+            evaluator.OutputDriverOrdinals.Single()].Source;
+
+        var defect = CaptureDefect(() =>
+            CombinationalRefinement.RequirePreservingOrRefining(
+                new LogicVector([LogicValue.X]),
+                new LogicVector([LogicValue.X, LogicValue.X]),
+                evaluator.ContractKey,
+                primary,
+                related));
+
+        await Assert.That(defect.Rule).IsEqualTo("coordinate_shape");
+    }
+
+    [Test]
+    public async Task ContractDefectFailure_Advance_MapsExactDiagnosticWithoutStateChange()
+    {
+        var circuit = CreateSelfInvertingFeedback();
+        var (opened, before) = Open(circuit);
+        var evaluator = circuit.Artifact.SimulationIr.Evaluators.Single(
+            item => item.Kind == SimulationEvaluatorKind.LogicNot);
+        var primary = circuit.Artifact.SourceMap.Evaluators[evaluator.Ordinal].Source;
+        var related = circuit.Artifact.SourceMap.Drivers[
+            evaluator.OutputDriverOrdinals.Single()].Source;
+        var defect = new SimulationContractDefectException(
+            evaluator.ContractKey,
+            "information_order",
+            primary,
+            related);
+
+        var outcome = SimulationRuntime.ContractDefectFailure(
+            opened.Handle.State,
+            new AdvanceToNextQuiescentBoundary(),
+            defect);
+        var after = (SessionSnapshotRead)SimulationRuntime.Read(
+            opened.Handle,
+            new ReadSessionSnapshot(),
+            CancellationToken.None);
+
+        var failed = await Assert.That(outcome).IsTypeOf<AdvanceFailed>();
+        Assert.NotNull(failed);
+        var diagnostic = failed.Diagnostics.Single();
+        var correlation = (SimulationCorrelationTokenValue)
+            diagnostic.Arguments[2].Value;
+        using (Assert.Multiple())
+        {
+            await Assert.That(failed.Reason)
+                .IsEqualTo(SimulationFailureReason.SimulationInternalDefect);
+            await Assert.That(diagnostic.Code)
+                .IsEqualTo("simulation_contract_defect");
+            await Assert.That(diagnostic.Severity)
+                .IsEqualTo(SimulationDiagnosticSeverity.Error);
+            await Assert.That(diagnostic.Arguments.Select(argument => argument.Name))
+                .IsEquivalentTo(
+                    ["contractKey", "rule", "correlation"],
+                    CollectionOrdering.Matching);
+            await Assert.That(diagnostic.Arguments[0].Value)
+                .IsEqualTo(new SimulationContractKeyValue(evaluator.ContractKey));
+            await Assert.That(diagnostic.Arguments[1].Value)
+                .IsEqualTo(new SimulationStableTokenValue("information_order"));
+            await Assert.That(Regex.IsMatch(
+                    correlation.Value,
+                    "^[a-z0-9][a-z0-9_-]{15,63}$",
+                    RegexOptions.CultureInvariant))
+                .IsTrue();
+            await Assert.That(diagnostic.Primary).IsEqualTo(primary);
+            await Assert.That(diagnostic.Related).IsEquivalentTo([related]);
+            await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
+            await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
+            await Assert.That(after.Probes.Single().Value[0])
+                .IsEqualTo(before.Probes.Single().Value[0]);
+        }
     }
 
     [Test]
@@ -365,6 +468,21 @@ internal sealed class SimulationFeedbackTests
             new ReadSessionSnapshot(),
             CancellationToken.None);
         return (opened, snapshot);
+    }
+
+    private static SimulationContractDefectException CaptureDefect(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (SimulationContractDefectException exception)
+        {
+            return exception;
+        }
+
+        throw new InvalidOperationException(
+            "The expected Simulation Contract defect was not raised.");
     }
 
     private static FeedbackCircuit CreateAndZeroFeedback()
