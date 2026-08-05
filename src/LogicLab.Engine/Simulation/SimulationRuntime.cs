@@ -967,10 +967,14 @@ public static partial class SimulationRuntime
             case SimulationEvaluatorKind.LogicNor:
             case SimulationEvaluatorKind.LogicXor:
             case SimulationEvaluatorKind.LogicXnor:
+                var inputs = new LogicVector[evaluator.InputNetOrdinals.Count];
+                for (var index = 0; index < inputs.Length; index++)
+                {
+                    inputs[index] = netValues[evaluator.InputNetOrdinals[index]];
+                }
+
                 driverValues[evaluator.OutputDriverOrdinals[0]] =
-                    CombinationalEvaluation.Gate(
-                        evaluator.Kind,
-                        [.. evaluator.InputNetOrdinals.Select(ordinal => netValues[ordinal])]);
+                    CombinationalEvaluation.Gate(evaluator.Kind, inputs);
                 return;
             case SimulationEvaluatorKind.LogicTristate:
                 driverValues[evaluator.OutputDriverOrdinals[0]] =
@@ -1112,9 +1116,15 @@ public static partial class SimulationRuntime
         int netOrdinal)
     {
         var net = ir.Nets[netOrdinal];
+        var drivers = new LogicVector[net.DriverOrdinals.Count];
+        for (var index = 0; index < drivers.Length; index++)
+        {
+            drivers[index] = driverValues[net.DriverOrdinals[index]];
+        }
+
         return VectorNetResolver.Resolve(
             checked((int)net.Width),
-            [.. net.DriverOrdinals.Select(ordinal => driverValues[ordinal])]);
+            drivers);
     }
 
     private static void CountWork(

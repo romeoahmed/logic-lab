@@ -3,6 +3,11 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine.Benchmarks;
 
+public readonly record struct ResolutionCase(int Width, int DriverCount)
+{
+    public override string ToString() => $"w{Width}-d{DriverCount}";
+}
+
 [MemoryDiagnoser]
 [RankColumn]
 public class VectorNetResolutionBenchmarks
@@ -62,18 +67,19 @@ public class VectorNetResolutionBenchmarks
     [Benchmark]
     public LogicVector ProductionCallShape()
     {
+        var drivers = new LogicVector[driverOrdinals.Length];
+        for (var index = 0; index < drivers.Length; index++)
+        {
+            drivers[index] = vectorDrivers[driverOrdinals[index]];
+        }
+
         return VectorNetResolver.Resolve(
             Case.Width,
-            [.. driverOrdinals.Select(ordinal => vectorDrivers[ordinal])]).Value;
+            drivers).Value;
     }
 
     private static LogicValue Value(int bitIndex, int driverIndex)
     {
         return (LogicValue)((bitIndex * 17 + driverIndex * 13 + 3) & 3);
-    }
-
-    public readonly record struct ResolutionCase(int Width, int DriverCount)
-    {
-        public override string ToString() => $"w{Width}-d{DriverCount}";
     }
 }
