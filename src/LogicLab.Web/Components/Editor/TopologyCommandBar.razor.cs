@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace LogicLab.Web.Components.Editor;
 
-public partial class TopologyCommandBar
+public sealed partial class TopologyCommandBar
 {
     [Parameter]
     public bool CanMerge { get; set; }

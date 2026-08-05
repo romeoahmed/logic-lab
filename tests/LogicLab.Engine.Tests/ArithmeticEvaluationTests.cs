@@ -420,9 +420,9 @@ internal sealed class ArithmeticEvaluationTests
                 {
                     foreach (var control in controls)
                     {
-                        var result = operation(leftBit, rightBit, control);
-                        _ = possibleValues.Add(result.Value);
-                        _ = nextControls.Add(result.Control);
+                        var (value, nextControl) = operation(leftBit, rightBit, control);
+                        _ = possibleValues.Add(value);
+                        _ = nextControls.Add(nextControl);
                     }
                 }
             }

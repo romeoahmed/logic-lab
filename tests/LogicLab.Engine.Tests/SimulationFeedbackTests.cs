@@ -8,7 +8,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
-internal sealed class SimulationFeedbackTests
+internal sealed partial class SimulationFeedbackTests
 {
     [Test]
     public async Task Open_AndZeroFeedback_SettlesKnownLeastInformationFixedPoint()
@@ -252,10 +252,7 @@ internal sealed class SimulationFeedbackTests
                 .IsEqualTo(new SimulationContractKeyValue(evaluator.ContractKey));
             await Assert.That(diagnostic.Arguments[1].Value)
                 .IsEqualTo(new SimulationStableTokenValue("information_order"));
-            await Assert.That(Regex.IsMatch(
-                    correlation.Value,
-                    "^[a-z0-9][a-z0-9_-]{15,63}$",
-                    RegexOptions.CultureInvariant))
+            await Assert.That(CorrelationTokenPattern().IsMatch(correlation.Value))
                 .IsTrue();
             await Assert.That(diagnostic.Primary).IsEqualTo(primary);
             await Assert.That(diagnostic.Related).IsEquivalentTo([related]);
@@ -265,6 +262,11 @@ internal sealed class SimulationFeedbackTests
                 .IsEqualTo(before.Probes.Single().Value[0]);
         }
     }
+
+    [GeneratedRegex(
+        "^[a-z0-9][a-z0-9_-]{15,63}$",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex CorrelationTokenPattern();
 
     [Test]
     public async Task Open_FeedbackCorpus_MatchesSynchronousBottomIterationOracle()

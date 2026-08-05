@@ -20,12 +20,8 @@ public class VectorLogicBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        leftValues = Enumerable.Range(0, Width)
-            .Select(LeftValue)
-            .ToArray();
-        rightValues = Enumerable.Range(0, Width)
-            .Select(RightValue)
-            .ToArray();
+        leftValues = [.. Enumerable.Range(0, Width).Select(LeftValue)];
+        rightValues = [.. Enumerable.Range(0, Width).Select(RightValue)];
         left = new LogicVector(leftValues);
         right = new LogicVector(rightValues);
     }
