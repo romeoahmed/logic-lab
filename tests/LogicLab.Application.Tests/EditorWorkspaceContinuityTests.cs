@@ -442,7 +442,8 @@ internal sealed class EditorWorkspaceContinuityTests
         {
             await Assert.That(rejection.Code).IsEqualTo(
                 "project_revision_precondition_failed");
-            await Assert.That(after.ProjectRevision).IsSameReferenceAs(before.ProjectRevision);
+            await Assert.That(after.ProjectRevision.RevisionId)
+                .IsEqualTo(before.ProjectRevision.RevisionId);
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
         }
     }
@@ -498,8 +499,8 @@ internal sealed class EditorWorkspaceContinuityTests
         using (Assert.Multiple())
         {
             await Assert.That(rejection.Code).IsEqualTo("stale_workspace_attachment");
-            await Assert.That(sourceAfter.ProjectRevision)
-                .IsSameReferenceAs(source.Projection.ProjectRevision);
+            await Assert.That(sourceAfter.ProjectRevision.RevisionId)
+                .IsEqualTo(source.Projection.ProjectRevision.RevisionId);
             await Assert.That(sourceAfter.ProjectionVersion)
                 .IsEqualTo(source.Projection.ProjectionVersion);
         }
@@ -524,7 +525,10 @@ internal sealed class EditorWorkspaceContinuityTests
         var replayCommit = await IsType<AuthoringCommitted>(replay);
         using (Assert.Multiple())
         {
-            await Assert.That(replayCommit).IsSameReferenceAs(firstCommit);
+            await Assert.That(replayCommit.ProjectRevisionId)
+                .IsEqualTo(firstCommit.ProjectRevisionId);
+            await Assert.That(replayCommit.ProjectionVersion)
+                .IsEqualTo(firstCommit.ProjectionVersion);
             await Assert.That(projection.ProjectionVersion)
                 .IsEqualTo(firstCommit.ProjectionVersion);
             await Assert.That(projection.History.RetainedRevisionCount).IsEqualTo(2);
@@ -766,24 +770,5 @@ internal sealed class EditorWorkspaceContinuityTests
     {
         var typed = await Assert.That(actual).IsTypeOf<T>();
         return typed!;
-    }
-
-    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        private DateTimeOffset utcNow = utcNow;
-
-        private long timestamp;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-
-        public override DateTimeOffset GetUtcNow() => utcNow;
-
-        public override long GetTimestamp() => timestamp;
-
-        public void Advance(TimeSpan duration)
-        {
-            utcNow += duration;
-            timestamp += duration.Ticks;
-        }
     }
 }

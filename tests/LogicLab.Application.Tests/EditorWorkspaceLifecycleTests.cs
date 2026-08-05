@@ -250,23 +250,4 @@ internal sealed class EditorWorkspaceLifecycleTests
 
         return await Task.WhenAll(contenders).WaitAsync(cancellationToken);
     }
-
-    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        private DateTimeOffset utcNow = utcNow;
-
-        private long timestamp;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-
-        public override DateTimeOffset GetUtcNow() => utcNow;
-
-        public override long GetTimestamp() => timestamp;
-
-        public void Advance(TimeSpan duration)
-        {
-            utcNow += duration;
-            timestamp += duration.Ticks;
-        }
-    }
 }
