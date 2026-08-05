@@ -1,10 +1,70 @@
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Domain;
 using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
 internal sealed class ArithmeticEvaluationTests
 {
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property UnsignedCompare_FourStateOperands_MatchesPossibleCaseOracle(
+        LogicVectorPairCase sample)
+    {
+        var expected = ScalarCompareOracle(sample.Left, sample.Right);
+        var actual = ArithmeticEvaluation.UnsignedCompare(
+            Vector(sample.Left),
+            Vector(sample.Right));
+        var matches = actual == expected;
+
+        return matches
+            .Label($"expected={expected}; actual={actual}")
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width));
+    }
+
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property Add_FourStateOperands_MatchesPossibleCaseCarryOracle(
+        LogicVectorArithmeticCase sample)
+    {
+        var expected = ScalarAddOracle(sample.Left, sample.Right, sample.Control);
+        var actual = ArithmeticEvaluation.Add(
+            Vector(sample.Left),
+            Vector(sample.Right),
+            sample.Control);
+        var matches = LogicVectorTestData.Matches(actual.Sum, expected.Values)
+            && actual.CarryOut == expected.ControlOut;
+
+        return matches
+            .Label(ArithmeticMismatch(actual.Sum, actual.CarryOut, expected))
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width));
+    }
+
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property Subtract_FourStateOperands_MatchesPossibleCaseBorrowOracle(
+        LogicVectorArithmeticCase sample)
+    {
+        var expected = ScalarSubtractOracle(
+            sample.Left,
+            sample.Right,
+            sample.Control);
+        var actual = ArithmeticEvaluation.Subtract(
+            Vector(sample.Left),
+            Vector(sample.Right),
+            sample.Control);
+        var matches = LogicVectorTestData.Matches(
+                actual.Difference,
+                expected.Values)
+            && actual.BorrowOut == expected.ControlOut;
+
+        return matches
+            .Label(ArithmeticMismatch(
+                actual.Difference,
+                actual.BorrowOut,
+                expected))
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width));
+    }
+
     [Test]
     [Arguments(
         new[] { LogicValue.Zero, LogicValue.One, LogicValue.One },
@@ -275,4 +335,147 @@ internal sealed class ArithmeticEvaluationTests
             .ToArray();
         return Values(VectorConservativeMerge.Merge(possible));
     }
+
+    private static UnsignedComparisonResult ScalarCompareOracle(
+        LogicValue[] left,
+        LogicValue[] right)
+    {
+        var relations = new HashSet<int> { 0 };
+        for (var bit = left.Length - 1; bit >= 0; bit--)
+        {
+            var next = new HashSet<int>();
+            foreach (var relation in relations)
+            {
+                if (relation != 0)
+                {
+                    _ = next.Add(relation);
+                    continue;
+                }
+
+                foreach (var leftBit in PossibleBits(left[bit]))
+                {
+                    foreach (var rightBit in PossibleBits(right[bit]))
+                    {
+                        _ = next.Add(leftBit.CompareTo(rightBit));
+                    }
+                }
+            }
+
+            relations = next;
+        }
+
+        return new UnsignedComparisonResult(
+            RelationValue(relations, -1),
+            RelationValue(relations, 0),
+            RelationValue(relations, 1));
+    }
+
+    private static ArithmeticOracleResult ScalarAddOracle(
+        LogicValue[] left,
+        LogicValue[] right,
+        LogicValue carryIn)
+    {
+        return ScalarArithmeticOracle(
+            left,
+            right,
+            carryIn,
+            static (leftBit, rightBit, carry) =>
+            {
+                var total = leftBit + rightBit + carry;
+                return (total & 1, total >> 1);
+            });
+    }
+
+    private static ArithmeticOracleResult ScalarSubtractOracle(
+        LogicValue[] left,
+        LogicValue[] right,
+        LogicValue borrowIn)
+    {
+        return ScalarArithmeticOracle(
+            left,
+            right,
+            borrowIn,
+            static (leftBit, rightBit, borrow) =>
+            {
+                var difference = leftBit - rightBit - borrow;
+                return (difference & 1, difference < 0 ? 1 : 0);
+            });
+    }
+
+    private static ArithmeticOracleResult ScalarArithmeticOracle(
+        LogicValue[] left,
+        LogicValue[] right,
+        LogicValue controlIn,
+        Func<int, int, int, (int Value, int Control)> operation)
+    {
+        var controls = PossibleBits(controlIn).ToHashSet();
+        var values = new LogicValue[left.Length];
+        for (var bit = 0; bit < left.Length; bit++)
+        {
+            var possibleValues = new HashSet<int>();
+            var nextControls = new HashSet<int>();
+            foreach (var leftBit in PossibleBits(left[bit]))
+            {
+                foreach (var rightBit in PossibleBits(right[bit]))
+                {
+                    foreach (var control in controls)
+                    {
+                        var result = operation(leftBit, rightBit, control);
+                        _ = possibleValues.Add(result.Value);
+                        _ = nextControls.Add(result.Control);
+                    }
+                }
+            }
+
+            values[bit] = MergeBinary(possibleValues);
+            controls = nextControls;
+        }
+
+        return new ArithmeticOracleResult(values, MergeBinary(controls));
+    }
+
+    private static int[] PossibleBits(LogicValue value)
+    {
+        return ScalarLogic.NormalizeInput(value) switch
+        {
+            LogicValue.Zero => [0],
+            LogicValue.One => [1],
+            LogicValue.X => [0, 1],
+            _ => throw new InvalidOperationException(
+                "Input normalization returned an invalid Logic Value."),
+        };
+    }
+
+    private static LogicValue RelationValue(HashSet<int> relations, int relation)
+    {
+        if (!relations.Contains(relation))
+        {
+            return LogicValue.Zero;
+        }
+
+        return relations.Count == 1 ? LogicValue.One : LogicValue.X;
+    }
+
+    private static LogicValue MergeBinary(HashSet<int> values)
+    {
+        if (values.Count != 1)
+        {
+            return LogicValue.X;
+        }
+
+        return values.Contains(0) ? LogicValue.Zero : LogicValue.One;
+    }
+
+    private static string ArithmeticMismatch(
+        LogicVector actual,
+        LogicValue actualControl,
+        ArithmeticOracleResult expected)
+    {
+        return $"{LogicVectorTestData.MismatchLabel(actual, expected.Values)}; " +
+            $"control expected={expected.ControlOut}, actual={actualControl}";
+    }
+
+    private sealed record ArithmeticOracleResult(
+        LogicValue[] Values,
+        LogicValue ControlOut);
 }
