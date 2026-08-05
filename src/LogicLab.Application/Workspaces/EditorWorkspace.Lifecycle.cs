@@ -72,11 +72,10 @@ internal sealed partial class EditorWorkspace
                     WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
 
-            var now = timeProvider.GetUtcNow();
-            if (!IsExpired(state, now))
+            var nowTimestamp = timeProvider.GetTimestamp();
+            if (!IsExpired(state, nowTimestamp))
             {
                 state.LeaseCount++;
-                state.LastAccessUtc = now;
                 return WorkspaceAcquisition.Acquired(new WorkspaceLease(this, state));
             }
 
@@ -99,7 +98,7 @@ internal sealed partial class EditorWorkspace
                 return WorkspaceOutcomeReasons.WorkspaceCancelled;
             }
 
-            retired = ReclaimExpiredUnderLock(timeProvider.GetUtcNow());
+            retired = ReclaimExpiredUnderLock(timeProvider.GetTimestamp());
             if (workspaces.Count + workspaceReservations
                 >= workspacePolicy.GlobalWorkspaceLimit)
             {
@@ -119,10 +118,10 @@ internal sealed partial class EditorWorkspace
         }
     }
 
-    private List<WorkspaceState> ReclaimExpiredUnderLock(DateTimeOffset now)
+    private List<WorkspaceState> ReclaimExpiredUnderLock(long nowTimestamp)
     {
         var expired = workspaces.Values
-            .Where(state => state.LeaseCount == 0 && IsExpired(state, now))
+            .Where(state => IsExpired(state, nowTimestamp))
             .ToList();
         foreach (var state in expired)
         {
@@ -133,14 +132,30 @@ internal sealed partial class EditorWorkspace
         return expired;
     }
 
-    private bool IsExpired(WorkspaceState state, DateTimeOffset now)
+    private bool IsExpired(WorkspaceState state, long nowTimestamp)
     {
-        if (state.DetachedAtUtc is { } detachedAtUtc)
+        if (state.DetachedAtTimestamp is { } detachedAtTimestamp)
         {
-            return now - detachedAtUtc >= workspacePolicy.DetachedRetention;
+            return timeProvider.GetElapsedTime(detachedAtTimestamp, nowTimestamp)
+                >= workspacePolicy.DetachedRetention;
         }
 
-        return now - state.LastAccessUtc >= workspacePolicy.SandboxRetention;
+        return state.LeaseCount == 0
+            && timeProvider.GetElapsedTime(state.LastAccessTimestamp, nowTimestamp)
+            >= workspacePolicy.SandboxRetention;
+    }
+
+    private void TouchWorkspace(WorkspaceState state)
+    {
+        lock (gate)
+        {
+            if (!state.IsRetired
+                && workspaces.TryGetValue(state.Id, out var current)
+                && ReferenceEquals(current, state))
+            {
+                state.LastAccessTimestamp = timeProvider.GetTimestamp();
+            }
+        }
     }
 
     private void Release(WorkspaceState state)
@@ -214,7 +229,7 @@ internal sealed partial class EditorWorkspace
     private sealed class WorkspaceState(
         WorkspaceId id,
         ProjectRevision revision,
-        DateTimeOffset lastAccessUtc)
+        long lastAccessTimestamp)
     {
         public WorkspaceId Id { get; } = id;
 
@@ -232,7 +247,7 @@ internal sealed partial class EditorWorkspace
 
         public bool IsAttached { get; set; }
 
-        public DateTimeOffset? DetachedAtUtc { get; set; }
+        public long? DetachedAtTimestamp { get; set; }
 
         public Dictionary<ClientIntentId, IdempotencyRecord> IdempotencyRecords { get; } = [];
 
@@ -250,7 +265,7 @@ internal sealed partial class EditorWorkspace
 
         public SimulationProjection? Simulation { get; set; }
 
-        public DateTimeOffset LastAccessUtc { get; set; } = lastAccessUtc;
+        public long LastAccessTimestamp { get; set; } = lastAccessTimestamp;
 
         public int LeaseCount { get; set; }
 
