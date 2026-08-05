@@ -772,8 +772,18 @@ internal sealed class EditorWorkspaceContinuityTests
     {
         private DateTimeOffset utcNow = utcNow;
 
+        private long timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
         public override DateTimeOffset GetUtcNow() => utcNow;
 
-        public void Advance(TimeSpan duration) => utcNow += duration;
+        public override long GetTimestamp() => timestamp;
+
+        public void Advance(TimeSpan duration)
+        {
+            utcNow += duration;
+            timestamp += duration.Ticks;
+        }
     }
 }

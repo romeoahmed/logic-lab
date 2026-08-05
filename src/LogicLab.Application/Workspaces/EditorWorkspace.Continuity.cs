@@ -137,7 +137,7 @@ internal sealed partial class EditorWorkspace
                 state.IsAttached = false;
                 lock (gate)
                 {
-                    state.DetachedAtUtc = timeProvider.GetUtcNow();
+                    state.DetachedAtTimestamp = timeProvider.GetTimestamp();
                 }
 
                 return new Detached(state.Id, state.AttachmentGeneration);
@@ -162,7 +162,8 @@ internal sealed partial class EditorWorkspace
         state.IsAttached = true;
         lock (gate)
         {
-            state.DetachedAtUtc = null;
+            state.DetachedAtTimestamp = null;
+            state.LastAccessTimestamp = timeProvider.GetTimestamp();
         }
 
         state.IdempotencyRecords.Clear();
@@ -217,6 +218,8 @@ internal sealed partial class EditorWorkspace
                         WorkspaceOutcomeReasons.StaleWorkspaceAttachment,
                         []);
                 }
+
+                TouchWorkspace(source);
             }
 
             if (source.ProjectionVersion != request.ExpectedProjectionVersion)
@@ -240,7 +243,7 @@ internal sealed partial class EditorWorkspace
                 var copy = new WorkspaceState(
                     id,
                     source.Revision,
-                    timeProvider.GetUtcNow());
+                    timeProvider.GetTimestamp());
                 lock (gate)
                 {
                     workspaceReservations--;
@@ -362,7 +365,7 @@ internal sealed partial class EditorWorkspace
             && state.AttachmentGeneration == context.AttachmentGeneration;
     }
 
-    private static ContextualIntentInspection InspectContextualIntentUnderLock(
+    private ContextualIntentInspection InspectContextualIntentUnderLock(
         WorkspaceState state,
         WorkspaceCommand command)
     {
@@ -372,6 +375,8 @@ internal sealed partial class EditorWorkspace
             return new ContextualIntentTerminal(
                 Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment));
         }
+
+        TouchWorkspace(state);
 
         var identity = CanonicalIdentity(command);
         if (state.IdempotencyRecords.TryGetValue(

@@ -104,7 +104,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             var state = new WorkspaceState(
                 id,
                 committed.Revision,
-                timeProvider.GetUtcNow());
+                timeProvider.GetTimestamp());
             lock (gate)
             {
                 workspaceReservations--;
@@ -218,6 +218,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                     return new WorkspaceReadRejected(
                         WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
                 }
+
+                TouchWorkspace(state);
             }
 
             return new ProjectionSnapshot(Project(state));
