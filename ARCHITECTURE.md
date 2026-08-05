@@ -2,7 +2,7 @@
 
 > Status: normative V1 architecture; implementation in progress
 > Target: .NET 10, C# 14, Blazor Web App
-> Last reviewed: 2026-08-03
+> Last reviewed: 2026-08-05
 
 Architecture owns system shape, dependency direction, Module seams, fact ownership, and deployment shape. Specifications own exact interfaces and observable behavior; contracts own values exchanged at real seams; [Workbench](./WORKBENCH.md) owns product behavior; [Context Map](./CONTEXT-MAP.md) owns domain language. The [Implementation Plan](./docs/implementation-plan.md) owns delivery order and completion status.
 

@@ -38,7 +38,7 @@ omitted:
 > Status: normative V1 visual and interaction contract
 > Platform: Blazor Web App, per-page Interactive Server editor, Fluent UI Blazor v5 RC
 
-The current `/editor` route implements an accessible Sandbox tracer through the completed implementation-plan items. Layout breadth, Canvas interaction, instruments, persistence, and qualification requirements remain target V1 behavior until their owning items complete. [Development Readiness](./docs/README.md#development-readiness) records that boundary.
+The current `/editor` route implements the accessible Sandbox tracer and bounded Phase B authoring/projection surface recorded in [Development Readiness](./docs/README.md#development-readiness). It does not imply browser projection for every executable Component Contract. Layout breadth, Canvas interaction, instruments, persistence, and qualification requirements remain target V1 behavior until their owning items complete.
 
 This document owns the workbench experience. System ownership lives in [Architecture](./ARCHITECTURE.md), static schematic geometry in [Diagram Presentation](./docs/specs/diagram-presentation.md), browser records in the [Browser Adapter Contract](./docs/contracts/browser-adapters.md), and Canvas/input/resource behavior in [Browser Runtime](./docs/specs/browser-runtime.md).
 

@@ -2,7 +2,7 @@
 
 > Status: normative V1 capability and proof contract
 
-Boolean Analysis is a synchronous, deterministic, CPU-bound deep Module implemented in managed .NET. It has no repository, Web, native, solver-process, or algorithm-package dependency.
+Boolean Analysis is a synchronous, deterministic, CPU-bound deep Module. V1 requires a managed .NET implementation with no repository, Web, native, solver-process, or algorithm-package dependency.
 
 ## 1. Outcomes
 

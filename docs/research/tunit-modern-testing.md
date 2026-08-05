@@ -3,24 +3,25 @@
 > Verified 2026-07-31 (Asia/Shanghai)
 > Scope: migration from xUnit v3 to TUnit for Logic Lab, including execution, assertions, data, lifecycle, parallelism, reporting, AOT, and FsCheck
 > Authority: TUnit's official documentation, official GitHub repository, NuGet, and Microsoft Testing Platform documentation; normative project choices remain in the repository specifications
+> Snapshot boundary: migration counts and mappings describe the 2026-07-31 checkpoint; current suite composition lives in [Development Readiness](../README.md#development-readiness). CLI forwarding behavior was rechecked on 2026-08-05.
 
 This note distinguishes **source fact** from **Logic Lab inference**. The investigation began from TUnit's official [`llms.txt`](https://tunit.dev/llms.txt) index and followed its links to first-party documentation and source. The official repository was inspected at commit [`d0c74ca21e191e02a8fe56a878d4922046ba7b19`](https://github.com/thomhurst/TUnit/tree/d0c74ca21e191e02a8fe56a878d4922046ba7b19), dated 2026-07-31. Package versions must still be resolved through the repository's normal qualification and lock-file process at implementation time.
 
 ## 1. Executive conclusion
 
-**Logic Lab inference:** Migrating the existing tests from xUnit v3 to TUnit is technically straightforward and fits the existing .NET 10 Microsoft Testing Platform baseline. It should be a semantic migration, not only an attribute rename:
+**Logic Lab inference:** The xUnit v3 to TUnit migration fit the .NET 10 Microsoft Testing Platform baseline and was treated as a semantic migration, not only an attribute rename:
 
 - replace the xUnit runner package with the `TUnit` meta-package and remove xUnit runner configuration;
 - keep the normal test lane in TUnit's default source-generation mode;
 - convert assertions to awaited, strongly typed fluent assertions, using chains and `Assert.Multiple()` only where they improve diagnostics;
-- promote current hand-driven FsCheck checks to the official `TUnit.FsCheck` executor so shrinking, replay, cancellation, and property metadata participate in the TUnit lifecycle;
+- promote the hand-driven FsCheck checks present at the checkpoint to the official `TUnit.FsCheck` executor so shrinking, replay, cancellation, and property metadata participate in the TUnit lifecycle;
 - expose intentionally exhaustive input combinations as individual Matrix test cases where that improves failure identity;
 - keep isolated unit/property tests parallel and configure a bounded CI-wide maximum, while reserving keyed `[NotInParallel]`, `[ParallelLimiter<T>]`, and shared data sources for real resource constraints;
 - use TUnit's test/session artifacts and built-in HTML/TRX/coverage reporting rather than introducing runner-specific infrastructure;
 - treat Native AOT as a separate qualification lane, because `TUnit.FsCheck` is explicitly not Native-AOT compatible;
 - keep bUnit tests in `.cs` files under the ordinary .NET SDK and TUnit source-generation mode; do not add Razor test files whose generator output TUnit cannot consume.
 
-Do not apply every TUnit feature indiscriminately. `[Retry]`, `[Repeat]`, `[DependsOn]`, global non-parallel execution, dynamic tests, and shared mutable fixtures solve specific problems and would reduce the quality of the current deterministic unit suite if added without evidence.
+Do not apply every TUnit feature indiscriminately. `[Retry]`, `[Repeat]`, `[DependsOn]`, global non-parallel execution, dynamic tests, and shared mutable fixtures solve specific problems and would reduce the quality of the deterministic unit suite if added without evidence.
 
 ## 2. Pre-migration Logic Lab baseline
 
@@ -35,7 +36,7 @@ That C# corpus contained:
 - only ordinary `Assert.Equal`, `Assert.Null`, `Assert.Empty`, `Assert.IsType`, and `Assert.Throws` calls;
 - no xUnit fixtures, collections, traits, output helper, skip, timeout, or lifecycle interfaces.
 
-**Logic Lab implementation result:** Both projects now use exact centrally pinned `TUnit` 1.63.0; Engine also uses `TUnit.FsCheck` 1.63.0 and direct FsCheck 3.3.4. The nine generative methods are first-class FsCheck properties, ordered collection checks use `CollectionOrdering.Matching`, and a source-generated matrix exposes 112 word-tail combinations independently. Discovery increased from 140 to 252 tests without changing production code or the scalar differential oracles.
+**Logic Lab implementation result at the checkpoint:** Both migrated projects used exact centrally pinned `TUnit` 1.63.0; Engine also used `TUnit.FsCheck` 1.63.0 and direct FsCheck 3.3.4. The nine generative methods became first-class FsCheck properties, ordered collection checks used `CollectionOrdering.Matching`, and a source-generated matrix exposed 112 word-tail combinations independently. Discovery increased from 140 to 252 tests without changing production code or the scalar differential oracles. Later slices added test projects and properties; those additions do not rewrite this migration record.
 
 ## 3. Package and project model
 
@@ -59,13 +60,13 @@ That C# corpus contained:
 6. do not add `Microsoft.NET.Test.Sdk`, Coverlet, or direct Microsoft Testing Platform package versions;
 7. regenerate application-root lock files under locked restore and confirm that all transitive Microsoft Testing Platform extensions are intentional.
 
-The package source currently depends on Microsoft Testing Platform 2.3.3, but Logic Lab should consume that transitively from the qualified TUnit release instead of pinning an internal implementation dependency ([TUnit central versions](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/Directory.Packages.props), [`TUnit.Engine.csproj`](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/src/TUnit.Engine/TUnit.Engine.csproj)).
+At the inspected commit, the package source depended on Microsoft Testing Platform 2.3.3. Logic Lab consumes that transitively from the qualified TUnit release instead of pinning an internal implementation dependency ([TUnit central versions](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/Directory.Packages.props), [`TUnit.Engine.csproj`](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/src/TUnit.Engine/TUnit.Engine.csproj)).
 
 ### 3.2 Migration mechanics
 
 **Logic Lab inference:** The official fixer is useful as a mechanical first pass, but its output must not define the final test design. A safe implementation sequence is:
 
-1. record the current build, list, and execution result, including the 140 discovered invocations;
+1. record the pre-migration build, list, and execution result, including the 140 discovered invocations;
 2. add TUnit temporarily with its implicit usings disabled as documented, run the `TUXU0001` fixer, and review every diff;
 3. manually reshape data/property tests and assertions according to Sections 5 and 6;
 4. remove xUnit and the temporary implicit-using suppression;
@@ -79,9 +80,9 @@ The official migration guide warns that multi-targeted projects must select one 
 
 **Source fact:** TUnit is built directly on Microsoft Testing Platform. Tests can run through `dotnet run`, `dotnet test`, `dotnet exec`, the built DLL, or a published executable; `dotnet test` supports projects and solutions ([running tests](https://tunit.dev/docs/getting-started/running-your-tests)). Microsoft describes Testing Platform as an embedded test host and explicitly supports executable test projects and `dotnet test` integration ([Microsoft Testing Platform overview](https://learn.microsoft.com/en-us/dotnet/core/testing/microsoft-testing-platform-intro)).
 
-**Source fact:** .NET 10 introduced native MTP mode for `dotnet test`, selected through `global.json`. In this mode test and extension options are accepted directly as extensible trailing arguments, and the extra `--` separator used by the older VSTest-mediated compatibility mode is no longer used ([`dotnet test` with MTP](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp), [VSTest-to-MTP migration](https://learn.microsoft.com/en-us/dotnet/core/testing/migrating-vstest-microsoft-testing-platform#opt-in-to-mtp-mode-on-net-10-sdk-and-later)). Some TUnit pages still contain older-SDK examples with `--`; the TUnit filter and CI pages separately acknowledge direct .NET 10 syntax ([filters](https://tunit.dev/docs/execution/test-filters), [CI note](https://tunit.dev/docs/examples/tunit-ci-pipeline#filter-tests-by-category)).
+**Source fact:** .NET 10 introduced native MTP mode for `dotnet test`, selected through `global.json`. Test and extension options can be passed directly as extensible trailing arguments. The .NET CLI also accepts a literal `--` and recommends it when recognized driver options would otherwise make forwarded argument binding ambiguous; the separator is therefore a disambiguation tool, not an obsolete VSTest-only form ([`dotnet test` with MTP](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp#forward-arguments-to-the-test-application), [VSTest-to-MTP migration](https://learn.microsoft.com/en-us/dotnet/core/testing/migrating-vstest-microsoft-testing-platform#opt-in-to-mtp-mode-on-net-10-sdk-and-later)). TUnit's filter and CI pages show the ordinary direct form ([filters](https://tunit.dev/docs/execution/test-filters), [CI note](https://tunit.dev/docs/examples/tunit-ci-pipeline#filter-tests-by-category)).
 
-**Logic Lab inference:** Preserve `dotnet test --solution logic-lab.slnx` as the whole-repository gate because `global.json` selects native MTP on the pinned .NET 10 SDK. Pass TUnit/MTP options directly, for example `dotnet test --solution logic-lab.slnx --maximum-parallel-tests 4`; do not add the legacy extra `--`. Use `dotnet run --project <test-project> -- <TUnit options>` only for focused single-project diagnosis where `dotnet run` itself needs an application-argument separator. Continue the repository rule that `--nologo` is not passed through the solution test command because native MTP treats extensible trailing options as test-application arguments.
+**Logic Lab inference:** Preserve `dotnet test --solution logic-lab.slnx` as the whole-repository gate because `global.json` selects native MTP on the pinned .NET 10 SDK. Pass ordinary TUnit/MTP options directly, for example `dotnet test --solution logic-lab.slnx --maximum-parallel-tests 4`; use a literal `--` only for the documented driver-option ambiguity. `dotnet run --project <test-project> -- <TUnit options>` still needs an application-argument separator. Continue the repository rule that `--nologo` is not passed through the solution test command because native MTP treats it as an unsupported test-application option.
 
 ### 4.2 Source generation is the default; Native AOT is additional
 
@@ -122,7 +123,7 @@ Never drop semantic property testing merely to claim Native AOT compatibility.
 
 **Source fact:** TUnit rejects incompatible equality operands at compile time where possible. Runtime type assertions distinguish exact type (`IsTypeOf<T>`) from assignability and return the validated typed subject when awaited. Collection assertions include ordered equality, equivalence, predicates, count, single-item extraction, and returned matching items ([type checking](https://tunit.dev/docs/assertions/type-checking), [collections](https://tunit.dev/docs/assertions/collections), [await return values](https://tunit.dev/docs/assertions/awaiting#using-return-values-from-awaited-assertions)).
 
-**Logic Lab inference:** Replace the current `Assert.IsType<ComponentContractSchema>` helper with `var schema = await Assert.That(contract).IsTypeOf<ComponentContractSchema>()`. Prefer one sequence assertion over an awaited assertion per bit where the whole ordered vector is the contract. This both preserves bit order and avoids turning a tight differential check into hundreds of async assertion operations.
+**Logic Lab inference:** The migration replaced the pre-migration `Assert.IsType<ComponentContractSchema>` helper with `var schema = await Assert.That(contract).IsTypeOf<ComponentContractSchema>()`. Prefer one sequence assertion over an awaited assertion per bit where the whole ordered vector is the contract. This both preserves bit order and avoids turning a tight differential check into hundreds of async assertion operations.
 
 ### 5.3 Chaining and multiple failures
 
@@ -156,7 +157,7 @@ TUnit's official data guide separates the mechanisms as follows ([data approach]
 
 | Need | TUnit mechanism | Logic Lab use |
 |---|---|---|
-| compile-time constant row | `[Arguments(...)]` | replace each current `[InlineData]` row |
+| compile-time constant row | `[Arguments(...)]` | replace each pre-migration `[InlineData]` row |
 | computed/complex row | static `[MethodDataSource]` | explicit truth tables or rich expected records |
 | managed object/fixture | `[ClassDataSource<T>]` | future expensive server/database/browser fixture |
 | reusable row metadata | `TestDataRow<T>` | named/skipped/categorized generated rows |
@@ -169,7 +170,7 @@ TUnit's official data guide separates the mechanisms as follows ([data approach]
 
 **Source fact:** Each `[Arguments]` supplies one compile-time-known test row. A row can set `DisplayName`, categories, and a skip reason; display names substitute named or positional arguments ([arguments](https://tunit.dev/docs/writing-tests/arguments)). For method/class/custom sources, `TestDataRow<T>` adds equivalent display, skip, and category metadata while preserving a typed payload ([test data rows](https://tunit.dev/docs/writing-tests/test-data-row)).
 
-**Logic Lab inference:** Convert existing `InlineData` rows one-for-one first. Preserve explicit expected values for scalar truth tables rather than computing expected output with the system under test. Add row display names only where the generated name does not already identify `0`, `1`, `X`, `Z`, width, and expected result clearly.
+**Logic Lab inference:** The migration converted pre-migration `InlineData` rows one-for-one first. Explicit expected values for scalar truth tables remain preferable to computing expected output with the system under test. Add row display names only where the generated name does not already identify `0`, `1`, `X`, `Z`, width, and expected result clearly.
 
 ### 6.3 Method data
 
@@ -339,11 +340,11 @@ dotnet format logic-lab.slnx --verify-no-changes
 git diff --check
 ```
 
-Add report/coverage flags only in CI jobs that publish those outputs, and pass every TUnit/MTP option directly under the repository's .NET 10 native MTP mode—never after an extra `--`. Use `--maximum-parallel-tests` or `TUNIT_MAX_PARALLEL_TESTS` for agent capacity, `--timeout` for the whole run, and a minimum expected test count for filtered jobs. TUnit's official CI examples cover separate restore/build/test, TRX, coverage, Native AOT, caching, and constrained parallelism, but examples containing the extra separator are for the older compatibility path and must be normalized for this repository ([CI pipeline](https://tunit.dev/docs/examples/tunit-ci-pipeline), [.NET 10 MTP syntax](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp)).
+Add report/coverage flags only in CI jobs that publish those outputs. Pass ordinary TUnit/MTP options directly; use a literal `--` only to disambiguate forwarded arguments after recognized .NET driver options. Use `--maximum-parallel-tests` or `TUNIT_MAX_PARALLEL_TESTS` for agent capacity, `--timeout` for the whole run, and a minimum expected test count for filtered jobs ([CI pipeline](https://tunit.dev/docs/examples/tunit-ci-pipeline), [.NET 10 MTP syntax](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp#forward-arguments-to-the-test-application)).
 
-## 13. Proposed mapping for the existing tests
+## 13. Migration mapping at the checkpoint
 
-| Current pattern | Target pattern | Reason |
+| xUnit pattern at checkpoint | Target pattern | Reason |
 |---|---|---|
 | `[Fact] public void` | `[Test] public async Task` when it asserts | awaited assertions execute and analyzer-enforced |
 | `[Theory]` + each `[InlineData]` | `[Test]` + each `[Arguments]` | preserves every explicit row and expected value |
@@ -358,16 +359,16 @@ Add report/coverage flags only in CI jobs that publish those outputs, and pass e
 | future bUnit test in `.cs` | separate TUnit project in source-generation mode | bUnit documents that C# tests work with TUnit |
 | bUnit test in `.razor` | unsupported with the selected TUnit setup; rewrite as `.cs` | Razor and TUnit generators cannot consume each other's output |
 
-**Logic Lab inference:** The initial migration must preserve all current explicit truth-table rows and deterministic word-boundary cases. Matrix refactoring may increase the discovered invocation count; that is acceptable only when each added case corresponds to already executed loop coverage or a clearly documented new boundary. Do not claim equivalence from test count alone.
+**Logic Lab inference:** The migration preserved every explicit truth-table row and deterministic word-boundary case from the checkpoint. Matrix refactoring could increase the discovered invocation count only when each added case represented already executed loop coverage or a clearly documented new boundary. Test count alone did not establish equivalence.
 
-## 14. Verification and acceptance criteria for implementation
+## 14. Migration acceptance record
 
-The later code migration should not be considered complete until all of the following hold:
+The 2026-07-31 migration was accepted against the following criteria. Counts in this list are historical and are not a current suite inventory:
 
 1. Locked restore resolves centrally managed, qualified TUnit packages with no xUnit, `Microsoft.NET.Test.Sdk`, Coverlet, or stale runner-config asset.
 2. The default source-generated mode builds with warnings as errors and no unawaited assertion diagnostics.
-3. `--list-tests` shows every current explicit semantic row, plus intentional Matrix expansions, with stable readable names.
-4. All nine current property-bearing test methods run through `TUnit.FsCheck`, still shrink failures, emit a replay seed, and preserve current generators/oracles.
+3. `--list-tests` shows every pre-migration explicit semantic row, plus intentional Matrix expansions, with stable readable names.
+4. All nine property-bearing methods from the migration checkpoint run through `TUnit.FsCheck`, still shrink failures, emit a replay seed, and preserve the checkpoint generators/oracles.
 5. Whole-solution `dotnet test` succeeds on the pinned .NET 10 SDK and returns a nonzero exit code for an intentionally failed test in a temporary verification experiment.
 6. A temporary filtered run proves the repository's tree filter and minimum-test guard; no VSTest `--filter` remains in authoritative documentation.
 7. Pure tests demonstrate safe parallel execution; any non-parallel or limited tests name the concrete shared resource being protected.
