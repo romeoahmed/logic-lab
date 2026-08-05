@@ -1,0 +1,42 @@
+.not-found {
+  display: grid;
+  max-inline-size: 72rem;
+  min-block-size: calc(100dvh - 4.5rem);
+  align-content: center;
+  margin-inline: auto;
+  padding: clamp(3rem, 8vw, 8rem) clamp(1rem, 7vw, 7rem);
+}
+
+.eyebrow {
+  margin: 0 0 1rem;
+  color: var(--ll-signal);
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.not-found h1 {
+  max-inline-size: 12ch;
+  margin: 0;
+  font-size: clamp(3rem, 8vw, 7rem);
+  letter-spacing: -0.065em;
+  line-height: 0.94;
+}
+
+.not-found > p:not(.eyebrow) {
+  max-inline-size: 38rem;
+  margin: 2rem 0;
+  color: var(--ll-muted);
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  line-height: 1.7;
+}
+
+.recovery-link {
+  justify-self: start;
+  padding: 0.9rem 1.15rem;
+  color: white;
+  background: var(--ll-signal);
+  font-weight: 750;
+  text-decoration: none;
+}
