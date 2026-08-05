@@ -6,9 +6,6 @@
   --ll-ink: #172a33;
   --ll-muted: #536871;
   --ll-signal: #08788c;
-  --ll-transition: #a85d00;
-  --ll-unknown: #7053a5;
-  --ll-danger: #b4232c;
   --ll-grid: rgb(23 42 51 / 8%);
   --ll-border: #b8c7ce;
   --ll-border-strong: #8299a3;
@@ -45,14 +42,4 @@ textarea {
 
 h1:focus {
   outline: none;
-}
-
-.blazor-error-boundary {
-  padding: 1rem;
-  color: white;
-  background: #9f2d2d;
-}
-
-.blazor-error-boundary::after {
-  content: "An error has occurred.";
 }

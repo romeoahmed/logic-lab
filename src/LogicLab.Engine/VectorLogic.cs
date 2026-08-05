@@ -58,16 +58,29 @@ internal static class VectorLogic
     public static LogicVector Concat(IReadOnlyList<LogicVector> inputs)
     {
         ArgumentNullException.ThrowIfNull(inputs);
-        if (inputs.Count == 0 || inputs.Any(input => input is null))
+        if (inputs.Count == 0)
         {
             throw new ArgumentException(
                 "Concatenation requires one or more Logic Vectors.",
                 nameof(inputs));
         }
 
-        var width = inputs.Aggregate(
-            0,
-            (sum, input) => checked(sum + input.Width));
+        for (var index = 0; index < inputs.Count; index++)
+        {
+            if (inputs[index] is null)
+            {
+                throw new ArgumentException(
+                    "Concatenation requires one or more Logic Vectors.",
+                    nameof(inputs));
+            }
+        }
+
+        var width = 0;
+        for (var index = 0; index < inputs.Count; index++)
+        {
+            width = checked(width + inputs[index].Width);
+        }
+
         var values = new LogicValue[width];
         var offset = 0;
         foreach (var input in inputs)
