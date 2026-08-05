@@ -13,6 +13,14 @@ dotnet_sort_system_directives_first = true
 dotnet_separate_import_directive_groups = false
 csharp_style_namespace_declarations = file_scoped:warning
 
+# Keep compiler-visible dead and redundant code out of every project.
+dotnet_diagnostic.IDE0035.severity = warning
+dotnet_diagnostic.IDE0051.severity = warning
+dotnet_diagnostic.IDE0052.severity = warning
+dotnet_diagnostic.IDE0059.severity = warning
+dotnet_diagnostic.IDE0305.severity = warning
+dotnet_diagnostic.SYSLIB1045.severity = warning
+
 # Production dead-code checks must not be disabled by test friend assemblies.
 [src/**/*.cs]
 dotnet_diagnostic.CA1812.severity = warning

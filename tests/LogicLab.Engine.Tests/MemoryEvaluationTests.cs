@@ -34,10 +34,9 @@ internal sealed class MemoryEvaluationTests
                     .Where(index => Matches(index, address))
                     .Select(index => words[index])
                     .ToArray();
-                var expected = new LogicVector(Enumerable.Range(0, 2)
-                    .Select(bit => ConservativeMerge.Merge(
-                        [.. reachable.Select(word => word[bit])]))
-                    .ToArray());
+                var expected = new LogicVector(
+                    [.. Enumerable.Range(0, 2).Select(bit => ConservativeMerge.Merge(
+                        [.. reachable.Select(word => word[bit])]))]);
 
                 var actual = MemoryEvaluation.Read(
                     words,
@@ -88,10 +87,10 @@ internal sealed class MemoryEvaluationTests
                             data,
                             writeEnable,
                             wordIndex);
-                        var expected = new LogicVector(Enumerable.Range(0, data.Width)
-                            .Select(bit => ConservativeMerge.Merge(
-                                [.. possibleWords.Select(word => word[bit])]))
-                            .ToArray());
+                        var expected = new LogicVector(
+                            [.. Enumerable.Range(0, data.Width).Select(bit =>
+                                ConservativeMerge.Merge(
+                                    [.. possibleWords.Select(word => word[bit])]))]);
                         await Assert.That(LogicVectorTestData.ToValues(actual[wordIndex]))
                             .IsEquivalentTo(
                                 LogicVectorTestData.ToValues(expected),

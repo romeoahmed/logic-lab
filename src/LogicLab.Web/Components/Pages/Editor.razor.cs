@@ -8,7 +8,7 @@ using LogicLab.Web.Components.Editor;
 
 namespace LogicLab.Web.Components.Pages;
 
-public partial class Editor(IEditorWorkspace workspace) : IAsyncDisposable
+public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposable
 {
     private const ulong MaximumScenePortCount = 100_000;
     private readonly FixedWindowCommandAdmissionGate commandAdmission = new(
@@ -339,24 +339,17 @@ public partial class Editor(IEditorWorkspace workspace) : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        try
+        if (Attachment is not { } attachment)
         {
-            if (Attachment is not { } attachment)
-            {
-                return;
-            }
+            return;
+        }
 
-            _ = await workspace.DetachAsync(
-                new DetachRequest(
-                    attachment.Projection.WorkspaceId,
-                    attachment.AttachmentId,
-                    attachment.Generation),
-                CancellationToken.None);
-        }
-        finally
-        {
-            GC.SuppressFinalize(this);
-        }
+        _ = await workspace.DetachAsync(
+            new DetachRequest(
+                attachment.Projection.WorkspaceId,
+                attachment.AttachmentId,
+                attachment.Generation),
+            CancellationToken.None);
     }
 
     private WorkspaceCommandContext CommandContext()
