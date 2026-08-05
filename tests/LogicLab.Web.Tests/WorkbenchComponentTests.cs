@@ -506,6 +506,20 @@ internal sealed class WorkbenchComponentTests
             return inner.DispatchAsync(command, cancellationToken);
         }
 
+        public Task<WorkspaceAttachOutcome> AttachAsync(
+            AttachRequest request,
+            CancellationToken cancellationToken)
+        {
+            return inner.AttachAsync(request, cancellationToken);
+        }
+
+        public Task<WorkspaceDetachOutcome> DetachAsync(
+            DetachRequest request,
+            CancellationToken cancellationToken)
+        {
+            return inner.DetachAsync(request, cancellationToken);
+        }
+
         public Task<WorkspaceReadOutcome> ReadAsync(
             WorkspaceId workspaceId,
             CancellationToken cancellationToken)
@@ -545,6 +559,20 @@ internal sealed class WorkbenchComponentTests
             return inner.DispatchAsync(command, cancellationToken);
         }
 
+        public Task<WorkspaceAttachOutcome> AttachAsync(
+            AttachRequest request,
+            CancellationToken cancellationToken)
+        {
+            return inner.AttachAsync(request, cancellationToken);
+        }
+
+        public Task<WorkspaceDetachOutcome> DetachAsync(
+            DetachRequest request,
+            CancellationToken cancellationToken)
+        {
+            return inner.DetachAsync(request, cancellationToken);
+        }
+
         public Task<WorkspaceReadOutcome> ReadAsync(
             WorkspaceId workspaceId,
             CancellationToken cancellationToken)
@@ -579,6 +607,20 @@ internal sealed class WorkbenchComponentTests
             Volatile.Write(ref isExpired, 1);
             return Task.FromResult<WorkspaceCommandOutcome>(
                 new WorkspaceCommandRejected("workspace_expired", []));
+        }
+
+        public Task<WorkspaceAttachOutcome> AttachAsync(
+            AttachRequest request,
+            CancellationToken cancellationToken)
+        {
+            return inner.AttachAsync(request, cancellationToken);
+        }
+
+        public Task<WorkspaceDetachOutcome> DetachAsync(
+            DetachRequest request,
+            CancellationToken cancellationToken)
+        {
+            return inner.DetachAsync(request, cancellationToken);
         }
 
         public Task<WorkspaceReadOutcome> ReadAsync(
@@ -627,6 +669,20 @@ internal sealed class WorkbenchComponentTests
             return await inner.DispatchAsync(command, cancellationToken);
         }
 
+        public Task<WorkspaceAttachOutcome> AttachAsync(
+            AttachRequest request,
+            CancellationToken cancellationToken)
+        {
+            return inner.AttachAsync(request, cancellationToken);
+        }
+
+        public Task<WorkspaceDetachOutcome> DetachAsync(
+            DetachRequest request,
+            CancellationToken cancellationToken)
+        {
+            return inner.DetachAsync(request, cancellationToken);
+        }
+
         public Task<WorkspaceReadOutcome> ReadAsync(
             WorkspaceId workspaceId,
             CancellationToken cancellationToken)
@@ -673,6 +729,20 @@ internal sealed class WorkbenchComponentTests
         {
             Interlocked.Increment(ref dispatchCount);
             return inner.DispatchAsync(command, cancellationToken);
+        }
+
+        public Task<WorkspaceAttachOutcome> AttachAsync(
+            AttachRequest request,
+            CancellationToken cancellationToken)
+        {
+            return inner.AttachAsync(request, cancellationToken);
+        }
+
+        public Task<WorkspaceDetachOutcome> DetachAsync(
+            DetachRequest request,
+            CancellationToken cancellationToken)
+        {
+            return inner.DetachAsync(request, cancellationToken);
         }
 
         public Task<WorkspaceReadOutcome> ReadAsync(

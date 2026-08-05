@@ -17,6 +17,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private readonly WorkCoordinator workCoordinator;
     private readonly WorkspacePolicy workspacePolicy;
     private readonly TimeProvider timeProvider;
+    private readonly string buildFingerprint;
     private readonly WorkspaceModuleOperations operations;
     private readonly ILogger<EditorWorkspace> logger;
     private int workspaceReservations;
@@ -26,6 +27,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         SchedulingPolicy schedulingPolicy,
         WorkspacePolicy workspacePolicy,
         TimeProvider timeProvider,
+        string buildFingerprint,
         WorkspaceModuleOperations operations,
         ILogger<WorkCoordinator> workCoordinatorLogger,
         ILogger<EditorWorkspace> logger)
@@ -33,12 +35,14 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         ArgumentNullException.ThrowIfNull(schedulingPolicy);
         ArgumentNullException.ThrowIfNull(workspacePolicy);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentException.ThrowIfNullOrEmpty(buildFingerprint);
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(workCoordinatorLogger);
         ArgumentNullException.ThrowIfNull(logger);
         workCoordinator = new WorkCoordinator(schedulingPolicy, workCoordinatorLogger);
         this.workspacePolicy = workspacePolicy;
         this.timeProvider = timeProvider;
+        this.buildFingerprint = buildFingerprint;
         this.operations = operations;
         this.logger = logger;
     }
@@ -54,6 +58,11 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 new WorkspaceOpenRejected(
                     WorkspaceOutcomeReasons.WorkspaceCancelled,
                     []));
+        }
+
+        if (request is CopyWorkspace copy)
+        {
+            return CopyAsync(copy, cancellationToken);
         }
 
         if (request is not CreateSandbox create)
@@ -147,11 +156,21 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
         using var lease = acquisition.Lease;
         var state = lease.State;
+        if (command.Context is not null)
+        {
+            return await ExecuteContextualCommandAsync(
+                state,
+                command,
+                cancellationToken).ConfigureAwait(false);
+        }
+
         return command switch
         {
             ApplyEdit apply => await ExecuteWithGateAsync(
                 state,
-                token => Apply(state, apply, token),
+                token => state.AttachmentId is null
+                    ? Apply(state, apply, token)
+                    : Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment),
                 cancellationToken).ConfigureAwait(false),
             RequestCompilation => await QueueCompilationAsync(
                 state,
@@ -161,12 +180,16 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                     state.Id,
                     token => ExecuteWithGateAsync(
                         state,
-                        innerToken => ExecuteSessionCommand(state, command, innerToken),
+                        innerToken => state.AttachmentId is null
+                            ? ExecuteSessionCommand(state, command, innerToken)
+                            : Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment),
                         token),
                     cancellationToken).ConfigureAwait(false),
             CloseWorkspace => await ExecuteWithGateAsync(
                 state,
-                token => Close(state, token),
+                token => state.AttachmentId is null
+                    ? Close(state, token)
+                    : Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment),
                 cancellationToken).ConfigureAwait(false),
             _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
         };
@@ -260,13 +283,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 state.ProjectionVersion);
         }
 
-        state.Revision = committed.Revision;
-        state.Artifact = null;
-        state.Compilation = NotRequestedCompilation();
-        state.ProjectionVersion++;
-        return new AuthoringCommitted(
-            state.Revision.RevisionId,
-            state.ProjectionVersion);
+        return CommitAuthoringRevision(state, committed.Revision);
     }
 
     private async Task<WorkspaceCommandOutcome> QueueCompilationAsync(
@@ -291,6 +308,11 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             if (state.IsRetired)
             {
                 return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
+            }
+
+            if (state.AttachmentId is not null)
+            {
+                return Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
             }
 
             var requestedRevision = state.Revision;
@@ -792,7 +814,13 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             state.ProjectionVersion,
             state.Revision,
             state.Compilation,
-            state.Simulation);
+            state.Simulation)
+        {
+            History = new TransactionHistoryAvailability(
+                state.HistoryCursor > 0,
+                state.HistoryCursor < state.History.Count - 1,
+                state.History.Count),
+        };
     }
 
     private static WorkspaceCommandRejected Reject(

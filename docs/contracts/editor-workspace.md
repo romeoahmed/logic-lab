@@ -85,6 +85,8 @@ OpenAsync(OpenWorkspaceRequest, CancellationToken)
   -> Task<Opened | OpenRejected>
 AttachAsync(AttachRequest, CancellationToken)
   -> Task<Attached | Expired | AttachRejected>
+DetachAsync(DetachRequest, CancellationToken)
+  -> Task<Detached | DetachRejected>
 DispatchAsync(WorkspaceCommand, CancellationToken)
   -> Task<WorkspaceOutcome>
 ReadAsync(WorkspaceQuery, CancellationToken)
@@ -111,6 +113,12 @@ The deep Workspace implementation asks Project Editor for Project Genesis when r
 `CopyWorkspace` reauthorizes and fences the source attachment, then starts separate history at its exact current Project Revision, including authorized unsaved edits. Earlier history is not copied and Undo cannot cross the new base. `Preserve` retains Sandbox status or the Durable Project ID and observed Durable Version; `DetachedSandbox` removes the durable association and implements “Keep as copy.” Both preserve authored Project identity and the fork revision, but copy no attachment, Session, Run, Analysis Operation, Proposal, idempotency record, or browser preference. A stale Projection Version returns `projection_version_precondition_failed`; the source remains unchanged.
 
 `AttachRequest` is `InitialAttach { WorkspaceId, buildFingerprint }` or `Reattach { WorkspaceId, priorAttachmentId, priorGeneration, lastProjectionVersion, buildFingerprint }`. Success returns `Attached { newAttachmentId, newGeneration, WorkspaceProjectionV1 }`; an expired Workspace returns `Expired { reason = workspace_expired }`, and every other failure is `AttachRejected { reason, diagnostics, RetryDisposition }`. Reattach reauthorizes and fences the prior generation before returning. Copying a tab calls `OpenAsync(CopyWorkspace)` and creates another Workspace; it does not reuse an attachment.
+
+`DetachRequest` carries the current Workspace ID, Attachment ID, and generation.
+Success returns `Detached { WorkspaceId, generation }` without changing Projection Version;
+a stale fence returns `DetachRejected { reason = stale_workspace_attachment }`. Detach is
+idempotent only through the caller's connection-lifecycle coordination: repeating it after
+success is stale. The detached-retention clock starts at the successful transition.
 
 Every command context contains:
 

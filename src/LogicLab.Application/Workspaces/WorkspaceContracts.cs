@@ -78,7 +78,16 @@ public abstract record WorkspaceCommand
         WorkspaceId = workspaceId;
     }
 
+    private protected WorkspaceCommand(WorkspaceCommandContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        WorkspaceId = context.WorkspaceId;
+        Context = context;
+    }
+
     public WorkspaceId WorkspaceId { get; }
+
+    public WorkspaceCommandContext? Context { get; }
 }
 
 public sealed record ApplyEdit : WorkspaceCommand
@@ -90,7 +99,21 @@ public sealed record ApplyEdit : WorkspaceCommand
         Intent = intent;
     }
 
+    public ApplyEdit(
+        WorkspaceCommandContext context,
+        AuthoringPrecondition precondition,
+        EditIntent intent)
+        : base(context)
+    {
+        ArgumentNullException.ThrowIfNull(precondition);
+        ArgumentNullException.ThrowIfNull(intent);
+        Precondition = precondition;
+        Intent = intent;
+    }
+
     public EditIntent Intent { get; }
+
+    public AuthoringPrecondition? Precondition { get; }
 }
 
 public sealed record RequestCompilation : WorkspaceCommand
@@ -310,4 +333,10 @@ public sealed record WorkspaceProjection(
     ulong ProjectionVersion,
     ProjectRevision ProjectRevision,
     CompilationProjection Compilation,
-    SimulationProjection? Simulation);
+    SimulationProjection? Simulation)
+{
+    public TransactionHistoryAvailability History { get; init; } = new(
+        CanUndo: false,
+        CanRedo: false,
+        RetainedRevisionCount: 1);
+}
