@@ -63,7 +63,7 @@ Verification snapshot (2026-08-05): locked restore, formatting, warning-clean bu
 
 ## Executable evidence
 
-- [Vector Net Resolution Benchmark](../benchmarks/LogicLab.Engine.Benchmarks/README.md) records the production-shaped packed-versus-scalar comparison. It is directional performance evidence, not a release threshold.
+- [Engine Performance Benchmarks](../benchmarks/LogicLab.Engine.Benchmarks/README.md) records production-shaped kernel, Compilation, and initial-settlement comparisons. It is directional performance evidence, not a release threshold.
 
 ## Research evidence
 
@@ -75,6 +75,7 @@ Verification snapshot (2026-08-05): locked restore, formatting, warning-clean bu
 - [Boolean Analysis](./research/boolean-analysis.md)
 - [Blazor Web Platform](./research/blazor-web-platform.md)
 - [Diagram Presentation](./research/diagram-presentation.md)
+- [.NET Performance Review](./research/performance-review.md)
 
 Research is not a second implementation specification. It preserves primary-source claims, mathematical reasoning, rejected alternatives, and qualification gaps. Project choices link to the owning specification or ADR.
 
