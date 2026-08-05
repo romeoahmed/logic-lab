@@ -81,8 +81,9 @@ profile, but it prevents speculative repository-wide rewrites.
 The retained changes preserve the existing `IReadOnlyList<LogicVector>` kernel contracts and
 one allocation for required reference storage. They remove iterator and collection-expression
 construction overhead without adding overload families, ownership rules, or special-case
-branches. Detailed results and commands are in the
-[benchmark README](../../benchmarks/LogicLab.Engine.Benchmarks/README.md).
+branches. This record retains the measured decisions; the
+[benchmark README](../../benchmarks/LogicLab.Engine.Benchmarks/README.md) owns the current
+corpus definition and run commands.
 
 ## 5. Benchmark coverage and gaps
 

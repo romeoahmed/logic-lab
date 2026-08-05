@@ -1,102 +1,95 @@
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
 using LogicLab.Domain;
 
 namespace LogicLab.Engine.Benchmarks;
 
-public enum LogicOperation
-{
-    And,
-    Or,
-    Xor,
-}
-
-public readonly record struct LogicCase(LogicOperation Operation, int Width)
-{
-    public override string ToString()
-    {
-        var operation = Operation switch
-        {
-            LogicOperation.And => "and",
-            LogicOperation.Or => "or",
-            LogicOperation.Xor => "xor",
-            _ => $"value-{(int)Operation}",
-        };
-        return $"{operation}-w{Width}";
-    }
-}
-
-[MemoryDiagnoser]
-[RankColumn]
+[MemoryDiagnoser(displayGenColumns: false)]
+[CategoriesColumn]
+[GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
 public class VectorLogicBenchmarks
 {
-    private static readonly int[] Widths = [1, 130, 1024];
-
     private LogicVector left = null!;
     private LogicValue[] leftValues = null!;
     private LogicVector right = null!;
     private LogicValue[] rightValues = null!;
 
-    [ParamsSource(nameof(ProductionCases))]
-    public LogicCase Case { get; set; }
-
-    public static IEnumerable<LogicCase> ProductionCases =>
-        from operation in Enum.GetValues<LogicOperation>()
-        from width in Widths
-        select new LogicCase(operation, width);
+    [Params(1, 130, 1024)]
+    public int Width { get; set; }
 
     [GlobalSetup]
     public void Setup()
     {
-        leftValues = Enumerable.Range(0, Case.Width)
-            .Select(bitIndex => Value(bitIndex, salt: 3))
+        leftValues = Enumerable.Range(0, Width)
+            .Select(LeftValue)
             .ToArray();
-        rightValues = Enumerable.Range(0, Case.Width)
-            .Select(bitIndex => Value(bitIndex, salt: 11))
+        rightValues = Enumerable.Range(0, Width)
+            .Select(RightValue)
             .ToArray();
         left = new LogicVector(leftValues);
         right = new LogicVector(rightValues);
     }
 
+    [BenchmarkCategory("And")]
     [Benchmark(Baseline = true)]
-    public LogicVector ScalarOracle()
+    public LogicVector ScalarAnd()
     {
-        var values = new LogicValue[Case.Width];
+        var values = new LogicValue[Width];
         for (var bitIndex = 0; bitIndex < values.Length; bitIndex++)
         {
-            values[bitIndex] = Case.Operation switch
-            {
-                LogicOperation.And => ScalarLogic.And(
-                    leftValues[bitIndex],
-                    rightValues[bitIndex]),
-                LogicOperation.Or => ScalarLogic.Or(
-                    leftValues[bitIndex],
-                    rightValues[bitIndex]),
-                LogicOperation.Xor => ScalarLogic.Xor(
-                    leftValues[bitIndex],
-                    rightValues[bitIndex]),
-                _ => throw new InvalidOperationException(
-                    "The benchmark Logic operation is undefined."),
-            };
+            values[bitIndex] = ScalarLogic.And(
+                leftValues[bitIndex],
+                rightValues[bitIndex]);
         }
 
         return new LogicVector(values);
     }
 
+    [BenchmarkCategory("And")]
     [Benchmark]
-    public LogicVector PackedKernel()
+    public LogicVector PackedAnd() => VectorLogic.And(left, right);
+
+    [BenchmarkCategory("Or")]
+    [Benchmark(Baseline = true)]
+    public LogicVector ScalarOr()
     {
-        return Case.Operation switch
+        var values = new LogicValue[Width];
+        for (var bitIndex = 0; bitIndex < values.Length; bitIndex++)
         {
-            LogicOperation.And => VectorLogic.And(left, right),
-            LogicOperation.Or => VectorLogic.Or(left, right),
-            LogicOperation.Xor => VectorLogic.Xor(left, right),
-            _ => throw new InvalidOperationException(
-                "The benchmark Logic operation is undefined."),
-        };
+            values[bitIndex] = ScalarLogic.Or(
+                leftValues[bitIndex],
+                rightValues[bitIndex]);
+        }
+
+        return new LogicVector(values);
     }
 
-    private static LogicValue Value(int bitIndex, int salt)
+    [BenchmarkCategory("Or")]
+    [Benchmark]
+    public LogicVector PackedOr() => VectorLogic.Or(left, right);
+
+    [BenchmarkCategory("Xor")]
+    [Benchmark(Baseline = true)]
+    public LogicVector ScalarXor()
     {
-        return (LogicValue)((bitIndex * 17 + salt) & 3);
+        var values = new LogicValue[Width];
+        for (var bitIndex = 0; bitIndex < values.Length; bitIndex++)
+        {
+            values[bitIndex] = ScalarLogic.Xor(
+                leftValues[bitIndex],
+                rightValues[bitIndex]);
+        }
+
+        return new LogicVector(values);
     }
+
+    [BenchmarkCategory("Xor")]
+    [Benchmark]
+    public LogicVector PackedXor() => VectorLogic.Xor(left, right);
+
+    private static LogicValue LeftValue(int bitIndex) =>
+        (LogicValue)((bitIndex + 1) & 3);
+
+    private static LogicValue RightValue(int bitIndex) =>
+        (LogicValue)(((bitIndex / 4) + 2) & 3);
 }

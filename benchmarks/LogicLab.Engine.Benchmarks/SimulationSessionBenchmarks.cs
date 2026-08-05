@@ -3,7 +3,7 @@ using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Engine.Benchmarks;
 
-[MemoryDiagnoser]
+[MemoryDiagnoser(displayGenColumns: false)]
 public class SimulationSessionBenchmarks
 {
     private OpenSimulationRequest request = null!;
@@ -18,8 +18,6 @@ public class SimulationSessionBenchmarks
     }
 
     [Benchmark]
-    public SimulationOpenOutcome OpenAndSettle()
-    {
-        return SimulationRuntime.Open(request, CancellationToken.None);
-    }
+    public SimulationOpenOutcome OpenAndSettle() =>
+        SimulationRuntime.Open(request, CancellationToken.None);
 }

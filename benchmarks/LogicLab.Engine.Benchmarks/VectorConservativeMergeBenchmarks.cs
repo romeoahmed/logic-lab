@@ -3,22 +3,16 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine.Benchmarks;
 
-public readonly record struct MergeCase(int Width, int ValueCount)
-{
-    public override string ToString() => $"w{Width}-v{ValueCount}";
-}
-
-[MemoryDiagnoser]
-[RankColumn]
+[MemoryDiagnoser(displayGenColumns: false)]
 public class VectorConservativeMergeBenchmarks
 {
     private LogicValue[][] scalarValuesByBit = null!;
     private LogicVector[] vectors = null!;
 
-    [ParamsSource(nameof(ProductionCases))]
+    [ParamsSource(nameof(Cases))]
     public MergeCase Case { get; set; }
 
-    public static IEnumerable<MergeCase> ProductionCases =>
+    public static IEnumerable<MergeCase> Cases =>
     [
         new(Width: 1, ValueCount: 1),
         new(Width: 130, ValueCount: 4),
@@ -61,5 +55,10 @@ public class VectorConservativeMergeBenchmarks
     private static LogicValue Value(int bitIndex, int valueIndex)
     {
         return (LogicValue)((bitIndex * 17 + valueIndex * 13 + 3) & 3);
+    }
+
+    public readonly record struct MergeCase(int Width, int ValueCount)
+    {
+        public override string ToString() => $"w{Width}-v{ValueCount}";
     }
 }

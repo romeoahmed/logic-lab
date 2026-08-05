@@ -3,23 +3,17 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine.Benchmarks;
 
-public readonly record struct ResolutionCase(int Width, int DriverCount)
-{
-    public override string ToString() => $"w{Width}-d{DriverCount}";
-}
-
-[MemoryDiagnoser]
-[RankColumn]
+[MemoryDiagnoser(displayGenColumns: false)]
 public class VectorNetResolutionBenchmarks
 {
     private int[] driverOrdinals = null!;
     private LogicVector[] vectorDrivers = null!;
     private LogicValue[][] scalarDriversByBit = null!;
 
-    [ParamsSource(nameof(ProductionCases))]
+    [ParamsSource(nameof(Cases))]
     public ResolutionCase Case { get; set; }
 
-    public static IEnumerable<ResolutionCase> ProductionCases =>
+    public static IEnumerable<ResolutionCase> Cases =>
     [
         new(Width: 1, DriverCount: 1),
         new(Width: 130, DriverCount: 4),
@@ -42,23 +36,20 @@ public class VectorNetResolutionBenchmarks
                 .ToArray())];
     }
 
-    [Benchmark(Baseline = true)]
-    public int ScalarOracle()
+    [Benchmark]
+    public LogicVector ScalarOracle()
     {
-        var checksum = 17;
-        foreach (var drivers in scalarDriversByBit)
+        var values = new LogicValue[Case.Width];
+        for (var bitIndex = 0; bitIndex < values.Length; bitIndex++)
         {
-            var resolution = NetResolver.Resolve(drivers);
-            checksum = unchecked(
-                (checksum * 31)
-                + (int)resolution.Value
-                + (int)resolution.Causes);
+            values[bitIndex] = NetResolver.Resolve(
+                scalarDriversByBit[bitIndex]).Value;
         }
 
-        return checksum;
+        return new LogicVector(values);
     }
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public LogicVector PackedKernel()
     {
         return VectorNetResolver.Resolve(Case.Width, vectorDrivers).Value;
@@ -81,5 +72,10 @@ public class VectorNetResolutionBenchmarks
     private static LogicValue Value(int bitIndex, int driverIndex)
     {
         return (LogicValue)((bitIndex * 17 + driverIndex * 13 + 3) & 3);
+    }
+
+    public readonly record struct ResolutionCase(int Width, int DriverCount)
+    {
+        public override string ToString() => $"w{Width}-d{DriverCount}";
     }
 }
