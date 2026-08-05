@@ -3,7 +3,7 @@ using LogicLab.Engine.Compilation;
 
 namespace LogicLab.Engine.Benchmarks;
 
-[MemoryDiagnoser]
+[MemoryDiagnoser(displayGenColumns: false)]
 public class CompilerBenchmarks
 {
     private CompilationRequest request = null!;
@@ -18,8 +18,6 @@ public class CompilerBenchmarks
     }
 
     [Benchmark]
-    public CompilationOutcome Compile()
-    {
-        return Compiler.Compile(request, CancellationToken.None);
-    }
+    public CompilationOutcome Compile() =>
+        Compiler.Compile(request, CancellationToken.None);
 }

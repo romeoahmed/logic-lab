@@ -8,7 +8,7 @@ namespace LogicLab.Engine.Benchmarks;
 
 internal static class BenchmarkCircuitFactory
 {
-    private static readonly ProjectScalePolicy ProjectScalePolicy = new(
+    private static readonly ProjectScalePolicy ProjectScale = new(
         "benchmark-project-scale",
         "1",
         [
@@ -19,7 +19,7 @@ internal static class BenchmarkCircuitFactory
             new(ProjectScaleDimension.MemoryCellCount, 1),
         ]);
 
-    private static readonly SimulationPolicy SimulationPolicy = new(
+    private static readonly SimulationPolicy Simulation = new(
         "benchmark-simulation",
         "1",
         [
@@ -33,7 +33,7 @@ internal static class BenchmarkCircuitFactory
             new(SimulationDimension.ZeroTimeStateWordCount, 100_000_000),
         ]);
 
-    private static readonly TracePolicy TracePolicy = new(
+    private static readonly TracePolicy Trace = new(
         "benchmark-trace",
         "1",
         [
@@ -51,46 +51,44 @@ internal static class BenchmarkCircuitFactory
             revision,
             revision.Document.EntryCircuitDefinitionId,
             LibrarySnapshot.Core,
-            ProjectScalePolicy);
+            ProjectScale);
     }
 
     public static OpenSimulationRequest CreateOpenRequest(int gateCount)
     {
-        var compilation = Compiler.Compile(
-            CreateCompilationRequest(gateCount),
-            CancellationToken.None);
-        if (compilation is not CompilationSucceeded succeeded)
-        {
-            throw new InvalidOperationException(
-                "The benchmark circuit must compile successfully.");
-        }
+        var artifact = Compiler.Compile(
+                CreateCompilationRequest(gateCount),
+                CancellationToken.None)
+            is CompilationSucceeded succeeded
+                ? succeeded.Artifact
+                : throw new InvalidOperationException(
+                    "The benchmark circuit must compile successfully.");
 
         return new OpenSimulationRequest(
-            succeeded.Artifact,
+            artifact,
             new SimulationSessionConfiguration(
                 new SimulationPolicyReference(
-                    SimulationPolicy.PolicyId,
-                    SimulationPolicy.PolicyRevision),
+                    Simulation.PolicyId,
+                    Simulation.PolicyRevision),
                 new TracePolicyReference(
-                    TracePolicy.PolicyId,
-                    TracePolicy.PolicyRevision),
+                    Trace.PolicyId,
+                    Trace.PolicyRevision),
                 []),
-            SimulationPolicy,
-            TracePolicy);
+            Simulation,
+            Trace);
     }
 
     private static ProjectRevision CreateAndGateChain(int gateCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(gateCount);
-        var genesis = ProjectEditor.Begin(new NewProjectSeed(
+        var revision = RequireGenesis(ProjectEditor.Begin(new NewProjectSeed(
             "AND gate chain benchmark",
             LibrarySnapshot.Core,
             new SymbolProfileReference(
                 "TeachingMixed",
                 "1.0.0",
                 IndicationConvention.Negation),
-            "Main"));
-        var revision = ((ProjectGenesisCommitted)genesis).Revision;
+            "Main"))).Revision;
         var definitionId = revision.Document.EntryCircuitDefinitionId;
         (revision, var previous) = Place(
             revision,
@@ -104,8 +102,6 @@ internal static class BenchmarkCircuitFactory
                     new LogicVectorParameterValue([LogicValue.Zero])),
             ],
             x: 0);
-        var previousPortId = "Q";
-
         for (var index = 0; index < gateCount; index++)
         {
             (revision, var gate) = Place(
@@ -122,11 +118,10 @@ internal static class BenchmarkCircuitFactory
                 x: checked((index + 1) * 4));
             revision = Connect(
                 revision,
-                Port(definitionId, previous, previousPortId),
+                Port(definitionId, previous, "Q"),
                 Port(definitionId, gate, "A0"),
                 Port(definitionId, gate, "A1"));
             previous = gate;
-            previousPortId = "Q";
         }
 
         (revision, var sink) = Place(
@@ -143,7 +138,7 @@ internal static class BenchmarkCircuitFactory
             x: checked((gateCount + 1) * 4));
         return Connect(
             revision,
-            Port(definitionId, previous, previousPortId),
+            Port(definitionId, previous, "Q"),
             Port(definitionId, sink, "D"));
     }
 
@@ -154,37 +149,43 @@ internal static class BenchmarkCircuitFactory
         int x)
     {
         var definitionId = revision.Document.EntryCircuitDefinitionId;
-        var existingIds = revision.Document.EntryCircuitDefinition.ComponentInstances
-            .Select(instance => instance.Id)
-            .ToHashSet();
-        revision = Commit(ProjectEditor.Apply(
+        var committed = RequireCommit(ProjectEditor.Apply(
             revision,
             new PlaceComponentInstanceIntent(
                 definitionId,
                 new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
                 parameters,
                 new ComponentPlacement(new GridPoint(x, 0)))));
-        var instance = revision.Document.EntryCircuitDefinition.ComponentInstances
-            .Single(candidate => !existingIds.Contains(candidate.Id));
-        return (revision, instance);
+        var source = committed.ChangedSources
+            .OfType<ComponentInstanceSourceIdentity>()
+            .Single();
+        var instance = committed.Revision.Document.EntryCircuitDefinition
+            .FindComponentInstance(source.ComponentInstanceId)
+            ?? throw new InvalidOperationException(
+                "The authored benchmark component must exist in the committed revision.");
+        return (committed.Revision, instance);
     }
 
     private static ProjectRevision Connect(
         ProjectRevision revision,
         params AuthoredTerminalReference[] terminals)
     {
-        return Commit(ProjectEditor.Apply(
-            revision,
-            new ConnectTerminalsIntent(terminals)));
+        return RequireCommit(ProjectEditor.Apply(
+                revision,
+                new ConnectTerminalsIntent(terminals)))
+            .Revision;
     }
 
-    private static ProjectRevision Commit(EditOutcome outcome)
-    {
-        return outcome is EditCommitted committed
-            ? committed.Revision
-            : throw new InvalidOperationException(
+    private static ProjectGenesisCommitted RequireGenesis(
+        ProjectGenesisOutcome outcome) =>
+        outcome as ProjectGenesisCommitted
+            ?? throw new InvalidOperationException(
+                "The benchmark project must be created successfully.");
+
+    private static EditCommitted RequireCommit(EditOutcome outcome) =>
+        outcome as EditCommitted
+            ?? throw new InvalidOperationException(
                 "The benchmark circuit must be authored successfully.");
-    }
 
     private static InstanceTerminalReference Port(
         CircuitDefinitionId definitionId,
