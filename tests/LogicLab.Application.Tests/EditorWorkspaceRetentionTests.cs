@@ -12,7 +12,7 @@ internal sealed class EditorWorkspaceRetentionTests
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
         await using var workspace = EditorWorkspaceFactory.Create(
-            Policy(sandboxRetention: TimeSpan.FromMinutes(5)),
+            workspacePolicy: Policy(sandboxRetention: TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider,
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
@@ -41,7 +41,7 @@ internal sealed class EditorWorkspaceRetentionTests
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
         await using var workspace = EditorWorkspaceFactory.Create(
-            Policy(detachedRetention: TimeSpan.FromMinutes(5)),
+            workspacePolicy: Policy(detachedRetention: TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider,
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
@@ -72,7 +72,7 @@ internal sealed class EditorWorkspaceRetentionTests
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
         await using var workspace = EditorWorkspaceFactory.Create(
-            Policy(detachedRetention: TimeSpan.FromMinutes(5)),
+            workspacePolicy: Policy(detachedRetention: TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider,
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
@@ -104,7 +104,7 @@ internal sealed class EditorWorkspaceRetentionTests
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
         await using var workspace = EditorWorkspaceFactory.Create(
-            Policy(sandboxRetention: TimeSpan.FromMinutes(5)),
+            workspacePolicy: Policy(sandboxRetention: TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider,
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);

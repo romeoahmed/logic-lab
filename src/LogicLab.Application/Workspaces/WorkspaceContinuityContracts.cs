@@ -4,7 +4,7 @@ using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Application.Workspaces;
 
-public static class WorkspaceBuild
+internal static class WorkspaceBuild
 {
     public const string DevelopmentFingerprint = "logiclab-development";
 }

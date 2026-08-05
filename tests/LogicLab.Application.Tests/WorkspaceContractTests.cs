@@ -18,7 +18,10 @@ internal sealed class WorkspaceContractTests
         var policy = new WorkspacePolicy(
             globalWorkspaceLimit: 8,
             sandboxRetention: TimeSpan.FromMinutes(5),
-            authoringLimits);
+            authoringLimits,
+            historyRevisionCount: 13,
+            idempotencyRecordCount: 21,
+            detachedRetention: TimeSpan.FromMinutes(1));
 
         await Assert.That(policy.AuthoringLimits).IsEqualTo(authoringLimits);
     }
