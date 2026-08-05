@@ -667,6 +667,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         return [.. artifact.SourceMap.Nets
             .Select(item => item.Source)
             .Where(source => source.Identity is NetSourceIdentity net
+                && EntryCompilationSource.IsEntryOccurrence(source, definition.Id)
                 && netIds.Contains(net.NetId))
             .OrderBy(source => ((NetSourceIdentity)source.Identity).NetId.Value)];
     }
@@ -702,6 +703,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
         var source = artifact.SourceMap.Drivers
             .SingleOrDefault(item => item.Source.Identity is InstancePortSourceIdentity port
+                && EntryCompilationSource.IsEntryOccurrence(item.Source, definition.Id)
                 && port.ComponentInstanceId == assignment.InputComponentInstanceId
                 && string.Equals(port.PortId, "Q", StringComparison.Ordinal))
             ?.Source;
