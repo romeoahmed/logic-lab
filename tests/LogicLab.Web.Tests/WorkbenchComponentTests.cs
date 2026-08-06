@@ -17,7 +17,9 @@ internal sealed class WorkbenchComponentTests
     public async Task Editor_PendingCompilation_DisposalCancelsWait(
         CancellationToken cancellationToken)
     {
-        await using var context = CreateContext();
+        var timeProvider = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 6, 0, 0, 0, TimeSpan.Zero));
+        await using var context = CreateContext(timeProvider);
         await using var workspace = new ControlledCompilationWorkspace(
             blockFollowingRead: true);
         var rendered = await RenderAuthoredEditor(context, workspace);
@@ -26,6 +28,8 @@ internal sealed class WorkbenchComponentTests
         try
         {
             await workspace.FirstPendingRead.WaitAsync(cancellationToken);
+            await timeProvider.TimerCreated.WaitAsync(cancellationToken);
+            timeProvider.Advance(TimeSpan.FromMilliseconds(250));
             await workspace.BlockedRead.WaitAsync(cancellationToken);
             await rendered.Instance.DisposeAsync();
             await Assert.That(compilation).CompletesWithin(TimeSpan.FromSeconds(1));
@@ -74,6 +78,32 @@ internal sealed class WorkbenchComponentTests
 
         await Assert.That(rendered.Find("[role='status']").TextContent)
             .Contains("superseded");
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task Editor_PendingCompilation_UsesInjectedRefreshClock(
+        CancellationToken cancellationToken)
+    {
+        var timeProvider = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 6, 0, 0, 0, TimeSpan.Zero));
+        await using var context = CreateContext(timeProvider);
+        await using var workspace = new ControlledCompilationWorkspace();
+        var rendered = await RenderAuthoredEditor(context, workspace);
+
+        var compilation = rendered.Find("[data-command='compile']").ClickAsync();
+        await workspace.FirstPendingRead.WaitAsync(cancellationToken);
+        await timeProvider.TimerCreated.WaitAsync(
+            TimeSpan.FromSeconds(1),
+            cancellationToken);
+        workspace.PublishAcceptedGeneration();
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(249));
+        await Assert.That(compilation.IsCompleted).IsFalse();
+        timeProvider.Advance(TimeSpan.FromMilliseconds(1));
+        await compilation.WaitAsync(cancellationToken);
+
+        await Assert.That(rendered.Find("[role='status']").TextContent)
+            .Contains("published atomically");
     }
 
     [Test]
@@ -601,10 +631,11 @@ internal sealed class WorkbenchComponentTests
         }
     }
 
-    private static BunitContext CreateContext()
+    private static BunitContext CreateContext(TimeProvider? timeProvider = null)
     {
         var context = new BunitContext();
         context.Services.AddFluentUIComponents();
+        context.Services.AddSingleton(timeProvider ?? TimeProvider.System);
         return context;
     }
 

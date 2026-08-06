@@ -191,11 +191,13 @@ working-layer candidate, one initial cell-reference buffer for every replacement
 one additional cell-reference buffer only for each compatible migrated RAM while both can
 coexist, and the Trace fork index plus its staged observation chunk. Shared immutable
 Compilation Artifact records, CLR object headers, allocator metadata, and transient scalar
-locals are excluded. Arithmetic is checked and saturation is treated as over-limit. Admission
-runs before any replacement working-layer, RAM clone, or Trace fork allocation; rejection
-reports Workspace Policy ID/revision, `hot_swap_peak_bytes`, and the observed value while
-retaining the old Session unchanged. Both Durable Display Name dimensions must pass, and
-catalog requests cannot exceed the page/cursor maxima.
+locals are excluded. Arithmetic is checked and saturation is treated as over-limit. Candidate
+working-layer admission runs before any replacement working-layer or RAM clone allocation.
+After settlement determines the exact changed Probe values, Trace admission runs before the
+Trace fork or transition chunk allocation. Either rejection reports Workspace Policy ID/revision,
+`hot_swap_peak_bytes`, and the observed value while retaining the old Session unchanged. Both
+Durable Display Name dimensions must pass, and catalog requests cannot exceed the page/cursor
+maxima.
 
 `BrowserPolicy` needs lower as well as upper bounds, so it owns this separate record:
 

@@ -67,6 +67,24 @@ internal sealed class WorkspaceContractTests
     }
 
     [Test]
+    [Arguments(2UL, 2UL)]
+    [Arguments(2UL, 1UL)]
+    public async Task CompilationProjection_SupersededByNonNewerGeneration_ThrowsArgumentException(
+        ulong generation,
+        ulong supersededBy)
+    {
+        await Assert.That(() => new CompilationProjection(
+                CompilationPublicationStatus.Superseded,
+                new CompilationGeneration(generation),
+                null,
+                [],
+                new CompilationGeneration(supersededBy),
+                null,
+                null))
+            .ThrowsExactly<ArgumentException>();
+    }
+
+    [Test]
     public async Task WorkspaceId_NullValue_ThrowsArgumentNullException()
     {
         await Assert.That(() => new WorkspaceId(null!))

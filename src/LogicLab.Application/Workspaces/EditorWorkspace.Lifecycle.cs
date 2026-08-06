@@ -186,17 +186,23 @@ internal sealed partial class EditorWorkspace
         }
     }
 
-    private void RetainWorkspace(WorkspaceState state)
+    private bool TryRetainWorkspace(
+        WorkspaceState state,
+        out string? rejectionCode)
     {
         lock (gate)
         {
             if (!IsCurrentWorkspaceUnderLock(state))
             {
-                throw new InvalidOperationException(
-                    "A retired workspace cannot retain background work.");
+                rejectionCode = isDisposed
+                    ? WorkspaceOutcomeReasons.WorkspaceCancelled
+                    : WorkspaceOutcomeReasons.WorkspaceNotFound;
+                return false;
             }
 
             state.LeaseCount++;
+            rejectionCode = null;
+            return true;
         }
     }
 

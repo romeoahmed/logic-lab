@@ -35,19 +35,19 @@ public static partial class SimulationRuntime
                 probeBindings.UnresolvedProbeIds);
         }
 
-        var peakOwnedBuffers = HotSwapOwnedBufferAccounting.MeasurePeak(
+        var candidatePeakOwnedBuffers = HotSwapOwnedBufferAccounting.MeasureCandidatePeak(
             state,
             replacement,
             migrations.Items,
             probeBindings.Probes.Length);
-        if (peakOwnedBuffers.IsSaturated
-            || peakOwnedBuffers.Bytes > maximumPeakOwnedBufferBytes)
+        if (candidatePeakOwnedBuffers.IsSaturated
+            || candidatePeakOwnedBuffers.Bytes > maximumPeakOwnedBufferBytes)
         {
             return new HotSwapResourceLimitExceeded(
                 state.SessionVersion,
                 current.Key,
                 maximumPeakOwnedBufferBytes,
-                peakOwnedBuffers.Bytes);
+                candidatePeakOwnedBuffers.Bytes);
         }
 
         EnsureWorkingLayerFits(replacement.SimulationIr, state.SimulationPolicy);
@@ -82,6 +82,24 @@ public static partial class SimulationRuntime
             driverValues,
             settlement.NetResolutions);
         var probes = probeBindings.Probes;
+        var changedProbeObservations = ChangedProbeObservations(
+            state,
+            probes,
+            settlement.NetValues);
+        var peakOwnedBuffers = HotSwapOwnedBufferAccounting.AddTraceFork(
+            candidatePeakOwnedBuffers,
+            state.Trace,
+            changedProbeObservations);
+        if (peakOwnedBuffers.IsSaturated
+            || peakOwnedBuffers.Bytes > maximumPeakOwnedBufferBytes)
+        {
+            return new HotSwapResourceLimitExceeded(
+                state.SessionVersion,
+                current.Key,
+                maximumPeakOwnedBufferBytes,
+                peakOwnedBuffers.Bytes);
+        }
+
         var observedProbes = probes.Select(probe => new ProbeObservation(
             probe.ProbeId,
             probe.Source,
@@ -89,7 +107,7 @@ public static partial class SimulationRuntime
         var trace = state.Trace.Fork();
         trace.Append(
             state.LogicalTime,
-            ChangedProbeObservations(state, probes, settlement.NetValues));
+            changedProbeObservations);
         var clockEvents = CreateClockEventCalendar(replacementIr, state.LogicalTime);
         var sessionVersion = checked(state.SessionVersion + 1UL);
         var scheduledBatches =

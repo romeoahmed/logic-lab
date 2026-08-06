@@ -34,22 +34,4 @@ internal sealed class FixedWindowCommandAdmissionGateTests
         }
     }
 
-    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        private long timestamp;
-
-        public DateTimeOffset UtcNow { get; private set; } = utcNow;
-
-        public override DateTimeOffset GetUtcNow() => UtcNow;
-
-        public override long GetTimestamp() => timestamp;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-
-        public void Advance(TimeSpan elapsed)
-        {
-            UtcNow += elapsed;
-            timestamp += elapsed.Ticks;
-        }
-    }
 }
