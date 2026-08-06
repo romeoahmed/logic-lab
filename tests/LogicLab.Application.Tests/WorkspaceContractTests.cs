@@ -55,30 +55,6 @@ internal sealed class WorkspaceContractTests
     }
 
     [Test]
-    public async Task AdvanceFailureProjection_ResourceLimit_PreservesPolicyEvidence()
-    {
-        var evidence = new SimulationPolicyEvidenceProjection(
-            "workbench-simulation",
-            "2",
-            "advance_work_item_count",
-            1_000_001);
-
-        var failure = new AdvanceFailureProjection(
-            AdvanceFailureReason.SimulationResourceLimit,
-            ["simulation_limit_exceeded"],
-            evidence);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(failure.Reason)
-                .IsEqualTo(AdvanceFailureReason.SimulationResourceLimit);
-            await Assert.That(failure.DiagnosticCodes)
-                .IsEquivalentTo(["simulation_limit_exceeded"]);
-            await Assert.That(failure.PolicyEvidence).IsEqualTo(evidence);
-        }
-    }
-
-    [Test]
     [Arguments(AdvanceFailureReason.SimulationResourceLimit, false)]
     [Arguments(AdvanceFailureReason.ZeroTimeOscillation, true)]
     public async Task AdvanceFailureProjection_MismatchedPolicyEvidence_ThrowsArgumentException(

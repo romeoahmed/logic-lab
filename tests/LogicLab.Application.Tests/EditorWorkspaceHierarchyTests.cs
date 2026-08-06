@@ -8,15 +8,19 @@ namespace LogicLab.Application.Tests;
 internal sealed class EditorWorkspaceHierarchyTests
 {
     [Test]
-    public async Task DispatchAsync_HierarchicalCircuit_CompilesAndSimulatesAcrossBoundary()
+    public async Task DispatchAsync_HierarchicalCircuit_CompilesAndSimulatesAcrossBoundary(
+        CancellationToken cancellationToken)
     {
         await using var workspace = EditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Hierarchy project", "Main"),
-            CancellationToken.None);
+            cancellationToken);
         var workspaceId = opened.WorkspaceId;
-        var attached = await EditorWorkspaceTestDriver.AttachAsync(workspace, workspaceId);
+        var attached = await EditorWorkspaceTestDriver.AttachAsync(
+            workspace,
+            workspaceId,
+            cancellationToken);
         var mainId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
 
         await Apply(workspace, workspaceId, attached, new CreateCircuitDefinitionIntent(
@@ -110,12 +114,13 @@ internal sealed class EditorWorkspaceHierarchyTests
         var compiledProjection = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
             workspace,
             workspaceId,
-            attached);
+            attached,
+            cancellationToken);
         var sessionCreated = await workspace.DispatchAsync(
             new CreateSession(
                 EditorWorkspaceTestDriver.Command(workspaceId, attached),
                 EditorWorkspaceTestDriver.SessionCreation(compiledProjection)),
-            CancellationToken.None);
+            cancellationToken);
         var initial = await Read(workspace, workspaceId, attached);
         var scheduled = await workspace.DispatchAsync(
             new ScheduleInputStimulus(
@@ -123,18 +128,20 @@ internal sealed class EditorWorkspaceHierarchyTests
                 EditorWorkspaceTestDriver.SessionMutation(initial),
                 1,
                 [new InputStimulusAssignment(source.Id, [LogicValue.One])]),
-            CancellationToken.None);
+            cancellationToken);
         var scheduledProjection = await Read(workspace, workspaceId, attached);
         var stepped = await workspace.DispatchAsync(
             new StepSession(
                 EditorWorkspaceTestDriver.Command(workspaceId, attached),
                 EditorWorkspaceTestDriver.SessionMutation(scheduledProjection)),
-            CancellationToken.None);
+            cancellationToken);
         var afterStep = await Read(workspace, workspaceId, attached);
 
         using (Assert.Multiple())
         {
             await Assert.That(compiled).IsTypeOf<CompilationAccepted>();
+            await Assert.That(compiledProjection.Compilation.Status)
+                .IsEqualTo(CompilationPublicationStatus.Published);
             await Assert.That(sessionCreated).IsTypeOf<SimulationSessionCreated>();
             await Assert.That(initial.Simulation!.Probes.Single().Value)
                 .IsEquivalentTo([LogicValue.One]);
