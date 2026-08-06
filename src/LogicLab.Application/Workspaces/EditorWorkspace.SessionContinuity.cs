@@ -34,7 +34,8 @@ internal sealed partial class EditorWorkspace
 
         if (replayCompletion is not null)
         {
-            return await replayCompletion.ConfigureAwait(false);
+            return await AwaitReplayAsync(replayCompletion, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         var completed = await workCoordinator.RunSessionAsync(

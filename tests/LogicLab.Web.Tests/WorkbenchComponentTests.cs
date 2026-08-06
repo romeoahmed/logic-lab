@@ -51,6 +51,38 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
+    public async Task Editor_IdempotencyWindowCloses_ReattachesAndCompletesCommand()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace(new WorkspacePolicy(
+            globalWorkspaceLimit: 16,
+            sandboxRetention: TimeSpan.FromHours(1),
+            authoringLimits: WorkspaceAuthoringLimits.Default,
+            historyRevisionCount: 16,
+            idempotencyRecordCount: 1,
+            detachedRetention: TimeSpan.FromMinutes(30)));
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author"));
+        await ClickAndWaitForState(
+            rendered,
+            "author",
+            () => !IsDisabled(rendered, "compile")
+                && rendered.FindAll("[data-component]").Count == 3);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(workspace.AttachCount).IsGreaterThan(1);
+            await Assert.That(rendered.Find("[role='status']").TextContent)
+                .DoesNotContain("idempotency_window_expired");
+        }
+    }
+
+    [Test]
     public async Task Editor_CompleteSimulationWorkflow_ProjectsProbeAndLogicalTime()
     {
         await using var context = CreateContext();
@@ -569,7 +601,10 @@ internal sealed class WorkbenchComponentTests
             if (Interlocked.Increment(ref openCount) == 1)
             {
                 return Task.FromResult<WorkspaceOpenOutcome>(
-                    new WorkspaceOpenRejected("workspace_internal_defect", []));
+                    new WorkspaceOpenRejected(
+                        "workspace_internal_defect",
+                        [],
+                        RetryDisposition.DoNotRetry));
             }
 
             return inner.OpenAsync(request, cancellationToken);
@@ -630,7 +665,10 @@ internal sealed class WorkbenchComponentTests
         {
             Volatile.Write(ref isExpired, 1);
             return Task.FromResult<WorkspaceCommandOutcome>(
-                new WorkspaceCommandRejected("workspace_expired", []));
+                new WorkspaceCommandRejected(
+                    "workspace_expired",
+                    [],
+                    RetryDisposition.DoNotRetry));
         }
 
         public Task<WorkspaceAttachOutcome> AttachAsync(
@@ -654,7 +692,10 @@ internal sealed class WorkbenchComponentTests
             return Volatile.Read(ref isExpired) == 0
                 ? inner.ReadAsync(context, cancellationToken)
                 : Task.FromResult<WorkspaceReadOutcome>(
-                    new WorkspaceReadRejected("workspace_not_found"));
+                    new WorkspaceReadRejected(
+                        "workspace_not_found",
+                        [],
+                        RetryDisposition.DoNotRetry));
         }
 
         public ValueTask DisposeAsync() => inner.DisposeAsync();
@@ -722,8 +763,7 @@ internal sealed class WorkbenchComponentTests
 
     private sealed class TrackingWorkspace : IEditorWorkspace
     {
-        private readonly IEditorWorkspace inner = EditorWorkspaceFactory.Create(
-            buildFingerprint: LogicLabWebBuild.Fingerprint);
+        private readonly IEditorWorkspace inner;
         private Attached? attachment;
         private int attachCount;
         private int detachCount;
@@ -731,6 +771,13 @@ internal sealed class WorkbenchComponentTests
         private int dispatchCount;
         private int openCount;
         private int readCount;
+
+        public TrackingWorkspace(WorkspacePolicy? workspacePolicy = null)
+        {
+            inner = EditorWorkspaceFactory.Create(
+                buildFingerprint: LogicLabWebBuild.Fingerprint,
+                workspacePolicy: workspacePolicy);
+        }
 
         public int DispatchCount => Volatile.Read(ref dispatchCount);
 

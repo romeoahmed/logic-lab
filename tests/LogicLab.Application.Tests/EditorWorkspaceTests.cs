@@ -198,6 +198,48 @@ internal sealed class EditorWorkspaceTests
     }
 
     [Test, Timeout(30_000)]
+    public async Task DispatchAsync_CancelledCompilationReplay_StopsWaitingForOriginalIntent(
+        CancellationToken cancellationToken)
+    {
+        var compilationGate = new BlockingOperationGate();
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            Compile = (request, operationCancellationToken) =>
+            {
+                compilationGate.Block(operationCancellationToken);
+                return production.Compile(request, operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        var (opened, _) = await OpenInputOutputProject(workspace);
+        var projection = await Read(workspace, opened);
+        var command = Compilation(opened.WorkspaceId, opened.Attachment, projection);
+        var original = workspace.DispatchAsync(command, CancellationToken.None);
+
+        WorkspaceCommandOutcome replay;
+        try
+        {
+            await compilationGate.Started.WaitAsync(cancellationToken);
+            using var replayCancellation = new CancellationTokenSource();
+            var pendingReplay = workspace.DispatchAsync(command, replayCancellation.Token);
+            replayCancellation.Cancel();
+            replay = await pendingReplay.WaitAsync(
+                TimeSpan.FromSeconds(5),
+                cancellationToken);
+        }
+        finally
+        {
+            compilationGate.Release();
+        }
+
+        _ = await original.WaitAsync(cancellationToken);
+        var rejection = await Assert.That(replay).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejection);
+        await Assert.That(rejection.Code).IsEqualTo("workspace_cancelled");
+    }
+
+    [Test, Timeout(30_000)]
     public async Task DispatchAsync_PriorGenerationCompilation_DoesNotCompleteNewIntent(
         CancellationToken cancellationToken)
     {
@@ -857,6 +899,55 @@ internal sealed class EditorWorkspaceTests
                 .IsEqualTo("stale_workspace_attachment");
             await Assert.That(after).IsTypeOf<ProjectionSnapshot>();
         }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_CancelledSessionReplay_StopsWaitingForOriginalIntent(
+        CancellationToken cancellationToken)
+    {
+        var sessionGate = new BlockingOperationGate();
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            OpenSimulation = (request, operationCancellationToken) =>
+            {
+                sessionGate.Block(operationCancellationToken);
+                return production.OpenSimulation(request, operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        var (opened, _) = await OpenInputOutputProject(workspace);
+        var beforeCompilation = await Read(workspace, opened);
+        var compilation = await workspace.DispatchAsync(
+            Compilation(opened.WorkspaceId, opened.Attachment, beforeCompilation),
+            cancellationToken);
+        var published = await Assert.That(compilation).IsTypeOf<CompilationPublished>();
+        Assert.NotNull(published);
+        var command = new CreateSession(
+            Context(opened.WorkspaceId, opened.Attachment, "session"),
+            new SessionCreationPrecondition(published.ArtifactKey));
+        var original = workspace.DispatchAsync(command, CancellationToken.None);
+
+        WorkspaceCommandOutcome replay;
+        try
+        {
+            await sessionGate.Started.WaitAsync(cancellationToken);
+            using var replayCancellation = new CancellationTokenSource();
+            var pendingReplay = workspace.DispatchAsync(command, replayCancellation.Token);
+            replayCancellation.Cancel();
+            replay = await pendingReplay.WaitAsync(
+                TimeSpan.FromSeconds(5),
+                cancellationToken);
+        }
+        finally
+        {
+            sessionGate.Release();
+        }
+
+        _ = await original.WaitAsync(cancellationToken);
+        var rejection = await Assert.That(replay).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejection);
+        await Assert.That(rejection.Code).IsEqualTo("workspace_cancelled");
     }
 
     private static async Task<(ControlledWorkspace Opened, ComponentInstance Input)>

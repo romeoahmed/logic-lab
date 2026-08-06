@@ -41,9 +41,7 @@ internal sealed partial class EditorWorkspace
 
         lock (gate)
         {
-            if (state.IsRetired
-                || !workspaces.TryGetValue(state.Id, out var current)
-                || !ReferenceEquals(current, state))
+            if (!IsCurrentWorkspaceUnderLock(state))
             {
                 return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
@@ -149,13 +147,26 @@ internal sealed partial class EditorWorkspace
     {
         lock (gate)
         {
-            if (!state.IsRetired
-                && workspaces.TryGetValue(state.Id, out var current)
-                && ReferenceEquals(current, state))
+            if (IsCurrentWorkspaceUnderLock(state))
             {
                 state.LastAccessTimestamp = timeProvider.GetTimestamp();
             }
         }
+    }
+
+    private bool IsCurrentWorkspace(WorkspaceState state)
+    {
+        lock (gate)
+        {
+            return IsCurrentWorkspaceUnderLock(state);
+        }
+    }
+
+    private bool IsCurrentWorkspaceUnderLock(WorkspaceState state)
+    {
+        return !state.IsRetired
+            && workspaces.TryGetValue(state.Id, out var current)
+            && ReferenceEquals(current, state);
     }
 
     private void Release(WorkspaceState state)

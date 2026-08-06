@@ -241,7 +241,10 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
     private static WorkspaceCommandRejected Reject(string code)
     {
-        return new WorkspaceCommandRejected(code, []);
+        return new WorkspaceCommandRejected(
+            code,
+            [],
+            WorkspaceOutcomeReasons.RetryFor(code));
     }
 
     private WorkspaceCommandRejected FailureOutcome(Exception exception, string lane)
