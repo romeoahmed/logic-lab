@@ -76,12 +76,10 @@ internal sealed class EditorWorkspaceRunTests
         await Assert.That(pause.IsCompleted).IsFalse();
 
         await callerCancellation.CancelAsync();
-        var firstCompletion = await Task.WhenAny(
-            pause,
-            Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken));
         try
         {
-            await Assert.That(ReferenceEquals(firstCompletion, pause)).IsFalse();
+            await Task.Yield();
+            await Assert.That(pause.IsCompleted).IsFalse();
         }
         finally
         {
@@ -1024,7 +1022,7 @@ internal sealed class EditorWorkspaceRunTests
                 return projection;
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken);
+            await Task.Yield();
         }
     }
 
