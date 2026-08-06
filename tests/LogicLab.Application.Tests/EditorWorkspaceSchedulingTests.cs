@@ -6,6 +6,67 @@ namespace LogicLab.Application.Tests;
 internal sealed class EditorWorkspaceSchedulingTests
 {
     [Test, Timeout(30_000)]
+    public async Task DispatchAsync_CompilationAcceptance_DoesNotWaitForPublishedGeneration(
+        CancellationToken cancellationToken)
+    {
+        var compilationGate = new BlockingOperationGate();
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            Compile = (request, operationCancellationToken) =>
+            {
+                compilationGate.Block(operationCancellationToken);
+                return production.Compile(request, operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations: operations);
+        var controlled = await Open(workspace, "Accepted", cancellationToken);
+
+        var dispatch = workspace.DispatchAsync(
+            CompilationCommand(controlled, "compile"),
+            cancellationToken);
+        try
+        {
+            await compilationGate.Started.WaitAsync(cancellationToken);
+            var accepted = await Assert.That(await dispatch.WaitAsync(
+                    TimeSpan.FromSeconds(1),
+                    cancellationToken))
+                .IsTypeOf<CompilationAccepted>();
+            Assert.NotNull(accepted);
+            var running = ((ProjectionSnapshot)await workspace.ReadAsync(
+                EditorWorkspaceTestDriver.Query(
+                    controlled.Opened.WorkspaceId,
+                    controlled.Attached),
+                cancellationToken)).Projection;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(accepted.CompilationGeneration.Value).IsEqualTo(1UL);
+                await Assert.That(running.Compilation.Status)
+                    .IsEqualTo(CompilationPublicationStatus.Running);
+                await Assert.That(running.Compilation.Generation)
+                    .IsEqualTo(accepted.CompilationGeneration);
+            }
+        }
+        finally
+        {
+            compilationGate.Release();
+        }
+
+        var published = await WaitForCompilation(
+            workspace,
+            controlled,
+            CompilationPublicationStatus.Published,
+            cancellationToken);
+        using (Assert.Multiple())
+        {
+            await Assert.That(published.Compilation.Generation?.Value).IsEqualTo(1UL);
+            await Assert.That(published.Compilation.ArtifactKey).IsNotNull();
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task DispatchAsync_CompilationQueueFull_RejectsThroughWorkspaceBoundary(
         CancellationToken cancellationToken)
     {
@@ -51,8 +112,15 @@ internal sealed class EditorWorkspaceSchedulingTests
             compilationGate.Release();
         }
 
-        _ = await first.WaitAsync(cancellationToken);
-        _ = await second.WaitAsync(cancellationToken);
+        await Assert.That(await first.WaitAsync(cancellationToken))
+            .IsTypeOf<CompilationAccepted>();
+        await Assert.That(await second.WaitAsync(cancellationToken))
+            .IsTypeOf<CompilationAccepted>();
+        _ = await WaitForCompilation(
+            workspace,
+            secondWorkspace,
+            CompilationPublicationStatus.Published,
+            cancellationToken);
         var rejection = await Assert.That(rejected)
             .IsTypeOf<WorkspaceCommandRejected>();
         Assert.NotNull(rejection);
@@ -107,17 +175,73 @@ internal sealed class EditorWorkspaceSchedulingTests
 
         var firstOutcome = await first.WaitAsync(cancellationToken);
         var secondOutcome = await second.WaitAsync(cancellationToken);
-        var firstRejection = await Assert.That(firstOutcome)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(firstRejection);
+        var firstAcceptance = await Assert.That(firstOutcome)
+            .IsTypeOf<CompilationAccepted>();
+        var secondAcceptance = await Assert.That(secondOutcome)
+            .IsTypeOf<CompilationAccepted>();
+        Assert.NotNull(firstAcceptance);
+        Assert.NotNull(secondAcceptance);
+        var published = await WaitForCompilation(
+            workspace,
+            opened,
+            CompilationPublicationStatus.Published,
+            cancellationToken);
 
         using (Assert.Multiple())
         {
-            await Assert.That(firstRejection.Code)
-                .IsEqualTo("workspace_cancelled");
-            await Assert.That(secondOutcome).IsTypeOf<CompilationPublished>();
+            await Assert.That(firstAcceptance.CompilationGeneration.Value).IsEqualTo(1UL);
+            await Assert.That(secondAcceptance.CompilationGeneration.Value).IsEqualTo(2UL);
+            await Assert.That(published.Compilation.Generation)
+                .IsEqualTo(secondAcceptance.CompilationGeneration);
             await Assert.That(invocationCount).IsEqualTo(2);
         }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_AcceptedCompilationCancelledBeforeExecution_PublishesRejection(
+        CancellationToken cancellationToken)
+    {
+        var compilationGate = new BlockingOperationGate();
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            Compile = (request, operationCancellationToken) =>
+            {
+                compilationGate.Block(operationCancellationToken);
+                return production.Compile(request, operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            schedulingPolicy: new SchedulingPolicy(1, 1),
+            operations: operations);
+        var blocking = await Open(workspace, "Blocking", cancellationToken);
+        var cancelled = await Open(workspace, "Cancelled", cancellationToken);
+
+        _ = await workspace.DispatchAsync(
+            CompilationCommand(blocking, "blocking"),
+            cancellationToken);
+        using var requestCancellation = new CancellationTokenSource();
+        try
+        {
+            await compilationGate.Started.WaitAsync(cancellationToken);
+            var accepted = await workspace.DispatchAsync(
+                CompilationCommand(cancelled, "cancelled"),
+                requestCancellation.Token);
+            await Assert.That(accepted).IsTypeOf<CompilationAccepted>();
+            requestCancellation.Cancel();
+        }
+        finally
+        {
+            compilationGate.Release();
+        }
+
+        var rejected = await WaitForCompilation(
+            workspace,
+            cancelled,
+            CompilationPublicationStatus.Rejected,
+            cancellationToken);
+        await Assert.That(rejected.Compilation.RejectionCode)
+            .IsEqualTo("workspace_cancelled");
     }
 
     [Test, Timeout(30_000)]
@@ -163,15 +287,11 @@ internal sealed class EditorWorkspaceSchedulingTests
                 opened.Opened.WorkspaceId,
                 opened.Attached),
             cancellationToken);
-        var compilationRejection = await Assert.That(compilationOutcome)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(compilationRejection);
+        await Assert.That(compilationOutcome).IsTypeOf<CompilationAccepted>();
 
         using (Assert.Multiple())
         {
             await Assert.That(closed).IsTypeOf<WorkspaceClosed>();
-            await Assert.That(compilationRejection.Code)
-                .IsEqualTo("workspace_not_found");
             await Assert.That(read).IsTypeOf<WorkspaceReadRejected>();
         }
     }
@@ -204,6 +324,28 @@ internal sealed class EditorWorkspaceSchedulingTests
                 workspace.Attached,
                 intentId),
             EditorWorkspaceTestDriver.Compilation(workspace.Attached.Projection));
+    }
+
+    private static async Task<WorkspaceProjection> WaitForCompilation(
+        IEditorWorkspace workspace,
+        ControlledWorkspace controlled,
+        CompilationPublicationStatus status,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var projection = ((ProjectionSnapshot)await workspace.ReadAsync(
+                EditorWorkspaceTestDriver.Query(
+                    controlled.Opened.WorkspaceId,
+                    controlled.Attached),
+                cancellationToken)).Projection;
+            if (projection.Compilation.Status == status)
+            {
+                return projection;
+            }
+
+            await Task.Yield();
+        }
     }
 
     private sealed record ControlledWorkspace(WorkspaceOpened Opened, Attached Attached);

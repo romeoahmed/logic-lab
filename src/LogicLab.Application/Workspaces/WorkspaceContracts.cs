@@ -205,6 +205,53 @@ public sealed record StepSession : WorkspaceCommand
     public SessionMutationPrecondition Precondition { get; }
 }
 
+public sealed record StartRun : WorkspaceCommand
+{
+    public StartRun(
+        WorkspaceCommandContext context,
+        SessionMutationPrecondition precondition)
+        : base(context)
+    {
+        ArgumentNullException.ThrowIfNull(precondition);
+        Precondition = precondition;
+    }
+
+    public SessionMutationPrecondition Precondition { get; }
+}
+
+public sealed record PauseRun : WorkspaceCommand
+{
+    public PauseRun(
+        WorkspaceCommandContext context,
+        RunControlPrecondition precondition)
+        : base(context)
+    {
+        ArgumentNullException.ThrowIfNull(precondition);
+        Precondition = precondition;
+    }
+
+    public RunControlPrecondition Precondition { get; }
+}
+
+public sealed record HotSwapSession : WorkspaceCommand
+{
+    public HotSwapSession(
+        WorkspaceCommandContext context,
+        SessionMutationPrecondition precondition,
+        CompilationArtifactKey targetCompilationArtifactKey)
+        : base(context)
+    {
+        ArgumentNullException.ThrowIfNull(precondition);
+        ArgumentNullException.ThrowIfNull(targetCompilationArtifactKey);
+        Precondition = precondition;
+        TargetCompilationArtifactKey = targetCompilationArtifactKey;
+    }
+
+    public SessionMutationPrecondition Precondition { get; }
+
+    public CompilationArtifactKey TargetCompilationArtifactKey { get; }
+}
+
 public sealed record CloseWorkspace : WorkspaceCommand
 {
     public CloseWorkspace(WorkspaceCommandContext context)
@@ -224,6 +271,22 @@ public sealed record AuthoringCommitted(
     ProjectRevisionId ProjectRevisionId,
     ulong ProjectionVersion) : WorkspaceCommandOutcome;
 
+public sealed record CompilationGeneration
+{
+    public CompilationGeneration(ulong value)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(value);
+        Value = value;
+    }
+
+    public ulong Value { get; }
+}
+
+public sealed record CompilationAccepted(
+    CompilationGeneration CompilationGeneration,
+    ProjectRevisionId RequestedProjectRevisionId,
+    ulong ProjectionVersion) : WorkspaceCommandOutcome;
+
 public sealed record CompilationPublished(
     CompilationArtifactKey ArtifactKey,
     ulong ProjectionVersion) : WorkspaceCommandOutcome;
@@ -238,6 +301,54 @@ public sealed record StimulusScheduled(
 
 public sealed record SessionStepped(
     ulong LogicalTime,
+    ulong ProjectionVersion) : WorkspaceCommandOutcome;
+
+public sealed record RunStarted(
+    RunGeneration RunGeneration,
+    ulong SessionVersion,
+    ulong ProjectionVersion) : WorkspaceCommandOutcome;
+
+public enum RunPauseReason
+{
+    UserRequested,
+    NoScheduledStimulus,
+    Detached,
+    SupersededRun,
+}
+
+public sealed record RunPaused(
+    RunGeneration RunGeneration,
+    ulong SessionVersion,
+    ulong LogicalTime,
+    RunPauseReason Reason,
+    ulong ProjectionVersion) : WorkspaceCommandOutcome;
+
+public sealed class HotSwapMigrationProjection
+{
+    public HotSwapMigrationProjection(
+        IReadOnlyList<CompilationSource> migratedStateSources,
+        IReadOnlyList<ProbeId> preservedProbeIds,
+        IReadOnlyList<ProbeId> unresolvedProbeIds)
+    {
+        ArgumentNullException.ThrowIfNull(migratedStateSources);
+        ArgumentNullException.ThrowIfNull(preservedProbeIds);
+        ArgumentNullException.ThrowIfNull(unresolvedProbeIds);
+        MigratedStateSources = Array.AsReadOnly(migratedStateSources.ToArray());
+        PreservedProbeIds = Array.AsReadOnly(preservedProbeIds.ToArray());
+        UnresolvedProbeIds = Array.AsReadOnly(unresolvedProbeIds.ToArray());
+    }
+
+    public ReadOnlyCollection<CompilationSource> MigratedStateSources { get; }
+
+    public ReadOnlyCollection<ProbeId> PreservedProbeIds { get; }
+
+    public ReadOnlyCollection<ProbeId> UnresolvedProbeIds { get; }
+}
+
+public sealed record HotSwapCommitted(
+    ulong SessionVersion,
+    CompilationArtifactKey CompilationArtifactKey,
+    HotSwapMigrationProjection MigrationEvidence,
     ulong ProjectionVersion) : WorkspaceCommandOutcome;
 
 public sealed record WorkspaceClosed(WorkspaceId WorkspaceId) : WorkspaceCommandOutcome;
@@ -299,6 +410,9 @@ public sealed record WorkspaceReadRejected : WorkspaceReadOutcome
 public enum CompilationPublicationStatus
 {
     NotRequested,
+    Queued,
+    Running,
+    Superseded,
     Published,
     Rejected,
 }
@@ -307,20 +421,73 @@ public sealed record CompilationProjection
 {
     public CompilationProjection(
         CompilationPublicationStatus status,
+        CompilationGeneration? generation,
         CompilationArtifactKey? artifactKey,
-        IReadOnlyList<string> diagnosticCodes)
+        IReadOnlyList<string> diagnosticCodes,
+        CompilationGeneration? supersededBy,
+        string? rejectionCode,
+        RetryDisposition? retryDisposition)
     {
         ArgumentNullException.ThrowIfNull(diagnosticCodes);
+        if (!Enum.IsDefined(status)
+            || (status == CompilationPublicationStatus.NotRequested
+                && (generation is not null
+                    || artifactKey is not null
+                    || supersededBy is not null
+                    || rejectionCode is not null
+                    || retryDisposition is not null))
+            || (status is CompilationPublicationStatus.Queued
+                    or CompilationPublicationStatus.Running
+                && (generation is null
+                    || artifactKey is not null
+                    || supersededBy is not null
+                    || rejectionCode is not null
+                    || retryDisposition is not null))
+            || (status == CompilationPublicationStatus.Superseded
+                && (generation is null
+                    || supersededBy is null
+                    || artifactKey is not null
+                    || rejectionCode is not null
+                    || retryDisposition is not null))
+            || (status == CompilationPublicationStatus.Published
+                && (generation is null
+                    || artifactKey is null
+                    || supersededBy is not null
+                    || rejectionCode is not null
+                    || retryDisposition is not null))
+            || (status == CompilationPublicationStatus.Rejected
+                && (generation is null
+                    || artifactKey is not null
+                    || supersededBy is not null
+                    || string.IsNullOrEmpty(rejectionCode)
+                    || retryDisposition is null)))
+        {
+            throw new ArgumentException(
+                "Compilation projection fields do not match its status.");
+        }
+
         Status = status;
+        Generation = generation;
         ArtifactKey = artifactKey;
         DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
+        SupersededBy = supersededBy;
+        RejectionCode = rejectionCode;
+        RetryDisposition = retryDisposition;
     }
 
     public CompilationPublicationStatus Status { get; }
 
     public CompilationArtifactKey? ArtifactKey { get; }
 
+    public CompilationGeneration? Generation { get; }
+
     public ReadOnlyCollection<string> DiagnosticCodes { get; }
+
+    public CompilationGeneration? SupersededBy { get; }
+
+    public string? RejectionCode { get; }
+
+    public RetryDisposition? RetryDisposition { get; }
 }
 
 public sealed record ProbeProjection
@@ -342,6 +509,48 @@ public sealed record ProbeProjection
     public ReadOnlyCollection<LogicValue> Value { get; }
 }
 
+public enum RunStatus
+{
+    NotRunning,
+    Running,
+    Paused,
+}
+
+public sealed record RunProjection
+{
+    public RunProjection(
+        RunStatus status,
+        RunGeneration? runGeneration,
+        RunPauseReason? pauseReason)
+    {
+        if (!Enum.IsDefined(status)
+            || (status == RunStatus.NotRunning
+                && (runGeneration is not null || pauseReason is not null))
+            || (status == RunStatus.Running
+                && (runGeneration is null || pauseReason is not null))
+            || (status == RunStatus.Paused
+                && (runGeneration is null || pauseReason is null)))
+        {
+            throw new ArgumentException("Run projection fields do not match its status.");
+        }
+
+        Status = status;
+        RunGeneration = runGeneration;
+        PauseReason = pauseReason;
+    }
+
+    public RunStatus Status { get; }
+
+    public RunGeneration? RunGeneration { get; }
+
+    public RunPauseReason? PauseReason { get; }
+
+    public static RunProjection NotRunning { get; } = new(
+        RunStatus.NotRunning,
+        null,
+        null);
+}
+
 public sealed record SimulationProjection
 {
     public SimulationProjection(
@@ -350,7 +559,8 @@ public sealed record SimulationProjection
         CompilationArtifactKey compilationArtifactKey,
         ulong logicalTime,
         TraceCursor traceCursor,
-        IReadOnlyList<ProbeProjection> probes)
+        IReadOnlyList<ProbeProjection> probes,
+        RunProjection? run = null)
     {
         ArgumentNullException.ThrowIfNull(sessionId);
         ArgumentNullException.ThrowIfNull(compilationArtifactKey);
@@ -361,6 +571,7 @@ public sealed record SimulationProjection
         LogicalTime = logicalTime;
         TraceCursor = traceCursor;
         Probes = Array.AsReadOnly(probes.ToArray());
+        Run = run ?? RunProjection.NotRunning;
     }
 
     public SimulationSessionId SessionId { get; }
@@ -374,6 +585,8 @@ public sealed record SimulationProjection
     public TraceCursor TraceCursor { get; }
 
     public ReadOnlyCollection<ProbeProjection> Probes { get; }
+
+    public RunProjection Run { get; }
 }
 
 public sealed record WorkspaceProjection(

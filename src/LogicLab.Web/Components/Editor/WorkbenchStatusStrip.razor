@@ -55,6 +55,9 @@
 
     private string Compilation => Projection?.Compilation.Status switch
     {
+        CompilationPublicationStatus.Queued => "Queued",
+        CompilationPublicationStatus.Running => "Running",
+        CompilationPublicationStatus.Superseded => "Superseded",
         CompilationPublicationStatus.Published => "Published",
         CompilationPublicationStatus.Rejected => "Rejected",
         _ => "Not requested",

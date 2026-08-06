@@ -166,7 +166,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 state,
                 request,
                 cancellationToken).ConfigureAwait(false),
-            CreateSession or ScheduleInputStimulus or StepSession =>
+            CreateSession or ScheduleInputStimulus or StepSession or StartRun
+                or PauseRun or HotSwapSession =>
                 await QueueContextualSessionAsync(
                     state,
                     command,
@@ -279,10 +280,6 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         RequestCompilation command,
         CancellationToken cancellationToken)
     {
-        Task<WorkspaceCommandOutcome>? completion = null;
-        ContextualCommandPublication? publication = null;
-        var ownsPendingRecord = false;
-        var shouldQueue = true;
         try
         {
             await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -308,10 +305,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 {
                     case ContextualIntentTerminal terminal:
                         return terminal.Outcome;
-                    case ContextualIntentReplay replay:
-                        completion = replay.Completion;
-                        shouldQueue = false;
-                        break;
+                    case ContextualIntentReplay:
+                        return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
                     case ContextualIntentAccepted accepted:
                         if (!MatchesCompilationPrecondition(state, command.Precondition))
                         {
@@ -325,42 +320,68 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                             return rejected;
                         }
 
-                        publication = ReserveContextualIntentUnderLock(
+                        var requestedRevision = state.Revision;
+                        var generation = new CompilationGeneration(
+                            checked(++state.NextCompilationGeneration));
+                        state.Compilation = new CompilationProjection(
+                            CompilationPublicationStatus.Queued,
+                            generation,
+                            null,
+                            [],
+                            null,
+                            null,
+                            null);
+                        state.ProjectionVersion++;
+                        var outcome = new CompilationAccepted(
+                            generation,
+                            requestedRevision.RevisionId,
+                            state.ProjectionVersion);
+                        var backgroundLease = RetainWorkspace(state);
+                        if (!workCoordinator.TryScheduleCompilation(
+                                state.Id,
+                                context => CompileWithLeaseAsync(
+                                    backgroundLease,
+                                    requestedRevision,
+                                    generation,
+                                    context),
+                                cancellationToken))
+                        {
+                            backgroundLease.Dispose();
+                            state.Artifact = null;
+                            state.Compilation = new CompilationProjection(
+                                CompilationPublicationStatus.Rejected,
+                                generation,
+                                null,
+                                [],
+                                null,
+                                WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
+                                RetryDisposition.DoNotRetry);
+                            state.ProjectionVersion++;
+                            var rejected = Reject(
+                                WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
+                            RecordIdempotencyUnderLock(
+                                state,
+                                command.Context.ClientIntentId,
+                                accepted.CanonicalIdentity,
+                                rejected);
+                            return rejected;
+                        }
+
+                        RecordIdempotencyUnderLock(
                             state,
-                            command,
-                            accepted.CanonicalIdentity);
-                        ownsPendingRecord = true;
-                        break;
+                            command.Context.ClientIntentId,
+                            accepted.CanonicalIdentity,
+                            outcome);
+                        return outcome;
                 }
             }
 
-            if (shouldQueue)
-            {
-                var requestedRevision = state.Revision;
-                completion = workCoordinator.RunCompilationAsync(
-                    state.Id,
-                    context => CompileAsync(
-                        state,
-                        requestedRevision,
-                        publication,
-                        context),
-                    cancellationToken);
-            }
+            return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
         finally
         {
             state.CommandGate.Release();
         }
-
-        if (!ownsPendingRecord)
-        {
-            return await AwaitReplayAsync(completion!, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        var completed = await completion!.ConfigureAwait(false);
-        CompletePendingIdempotency(state, publication!, completed);
-        return await publication!.PendingIntent.Completion.Task.ConfigureAwait(false);
     }
 
     private static bool MatchesCompilationPrecondition(
@@ -376,31 +397,118 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 StringComparison.Ordinal);
     }
 
+    private async ValueTask<WorkspaceCommandOutcome> CompileWithLeaseAsync(
+        WorkspaceLease lease,
+        ProjectRevision requestedRevision,
+        CompilationGeneration generation,
+        CompilationWorkContext context)
+    {
+        using (lease)
+        {
+            return await CompileAsync(
+                lease.State,
+                requestedRevision,
+                generation,
+                context).ConfigureAwait(false);
+        }
+    }
+
     private async ValueTask<WorkspaceCommandOutcome> CompileAsync(
         WorkspaceState state,
         ProjectRevision requestedRevision,
-        ContextualCommandPublication? publication,
+        CompilationGeneration generation,
         CompilationWorkContext context)
     {
-        var outcome = operations.Compile(
-            new CompilationRequest(
-                requestedRevision,
-                requestedRevision.Document.EntryCircuitDefinitionId,
-                requestedRevision.Document.LibrarySnapshot,
-                DevelopmentProjectScalePolicy),
-            context.CancellationToken);
-        WorkspaceCommandOutcome? completed = null;
-        if (outcome is CompilationRejected cancelled
-            && string.Equals(
-                cancelled.Reason,
-                "compilation_cancelled",
-                StringComparison.Ordinal))
+        try
         {
-            completed = Reject(
-                cancelled.Reason,
-                cancelled.Diagnostics.Select(item => item.Code));
+            await state.CommandGate.WaitAsync(context.CancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                context.CancellationToken))
+        {
+            return await PublishCompilationFailureAsync(
+                state,
+                requestedRevision,
+                generation,
+                WorkspaceOutcomeReasons.WorkspaceCancelled,
+                context).ConfigureAwait(false);
         }
 
+        try
+        {
+            if (state.IsRetired
+                || state.Revision.RevisionId != requestedRevision.RevisionId
+                || state.Compilation.Generation != generation)
+            {
+                return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            }
+
+            if (!context.TryUpdate(() =>
+                {
+                    state.Compilation = new CompilationProjection(
+                        CompilationPublicationStatus.Running,
+                        generation,
+                        null,
+                        [],
+                        null,
+                        null,
+                        null);
+                    state.ProjectionVersion++;
+                }))
+            {
+                _ = TryRejectCompilation(
+                    state,
+                    generation,
+                    WorkspaceOutcomeReasons.WorkspaceCancelled,
+                    context);
+                return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            }
+        }
+        finally
+        {
+            state.CommandGate.Release();
+        }
+
+        CompilationOutcome outcome;
+        try
+        {
+            outcome = operations.Compile(
+                new CompilationRequest(
+                    requestedRevision,
+                    requestedRevision.Document.EntryCircuitDefinitionId,
+                    requestedRevision.Document.LibrarySnapshot,
+                    DevelopmentProjectScalePolicy),
+                context.CancellationToken);
+        }
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                context.CancellationToken))
+        {
+            return await PublishCompilationFailureAsync(
+                state,
+                requestedRevision,
+                generation,
+                WorkspaceOutcomeReasons.WorkspaceCancelled,
+                context).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
+        {
+            var code = exception is IOException or TimeoutException
+                ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
+                : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
+            var correlation = Guid.CreateVersion7().ToString("N");
+            LogCompilationFailure(logger, exception, correlation, code);
+            return await PublishCompilationFailureAsync(
+                state,
+                requestedRevision,
+                generation,
+                code,
+                context).ConfigureAwait(false);
+        }
         try
         {
             await state.CommandGate.WaitAsync(context.CancellationToken).ConfigureAwait(false);
@@ -410,38 +518,88 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 exception,
                 context.CancellationToken))
         {
-            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            return await PublishCompilationFailureAsync(
+                state,
+                requestedRevision,
+                generation,
+                WorkspaceOutcomeReasons.WorkspaceCancelled,
+                context).ConfigureAwait(false);
         }
 
         try
         {
-            if (state.IsRetired)
+            if (state.IsRetired
+                || state.Revision.RevisionId != requestedRevision.RevisionId
+                || state.Compilation.Generation != generation)
             {
-                completed = Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
-            }
-            else if (publication is not null
-                && !HasCurrentAttachmentSafely(state, publication.Context))
-            {
-                completed = Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
-            }
-            else if (state.Revision.RevisionId != requestedRevision.RevisionId)
-            {
-                completed = Reject(
-                    WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
-            }
-            completed ??= PublishCompilation(state, outcome, context);
-            if (publication is not null)
-            {
-                CompletePendingIdempotency(state, publication, completed);
+                return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
             }
 
-            return completed;
+            return PublishCompilation(state, generation, outcome, context);
         }
         finally
         {
             state.CommandGate.Release();
         }
     }
+
+    private static async ValueTask<WorkspaceCommandOutcome>
+        PublishCompilationFailureAsync(
+            WorkspaceState state,
+            ProjectRevision requestedRevision,
+            CompilationGeneration generation,
+            string code,
+            CompilationWorkContext context)
+    {
+        await state.CommandGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (state.IsRetired
+                || state.Revision.RevisionId != requestedRevision.RevisionId
+                || state.Compilation.Generation != generation
+                || !TryRejectCompilation(state, generation, code, context))
+            {
+                return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            }
+
+            return Reject(code);
+        }
+        finally
+        {
+            state.CommandGate.Release();
+        }
+    }
+
+    private static bool TryRejectCompilation(
+        WorkspaceState state,
+        CompilationGeneration generation,
+        string code,
+        CompilationWorkContext context)
+    {
+        return context.TryReject(() =>
+        {
+            state.Artifact = null;
+            state.Compilation = new CompilationProjection(
+                CompilationPublicationStatus.Rejected,
+                generation,
+                null,
+                [],
+                null,
+                code,
+                WorkspaceOutcomeReasons.RetryFor(code));
+            state.ProjectionVersion++;
+        });
+    }
+
+    [LoggerMessage(
+        EventId = 1003,
+        Level = LogLevel.Error,
+        Message = "Compilation failed with correlation {Correlation} and outcome {OutcomeCode}.")]
+    private static partial void LogCompilationFailure(
+        ILogger logger,
+        Exception exception,
+        string correlation,
+        string outcomeCode);
 
     private static bool HasCurrentAttachmentSafely(
         WorkspaceState state,
@@ -455,6 +613,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
     private static WorkspaceCommandOutcome PublishCompilation(
         WorkspaceState state,
+        CompilationGeneration generation,
         CompilationOutcome outcome,
         CompilationWorkContext context)
     {
@@ -467,8 +626,12 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                     state.Artifact = succeeded.Artifact;
                     state.Compilation = new CompilationProjection(
                         CompilationPublicationStatus.Published,
+                        generation,
                         succeeded.Artifact.Key,
-                        [.. succeeded.Diagnostics.Select(item => item.Code)]);
+                        [.. succeeded.Diagnostics.Select(item => item.Code)],
+                        null,
+                        null,
+                        null);
                     published = new CompilationPublished(
                         succeeded.Artifact.Key,
                         state.ProjectionVersion);
@@ -480,11 +643,20 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 state.Artifact = null;
                 state.Compilation = new CompilationProjection(
                     CompilationPublicationStatus.Rejected,
+                    generation,
                     null,
-                    diagnosticCodes);
+                    diagnosticCodes,
+                    null,
+                    rejected.Reason,
+                    WorkspaceOutcomeReasons.RetryFor(rejected.Reason));
                 published = Reject(rejected.Reason, diagnosticCodes);
             }))
         {
+            _ = TryRejectCompilation(
+                state,
+                generation,
+                WorkspaceOutcomeReasons.WorkspaceCancelled,
+                context);
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
@@ -633,7 +805,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             simulation.CompilationArtifactKey,
             simulation.LogicalTime,
             simulation.TraceCursor,
-            simulation.Probes);
+            simulation.Probes,
+            simulation.Run);
         state.ProjectionVersion++;
         return new StimulusScheduled(
             scheduled.ScheduledLogicalTime,
@@ -678,7 +851,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             simulation.CompilationArtifactKey,
             committed.LogicalTime,
             committed.TraceCursor,
-            ApplyProbePatch(simulation.Probes, committed.ObservedProbePatch));
+            ApplyProbePatch(simulation.Probes, committed.ObservedProbePatch),
+            simulation.Run);
         state.ProjectionVersion++;
         return new SessionStepped(committed.LogicalTime, state.ProjectionVersion);
     }
@@ -879,7 +1053,14 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
     private static CompilationProjection NotRequestedCompilation()
     {
-        return new CompilationProjection(CompilationPublicationStatus.NotRequested, null, []);
+        return new CompilationProjection(
+            CompilationPublicationStatus.NotRequested,
+            null,
+            null,
+            [],
+            null,
+            null,
+            null);
     }
 
     private static ProjectScalePolicy DevelopmentProjectScalePolicy { get; } = new(

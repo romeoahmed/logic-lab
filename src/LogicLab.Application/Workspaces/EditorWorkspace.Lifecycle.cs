@@ -186,6 +186,21 @@ internal sealed partial class EditorWorkspace
         }
     }
 
+    private WorkspaceLease RetainWorkspace(WorkspaceState state)
+    {
+        lock (gate)
+        {
+            if (!IsCurrentWorkspaceUnderLock(state))
+            {
+                throw new InvalidOperationException(
+                    "A retired workspace cannot retain background work.");
+            }
+
+            state.LeaseCount++;
+            return new WorkspaceLease(this, state);
+        }
+    }
+
     private void RetireAll(IEnumerable<WorkspaceState> states)
     {
         foreach (var state in states)
@@ -272,9 +287,13 @@ internal sealed partial class EditorWorkspace
 
         public CompilationProjection Compilation { get; set; } = NotRequestedCompilation();
 
+        public ulong NextCompilationGeneration { get; set; }
+
         public ActiveSessionContext? ActiveSession { get; set; }
 
         public SimulationProjection? Simulation { get; set; }
+
+        public ulong NextRunGeneration { get; set; }
 
         public long LastAccessTimestamp { get; set; } = lastAccessTimestamp;
 

@@ -43,14 +43,43 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
         }
 
+        _ = TryEnqueueCompilation(
+            workspaceId,
+            operation,
+            cancellationToken,
+            out var completion);
+        return completion;
+    }
+
+    internal bool TryScheduleCompilation(
+        WorkspaceId workspaceId,
+        Func<CompilationWorkContext, ValueTask<WorkspaceCommandOutcome>> operation,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(workspaceId);
+        ArgumentNullException.ThrowIfNull(operation);
+        return TryEnqueueCompilation(
+            workspaceId,
+            operation,
+            cancellationToken,
+            out _);
+    }
+
+    private bool TryEnqueueCompilation(
+        WorkspaceId workspaceId,
+        Func<CompilationWorkContext, ValueTask<WorkspaceCommandOutcome>> operation,
+        CancellationToken cancellationToken,
+        out Task<WorkspaceCommandOutcome> completion)
+    {
         CompilationWorkItem item;
         CompilationWorkItem? previous = null;
         lock (gate)
         {
-            if (isDisposed)
+            if (isDisposed || cancellationToken.IsCancellationRequested)
             {
-                return Task.FromResult<WorkspaceCommandOutcome>(
+                completion = Task.FromResult<WorkspaceCommandOutcome>(
                     Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
+                return false;
             }
 
             item = new CompilationWorkItem(
@@ -61,8 +90,9 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             if (!compilationQueue.Writer.TryWrite(item))
             {
                 item.Dispose();
-                return Task.FromResult<WorkspaceCommandOutcome>(
+                completion = Task.FromResult<WorkspaceCommandOutcome>(
                     Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected));
+                return false;
             }
 
             _ = latestCompilations.TryGetValue(workspaceId, out previous);
@@ -74,7 +104,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         }
 
         previous?.CancelSuperseded();
-        return item.Completion.Task;
+        completion = item.Completion.Task;
+        return true;
     }
 
     internal Task<WorkspaceCommandOutcome> RunSessionAsync(
@@ -115,6 +146,34 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         return item.Completion.Task;
     }
 
+    internal bool TryScheduleSession(
+        WorkspaceId workspaceId,
+        Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation)
+    {
+        ArgumentNullException.ThrowIfNull(workspaceId);
+        ArgumentNullException.ThrowIfNull(operation);
+        lock (gate)
+        {
+            if (isDisposed)
+            {
+                return false;
+            }
+
+            var item = new SessionWorkItem(
+                workspaceId,
+                operation,
+                CancellationToken.None,
+                stopping.Token);
+            if (sessionQueue.Writer.TryWrite(item))
+            {
+                return true;
+            }
+
+            item.Dispose();
+            return false;
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         lock (gate)
@@ -152,7 +211,21 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             try
             {
                 var context = new CompilationWorkContext(
-                    publication => TryPublish(item, publication),
+                    publication => TryUpdate(
+                        item,
+                        publication,
+                        terminal: false,
+                        allowCancellation: false),
+                    publication => TryUpdate(
+                        item,
+                        publication,
+                        terminal: true,
+                        allowCancellation: false),
+                    publication => TryUpdate(
+                        item,
+                        publication,
+                        terminal: true,
+                        allowCancellation: true),
                     item.CancellationToken);
                 var outcome = await item.Operation(context).ConfigureAwait(false);
                 item.Completion.TrySetResult(
@@ -216,12 +289,16 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         }
     }
 
-    private bool TryPublish(CompilationWorkItem item, Action publication)
+    private bool TryUpdate(
+        CompilationWorkItem item,
+        Action publication,
+        bool terminal,
+        bool allowCancellation)
     {
         lock (gate)
         {
             if (isDisposed
-                || item.CancellationToken.IsCancellationRequested
+                || (!allowCancellation && item.CancellationToken.IsCancellationRequested)
                 || !latestCompilations.TryGetValue(item.WorkspaceId, out var latest)
                 || !ReferenceEquals(latest, item))
             {
@@ -229,7 +306,11 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             }
 
             publication();
-            item.MarkPublished();
+            if (terminal)
+            {
+                item.MarkPublished();
+            }
+
             return true;
         }
     }
@@ -359,14 +440,28 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 }
 
 internal sealed class CompilationWorkContext(
+    Func<Action, bool> update,
     Func<Action, bool> publish,
+    Func<Action, bool> reject,
     CancellationToken cancellationToken)
 {
     public CancellationToken CancellationToken { get; } = cancellationToken;
+
+    public bool TryUpdate(Action publication)
+    {
+        ArgumentNullException.ThrowIfNull(publication);
+        return update(publication);
+    }
 
     public bool TryPublish(Action publication)
     {
         ArgumentNullException.ThrowIfNull(publication);
         return publish(publication);
+    }
+
+    public bool TryReject(Action publication)
+    {
+        ArgumentNullException.ThrowIfNull(publication);
+        return reject(publication);
     }
 }

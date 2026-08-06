@@ -28,20 +28,23 @@ internal sealed class EditorWorkspaceFailureTests
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
                 EditorWorkspaceTestDriver.Compilation(before)),
             CancellationToken.None);
-        var after = (ProjectionSnapshot)await workspace.ReadAsync(
-            EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
-            CancellationToken.None);
+        var after = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
+            workspace,
+            opened.WorkspaceId,
+            opened.Attached);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var accepted = await Assert.That(outcome).IsTypeOf<CompilationAccepted>();
+        Assert.NotNull(accepted);
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Code).IsEqualTo(expectedCode);
-            await Assert.That(rejected.DiagnosticCodes).IsEmpty();
-            await Assert.That(after.Projection.ProjectionVersion)
-                .IsEqualTo(before.ProjectionVersion);
-            await Assert.That(after.Projection.Compilation.Status)
-                .IsEqualTo(CompilationPublicationStatus.NotRequested);
+            await Assert.That(after.ProjectionVersion)
+                .IsGreaterThan(before.ProjectionVersion);
+            await Assert.That(after.Compilation.Status)
+                .IsEqualTo(CompilationPublicationStatus.Rejected);
+            await Assert.That(after.Compilation.Generation)
+                .IsEqualTo(accepted.CompilationGeneration);
+            await Assert.That(after.Compilation.RejectionCode).IsEqualTo(expectedCode);
+            await Assert.That(after.Compilation.DiagnosticCodes).IsEmpty();
         }
     }
 
@@ -342,7 +345,13 @@ internal sealed class EditorWorkspaceFailureTests
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
                 EditorWorkspaceTestDriver.Compilation(beforeCompilation)),
             CancellationToken.None);
-        await Assert.That(compiled).IsTypeOf<CompilationPublished>();
+        await Assert.That(compiled).IsTypeOf<CompilationAccepted>();
+        var projection = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
+            workspace,
+            opened.WorkspaceId,
+            opened.Attached);
+        await Assert.That(projection.Compilation.Status)
+            .IsEqualTo(CompilationPublicationStatus.Published);
         return opened;
     }
 

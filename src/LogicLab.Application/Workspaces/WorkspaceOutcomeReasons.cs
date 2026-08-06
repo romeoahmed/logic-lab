@@ -4,6 +4,10 @@ namespace LogicLab.Application.Workspaces;
 
 internal static class WorkspaceOutcomeReasons
 {
+    public const string HotSwapIncompatible = "hot_swap_incompatible";
+
+    public const string RunGenerationPreconditionFailed =
+        "run_generation_precondition_failed";
     public const string NoScheduledStimulus = "no_scheduled_stimulus";
     public const string ProjectRevisionPreconditionFailed =
         "project_revision_precondition_failed";
@@ -29,7 +33,9 @@ internal static class WorkspaceOutcomeReasons
                 RetryDisposition.Reattach,
             ProjectRevisionPreconditionFailed
                 or ProjectionVersionPreconditionFailed
-                or SessionPreconditionFailed => RetryDisposition.RefreshProjection,
+                or SessionPreconditionFailed
+                or RunGenerationPreconditionFailed
+                or HotSwapIncompatible => RetryDisposition.RefreshProjection,
             _ => RetryDisposition.DoNotRetry,
         };
     }
