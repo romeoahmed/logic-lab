@@ -175,7 +175,12 @@ internal sealed class EditorWorkspaceContinuityTests
             CancellationToken.None);
 
         var rejection = await IsType<WorkspaceReadRejected>(outcome);
-        await Assert.That(rejection.Code).IsEqualTo("stale_workspace_attachment");
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejection.Code).IsEqualTo("stale_workspace_attachment");
+            await Assert.That(rejection.RetryDisposition.Kind)
+                .IsEqualTo(RetryDispositionKind.Reattach);
+        }
     }
 
     [Test, Timeout(30_000)]
@@ -371,6 +376,8 @@ internal sealed class EditorWorkspaceContinuityTests
         {
             await Assert.That(undoCommit.ProjectRevisionId).IsEqualTo(first.ProjectRevisionId);
             await Assert.That(rejection.Code).IsEqualTo("project_revision_precondition_failed");
+            await Assert.That(rejection.RetryDisposition.Kind)
+                .IsEqualTo(RetryDispositionKind.RefreshProjection);
             await Assert.That(projection.History.CanRedo).IsFalse();
         }
     }
@@ -705,6 +712,8 @@ internal sealed class EditorWorkspaceContinuityTests
         using (Assert.Multiple())
         {
             await Assert.That(rejection.Code).IsEqualTo("idempotency_window_expired");
+            await Assert.That(rejection.RetryDisposition.Kind)
+                .IsEqualTo(RetryDispositionKind.Reattach);
             await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.DisplayName)
                 .IsEqualTo("Second");
         }

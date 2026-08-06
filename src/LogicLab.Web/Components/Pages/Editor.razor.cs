@@ -225,12 +225,13 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
     {
         var projection = Projection!;
         var revision = projection.ProjectRevision;
-        var outcome = await Execute(new RequestCompilation(
-            CommandContext(),
-            new CompilationPrecondition(
-                revision.RevisionId,
-                revision.Document.EntryCircuitDefinitionId,
-                revision.Document.LibrarySnapshot.Fingerprint)));
+        var precondition = new CompilationPrecondition(
+            revision.RevisionId,
+            revision.Document.EntryCircuitDefinitionId,
+            revision.Document.LibrarySnapshot.Fingerprint);
+        var outcome = await Execute(context => new RequestCompilation(
+            context,
+            precondition));
         Status = outcome is CompilationPublished
             ? "Compilation Artifact published atomically."
             : $"Compilation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
@@ -238,10 +239,9 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
 
     private async Task CreateSimulationSession()
     {
-        var outcome = await Execute(new CreateSession(
-            CommandContext(),
-            new SessionCreationPrecondition(
-                Projection!.Compilation.ArtifactKey!)));
+        var precondition = new SessionCreationPrecondition(
+            Projection!.Compilation.ArtifactKey!);
+        var outcome = await Execute(context => new CreateSession(context, precondition));
         if (outcome is not SimulationSessionCreated)
         {
             Status = $"Session creation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
@@ -262,9 +262,10 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
             .Select(CreateHighStimulus)
             .ToArray();
         var logicalTime = checked(Projection!.Simulation!.LogicalTime + 1);
-        var outcome = await Execute(new ScheduleInputStimulus(
-            CommandContext(),
-            SessionPrecondition(),
+        var precondition = SessionPrecondition();
+        var outcome = await Execute(context => new ScheduleInputStimulus(
+            context,
+            precondition,
             logicalTime,
             assignments));
         StimulusIsScheduled = outcome is StimulusScheduled;
@@ -275,9 +276,8 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
 
     private async Task Step()
     {
-        var outcome = await Execute(new StepSession(
-            CommandContext(),
-            SessionPrecondition()));
+        var precondition = SessionPrecondition();
+        var outcome = await Execute(context => new StepSession(context, precondition));
         StimulusIsScheduled = false;
         Status = outcome is SessionStepped stepped
             ? $"Step committed at Logical Time {stepped.LogicalTime}."
@@ -293,9 +293,11 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
             return false;
         }
 
-        var outcome = await Execute(new ApplyEdit(
-            CommandContext(),
-            new AuthoringPrecondition(projection.ProjectRevision.RevisionId),
+        var precondition = new AuthoringPrecondition(
+            projection.ProjectRevision.RevisionId);
+        var outcome = await Execute(context => new ApplyEdit(
+            context,
+            precondition,
             intent));
         if (outcome is AuthoringCommitted)
         {
@@ -306,11 +308,51 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
         return false;
     }
 
-    private async Task<WorkspaceCommandOutcome> Execute(WorkspaceCommand command)
+    private async Task<WorkspaceCommandOutcome> Execute(
+        Func<WorkspaceCommandContext, WorkspaceCommand> createCommand)
     {
-        var outcome = await workspace.DispatchAsync(command, CancellationToken.None);
+        ArgumentNullException.ThrowIfNull(createCommand);
+        var outcome = await workspace.DispatchAsync(
+            createCommand(CommandContext(CreateClientIntentId())),
+            CancellationToken.None);
+        if (outcome is WorkspaceCommandRejected
+            {
+                RetryDisposition.Kind: RetryDispositionKind.Reattach,
+            }
+            && await TryReattachAsync())
+        {
+            outcome = await workspace.DispatchAsync(
+                createCommand(CommandContext(CreateClientIntentId())),
+                CancellationToken.None);
+        }
+
         await Refresh();
         return outcome;
+    }
+
+    private async Task<bool> TryReattachAsync()
+    {
+        if (Attachment is not { } attachment || Projection is not { } projection)
+        {
+            return false;
+        }
+
+        var outcome = await workspace.AttachAsync(
+            new Reattach(
+                projection.WorkspaceId,
+                attachment.AttachmentId,
+                attachment.Generation,
+                projection.ProjectionVersion,
+                LogicLabWebBuild.Fingerprint),
+            CancellationToken.None);
+        if (outcome is not Attached reattached)
+        {
+            return false;
+        }
+
+        Attachment = reattached;
+        Projection = reattached.Projection;
+        return true;
     }
 
     private async Task Refresh()
@@ -352,8 +394,14 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
             CancellationToken.None);
     }
 
-    private WorkspaceCommandContext CommandContext()
+    private static ClientIntentId CreateClientIntentId()
     {
+        return new ClientIntentId(Guid.CreateVersion7().ToString("N"));
+    }
+
+    private WorkspaceCommandContext CommandContext(ClientIntentId clientIntentId)
+    {
+        ArgumentNullException.ThrowIfNull(clientIntentId);
         var projection = Projection
             ?? throw new InvalidOperationException("Workspace is not open.");
         var attachment = Attachment
@@ -362,7 +410,7 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
             projection.WorkspaceId,
             attachment.AttachmentId,
             attachment.Generation,
-            new ClientIntentId(Guid.CreateVersion7().ToString("N")));
+            clientIntentId);
     }
 
     private WorkspaceQueryContext QueryContext()

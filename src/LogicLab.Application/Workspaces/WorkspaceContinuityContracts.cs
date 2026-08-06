@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using LogicLab.Domain.Authoring;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
@@ -216,13 +217,24 @@ public sealed record Expired(string Code) : WorkspaceAttachOutcome;
 
 public sealed record AttachRejected : WorkspaceAttachOutcome
 {
-    public AttachRejected(string code)
+    public AttachRejected(
+        string code,
+        IReadOnlyList<string> diagnosticCodes,
+        RetryDisposition retryDisposition)
     {
         ArgumentException.ThrowIfNullOrEmpty(code);
+        ArgumentNullException.ThrowIfNull(diagnosticCodes);
+        ArgumentNullException.ThrowIfNull(retryDisposition);
         Code = code;
+        DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
+        RetryDisposition = retryDisposition;
     }
 
     public string Code { get; }
+
+    public ReadOnlyCollection<string> DiagnosticCodes { get; }
+
+    public RetryDisposition RetryDisposition { get; }
 }
 
 public sealed record DetachRequest

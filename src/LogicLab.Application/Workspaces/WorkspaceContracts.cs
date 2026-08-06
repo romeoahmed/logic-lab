@@ -57,17 +57,24 @@ public sealed record WorkspaceOpened(
 
 public sealed record WorkspaceOpenRejected : WorkspaceOpenOutcome
 {
-    public WorkspaceOpenRejected(string code, IReadOnlyList<string> diagnosticCodes)
+    public WorkspaceOpenRejected(
+        string code,
+        IReadOnlyList<string> diagnosticCodes,
+        RetryDisposition retryDisposition)
     {
         ArgumentException.ThrowIfNullOrEmpty(code);
         ArgumentNullException.ThrowIfNull(diagnosticCodes);
+        ArgumentNullException.ThrowIfNull(retryDisposition);
         Code = code;
         DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
+        RetryDisposition = retryDisposition;
     }
 
     public string Code { get; }
 
     public ReadOnlyCollection<string> DiagnosticCodes { get; }
+
+    public RetryDisposition RetryDisposition { get; }
 }
 
 public abstract record WorkspaceCommand
@@ -237,17 +244,24 @@ public sealed record WorkspaceClosed(WorkspaceId WorkspaceId) : WorkspaceCommand
 
 public sealed record WorkspaceCommandRejected : WorkspaceCommandOutcome
 {
-    public WorkspaceCommandRejected(string code, IReadOnlyList<string> diagnosticCodes)
+    public WorkspaceCommandRejected(
+        string code,
+        IReadOnlyList<string> diagnosticCodes,
+        RetryDisposition retryDisposition)
     {
         ArgumentException.ThrowIfNullOrEmpty(code);
         ArgumentNullException.ThrowIfNull(diagnosticCodes);
+        ArgumentNullException.ThrowIfNull(retryDisposition);
         Code = code;
         DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
+        RetryDisposition = retryDisposition;
     }
 
     public string Code { get; }
 
     public ReadOnlyCollection<string> DiagnosticCodes { get; }
+
+    public RetryDisposition RetryDisposition { get; }
 }
 
 public abstract record WorkspaceReadOutcome
@@ -260,7 +274,27 @@ public abstract record WorkspaceReadOutcome
 public sealed record ProjectionSnapshot(WorkspaceProjection Projection)
     : WorkspaceReadOutcome;
 
-public sealed record WorkspaceReadRejected(string Code) : WorkspaceReadOutcome;
+public sealed record WorkspaceReadRejected : WorkspaceReadOutcome
+{
+    public WorkspaceReadRejected(
+        string code,
+        IReadOnlyList<string> diagnosticCodes,
+        RetryDisposition retryDisposition)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(code);
+        ArgumentNullException.ThrowIfNull(diagnosticCodes);
+        ArgumentNullException.ThrowIfNull(retryDisposition);
+        Code = code;
+        DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
+        RetryDisposition = retryDisposition;
+    }
+
+    public string Code { get; }
+
+    public ReadOnlyCollection<string> DiagnosticCodes { get; }
+
+    public RetryDisposition RetryDisposition { get; }
+}
 
 public enum CompilationPublicationStatus
 {

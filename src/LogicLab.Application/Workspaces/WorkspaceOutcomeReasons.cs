@@ -21,6 +21,19 @@ internal static class WorkspaceOutcomeReasons
     public const string WorkspaceExpired = "workspace_expired";
     public const string WorkspaceNotFound = "workspace_not_found";
 
+    public static RetryDisposition RetryFor(string code)
+    {
+        return code switch
+        {
+            StaleWorkspaceAttachment or IdempotencyWindowExpired =>
+                RetryDisposition.Reattach,
+            ProjectRevisionPreconditionFailed
+                or ProjectionVersionPreconditionFailed
+                or SessionPreconditionFailed => RetryDisposition.RefreshProjection,
+            _ => RetryDisposition.DoNotRetry,
+        };
+    }
+
     public static string FromSimulation(SimulationFailureReason reason)
     {
         return reason switch

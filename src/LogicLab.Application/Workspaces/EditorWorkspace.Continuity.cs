@@ -14,7 +14,7 @@ internal sealed partial class EditorWorkspace
         ArgumentNullException.ThrowIfNull(request);
         if (cancellationToken.IsCancellationRequested)
         {
-            return new AttachRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            return RejectAttach(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
         var acquisition = AcquireWorkspace(request.WorkspaceId);
@@ -36,12 +36,12 @@ internal sealed partial class EditorWorkspace
                 exception,
                 cancellationToken))
         {
-            return new AttachRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            return RejectAttach(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
         try
         {
-            if (state.IsRetired)
+            if (!IsCurrentWorkspace(state))
             {
                 return CreateUnavailableAttachOutcome(
                     request,
@@ -53,7 +53,7 @@ internal sealed partial class EditorWorkspace
                 buildFingerprint,
                 StringComparison.Ordinal))
             {
-                return new AttachRejected(WorkspaceOutcomeReasons.BuildFingerprintMismatch);
+                return RejectAttach(WorkspaceOutcomeReasons.BuildFingerprintMismatch);
             }
 
             lock (state.ContinuityGate)
@@ -62,23 +62,24 @@ internal sealed partial class EditorWorkspace
                 {
                     if (state.AttachmentId is not null)
                     {
-                        return new AttachRejected(
+                        return RejectAttach(
                             WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
                     }
 
-                    return PublishAttachmentUnderLock(state, generation: 1);
+                    return PublishAttachmentUnderLock(state, request, generation: 1);
                 }
 
                 var reattach = (Reattach)request;
                 if (state.AttachmentId != reattach.PriorAttachmentId
                     || state.AttachmentGeneration != reattach.PriorGeneration)
                 {
-                    return new AttachRejected(
+                    return RejectAttach(
                         WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
                 }
 
                 return PublishAttachmentUnderLock(
                     state,
+                    request,
                     checked(state.AttachmentGeneration + 1));
             }
         }
@@ -104,7 +105,7 @@ internal sealed partial class EditorWorkspace
 
         return expired
             ? new Expired(WorkspaceOutcomeReasons.WorkspaceExpired)
-            : new AttachRejected(rejectionReason);
+            : RejectAttach(rejectionReason);
     }
 
     public async Task<WorkspaceDetachOutcome> DetachAsync(
@@ -169,28 +170,38 @@ internal sealed partial class EditorWorkspace
         }
     }
 
-    private Attached PublishAttachmentUnderLock(WorkspaceState state, ulong generation)
+    private WorkspaceAttachOutcome PublishAttachmentUnderLock(
+        WorkspaceState state,
+        AttachRequest request,
+        ulong generation)
     {
-        foreach (var pending in state.PendingIntents.Values)
-        {
-            pending.Completion.TrySetResult(
-                Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment));
-        }
-
-        state.AttachmentId = WorkspaceAttachmentId.Create();
-        state.AttachmentGeneration = generation;
-        state.IsAttached = true;
         lock (gate)
         {
+            if (!IsCurrentWorkspaceUnderLock(state))
+            {
+                return CreateUnavailableAttachOutcome(
+                    request,
+                    WorkspaceOutcomeReasons.WorkspaceNotFound);
+            }
+
+            foreach (var pending in state.PendingIntents.Values)
+            {
+                pending.Completion.TrySetResult(
+                    Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment));
+            }
+
+            state.AttachmentId = WorkspaceAttachmentId.Create();
+            state.AttachmentGeneration = generation;
+            state.IsAttached = true;
             state.DetachedAtTimestamp = null;
             state.LastAccessTimestamp = timeProvider.GetTimestamp();
-        }
 
-        state.IdempotencyRecords.Clear();
-        state.PendingIntents.Clear();
-        state.IdempotencyOrder.Clear();
-        state.IsIdempotencyWindowClosed = false;
-        return new Attached(state.AttachmentId, generation, Project(state));
+            state.IdempotencyRecords.Clear();
+            state.PendingIntents.Clear();
+            state.IdempotencyOrder.Clear();
+            state.IsIdempotencyWindowClosed = false;
+            return new Attached(state.AttachmentId, generation, Project(state));
+        }
     }
 
     private async Task<WorkspaceOpenOutcome> CopyAsync(
@@ -200,7 +211,7 @@ internal sealed partial class EditorWorkspace
         var acquisition = AcquireWorkspace(request.SourceWorkspaceId);
         if (acquisition.Lease is null)
         {
-            return new WorkspaceOpenRejected(acquisition.RejectionReason!, []);
+            return RejectOpen(acquisition.RejectionReason!);
         }
 
         using var lease = acquisition.Lease;
@@ -214,18 +225,14 @@ internal sealed partial class EditorWorkspace
                 exception,
                 cancellationToken))
         {
-            return new WorkspaceOpenRejected(
-                WorkspaceOutcomeReasons.WorkspaceCancelled,
-                []);
+            return RejectOpen(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
         try
         {
             if (source.IsRetired)
             {
-                return new WorkspaceOpenRejected(
-                    WorkspaceOutcomeReasons.WorkspaceNotFound,
-                    []);
+                return RejectOpen(WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
 
             lock (source.ContinuityGate)
@@ -234,9 +241,7 @@ internal sealed partial class EditorWorkspace
                     || source.AttachmentId != request.SourceAttachmentId
                     || source.AttachmentGeneration != request.SourceAttachmentGeneration)
                 {
-                    return new WorkspaceOpenRejected(
-                        WorkspaceOutcomeReasons.StaleWorkspaceAttachment,
-                        []);
+                    return RejectOpen(WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
                 }
 
                 TouchWorkspace(source);
@@ -244,16 +249,15 @@ internal sealed partial class EditorWorkspace
 
             if (source.ProjectionVersion != request.ExpectedProjectionVersion)
             {
-                return new WorkspaceOpenRejected(
-                    WorkspaceOutcomeReasons.ProjectionVersionPreconditionFailed,
-                    []);
+                return RejectOpen(
+                    WorkspaceOutcomeReasons.ProjectionVersionPreconditionFailed);
             }
 
             var rejectionReason = ReserveWorkspace(out var retired);
             RetireAll(retired);
             if (rejectionReason is not null)
             {
-                return new WorkspaceOpenRejected(rejectionReason, []);
+                return RejectOpen(rejectionReason);
             }
 
             var hasReservation = true;
@@ -281,7 +285,7 @@ internal sealed partial class EditorWorkspace
                 if (rejectionReason is not null)
                 {
                     copy.CommandGate.Dispose();
-                    return new WorkspaceOpenRejected(rejectionReason, []);
+                    return RejectOpen(rejectionReason);
                 }
 
                 return new WorkspaceOpened(id, Project(copy));
@@ -366,7 +370,8 @@ internal sealed partial class EditorWorkspace
 
         return pendingCompletion is null
             ? completed!
-            : await pendingCompletion.ConfigureAwait(false);
+            : await AwaitReplayAsync(pendingCompletion, cancellationToken)
+                .ConfigureAwait(false);
     }
 
     private static bool HasCurrentAttachmentUnderLock(
@@ -535,6 +540,23 @@ internal sealed partial class EditorWorkspace
             && state.Simulation is { } simulation
             && simulation.SessionId == precondition.SessionId
             && simulation.SessionVersion == precondition.SessionVersion;
+    }
+
+    private static async Task<WorkspaceCommandOutcome> AwaitReplayAsync(
+        Task<WorkspaceCommandOutcome> completion,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await completion.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                cancellationToken))
+        {
+            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+        }
     }
 
     private AuthoringCommitted CommitAuthoringRevision(

@@ -55,9 +55,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         if (cancellationToken.IsCancellationRequested)
         {
             return Task.FromResult<WorkspaceOpenOutcome>(
-                new WorkspaceOpenRejected(
-                    WorkspaceOutcomeReasons.WorkspaceCancelled,
-                    []));
+                RejectOpen(WorkspaceOutcomeReasons.WorkspaceCancelled));
         }
 
         if (request is CopyWorkspace copy)
@@ -68,9 +66,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         if (request is not CreateSandbox create)
         {
             return Task.FromResult<WorkspaceOpenOutcome>(
-                new WorkspaceOpenRejected(
-                    WorkspaceOutcomeReasons.WorkspaceInternalDefect,
-                    []));
+                RejectOpen(WorkspaceOutcomeReasons.WorkspaceInternalDefect));
         }
 
         var rejectionReason = ReserveWorkspace(out var retired);
@@ -78,7 +74,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         if (rejectionReason is not null)
         {
             return Task.FromResult<WorkspaceOpenOutcome>(
-                new WorkspaceOpenRejected(rejectionReason, []));
+                RejectOpen(rejectionReason));
         }
 
         var hasReservation = true;
@@ -94,9 +90,9 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 create.EntryCircuitDefinitionDisplayName));
             if (genesis is ProjectGenesisRejected rejected)
             {
-                return Task.FromResult<WorkspaceOpenOutcome>(new WorkspaceOpenRejected(
-                        rejected.Reason,
-                        [.. rejected.Diagnostics.Select(item => item.Code)]));
+                return Task.FromResult<WorkspaceOpenOutcome>(RejectOpen(
+                    rejected.Reason,
+                    [.. rejected.Diagnostics.Select(item => item.Code)]));
             }
 
             var committed = (ProjectGenesisCommitted)genesis;
@@ -123,7 +119,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             {
                 state.CommandGate.Dispose();
                 return Task.FromResult<WorkspaceOpenOutcome>(
-                    new WorkspaceOpenRejected(rejectionReason, []));
+                    RejectOpen(rejectionReason));
             }
 
             return Task.FromResult<WorkspaceOpenOutcome>(
@@ -189,13 +185,13 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         ArgumentNullException.ThrowIfNull(context);
         if (cancellationToken.IsCancellationRequested)
         {
-            return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            return RejectRead(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
         var acquisition = AcquireWorkspace(context.WorkspaceId);
         if (acquisition.Lease is null)
         {
-            return new WorkspaceReadRejected(acquisition.RejectionReason!);
+            return RejectRead(acquisition.RejectionReason!);
         }
 
         using var lease = acquisition.Lease;
@@ -209,22 +205,21 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 exception,
                 cancellationToken))
         {
-            return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            return RejectRead(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
         try
         {
             if (state.IsRetired)
             {
-                return new WorkspaceReadRejected(WorkspaceOutcomeReasons.WorkspaceNotFound);
+                return RejectRead(WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
 
             lock (state.ContinuityGate)
             {
                 if (!HasCurrentAttachmentUnderLock(state, context))
                 {
-                    return new WorkspaceReadRejected(
-                        WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
+                    return RejectRead(WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
                 }
 
                 TouchWorkspace(state);
@@ -357,14 +352,15 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             state.CommandGate.Release();
         }
 
-        var completed = await completion!.ConfigureAwait(false);
-        if (ownsPendingRecord)
+        if (!ownsPendingRecord)
         {
-            CompletePendingIdempotency(state, publication!, completed);
-            return await publication!.PendingIntent.Completion.Task.ConfigureAwait(false);
+            return await AwaitReplayAsync(completion!, cancellationToken)
+                .ConfigureAwait(false);
         }
 
-        return completed;
+        var completed = await completion!.ConfigureAwait(false);
+        CompletePendingIdempotency(state, publication!, completed);
+        return await publication!.PendingIntent.Completion.Task.ConfigureAwait(false);
     }
 
     private static bool MatchesCompilationPrecondition(
@@ -854,7 +850,33 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         string code,
         IEnumerable<string>? diagnosticCodes = null)
     {
-        return new WorkspaceCommandRejected(code, diagnosticCodes?.ToArray() ?? []);
+        return new WorkspaceCommandRejected(
+            code,
+            diagnosticCodes?.ToArray() ?? [],
+            WorkspaceOutcomeReasons.RetryFor(code));
+    }
+
+    private static WorkspaceOpenRejected RejectOpen(
+        string code,
+        IEnumerable<string>? diagnosticCodes = null)
+    {
+        return new WorkspaceOpenRejected(
+            code,
+            diagnosticCodes?.ToArray() ?? [],
+            WorkspaceOutcomeReasons.RetryFor(code));
+    }
+
+    private static WorkspaceReadRejected RejectRead(string code)
+    {
+        return new WorkspaceReadRejected(
+            code,
+            [],
+            WorkspaceOutcomeReasons.RetryFor(code));
+    }
+
+    private static AttachRejected RejectAttach(string code)
+    {
+        return new AttachRejected(code, [], RetryDisposition.DoNotRetry);
     }
 
     private static CompilationProjection NotRequestedCompilation()
