@@ -9,8 +9,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     private readonly Lock gate = new();
     private readonly CancellationTokenSource stopping = new();
     private readonly Channel<CompilationWorkItem> compilationQueue;
-    private readonly Queue<SessionWorkItem> sessionQueue = [];
-    private readonly SemaphoreSlim sessionQueueSignal = new(0);
+    private readonly Channel<SessionWorkItem> sessionQueue;
     private readonly int sessionQueueCapacity;
     private readonly ILogger<WorkCoordinator> logger;
     private readonly Dictionary<WorkspaceId, CompilationWorkItem> latestCompilations = [];
@@ -27,7 +26,9 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(logger);
 
         this.logger = logger;
-        compilationQueue = CreateQueue<CompilationWorkItem>(policy.CompilationQueueCapacity);
+        compilationQueue = CreateBoundedQueue<CompilationWorkItem>(
+            policy.CompilationQueueCapacity);
+        sessionQueue = CreateBoundedQueue<SessionWorkItem>(policy.SessionQueueCapacity);
         sessionQueueCapacity = policy.SessionQueueCapacity;
         compilationWorker = ConsumeCompilationsAsync();
         sessionWorker = ConsumeSessionsAsync();
@@ -35,7 +36,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
     internal bool TryScheduleCompilation(
         WorkspaceId workspaceId,
-        Func<CompilationWorkContext, ValueTask<WorkspaceCommandOutcome>> operation,
+        Func<CompilationWorkContext, ValueTask> operation,
         CancellationToken cancellationToken,
         out string? rejectionCode)
     {
@@ -65,7 +66,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
             _ = latestCompilations.TryGetValue(workspaceId, out previous);
             latestCompilations[workspaceId] = item;
-            if (previous is not null && !previous.TryMarkSuperseded())
+            if (previous is not null && previous.WasPublishedUnderLock)
             {
                 previous = null;
             }
@@ -89,7 +90,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
         }
 
-        SessionWorkItem item;
+        Task<WorkspaceCommandOutcome> completion;
         lock (gate)
         {
             if (isDisposed)
@@ -104,19 +105,30 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                     Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected));
             }
 
-            item = new SessionWorkItem(
+            SessionWorkItem? item = SessionWorkItem.CreateCommand(
                 workspaceId,
                 operation,
-                releasesReservationOnDequeue: true,
-                continuation: null,
                 cancellationToken,
                 stopping.Token);
-            sessionQueue.Enqueue(item);
-            reservedSessionItems++;
-            sessionQueueSignal.Release();
+            try
+            {
+                completion = item.Completion.Task;
+                if (!sessionQueue.Writer.TryWrite(item))
+                {
+                    return Task.FromResult<WorkspaceCommandOutcome>(
+                        Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
+                }
+
+                item = null;
+                reservedSessionItems++;
+            }
+            finally
+            {
+                item?.Dispose();
+            }
         }
 
-        return item.Completion.Task;
+        return completion;
     }
 
     internal bool TryStartSessionContinuation(
@@ -142,19 +154,29 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             }
 
             var continuation = new SessionContinuation(this, workspaceId);
-            var item = new SessionWorkItem(
+            SessionWorkItem? item = SessionWorkItem.CreateContinuation(
                 workspaceId,
                 token => operation(continuation, token),
-                releasesReservationOnDequeue: false,
                 continuation,
-                CancellationToken.None,
                 stopping.Token);
-            continuation.MarkQueuedUnderLock();
-            sessionQueue.Enqueue(item);
-            reservedSessionItems++;
-            sessionQueueSignal.Release();
-            rejectionCode = null;
-            return true;
+            try
+            {
+                if (!sessionQueue.Writer.TryWrite(item))
+                {
+                    rejectionCode = WorkspaceOutcomeReasons.WorkspaceCancelled;
+                    return false;
+                }
+
+                item = null;
+                continuation.MarkQueuedUnderLock();
+                reservedSessionItems++;
+                rejectionCode = null;
+                return true;
+            }
+            finally
+            {
+                item?.Dispose();
+            }
         }
     }
 
@@ -171,17 +193,26 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 return false;
             }
 
-            var item = new SessionWorkItem(
+            SessionWorkItem? item = SessionWorkItem.CreateContinuation(
                 continuation.WorkspaceId,
                 operation,
-                releasesReservationOnDequeue: false,
                 continuation,
-                CancellationToken.None,
                 stopping.Token);
-            continuation.MarkQueuedUnderLock();
-            sessionQueue.Enqueue(item);
-            sessionQueueSignal.Release();
-            return true;
+            try
+            {
+                if (!sessionQueue.Writer.TryWrite(item))
+                {
+                    return false;
+                }
+
+                item = null;
+                continuation.MarkQueuedUnderLock();
+                return true;
+            }
+            finally
+            {
+                item?.Dispose();
+            }
         }
     }
 
@@ -196,16 +227,15 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
             isDisposed = true;
             compilationQueue.Writer.TryComplete();
+            sessionQueue.Writer.TryComplete();
         }
 
         await stopping.CancelAsync().ConfigureAwait(false);
-        sessionQueueSignal.Release();
         await Task.WhenAll(compilationWorker, sessionWorker).ConfigureAwait(false);
-        sessionQueueSignal.Dispose();
         stopping.Dispose();
     }
 
-    private static Channel<T> CreateQueue<T>(int capacity)
+    private static Channel<T> CreateBoundedQueue<T>(int capacity)
     {
         return Channel.CreateBounded<T>(new BoundedChannelOptions(capacity)
         {
@@ -239,23 +269,18 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                         terminal: true,
                         allowCancellation: true),
                     item.CancellationToken);
-                var outcome = await item.Operation(context).ConfigureAwait(false);
-                item.Completion.TrySetResult(
-                    (item.IsSuperseded || item.CancellationToken.IsCancellationRequested)
-                    && !item.WasPublished
-                        ? CancellationOutcome()
-                        : outcome);
+                await item.Operation(context).ConfigureAwait(false);
             }
             catch (OperationCanceledException exception)
                 when (ExceptionClassifier.IsCooperativeCancellation(
                     exception,
                     item.CancellationToken))
             {
-                item.Completion.TrySetResult(CancellationOutcome());
+                // Compilation terminal state is published by the workspace operation.
             }
             catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
             {
-                item.Completion.TrySetResult(FailureOutcome(exception, "compilation"));
+                ReportFailure(exception, "compilation");
             }
             finally
             {
@@ -275,30 +300,17 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
     private async Task ConsumeSessionsAsync()
     {
-        while (true)
+        await foreach (var item in sessionQueue.Reader.ReadAllAsync().ConfigureAwait(false))
         {
-            await sessionQueueSignal.WaitAsync().ConfigureAwait(false);
-            SessionWorkItem item;
             lock (gate)
             {
-                if (sessionQueue.Count == 0)
-                {
-                    if (isDisposed)
-                    {
-                        return;
-                    }
-
-                    continue;
-                }
-
-                item = sessionQueue.Dequeue();
-                if (item.ReleasesReservationOnDequeue)
+                if (item.Continuation is null)
                 {
                     reservedSessionItems--;
                 }
                 else
                 {
-                    item.Continuation!.MarkExecutingUnderLock();
+                    item.Continuation.MarkExecutingUnderLock();
                 }
             }
 
@@ -356,16 +368,11 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             publication();
             if (terminal)
             {
-                item.MarkPublished();
+                item.MarkPublishedUnderLock();
             }
 
             return true;
         }
-    }
-
-    private static WorkspaceCommandRejected CancellationOutcome()
-    {
-        return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
     }
 
     private static WorkspaceCommandRejected Reject(string code)
@@ -378,12 +385,17 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
     private WorkspaceCommandRejected FailureOutcome(Exception exception, string lane)
     {
+        return Reject(ReportFailure(exception, lane));
+    }
+
+    private string ReportFailure(Exception exception, string lane)
+    {
         var code = exception is IOException or TimeoutException
             ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
             : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
         var correlation = Guid.CreateVersion7().ToString("N");
         LogWorkFailure(logger, exception, correlation, lane, code);
-        return Reject(code);
+        return code;
     }
 
     [LoggerMessage(
@@ -418,9 +430,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
         public CancellationToken CancellationToken { get; }
 
-        public TaskCompletionSource<WorkspaceCommandOutcome> Completion { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-
         protected void Cancel()
         {
             lock (cancellationGate)
@@ -441,44 +450,27 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
     private sealed class CompilationWorkItem(
         WorkspaceId workspaceId,
-        Func<CompilationWorkContext, ValueTask<WorkspaceCommandOutcome>> operation,
+        Func<CompilationWorkContext, ValueTask> operation,
         CancellationToken callerCancellationToken,
         CancellationToken stoppingToken)
         : WorkItem(workspaceId, callerCancellationToken, stoppingToken)
     {
-        private int isSuperseded;
-        private int wasPublished;
-
-        public Func<CompilationWorkContext, ValueTask<WorkspaceCommandOutcome>> Operation { get; }
+        public Func<CompilationWorkContext, ValueTask> Operation { get; }
             = operation;
 
-        public bool IsSuperseded => Volatile.Read(ref isSuperseded) != 0;
-
-        public bool WasPublished => Volatile.Read(ref wasPublished) != 0;
-
-        public bool TryMarkSuperseded()
-        {
-            if (WasPublished)
-            {
-                return false;
-            }
-
-            Volatile.Write(ref isSuperseded, 1);
-            return true;
-        }
+        public bool WasPublishedUnderLock { get; private set; }
 
         public void CancelSuperseded()
         {
             Cancel();
         }
 
-        public void MarkPublished() => Volatile.Write(ref wasPublished, 1);
+        public void MarkPublishedUnderLock() => WasPublishedUnderLock = true;
     }
 
     private sealed class SessionWorkItem(
         WorkspaceId workspaceId,
         Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
-        bool releasesReservationOnDequeue,
         SessionContinuation? continuation,
         CancellationToken callerCancellationToken,
         CancellationToken stoppingToken)
@@ -487,9 +479,38 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         public Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> Operation { get; }
             = operation;
 
-        public bool ReleasesReservationOnDequeue { get; } = releasesReservationOnDequeue;
-
         public SessionContinuation? Continuation { get; } = continuation;
+
+        public TaskCompletionSource<WorkspaceCommandOutcome> Completion { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public static SessionWorkItem CreateCommand(
+            WorkspaceId workspaceId,
+            Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
+            CancellationToken callerCancellationToken,
+            CancellationToken stoppingToken)
+        {
+            return new SessionWorkItem(
+                workspaceId,
+                operation,
+                continuation: null,
+                callerCancellationToken,
+                stoppingToken);
+        }
+
+        public static SessionWorkItem CreateContinuation(
+            WorkspaceId workspaceId,
+            Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
+            SessionContinuation continuation,
+            CancellationToken stoppingToken)
+        {
+            return new SessionWorkItem(
+                workspaceId,
+                operation,
+                continuation,
+                CancellationToken.None,
+                stoppingToken);
+        }
     }
 
     internal sealed class SessionContinuation(

@@ -25,6 +25,8 @@ dotnet_diagnostic.SYSLIB1045.severity = warning
 [src/**/*.cs]
 dotnet_diagnostic.CA1812.severity = warning
 dotnet_diagnostic.CA1852.severity = warning
+dotnet_diagnostic.CA2000.severity = warning
+dotnet_diagnostic.CA2213.severity = warning
 dotnet_code_quality.CA1812.ignore_internalsvisibleto = true
 dotnet_code_quality.CA1852.ignore_internalsvisibleto = true
 

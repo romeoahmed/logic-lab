@@ -287,10 +287,6 @@ public sealed record CompilationAccepted(
     ProjectRevisionId RequestedProjectRevisionId,
     ulong ProjectionVersion) : WorkspaceCommandOutcome;
 
-public sealed record CompilationPublished(
-    CompilationArtifactKey ArtifactKey,
-    ulong ProjectionVersion) : WorkspaceCommandOutcome;
-
 public sealed record SimulationSessionCreated(
     SimulationSessionId SessionId,
     ulong ProjectionVersion) : WorkspaceCommandOutcome;
