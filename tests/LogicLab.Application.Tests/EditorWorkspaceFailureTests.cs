@@ -7,6 +7,45 @@ namespace LogicLab.Application.Tests;
 
 internal sealed class EditorWorkspaceFailureTests
 {
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_CompilationPublicationThrows_RejectsAcceptedGeneration(
+        CancellationToken cancellationToken)
+    {
+        var operations = WorkspaceModuleOperations.Production with
+        {
+            Compile = static (_, _) => null!,
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations: operations);
+        var opened = await OpenControlled(workspace, cancellationToken);
+
+        var outcome = await workspace.DispatchAsync(
+            new RequestCompilation(
+                EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
+                EditorWorkspaceTestDriver.Compilation(opened.Projection)),
+            CancellationToken.None);
+        var accepted = await Assert.That(outcome).IsTypeOf<CompilationAccepted>();
+        Assert.NotNull(accepted);
+
+        var projection = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
+                workspace,
+                opened.WorkspaceId,
+                opened.Attached,
+                cancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(1), cancellationToken);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(projection.Compilation.Status)
+                .IsEqualTo(CompilationPublicationStatus.Rejected);
+            await Assert.That(projection.Compilation.Generation)
+                .IsEqualTo(accepted.CompilationGeneration);
+            await Assert.That(projection.Compilation.RejectionCode)
+                .IsEqualTo("workspace_internal_defect");
+            await Assert.That(projection.Compilation.DiagnosticCodes).IsEmpty();
+        }
+    }
+
     [Test]
     [Arguments(false, "workspace_internal_defect")]
     [Arguments(true, "workspace_infrastructure_failure")]

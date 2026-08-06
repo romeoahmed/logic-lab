@@ -429,9 +429,9 @@ public sealed record ScheduleStimulusBatch : SimulationCommand
 
 public sealed record AdvanceToNextQuiescentBoundary : SimulationCommand;
 
-public sealed record HotSwapSimulation : SimulationCommand
+public sealed record HotSwapTo : SimulationCommand
 {
-    public HotSwapSimulation(
+    public HotSwapTo(
         CompilationArtifact compilationArtifact,
         ulong maximumPeakOwnedBufferBytes)
     {

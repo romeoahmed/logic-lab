@@ -31,7 +31,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
+            new HotSwapTo(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var snapshot = Snapshot(opened);
         var nextClock = Advance(opened);
@@ -91,7 +91,7 @@ internal sealed class SimulationHotSwapTests
 
         var committed = (HotSwapCommitted)SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
+            new HotSwapTo(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var fullTrace = (TraceTransitionsAvailable)SimulationRuntime.Read(
             opened.Handle,
@@ -146,7 +146,7 @@ internal sealed class SimulationHotSwapTests
 
         var committed = (HotSwapCommitted)SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
+            new HotSwapTo(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var continuation = (TraceTransitionsAvailable)SimulationRuntime.Read(
             opened.Handle,
@@ -194,7 +194,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
+            new HotSwapTo(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var snapshot = Snapshot(opened);
 
@@ -239,7 +239,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
+            new HotSwapTo(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var after = Snapshot(opened);
 
@@ -278,7 +278,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
+            new HotSwapTo(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var snapshot = Snapshot(opened);
 
@@ -313,7 +313,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
+            new HotSwapTo(replacementArtifact, ulong.MaxValue),
             new CancellationToken(canceled: true));
         var after = Snapshot(opened);
 
@@ -347,7 +347,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapSimulation(
+            new HotSwapTo(
                 replacementArtifact,
                 maximumPeakOwnedBufferBytes: 400),
             CancellationToken.None);
@@ -407,11 +407,11 @@ internal sealed class SimulationHotSwapTests
 
         var accepted = SimulationRuntime.Execute(
             acceptedSession.Handle,
-            new HotSwapSimulation(replacementArtifact, exactPeakOwnedBufferBytes),
+            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
             CancellationToken.None);
         var rejected = SimulationRuntime.Execute(
             rejectedSession.Handle,
-            new HotSwapSimulation(
+            new HotSwapTo(
                 replacementArtifact,
                 exactPeakOwnedBufferBytes - 1UL),
             CancellationToken.None);

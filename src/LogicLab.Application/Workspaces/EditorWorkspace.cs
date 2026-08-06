@@ -426,6 +426,32 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 generation,
                 context).ConfigureAwait(false);
         }
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                context.CancellationToken))
+        {
+            await PublishCompilationFailureAsync(
+                state,
+                requestedRevision,
+                generation,
+                WorkspaceOutcomeReasons.WorkspaceCancelled,
+                context).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
+        {
+            var code = exception is IOException or TimeoutException
+                ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
+                : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
+            var correlation = Guid.CreateVersion7().ToString("N");
+            LogCompilationFailure(logger, exception, correlation, code);
+            await PublishCompilationFailureAsync(
+                state,
+                requestedRevision,
+                generation,
+                code,
+                context).ConfigureAwait(false);
+        }
         finally
         {
             Release(state);
@@ -438,24 +464,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         CompilationGeneration generation,
         CompilationWorkContext context)
     {
-        try
-        {
-            await state.CommandGate.WaitAsync(context.CancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (OperationCanceledException exception)
-            when (ExceptionClassifier.IsCooperativeCancellation(
-                exception,
-                context.CancellationToken))
-        {
-            await PublishCompilationFailureAsync(
-                state,
-                requestedRevision,
-                generation,
-                WorkspaceOutcomeReasons.WorkspaceCancelled,
-                context).ConfigureAwait(false);
-            return;
-        }
+        await state.CommandGate.WaitAsync(context.CancellationToken)
+            .ConfigureAwait(false);
 
         try
         {
@@ -492,62 +502,14 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             state.CommandGate.Release();
         }
 
-        CompilationOutcome outcome;
-        try
-        {
-            outcome = operations.Compile(
-                new CompilationRequest(
-                    requestedRevision,
-                    requestedRevision.Document.EntryCircuitDefinitionId,
-                    requestedRevision.Document.LibrarySnapshot,
-                    DevelopmentProjectScalePolicy),
-                context.CancellationToken);
-        }
-        catch (OperationCanceledException exception)
-            when (ExceptionClassifier.IsCooperativeCancellation(
-                exception,
-                context.CancellationToken))
-        {
-            await PublishCompilationFailureAsync(
-                state,
+        var outcome = operations.Compile(
+            new CompilationRequest(
                 requestedRevision,
-                generation,
-                WorkspaceOutcomeReasons.WorkspaceCancelled,
-                context).ConfigureAwait(false);
-            return;
-        }
-        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
-        {
-            var code = exception is IOException or TimeoutException
-                ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
-                : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
-            var correlation = Guid.CreateVersion7().ToString("N");
-            LogCompilationFailure(logger, exception, correlation, code);
-            await PublishCompilationFailureAsync(
-                state,
-                requestedRevision,
-                generation,
-                code,
-                context).ConfigureAwait(false);
-            return;
-        }
-        try
-        {
-            await state.CommandGate.WaitAsync(context.CancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException exception)
-            when (ExceptionClassifier.IsCooperativeCancellation(
-                exception,
-                context.CancellationToken))
-        {
-            await PublishCompilationFailureAsync(
-                state,
-                requestedRevision,
-                generation,
-                WorkspaceOutcomeReasons.WorkspaceCancelled,
-                context).ConfigureAwait(false);
-            return;
-        }
+                requestedRevision.Document.EntryCircuitDefinitionId,
+                requestedRevision.Document.LibrarySnapshot,
+                DevelopmentProjectScalePolicy),
+            context.CancellationToken);
+        await state.CommandGate.WaitAsync(context.CancellationToken).ConfigureAwait(false);
 
         try
         {

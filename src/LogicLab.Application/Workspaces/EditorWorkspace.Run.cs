@@ -93,7 +93,7 @@ internal sealed partial class EditorWorkspace
 
         var outcome = operations.ExecuteSimulation(
             activeSession.Handle,
-            new HotSwapSimulation(replacement, workspacePolicy.HotSwapPeakBytes),
+            new HotSwapTo(replacement, workspacePolicy.HotSwapPeakBytes),
             cancellationToken);
         if (outcome is LogicLab.Engine.Simulation.HotSwapIncompatible)
         {

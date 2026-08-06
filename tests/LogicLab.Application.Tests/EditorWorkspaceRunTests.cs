@@ -9,6 +9,60 @@ namespace LogicLab.Application.Tests;
 internal sealed class EditorWorkspaceRunTests
 {
     [Test, Timeout(30_000)]
+    public async Task DispatchAsync_AcceptedPauseIgnoresLaterCallerCancellation(
+        CancellationToken cancellationToken)
+    {
+        var advanceGate = new BlockingOperationGate();
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            BlockAdvances(advanceGate));
+        var controlled = await CreateClockWorkspace(workspace, cancellationToken);
+        var beforeRun = await Read(workspace, controlled, cancellationToken);
+        var started = (RunStarted)await workspace.DispatchAsync(
+            new StartRun(
+                Command(controlled, "run-before-cancelled-pause"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
+            cancellationToken);
+        await advanceGate.Started.WaitAsync(cancellationToken);
+        using var callerCancellation = new CancellationTokenSource();
+
+        var pause = workspace.DispatchAsync(
+            new PauseRun(
+                Command(controlled, "accepted-pause"),
+                new RunControlPrecondition(
+                    beforeRun.Simulation!.SessionId,
+                    started.RunGeneration)),
+            callerCancellation.Token);
+        await Assert.That(pause.IsCompleted).IsFalse();
+
+        await callerCancellation.CancelAsync();
+        var firstCompletion = await Task.WhenAny(
+            pause,
+            Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken));
+        try
+        {
+            await Assert.That(ReferenceEquals(firstCompletion, pause)).IsFalse();
+        }
+        finally
+        {
+            advanceGate.Release();
+        }
+
+        var outcome = await pause.WaitAsync(cancellationToken);
+        var paused = await Assert.That(outcome).IsTypeOf<RunPaused>();
+        Assert.NotNull(paused);
+        var projection = await Read(workspace, controlled, cancellationToken);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(paused.RunGeneration).IsEqualTo(started.RunGeneration);
+            await Assert.That(paused.Reason).IsEqualTo(RunPauseReason.UserRequested);
+            await Assert.That(projection.Simulation!.Run.Status).IsEqualTo(RunStatus.Paused);
+            await Assert.That(projection.Simulation.Run.PauseReason)
+                .IsEqualTo(RunPauseReason.UserRequested);
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task DispatchAsync_ActiveRunReservation_RejectsExternalWorkAndAdmitsPause(
         CancellationToken cancellationToken)
     {
@@ -658,7 +712,7 @@ internal sealed class EditorWorkspaceRunTests
     }
 
     [Test, Timeout(30_000)]
-    public async Task DispatchAsync_HotSwapSimulationResourceLimit_PreservesPolicyEvidence(
+    public async Task DispatchAsync_HotSwapResourceLimit_PreservesPolicyEvidence(
         CancellationToken cancellationToken)
     {
         var production = WorkspaceModuleOperations.Production;
