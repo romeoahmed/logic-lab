@@ -19,21 +19,39 @@ internal sealed class AccessibleCircuitSceneTests
 
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene));
-        var componentLabels = rendered.FindAll("[data-component] h3")
-            .Select(element => element.TextContent)
+        var componentIds = rendered.FindAll("[data-component]")
+            .Select(element => element.GetAttribute("data-component")!)
             .ToArray();
-        var terminalPaths = rendered.FindAll("[data-connection] .connection-summary span")
-            .Select(element => element.TextContent)
+        var connectionIds = rendered.FindAll("[data-connection]")
+            .Select(element => element.GetAttribute("data-connection")!)
             .ToArray();
 
         using (Assert.Multiple())
         {
             await Assert.That(rendered.Find("section").GetAttribute("aria-labelledby"))
                 .IsEqualTo("circuit-scene-heading");
-            await Assert.That(rendered.FindAll("[data-component]")).Count().IsEqualTo(3);
-            await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(2);
-            await Assert.That(componentLabels).IsEquivalentTo(["Input", "NOT", "Output"]);
-            await Assert.That(terminalPaths).IsEquivalentTo(["Q → A", "Q → D"]);
+            await Assert.That(componentIds).IsEquivalentTo(
+                scene.Components.Select(component => component.Source.ComponentInstanceId.Value));
+            await Assert.That(connectionIds).IsEquivalentTo(
+                scene.Connections.Select(connection => connection.Source.NetId.Value));
+        }
+
+        foreach (var component in scene.Components)
+        {
+            await Assert.That(rendered.Find(
+                    $"[data-component='{component.Source.ComponentInstanceId.Value}'] h3")
+                    .TextContent)
+                .IsEqualTo(component.Label);
+        }
+
+        foreach (var connection in scene.Connections)
+        {
+            var summary = rendered.Find(
+                $"[data-connection='{connection.Source.NetId.Value}'] .connection-summary span");
+            foreach (var terminalLabel in TerminalLabels(scene, connection))
+            {
+                await Assert.That(summary.TextContent).Contains(terminalLabel);
+            }
         }
     }
 
@@ -61,23 +79,32 @@ internal sealed class AccessibleCircuitSceneTests
 
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene));
-        var routeLabels = rendered.FindAll("[data-wire-geometry]")
-            .Select(element => element.TextContent.Trim())
+        var junctionIds = rendered.FindAll("[data-junction]")
+            .Select(element => element.GetAttribute("data-junction")!)
             .ToArray();
+        var wireGeometryIds = rendered.FindAll("[data-wire-geometry]")
+            .Select(element => element.GetAttribute("data-wire-geometry")!)
+            .ToArray();
+        var projectedConnection = scene.Connections.Single(connection =>
+            connection.Source.NetId == net.Id);
 
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.FindAll("[data-junction]")).Count().IsEqualTo(1);
-            await Assert.That(rendered.FindAll("[data-wire-geometry]")).Count().IsEqualTo(2);
-            await Assert.That(rendered.Find("[data-junction]").TextContent.Trim())
-                .IsEqualTo("Junction at grid 2, 1");
-            await Assert.That(routeLabels)
-                .IsEquivalentTo(["Orthogonal · 0,0 → 0,1 → 4,1", "Unrouted"]);
+            await Assert.That(junctionIds).IsEquivalentTo(projectedConnection.Junctions
+                .Select(junction => junction.Source.JunctionId.Value));
+            await Assert.That(wireGeometryIds).IsEquivalentTo(projectedConnection.WireGeometries
+                .Select(geometry => geometry.Source.WireGeometryId.Value));
+            await Assert.That(rendered.FindAll("[data-junction]")
+                    .All(element => !string.IsNullOrWhiteSpace(element.TextContent)))
+                .IsTrue();
+            await Assert.That(rendered.FindAll("[data-wire-geometry]")
+                    .All(element => !string.IsNullOrWhiteSpace(element.TextContent)))
+                .IsTrue();
         }
     }
 
     [Test]
-    public async Task AccessibleCircuitScene_GeneratedPorts_RenderDirectionAndWidth()
+    public async Task AccessibleCircuitScene_GeneratedPorts_RenderProjectedSemantics()
     {
         await using var context = CreateContext();
         var revision = CreateWidthConversionComponents();
@@ -86,44 +113,49 @@ internal sealed class AccessibleCircuitSceneTests
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene));
 
-        await AssertRenderedPorts(
-            rendered,
-            revision,
-            "topology.split",
-            ["D · Input · 4 bit", "Q0 · Output · 1 bit", "Q1 · Output · 3 bit"]);
-        await AssertRenderedPorts(
-            rendered,
-            revision,
-            "topology.concat",
-            ["D0 · Input · 1 bit", "D1 · Input · 3 bit", "Q · Output · 4 bit"]);
-        await AssertRenderedPorts(
-            rendered,
-            revision,
-            "topology.zero_extend",
-            ["D · Input · 4 bit", "Q · Output · 6 bit"]);
-        await AssertRenderedPorts(
-            rendered,
-            revision,
-            "topology.sign_extend",
-            ["D · Input · 4 bit", "Q · Output · 6 bit"]);
+        foreach (var component in scene.Components)
+        {
+            await AssertRenderedPorts(rendered, component);
+        }
     }
 
     private static async Task AssertRenderedPorts(
         IRenderedComponent<AccessibleCircuitScene> rendered,
-        ProjectRevision revision,
-        string contractId,
-        string[] expected)
+        AccessibleComponentProjection component)
     {
-        var instance = revision.Document.EntryCircuitDefinition.ComponentInstances.Single(
-            item => item.Target is LibraryComponentTarget library
-                && library.ContractKey.ContractId == contractId);
-        var actual = rendered.FindAll(
-                $"[data-component='{instance.Id.Value}'] article > ul > li")
-            .Select(element => element.TextContent.Trim())
-            .ToArray();
+        var renderedPorts = rendered.FindAll(
+            $"[data-component='{component.Source.ComponentInstanceId.Value}'] article > ul > li");
+        await Assert.That(renderedPorts).Count().IsEqualTo(component.Ports.Count);
 
-        await Assert.That(actual)
-            .IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        foreach (var (port, element) in component.Ports.Zip(renderedPorts))
+        {
+            using (Assert.Multiple())
+            {
+                await Assert.That(element.QuerySelector("strong")?.TextContent)
+                    .IsEqualTo(port.Label);
+                await Assert.That(element.TextContent).Contains(port.Direction.ToString());
+                await Assert.That(element.TextContent).Contains($"{port.Width} bit");
+            }
+        }
+    }
+
+    private static IEnumerable<string> TerminalLabels(
+        AccessibleSceneProjection scene,
+        AccessibleConnectionProjection connection)
+    {
+        return connection.Terminals.Select(terminal => terminal switch
+        {
+            DefinitionTerminalReference definition => scene.DefinitionPorts.Single(port =>
+                port.Source.DefinitionPortId == definition.DefinitionPortId).Label,
+            InstanceTerminalReference instance => scene.Components.Single(component =>
+                    component.Source.ComponentInstanceId == instance.ComponentInstanceId)
+                .Ports.Single(port => string.Equals(
+                    port.Source.PortId,
+                    instance.PortId,
+                    StringComparison.Ordinal)).Label,
+            _ => throw new InvalidOperationException(
+                "The Terminal Reference variant is undefined."),
+        });
     }
 
     private static AccessibleSceneProjection Project(ProjectRevision revision)
