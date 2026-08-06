@@ -115,7 +115,7 @@ internal static class EditorWorkspaceTestDriver
                 return projection;
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken);
+            await Task.Yield();
         }
     }
 }
