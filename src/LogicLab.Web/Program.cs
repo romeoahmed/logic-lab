@@ -5,9 +5,11 @@ using Microsoft.FluentUI.AspNetCore.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IEditorWorkspace>(services =>
     EditorWorkspaceFactory.Create(
         loggerFactory: services.GetRequiredService<ILoggerFactory>(),
+        timeProvider: services.GetRequiredService<TimeProvider>(),
         buildFingerprint: LogicLabWebBuild.Fingerprint));
 builder.Services.AddFluentUIComponents();
 builder.Services.AddRazorComponents()

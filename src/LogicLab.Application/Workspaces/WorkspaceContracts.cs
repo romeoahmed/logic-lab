@@ -603,6 +603,7 @@ public sealed record CompilationProjection
             || (status == CompilationPublicationStatus.Superseded
                 && (generation is null
                     || supersededBy is null
+                    || supersededBy.Value <= generation.Value
                     || artifactKey is not null
                     || rejectionCode is not null
                     || retryDisposition is not null))

@@ -4,7 +4,7 @@ namespace LogicLab.Engine.Simulation;
 
 internal static class HotSwapOwnedBufferAccounting
 {
-    public static HotSwapOwnedBufferEstimate MeasurePeak(
+    public static HotSwapOwnedBufferEstimate MeasureCandidatePeak(
         SimulationSessionState state,
         CompilationArtifact replacement,
         HotSwapStateMigration[] migrations,
@@ -16,10 +16,35 @@ internal static class HotSwapOwnedBufferAccounting
                 checked(
                     CommittedWorkingLayerBytes(state)
                     + ReplacementCandidateBytes(
-                        state,
                         replacement.SimulationIr,
                         migrations,
                         preservedProbeCount)),
+                IsSaturated: false);
+        }
+        catch (OverflowException)
+        {
+            return new HotSwapOwnedBufferEstimate(
+                ulong.MaxValue,
+                IsSaturated: true);
+        }
+    }
+
+    public static HotSwapOwnedBufferEstimate AddTraceFork(
+        HotSwapOwnedBufferEstimate candidatePeak,
+        SimulationTraceStore trace,
+        IReadOnlyList<(ProbeState Probe, LogicVector Value)> observations)
+    {
+        if (candidatePeak.IsSaturated)
+        {
+            return candidatePeak;
+        }
+
+        try
+        {
+            return new HotSwapOwnedBufferEstimate(
+                checked(
+                    candidatePeak.Bytes
+                    + trace.ForkCandidateOwnedBufferBytes(observations)),
                 IsSaturated: false);
         }
         catch (OverflowException)
@@ -56,7 +81,6 @@ internal static class HotSwapOwnedBufferAccounting
     }
 
     private static ulong ReplacementCandidateBytes(
-        SimulationSessionState state,
         SimulationIr replacement,
         HotSwapStateMigration[] migrations,
         int preservedProbeCount)
@@ -78,7 +102,6 @@ internal static class HotSwapOwnedBufferAccounting
                 bytes + VectorPlaneBytes(replacement.Drivers[index].Width));
         }
 
-        var maximumNetWordCount = 0;
         for (var index = 0; index < replacement.Nets.Count; index++)
         {
             var net = replacement.Nets[index];
@@ -86,9 +109,6 @@ internal static class HotSwapOwnedBufferAccounting
                 bytes
                 + VectorPlaneBytes(net.Width)
                 + NetResolutionCausePlaneBytes(net.Width));
-            maximumNetWordCount = Math.Max(
-                maximumNetWordCount,
-                LogicVector.GetWordCount(checked((int)net.Width)));
         }
 
         for (var index = 0; index < replacement.Evaluators.Count; index++)
@@ -111,11 +131,7 @@ internal static class HotSwapOwnedBufferAccounting
             }
         }
 
-        return checked(
-            bytes
-            + state.Trace.ForkCandidateOwnedBufferBytes(
-                preservedProbeCount,
-                maximumNetWordCount));
+        return bytes;
     }
 
     private static ulong VectorPlaneBytes(uint width)

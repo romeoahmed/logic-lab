@@ -135,16 +135,18 @@ internal sealed class SimulationTraceStore(TracePolicy policy)
     }
 
     internal ulong ForkCandidateOwnedBufferBytes(
-        int appendedTransitionCount,
-        int maximumValueWordCount)
+        IReadOnlyList<(ProbeState Probe, LogicVector Value)> observations)
     {
         var requiredChunkCount = checked(
-            chunkCount + (appendedTransitionCount == 0 ? 0 : 1));
+            chunkCount + (observations.Count == 0 ? 0 : 1));
         var forkCapacity = CapacityFor(requiredChunkCount);
-        var appendedBytes = checked(
-            (ulong)appendedTransitionCount
-            * (TransitionBaseBytes
-                + ((ulong)maximumValueWordCount * 2UL * sizeof(ulong))));
+        ulong appendedBytes = 0;
+        for (var index = 0; index < observations.Count; index++)
+        {
+            appendedBytes = checked(
+                appendedBytes + TransitionBytes(observations[index].Value));
+        }
+
         return checked(((ulong)forkCapacity * sizeof(ulong)) + appendedBytes);
     }
 

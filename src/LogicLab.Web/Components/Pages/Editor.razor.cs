@@ -8,17 +8,28 @@ using LogicLab.Web.Components.Editor;
 
 namespace LogicLab.Web.Components.Pages;
 
-public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposable
+public sealed partial class Editor : IAsyncDisposable
 {
     private const ulong MaximumScenePortCount = 100_000;
     private static readonly TimeSpan CompilationRefreshInterval =
         TimeSpan.FromMilliseconds(250);
-    private readonly FixedWindowCommandAdmissionGate commandAdmission = new(
-        maximumAdmissions: 30,
-        window: TimeSpan.FromSeconds(1),
-        TimeProvider.System);
+    private readonly IEditorWorkspace workspace;
+    private readonly TimeProvider timeProvider;
+    private readonly FixedWindowCommandAdmissionGate commandAdmission;
     private readonly CancellationTokenSource componentLifetime = new();
     private int isDisposed;
+
+    public Editor(IEditorWorkspace workspace, TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(workspace);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        this.workspace = workspace;
+        this.timeProvider = timeProvider;
+        commandAdmission = new FixedWindowCommandAdmissionGate(
+            maximumAdmissions: 30,
+            window: TimeSpan.FromSeconds(1),
+            timeProvider);
+    }
 
     private WorkspaceProjection? Projection { get; set; }
 
@@ -306,7 +317,10 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
             if (snapshot.Compilation.Status is CompilationPublicationStatus.Queued
                 or CompilationPublicationStatus.Running)
             {
-                await Task.Delay(CompilationRefreshInterval, cancellationToken);
+                await Task.Delay(
+                    CompilationRefreshInterval,
+                    timeProvider,
+                    cancellationToken);
                 await Refresh(cancellationToken);
                 continue;
             }

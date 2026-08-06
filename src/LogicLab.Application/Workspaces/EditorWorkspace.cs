@@ -358,7 +358,17 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                             generation,
                             requestedRevision.RevisionId,
                             projectionVersion);
-                        RetainWorkspace(state);
+                        if (!TryRetainWorkspace(state, out var retentionRejectionCode))
+                        {
+                            var rejected = Reject(retentionRejectionCode!);
+                            RecordIdempotencyUnderLock(
+                                state,
+                                command.Context.ClientIntentId,
+                                accepted.CanonicalIdentity,
+                                rejected);
+                            return rejected;
+                        }
+
                         if (!workCoordinator.TryScheduleCompilation(
                                 state.Id,
                                 context => CompileRetainedAsync(

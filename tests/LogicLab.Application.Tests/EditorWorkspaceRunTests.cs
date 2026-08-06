@@ -9,6 +9,47 @@ namespace LogicLab.Application.Tests;
 internal sealed class EditorWorkspaceRunTests
 {
     [Test, Timeout(30_000)]
+    public async Task DispatchAsync_PauseDuringNoStimulusAdvance_PausesForUserRequest(
+        CancellationToken cancellationToken)
+    {
+        var advanceGate = new BlockingOperationGate();
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            BlockAdvances(advanceGate));
+        var controlled = await CreateInputWorkspace(workspace, cancellationToken);
+        var beforeRun = await Read(workspace, controlled, cancellationToken);
+        var started = (RunStarted)await workspace.DispatchAsync(
+            new StartRun(
+                Command(controlled, "run-without-stimulus"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
+            cancellationToken);
+        await advanceGate.Started.WaitAsync(cancellationToken);
+
+        var pause = workspace.DispatchAsync(
+            new PauseRun(
+                Command(controlled, "pause-without-stimulus"),
+                new RunControlPrecondition(
+                    beforeRun.Simulation!.SessionId,
+                    started.RunGeneration)),
+            cancellationToken);
+        await Assert.That(pause.IsCompleted).IsFalse();
+        advanceGate.Release();
+
+        var paused = await Assert.That(await pause.WaitAsync(cancellationToken))
+            .IsTypeOf<RunPaused>();
+        Assert.NotNull(paused);
+        var projection = await Read(workspace, controlled, cancellationToken);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(paused.RunGeneration).IsEqualTo(started.RunGeneration);
+            await Assert.That(paused.Reason).IsEqualTo(RunPauseReason.UserRequested);
+            await Assert.That(projection.Simulation!.Run.Status).IsEqualTo(RunStatus.Paused);
+            await Assert.That(projection.Simulation.Run.PauseReason)
+                .IsEqualTo(RunPauseReason.UserRequested);
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task DispatchAsync_AcceptedPauseIgnoresLaterCallerCancellation(
         CancellationToken cancellationToken)
     {

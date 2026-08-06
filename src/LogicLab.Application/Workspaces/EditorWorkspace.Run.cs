@@ -155,7 +155,11 @@ internal sealed partial class EditorWorkspace
         WorkspaceState state,
         RunGeneration generation)
     {
-        RetainWorkspace(state);
+        if (!TryRetainWorkspace(state, out var retentionRejectionCode))
+        {
+            return retentionRejectionCode;
+        }
+
         if (workCoordinator.TryStartSessionContinuation(
             state.Id,
             (continuation, token) => ContinueRunRetainedAsync(
@@ -177,7 +181,11 @@ internal sealed partial class EditorWorkspace
         WorkCoordinator.SessionContinuation continuation,
         RunGeneration generation)
     {
-        RetainWorkspace(state);
+        if (!TryRetainWorkspace(state, out _))
+        {
+            return false;
+        }
+
         if (continuation.TrySchedule(
             token => ContinueRunRetainedAsync(
                 state,
@@ -269,19 +277,7 @@ internal sealed partial class EditorWorkspace
             if (outcome is WorkspaceCommandRejected rejected
                 && rejected.Code == WorkspaceOutcomeReasons.NoScheduledStimulus)
             {
-                state.Simulation = WithRun(
-                    state.Simulation!,
-                    new RunProjection(
-                        RunStatus.Paused,
-                        generation,
-                        RunPauseReason.NoScheduledStimulus));
-                state.ProjectionVersion++;
-                return new RunPaused(
-                    generation,
-                    state.Simulation.SessionVersion,
-                    state.Simulation.LogicalTime,
-                    RunPauseReason.NoScheduledStimulus,
-                    state.ProjectionVersion);
+                return PauseRunAtNoStimulusBoundary(state, generation);
             }
 
             return outcome is SessionAdvanceFailed failed
@@ -343,6 +339,34 @@ internal sealed partial class EditorWorkspace
             simulation.LogicalTime,
             RunPauseReason.UserRequested,
             state.ProjectionVersion);
+    }
+
+    private static RunPaused PauseRunAtNoStimulusBoundary(
+        WorkspaceState state,
+        RunGeneration generation)
+    {
+        lock (state.ContinuityGate)
+        {
+            if (state.RequestedRunPauseGeneration == generation)
+            {
+                return PauseRunAtBoundary(state, generation);
+            }
+
+            var simulation = state.Simulation!;
+            state.Simulation = WithRun(
+                simulation,
+                new RunProjection(
+                    RunStatus.Paused,
+                    generation,
+                    RunPauseReason.NoScheduledStimulus));
+            state.ProjectionVersion++;
+            return new RunPaused(
+                generation,
+                simulation.SessionVersion,
+                simulation.LogicalTime,
+                RunPauseReason.NoScheduledStimulus,
+                state.ProjectionVersion);
+        }
     }
 
     private static SessionAdvanceFailed FailRun(
