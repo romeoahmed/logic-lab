@@ -99,6 +99,47 @@ internal sealed class EditorWorkspaceRetentionTests
     }
 
     [Test]
+    public async Task AttachAsync_ExpiredWorkspaceReclaimedByAnotherOpen_ReturnsExpired()
+    {
+        var timeProvider = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
+        await using var workspace = EditorWorkspaceFactory.Create(
+            workspacePolicy: Policy(
+                detachedRetention: TimeSpan.FromMinutes(5),
+                globalWorkspaceLimit: 1),
+            timeProvider: timeProvider,
+            buildFingerprint: BuildFingerprint);
+        var opened = await Open(workspace);
+        var attached = await Attach(workspace, opened.WorkspaceId);
+        _ = await IsType<Detached>(await workspace.DetachAsync(
+            new DetachRequest(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation),
+            CancellationToken.None));
+        timeProvider.Advance(TimeSpan.FromMinutes(5));
+
+        var replacement = await workspace.OpenAsync(
+            new CreateSandbox("Replacement", "Main"),
+            CancellationToken.None);
+        var outcome = await workspace.AttachAsync(
+            new Reattach(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                attached.Projection.ProjectionVersion,
+                BuildFingerprint),
+            CancellationToken.None);
+
+        var expired = await IsType<Expired>(outcome);
+        using (Assert.Multiple())
+        {
+            await Assert.That(replacement).IsTypeOf<WorkspaceOpened>();
+            await Assert.That(expired.Code).IsEqualTo("workspace_expired");
+        }
+    }
+
+    [Test]
     public async Task ReadAsync_StaleAttachment_DoesNotExtendSandboxRetention()
     {
         var timeProvider = new ManualTimeProvider(

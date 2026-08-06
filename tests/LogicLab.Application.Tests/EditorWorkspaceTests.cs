@@ -11,7 +11,7 @@ namespace LogicLab.Application.Tests;
 internal sealed class EditorWorkspaceTests
 {
     [Test]
-    public async Task DispatchAsync_EditWithExistingSession_CommitsAndRetainsUsableSession()
+    public async Task DispatchAsync_EditWithExistingSession_PublishesFreshCompilationAndRetainsSession()
     {
         await using var workspace = EditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
@@ -27,13 +27,24 @@ internal sealed class EditorWorkspaceTests
                     "Renamed while simulating")),
             CancellationToken.None);
         var after = await Read(workspace, opened);
+        var compilation = await workspace.DispatchAsync(
+            new RequestCompilation(
+                Context(opened.WorkspaceId, opened.Attachment, "compile-after-edit"),
+                new CompilationPrecondition(
+                    after.ProjectRevision.RevisionId,
+                    after.ProjectRevision.Document.EntryCircuitDefinitionId,
+                    after.ProjectRevision.Document.LibrarySnapshot.Fingerprint)),
+            CancellationToken.None);
+        var published = await Assert.That(compilation).IsTypeOf<CompilationPublished>();
+        Assert.NotNull(published);
+        var compiled = await Read(workspace, opened);
         var scheduled = await workspace.DispatchAsync(
             new ScheduleInputStimulus(
                 Context(opened.WorkspaceId, opened.Attachment, "schedule-after-edit"),
                 new SessionMutationPrecondition(
-                    after.Simulation!.SessionId,
-                    after.Simulation.SessionVersion,
-                    after.Simulation.CompilationArtifactKey),
+                    compiled.Simulation!.SessionId,
+                    compiled.Simulation.SessionVersion,
+                    compiled.Simulation.CompilationArtifactKey),
                 logicalTime: 1,
                 [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
             CancellationToken.None);
@@ -45,10 +56,16 @@ internal sealed class EditorWorkspaceTests
                 .IsEqualTo("Renamed while simulating");
             await Assert.That(after.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.NotRequested);
-            await Assert.That(after.Simulation.SessionId)
+            await Assert.That(compiled.Compilation.Status)
+                .IsEqualTo(CompilationPublicationStatus.Published);
+            await Assert.That(published.ArtifactKey.ProjectRevisionId)
+                .IsEqualTo(after.ProjectRevision.RevisionId);
+            await Assert.That(compiled.Simulation.SessionId)
                 .IsEqualTo(before.Simulation!.SessionId);
-            await Assert.That(after.Simulation.CompilationArtifactKey)
+            await Assert.That(compiled.Simulation.CompilationArtifactKey)
                 .IsEqualTo(before.Simulation.CompilationArtifactKey);
+            await Assert.That(compiled.Simulation.CompilationArtifactKey)
+                .IsNotEqualTo(published.ArtifactKey);
             await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
         }
     }
