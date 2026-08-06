@@ -9,6 +9,88 @@ namespace LogicLab.Application.Tests;
 internal sealed class EditorWorkspaceRunTests
 {
     [Test, Timeout(30_000)]
+    public async Task DispatchAsync_FullExternalSessionQueue_RunContinuationRemainsLive(
+        CancellationToken cancellationToken)
+    {
+        var advanceGate = new BlockingOperationGate();
+        var stimulusGate = new BlockingOperationGate();
+        var advanceCount = 0;
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            ExecuteSimulation = (handle, command, operationCancellationToken) =>
+            {
+                if (command is AdvanceToNextQuiescentBoundary
+                    && Interlocked.Increment(ref advanceCount) == 1)
+                {
+                    advanceGate.Block(operationCancellationToken);
+                }
+                else if (command is ScheduleStimulusBatch)
+                {
+                    stimulusGate.Block(operationCancellationToken);
+                }
+
+                return production.ExecuteSimulation(
+                    handle,
+                    command,
+                    operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            schedulingPolicy: new SchedulingPolicy(1, 1),
+            operations: operations);
+        var runningWorkspace = await CreateClockWorkspace(workspace, cancellationToken);
+        var stimulusWorkspace = await CreateInputWorkspace(workspace, cancellationToken);
+        var beforeRun = await Read(workspace, runningWorkspace, cancellationToken);
+        var beforeStimulus = await Read(workspace, stimulusWorkspace, cancellationToken);
+        var input = beforeStimulus.ProjectRevision.Document.EntryCircuitDefinition
+            .ComponentInstances.Single(instance =>
+                ((LibraryComponentTarget)instance.Target).ContractKey.ContractId
+                    == "source.input");
+        var started = (RunStarted)await workspace.DispatchAsync(
+            new StartRun(
+                Command(runningWorkspace, "run-with-backpressure"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
+            cancellationToken);
+        await advanceGate.Started.WaitAsync(cancellationToken);
+
+        var stimulus = workspace.DispatchAsync(
+            new ScheduleInputStimulus(
+                Command(stimulusWorkspace, "queued-stimulus"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeStimulus),
+                1,
+                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+            cancellationToken);
+        await Assert.That(stimulus.IsCompleted).IsFalse();
+        advanceGate.Release();
+        await stimulusGate.Started.WaitAsync(cancellationToken);
+
+        var pause = workspace.DispatchAsync(
+            new PauseRun(
+                Command(runningWorkspace, "pause-after-backpressure"),
+                new RunControlPrecondition(
+                    beforeRun.Simulation!.SessionId,
+                    started.RunGeneration)),
+            cancellationToken);
+        stimulusGate.Release();
+
+        _ = await Assert.That(await stimulus.WaitAsync(cancellationToken))
+            .IsTypeOf<StimulusScheduled>();
+        var paused = await Assert.That(await pause.WaitAsync(cancellationToken))
+            .IsTypeOf<RunPaused>();
+        Assert.NotNull(paused);
+        var projection = await Read(workspace, runningWorkspace, cancellationToken);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(paused.Reason).IsEqualTo(RunPauseReason.UserRequested);
+            await Assert.That(projection.Simulation!.Run.Status).IsEqualTo(RunStatus.Paused);
+            await Assert.That(projection.Simulation.Run.PauseReason)
+                .IsEqualTo(RunPauseReason.UserRequested);
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task DispatchAsync_PauseRun_WaitsForAtomicAdvanceAndSerializesSessionWork(
         CancellationToken cancellationToken)
     {

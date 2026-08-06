@@ -17,8 +17,16 @@ public static partial class SimulationRuntime
         EnsureWorkingLayerFits(replacement.SimulationIr, state.SimulationPolicy);
 
         var current = state.Artifact!;
-        var unresolvedProbeIds = FindUnresolvedProbeIds(state.Probes, replacement);
-        var migrations = FindStateMigrations(current, replacement, cancellationToken);
+        var replacementSources = ReplacementSourceIndex.Create(
+            replacement,
+            cancellationToken);
+        var unresolvedProbeIds = FindUnresolvedProbeIds(
+            state.Probes,
+            replacementSources);
+        var migrations = FindStateMigrations(
+            current,
+            replacementSources,
+            cancellationToken);
         if (migrations.IncompatibleSources.Length != 0)
         {
             return new HotSwapIncompatible(
@@ -58,7 +66,7 @@ public static partial class SimulationRuntime
             replacement,
             driverValues,
             settlement.NetResolutions);
-        var probes = RebindProbes(state.Probes, replacement);
+        var probes = RebindProbes(state.Probes, replacementSources);
         var observedProbes = probes.Select(probe => new ProbeObservation(
             probe.ProbeId,
             probe.Source,
@@ -131,7 +139,7 @@ public static partial class SimulationRuntime
 
     private static StateMigrationResult FindStateMigrations(
         CompilationArtifact current,
-        CompilationArtifact replacement,
+        ReplacementSourceIndex replacementSources,
         CancellationToken cancellationToken)
     {
         var migrations = new List<StateMigration>();
@@ -140,8 +148,7 @@ public static partial class SimulationRuntime
         {
             cancellationToken.ThrowIfCancellationRequested();
             var source = current.SourceMap.Evaluators[evaluator.Ordinal].Source;
-            var replacementEvaluator = FindEvaluator(replacement, source);
-            if (replacementEvaluator is null
+            if (!replacementSources.TryGetEvaluator(source, out var replacementEvaluator)
                 || !HasCompatibleStateSchema(evaluator, replacementEvaluator))
             {
                 incompatible.Add(source);
@@ -160,21 +167,6 @@ public static partial class SimulationRuntime
     {
         return SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind)
             || evaluator.Kind == SimulationEvaluatorKind.MemoryRamSinglePort;
-    }
-
-    private static SimulationEvaluator? FindEvaluator(
-        CompilationArtifact artifact,
-        CompilationSource source)
-    {
-        foreach (var entry in artifact.SourceMap.Evaluators)
-        {
-            if (CompilationSourceComparer.Instance.Compare(entry.Source, source) == 0)
-            {
-                return artifact.SimulationIr.Evaluators[entry.Ordinal];
-            }
-        }
-
-        return null;
     }
 
     private static bool HasCompatibleStateSchema(
@@ -202,23 +194,21 @@ public static partial class SimulationRuntime
 
     private static ProbeId[] FindUnresolvedProbeIds(
         IEnumerable<ProbeState> probes,
-        CompilationArtifact replacement)
+        ReplacementSourceIndex replacementSources)
     {
         return [.. probes
-            .Where(probe => !replacement.SourceMap.TryGetNetOrdinal(
-                probe.Source,
-                out _))
+            .Where(probe => !replacementSources.TryGetNetOrdinal(probe.Source, out _))
             .Select(probe => probe.ProbeId)];
     }
 
     private static ProbeState[] RebindProbes(
         IEnumerable<ProbeState> probes,
-        CompilationArtifact replacement)
+        ReplacementSourceIndex replacementSources)
     {
         var rebound = new List<ProbeState>();
         foreach (var probe in probes)
         {
-            if (replacement.SourceMap.TryGetNetOrdinal(probe.Source, out var netOrdinal))
+            if (replacementSources.TryGetNetOrdinal(probe.Source, out var netOrdinal))
             {
                 rebound.Add(new ProbeState(probe.ProbeId, probe.Source, netOrdinal));
             }
@@ -235,4 +225,56 @@ public static partial class SimulationRuntime
     private sealed record StateMigrationResult(
         StateMigration[] Items,
         CompilationSource[] IncompatibleSources);
+
+    private sealed class ReplacementSourceIndex
+    {
+        private readonly Dictionary<CompilationSource, SimulationEvaluator> evaluators = new(
+            CompilationSourceEqualityComparer.Instance);
+        private readonly Dictionary<CompilationSource, int> nets = new(
+            CompilationSourceEqualityComparer.Instance);
+
+        private ReplacementSourceIndex()
+        {
+        }
+
+        public static ReplacementSourceIndex Create(
+            CompilationArtifact artifact,
+            CancellationToken cancellationToken)
+        {
+            var index = new ReplacementSourceIndex();
+            foreach (var entry in artifact.SourceMap.Evaluators)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                index.evaluators.TryAdd(
+                    entry.Source,
+                    artifact.SimulationIr.Evaluators[entry.Ordinal]);
+            }
+
+            foreach (var entry in artifact.SourceMap.Nets)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                index.nets.TryAdd(entry.Source, entry.Ordinal);
+            }
+
+            foreach (var entry in artifact.SourceMap.NetAliases)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                index.nets.TryAdd(entry.Source, entry.Ordinal);
+            }
+
+            return index;
+        }
+
+        public bool TryGetEvaluator(
+            CompilationSource source,
+            out SimulationEvaluator evaluator)
+        {
+            return evaluators.TryGetValue(source, out evaluator!);
+        }
+
+        public bool TryGetNetOrdinal(CompilationSource source, out int ordinal)
+        {
+            return nets.TryGetValue(source, out ordinal);
+        }
+    }
 }
