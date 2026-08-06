@@ -20,12 +20,9 @@ internal sealed partial class EditorWorkspace
         var acquisition = AcquireWorkspace(request.WorkspaceId);
         if (acquisition.Lease is null)
         {
-            return string.Equals(
-                acquisition.RejectionReason,
-                WorkspaceOutcomeReasons.WorkspaceExpired,
-                StringComparison.Ordinal)
-                ? new Expired(WorkspaceOutcomeReasons.WorkspaceExpired)
-                : new AttachRejected(acquisition.RejectionReason!);
+            return CreateUnavailableAttachOutcome(
+                request,
+                acquisition.RejectionReason!);
         }
 
         using var lease = acquisition.Lease;
@@ -46,7 +43,9 @@ internal sealed partial class EditorWorkspace
         {
             if (state.IsRetired)
             {
-                return new AttachRejected(WorkspaceOutcomeReasons.WorkspaceNotFound);
+                return CreateUnavailableAttachOutcome(
+                    request,
+                    WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
 
             if (!string.Equals(
@@ -87,6 +86,25 @@ internal sealed partial class EditorWorkspace
         {
             state.CommandGate.Release();
         }
+    }
+
+    private static WorkspaceAttachOutcome CreateUnavailableAttachOutcome(
+        AttachRequest request,
+        string rejectionReason)
+    {
+        var expired = string.Equals(
+                rejectionReason,
+                WorkspaceOutcomeReasons.WorkspaceExpired,
+                StringComparison.Ordinal)
+            || (request is Reattach
+                && string.Equals(
+                    rejectionReason,
+                    WorkspaceOutcomeReasons.WorkspaceNotFound,
+                    StringComparison.Ordinal));
+
+        return expired
+            ? new Expired(WorkspaceOutcomeReasons.WorkspaceExpired)
+            : new AttachRejected(rejectionReason);
     }
 
     public async Task<WorkspaceDetachOutcome> DetachAsync(

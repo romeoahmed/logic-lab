@@ -433,11 +433,6 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 completed = Reject(
                     WorkspaceOutcomeReasons.ProjectRevisionPreconditionFailed);
             }
-            else if (state.ActiveSession is not null)
-            {
-                completed = Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
-            }
-
             completed ??= PublishCompilation(state, outcome, context);
             if (publication is not null)
             {
