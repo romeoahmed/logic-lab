@@ -22,10 +22,13 @@ html {
   background: var(--ll-bench);
 }
 
-body {
+body.logic-lab-root {
   margin: 0;
-  color: var(--ll-ink) !important;
-  background-color: var(--ll-bench) !important;
+  min-block-size: 100dvh;
+  block-size: auto;
+  overflow-y: auto;
+  color: var(--ll-ink);
+  background-color: var(--ll-bench);
 }
 
 button,
