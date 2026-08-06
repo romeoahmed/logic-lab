@@ -8,7 +8,7 @@ namespace LogicLab.Application.Tests;
 internal sealed class WorkCoordinatorTests
 {
     [Test, Timeout(30_000)]
-    public async Task TryScheduleSession_FullExternalQueue_AdmitsContinuationInFifoOrder(
+    public async Task TryStartSessionContinuation_FullQueue_RejectsWithoutBypassingCapacity(
         CancellationToken cancellationToken)
     {
         await using var coordinator = new WorkCoordinator(
@@ -17,8 +17,6 @@ internal sealed class WorkCoordinatorTests
         var firstStarted = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFirst = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var continuationCompleted = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var executionOrder = new List<string>();
 
@@ -45,14 +43,14 @@ internal sealed class WorkCoordinatorTests
             new WorkspaceId("rejected"),
             _ => ValueTask.FromResult<WorkspaceCommandOutcome>(TestOutcome()),
             cancellationToken);
-        var continuationAdmitted = coordinator.TryScheduleSessionContinuation(
+        var continuationAdmitted = coordinator.TryStartSessionContinuation(
             new WorkspaceId("continuation"),
-            _ =>
+            (_, _) =>
             {
                 executionOrder.Add("continuation");
-                continuationCompleted.TrySetResult();
                 return ValueTask.FromResult<WorkspaceCommandOutcome>(TestOutcome());
-            });
+            },
+            out var rejectionCode);
 
         releaseFirst.TrySetResult();
         _ = await first.WaitAsync(cancellationToken);
@@ -60,18 +58,71 @@ internal sealed class WorkCoordinatorTests
         var rejection = await Assert.That(rejectedExternal)
             .IsTypeOf<WorkspaceCommandRejected>();
         Assert.NotNull(rejection);
-        await Assert.That(continuationAdmitted).IsTrue();
-        await continuationCompleted.Task.WaitAsync(cancellationToken);
-
         using (Assert.Multiple())
         {
             await Assert.That(rejection.Code)
                 .IsEqualTo(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
+            await Assert.That(continuationAdmitted).IsFalse();
+            await Assert.That(rejectionCode)
+                .IsEqualTo(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
             await Assert.That(executionOrder).IsEquivalentTo([
                 "first",
                 "second",
-                "continuation",
             ], CollectionOrdering.Matching);
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task TryStartSessionContinuation_ActiveReservation_RejectsExternalWorkAndContinues(
+        CancellationToken cancellationToken)
+    {
+        await using var coordinator = new WorkCoordinator(
+            new SchedulingPolicy(1, 1),
+            NullLogger<WorkCoordinator>.Instance);
+        var firstStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var continuationCompleted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var rescheduled = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var admitted = coordinator.TryStartSessionContinuation(
+            new WorkspaceId("run"),
+            async (continuation, token) =>
+            {
+                firstStarted.TrySetResult();
+                await releaseFirst.Task.WaitAsync(token);
+                rescheduled.TrySetResult(continuation.TrySchedule(
+                    _ =>
+                    {
+                        continuationCompleted.TrySetResult();
+                        return ValueTask.FromResult<WorkspaceCommandOutcome>(TestOutcome());
+                    }));
+                return TestOutcome();
+            },
+            out var rejectionCode);
+        await firstStarted.Task.WaitAsync(cancellationToken);
+
+        var rejectedExternal = await coordinator.RunSessionAsync(
+            new WorkspaceId("external"),
+            _ => ValueTask.FromResult<WorkspaceCommandOutcome>(TestOutcome()),
+            cancellationToken);
+        releaseFirst.TrySetResult();
+        var wasRescheduled = await rescheduled.Task.WaitAsync(cancellationToken);
+        await Assert.That(wasRescheduled).IsTrue();
+        await continuationCompleted.Task.WaitAsync(cancellationToken);
+        var rejection = await Assert.That(rejectedExternal)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejection);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(admitted).IsTrue();
+            await Assert.That(rejectionCode).IsNull();
+            await Assert.That(rejection.Code)
+                .IsEqualTo(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
         }
     }
 

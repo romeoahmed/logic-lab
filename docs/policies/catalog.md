@@ -146,7 +146,7 @@ analysis_worker_count
 analysis_result_retention_seconds
 ```
 
-The admission pair defines one fixed per-subject window. Queues reject rather than drop when full. Compilation remains newest-wins per Workspace, Session work remains FIFO and single-consumer per Session, and Analysis is FIFO within one subject plus round-robin across nonempty subject queues. Worker counts bound concurrent executing calls, not the number of hidden ThreadPool threads. Retention expiry uses `TimeProvider` and never extends authorization.
+The admission pair defines one fixed per-subject window. Queues reject rather than drop when full. Compilation remains newest-wins per Workspace, Session work remains FIFO and single-consumer per Session, and Analysis is FIFO within one subject plus round-robin across nonempty subject queues. An active Run retains one admitted Session scheduling item across its repeated Advances; continuations reuse that item and never bypass `session_queue_items`. Pause is bounded Run control and becomes effective at an atomic boundary without allocating another Session queue item. Worker counts bound concurrent executing calls, not the number of hidden ThreadPool threads. Retention expiry uses `TimeProvider` and never extends authorization.
 
 `WorkspacePolicy` dimensions are:
 

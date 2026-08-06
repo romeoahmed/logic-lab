@@ -16,7 +16,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     private readonly Dictionary<WorkspaceId, CompilationWorkItem> latestCompilations = [];
     private readonly Task compilationWorker;
     private readonly Task sessionWorker;
-    private int queuedExternalSessions;
+    private int reservedSessionItems;
     private bool isDisposed;
 
     public WorkCoordinator(
@@ -98,30 +98,32 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                     Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
             }
 
-            item = new SessionWorkItem(
-                workspaceId,
-                operation,
-                countsTowardCapacity: true,
-                cancellationToken,
-                stopping.Token);
-            if (queuedExternalSessions >= sessionQueueCapacity)
+            if (reservedSessionItems >= sessionQueueCapacity)
             {
-                item.Dispose();
                 return Task.FromResult<WorkspaceCommandOutcome>(
                     Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected));
             }
 
+            item = new SessionWorkItem(
+                workspaceId,
+                operation,
+                releasesReservationOnDequeue: true,
+                continuation: null,
+                cancellationToken,
+                stopping.Token);
             sessionQueue.Enqueue(item);
-            queuedExternalSessions++;
+            reservedSessionItems++;
             sessionQueueSignal.Release();
         }
 
         return item.Completion.Task;
     }
 
-    internal bool TryScheduleSessionContinuation(
+    internal bool TryStartSessionContinuation(
         WorkspaceId workspaceId,
-        Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation)
+        Func<SessionContinuation, CancellationToken, ValueTask<WorkspaceCommandOutcome>>
+            operation,
+        out string? rejectionCode)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(operation);
@@ -129,15 +131,54 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         {
             if (isDisposed)
             {
+                rejectionCode = WorkspaceOutcomeReasons.WorkspaceCancelled;
+                return false;
+            }
+
+            if (reservedSessionItems >= sessionQueueCapacity)
+            {
+                rejectionCode = WorkspaceOutcomeReasons.WorkspaceAdmissionRejected;
+                return false;
+            }
+
+            var continuation = new SessionContinuation(this, workspaceId);
+            var item = new SessionWorkItem(
+                workspaceId,
+                token => operation(continuation, token),
+                releasesReservationOnDequeue: false,
+                continuation,
+                CancellationToken.None,
+                stopping.Token);
+            continuation.MarkQueuedUnderLock();
+            sessionQueue.Enqueue(item);
+            reservedSessionItems++;
+            sessionQueueSignal.Release();
+            rejectionCode = null;
+            return true;
+        }
+    }
+
+    private bool TryScheduleSessionContinuation(
+        SessionContinuation continuation,
+        Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation)
+    {
+        ArgumentNullException.ThrowIfNull(continuation);
+        ArgumentNullException.ThrowIfNull(operation);
+        lock (gate)
+        {
+            if (isDisposed || !continuation.CanScheduleUnderLock(this))
+            {
                 return false;
             }
 
             var item = new SessionWorkItem(
-                workspaceId,
+                continuation.WorkspaceId,
                 operation,
-                countsTowardCapacity: false,
+                releasesReservationOnDequeue: false,
+                continuation,
                 CancellationToken.None,
                 stopping.Token);
+            continuation.MarkQueuedUnderLock();
             sessionQueue.Enqueue(item);
             sessionQueueSignal.Release();
             return true;
@@ -251,9 +292,13 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 }
 
                 item = sessionQueue.Dequeue();
-                if (item.CountsTowardCapacity)
+                if (item.ReleasesReservationOnDequeue)
                 {
-                    queuedExternalSessions--;
+                    reservedSessionItems--;
+                }
+                else
+                {
+                    item.Continuation!.MarkExecutingUnderLock();
                 }
             }
 
@@ -276,6 +321,17 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             }
             finally
             {
+                if (item.Continuation is { } continuation)
+                {
+                    lock (gate)
+                    {
+                        if (continuation.CompleteExecutionUnderLock())
+                        {
+                            reservedSessionItems--;
+                        }
+                    }
+                }
+
                 item.Dispose();
             }
         }
@@ -422,7 +478,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     private sealed class SessionWorkItem(
         WorkspaceId workspaceId,
         Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
-        bool countsTowardCapacity,
+        bool releasesReservationOnDequeue,
+        SessionContinuation? continuation,
         CancellationToken callerCancellationToken,
         CancellationToken stoppingToken)
         : WorkItem(workspaceId, callerCancellationToken, stoppingToken)
@@ -430,7 +487,58 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         public Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> Operation { get; }
             = operation;
 
-        public bool CountsTowardCapacity { get; } = countsTowardCapacity;
+        public bool ReleasesReservationOnDequeue { get; } = releasesReservationOnDequeue;
+
+        public SessionContinuation? Continuation { get; } = continuation;
+    }
+
+    internal sealed class SessionContinuation(
+        WorkCoordinator owner,
+        WorkspaceId workspaceId)
+    {
+        private bool isExecuting;
+        private bool isQueued;
+        private bool isReserved = true;
+
+        public WorkspaceId WorkspaceId { get; } = workspaceId;
+
+        public bool TrySchedule(
+            Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation)
+        {
+            ArgumentNullException.ThrowIfNull(operation);
+            return owner.TryScheduleSessionContinuation(this, operation);
+        }
+
+        internal bool CanScheduleUnderLock(WorkCoordinator coordinator)
+        {
+            return ReferenceEquals(owner, coordinator)
+                && isReserved
+                && isExecuting
+                && !isQueued;
+        }
+
+        internal void MarkQueuedUnderLock()
+        {
+            isQueued = true;
+        }
+
+        internal void MarkExecutingUnderLock()
+        {
+            isQueued = false;
+            isExecuting = true;
+        }
+
+        internal bool CompleteExecutionUnderLock()
+        {
+            isExecuting = false;
+            if (isQueued)
+            {
+                return false;
+            }
+
+            isReserved = false;
+            return true;
+        }
     }
 }
 

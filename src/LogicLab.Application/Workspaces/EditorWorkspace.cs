@@ -167,11 +167,15 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 request,
                 cancellationToken).ConfigureAwait(false),
             CreateSession or ScheduleInputStimulus or StepSession or StartRun
-                or PauseRun or HotSwapSession =>
+                or HotSwapSession =>
                 await QueueContextualSessionAsync(
                     state,
                     command,
                     cancellationToken).ConfigureAwait(false),
+            PauseRun pause => await QueueRunPauseAsync(
+                state,
+                pause,
+                cancellationToken).ConfigureAwait(false),
             _ => await ExecuteContextualCommandAsync(
                 state,
                 command,
@@ -828,10 +832,41 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
-        var outcome = operations.ExecuteSimulation(
-            activeSession.Handle,
-            new AdvanceToNextQuiescentBoundary(),
-            cancellationToken);
+        SimulationCommandOutcome outcome;
+        try
+        {
+            outcome = operations.ExecuteSimulation(
+                activeSession.Handle,
+                new AdvanceToNextQuiescentBoundary(),
+                cancellationToken);
+        }
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                cancellationToken))
+        {
+            return AdvanceFailure(
+                simulation,
+                AdvanceFailureReason.SimulationCancelled,
+                [],
+                policyEvidence: null,
+                state.ProjectionVersion);
+        }
+        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
+        {
+            var reason = exception is IOException or TimeoutException
+                ? AdvanceFailureReason.SimulationInfrastructureFailure
+                : AdvanceFailureReason.SimulationInternalDefect;
+            var correlation = Guid.CreateVersion7().ToString("N");
+            LogAdvanceFailure(logger, exception, correlation, reason);
+            return AdvanceFailure(
+                simulation,
+                reason,
+                [],
+                policyEvidence: null,
+                state.ProjectionVersion);
+        }
+
         if (outcome is NoScheduledStimulus)
         {
             return Reject(WorkspaceOutcomeReasons.NoScheduledStimulus);
@@ -839,9 +874,14 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
         if (outcome is AdvanceFailed failed)
         {
-            return Reject(
-                WorkspaceOutcomeReasons.FromSimulation(failed.Reason),
-                failed.Diagnostics.Select(item => item.Code));
+            return new SessionAdvanceFailed(
+                failed.SessionVersion,
+                failed.LogicalTime,
+                new AdvanceFailureProjection(
+                    AdvanceFailureReasonFrom(failed.Reason),
+                    [.. failed.Diagnostics.Select(item => item.Code)],
+                    PolicyEvidenceFrom(failed.PolicyEvidence)),
+                state.ProjectionVersion);
         }
 
         if (outcome is not AdvanceCommitted committed)
@@ -860,6 +900,61 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         state.ProjectionVersion++;
         return new SessionStepped(committed.LogicalTime, state.ProjectionVersion);
     }
+
+    private static SessionAdvanceFailed AdvanceFailure(
+        SimulationProjection simulation,
+        AdvanceFailureReason reason,
+        IReadOnlyList<string> diagnosticCodes,
+        SimulationPolicyEvidenceProjection? policyEvidence,
+        ulong projectionVersion)
+    {
+        return new SessionAdvanceFailed(
+            simulation.SessionVersion,
+            simulation.LogicalTime,
+            new AdvanceFailureProjection(reason, diagnosticCodes, policyEvidence),
+            projectionVersion);
+    }
+
+    private static AdvanceFailureReason AdvanceFailureReasonFrom(
+        SimulationFailureReason reason)
+    {
+        return reason switch
+        {
+            SimulationFailureReason.ZeroTimeOscillation =>
+                AdvanceFailureReason.ZeroTimeOscillation,
+            SimulationFailureReason.SimulationResourceLimit =>
+                AdvanceFailureReason.SimulationResourceLimit,
+            SimulationFailureReason.SimulationCancelled =>
+                AdvanceFailureReason.SimulationCancelled,
+            SimulationFailureReason.SimulationInfrastructureFailure =>
+                AdvanceFailureReason.SimulationInfrastructureFailure,
+            SimulationFailureReason.SimulationInternalDefect =>
+                AdvanceFailureReason.SimulationInternalDefect,
+            _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null),
+        };
+    }
+
+    private static SimulationPolicyEvidenceProjection? PolicyEvidenceFrom(
+        SimulationPolicyEvidence? evidence)
+    {
+        return evidence is null
+            ? null
+            : new SimulationPolicyEvidenceProjection(
+                evidence.PolicyId,
+                evidence.PolicyRevision,
+                evidence.Dimension,
+                evidence.Observed);
+    }
+
+    [LoggerMessage(
+        EventId = 1004,
+        Level = LogLevel.Error,
+        Message = "Session advance failed with correlation {Correlation} and reason {Reason}.")]
+    private static partial void LogAdvanceFailure(
+        ILogger logger,
+        Exception exception,
+        string correlation,
+        AdvanceFailureReason reason);
 
     private static ProbeProjection[] ApplyProbePatch(
         IEnumerable<ProbeProjection> probes,

@@ -264,6 +264,8 @@ that created it.
 
 `Pause` does not require the rapidly changing Session Version. `StartRun` creates a monotonic Run Generation; Pause targets that generation and becomes effective at the next committed or rolled-back boundary. A delayed Pause cannot stop a later run generation.
 
+Run projection state is exactly `NotRunning | Running(RunGeneration) | Paused(RunGeneration, reason) | Failed(RunGeneration, AdvanceFailed)`. `Failed` preserves the unchanged Session Version and Logical Time plus the closed Advance failure reason, Diagnostics, and conditional policy evidence; it is never represented as `Paused(SupersededRun)`.
+
 `CreateSession` allocates its Session ID and version on success. `ClaimSandbox` allocates its Durable Project ID and initial Durable Version on success. These are closed absence preconditions, not null sentinels.
 
 ### 3.4 Validation order
