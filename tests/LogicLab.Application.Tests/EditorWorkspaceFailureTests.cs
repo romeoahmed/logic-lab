@@ -33,6 +33,7 @@ internal sealed class EditorWorkspaceFailureTests
                 opened.Attached,
                 cancellationToken)
             .WaitAsync(TimeSpan.FromSeconds(1), cancellationToken);
+        var rejected = projection.RejectedCompilation();
 
         using (Assert.Multiple())
         {
@@ -40,9 +41,9 @@ internal sealed class EditorWorkspaceFailureTests
                 .IsEqualTo(CompilationPublicationStatus.Rejected);
             await Assert.That(projection.Compilation.Generation)
                 .IsEqualTo(accepted.CompilationGeneration);
-            await Assert.That(projection.Compilation.RejectionCode)
+            await Assert.That(rejected.RejectionCode)
                 .IsEqualTo("workspace_internal_defect");
-            await Assert.That(projection.Compilation.DiagnosticCodes).IsEmpty();
+            await Assert.That(rejected.DiagnosticCodes).IsEmpty();
         }
     }
 
@@ -76,6 +77,7 @@ internal sealed class EditorWorkspaceFailureTests
 
         var accepted = await Assert.That(outcome).IsTypeOf<CompilationAccepted>();
         Assert.NotNull(accepted);
+        var rejected = after.RejectedCompilation();
         using (Assert.Multiple())
         {
             await Assert.That(after.ProjectionVersion)
@@ -84,8 +86,8 @@ internal sealed class EditorWorkspaceFailureTests
                 .IsEqualTo(CompilationPublicationStatus.Rejected);
             await Assert.That(after.Compilation.Generation)
                 .IsEqualTo(accepted.CompilationGeneration);
-            await Assert.That(after.Compilation.RejectionCode).IsEqualTo(expectedCode);
-            await Assert.That(after.Compilation.DiagnosticCodes).IsEmpty();
+            await Assert.That(rejected.RejectionCode).IsEqualTo(expectedCode);
+            await Assert.That(rejected.DiagnosticCodes).IsEmpty();
         }
     }
 
@@ -121,6 +123,8 @@ internal sealed class EditorWorkspaceFailureTests
 
         var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
         Assert.NotNull(rejected);
+        var beforeCompilation = before.PublishedCompilation();
+        var afterCompilation = after.PublishedCompilation();
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Code).IsEqualTo(expectedCode);
@@ -128,10 +132,10 @@ internal sealed class EditorWorkspaceFailureTests
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
             await Assert.That(after.Compilation.Status)
                 .IsEqualTo(before.Compilation.Status);
-            await Assert.That(after.Compilation.ArtifactKey)
-                .IsEqualTo(before.Compilation.ArtifactKey);
-            await Assert.That(after.Compilation.DiagnosticCodes)
-                .IsEquivalentTo(before.Compilation.DiagnosticCodes);
+            await Assert.That(afterCompilation.ArtifactKey)
+                .IsEqualTo(beforeCompilation.ArtifactKey);
+            await Assert.That(afterCompilation.DiagnosticCodes)
+                .IsEquivalentTo(beforeCompilation.DiagnosticCodes);
             await Assert.That(after.Simulation).IsNull();
         }
     }

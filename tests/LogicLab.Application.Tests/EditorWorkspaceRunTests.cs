@@ -44,7 +44,7 @@ internal sealed class EditorWorkspaceRunTests
             await Assert.That(paused.RunGeneration).IsEqualTo(started.RunGeneration);
             await Assert.That(paused.Reason).IsEqualTo(RunPauseReason.UserRequested);
             await Assert.That(projection.Simulation!.Run.Status).IsEqualTo(RunStatus.Paused);
-            await Assert.That(projection.Simulation.Run.PauseReason)
+            await Assert.That(projection.PausedRun().PauseReason)
                 .IsEqualTo(RunPauseReason.UserRequested);
         }
     }
@@ -98,7 +98,7 @@ internal sealed class EditorWorkspaceRunTests
             await Assert.That(paused.RunGeneration).IsEqualTo(started.RunGeneration);
             await Assert.That(paused.Reason).IsEqualTo(RunPauseReason.UserRequested);
             await Assert.That(projection.Simulation!.Run.Status).IsEqualTo(RunStatus.Paused);
-            await Assert.That(projection.Simulation.Run.PauseReason)
+            await Assert.That(projection.PausedRun().PauseReason)
                 .IsEqualTo(RunPauseReason.UserRequested);
         }
     }
@@ -187,7 +187,7 @@ internal sealed class EditorWorkspaceRunTests
                 .IsEqualTo("workspace_admission_rejected");
             await Assert.That(paused.Reason).IsEqualTo(RunPauseReason.UserRequested);
             await Assert.That(projection.Simulation!.Run.Status).IsEqualTo(RunStatus.Paused);
-            await Assert.That(projection.Simulation.Run.PauseReason)
+            await Assert.That(projection.PausedRun().PauseReason)
                 .IsEqualTo(RunPauseReason.UserRequested);
         }
     }
@@ -235,18 +235,18 @@ internal sealed class EditorWorkspaceRunTests
             controlled,
             RunStatus.Failed,
             waitForFailure.Token);
-        var failure = failedProjection.Simulation!.Run.Failure;
-        Assert.NotNull(failure);
+        var failedSimulation = failedProjection.Simulation!;
+        var failedRun = failedProjection.FailedRun();
+        var failure = failedRun.Failure;
 
         using (Assert.Multiple())
         {
-            await Assert.That(failedProjection.Simulation.SessionVersion)
+            await Assert.That(failedSimulation.SessionVersion)
                 .IsEqualTo(beforeRun.Simulation!.SessionVersion);
-            await Assert.That(failedProjection.Simulation.LogicalTime)
+            await Assert.That(failedSimulation.LogicalTime)
                 .IsEqualTo(beforeRun.Simulation.LogicalTime);
-            await Assert.That(failedProjection.Simulation.Run.RunGeneration)
+            await Assert.That(failedRun.RunGeneration)
                 .IsEqualTo(started.RunGeneration);
-            await Assert.That(failedProjection.Simulation.Run.PauseReason).IsNull();
             await Assert.That(failure.Reason).IsEqualTo(expectedReason);
             await Assert.That(failure.DiagnosticCodes).IsEmpty();
             await Assert.That(failure.PolicyEvidence).IsNull();
@@ -501,8 +501,8 @@ internal sealed class EditorWorkspaceRunTests
                 .IsEqualTo(CompilationPublicationStatus.Published);
             await Assert.That(whileRunning.Compilation.Generation)
                 .IsEqualTo(beforeRun.Compilation.Generation);
-            await Assert.That(whileRunning.Compilation.ArtifactKey)
-                .IsEqualTo(beforeRun.Compilation.ArtifactKey);
+            await Assert.That(whileRunning.PublishedCompilation().ArtifactKey)
+                .IsEqualTo(beforeRun.PublishedCompilation().ArtifactKey);
             await Assert.That(whileRunning.Simulation!.Run.Status)
                 .IsEqualTo(RunStatus.Running);
         }
@@ -564,7 +564,7 @@ internal sealed class EditorWorkspaceRunTests
                 .IsEqualTo(RunStatus.Paused);
             await Assert.That(reattached.Projection.Simulation.Run.RunGeneration)
                 .IsEqualTo(started.RunGeneration);
-            await Assert.That(reattached.Projection.Simulation.Run.PauseReason)
+            await Assert.That(reattached.Projection.PausedRun().PauseReason)
                 .IsEqualTo(RunPauseReason.Detached);
         }
     }
@@ -657,7 +657,7 @@ internal sealed class EditorWorkspaceRunTests
             new HotSwapSession(
                 Command(controlled, "hot-swap"),
                 EditorWorkspaceTestDriver.SessionMutation(beforeSwap),
-                beforeSwap.Compilation.ArtifactKey!),
+                beforeSwap.PublishedCompilation().ArtifactKey),
             cancellationToken);
         var committed = await Assert.That(outcome)
             .IsTypeOf<LogicLab.Application.Workspaces.HotSwapCommitted>();
@@ -667,12 +667,12 @@ internal sealed class EditorWorkspaceRunTests
         using (Assert.Multiple())
         {
             await Assert.That(committed.CompilationArtifactKey)
-                .IsEqualTo(beforeSwap.Compilation.ArtifactKey);
+                .IsEqualTo(beforeSwap.PublishedCompilation().ArtifactKey);
             await Assert.That(committed.MigrationEvidence.PreservedProbeIds).Count()
                 .IsEqualTo(1);
             await Assert.That(committed.MigrationEvidence.UnresolvedProbeIds).IsEmpty();
             await Assert.That(afterSwap.Simulation!.CompilationArtifactKey)
-                .IsEqualTo(beforeSwap.Compilation.ArtifactKey);
+                .IsEqualTo(beforeSwap.PublishedCompilation().ArtifactKey);
             await Assert.That(afterSwap.Simulation.Probes.Single().ProbeId)
                 .IsEqualTo(beforeEdit.Simulation!.Probes.Single().ProbeId);
         }
@@ -720,7 +720,7 @@ internal sealed class EditorWorkspaceRunTests
             new HotSwapSession(
                 Command(controlled, "limited-hot-swap"),
                 EditorWorkspaceTestDriver.SessionMutation(beforeSwap),
-                beforeSwap.Compilation.ArtifactKey!),
+                beforeSwap.PublishedCompilation().ArtifactKey),
             cancellationToken);
         var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
         Assert.NotNull(rejected);
@@ -812,7 +812,7 @@ internal sealed class EditorWorkspaceRunTests
             new HotSwapSession(
                 Command(controlled, "simulation-limited-hot-swap"),
                 EditorWorkspaceTestDriver.SessionMutation(beforeSwap),
-                beforeSwap.Compilation.ArtifactKey!),
+                beforeSwap.PublishedCompilation().ArtifactKey),
             cancellationToken);
 
         var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();

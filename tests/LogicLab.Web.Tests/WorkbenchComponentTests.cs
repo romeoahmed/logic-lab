@@ -778,14 +778,9 @@ internal sealed class WorkbenchComponentTests
             {
                 var newer = new CompilationGeneration(checked(generation.Value + 1UL));
                 compilation = query is ReadCompilation
-                    ? new CompilationProjection(
-                        CompilationPublicationStatus.Superseded,
+                    ? new CompilationSupersededProjection(
                         generation,
-                        null,
-                        [],
-                        newer,
-                        null,
-                        null)
+                        newer)
                     : PublishedCompilation(projection, newer);
             }
             else if (Volatile.Read(ref publishAcceptedGeneration) != 0)
@@ -805,14 +800,7 @@ internal sealed class WorkbenchComponentTests
                     }
                 }
 
-                compilation = new CompilationProjection(
-                    CompilationPublicationStatus.Queued,
-                    generation,
-                    null,
-                    [],
-                    null,
-                    null,
-                    null);
+                compilation = new CompilationQueuedProjection(generation);
             }
 
             return query is ReadCompilation
@@ -823,23 +811,19 @@ internal sealed class WorkbenchComponentTests
                 });
         }
 
-        private static CompilationProjection PublishedCompilation(
+        private static CompilationPublishedProjection PublishedCompilation(
             WorkspaceProjection projection,
             CompilationGeneration generation)
         {
             var revision = projection.ProjectRevision;
-            return new CompilationProjection(
-                CompilationPublicationStatus.Published,
+            return new CompilationPublishedProjection(
                 generation,
                 new CompilationArtifactKey(
                     revision.RevisionId,
                     revision.Document.EntryCircuitDefinitionId,
                     revision.Document.LibrarySnapshot.Fingerprint,
                     "controlled-test"),
-                [],
-                null,
-                null,
-                null);
+                []);
         }
     }
 

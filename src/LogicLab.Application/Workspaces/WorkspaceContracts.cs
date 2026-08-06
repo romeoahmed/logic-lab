@@ -396,7 +396,6 @@ public enum RunPauseReason
     UserRequested,
     NoScheduledStimulus,
     Detached,
-    SupersededRun,
 }
 
 public sealed record RunPaused(
@@ -574,78 +573,126 @@ public enum CompilationPublicationStatus
     Rejected,
 }
 
-public sealed record CompilationProjection
+public abstract record CompilationProjection
 {
-    public CompilationProjection(
-        CompilationPublicationStatus status,
-        CompilationGeneration? generation,
-        CompilationArtifactKey? artifactKey,
-        IReadOnlyList<string> diagnosticCodes,
-        CompilationGeneration? supersededBy,
-        string? rejectionCode,
-        RetryDisposition? retryDisposition)
+    private protected CompilationProjection(CompilationPublicationStatus status)
     {
-        ArgumentNullException.ThrowIfNull(diagnosticCodes);
-        if (!Enum.IsDefined(status)
-            || (status == CompilationPublicationStatus.NotRequested
-                && (generation is not null
-                    || artifactKey is not null
-                    || supersededBy is not null
-                    || rejectionCode is not null
-                    || retryDisposition is not null))
-            || (status is CompilationPublicationStatus.Queued
-                    or CompilationPublicationStatus.Running
-                && (generation is null
-                    || artifactKey is not null
-                    || supersededBy is not null
-                    || rejectionCode is not null
-                    || retryDisposition is not null))
-            || (status == CompilationPublicationStatus.Superseded
-                && (generation is null
-                    || supersededBy is null
-                    || supersededBy.Value <= generation.Value
-                    || artifactKey is not null
-                    || rejectionCode is not null
-                    || retryDisposition is not null))
-            || (status == CompilationPublicationStatus.Published
-                && (generation is null
-                    || artifactKey is null
-                    || supersededBy is not null
-                    || rejectionCode is not null
-                    || retryDisposition is not null))
-            || (status == CompilationPublicationStatus.Rejected
-                && (generation is null
-                    || artifactKey is not null
-                    || supersededBy is not null
-                    || string.IsNullOrEmpty(rejectionCode)
-                    || retryDisposition is null)))
-        {
-            throw new ArgumentException(
-                "Compilation projection fields do not match its status.");
-        }
-
         Status = status;
-        Generation = generation;
-        ArtifactKey = artifactKey;
-        DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
-        SupersededBy = supersededBy;
-        RejectionCode = rejectionCode;
-        RetryDisposition = retryDisposition;
     }
 
     public CompilationPublicationStatus Status { get; }
 
-    public CompilationArtifactKey? ArtifactKey { get; }
+    public virtual CompilationGeneration? Generation => null;
+}
 
-    public CompilationGeneration? Generation { get; }
+public sealed record CompilationNotRequestedProjection : CompilationProjection
+{
+    private CompilationNotRequestedProjection()
+        : base(CompilationPublicationStatus.NotRequested)
+    {
+    }
+
+    public static CompilationNotRequestedProjection Instance { get; } = new();
+}
+
+public sealed record CompilationQueuedProjection : CompilationProjection
+{
+    public CompilationQueuedProjection(CompilationGeneration generation)
+        : base(CompilationPublicationStatus.Queued)
+    {
+        ArgumentNullException.ThrowIfNull(generation);
+        Generation = generation;
+    }
+
+    public override CompilationGeneration Generation { get; }
+}
+
+public sealed record CompilationRunningProjection : CompilationProjection
+{
+    public CompilationRunningProjection(CompilationGeneration generation)
+        : base(CompilationPublicationStatus.Running)
+    {
+        ArgumentNullException.ThrowIfNull(generation);
+        Generation = generation;
+    }
+
+    public override CompilationGeneration Generation { get; }
+}
+
+public sealed record CompilationSupersededProjection : CompilationProjection
+{
+    public CompilationSupersededProjection(
+        CompilationGeneration generation,
+        CompilationGeneration supersededBy)
+        : base(CompilationPublicationStatus.Superseded)
+    {
+        ArgumentNullException.ThrowIfNull(generation);
+        ArgumentNullException.ThrowIfNull(supersededBy);
+        if (supersededBy.Value <= generation.Value)
+        {
+            throw new ArgumentException(
+                "The superseding Compilation Generation must be newer.",
+                nameof(supersededBy));
+        }
+
+        Generation = generation;
+        SupersededBy = supersededBy;
+    }
+
+    public override CompilationGeneration Generation { get; }
+
+    public CompilationGeneration SupersededBy { get; }
+}
+
+public sealed record CompilationPublishedProjection : CompilationProjection
+{
+    public CompilationPublishedProjection(
+        CompilationGeneration generation,
+        CompilationArtifactKey artifactKey,
+        IReadOnlyList<string> diagnosticCodes)
+        : base(CompilationPublicationStatus.Published)
+    {
+        ArgumentNullException.ThrowIfNull(generation);
+        ArgumentNullException.ThrowIfNull(artifactKey);
+        ArgumentNullException.ThrowIfNull(diagnosticCodes);
+        Generation = generation;
+        ArtifactKey = artifactKey;
+        DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
+    }
+
+    public override CompilationGeneration Generation { get; }
+
+    public CompilationArtifactKey ArtifactKey { get; }
+
+    public ReadOnlyCollection<string> DiagnosticCodes { get; }
+}
+
+public sealed record CompilationRejectedProjection : CompilationProjection
+{
+    public CompilationRejectedProjection(
+        CompilationGeneration generation,
+        IReadOnlyList<string> diagnosticCodes,
+        string rejectionCode,
+        RetryDisposition retryDisposition)
+        : base(CompilationPublicationStatus.Rejected)
+    {
+        ArgumentNullException.ThrowIfNull(generation);
+        ArgumentNullException.ThrowIfNull(diagnosticCodes);
+        ArgumentException.ThrowIfNullOrEmpty(rejectionCode);
+        ArgumentNullException.ThrowIfNull(retryDisposition);
+        Generation = generation;
+        DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
+        RejectionCode = rejectionCode;
+        RetryDisposition = retryDisposition;
+    }
+
+    public override CompilationGeneration Generation { get; }
 
     public ReadOnlyCollection<string> DiagnosticCodes { get; }
 
-    public CompilationGeneration? SupersededBy { get; }
+    public string RejectionCode { get; }
 
-    public string? RejectionCode { get; }
-
-    public RetryDisposition? RetryDisposition { get; }
+    public RetryDisposition RetryDisposition { get; }
 }
 
 public sealed record ProbeProjection
@@ -675,53 +722,78 @@ public enum RunStatus
     Failed,
 }
 
-public sealed record RunProjection
+public abstract record RunProjection
 {
-    public RunProjection(
-        RunStatus status,
-        RunGeneration? runGeneration,
-        RunPauseReason? pauseReason,
-        AdvanceFailureProjection? failure = null)
+    private protected RunProjection(RunStatus status)
     {
-        if (!Enum.IsDefined(status)
-            || (status == RunStatus.NotRunning
-                && (runGeneration is not null
-                    || pauseReason is not null
-                    || failure is not null))
-            || (status == RunStatus.Running
-                && (runGeneration is null
-                    || pauseReason is not null
-                    || failure is not null))
-            || (status == RunStatus.Paused
-                && (runGeneration is null
-                    || pauseReason is null
-                    || failure is not null))
-            || (status == RunStatus.Failed
-                && (runGeneration is null
-                    || pauseReason is not null
-                    || failure is null)))
-        {
-            throw new ArgumentException("Run projection fields do not match its status.");
-        }
-
         Status = status;
-        RunGeneration = runGeneration;
-        PauseReason = pauseReason;
-        Failure = failure;
     }
 
     public RunStatus Status { get; }
 
-    public RunGeneration? RunGeneration { get; }
+    public virtual RunGeneration? RunGeneration => null;
+}
 
-    public RunPauseReason? PauseReason { get; }
+public sealed record RunNotRunningProjection : RunProjection
+{
+    private RunNotRunningProjection()
+        : base(RunStatus.NotRunning)
+    {
+    }
 
-    public AdvanceFailureProjection? Failure { get; }
+    public static RunNotRunningProjection Instance { get; } = new();
+}
 
-    public static RunProjection NotRunning { get; } = new(
-        RunStatus.NotRunning,
-        null,
-        null);
+public sealed record RunRunningProjection : RunProjection
+{
+    public RunRunningProjection(RunGeneration runGeneration)
+        : base(RunStatus.Running)
+    {
+        ArgumentNullException.ThrowIfNull(runGeneration);
+        RunGeneration = runGeneration;
+    }
+
+    public override RunGeneration RunGeneration { get; }
+}
+
+public sealed record RunPausedProjection : RunProjection
+{
+    public RunPausedProjection(
+        RunGeneration runGeneration,
+        RunPauseReason pauseReason)
+        : base(RunStatus.Paused)
+    {
+        ArgumentNullException.ThrowIfNull(runGeneration);
+        if (!Enum.IsDefined(pauseReason))
+        {
+            throw new ArgumentOutOfRangeException(nameof(pauseReason));
+        }
+
+        RunGeneration = runGeneration;
+        PauseReason = pauseReason;
+    }
+
+    public override RunGeneration RunGeneration { get; }
+
+    public RunPauseReason PauseReason { get; }
+}
+
+public sealed record RunFailedProjection : RunProjection
+{
+    public RunFailedProjection(
+        RunGeneration runGeneration,
+        AdvanceFailureProjection failure)
+        : base(RunStatus.Failed)
+    {
+        ArgumentNullException.ThrowIfNull(runGeneration);
+        ArgumentNullException.ThrowIfNull(failure);
+        RunGeneration = runGeneration;
+        Failure = failure;
+    }
+
+    public override RunGeneration RunGeneration { get; }
+
+    public AdvanceFailureProjection Failure { get; }
 }
 
 public sealed record SimulationProjection
@@ -733,18 +805,19 @@ public sealed record SimulationProjection
         ulong logicalTime,
         TraceCursor traceCursor,
         IReadOnlyList<ProbeProjection> probes,
-        RunProjection? run = null)
+        RunProjection run)
     {
         ArgumentNullException.ThrowIfNull(sessionId);
         ArgumentNullException.ThrowIfNull(compilationArtifactKey);
         ArgumentNullException.ThrowIfNull(probes);
+        ArgumentNullException.ThrowIfNull(run);
         SessionId = sessionId;
         SessionVersion = sessionVersion;
         CompilationArtifactKey = compilationArtifactKey;
         LogicalTime = logicalTime;
         TraceCursor = traceCursor;
         Probes = Array.AsReadOnly(probes.ToArray());
-        Run = run ?? RunProjection.NotRunning;
+        Run = run;
     }
 
     public SimulationSessionId SessionId { get; }
