@@ -259,7 +259,7 @@ public sealed record HierarchyPathStep(
     CircuitDefinitionId ContainingCircuitDefinitionId,
     ComponentInstanceId ComponentInstanceId);
 
-public sealed class HierarchyPath
+public sealed record HierarchyPath
 {
     public HierarchyPath(
         CircuitDefinitionId entryCircuitDefinitionId,
@@ -274,9 +274,29 @@ public sealed class HierarchyPath
     public CircuitDefinitionId EntryCircuitDefinitionId { get; }
 
     public ReadOnlyCollection<HierarchyPathStep> Steps { get; }
+
+    public bool Equals(HierarchyPath? other)
+    {
+        return ReferenceEquals(this, other)
+            || (other is not null
+                && EntryCircuitDefinitionId == other.EntryCircuitDefinitionId
+                && Steps.SequenceEqual(other.Steps));
+    }
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(EntryCircuitDefinitionId);
+        foreach (var step in Steps)
+        {
+            hash.Add(step);
+        }
+
+        return hash.ToHashCode();
+    }
 }
 
-public sealed class CompilationSource
+public sealed record CompilationSource
 {
     public CompilationSource(
         AuthoredSourceIdentity identity,
@@ -291,6 +311,16 @@ public sealed class CompilationSource
     public AuthoredSourceIdentity Identity { get; }
 
     public HierarchyPath HierarchyPath { get; }
+
+    public bool Equals(CompilationSource? other)
+    {
+        return ReferenceEquals(this, other)
+            || (other is not null
+                && Identity == other.Identity
+                && HierarchyPath.Equals(other.HierarchyPath));
+    }
+
+    public override int GetHashCode() => HashCode.Combine(Identity, HierarchyPath);
 }
 
 public sealed record SourceMapEntry(
@@ -316,15 +346,14 @@ public sealed class SourceMap
         SourceMapEntry[] nets,
         StronglyConnectedComponentMemberSourceMapEntry[]
             stronglyConnectedComponentMembers,
-        SourceMapEntry[]? netAliases = null)
+        SourceMapEntry[] netAliases)
     {
         Evaluators = Array.AsReadOnly((SourceMapEntry[])evaluators.Clone());
         EvaluatorInputs = Array.AsReadOnly(
             (EvaluatorInputSourceMapEntry[])evaluatorInputs.Clone());
         Drivers = Array.AsReadOnly((SourceMapEntry[])drivers.Clone());
         Nets = Array.AsReadOnly((SourceMapEntry[])nets.Clone());
-        NetAliases = Array.AsReadOnly(
-            netAliases is null ? [] : (SourceMapEntry[])netAliases.Clone());
+        NetAliases = Array.AsReadOnly((SourceMapEntry[])netAliases.Clone());
         StronglyConnectedComponentMembers = Array.AsReadOnly(
             (StronglyConnectedComponentMemberSourceMapEntry[])
             stronglyConnectedComponentMembers.Clone());
@@ -367,8 +396,7 @@ public sealed class SourceMap
         ArgumentNullException.ThrowIfNull(source);
         foreach (var entry in entries)
         {
-            if (entry.Source.Identity == source.Identity
-                && PathsEqual(entry.Source.HierarchyPath, source.HierarchyPath))
+            if (entry.Source.Equals(source))
             {
                 ordinal = entry.Ordinal;
                 return true;
@@ -377,12 +405,6 @@ public sealed class SourceMap
 
         ordinal = default;
         return false;
-    }
-
-    private static bool PathsEqual(HierarchyPath left, HierarchyPath right)
-    {
-        return left.EntryCircuitDefinitionId == right.EntryCircuitDefinitionId
-            && left.Steps.SequenceEqual(right.Steps);
     }
 }
 
