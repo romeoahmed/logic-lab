@@ -74,7 +74,7 @@ internal sealed partial class EditorWorkspace
             if (!IsExpired(state, nowTimestamp))
             {
                 state.LeaseCount++;
-                return WorkspaceAcquisition.Acquired(new WorkspaceLease(this, state));
+                return WorkspaceAcquisition.Acquired(this, state);
             }
 
             workspaces.Remove(workspaceId);
@@ -186,7 +186,7 @@ internal sealed partial class EditorWorkspace
         }
     }
 
-    private WorkspaceLease RetainWorkspace(WorkspaceState state)
+    private void RetainWorkspace(WorkspaceState state)
     {
         lock (gate)
         {
@@ -197,7 +197,6 @@ internal sealed partial class EditorWorkspace
             }
 
             state.LeaseCount++;
-            return new WorkspaceLease(this, state);
         }
     }
 
@@ -325,26 +324,35 @@ internal sealed partial class EditorWorkspace
         ProjectRevision ProjectRevision,
         CompilationArtifact Artifact);
 
-    private sealed class WorkspaceLease(EditorWorkspace owner, WorkspaceState state) : IDisposable
+    private sealed class WorkspaceAcquisition : IDisposable
     {
-        private EditorWorkspace? owner = owner;
+        private EditorWorkspace? owner;
 
-        public WorkspaceState State { get; } = state;
+        private WorkspaceAcquisition(
+            EditorWorkspace? owner,
+            WorkspaceState? state,
+            string? rejectionReason)
+        {
+            this.owner = owner;
+            State = state;
+            RejectionReason = rejectionReason;
+        }
+
+        public WorkspaceState? State { get; }
+
+        public string? RejectionReason { get; }
 
         public void Dispose()
         {
-            Interlocked.Exchange(ref owner, null)?.Release(State);
+            Interlocked.Exchange(ref owner, null)?.Release(State!);
         }
-    }
 
-    private readonly record struct WorkspaceAcquisition(
-        WorkspaceLease? Lease,
-        string? RejectionReason)
-    {
-        public static WorkspaceAcquisition Acquired(WorkspaceLease lease)
-            => new(lease, null);
+        public static WorkspaceAcquisition Acquired(
+            EditorWorkspace owner,
+            WorkspaceState state)
+            => new(owner, state, null);
 
         public static WorkspaceAcquisition Rejected(string reason)
-            => new(null, reason);
+            => new(null, null, reason);
     }
 }

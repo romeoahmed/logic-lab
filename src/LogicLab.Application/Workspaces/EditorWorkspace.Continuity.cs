@@ -17,16 +17,15 @@ internal sealed partial class EditorWorkspace
             return RejectAttach(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
-        var acquisition = AcquireWorkspace(request.WorkspaceId);
-        if (acquisition.Lease is null)
+        using var acquisition = AcquireWorkspace(request.WorkspaceId);
+        if (acquisition.State is null)
         {
             return CreateUnavailableAttachOutcome(
                 request,
                 acquisition.RejectionReason!);
         }
 
-        using var lease = acquisition.Lease;
-        var state = lease.State;
+        var state = acquisition.State;
         try
         {
             await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -118,14 +117,13 @@ internal sealed partial class EditorWorkspace
             return new DetachRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
-        var acquisition = AcquireWorkspace(request.WorkspaceId);
-        if (acquisition.Lease is null)
+        using var acquisition = AcquireWorkspace(request.WorkspaceId);
+        if (acquisition.State is null)
         {
             return new DetachRejected(acquisition.RejectionReason!);
         }
 
-        using var lease = acquisition.Lease;
-        var state = lease.State;
+        var state = acquisition.State;
         try
         {
             await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -223,14 +221,13 @@ internal sealed partial class EditorWorkspace
         CopyWorkspace request,
         CancellationToken cancellationToken)
     {
-        var acquisition = AcquireWorkspace(request.SourceWorkspaceId);
-        if (acquisition.Lease is null)
+        using var acquisition = AcquireWorkspace(request.SourceWorkspaceId);
+        if (acquisition.State is null)
         {
             return RejectOpen(acquisition.RejectionReason!);
         }
 
-        using var lease = acquisition.Lease;
-        var source = lease.State;
+        var source = acquisition.State;
         try
         {
             await source.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);

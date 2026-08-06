@@ -143,11 +143,11 @@ internal sealed partial class EditorWorkspace
         WorkspaceState state,
         RunGeneration generation)
     {
-        var backgroundLease = RetainWorkspace(state);
+        RetainWorkspace(state);
         if (workCoordinator.TryStartSessionContinuation(
             state.Id,
-            (continuation, token) => ContinueRunWithLeaseAsync(
-                backgroundLease,
+            (continuation, token) => ContinueRunRetainedAsync(
+                state,
                 continuation,
                 generation,
                 token),
@@ -156,7 +156,7 @@ internal sealed partial class EditorWorkspace
             return null;
         }
 
-        backgroundLease.Dispose();
+        Release(state);
         return rejectionCode;
     }
 
@@ -165,10 +165,10 @@ internal sealed partial class EditorWorkspace
         WorkCoordinator.SessionContinuation continuation,
         RunGeneration generation)
     {
-        var backgroundLease = RetainWorkspace(state);
+        RetainWorkspace(state);
         if (continuation.TrySchedule(
-            token => ContinueRunWithLeaseAsync(
-                backgroundLease,
+            token => ContinueRunRetainedAsync(
+                state,
                 continuation,
                 generation,
                 token)))
@@ -176,23 +176,27 @@ internal sealed partial class EditorWorkspace
             return true;
         }
 
-        backgroundLease.Dispose();
+        Release(state);
         return false;
     }
 
-    private async ValueTask<WorkspaceCommandOutcome> ContinueRunWithLeaseAsync(
-        WorkspaceLease lease,
+    private async ValueTask<WorkspaceCommandOutcome> ContinueRunRetainedAsync(
+        WorkspaceState state,
         WorkCoordinator.SessionContinuation continuation,
         RunGeneration generation,
         CancellationToken cancellationToken)
     {
-        using (lease)
+        try
         {
             return await ContinueRunAsync(
-                lease.State,
+                state,
                 continuation,
                 generation,
                 cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            Release(state);
         }
     }
 
