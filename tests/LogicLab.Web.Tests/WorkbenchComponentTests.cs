@@ -61,6 +61,30 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test, Timeout(30_000)]
+    public async Task Editor_AcceptedCompilation_DisposalCancelsObservationOnly(
+        CancellationToken cancellationToken)
+    {
+        await using var context = CreateContext();
+        await using var workspace = new BlockingCompilationWorkspace();
+        var rendered = await RenderAuthoredEditor(context, workspace);
+
+        var compilation = rendered.Find("[data-command='compile']").ClickAsync();
+        try
+        {
+            await workspace.CompilationDispatchStarted.WaitAsync(cancellationToken);
+            await rendered.Instance.DisposeAsync();
+
+            await Assert.That(workspace.CompilationCancellationToken.IsCancellationRequested)
+                .IsFalse();
+        }
+        finally
+        {
+            workspace.AcceptCompilation();
+            await compilation.WaitAsync(cancellationToken);
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task Editor_NewerCompilationGeneration_DoesNotReportAcceptedGenerationAsPublished(
         CancellationToken cancellationToken)
     {
@@ -191,6 +215,40 @@ internal sealed class WorkbenchComponentTests
             await Assert.That(IsDisabled(rendered, "stimulus")).IsFalse();
             await Assert.That(IsDisabled(rendered, "step")).IsTrue();
         }
+    }
+
+    [Test]
+    public async Task Editor_AdvanceFailure_ProjectsReasonWithoutInvalidCast()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new FailingStepWorkspace();
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author"));
+        await ClickAndWaitForState(
+            rendered,
+            "author",
+            () => !IsDisabled(rendered, "compile"));
+        await ClickAndWaitForState(
+            rendered,
+            "compile",
+            () => !IsDisabled(rendered, "session"));
+        await ClickAndWaitForState(
+            rendered,
+            "session",
+            () => !IsDisabled(rendered, "stimulus"));
+        await ClickAndWaitForState(
+            rendered,
+            "stimulus",
+            () => !IsDisabled(rendered, "step"));
+
+        await rendered.Find("[data-command='step']").ClickAsync();
+
+        await Assert.That(rendered.Find("[role='status']").TextContent)
+            .Contains("simulation internal defect");
     }
 
     [Test]
@@ -754,6 +812,57 @@ internal sealed class WorkbenchComponentTests
                 null,
                 null,
                 null);
+        }
+    }
+
+    private sealed class BlockingCompilationWorkspace : DelegatingEditorWorkspace
+    {
+        private readonly TaskCompletionSource compilationDispatchStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource releaseCompilation = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public CancellationToken CompilationCancellationToken { get; private set; }
+
+        public Task CompilationDispatchStarted => compilationDispatchStarted.Task;
+
+        public void AcceptCompilation() => releaseCompilation.TrySetResult();
+
+        public override async Task<WorkspaceCommandOutcome> DispatchAsync(
+            WorkspaceCommand command,
+            CancellationToken cancellationToken)
+        {
+            if (command is not RequestCompilation request)
+            {
+                return await base.DispatchAsync(command, cancellationToken);
+            }
+
+            CompilationCancellationToken = cancellationToken;
+            compilationDispatchStarted.TrySetResult();
+            await releaseCompilation.Task;
+            return new CompilationAccepted(
+                new CompilationGeneration(1),
+                request.Precondition.ProjectRevisionId,
+                1);
+        }
+    }
+
+    private sealed class FailingStepWorkspace : DelegatingEditorWorkspace
+    {
+        public override Task<WorkspaceCommandOutcome> DispatchAsync(
+            WorkspaceCommand command,
+            CancellationToken cancellationToken)
+        {
+            return command is StepSession
+                ? Task.FromResult<WorkspaceCommandOutcome>(new SessionAdvanceFailed(
+                    sessionVersion: 1,
+                    logicalTime: 0,
+                    new AdvanceFailureProjection(
+                        AdvanceFailureReason.SimulationInternalDefect,
+                        [],
+                        policyEvidence: null),
+                    projectionVersion: 1))
+                : base.DispatchAsync(command, cancellationToken);
         }
     }
 

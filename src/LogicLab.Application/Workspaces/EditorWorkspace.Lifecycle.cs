@@ -295,6 +295,10 @@ internal sealed partial class EditorWorkspace
 
         public ulong NextRunGeneration { get; set; }
 
+        public RunGeneration? RequestedRunPauseGeneration { get; set; }
+
+        public ContextualCommandPublication? PendingRunPause { get; set; }
+
         public long LastAccessTimestamp { get; set; } = lastAccessTimestamp;
 
         public int LeaseCount { get; set; }

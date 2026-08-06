@@ -1,3 +1,4 @@
+using LogicLab.Application.Work;
 using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Application.Workspaces;
@@ -26,9 +27,10 @@ internal sealed partial class EditorWorkspace
 
         var generation = new RunGeneration(checked(state.NextRunGeneration + 1UL));
         var projectionVersion = checked(state.ProjectionVersion + 1UL);
-        if (!QueueRunContinuation(state, generation))
+        var schedulingRejectionCode = TryStartRunContinuation(state, generation);
+        if (schedulingRejectionCode is not null)
         {
-            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            return Reject(schedulingRejectionCode);
         }
 
         state.NextRunGeneration = generation.Value;
@@ -50,25 +52,28 @@ internal sealed partial class EditorWorkspace
         var simulation = state.Simulation;
         if (simulation is null
             || simulation.SessionId != command.Precondition.SessionId
-            || simulation.Run.Status != RunStatus.Running
             || simulation.Run.RunGeneration != command.Precondition.RunGeneration)
         {
             return Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
         }
 
-        state.Simulation = WithRun(
-            simulation,
-            new RunProjection(
-                RunStatus.Paused,
+        if (simulation.Run is
+            {
+                Status: RunStatus.Paused,
+                PauseReason: RunPauseReason.UserRequested,
+            })
+        {
+            return new RunPaused(
                 command.Precondition.RunGeneration,
-                RunPauseReason.UserRequested));
-        state.ProjectionVersion++;
-        return new RunPaused(
-            command.Precondition.RunGeneration,
-            simulation.SessionVersion,
-            simulation.LogicalTime,
-            RunPauseReason.UserRequested,
-            state.ProjectionVersion);
+                simulation.SessionVersion,
+                simulation.LogicalTime,
+                RunPauseReason.UserRequested,
+                state.ProjectionVersion);
+        }
+
+        return simulation.Run.Status == RunStatus.Running
+            ? PauseRunAtBoundary(state, command.Precondition.RunGeneration)
+            : Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
     }
 
     private WorkspaceCommandOutcome HotSwapWithPrecondition(
@@ -134,15 +139,37 @@ internal sealed partial class EditorWorkspace
             state.ProjectionVersion);
     }
 
-    private bool QueueRunContinuation(
+    private string? TryStartRunContinuation(
         WorkspaceState state,
         RunGeneration generation)
     {
         var backgroundLease = RetainWorkspace(state);
-        if (workCoordinator.TryScheduleSessionContinuation(
+        if (workCoordinator.TryStartSessionContinuation(
             state.Id,
+            (continuation, token) => ContinueRunWithLeaseAsync(
+                backgroundLease,
+                continuation,
+                generation,
+                token),
+            out var rejectionCode))
+        {
+            return null;
+        }
+
+        backgroundLease.Dispose();
+        return rejectionCode;
+    }
+
+    private bool QueueRunContinuation(
+        WorkspaceState state,
+        WorkCoordinator.SessionContinuation continuation,
+        RunGeneration generation)
+    {
+        var backgroundLease = RetainWorkspace(state);
+        if (continuation.TrySchedule(
             token => ContinueRunWithLeaseAsync(
                 backgroundLease,
+                continuation,
                 generation,
                 token)))
         {
@@ -155,6 +182,7 @@ internal sealed partial class EditorWorkspace
 
     private async ValueTask<WorkspaceCommandOutcome> ContinueRunWithLeaseAsync(
         WorkspaceLease lease,
+        WorkCoordinator.SessionContinuation continuation,
         RunGeneration generation,
         CancellationToken cancellationToken)
     {
@@ -162,6 +190,7 @@ internal sealed partial class EditorWorkspace
         {
             return await ContinueRunAsync(
                 lease.State,
+                continuation,
                 generation,
                 cancellationToken).ConfigureAwait(false);
         }
@@ -169,6 +198,7 @@ internal sealed partial class EditorWorkspace
 
     private async ValueTask<WorkspaceCommandOutcome> ContinueRunAsync(
         WorkspaceState state,
+        WorkCoordinator.SessionContinuation continuation,
         RunGeneration generation,
         CancellationToken cancellationToken)
     {
@@ -193,10 +223,29 @@ internal sealed partial class EditorWorkspace
                 return Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
             }
 
+            if (IsRunPauseRequested(state, generation))
+            {
+                return PauseRunAtBoundary(state, generation);
+            }
+
             var outcome = Step(state, cancellationToken);
             if (outcome is SessionStepped)
             {
-                _ = QueueRunContinuation(state, generation);
+                if (IsRunPauseRequested(state, generation))
+                {
+                    return PauseRunAtBoundary(state, generation);
+                }
+
+                if (!QueueRunContinuation(state, continuation, generation))
+                {
+                    return FailRun(
+                        state,
+                        generation,
+                        new AdvanceFailureProjection(
+                            AdvanceFailureReason.SimulationInternalDefect,
+                            [],
+                            policyEvidence: null));
+                }
 
                 return outcome;
             }
@@ -219,19 +268,86 @@ internal sealed partial class EditorWorkspace
                     state.ProjectionVersion);
             }
 
-            state.Simulation = WithRun(
-                state.Simulation!,
-                new RunProjection(
-                    RunStatus.Paused,
+            return outcome is SessionAdvanceFailed failed
+                ? FailRun(state, generation, failed.Failure)
+                : FailRun(
+                    state,
                     generation,
-                    RunPauseReason.SupersededRun));
-            state.ProjectionVersion++;
-            return outcome;
+                    new AdvanceFailureProjection(
+                        AdvanceFailureReason.SimulationInternalDefect,
+                        outcome is WorkspaceCommandRejected unexpectedRejection
+                            ? unexpectedRejection.DiagnosticCodes
+                            : [],
+                        policyEvidence: null));
         }
         finally
         {
             state.CommandGate.Release();
         }
+    }
+
+    private static bool MatchesRunControlPrecondition(
+        WorkspaceState state,
+        RunControlPrecondition precondition)
+    {
+        return state.Simulation is
+        {
+            Run.Status: RunStatus.Running,
+            Run.RunGeneration: { } generation,
+        } simulation
+            && simulation.SessionId == precondition.SessionId
+            && generation == precondition.RunGeneration;
+    }
+
+    private static bool IsRunPauseRequested(
+        WorkspaceState state,
+        RunGeneration generation)
+    {
+        lock (state.ContinuityGate)
+        {
+            return state.RequestedRunPauseGeneration == generation;
+        }
+    }
+
+    private static RunPaused PauseRunAtBoundary(
+        WorkspaceState state,
+        RunGeneration generation)
+    {
+        var simulation = state.Simulation!;
+        state.Simulation = WithRun(
+            simulation,
+            new RunProjection(
+                RunStatus.Paused,
+                generation,
+                RunPauseReason.UserRequested));
+        state.ProjectionVersion++;
+        return new RunPaused(
+            generation,
+            simulation.SessionVersion,
+            simulation.LogicalTime,
+            RunPauseReason.UserRequested,
+            state.ProjectionVersion);
+    }
+
+    private static SessionAdvanceFailed FailRun(
+        WorkspaceState state,
+        RunGeneration generation,
+        AdvanceFailureProjection failure)
+    {
+        var simulation = state.Simulation!;
+        state.Simulation = WithRun(
+            simulation,
+            new RunProjection(
+                RunStatus.Failed,
+                generation,
+                pauseReason: null,
+                failure: failure));
+        state.ProjectionVersion++;
+        return new SessionAdvanceFailed(
+            simulation.SessionVersion,
+            simulation.LogicalTime,
+            failure,
+            state.ProjectionVersion);
     }
 
     private static SimulationProjection WithRun(

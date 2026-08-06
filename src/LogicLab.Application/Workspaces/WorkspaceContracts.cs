@@ -303,6 +303,93 @@ public sealed record SessionStepped(
     ulong LogicalTime,
     ulong ProjectionVersion) : WorkspaceCommandOutcome;
 
+public enum AdvanceFailureReason
+{
+    ZeroTimeOscillation,
+    SimulationResourceLimit,
+    SimulationCancelled,
+    SimulationInfrastructureFailure,
+    SimulationInternalDefect,
+}
+
+public sealed record SimulationPolicyEvidenceProjection
+{
+    public SimulationPolicyEvidenceProjection(
+        string policyId,
+        string policyRevision,
+        string dimension,
+        ulong observed)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(policyId);
+        ArgumentException.ThrowIfNullOrEmpty(policyRevision);
+        ArgumentException.ThrowIfNullOrEmpty(dimension);
+        PolicyId = policyId;
+        PolicyRevision = policyRevision;
+        Dimension = dimension;
+        Observed = observed;
+    }
+
+    public string PolicyId { get; }
+
+    public string PolicyRevision { get; }
+
+    public string Dimension { get; }
+
+    public ulong Observed { get; }
+}
+
+public sealed record AdvanceFailureProjection
+{
+    public AdvanceFailureProjection(
+        AdvanceFailureReason reason,
+        IReadOnlyList<string> diagnosticCodes,
+        SimulationPolicyEvidenceProjection? policyEvidence)
+    {
+        ArgumentNullException.ThrowIfNull(diagnosticCodes);
+        if (!Enum.IsDefined(reason)
+            || (reason == AdvanceFailureReason.SimulationResourceLimit)
+                != (policyEvidence is not null))
+        {
+            throw new ArgumentException(
+                "Advance failure fields do not match its reason.");
+        }
+
+        Reason = reason;
+        DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
+        PolicyEvidence = policyEvidence;
+    }
+
+    public AdvanceFailureReason Reason { get; }
+
+    public ReadOnlyCollection<string> DiagnosticCodes { get; }
+
+    public SimulationPolicyEvidenceProjection? PolicyEvidence { get; }
+}
+
+public sealed record SessionAdvanceFailed : WorkspaceCommandOutcome
+{
+    public SessionAdvanceFailed(
+        ulong sessionVersion,
+        ulong logicalTime,
+        AdvanceFailureProjection failure,
+        ulong projectionVersion)
+    {
+        ArgumentNullException.ThrowIfNull(failure);
+        SessionVersion = sessionVersion;
+        LogicalTime = logicalTime;
+        Failure = failure;
+        ProjectionVersion = projectionVersion;
+    }
+
+    public ulong SessionVersion { get; }
+
+    public ulong LogicalTime { get; }
+
+    public AdvanceFailureProjection Failure { get; }
+
+    public ulong ProjectionVersion { get; }
+}
+
 public sealed record RunStarted(
     RunGeneration RunGeneration,
     ulong SessionVersion,
@@ -514,6 +601,7 @@ public enum RunStatus
     NotRunning,
     Running,
     Paused,
+    Failed,
 }
 
 public sealed record RunProjection
@@ -521,15 +609,26 @@ public sealed record RunProjection
     public RunProjection(
         RunStatus status,
         RunGeneration? runGeneration,
-        RunPauseReason? pauseReason)
+        RunPauseReason? pauseReason,
+        AdvanceFailureProjection? failure = null)
     {
         if (!Enum.IsDefined(status)
             || (status == RunStatus.NotRunning
-                && (runGeneration is not null || pauseReason is not null))
+                && (runGeneration is not null
+                    || pauseReason is not null
+                    || failure is not null))
             || (status == RunStatus.Running
-                && (runGeneration is null || pauseReason is not null))
+                && (runGeneration is null
+                    || pauseReason is not null
+                    || failure is not null))
             || (status == RunStatus.Paused
-                && (runGeneration is null || pauseReason is null)))
+                && (runGeneration is null
+                    || pauseReason is null
+                    || failure is not null))
+            || (status == RunStatus.Failed
+                && (runGeneration is null
+                    || pauseReason is not null
+                    || failure is null)))
         {
             throw new ArgumentException("Run projection fields do not match its status.");
         }
@@ -537,6 +636,7 @@ public sealed record RunProjection
         Status = status;
         RunGeneration = runGeneration;
         PauseReason = pauseReason;
+        Failure = failure;
     }
 
     public RunStatus Status { get; }
@@ -544,6 +644,8 @@ public sealed record RunProjection
     public RunGeneration? RunGeneration { get; }
 
     public RunPauseReason? PauseReason { get; }
+
+    public AdvanceFailureProjection? Failure { get; }
 
     public static RunProjection NotRunning { get; } = new(
         RunStatus.NotRunning,

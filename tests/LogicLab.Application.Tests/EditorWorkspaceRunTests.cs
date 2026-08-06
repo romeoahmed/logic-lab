@@ -9,11 +9,10 @@ namespace LogicLab.Application.Tests;
 internal sealed class EditorWorkspaceRunTests
 {
     [Test, Timeout(30_000)]
-    public async Task DispatchAsync_FullExternalSessionQueue_RunContinuationRemainsLive(
+    public async Task DispatchAsync_ActiveRunReservation_RejectsExternalWorkAndAdmitsPause(
         CancellationToken cancellationToken)
     {
         var advanceGate = new BlockingOperationGate();
-        var stimulusGate = new BlockingOperationGate();
         var advanceCount = 0;
         var production = WorkspaceModuleOperations.Production;
         var operations = production with
@@ -25,11 +24,6 @@ internal sealed class EditorWorkspaceRunTests
                 {
                     advanceGate.Block(operationCancellationToken);
                 }
-                else if (command is ScheduleStimulusBatch)
-                {
-                    stimulusGate.Block(operationCancellationToken);
-                }
-
                 return production.ExecuteSimulation(
                     handle,
                     command,
@@ -54,39 +48,113 @@ internal sealed class EditorWorkspaceRunTests
             cancellationToken);
         await advanceGate.Started.WaitAsync(cancellationToken);
 
-        var stimulus = workspace.DispatchAsync(
-            new ScheduleInputStimulus(
-                Command(stimulusWorkspace, "queued-stimulus"),
-                EditorWorkspaceTestDriver.SessionMutation(beforeStimulus),
-                1,
-                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
-            cancellationToken);
-        await Assert.That(stimulus.IsCompleted).IsFalse();
-        advanceGate.Release();
-        await stimulusGate.Started.WaitAsync(cancellationToken);
+        WorkspaceCommandRejected? rejected = null;
+        RunPaused? paused = null;
+        try
+        {
+            var stimulus = workspace.DispatchAsync(
+                new ScheduleInputStimulus(
+                    Command(stimulusWorkspace, "rejected-stimulus"),
+                    EditorWorkspaceTestDriver.SessionMutation(beforeStimulus),
+                    1,
+                    [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+                cancellationToken);
+            var stimulusOutcome = await stimulus.WaitAsync(
+                TimeSpan.FromSeconds(1),
+                cancellationToken);
+            rejected = await Assert.That(stimulusOutcome)
+                .IsTypeOf<WorkspaceCommandRejected>();
+            Assert.NotNull(rejected);
 
-        var pause = workspace.DispatchAsync(
-            new PauseRun(
-                Command(runningWorkspace, "pause-after-backpressure"),
-                new RunControlPrecondition(
-                    beforeRun.Simulation!.SessionId,
-                    started.RunGeneration)),
-            cancellationToken);
-        stimulusGate.Release();
-
-        _ = await Assert.That(await stimulus.WaitAsync(cancellationToken))
-            .IsTypeOf<StimulusScheduled>();
-        var paused = await Assert.That(await pause.WaitAsync(cancellationToken))
-            .IsTypeOf<RunPaused>();
+            var pause = workspace.DispatchAsync(
+                new PauseRun(
+                    Command(runningWorkspace, "pause-after-backpressure"),
+                    new RunControlPrecondition(
+                        beforeRun.Simulation!.SessionId,
+                        started.RunGeneration)),
+                cancellationToken);
+            await Assert.That(pause.IsCompleted).IsFalse();
+            advanceGate.Release();
+            paused = await Assert.That(await pause.WaitAsync(cancellationToken))
+                .IsTypeOf<RunPaused>();
+        }
+        finally
+        {
+            advanceGate.Release();
+        }
+        Assert.NotNull(rejected);
         Assert.NotNull(paused);
         var projection = await Read(workspace, runningWorkspace, cancellationToken);
 
         using (Assert.Multiple())
         {
+            await Assert.That(rejected.Code)
+                .IsEqualTo("workspace_admission_rejected");
             await Assert.That(paused.Reason).IsEqualTo(RunPauseReason.UserRequested);
             await Assert.That(projection.Simulation!.Run.Status).IsEqualTo(RunStatus.Paused);
             await Assert.That(projection.Simulation.Run.PauseReason)
                 .IsEqualTo(RunPauseReason.UserRequested);
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    [Arguments(false, AdvanceFailureReason.SimulationInternalDefect)]
+    [Arguments(true, AdvanceFailureReason.SimulationInfrastructureFailure)]
+    public async Task DispatchAsync_RunAdvanceThrows_ProjectsTypedFailureAtUnchangedBoundary(
+        bool infrastructureFailure,
+        AdvanceFailureReason expectedReason,
+        CancellationToken cancellationToken)
+    {
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            ExecuteSimulation = (handle, command, operationCancellationToken) =>
+            {
+                if (command is AdvanceToNextQuiescentBoundary)
+                {
+                    throw infrastructureFailure
+                        ? new IOException("sensitive infrastructure detail")
+                        : new InvalidOperationException("sensitive defect detail");
+                }
+
+                return production.ExecuteSimulation(
+                    handle,
+                    command,
+                    operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        var controlled = await CreateClockWorkspace(workspace, cancellationToken);
+        var beforeRun = await Read(workspace, controlled, cancellationToken);
+
+        var started = (RunStarted)await workspace.DispatchAsync(
+            new StartRun(
+                Command(controlled, "run-that-fails"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
+            cancellationToken);
+        using var waitForFailure = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken);
+        waitForFailure.CancelAfter(TimeSpan.FromSeconds(1));
+        var failedProjection = await WaitForRunStatus(
+            workspace,
+            controlled,
+            RunStatus.Failed,
+            waitForFailure.Token);
+        var failure = failedProjection.Simulation!.Run.Failure;
+        Assert.NotNull(failure);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(failedProjection.Simulation.SessionVersion)
+                .IsEqualTo(beforeRun.Simulation!.SessionVersion);
+            await Assert.That(failedProjection.Simulation.LogicalTime)
+                .IsEqualTo(beforeRun.Simulation.LogicalTime);
+            await Assert.That(failedProjection.Simulation.Run.RunGeneration)
+                .IsEqualTo(started.RunGeneration);
+            await Assert.That(failedProjection.Simulation.Run.PauseReason).IsNull();
+            await Assert.That(failure.Reason).IsEqualTo(expectedReason);
+            await Assert.That(failure.DiagnosticCodes).IsEmpty();
+            await Assert.That(failure.PolicyEvidence).IsNull();
         }
     }
 
@@ -813,6 +881,24 @@ internal sealed class EditorWorkspaceRunTests
                 controlled.WorkspaceId,
                 controlled.Attached),
             cancellationToken)).Projection;
+    }
+
+    private static async Task<WorkspaceProjection> WaitForRunStatus(
+        IEditorWorkspace workspace,
+        ControlledWorkspace controlled,
+        RunStatus status,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var projection = await Read(workspace, controlled, cancellationToken);
+            if (projection.Simulation?.Run.Status == status)
+            {
+                return projection;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken);
+        }
     }
 
     private sealed record ControlledWorkspace(WorkspaceId WorkspaceId, Attached Attached);

@@ -233,15 +233,17 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
             revision.RevisionId,
             revision.Document.EntryCircuitDefinitionId,
             revision.Document.LibrarySnapshot.Fingerprint);
-        var cancellationToken = componentLifetime.Token;
+        var observationCancellationToken = componentLifetime.Token;
         WorkspaceCommandOutcome outcome;
         try
         {
             outcome = await Execute(
                 context => new RequestCompilation(context, precondition),
-                cancellationToken);
+                commandCancellationToken: CancellationToken.None,
+                observationCancellationToken: observationCancellationToken);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
+            when (observationCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -258,9 +260,10 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
         {
             compilation = await WaitForCompilationAsync(
                 accepted.CompilationGeneration,
-                cancellationToken);
+                observationCancellationToken);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
+            when (observationCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -345,9 +348,29 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
         var precondition = SessionPrecondition();
         var outcome = await Execute(context => new StepSession(context, precondition));
         StimulusIsScheduled = false;
-        Status = outcome is SessionStepped stepped
-            ? $"Step committed at Logical Time {stepped.LogicalTime}."
-            : $"Step rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+        Status = outcome switch
+        {
+            SessionStepped stepped =>
+                $"Step committed at Logical Time {stepped.LogicalTime}.",
+            SessionAdvanceFailed failed =>
+                $"Step failed: {AdvanceFailureText(failed.Failure.Reason)}.",
+            WorkspaceCommandRejected rejected => $"Step rejected: {rejected.Code}.",
+            _ => "Step failed: workspace internal defect.",
+        };
+    }
+
+    private static string AdvanceFailureText(AdvanceFailureReason reason)
+    {
+        return reason switch
+        {
+            AdvanceFailureReason.ZeroTimeOscillation => "zero-time oscillation",
+            AdvanceFailureReason.SimulationResourceLimit => "simulation resource limit",
+            AdvanceFailureReason.SimulationCancelled => "simulation cancelled",
+            AdvanceFailureReason.SimulationInfrastructureFailure =>
+                "simulation infrastructure failure",
+            AdvanceFailureReason.SimulationInternalDefect => "simulation internal defect",
+            _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null),
+        };
     }
 
     private async Task<bool> Apply(EditIntent intent)
@@ -376,24 +399,25 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
 
     private async Task<WorkspaceCommandOutcome> Execute(
         Func<WorkspaceCommandContext, WorkspaceCommand> createCommand,
-        CancellationToken cancellationToken = default)
+        CancellationToken commandCancellationToken = default,
+        CancellationToken observationCancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(createCommand);
         var outcome = await workspace.DispatchAsync(
             createCommand(CommandContext(CreateClientIntentId())),
-            cancellationToken);
+            commandCancellationToken);
         if (outcome is WorkspaceCommandRejected
             {
                 RetryDisposition.Kind: RetryDispositionKind.Reattach,
             }
-            && await TryReattachAsync(cancellationToken))
+            && await TryReattachAsync(observationCancellationToken))
         {
             outcome = await workspace.DispatchAsync(
                 createCommand(CommandContext(CreateClientIntentId())),
-                cancellationToken);
+                commandCancellationToken);
         }
 
-        await Refresh(cancellationToken);
+        await Refresh(observationCancellationToken);
         return outcome;
     }
 
