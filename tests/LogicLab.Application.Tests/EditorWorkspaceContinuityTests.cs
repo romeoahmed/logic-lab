@@ -38,7 +38,6 @@ internal sealed class EditorWorkspaceContinuityTests
                 opened.WorkspaceId,
                 first.AttachmentId,
                 first.Generation,
-                first.Projection.ProjectionVersion,
                 BuildFingerprint),
             CancellationToken.None);
         var second = await IsType<Attached>(secondOutcome);
@@ -106,7 +105,6 @@ internal sealed class EditorWorkspaceContinuityTests
                 opened.WorkspaceId,
                 attached.AttachmentId,
                 attached.Generation,
-                attached.Projection.ProjectionVersion,
                 BuildFingerprint),
             CancellationToken.None);
 
@@ -145,7 +143,6 @@ internal sealed class EditorWorkspaceContinuityTests
                 opened.WorkspaceId,
                 attached.AttachmentId,
                 attached.Generation,
-                attached.Projection.ProjectionVersion,
                 BuildFingerprint),
             CancellationToken.None);
 
@@ -232,7 +229,6 @@ internal sealed class EditorWorkspaceContinuityTests
                     opened.WorkspaceId,
                     attached.AttachmentId,
                     attached.Generation,
-                    projection.ProjectionVersion,
                     BuildFingerprint),
                 cancellationToken);
         }
@@ -268,7 +264,6 @@ internal sealed class EditorWorkspaceContinuityTests
                 opened.WorkspaceId,
                 first.AttachmentId,
                 first.Generation,
-                opened.Projection.ProjectionVersion,
                 BuildFingerprint),
             CancellationToken.None));
         var committed = await workspace.DispatchAsync(
@@ -735,7 +730,6 @@ internal sealed class EditorWorkspaceContinuityTests
                     opened.WorkspaceId,
                     firstAttachment.AttachmentId,
                     firstAttachment.Generation,
-                    afterFirst.ProjectionVersion,
                     BuildFingerprint),
                 CancellationToken.None));
 

@@ -342,7 +342,6 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
                 projection.WorkspaceId,
                 attachment.AttachmentId,
                 attachment.Generation,
-                projection.ProjectionVersion,
                 LogicLabWebBuild.Fingerprint),
             CancellationToken.None);
         if (outcome is not Attached reattached)

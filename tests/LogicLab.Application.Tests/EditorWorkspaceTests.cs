@@ -277,7 +277,6 @@ internal sealed class EditorWorkspaceTests
                         opened.WorkspaceId,
                         firstAttachment.AttachmentId,
                         firstAttachment.Generation,
-                        projection.ProjectionVersion,
                         WorkspaceBuild.DevelopmentFingerprint),
                     cancellationToken))
                 .IsTypeOf<Attached>();

@@ -837,13 +837,11 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             state.ProjectionVersion,
             state.Revision,
             state.Compilation,
-            state.Simulation)
-        {
-            History = new TransactionHistoryAvailability(
+            state.Simulation,
+            new TransactionHistoryAvailability(
                 state.HistoryCursor > 0,
                 state.HistoryCursor < state.History.Count - 1,
-                state.History.Count),
-        };
+                state.History.Count));
     }
 
     private static WorkspaceCommandRejected Reject(
