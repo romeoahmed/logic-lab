@@ -63,14 +63,14 @@ internal sealed class EditorWorkspaceTests
                 .IsEqualTo(CompilationPublicationStatus.NotRequested);
             await Assert.That(compiled.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.Published);
-            await Assert.That(compiled.Compilation.ArtifactKey!.ProjectRevisionId)
+            await Assert.That(compiled.PublishedCompilation().ArtifactKey.ProjectRevisionId)
                 .IsEqualTo(after.ProjectRevision.RevisionId);
             await Assert.That(compiled.Simulation.SessionId)
                 .IsEqualTo(before.Simulation!.SessionId);
             await Assert.That(compiled.Simulation.CompilationArtifactKey)
                 .IsEqualTo(before.Simulation.CompilationArtifactKey);
             await Assert.That(compiled.Simulation.CompilationArtifactKey)
-                .IsNotEqualTo(compiled.Compilation.ArtifactKey);
+                .IsNotEqualTo(compiled.PublishedCompilation().ArtifactKey);
             await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
         }
     }
@@ -118,7 +118,7 @@ internal sealed class EditorWorkspaceTests
             await Assert.That(after.Simulation!.SessionId)
                 .IsEqualTo(before.Simulation!.SessionId);
             await Assert.That(after.Simulation.CompilationArtifactKey)
-                .IsEqualTo(before.Compilation.ArtifactKey);
+                .IsEqualTo(before.PublishedCompilation().ArtifactKey);
             await Assert.That(after.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.NotRequested);
             await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition
@@ -454,12 +454,12 @@ internal sealed class EditorWorkspaceTests
             opened.WorkspaceId,
             opened.Attachment,
             cancellationToken);
+        var rejectedCompilation = afterCompilation.RejectedCompilation();
         var session = await workspace.DispatchAsync(
             new CreateSession(
                 Context(opened.WorkspaceId, opened.Attachment, "session"),
                 new SessionCreationPrecondition(
-                    afterCompilation.Compilation.ArtifactKey
-                    ?? new CompilationArtifactKey(
+                    new CompilationArtifactKey(
                         beforeCompilation.ProjectRevision.RevisionId,
                         beforeCompilation.ProjectRevision.Document
                             .EntryCircuitDefinitionId,
@@ -476,12 +476,11 @@ internal sealed class EditorWorkspaceTests
         Assert.NotNull(sessionRejection);
         using (Assert.Multiple())
         {
-            await Assert.That(afterCompilation.Compilation.RejectionCode)
+            await Assert.That(rejectedCompilation.RejectionCode)
                 .IsEqualTo("compilation_invalid");
             await Assert.That(sessionRejection.Code).IsEqualTo("session_precondition_failed");
             await Assert.That(projection.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.Rejected);
-            await Assert.That(projection.Compilation.ArtifactKey).IsNull();
             await Assert.That(projection.Simulation).IsNull();
         }
     }
@@ -509,7 +508,6 @@ internal sealed class EditorWorkspaceTests
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
             await Assert.That(after.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.NotRequested);
-            await Assert.That(after.Compilation.ArtifactKey).IsNull();
         }
     }
 
@@ -687,7 +685,6 @@ internal sealed class EditorWorkspaceTests
                 .IsEqualTo(edited.ProjectRevision.RevisionId);
             await Assert.That(afterCompilation.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.NotRequested);
-            await Assert.That(afterCompilation.Compilation.ArtifactKey).IsNull();
         }
     }
 
@@ -865,7 +862,7 @@ internal sealed class EditorWorkspaceTests
             opened.WorkspaceId,
             attachment,
             cancellationToken);
-        var artifactKey = compiled.Compilation.ArtifactKey!;
+        var artifactKey = compiled.PublishedCompilation().ArtifactKey;
         var firstCommand = new CreateSession(
             Context(opened.WorkspaceId, attachment, "first"),
             new SessionCreationPrecondition(artifactKey));
@@ -971,7 +968,7 @@ internal sealed class EditorWorkspaceTests
             cancellationToken);
         var command = new CreateSession(
             Context(opened.WorkspaceId, opened.Attachment, "session"),
-            new SessionCreationPrecondition(compiled.Compilation.ArtifactKey!));
+            new SessionCreationPrecondition(compiled.PublishedCompilation().ArtifactKey));
         var original = workspace.DispatchAsync(command, CancellationToken.None);
 
         WorkspaceCommandOutcome replay;

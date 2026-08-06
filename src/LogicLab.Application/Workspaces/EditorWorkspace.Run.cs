@@ -9,7 +9,7 @@ internal sealed partial class EditorWorkspace
         WorkspaceState state,
         WorkspaceCommand command)
     {
-        return state.Simulation is { Run.Status: RunStatus.Running }
+        return state.Simulation is { Run: RunRunningProjection }
             && command is not PauseRun and not CloseWorkspace
                 ? Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed)
                 : null;
@@ -20,7 +20,8 @@ internal sealed partial class EditorWorkspace
         StartRun command)
     {
         if (!MatchesSessionPrecondition(state, command.Precondition)
-            || state.Simulation is not { Run.Status: not RunStatus.Running } simulation)
+            || state.Simulation is not { } simulation
+            || simulation.Run is RunRunningProjection)
         {
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
@@ -36,7 +37,7 @@ internal sealed partial class EditorWorkspace
         state.NextRunGeneration = generation.Value;
         state.Simulation = WithRun(
             simulation,
-            new RunProjection(RunStatus.Running, generation, null));
+            new RunRunningProjection(generation));
         state.ProjectionVersion = projectionVersion;
 
         return new RunStarted(
@@ -57,9 +58,8 @@ internal sealed partial class EditorWorkspace
             return Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
         }
 
-        if (simulation.Run is
+        if (simulation.Run is RunPausedProjection
             {
-                Status: RunStatus.Paused,
                 PauseReason: RunPauseReason.UserRequested,
             })
         {
@@ -71,7 +71,7 @@ internal sealed partial class EditorWorkspace
                 state.ProjectionVersion);
         }
 
-        return simulation.Run.Status == RunStatus.Running
+        return simulation.Run is RunRunningProjection
             ? PauseRunAtBoundary(state, command.Precondition.RunGeneration)
             : Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
     }
@@ -83,7 +83,7 @@ internal sealed partial class EditorWorkspace
     {
         var activeSession = state.ActiveSession;
         if (!MatchesSessionPrecondition(state, command.Precondition)
-            || state.Simulation is not { Run.Status: not RunStatus.Running }
+            || state.Simulation is not { Run: not RunRunningProjection }
             || activeSession is null
             || state.Artifact is not { } replacement
             || replacement.Key != command.TargetCompilationArtifactKey)
@@ -241,8 +241,9 @@ internal sealed partial class EditorWorkspace
         try
         {
             if (state.IsRetired
-                || state.Simulation is not { Run.Status: RunStatus.Running } simulation
-                || simulation.Run.RunGeneration != generation)
+                || state.Simulation is not
+                { Run: RunRunningProjection running }
+                || running.RunGeneration != generation)
             {
                 return Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
             }
@@ -304,8 +305,7 @@ internal sealed partial class EditorWorkspace
     {
         return state.Simulation is
         {
-            Run.Status: RunStatus.Running,
-            Run.RunGeneration: { } generation,
+            Run: RunRunningProjection { RunGeneration: var generation },
         } simulation
             && simulation.SessionId == precondition.SessionId
             && generation == precondition.RunGeneration;
@@ -328,8 +328,7 @@ internal sealed partial class EditorWorkspace
         var simulation = state.Simulation!;
         state.Simulation = WithRun(
             simulation,
-            new RunProjection(
-                RunStatus.Paused,
+            new RunPausedProjection(
                 generation,
                 RunPauseReason.UserRequested));
         state.ProjectionVersion++;
@@ -355,8 +354,7 @@ internal sealed partial class EditorWorkspace
             var simulation = state.Simulation!;
             state.Simulation = WithRun(
                 simulation,
-                new RunProjection(
-                    RunStatus.Paused,
+                new RunPausedProjection(
                     generation,
                     RunPauseReason.NoScheduledStimulus));
             state.ProjectionVersion++;
@@ -377,11 +375,9 @@ internal sealed partial class EditorWorkspace
         var simulation = state.Simulation!;
         state.Simulation = WithRun(
             simulation,
-            new RunProjection(
-                RunStatus.Failed,
+            new RunFailedProjection(
                 generation,
-                pauseReason: null,
-                failure: failure));
+                failure));
         state.ProjectionVersion++;
         return new SessionAdvanceFailed(
             simulation.SessionVersion,

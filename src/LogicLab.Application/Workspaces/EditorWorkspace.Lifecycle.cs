@@ -290,7 +290,8 @@ internal sealed partial class EditorWorkspace
 
         public CompilationArtifact? Artifact { get; set; }
 
-        public CompilationProjection Compilation { get; set; } = NotRequestedCompilation();
+        public CompilationProjection Compilation { get; set; } =
+            CompilationNotRequestedProjection.Instance;
 
         public ulong NextCompilationGeneration { get; set; }
 

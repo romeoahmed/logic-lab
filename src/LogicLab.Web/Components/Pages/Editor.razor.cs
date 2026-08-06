@@ -56,7 +56,7 @@ public sealed partial class Editor : IAsyncDisposable
     private bool CanAuthor => CommandsAvailable
         && Projection is not null
         && Projection.Simulation is null
-        && Projection.Compilation.Status is not CompilationPublicationStatus.Published
+        && Projection.Compilation is not CompilationPublishedProjection
         && Projection.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances.Count == 0;
 
     private bool CanAuthorHierarchy => CanAuthor;
@@ -78,12 +78,12 @@ public sealed partial class Editor : IAsyncDisposable
     private bool CanCompile => CommandsAvailable
         && Projection is not null
         && Projection.Simulation is null
-        && Projection.Compilation.Status is not CompilationPublicationStatus.Published
+        && Projection.Compilation is not CompilationPublishedProjection
         && Projection.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances.Count > 0;
 
     private bool CanCreateSession => CommandsAvailable
         && Projection?.Simulation is null
-        && Projection?.Compilation.Status is CompilationPublicationStatus.Published;
+        && Projection?.Compilation is CompilationPublishedProjection;
 
     private bool HasProgrammableInputs => Projection?.ProjectRevision.Document
         .EntryCircuitDefinition.ComponentInstances.Any(IsProgrammableInput) is true;
@@ -288,13 +288,15 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
-        Status = compilation.Status switch
+        Status = compilation switch
         {
-            CompilationPublicationStatus.Published =>
+            CompilationPublishedProjection =>
                 "Compilation Artifact published atomically.",
-            CompilationPublicationStatus.Superseded =>
+            CompilationSupersededProjection =>
                 $"Compilation generation {accepted.CompilationGeneration.Value} was superseded.",
-            _ => $"Compilation rejected: {compilation.RejectionCode ?? "unknown"}.",
+            CompilationRejectedProjection rejected =>
+                $"Compilation rejected: {rejected.RejectionCode}.",
+            _ => "Compilation ended in an unknown state.",
         };
     }
 
@@ -314,8 +316,8 @@ public sealed partial class Editor : IAsyncDisposable
                 return null;
             }
 
-            if (snapshot.Compilation.Status is CompilationPublicationStatus.Queued
-                or CompilationPublicationStatus.Running)
+            if (snapshot.Compilation is CompilationQueuedProjection
+                or CompilationRunningProjection)
             {
                 await Task.Delay(
                     CompilationRefreshInterval,
@@ -334,8 +336,10 @@ public sealed partial class Editor : IAsyncDisposable
 
     private async Task CreateSimulationSession()
     {
+        var compilation = Projection?.Compilation as CompilationPublishedProjection
+            ?? throw new InvalidOperationException("Compilation is not published.");
         var precondition = new SessionCreationPrecondition(
-            Projection!.Compilation.ArtifactKey!);
+            compilation.ArtifactKey);
         var outcome = await Execute(context => new CreateSession(context, precondition));
         if (outcome is not SimulationSessionCreated)
         {
@@ -471,7 +475,7 @@ public sealed partial class Editor : IAsyncDisposable
         return true;
     }
 
-    private async Task Refresh(CancellationToken cancellationToken = default)
+    private async Task Refresh(CancellationToken cancellationToken)
     {
         if (Projection is null)
         {

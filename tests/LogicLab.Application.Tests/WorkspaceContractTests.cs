@@ -53,16 +53,9 @@ internal sealed class WorkspaceContractTests
     [Test]
     public async Task CompilationSnapshot_WithoutGeneration_ThrowsArgumentException()
     {
-        var compilation = new CompilationProjection(
-            CompilationPublicationStatus.NotRequested,
-            null,
-            null,
-            [],
-            null,
-            null,
-            null);
-
-        await Assert.That(() => new CompilationSnapshot(compilation, 1))
+        await Assert.That(() => new CompilationSnapshot(
+                CompilationNotRequestedProjection.Instance,
+                1))
             .ThrowsExactly<ArgumentException>();
     }
 
@@ -73,14 +66,9 @@ internal sealed class WorkspaceContractTests
         ulong generation,
         ulong supersededBy)
     {
-        await Assert.That(() => new CompilationProjection(
-                CompilationPublicationStatus.Superseded,
+        await Assert.That(() => new CompilationSupersededProjection(
                 new CompilationGeneration(generation),
-                null,
-                [],
-                new CompilationGeneration(supersededBy),
-                null,
-                null))
+                new CompilationGeneration(supersededBy)))
             .ThrowsExactly<ArgumentException>();
     }
 

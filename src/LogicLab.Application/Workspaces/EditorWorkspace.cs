@@ -345,14 +345,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                         var requestedRevision = state.Revision;
                         var generation = new CompilationGeneration(
                             checked(state.NextCompilationGeneration + 1UL));
-                        var compilation = new CompilationProjection(
-                            CompilationPublicationStatus.Queued,
-                            generation,
-                            null,
-                            [],
-                            null,
-                            null,
-                            null);
+                        var compilation = new CompilationQueuedProjection(generation);
                         var projectionVersion = checked(state.ProjectionVersion + 1UL);
                         var outcome = new CompilationAccepted(
                             generation,
@@ -488,14 +481,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
             if (!context.TryUpdate(() =>
                 {
-                    state.Compilation = new CompilationProjection(
-                        CompilationPublicationStatus.Running,
-                        generation,
-                        null,
-                        [],
-                        null,
-                        null,
-                        null);
+                    state.Compilation = new CompilationRunningProjection(generation);
                     state.ProjectionVersion++;
                 }))
             {
@@ -571,12 +557,9 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         return context.TryReject(() =>
         {
             state.Artifact = null;
-            state.Compilation = new CompilationProjection(
-                CompilationPublicationStatus.Rejected,
+            state.Compilation = new CompilationRejectedProjection(
                 generation,
-                null,
                 [],
-                null,
                 code,
                 WorkspaceOutcomeReasons.RetryFor(code));
             state.ProjectionVersion++;
@@ -615,26 +598,19 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 if (outcome is CompilationSucceeded succeeded)
                 {
                     state.Artifact = succeeded.Artifact;
-                    state.Compilation = new CompilationProjection(
-                        CompilationPublicationStatus.Published,
+                    state.Compilation = new CompilationPublishedProjection(
                         generation,
                         succeeded.Artifact.Key,
-                        [.. succeeded.Diagnostics.Select(item => item.Code)],
-                        null,
-                        null,
-                        null);
+                        [.. succeeded.Diagnostics.Select(item => item.Code)]);
                     return;
                 }
 
                 var rejected = (CompilationRejected)outcome;
                 var diagnosticCodes = rejected.Diagnostics.Select(item => item.Code).ToArray();
                 state.Artifact = null;
-                state.Compilation = new CompilationProjection(
-                    CompilationPublicationStatus.Rejected,
+                state.Compilation = new CompilationRejectedProjection(
                     generation,
-                    null,
                     diagnosticCodes,
-                    null,
                     rejected.Reason,
                     WorkspaceOutcomeReasons.RetryFor(rejected.Reason));
             }))
@@ -1070,7 +1046,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             [.. snapshot.Probes.Select(probe => new ProbeProjection(
                 probe.ProbeId,
                 probe.Source.Identity,
-                Values(probe.Value)))]);
+                Values(probe.Value)))],
+            RunNotRunningProjection.Instance);
         return null;
     }
 
@@ -1120,14 +1097,9 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             && newer.Value > generation.Value)
         {
             return new CompilationSnapshot(
-                new CompilationProjection(
-                    CompilationPublicationStatus.Superseded,
+                new CompilationSupersededProjection(
                     generation,
-                    null,
-                    [],
-                    newer,
-                    null,
-                    null),
+                    newer),
                 state.ProjectionVersion);
         }
 
@@ -1164,18 +1136,6 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private static AttachRejected RejectAttach(string code)
     {
         return new AttachRejected(code, [], RetryDisposition.DoNotRetry);
-    }
-
-    private static CompilationProjection NotRequestedCompilation()
-    {
-        return new CompilationProjection(
-            CompilationPublicationStatus.NotRequested,
-            null,
-            null,
-            [],
-            null,
-            null,
-            null);
     }
 
     private static ProjectScalePolicy DevelopmentProjectScalePolicy { get; } = new(

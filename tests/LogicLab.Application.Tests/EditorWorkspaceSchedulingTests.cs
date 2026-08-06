@@ -60,12 +60,13 @@ internal sealed class EditorWorkspaceSchedulingTests
             controlled.Opened.WorkspaceId,
             controlled.Attached,
             cancellationToken);
+        var publishedCompilation = published.PublishedCompilation();
         using (Assert.Multiple())
         {
             await Assert.That(published.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.Published);
             await Assert.That(published.Compilation.Generation?.Value).IsEqualTo(1UL);
-            await Assert.That(published.Compilation.ArtifactKey).IsNotNull();
+            await Assert.That(publishedCompilation.ArtifactKey).IsNotNull();
         }
     }
 
@@ -220,14 +221,16 @@ internal sealed class EditorWorkspaceSchedulingTests
             controlled.Opened.WorkspaceId,
             controlled.Attached,
             cancellationToken);
+        var publishedCompilation = published.PublishedCompilation();
+        var initialCompilation = initial.PublishedCompilation();
         using (Assert.Multiple())
         {
             await Assert.That(published.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.Published);
             await Assert.That(published.Compilation.Generation)
                 .IsEqualTo(accepted.CompilationGeneration);
-            await Assert.That(published.Compilation.ArtifactKey)
-                .IsEqualTo(initial.Compilation.ArtifactKey);
+            await Assert.That(publishedCompilation.ArtifactKey)
+                .IsEqualTo(initialCompilation.ArtifactKey);
             await Assert.That(invocationCount).IsEqualTo(3);
         }
     }
@@ -340,6 +343,8 @@ internal sealed class EditorWorkspaceSchedulingTests
                 cancellationToken);
             var snapshot = await Assert.That(read).IsTypeOf<CompilationSnapshot>();
             Assert.NotNull(snapshot);
+            var superseded = snapshot.Compilation as CompilationSupersededProjection;
+            Assert.NotNull(superseded);
 
             using (Assert.Multiple())
             {
@@ -347,7 +352,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                     .IsEqualTo(CompilationPublicationStatus.Superseded);
                 await Assert.That(snapshot.Compilation.Generation)
                     .IsEqualTo(firstAcceptance.CompilationGeneration);
-                await Assert.That(snapshot.Compilation.SupersededBy)
+                await Assert.That(superseded.SupersededBy)
                     .IsEqualTo(secondAcceptance.CompilationGeneration);
             }
         }
@@ -400,11 +405,12 @@ internal sealed class EditorWorkspaceSchedulingTests
             cancelled.Opened.WorkspaceId,
             cancelled.Attached,
             cancellationToken);
+        var rejectedCompilation = rejected.RejectedCompilation();
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.Rejected);
-            await Assert.That(rejected.Compilation.RejectionCode)
+            await Assert.That(rejectedCompilation.RejectionCode)
                 .IsEqualTo("workspace_cancelled");
         }
     }

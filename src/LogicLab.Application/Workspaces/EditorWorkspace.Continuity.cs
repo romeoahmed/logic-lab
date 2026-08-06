@@ -156,14 +156,15 @@ internal sealed partial class EditorWorkspace
                 state.IsAttached = false;
                 if (state.Simulation is
                     {
-                        Run.Status: RunStatus.Running,
-                        Run.RunGeneration: { } runGeneration,
+                        Run: RunRunningProjection
+                        {
+                            RunGeneration: var runGeneration,
+                        },
                     } simulation)
                 {
                     state.Simulation = WithRun(
                         simulation,
-                        new RunProjection(
-                            RunStatus.Paused,
+                        new RunPausedProjection(
                             runGeneration,
                             RunPauseReason.Detached));
                     state.ProjectionVersion++;
@@ -505,7 +506,7 @@ internal sealed partial class EditorWorkspace
         state.HistoryCursor = target;
         state.Revision = state.History[target];
         state.Artifact = null;
-        state.Compilation = NotRequestedCompilation();
+        state.Compilation = CompilationNotRequestedProjection.Instance;
         state.ProjectionVersion++;
         return new AuthoringCommitted(
             state.Revision.RevisionId,
@@ -600,7 +601,7 @@ internal sealed partial class EditorWorkspace
 
         state.Revision = revision;
         state.Artifact = null;
-        state.Compilation = NotRequestedCompilation();
+        state.Compilation = CompilationNotRequestedProjection.Instance;
         state.ProjectionVersion++;
         return new AuthoringCommitted(
             state.Revision.RevisionId,

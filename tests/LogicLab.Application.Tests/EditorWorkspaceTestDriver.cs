@@ -50,9 +50,35 @@ internal static class EditorWorkspaceTestDriver
     public static SessionCreationPrecondition SessionCreation(
         WorkspaceProjection projection)
     {
+        var compilation = projection.PublishedCompilation();
         return new SessionCreationPrecondition(
-            projection.Compilation.ArtifactKey
-            ?? throw new InvalidOperationException("Compilation is not published."));
+            compilation.ArtifactKey);
+    }
+
+    public static CompilationPublishedProjection PublishedCompilation(
+        this WorkspaceProjection projection)
+    {
+        return projection.Compilation as CompilationPublishedProjection
+            ?? throw new InvalidOperationException("Compilation is not published.");
+    }
+
+    public static CompilationRejectedProjection RejectedCompilation(
+        this WorkspaceProjection projection)
+    {
+        return projection.Compilation as CompilationRejectedProjection
+            ?? throw new InvalidOperationException("Compilation is not rejected.");
+    }
+
+    public static RunPausedProjection PausedRun(this WorkspaceProjection projection)
+    {
+        return projection.Simulation?.Run as RunPausedProjection
+            ?? throw new InvalidOperationException("Run is not paused.");
+    }
+
+    public static RunFailedProjection FailedRun(this WorkspaceProjection projection)
+    {
+        return projection.Simulation?.Run as RunFailedProjection
+            ?? throw new InvalidOperationException("Run has not failed.");
     }
 
     public static SessionMutationPrecondition SessionMutation(
