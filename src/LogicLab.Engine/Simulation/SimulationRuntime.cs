@@ -641,9 +641,14 @@ public static partial class SimulationRuntime
         SimulationIr ir,
         LogicVector?[] sequentialStates)
     {
-        var driverValues = ir.Drivers
-            .Select(driver => Uniform(driver.Width, LogicValue.Z))
-            .ToArray();
+        var driverValues = new LogicVector[ir.Drivers.Count];
+        for (var index = 0; index < driverValues.Length; index++)
+        {
+            driverValues[index] = LogicVector.CreateFilled(
+                checked((int)ir.Drivers[index].Width),
+                LogicValue.Z);
+        }
+
         foreach (var evaluator in ir.Evaluators.Where(
             evaluator => evaluator.Kind is SimulationEvaluatorKind.InputSource
                 or SimulationEvaluatorKind.ConstantSource
@@ -816,8 +821,8 @@ public static partial class SimulationRuntime
             .ToArray();
         foreach (var driverOrdinal in internalDriverOrdinals)
         {
-            driverValues[driverOrdinal] = Uniform(
-                ir.Drivers[driverOrdinal].Width,
+            driverValues[driverOrdinal] = LogicVector.CreateFilled(
+                checked((int)ir.Drivers[driverOrdinal].Width),
                 LogicValue.X);
         }
 
@@ -1222,12 +1227,6 @@ public static partial class SimulationRuntime
             probes,
             state.Trace.Cursor,
             state.Diagnostics);
-    }
-
-    private static LogicVector Uniform(uint width, LogicValue value)
-    {
-        return new LogicVector(
-            [.. Enumerable.Repeat(value, checked((int)width))]);
     }
 
     private static SimulationOpenRejected Rejected(

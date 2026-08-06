@@ -131,6 +131,26 @@ public sealed class LogicVector
         return new LogicVector(width, lowBits, highBits);
     }
 
+    internal static LogicVector CreateFilled(int width, LogicValue value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ScalarLogic.EnsureDefined(value, nameof(value));
+
+        var lowBits = new ulong[GetWordCount(width)];
+        var highBits = new ulong[lowBits.Length];
+        if (value is LogicValue.One or LogicValue.Z)
+        {
+            Array.Fill(lowBits, ulong.MaxValue);
+        }
+
+        if (value is LogicValue.X or LogicValue.Z)
+        {
+            Array.Fill(highBits, ulong.MaxValue);
+        }
+
+        return new LogicVector(width, lowBits, highBits);
+    }
+
     internal static int GetWordCount(int width)
     {
         return ((width - 1) / BitsPerWord) + 1;

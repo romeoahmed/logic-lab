@@ -54,7 +54,7 @@ internal static class CombinationalEvaluation
         var normalizedEnable = ScalarLogic.NormalizeInput(enable);
         var isActive = activeHigh ? normalizedEnable : ScalarLogic.Not(normalizedEnable);
         var enabled = VectorLogic.NormalizeInput(data);
-        var disabled = Uniform(data.Width, LogicValue.Z);
+        var disabled = LogicVector.CreateFilled(data.Width, LogicValue.Z);
         return isActive switch
         {
             LogicValue.One => enabled,
@@ -99,7 +99,7 @@ internal static class CombinationalEvaluation
         var outputCount = OutputCount(selector.Width);
         var normalizedSelector = VectorLogic.NormalizeInput(selector);
         var normalizedData = VectorLogic.NormalizeInput(data);
-        var zero = Uniform(data.Width, LogicValue.Zero);
+        var zero = LogicVector.CreateFilled(data.Width, LogicValue.Zero);
         var selectorIsKnown = IsKnown(normalizedSelector);
         var selectedData = selectorIsKnown
             ? normalizedData
@@ -138,7 +138,7 @@ internal static class CombinationalEvaluation
                 (LogicValue.One, true, true) => LogicValue.One,
                 _ => LogicValue.X,
             };
-            outputs[index] = Uniform(1, output);
+            outputs[index] = LogicVector.CreateFilled(1, output);
         }
 
         return outputs;
@@ -223,13 +223,6 @@ internal static class CombinationalEvaluation
         }
 
         return true;
-    }
-
-    private static LogicVector Uniform(int width, LogicValue value)
-    {
-        var values = new LogicValue[width];
-        Array.Fill(values, value);
-        return new LogicVector(values);
     }
 
     private static int OutputCount(int selectorWidth)

@@ -172,8 +172,15 @@ internal static class SimulationNetDiagnostics
         VectorNetResolution resolution,
         NetResolutionCauses cause)
     {
-        return Enumerable.Range(0, resolution.Value.Width)
-            .Any(bit => (resolution.GetCauses(bit) & cause) != 0);
+        for (var bit = 0; bit < resolution.Value.Width; bit++)
+        {
+            if ((resolution.GetCauses(bit) & cause) != 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static ulong CountDrivers(
@@ -187,15 +194,31 @@ internal static class SimulationNetDiagnostics
         foreach (var driverOrdinal in net.DriverOrdinals)
         {
             var driver = driverValues[driverOrdinal];
-            if (Enumerable.Range(0, driver.Width).Any(bit =>
-                    (resolution.GetCauses(bit) & cause) != 0
-                    && driver[bit] == value))
+            if (ContributesToCause(driver, resolution, cause, value))
             {
                 count = checked(count + 1);
             }
         }
 
         return count;
+    }
+
+    private static bool ContributesToCause(
+        LogicVector driver,
+        VectorNetResolution resolution,
+        NetResolutionCauses cause,
+        LogicValue value)
+    {
+        for (var bit = 0; bit < driver.Width; bit++)
+        {
+            if ((resolution.GetCauses(bit) & cause) != 0
+                && driver[bit] == value)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private sealed class SimulationNetDiagnosticComparer : IComparer<SimulationDiagnostic>
