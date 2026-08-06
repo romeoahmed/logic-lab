@@ -72,6 +72,18 @@ internal sealed partial class EditorWorkspace
                     replayCompletion = replay.Completion;
                     break;
                 case ContextualIntentAccepted accepted:
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        var rejected = Reject(
+                            WorkspaceOutcomeReasons.WorkspaceCancelled);
+                        RecordIdempotencyUnderLock(
+                            state,
+                            command.Context.ClientIntentId,
+                            accepted.CanonicalIdentity,
+                            rejected);
+                        return rejected;
+                    }
+
                     if (!MatchesRunControlPrecondition(state, command.Precondition))
                     {
                         var rejected = Reject(
@@ -118,7 +130,7 @@ internal sealed partial class EditorWorkspace
                 state,
                 command,
                 publication!,
-                cancellationToken).ConfigureAwait(false);
+                CancellationToken.None).ConfigureAwait(false);
             CompletePendingIdempotency(state, publication!, completed);
             return await publication!.PendingIntent.Completion.Task.ConfigureAwait(false);
         }

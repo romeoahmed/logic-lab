@@ -162,7 +162,7 @@ public static partial class SimulationRuntime
                 AdvanceToNextQuiescentBoundary => Advance(
                     state,
                     cancellationToken),
-                HotSwapSimulation hotSwap => HotSwap(
+                HotSwapTo hotSwap => HotSwap(
                     state,
                     hotSwap.CompilationArtifact,
                     hotSwap.MaximumPeakOwnedBufferBytes,
