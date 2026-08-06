@@ -192,10 +192,10 @@ AnalysisCancellationRequested { OperationId }
 AnalysisAlreadyTerminal { OperationId, terminalState }
 ProposalApplied { ProposalId, ProjectRevisionId, ProjectionVersion }
 ExportPrepared { ProjectRevisionId, ExportTicket, expiresAfterSeconds }
-Rejected { reason, diagnostics[], RetryDisposition }
+Rejected { reason, diagnostics[], RetryDisposition, policyEvidence? }
 ```
 
-Compilation completion is observed through the Workspace Projection after the acceptance response. `CompilationState` is exactly `NotRequested | Queued | Running | Superseded(newerGeneration) | Published(CompilationArtifactKey, diagnostics) | Rejected(reason, diagnostics, RetryDisposition)`; every noninitial state carries its Compilation Generation. Only the newest non-cancelled generation can publish. A family-specific outcome never changes shape based on success data, and no success variant also carries a failure reason. `ExportTicket` is an opaque short-lived locator that Web maps to its download route; it is neither a URL nor authority. Export expiry is a canonical nonnegative whole-second duration measured from outcome publication.
+Compilation completion is observed after the acceptance response through `ReadCompilation(CompilationGeneration)`. `CompilationState` is exactly `NotRequested | Queued | Running | Superseded(newerGeneration) | Published(CompilationArtifactKey, diagnostics) | Rejected(reason, diagnostics, RetryDisposition)`; every noninitial state carries its Compilation Generation. The Workspace Projection carries the newest generation's state. Reading that generation returns its current state; after a newer generation is admitted, reading any older accepted generation deterministically returns `Superseded(newerGeneration)`. A generation that was never accepted or is no longer addressable without a newer generation returns `compilation_generation_unavailable`. Only the newest non-cancelled generation can publish. A family-specific outcome never changes shape based on success data, and no success variant also carries a failure reason. `ExportTicket` is an opaque short-lived locator that Web maps to its download route; it is neither a URL nor authority. Export expiry is a canonical nonnegative whole-second duration measured from outcome publication.
 
 Hot Swap migration evidence contains canonical ordered source identities of migrated state-bearing Component Instances plus preserved and unresolved Probe IDs. A failed swap may return incompatible state identities as safe rejection evidence; it retains the old Session unchanged and never labels an incompatible state as migrated.
 
@@ -218,6 +218,7 @@ Queries carry authenticated Workspace and attachment context but no Client Inten
 ```text
 WorkspaceQuery =
   ReadProjection { afterProjectionVersion? }
+  | ReadCompilation { CompilationGeneration }
   | ReadAnalysisOperation { OperationId }
   | ReadProposal { ProposalId }
   | ReadTraceWindow { TraceWindowRequest }
@@ -225,13 +226,14 @@ WorkspaceQuery =
 WorkspaceReadOutcome =
   ProjectionSnapshot { WorkspaceProjectionV1 }
   | ProjectionUnchanged { ProjectionVersion }
+  | CompilationSnapshot { CompilationState, ProjectionVersion }
   | AnalysisOperationRead { AnalysisOperationState }
   | ProposalRead { Available | Applied | Stale | Expired }
   | TraceWindowRead { TraceWindowOutcome }
   | ReadRejected { reason, diagnostics, RetryDisposition }
 ```
 
-`WorkspaceProjectionV1` is one atomic owned snapshot containing Projection Version, the current immutable Project Revision and authorized Project Document, Transaction History availability, sandbox/durable save state, Compilation generation/status and Artifact Key when published, Session summary and ordered Probes when present, Analysis Operation and Proposal summaries, and ordered Diagnostics. It contains no Web connection state, Geometry Plan, browser scene patch, runtime ordinal, Trace storage chunk, EF entity, or localized message. Projection Version increments whenever any included observable fact changes. Web derives connection presentation from circuit and attachment outcomes and switches Browser Runtime between commit-enabled and local-only interaction; transient reconnection never creates a Workspace Projection version.
+`WorkspaceProjectionV1` is one atomic owned snapshot containing Projection Version, the current immutable Project Revision and authorized Project Document, Transaction History availability, sandbox/durable save state, the newest Compilation generation/status and Artifact Key when published, Session summary and ordered Probes when present, Analysis Operation and Proposal summaries, and ordered Diagnostics. It contains no Web connection state, Geometry Plan, browser scene patch, runtime ordinal, Trace storage chunk, EF entity, or localized message. Projection Version increments whenever any included observable fact changes. Web derives connection presentation from circuit and attachment outcomes and switches Browser Runtime between commit-enabled and local-only interaction; transient reconnection never creates a Workspace Projection version.
 
 `ReadProjection` returns `ProjectionUnchanged` only when the supplied version is current; otherwise it returns a complete snapshot. V1 does not expose a generic field-mask query or semantic patch format. The Web projection coordinator derives browser-specific scene and waveform messages from this snapshot plus Diagram Presentation and Trace reads.
 

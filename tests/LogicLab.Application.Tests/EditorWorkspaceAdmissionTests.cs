@@ -153,12 +153,15 @@ internal sealed class EditorWorkspaceAdmissionTests
         return EditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             workspacePolicy: new WorkspacePolicy(
+                policyId: "test-workspace",
+                policyRevision: "1",
                 globalWorkspaceLimit: 128,
                 sandboxRetention: TimeSpan.FromMinutes(30),
                 authoringLimits: limits,
                 historyRevisionCount: 128,
                 idempotencyRecordCount: 1_024,
-                detachedRetention: TimeSpan.FromMinutes(30)));
+                detachedRetention: TimeSpan.FromMinutes(30),
+                hotSwapPeakBytes: ulong.MaxValue));
     }
 
     private static async Task<ControlledWorkspace> OpenWorkspace(
@@ -182,6 +185,7 @@ internal sealed class EditorWorkspaceAdmissionTests
             EditorWorkspaceTestDriver.Query(
                 controlled.WorkspaceId,
                 controlled.Attached),
+            LogicLab.Application.Workspaces.ReadProjection.Instance,
             CancellationToken.None)).Projection;
     }
 

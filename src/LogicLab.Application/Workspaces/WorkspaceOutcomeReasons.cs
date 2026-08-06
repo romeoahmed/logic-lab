@@ -5,6 +5,8 @@ namespace LogicLab.Application.Workspaces;
 internal static class WorkspaceOutcomeReasons
 {
     public const string HotSwapIncompatible = "hot_swap_incompatible";
+    public const string CompilationGenerationUnavailable =
+        "compilation_generation_unavailable";
 
     public const string RunGenerationPreconditionFailed =
         "run_generation_precondition_failed";
@@ -33,6 +35,7 @@ internal static class WorkspaceOutcomeReasons
                 RetryDisposition.Reattach,
             ProjectRevisionPreconditionFailed
                 or ProjectionVersionPreconditionFailed
+                or CompilationGenerationUnavailable
                 or SessionPreconditionFailed
                 or RunGenerationPreconditionFailed
                 or HotSwapIncompatible => RetryDisposition.RefreshProjection,

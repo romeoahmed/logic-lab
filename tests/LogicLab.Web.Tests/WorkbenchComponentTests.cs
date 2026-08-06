@@ -119,12 +119,15 @@ internal sealed class WorkbenchComponentTests
     {
         await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace(new WorkspacePolicy(
+            policyId: "test-workspace",
+            policyRevision: "1",
             globalWorkspaceLimit: 16,
             sandboxRetention: TimeSpan.FromHours(1),
             authoringLimits: WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 16,
             idempotencyRecordCount: 1,
-            detachedRetention: TimeSpan.FromMinutes(30)));
+            detachedRetention: TimeSpan.FromMinutes(30),
+            hotSwapPeakBytes: ulong.MaxValue));
         var rendered = RenderEditor(context, workspace);
         _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
 
@@ -723,52 +726,70 @@ internal sealed class WorkbenchComponentTests
 
         public override async Task<WorkspaceReadOutcome> ReadAsync(
             WorkspaceQueryContext context,
+            WorkspaceQuery query,
             CancellationToken cancellationToken)
         {
-            var outcome = await base.ReadAsync(context, cancellationToken);
-            if (acceptedGeneration is not { } generation
-                || outcome is not ProjectionSnapshot snapshot)
+            var outcome = await base.ReadAsync(context, query, cancellationToken);
+            if (acceptedGeneration is not { } generation)
             {
                 return outcome;
             }
 
+            var projectionRead = query is ReadProjection
+                ? (ProjectionSnapshot)outcome
+                : (ProjectionSnapshot)await base.ReadAsync(
+                    context,
+                    ReadProjection.Instance,
+                    cancellationToken);
+            var projection = projectionRead.Projection;
+            CompilationProjection compilation;
             if (publishNewerGeneration)
             {
-                return new ProjectionSnapshot(snapshot.Projection with
+                var newer = new CompilationGeneration(checked(generation.Value + 1UL));
+                compilation = query is ReadCompilation
+                    ? new CompilationProjection(
+                        CompilationPublicationStatus.Superseded,
+                        generation,
+                        null,
+                        [],
+                        newer,
+                        null,
+                        null)
+                    : PublishedCompilation(projection, newer);
+            }
+            else if (Volatile.Read(ref publishAcceptedGeneration) != 0)
+            {
+                compilation = PublishedCompilation(projection, generation);
+            }
+            else
+            {
+                if (query is ReadCompilation)
                 {
-                    Compilation = PublishedCompilation(
-                        snapshot.Projection,
-                        new CompilationGeneration(checked(generation.Value + 1UL))),
-                });
-            }
+                    var readCount = Interlocked.Increment(ref pendingReadCount);
+                    firstPendingRead.TrySetResult();
+                    if (blockFollowingRead && readCount > 1)
+                    {
+                        blockedRead.TrySetResult();
+                        await releaseRead.Task.WaitAsync(cancellationToken);
+                    }
+                }
 
-            if (Volatile.Read(ref publishAcceptedGeneration) != 0)
-            {
-                return new ProjectionSnapshot(snapshot.Projection with
-                {
-                    Compilation = PublishedCompilation(snapshot.Projection, generation),
-                });
-            }
-
-            var readCount = Interlocked.Increment(ref pendingReadCount);
-            firstPendingRead.TrySetResult();
-            if (blockFollowingRead && readCount > 1)
-            {
-                blockedRead.TrySetResult();
-                await releaseRead.Task.WaitAsync(cancellationToken);
-            }
-
-            return new ProjectionSnapshot(snapshot.Projection with
-            {
-                Compilation = new CompilationProjection(
+                compilation = new CompilationProjection(
                     CompilationPublicationStatus.Queued,
                     generation,
                     null,
                     [],
                     null,
                     null,
-                    null),
-            });
+                    null);
+            }
+
+            return query is ReadCompilation
+                ? new CompilationSnapshot(compilation, projection.ProjectionVersion)
+                : new ProjectionSnapshot(projection with
+                {
+                    Compilation = compilation,
+                });
         }
 
         private static CompilationProjection PublishedCompilation(
@@ -895,10 +916,11 @@ internal sealed class WorkbenchComponentTests
 
         public override Task<WorkspaceReadOutcome> ReadAsync(
             WorkspaceQueryContext context,
+            WorkspaceQuery query,
             CancellationToken cancellationToken)
         {
             return Volatile.Read(ref isExpired) == 0
-                ? base.ReadAsync(context, cancellationToken)
+                ? base.ReadAsync(context, query, cancellationToken)
                 : Task.FromResult<WorkspaceReadOutcome>(
                     new WorkspaceReadRejected(
                         "workspace_not_found",
@@ -1008,10 +1030,11 @@ internal sealed class WorkbenchComponentTests
 
         public override Task<WorkspaceReadOutcome> ReadAsync(
             WorkspaceQueryContext context,
+            WorkspaceQuery query,
             CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref readCount);
-            return base.ReadAsync(context, cancellationToken);
+            return base.ReadAsync(context, query, cancellationToken);
         }
 
         public async Task<WorkspaceProjection> ReadCurrent()
@@ -1025,6 +1048,7 @@ internal sealed class WorkbenchComponentTests
                     currentWorkspaceId,
                     currentAttachment.AttachmentId,
                     currentAttachment.Generation),
+                ReadProjection.Instance,
                 CancellationToken.None);
             return ((ProjectionSnapshot)outcome).Projection;
         }

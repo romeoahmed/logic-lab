@@ -136,6 +136,7 @@ internal sealed class EditorWorkspaceContinuityTests
 
         var detachedRead = await workspace.ReadAsync(
             Query(opened.WorkspaceId, attached),
+            ReadProjection.Instance,
             CancellationToken.None);
         timeProvider.Advance(TimeSpan.FromMinutes(1));
         var outcome = await workspace.AttachAsync(
@@ -169,6 +170,7 @@ internal sealed class EditorWorkspaceContinuityTests
 
         var outcome = await workspace.ReadAsync(
             Query(opened.WorkspaceId, attached),
+            ReadProjection.Instance,
             CancellationToken.None);
 
         var rejection = await IsType<WorkspaceReadRejected>(outcome);
@@ -810,6 +812,7 @@ internal sealed class EditorWorkspaceContinuityTests
     {
         return await IsType<ProjectionSnapshot>(await workspace.ReadAsync(
                 Query(workspaceId, attached),
+                ReadProjection.Instance,
                 CancellationToken.None));
     }
 
@@ -836,12 +839,15 @@ internal sealed class EditorWorkspaceContinuityTests
         TimeSpan? detachedRetention = null)
     {
         return new WorkspacePolicy(
+            policyId: "test-workspace",
+            policyRevision: "1",
             globalWorkspaceLimit: 16,
             sandboxRetention: TimeSpan.FromHours(1),
             authoringLimits: WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 16,
             idempotencyRecordCount,
-            detachedRetention ?? TimeSpan.FromMinutes(30));
+            detachedRetention ?? TimeSpan.FromMinutes(30),
+            hotSwapPeakBytes: ulong.MaxValue);
     }
 
     private static async Task<T> IsType<T>(object actual)

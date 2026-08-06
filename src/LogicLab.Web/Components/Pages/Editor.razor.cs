@@ -291,19 +291,31 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
         CompilationGeneration generation,
         CancellationToken cancellationToken)
     {
-        while (Projection?.Compilation is { } compilation
-            && compilation.Generation == generation
-            && compilation.Status is CompilationPublicationStatus.Queued
-                or CompilationPublicationStatus.Running)
+        while (Projection is not null)
         {
-            await Task.Delay(CompilationRefreshInterval, cancellationToken);
+            var read = await workspace.ReadAsync(
+                QueryContext(),
+                new ReadCompilation(generation),
+                cancellationToken);
+            if (read is not CompilationSnapshot snapshot)
+            {
+                await Refresh(cancellationToken);
+                return null;
+            }
+
+            if (snapshot.Compilation.Status is CompilationPublicationStatus.Queued
+                or CompilationPublicationStatus.Running)
+            {
+                await Task.Delay(CompilationRefreshInterval, cancellationToken);
+                await Refresh(cancellationToken);
+                continue;
+            }
+
             await Refresh(cancellationToken);
+            return snapshot.Compilation;
         }
 
-        return Projection?.Compilation is { } terminal
-            && terminal.Generation == generation
-                ? terminal
-                : null;
+        return null;
     }
 
     private async Task CreateSimulationSession()
@@ -452,7 +464,10 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
             return;
         }
 
-        var read = await workspace.ReadAsync(QueryContext(), cancellationToken);
+        var read = await workspace.ReadAsync(
+            QueryContext(),
+            ReadProjection.Instance,
+            cancellationToken);
         if (read is ProjectionSnapshot snapshot)
         {
             UpdateProjection(snapshot.Projection);

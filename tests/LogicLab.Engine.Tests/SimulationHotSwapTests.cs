@@ -31,7 +31,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapSimulation(replacementArtifact),
+            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var snapshot = Snapshot(opened);
         var nextClock = Advance(opened);
@@ -91,7 +91,7 @@ internal sealed class SimulationHotSwapTests
 
         var committed = (HotSwapCommitted)SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapSimulation(replacementArtifact),
+            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var fullTrace = (TraceTransitionsAvailable)SimulationRuntime.Read(
             opened.Handle,
@@ -151,7 +151,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapSimulation(replacementArtifact),
+            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var after = Snapshot(opened);
 
@@ -190,7 +190,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapSimulation(replacementArtifact),
+            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var snapshot = Snapshot(opened);
 
@@ -225,7 +225,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapSimulation(replacementArtifact),
+            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
             new CancellationToken(canceled: true));
         var after = Snapshot(opened);
 
@@ -235,6 +235,46 @@ internal sealed class SimulationHotSwapTests
         {
             await Assert.That(failed.Reason)
                 .IsEqualTo(SimulationFailureReason.SimulationCancelled);
+        }
+
+        await AssertSnapshotsEquivalent(before, after);
+    }
+
+    [Test]
+    public async Task Execute_HotSwapPeakBudgetExceeded_RetainsOldSessionAtomically()
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var input = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.One));
+        var sink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        var outputNet = circuit.Connect((input, "Q"), (sink, "D"));
+        var originalArtifact = circuit.Compile();
+        var opened = Open(originalArtifact, outputNet);
+        var before = Snapshot(opened);
+        circuit.Apply(new MoveComponentInstancesIntent(
+            circuit.Revision.Document.EntryCircuitDefinitionId,
+            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
+        var replacementArtifact = circuit.Compile();
+
+        var outcome = SimulationRuntime.Execute(
+            opened.Handle,
+            new HotSwapSimulation(
+                replacementArtifact,
+                maximumPeakOwnedBufferBytes: 400),
+            CancellationToken.None);
+        var after = Snapshot(opened);
+
+        var rejected = await Assert.That(outcome)
+            .IsTypeOf<HotSwapResourceLimitExceeded>();
+        Assert.NotNull(rejected);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.SessionVersion).IsEqualTo(before.SessionVersion);
+            await Assert.That(rejected.CompilationArtifactKey)
+                .IsEqualTo(originalArtifact.Key);
+            await Assert.That(rejected.MaximumPeakOwnedBufferBytes).IsEqualTo(400UL);
+            await Assert.That(rejected.ObservedPeakOwnedBufferBytes).IsGreaterThan(400UL);
         }
 
         await AssertSnapshotsEquivalent(before, after);

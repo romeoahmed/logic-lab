@@ -76,6 +76,7 @@ internal static class EditorWorkspaceTestDriver
         {
             var read = await workspace.ReadAsync(
                 Query(workspaceId, attached),
+                ReadProjection.Instance,
                 cancellationToken);
             var projection = read is ProjectionSnapshot snapshot
                 ? snapshot.Projection

@@ -308,9 +308,9 @@ public enum AdvanceFailureReason
     SimulationInternalDefect,
 }
 
-public sealed record SimulationPolicyEvidenceProjection
+public sealed record PolicyEvidenceProjection
 {
-    public SimulationPolicyEvidenceProjection(
+    public PolicyEvidenceProjection(
         string policyId,
         string policyRevision,
         string dimension,
@@ -339,7 +339,7 @@ public sealed record AdvanceFailureProjection
     public AdvanceFailureProjection(
         AdvanceFailureReason reason,
         IReadOnlyList<string> diagnosticCodes,
-        SimulationPolicyEvidenceProjection? policyEvidence)
+        PolicyEvidenceProjection? policyEvidence)
     {
         ArgumentNullException.ThrowIfNull(diagnosticCodes);
         if (!Enum.IsDefined(reason)
@@ -359,7 +359,7 @@ public sealed record AdvanceFailureProjection
 
     public ReadOnlyCollection<string> DiagnosticCodes { get; }
 
-    public SimulationPolicyEvidenceProjection? PolicyEvidence { get; }
+    public PolicyEvidenceProjection? PolicyEvidence { get; }
 }
 
 public sealed record SessionAdvanceFailed : WorkspaceCommandOutcome
@@ -441,7 +441,8 @@ public sealed record WorkspaceCommandRejected : WorkspaceCommandOutcome
     public WorkspaceCommandRejected(
         string code,
         IReadOnlyList<string> diagnosticCodes,
-        RetryDisposition retryDisposition)
+        RetryDisposition retryDisposition,
+        PolicyEvidenceProjection? policyEvidence = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(code);
         ArgumentNullException.ThrowIfNull(diagnosticCodes);
@@ -449,6 +450,7 @@ public sealed record WorkspaceCommandRejected : WorkspaceCommandOutcome
         Code = code;
         DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
         RetryDisposition = retryDisposition;
+        PolicyEvidence = policyEvidence;
     }
 
     public string Code { get; }
@@ -456,6 +458,43 @@ public sealed record WorkspaceCommandRejected : WorkspaceCommandOutcome
     public ReadOnlyCollection<string> DiagnosticCodes { get; }
 
     public RetryDisposition RetryDisposition { get; }
+
+    public PolicyEvidenceProjection? PolicyEvidence { get; }
+}
+
+public abstract record WorkspaceQuery
+{
+    private protected WorkspaceQuery()
+    {
+    }
+}
+
+public sealed record ReadProjection : WorkspaceQuery
+{
+    public ReadProjection(ulong? afterProjectionVersion = null)
+    {
+        if (afterProjectionVersion is 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(afterProjectionVersion));
+        }
+
+        AfterProjectionVersion = afterProjectionVersion;
+    }
+
+    public static ReadProjection Instance { get; } = new();
+
+    public ulong? AfterProjectionVersion { get; }
+}
+
+public sealed record ReadCompilation : WorkspaceQuery
+{
+    public ReadCompilation(CompilationGeneration compilationGeneration)
+    {
+        ArgumentNullException.ThrowIfNull(compilationGeneration);
+        CompilationGeneration = compilationGeneration;
+    }
+
+    public CompilationGeneration CompilationGeneration { get; }
 }
 
 public abstract record WorkspaceReadOutcome
@@ -467,6 +506,41 @@ public abstract record WorkspaceReadOutcome
 
 public sealed record ProjectionSnapshot(WorkspaceProjection Projection)
     : WorkspaceReadOutcome;
+
+public sealed record ProjectionUnchanged : WorkspaceReadOutcome
+{
+    public ProjectionUnchanged(ulong projectionVersion)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(projectionVersion);
+        ProjectionVersion = projectionVersion;
+    }
+
+    public ulong ProjectionVersion { get; }
+}
+
+public sealed record CompilationSnapshot : WorkspaceReadOutcome
+{
+    public CompilationSnapshot(
+        CompilationProjection compilation,
+        ulong projectionVersion)
+    {
+        ArgumentNullException.ThrowIfNull(compilation);
+        ArgumentOutOfRangeException.ThrowIfZero(projectionVersion);
+        if (compilation.Generation is null)
+        {
+            throw new ArgumentException(
+                "A compilation snapshot requires a Compilation Generation.",
+                nameof(compilation));
+        }
+
+        Compilation = compilation;
+        ProjectionVersion = projectionVersion;
+    }
+
+    public CompilationProjection Compilation { get; }
+
+    public ulong ProjectionVersion { get; }
+}
 
 public sealed record WorkspaceReadRejected : WorkspaceReadOutcome
 {

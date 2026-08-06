@@ -42,11 +42,32 @@ internal sealed class EditorWorkspaceLifecycleTests
         timeProvider.Advance(TimeSpan.FromMinutes(5));
         var outcome = await workspace.ReadAsync(
             Query(opened.WorkspaceId, attached),
+            ReadProjection.Instance,
             CancellationToken.None);
 
         var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceReadRejected>();
         Assert.NotNull(rejected);
         await Assert.That(rejected.Code).IsEqualTo("workspace_expired");
+    }
+
+    [Test]
+    public async Task ReadAsync_CurrentProjectionVersion_ReturnsUnchanged()
+    {
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint,
+            Policy(globalWorkspaceLimit: 1, TimeSpan.FromHours(1)));
+        var opened = (WorkspaceOpened)await Open(workspace);
+        var attached = await Attach(workspace, opened.WorkspaceId);
+
+        var outcome = await workspace.ReadAsync(
+            Query(opened.WorkspaceId, attached),
+            new ReadProjection(opened.Projection.ProjectionVersion),
+            CancellationToken.None);
+
+        var unchanged = await Assert.That(outcome).IsTypeOf<ProjectionUnchanged>();
+        Assert.NotNull(unchanged);
+        await Assert.That(unchanged.ProjectionVersion)
+            .IsEqualTo(opened.Projection.ProjectionVersion);
     }
 
     [Test]
@@ -99,6 +120,7 @@ internal sealed class EditorWorkspaceLifecycleTests
             CancellationToken.None);
         var read = await workspace.ReadAsync(
             Query(opened.WorkspaceId, attached),
+            ReadProjection.Instance,
             CancellationToken.None);
         var replacement = await Open(workspace);
 
@@ -205,12 +227,15 @@ internal sealed class EditorWorkspaceLifecycleTests
         TimeSpan sandboxRetention)
     {
         return new WorkspacePolicy(
+            "test-workspace",
+            "1",
             globalWorkspaceLimit,
             sandboxRetention,
             WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 128,
             idempotencyRecordCount: 1_024,
-            detachedRetention: sandboxRetention);
+            detachedRetention: sandboxRetention,
+            hotSwapPeakBytes: ulong.MaxValue);
     }
 
     private static async Task<WorkspaceOpenOutcome[]> OpenSimultaneously(

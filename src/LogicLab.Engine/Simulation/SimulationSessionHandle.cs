@@ -104,6 +104,9 @@ internal sealed class SimulationTraceStore(TracePolicy policy)
 
     public ulong ObservedChunkCount { get; private set; }
 
+    internal ulong RetainedOwnedBufferBytes => checked(
+        retainedBytes + ((ulong)chunks.Length * sizeof(ulong)));
+
     public ulong EarliestAvailableSequence => chunkCount == 0
         ? checked(LatestSequence + 1)
         : ChunkAt(0).Transitions[0].Sequence;
@@ -129,6 +132,20 @@ internal sealed class SimulationTraceStore(TracePolicy policy)
         fork.retainedTransitionCount = retainedTransitionCount;
         fork.hasEvicted = hasEvicted;
         return fork;
+    }
+
+    internal ulong ForkCandidateOwnedBufferBytes(
+        int appendedTransitionCount,
+        int maximumValueWordCount)
+    {
+        var requiredChunkCount = checked(
+            chunkCount + (appendedTransitionCount == 0 ? 0 : 1));
+        var forkCapacity = CapacityFor(requiredChunkCount);
+        var appendedBytes = checked(
+            (ulong)appendedTransitionCount
+            * (TransitionBaseBytes
+                + ((ulong)maximumValueWordCount * 2UL * sizeof(ulong))));
+        return checked(((ulong)forkCapacity * sizeof(ulong)) + appendedBytes);
     }
 
     public void Append(
@@ -322,6 +339,17 @@ internal sealed class SimulationTraceStore(TracePolicy policy)
 
         chunks = expanded;
         head = 0;
+    }
+
+    private static int CapacityFor(int requiredCapacity)
+    {
+        var capacity = InitialChunkCapacity;
+        while (capacity < requiredCapacity)
+        {
+            capacity = checked(capacity * 2);
+        }
+
+        return capacity;
     }
 
     private sealed record TraceChunk(

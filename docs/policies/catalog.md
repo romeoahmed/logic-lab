@@ -182,8 +182,19 @@ hierarchy and elaboration limits. History/idempotency limits apply after atomic 
 publication and produce the contract's explicit truncation or expired-idempotency behavior;
 they never make a valid edit partially commit. Retention uses `TimeProvider`.
 `hot_swap_peak_bytes` is declared owned-buffer accounting, not a promise about total process
-RSS. Both Durable Display Name dimensions must pass, and catalog requests cannot exceed the
-page/cursor maxima.
+RSS. The accounting uses fixed logical byte units: eight bytes per owned reference or index
+slot, sixteen bytes per packed Logic Vector word (the two 64-bit logic planes), twenty-four
+bytes per resolved Net word (the three 64-bit cause planes), and the Trace Policy's 48-byte
+transition base plus packed value words. The peak includes the committed
+Session working-layer buffers and retained Trace storage once, the complete replacement
+working-layer candidate, both the initial and migrated RAM cell-reference buffers that can
+coexist, and the Trace fork index plus its staged observation chunk. Shared immutable
+Compilation Artifact records, CLR object headers, allocator metadata, and transient scalar
+locals are excluded. Arithmetic is checked and saturation is treated as over-limit. Admission
+runs before any replacement working-layer, RAM clone, or Trace fork allocation; rejection
+reports Workspace Policy ID/revision, `hot_swap_peak_bytes`, and the observed value while
+retaining the old Session unchanged. Both Durable Display Name dimensions must pass, and
+catalog requests cannot exceed the page/cursor maxima.
 
 `BrowserPolicy` needs lower as well as upper bounds, so it owns this separate record:
 

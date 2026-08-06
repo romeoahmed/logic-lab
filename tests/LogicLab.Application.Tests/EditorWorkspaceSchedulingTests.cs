@@ -38,6 +38,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                 EditorWorkspaceTestDriver.Query(
                     controlled.Opened.WorkspaceId,
                     controlled.Attached),
+                ReadProjection.Instance,
                 cancellationToken)).Projection;
 
             using (Assert.Multiple())
@@ -192,6 +193,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                 EditorWorkspaceTestDriver.Query(
                     controlled.Opened.WorkspaceId,
                     controlled.Attached),
+                ReadProjection.Instance,
                 cancellationToken)).Projection;
         }
         finally
@@ -297,6 +299,65 @@ internal sealed class EditorWorkspaceSchedulingTests
     }
 
     [Test, Timeout(30_000)]
+    public async Task ReadAsync_SupersededCompilationGeneration_ReportsNewerGeneration(
+        CancellationToken cancellationToken)
+    {
+        var compilationGate = new BlockingOperationGate();
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            Compile = (request, operationCancellationToken) =>
+            {
+                compilationGate.Block(operationCancellationToken);
+                return production.Compile(request, operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            schedulingPolicy: new SchedulingPolicy(2, 1),
+            operations: operations);
+        var opened = await Open(workspace, "Observable supersession", cancellationToken);
+        var first = await workspace.DispatchAsync(
+            CompilationCommand(opened, "first"),
+            cancellationToken);
+        var firstAcceptance = await Assert.That(first).IsTypeOf<CompilationAccepted>();
+        Assert.NotNull(firstAcceptance);
+
+        try
+        {
+            await compilationGate.Started.WaitAsync(cancellationToken);
+            var second = await workspace.DispatchAsync(
+                CompilationCommand(opened, "second"),
+                cancellationToken);
+            var secondAcceptance = await Assert.That(second)
+                .IsTypeOf<CompilationAccepted>();
+            Assert.NotNull(secondAcceptance);
+
+            var read = await workspace.ReadAsync(
+                EditorWorkspaceTestDriver.Query(
+                    opened.Opened.WorkspaceId,
+                    opened.Attached),
+                new ReadCompilation(firstAcceptance.CompilationGeneration),
+                cancellationToken);
+            var snapshot = await Assert.That(read).IsTypeOf<CompilationSnapshot>();
+            Assert.NotNull(snapshot);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(snapshot.Compilation.Status)
+                    .IsEqualTo(CompilationPublicationStatus.Superseded);
+                await Assert.That(snapshot.Compilation.Generation)
+                    .IsEqualTo(firstAcceptance.CompilationGeneration);
+                await Assert.That(snapshot.Compilation.SupersededBy)
+                    .IsEqualTo(secondAcceptance.CompilationGeneration);
+            }
+        }
+        finally
+        {
+            compilationGate.Release();
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task DispatchAsync_AcceptedCompilationCancelledBeforeExecution_PublishesRejection(
         CancellationToken cancellationToken)
     {
@@ -390,6 +451,7 @@ internal sealed class EditorWorkspaceSchedulingTests
             EditorWorkspaceTestDriver.Query(
                 opened.Opened.WorkspaceId,
                 opened.Attached),
+            ReadProjection.Instance,
             cancellationToken);
         await Assert.That(compilationOutcome).IsTypeOf<CompilationAccepted>();
 
