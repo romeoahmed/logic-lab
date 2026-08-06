@@ -59,7 +59,6 @@ internal sealed class EditorWorkspaceRetentionTests
                 opened.WorkspaceId,
                 attached.AttachmentId,
                 attached.Generation,
-                attached.Projection.ProjectionVersion,
                 BuildFingerprint),
             CancellationToken.None);
 
@@ -91,7 +90,6 @@ internal sealed class EditorWorkspaceRetentionTests
                 opened.WorkspaceId,
                 attached.AttachmentId,
                 attached.Generation,
-                attached.Projection.ProjectionVersion,
                 BuildFingerprint),
             CancellationToken.None);
 
@@ -127,7 +125,6 @@ internal sealed class EditorWorkspaceRetentionTests
                 opened.WorkspaceId,
                 attached.AttachmentId,
                 attached.Generation,
-                attached.Projection.ProjectionVersion,
                 BuildFingerprint),
             CancellationToken.None);
 
@@ -155,7 +152,6 @@ internal sealed class EditorWorkspaceRetentionTests
                 opened.WorkspaceId,
                 first.AttachmentId,
                 first.Generation,
-                first.Projection.ProjectionVersion,
                 BuildFingerprint),
             CancellationToken.None));
         timeProvider.Advance(TimeSpan.FromMinutes(4));

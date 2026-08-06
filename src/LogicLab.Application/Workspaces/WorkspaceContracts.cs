@@ -381,10 +381,5 @@ public sealed record WorkspaceProjection(
     ulong ProjectionVersion,
     ProjectRevision ProjectRevision,
     CompilationProjection Compilation,
-    SimulationProjection? Simulation)
-{
-    public TransactionHistoryAvailability History { get; init; } = new(
-        CanUndo: false,
-        CanRedo: false,
-        RetainedRevisionCount: 1);
-}
+    SimulationProjection? Simulation,
+    TransactionHistoryAvailability History);

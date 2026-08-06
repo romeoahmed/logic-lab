@@ -183,7 +183,6 @@ public sealed record Reattach : AttachRequest
         WorkspaceId workspaceId,
         WorkspaceAttachmentId priorAttachmentId,
         ulong priorGeneration,
-        ulong lastProjectionVersion,
         string buildFingerprint)
         : base(workspaceId, buildFingerprint)
     {
@@ -191,14 +190,11 @@ public sealed record Reattach : AttachRequest
         ArgumentOutOfRangeException.ThrowIfZero(priorGeneration);
         PriorAttachmentId = priorAttachmentId;
         PriorGeneration = priorGeneration;
-        LastProjectionVersion = lastProjectionVersion;
     }
 
     public WorkspaceAttachmentId PriorAttachmentId { get; }
 
     public ulong PriorGeneration { get; }
-
-    public ulong LastProjectionVersion { get; }
 }
 
 public abstract record WorkspaceAttachOutcome
