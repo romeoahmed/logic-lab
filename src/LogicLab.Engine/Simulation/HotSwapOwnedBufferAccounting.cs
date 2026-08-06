@@ -6,14 +6,20 @@ internal static class HotSwapOwnedBufferAccounting
 {
     public static HotSwapOwnedBufferEstimate MeasurePeak(
         SimulationSessionState state,
-        CompilationArtifact replacement)
+        CompilationArtifact replacement,
+        HotSwapStateMigration[] migrations,
+        int preservedProbeCount)
     {
         try
         {
             return new HotSwapOwnedBufferEstimate(
                 checked(
                     CommittedWorkingLayerBytes(state)
-                    + ReplacementCandidateBytes(state, replacement.SimulationIr)),
+                    + ReplacementCandidateBytes(
+                        state,
+                        replacement.SimulationIr,
+                        migrations,
+                        preservedProbeCount)),
                 IsSaturated: false);
         }
         catch (OverflowException)
@@ -51,20 +57,21 @@ internal static class HotSwapOwnedBufferAccounting
 
     private static ulong ReplacementCandidateBytes(
         SimulationSessionState state,
-        SimulationIr replacement)
+        SimulationIr replacement,
+        HotSwapStateMigration[] migrations,
+        int preservedProbeCount)
     {
         var evaluatorCount = replacement.Evaluators.Count;
         var driverCount = replacement.Drivers.Count;
         var netCount = replacement.Nets.Count;
-        var probeCount = state.Probes.Length;
         var bytes = checked(
             ReferenceSlots(evaluatorCount)
             + ReferenceSlots(evaluatorCount)
             + ReferenceSlots(driverCount)
             + ReferenceSlots(netCount)
             + ReferenceSlots(netCount)
-            + ReferenceSlots(probeCount)
-            + ReferenceSlots(probeCount));
+            + ReferenceSlots(preservedProbeCount)
+            + ReferenceSlots(preservedProbeCount));
         for (var index = 0; index < replacement.Drivers.Count; index++)
         {
             bytes = checked(
@@ -92,15 +99,22 @@ internal static class HotSwapOwnedBufferAccounting
                 continue;
             }
 
-            // CreateMemoryStates owns one cell-reference buffer. A compatible RAM
-            // migration may replace it with a clone while both buffers are live.
-            bytes = checked(bytes + (2UL * ReferenceSlots(memory.Count)));
+            bytes = checked(bytes + ReferenceSlots(memory.Count));
+        }
+
+        foreach (var migration in migrations)
+        {
+            if (migration.Current.Kind == SimulationEvaluatorKind.MemoryRamSinglePort)
+            {
+                bytes = checked(
+                    bytes + ReferenceSlots(migration.Replacement.InitialMemory!.Count));
+            }
         }
 
         return checked(
             bytes
             + state.Trace.ForkCandidateOwnedBufferBytes(
-                probeCount,
+                preservedProbeCount,
                 maximumNetWordCount));
     }
 
