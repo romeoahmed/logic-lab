@@ -429,6 +429,17 @@ public sealed record ScheduleStimulusBatch : SimulationCommand
 
 public sealed record AdvanceToNextQuiescentBoundary : SimulationCommand;
 
+public sealed record HotSwapSimulation : SimulationCommand
+{
+    public HotSwapSimulation(CompilationArtifact compilationArtifact)
+    {
+        ArgumentNullException.ThrowIfNull(compilationArtifact);
+        CompilationArtifact = compilationArtifact;
+    }
+
+    public CompilationArtifact CompilationArtifact { get; }
+}
+
 public enum StimulusBatchInvalidRule
 {
     AtOrBeforeCommittedTime,
@@ -488,6 +499,85 @@ public sealed record AdvanceCommitted : SimulationCommandOutcome
 public sealed record NoScheduledStimulus(
     ulong SessionVersion,
     ulong LogicalTime) : SimulationCommandOutcome;
+
+public sealed class HotSwapMigrationEvidence
+{
+    internal HotSwapMigrationEvidence(
+        CompilationSource[] migratedStateSources,
+        ProbeId[] preservedProbeIds,
+        ProbeId[] unresolvedProbeIds)
+    {
+        MigratedStateSources = Array.AsReadOnly(
+            (CompilationSource[])migratedStateSources.Clone());
+        PreservedProbeIds = Array.AsReadOnly((ProbeId[])preservedProbeIds.Clone());
+        UnresolvedProbeIds = Array.AsReadOnly((ProbeId[])unresolvedProbeIds.Clone());
+    }
+
+    public ReadOnlyCollection<CompilationSource> MigratedStateSources { get; }
+
+    public ReadOnlyCollection<ProbeId> PreservedProbeIds { get; }
+
+    public ReadOnlyCollection<ProbeId> UnresolvedProbeIds { get; }
+}
+
+public sealed record HotSwapCommitted : SimulationCommandOutcome
+{
+    internal HotSwapCommitted(
+        ulong sessionVersion,
+        CompilationArtifactKey compilationArtifactKey,
+        HotSwapMigrationEvidence migrationEvidence,
+        ProbeId[] probeIds,
+        ProbeObservation[] observedProbes,
+        SimulationDiagnostic[] diagnostics,
+        TraceCursor traceCursor)
+    {
+        SessionVersion = sessionVersion;
+        CompilationArtifactKey = compilationArtifactKey;
+        MigrationEvidence = migrationEvidence;
+        ProbeIds = Array.AsReadOnly((ProbeId[])probeIds.Clone());
+        ObservedProbes = Array.AsReadOnly((ProbeObservation[])observedProbes.Clone());
+        Diagnostics = Array.AsReadOnly((SimulationDiagnostic[])diagnostics.Clone());
+        TraceCursor = traceCursor;
+    }
+
+    public ulong SessionVersion { get; }
+
+    public CompilationArtifactKey CompilationArtifactKey { get; }
+
+    public HotSwapMigrationEvidence MigrationEvidence { get; }
+
+    public ReadOnlyCollection<ProbeId> ProbeIds { get; }
+
+    public ReadOnlyCollection<ProbeObservation> ObservedProbes { get; }
+
+    public ReadOnlyCollection<SimulationDiagnostic> Diagnostics { get; }
+
+    public TraceCursor TraceCursor { get; }
+}
+
+public sealed record HotSwapIncompatible : SimulationCommandOutcome
+{
+    internal HotSwapIncompatible(
+        ulong sessionVersion,
+        CompilationArtifactKey compilationArtifactKey,
+        CompilationSource[] incompatibleStateSources,
+        ProbeId[] unresolvedProbeIds)
+    {
+        SessionVersion = sessionVersion;
+        CompilationArtifactKey = compilationArtifactKey;
+        IncompatibleStateSources = Array.AsReadOnly(
+            (CompilationSource[])incompatibleStateSources.Clone());
+        UnresolvedProbeIds = Array.AsReadOnly((ProbeId[])unresolvedProbeIds.Clone());
+    }
+
+    public ulong SessionVersion { get; }
+
+    public CompilationArtifactKey CompilationArtifactKey { get; }
+
+    public ReadOnlyCollection<CompilationSource> IncompatibleStateSources { get; }
+
+    public ReadOnlyCollection<ProbeId> UnresolvedProbeIds { get; }
+}
 
 public sealed record AdvanceFailed : SimulationCommandOutcome
 {

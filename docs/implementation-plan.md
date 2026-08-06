@@ -1,7 +1,7 @@
 # Logic Lab V1 Implementation Plan
 
 > Status: approved non-normative execution plan
-> Delivery status reviewed: 2026-08-05
+> Delivery status reviewed: 2026-08-06
 > Scope: documentation baseline to V1 implementation, conformance, and one qualified production deployment profile
 
 This plan translates the repository's closed V1 design into context-sized implementation slices. It does not own product behavior, Module interfaces, policy semantics, or deployment requirements. [Architecture](../ARCHITECTURE.md), [Workbench](../WORKBENCH.md), the [specifications](./specs/), [seam contracts](./contracts/README.md), [Policy Catalog](./policies/catalog.md), and [ADRs](./adr/README.md) remain authoritative. If a plan item conflicts with an owning document, repair this plan rather than changing behavior to match it.
@@ -42,7 +42,7 @@ The first required product tracer is complete at item `06`. Infrastructure bread
 
 ## Delivery status
 
-Phase A items `01` through `06`, Phase B items `07` through `16`, and Phase C item `17` are complete at the Domain, Compiler, Runtime, and applicable Application seams promised below. The [Development Readiness](./README.md#development-readiness) table owns the current Web surface, executable evidence, verification snapshot, and remaining qualification gaps.
+Phase A items `01` through `06`, Phase B items `07` through `16`, and Phase C items `17` and `18` are complete at the Domain, Compiler, Runtime, and applicable Application seams promised below. The [Development Readiness](./README.md#development-readiness) table owns the current Web surface, executable evidence, verification snapshot, and remaining qualification gaps.
 
 ## Phase B — Authoring, Component Contracts, and Runtime breadth
 
@@ -114,7 +114,7 @@ Only item `43` authorizes describing the selected deployment profile as producti
 
 ## Dependency frontier
 
-The initial frontier contained only item `01`; implementation has now completed through item `17`. The current frontier begins with `18`, `19`, `21`, `23`, and `28`, opening these primary streams as their named prerequisites land:
+The initial frontier contained only item `01`; implementation has now completed through item `18`. The current frontier begins with `19`, `21`, `23`, and `28`, opening these primary streams as their named prerequisites land:
 
 - Workspace execution, persistence, and transfer (`18`–`22`);
 - TeachingMixed generation once the relevant contracts exist (`23`–`25`); and

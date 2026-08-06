@@ -15,6 +15,13 @@ public static partial class SimulationRuntime
 
     private static ClockEventCalendar CreateClockEventCalendar(SimulationIr ir)
     {
+        return CreateClockEventCalendar(ir, 0);
+    }
+
+    private static ClockEventCalendar CreateClockEventCalendar(
+        SimulationIr ir,
+        ulong logicalTimeOrigin)
+    {
         var calendar = new ClockEventCalendar();
         foreach (var evaluator in ir.Evaluators.Where(evaluator =>
             evaluator.Kind == SimulationEvaluatorKind.ClockSource))
@@ -22,9 +29,13 @@ public static partial class SimulationRuntime
             var transition = new ScheduledClockTransition(
                 evaluator.Ordinal,
                 evaluator.OutputDriverOrdinals[0]);
-            calendar.Schedule(new ScheduledClockEvent(
-                transition,
-                evaluator.ClockSchedule!.FirstTransition));
+            var firstTransition = evaluator.ClockSchedule!.FirstTransition;
+            if (firstTransition <= ulong.MaxValue - logicalTimeOrigin)
+            {
+                calendar.Schedule(new ScheduledClockEvent(
+                    transition,
+                    checked(logicalTimeOrigin + firstTransition)));
+            }
         }
 
         return calendar;

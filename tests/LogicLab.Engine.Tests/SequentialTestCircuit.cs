@@ -57,6 +57,11 @@ internal sealed class SequentialTestCircuit
             net => !before.Contains(net.Id));
     }
 
+    public void Apply(EditIntent intent)
+    {
+        Revision = CompilerTestCircuit.Commit(ProjectEditor.Apply(Revision, intent));
+    }
+
     public static SequentialTestCircuit Create()
     {
         return new SequentialTestCircuit(CompilerTestCircuit.BeginProject());

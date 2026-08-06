@@ -162,6 +162,10 @@ public static partial class SimulationRuntime
                 AdvanceToNextQuiescentBoundary => Advance(
                     state,
                     cancellationToken),
+                HotSwapSimulation hotSwap => HotSwap(
+                    state,
+                    hotSwap.CompilationArtifact,
+                    cancellationToken),
                 _ => throw new InvalidOperationException(
                     "The Simulation command variant is undefined."),
             };

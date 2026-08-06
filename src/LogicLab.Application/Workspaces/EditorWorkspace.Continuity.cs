@@ -156,6 +156,21 @@ internal sealed partial class EditorWorkspace
                 }
 
                 state.IsAttached = false;
+                if (state.Simulation is
+                    {
+                        Run.Status: RunStatus.Running,
+                        Run.RunGeneration: { } runGeneration,
+                    } simulation)
+                {
+                    state.Simulation = WithRun(
+                        simulation,
+                        new RunProjection(
+                            RunStatus.Paused,
+                            runGeneration,
+                            RunPauseReason.Detached));
+                    state.ProjectionVersion++;
+                }
+
                 lock (gate)
                 {
                     state.DetachedAtTimestamp = timeProvider.GetTimestamp();
@@ -694,6 +709,36 @@ internal sealed partial class EditorWorkspace
                 '|',
                 JsonSerializer.Serialize(
                     step.Precondition.CompilationArtifactKey,
+                    CanonicalJsonOptions)),
+            StartRun start => string.Concat(
+                nameof(StartRun),
+                '|',
+                start.Precondition.SessionId.Value,
+                '|',
+                start.Precondition.SessionVersion,
+                '|',
+                JsonSerializer.Serialize(
+                    start.Precondition.CompilationArtifactKey,
+                    CanonicalJsonOptions)),
+            PauseRun pause => string.Concat(
+                nameof(PauseRun),
+                '|',
+                pause.Precondition.SessionId.Value,
+                '|',
+                pause.Precondition.RunGeneration.Value),
+            HotSwapSession hotSwap => string.Concat(
+                nameof(HotSwapSession),
+                '|',
+                hotSwap.Precondition.SessionId.Value,
+                '|',
+                hotSwap.Precondition.SessionVersion,
+                '|',
+                JsonSerializer.Serialize(
+                    hotSwap.Precondition.CompilationArtifactKey,
+                    CanonicalJsonOptions),
+                '|',
+                JsonSerializer.Serialize(
+                    hotSwap.TargetCompilationArtifactKey,
                     CanonicalJsonOptions)),
             CloseWorkspace => nameof(CloseWorkspace),
             _ => command.GetType().FullName ?? command.GetType().Name,

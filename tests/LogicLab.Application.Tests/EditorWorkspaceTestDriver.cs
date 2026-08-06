@@ -65,4 +65,29 @@ internal static class EditorWorkspaceTestDriver
             simulation.SessionVersion,
             simulation.CompilationArtifactKey);
     }
+
+    public static async Task<WorkspaceProjection> WaitForCompilationAsync(
+        IEditorWorkspace workspace,
+        WorkspaceId workspaceId,
+        Attached attached,
+        CancellationToken cancellationToken = default)
+    {
+        while (true)
+        {
+            var read = await workspace.ReadAsync(
+                Query(workspaceId, attached),
+                cancellationToken);
+            var projection = read is ProjectionSnapshot snapshot
+                ? snapshot.Projection
+                : throw new InvalidOperationException(
+                    "Workspace projection became unavailable while compiling.");
+            if (projection.Compilation.Status is CompilationPublicationStatus.Published
+                or CompilationPublicationStatus.Rejected)
+            {
+                return projection;
+            }
+
+            await Task.Yield();
+        }
+    }
 }

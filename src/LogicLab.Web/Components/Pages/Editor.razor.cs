@@ -232,9 +232,26 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
         var outcome = await Execute(context => new RequestCompilation(
             context,
             precondition));
-        Status = outcome is CompilationPublished
+        if (outcome is not CompilationAccepted accepted)
+        {
+            Status = $"Compilation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+            return;
+        }
+
+        Status = $"Compilation generation {accepted.CompilationGeneration.Value} accepted.";
+        while (Projection?.Compilation is
+            {
+                Status: CompilationPublicationStatus.Queued
+                       or CompilationPublicationStatus.Running,
+            })
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(10));
+            await Refresh();
+        }
+
+        Status = Projection?.Compilation.Status is CompilationPublicationStatus.Published
             ? "Compilation Artifact published atomically."
-            : $"Compilation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+            : $"Compilation rejected: {Projection?.Compilation.RejectionCode ?? "unknown"}.";
     }
 
     private async Task CreateSimulationSession()

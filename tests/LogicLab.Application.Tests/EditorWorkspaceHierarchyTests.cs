@@ -107,7 +107,10 @@ internal sealed class EditorWorkspaceHierarchyTests
                 EditorWorkspaceTestDriver.Command(workspaceId, attached),
                 EditorWorkspaceTestDriver.Compilation(beforeCompilation)),
             CancellationToken.None);
-        var compiledProjection = await Read(workspace, workspaceId, attached);
+        var compiledProjection = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
+            workspace,
+            workspaceId,
+            attached);
         var sessionCreated = await workspace.DispatchAsync(
             new CreateSession(
                 EditorWorkspaceTestDriver.Command(workspaceId, attached),
@@ -131,7 +134,7 @@ internal sealed class EditorWorkspaceHierarchyTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(compiled).IsTypeOf<CompilationPublished>();
+            await Assert.That(compiled).IsTypeOf<CompilationAccepted>();
             await Assert.That(sessionCreated).IsTypeOf<SimulationSessionCreated>();
             await Assert.That(initial.Simulation!.Probes.Single().Value)
                 .IsEquivalentTo([LogicValue.One]);

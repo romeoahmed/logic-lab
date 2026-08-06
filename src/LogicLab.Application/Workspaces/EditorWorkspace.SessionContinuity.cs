@@ -115,6 +115,16 @@ internal sealed partial class EditorWorkspace
                 state,
                 step,
                 cancellationToken),
+            StartRun start => StartRunWithPrecondition(
+                state,
+                start),
+            PauseRun pause => PauseRunWithPrecondition(
+                state,
+                pause),
+            HotSwapSession hotSwap => HotSwapWithPrecondition(
+                state,
+                hotSwap,
+                cancellationToken),
             _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
         };
     }

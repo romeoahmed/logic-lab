@@ -149,6 +149,34 @@ public sealed record SessionMutationPrecondition
     public CompilationArtifactKey CompilationArtifactKey { get; }
 }
 
+public sealed record RunGeneration
+{
+    public RunGeneration(ulong value)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(value);
+        Value = value;
+    }
+
+    public ulong Value { get; }
+}
+
+public sealed record RunControlPrecondition
+{
+    public RunControlPrecondition(
+        SimulationSessionId sessionId,
+        RunGeneration runGeneration)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+        ArgumentNullException.ThrowIfNull(runGeneration);
+        SessionId = sessionId;
+        RunGeneration = runGeneration;
+    }
+
+    public SimulationSessionId SessionId { get; }
+
+    public RunGeneration RunGeneration { get; }
+}
+
 public sealed record TransactionHistoryAvailability(
     bool CanUndo,
     bool CanRedo,

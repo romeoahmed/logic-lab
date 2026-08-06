@@ -48,17 +48,17 @@ There is no generic “narrower file wins” rule. A specification defines curre
 
 ## Development readiness
 
-The [Implementation Plan](./implementation-plan.md#delivery-status) is the only completion ledger: Phase A items `01`–`06`, Phase B items `07`–`16`, and Phase C item `17` are complete at the seams promised there. This section summarizes executable evidence and open gaps; it does not redefine slice completion. The application is neither V1-complete nor production-qualified.
+The [Implementation Plan](./implementation-plan.md#delivery-status) is the only completion ledger: Phase A items `01`–`06`, Phase B items `07`–`16`, and Phase C items `17`–`18` are complete at the seams promised there. This section summarizes executable evidence and open gaps; it does not redefine slice completion. The application is neither V1-complete nor production-qualified.
 
 | Area | Executable now | Not yet claimed |
 |---|---|---|
 | Circuit Authoring, Compiler, and Simulation Runtime | immutable lineage and the closed V1 Edit Intent/Component Contract catalogs; explicit topology and hierarchy; deterministic flat, hierarchical, cyclic, sequential, and memory execution; structured diagnostics, bounded failure, rollback, scalar-oracle, packed differential, and property evidence | Boolean Analysis, Project Format, TeachingMixed Geometry Plans, and the cross-module conformance manifest |
-| Editor Workspace | Sandbox create/author/compile/session/stimulus/step/close workflow; attachment generation fencing, reattachment and expiry; bounded history with Undo/Redo and Redo truncation; Copy Workspace; stale preconditions and fail-closed Client Intent idempotency; bounded admission; newest-wins Compilation and serialized Session lanes with typed failure evidence | Run/Pause/Hot Swap, Analysis lane, Durable Project catalog, Infrastructure, and package transfer |
+| Editor Workspace | Sandbox create/author/compile/session/stimulus/step/close workflow; attachment generation fencing, reattachment and expiry; bounded history with Undo/Redo and Redo truncation; Copy Workspace; stale preconditions and fail-closed Client Intent idempotency; bounded admission; accepted/running/published Compilation Generations with newest-wins coalescing; serialized Session work; Run Generation-fenced Run/Pause; compatible-state and Probe-aware Hot Swap | Analysis lane, Durable Project catalog, Infrastructure, and package transfer |
 | Presentation and Web | accessible explicit-topology projection; selected-definition and Hierarchy Path navigation; generated-Port widths and arithmetic facts; bounded steering/arithmetic galleries; per-page Interactive Server host and security-header integration | TeachingMixed geometry, Canvas/waveform adapters, complete browser workflows, localization/accessibility matrix, and load/security qualification |
 | .NET engineering and performance | five production projects, five executable test projects, one BenchmarkDotNet project, application-root locks, locked restore, analyzers-as-errors, format, build, and whole-solution test gates | later slice projects and locks, CI publication, architecture automation, frozen corpus, calibrated thresholds, and provider qualification |
 | Production operations | development-host lifecycle and security-header evidence | concrete TLS/proxy, secrets, persistence, migration, backup/restore, telemetry, alerting, and runbook evidence |
 
-Verification snapshot (2026-08-05): locked restore, formatting, warning-clean build, whitespace validation, and the whole-solution TUnit suite passed. The executable evidence above covers the completed vertical slices; it does not qualify the application for release while any remaining-evidence row is open.
+Verification snapshot (2026-08-06): locked restore, formatting, warning-clean build, whitespace validation, and the 624-test whole-solution TUnit suite passed. The executable evidence above covers the completed vertical slices; it does not qualify the application for release while any remaining-evidence row is open.
 
 ## Executable evidence
 
