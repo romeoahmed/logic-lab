@@ -12,7 +12,8 @@ internal sealed class EditorWorkspaceFailureTests
     [Arguments(true, "workspace_infrastructure_failure")]
     public async Task DispatchAsync_CompilationDelegateThrows_ReturnsOpaqueFailureWithoutPublication(
         bool infrastructureFailure,
-        string expectedCode)
+        string expectedCode,
+        CancellationToken cancellationToken)
     {
         var operations = WorkspaceModuleOperations.Production with
         {
@@ -20,7 +21,7 @@ internal sealed class EditorWorkspaceFailureTests
         };
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
             operations: operations);
-        var opened = await OpenControlled(workspace);
+        var opened = await OpenControlled(workspace, cancellationToken);
         var before = opened.Projection;
 
         var outcome = await workspace.DispatchAsync(
@@ -31,7 +32,8 @@ internal sealed class EditorWorkspaceFailureTests
         var after = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
             workspace,
             opened.WorkspaceId,
-            opened.Attached);
+            opened.Attached,
+            cancellationToken);
 
         var accepted = await Assert.That(outcome).IsTypeOf<CompilationAccepted>();
         Assert.NotNull(accepted);
@@ -53,7 +55,8 @@ internal sealed class EditorWorkspaceFailureTests
     [Arguments(true, "workspace_infrastructure_failure")]
     public async Task DispatchAsync_SessionDelegateThrows_ReturnsOpaqueFailureWithoutPublication(
         bool infrastructureFailure,
-        string expectedCode)
+        string expectedCode,
+        CancellationToken cancellationToken)
     {
         var operations = WorkspaceModuleOperations.Production with
         {
@@ -61,7 +64,7 @@ internal sealed class EditorWorkspaceFailureTests
         };
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
             operations: operations);
-        var opened = await OpenCompiledCircuit(workspace);
+        var opened = await OpenCompiledCircuit(workspace, cancellationToken);
         var before = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
             CancellationToken.None)).Projection;
@@ -93,7 +96,46 @@ internal sealed class EditorWorkspaceFailureTests
     }
 
     [Test]
-    public async Task DispatchAsync_CreateSessionSnapshotThrows_ClosesOpenedSessionWithoutPublication()
+    public async Task DispatchAsync_UnrelatedCancellationException_ReturnsInternalDefectWithoutPublication(
+        CancellationToken testCancellationToken)
+    {
+        using var callerCancellation = new CancellationTokenSource();
+        using var unrelatedCancellation = new CancellationTokenSource();
+        var operations = WorkspaceModuleOperations.Production with
+        {
+            OpenSimulation = (_, _) =>
+            {
+                callerCancellation.Cancel();
+                unrelatedCancellation.Cancel();
+                throw new OperationCanceledException(unrelatedCancellation.Token);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations: operations);
+        var opened = await OpenCompiledCircuit(workspace, testCancellationToken);
+        var before = await Read(workspace, opened);
+
+        var outcome = await workspace.DispatchAsync(
+            new CreateSession(
+                EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
+                EditorWorkspaceTestDriver.SessionCreation(before)),
+            callerCancellation.Token);
+        var after = await Read(workspace, opened);
+
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("workspace_internal_defect");
+            await Assert.That(rejected.DiagnosticCodes).IsEmpty();
+            await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
+            await Assert.That(after.Simulation).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_CreateSessionSnapshotThrows_ClosesOpenedSessionWithoutPublication(
+        CancellationToken cancellationToken)
     {
         var closeCount = 0;
         var operations = WorkspaceModuleOperations.Production with
@@ -108,7 +150,7 @@ internal sealed class EditorWorkspaceFailureTests
         };
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
             operations: operations);
-        var opened = await OpenCompiledCircuit(workspace);
+        var opened = await OpenCompiledCircuit(workspace, cancellationToken);
         var before = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
             CancellationToken.None)).Projection;
@@ -135,7 +177,8 @@ internal sealed class EditorWorkspaceFailureTests
     }
 
     [Test]
-    public async Task DispatchAsync_CreateSessionCancelledDuringSnapshot_ClosesHandleWithoutPublication()
+    public async Task DispatchAsync_CreateSessionCancelledDuringSnapshot_ClosesHandleWithoutPublication(
+        CancellationToken testCancellationToken)
     {
         using var cancellation = new CancellationTokenSource();
         var closeCount = 0;
@@ -157,7 +200,7 @@ internal sealed class EditorWorkspaceFailureTests
         };
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
             operations: operations);
-        var opened = await OpenCompiledCircuit(workspace);
+        var opened = await OpenCompiledCircuit(workspace, testCancellationToken);
         var before = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
             CancellationToken.None)).Projection;
@@ -183,7 +226,8 @@ internal sealed class EditorWorkspaceFailureTests
     }
 
     [Test]
-    public async Task DispatchAsync_CommittedSessionMutation_WhenSnapshotReadIsUnavailable_StillPublishesOutcomeState()
+    public async Task DispatchAsync_CommittedSessionMutation_WhenSnapshotReadIsUnavailable_StillPublishesOutcomeState(
+        CancellationToken cancellationToken)
     {
         var readCount = 0;
         var operations = WorkspaceModuleOperations.Production with
@@ -203,7 +247,7 @@ internal sealed class EditorWorkspaceFailureTests
         };
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
             operations: operations);
-        var opened = await OpenCompiledCircuit(workspace);
+        var opened = await OpenCompiledCircuit(workspace, cancellationToken);
         var input = await Find(workspace, opened, "source.input");
 
         var beforeSession = await Read(workspace, opened);
@@ -253,7 +297,8 @@ internal sealed class EditorWorkspaceFailureTests
     }
 
     [Test]
-    public async Task DispatchAsync_SessionCleanupThrows_StillClosesWorkspace()
+    public async Task DispatchAsync_SessionCleanupThrows_StillClosesWorkspace(
+        CancellationToken cancellationToken)
     {
         var operations = WorkspaceModuleOperations.Production with
         {
@@ -261,7 +306,7 @@ internal sealed class EditorWorkspaceFailureTests
         };
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
             operations: operations);
-        var opened = await OpenCompiledCircuit(workspace);
+        var opened = await OpenCompiledCircuit(workspace, cancellationToken);
         var beforeSession = await Read(workspace, opened);
         var session = await workspace.DispatchAsync(
             new CreateSession(
@@ -286,11 +331,13 @@ internal sealed class EditorWorkspaceFailureTests
         }
     }
 
-    private static Task<WorkspaceOpenOutcome> Open(IEditorWorkspace workspace)
+    private static Task<WorkspaceOpenOutcome> Open(
+        IEditorWorkspace workspace,
+        CancellationToken cancellationToken)
     {
         return workspace.OpenAsync(
             new CreateSandbox("Test project", "Main"),
-            CancellationToken.None);
+            cancellationToken);
     }
 
     private static Exception Failure(bool infrastructureFailure)
@@ -301,19 +348,22 @@ internal sealed class EditorWorkspaceFailureTests
     }
 
     private static async Task<ControlledWorkspace> OpenControlled(
-        IEditorWorkspace workspace)
+        IEditorWorkspace workspace,
+        CancellationToken cancellationToken)
     {
-        var opened = (WorkspaceOpened)await Open(workspace);
+        var opened = (WorkspaceOpened)await Open(workspace, cancellationToken);
         var attached = await EditorWorkspaceTestDriver.AttachAsync(
             workspace,
-            opened.WorkspaceId);
+            opened.WorkspaceId,
+            cancellationToken);
         return new ControlledWorkspace(opened, attached);
     }
 
     private static async Task<ControlledWorkspace> OpenCompiledCircuit(
-        IEditorWorkspace workspace)
+        IEditorWorkspace workspace,
+        CancellationToken cancellationToken)
     {
-        var opened = await OpenControlled(workspace);
+        var opened = await OpenControlled(workspace, cancellationToken);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
         await Apply(workspace, opened, new PlaceComponentInstanceIntent(
             definitionId,
@@ -349,7 +399,8 @@ internal sealed class EditorWorkspaceFailureTests
         var projection = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
             workspace,
             opened.WorkspaceId,
-            opened.Attached);
+            opened.Attached,
+            cancellationToken);
         await Assert.That(projection.Compilation.Status)
             .IsEqualTo(CompilationPublicationStatus.Published);
         return opened;

@@ -70,7 +70,7 @@ internal static class EditorWorkspaceTestDriver
         IEditorWorkspace workspace,
         WorkspaceId workspaceId,
         Attached attached,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         while (true)
         {
@@ -81,13 +81,14 @@ internal static class EditorWorkspaceTestDriver
                 ? snapshot.Projection
                 : throw new InvalidOperationException(
                     "Workspace projection became unavailable while compiling.");
-            if (projection.Compilation.Status is CompilationPublicationStatus.Published
+            if (projection.Compilation.Status is CompilationPublicationStatus.Superseded
+                or CompilationPublicationStatus.Published
                 or CompilationPublicationStatus.Rejected)
             {
                 return projection;
             }
 
-            await Task.Yield();
+            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken);
         }
     }
 }

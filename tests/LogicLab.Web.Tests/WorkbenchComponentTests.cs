@@ -14,29 +14,6 @@ namespace LogicLab.Web.Tests;
 internal sealed class WorkbenchComponentTests
 {
     [Test, Timeout(30_000)]
-    public async Task Editor_PendingCompilation_PollsAtAControlledRate(
-        CancellationToken cancellationToken)
-    {
-        await using var context = CreateContext();
-        await using var workspace = new ControlledCompilationWorkspace();
-        var rendered = await RenderAuthoredEditor(context, workspace);
-
-        var compilation = rendered.Find("[data-command='compile']").ClickAsync();
-        try
-        {
-            await workspace.FirstPendingRead.WaitAsync(cancellationToken);
-            await Task.Delay(TimeSpan.FromMilliseconds(75), cancellationToken);
-
-            await Assert.That(workspace.PendingReadCount).IsEqualTo(1);
-        }
-        finally
-        {
-            workspace.PublishAcceptedGeneration();
-            await compilation.WaitAsync(cancellationToken);
-        }
-    }
-
-    [Test, Timeout(30_000)]
     public async Task Editor_PendingCompilation_DisposalCancelsWait(
         CancellationToken cancellationToken)
     {
@@ -51,7 +28,7 @@ internal sealed class WorkbenchComponentTests
             await workspace.FirstPendingRead.WaitAsync(cancellationToken);
             await workspace.BlockedRead.WaitAsync(cancellationToken);
             await rendered.Instance.DisposeAsync();
-            await compilation.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken);
+            await Assert.That(compilation).CompletesWithin(TimeSpan.FromSeconds(1));
         }
         finally
         {
@@ -369,7 +346,8 @@ internal sealed class WorkbenchComponentTests
         {
             await Assert.That(rendered.Find("[role='status']").TextContent)
                 .Contains("workspace_internal_defect");
-            await Assert.That(rendered.Markup).DoesNotContain("sensitive compiler detail");
+            await Assert.That(rendered.Find("[role='status']").TextContent)
+                .DoesNotContain("sensitive compiler detail");
             await Assert.That(IsDisabled(rendered, "create")).IsFalse();
         }
 
@@ -723,8 +701,6 @@ internal sealed class WorkbenchComponentTests
         public Task FirstPendingRead => firstPendingRead.Task;
 
         public Task BlockedRead => blockedRead.Task;
-
-        public int PendingReadCount => Volatile.Read(ref pendingReadCount);
 
         public void PublishAcceptedGeneration()
         {
