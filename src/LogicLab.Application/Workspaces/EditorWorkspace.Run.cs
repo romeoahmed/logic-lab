@@ -4,6 +4,16 @@ namespace LogicLab.Application.Workspaces;
 
 internal sealed partial class EditorWorkspace
 {
+    private static WorkspaceCommandRejected? RejectIfRunRequiresPause(
+        WorkspaceState state,
+        WorkspaceCommand command)
+    {
+        return state.Simulation is { Run.Status: RunStatus.Running }
+            && command is not PauseRun and not CloseWorkspace
+                ? Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed)
+                : null;
+    }
+
     private WorkspaceCommandOutcome StartRunWithPrecondition(
         WorkspaceState state,
         StartRun command)

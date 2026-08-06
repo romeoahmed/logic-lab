@@ -358,17 +358,24 @@ internal sealed partial class EditorWorkspace
                         pendingCompletion = replay.Completion;
                         break;
                     case ContextualIntentAccepted accepted:
-                        completed = command switch
-                        {
-                            ApplyEdit apply => ApplyWithPrecondition(
-                                state,
-                                apply,
-                                cancellationToken),
-                            Undo undo => MoveHistory(state, undo.Precondition, offset: -1),
-                            Redo redo => MoveHistory(state, redo.Precondition, offset: 1),
-                            CloseWorkspace => Close(state, cancellationToken),
-                            _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
-                        };
+                        completed = RejectIfRunRequiresPause(state, command)
+                            ?? command switch
+                            {
+                                ApplyEdit apply => ApplyWithPrecondition(
+                                    state,
+                                    apply,
+                                    cancellationToken),
+                                Undo undo => MoveHistory(
+                                    state,
+                                    undo.Precondition,
+                                    offset: -1),
+                                Redo redo => MoveHistory(
+                                    state,
+                                    redo.Precondition,
+                                    offset: 1),
+                                CloseWorkspace => Close(state, cancellationToken),
+                                _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
+                            };
                         RecordIdempotencyUnderLock(
                             state,
                             context.ClientIntentId,

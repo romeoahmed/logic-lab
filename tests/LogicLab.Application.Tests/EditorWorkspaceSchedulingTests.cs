@@ -134,6 +134,95 @@ internal sealed class EditorWorkspaceSchedulingTests
     }
 
     [Test, Timeout(30_000)]
+    public async Task DispatchAsync_RejectedCompilationForSameWorkspace_RetainsAcceptedGeneration(
+        CancellationToken cancellationToken)
+    {
+        var compilationGate = new BlockingOperationGate();
+        var invocationCount = 0;
+        var operations = WorkspaceModuleOperations.Production with
+        {
+            Compile = (request, operationCancellationToken) =>
+            {
+                if (Interlocked.Increment(ref invocationCount) == 2)
+                {
+                    compilationGate.Block(operationCancellationToken);
+                }
+
+                return Compiler.Compile(request, operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            schedulingPolicy: new SchedulingPolicy(1, 1),
+            operations: operations);
+        var controlled = await Open(workspace, "Controlled", cancellationToken);
+        var queued = await Open(workspace, "Queued", cancellationToken);
+
+        _ = await workspace.DispatchAsync(
+            CompilationCommand(controlled, "initial"),
+            cancellationToken);
+        var initial = await WaitForCompilation(
+            workspace,
+            controlled,
+            CompilationPublicationStatus.Published,
+            cancellationToken);
+        var accepted = await Assert.That(await workspace.DispatchAsync(
+                CompilationCommand(controlled, "accepted"),
+                cancellationToken))
+            .IsTypeOf<CompilationAccepted>();
+        Assert.NotNull(accepted);
+
+        WorkspaceCommandOutcome rejected;
+        WorkspaceProjection duringRejection;
+        try
+        {
+            await compilationGate.Started.WaitAsync(cancellationToken);
+            _ = await workspace.DispatchAsync(
+                CompilationCommand(queued, "queued"),
+                cancellationToken);
+            rejected = await workspace.DispatchAsync(
+                CompilationCommand(controlled, "rejected"),
+                cancellationToken);
+            duringRejection = ((ProjectionSnapshot)await workspace.ReadAsync(
+                EditorWorkspaceTestDriver.Query(
+                    controlled.Opened.WorkspaceId,
+                    controlled.Attached),
+                cancellationToken)).Projection;
+        }
+        finally
+        {
+            compilationGate.Release();
+        }
+
+        var rejection = await Assert.That(rejected)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejection);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejection.Code)
+                .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(duringRejection.Compilation.Status)
+                .IsEqualTo(CompilationPublicationStatus.Running);
+            await Assert.That(duringRejection.Compilation.Generation)
+                .IsEqualTo(accepted.CompilationGeneration);
+        }
+
+        var published = await WaitForCompilation(
+            workspace,
+            controlled,
+            CompilationPublicationStatus.Published,
+            cancellationToken);
+        using (Assert.Multiple())
+        {
+            await Assert.That(published.Compilation.Generation)
+                .IsEqualTo(accepted.CompilationGeneration);
+            await Assert.That(published.Compilation.ArtifactKey)
+                .IsEqualTo(initial.Compilation.ArtifactKey);
+            await Assert.That(invocationCount).IsEqualTo(3);
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task DispatchAsync_NewerCompilation_SupersedesOlderPublication(
         CancellationToken cancellationToken)
     {

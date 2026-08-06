@@ -62,6 +62,71 @@ internal sealed class SimulationHotSwapTests
     }
 
     [Test]
+    public async Task Execute_CompatibleHotSwap_PreservesTraceHistoryAndContinuationSequence()
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var input = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.One));
+        var sink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        var outputNet = circuit.Connect((input, "Q"), (sink, "D"));
+        var originalArtifact = circuit.Compile();
+        var opened = Open(originalArtifact, outputNet);
+        _ = SimulationRuntime.Execute(
+            opened.Handle,
+            new ScheduleStimulusBatch(new StimulusBatch(5,
+            [
+                new StimulusAssignment(
+                    SequentialTestCircuit.DriverSource(originalArtifact, input),
+                    new LogicVector([LogicValue.Zero])),
+            ])),
+            CancellationToken.None);
+        _ = Advance(opened);
+        var beforeSwap = Snapshot(opened);
+
+        circuit.Apply(new MoveComponentInstancesIntent(
+            circuit.Revision.Document.EntryCircuitDefinitionId,
+            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
+        var replacementArtifact = circuit.Compile();
+
+        var committed = (HotSwapCommitted)SimulationRuntime.Execute(
+            opened.Handle,
+            new HotSwapSimulation(replacementArtifact),
+            CancellationToken.None);
+        var fullTrace = (TraceTransitionsAvailable)SimulationRuntime.Read(
+            opened.Handle,
+            new ReadTraceWindow(new SimulationTraceWindowRequest(
+                opened.ProbeIds,
+                new LogicalTimeRange(0, 6),
+                afterSequence: null)),
+            CancellationToken.None);
+        var continuation = (TraceTransitionsAvailable)SimulationRuntime.Read(
+            opened.Handle,
+            new ReadTraceWindow(new SimulationTraceWindowRequest(
+                opened.ProbeIds,
+                new LogicalTimeRange(0, 6),
+                beforeSwap.TraceCursor.LatestSequence)),
+            CancellationToken.None);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(beforeSwap.TraceCursor.LatestSequence).IsEqualTo(2UL);
+            await Assert.That(committed.TraceCursor.LatestSequence).IsEqualTo(3UL);
+            await Assert.That(fullTrace.Transitions).Count().IsEqualTo(3);
+            await Assert.That(fullTrace.Transitions[0].Sequence).IsEqualTo(1UL);
+            await Assert.That(fullTrace.Transitions[1].Sequence).IsEqualTo(2UL);
+            await Assert.That(fullTrace.Transitions[2].Sequence).IsEqualTo(3UL);
+            await Assert.That(fullTrace.Transitions[0].LogicalTime).IsEqualTo(0UL);
+            await Assert.That(fullTrace.Transitions[1].LogicalTime).IsEqualTo(5UL);
+            await Assert.That(fullTrace.Transitions[2].LogicalTime).IsEqualTo(5UL);
+            await Assert.That(continuation.Transitions).Count().IsEqualTo(1);
+            await Assert.That(continuation.Transitions[0].Sequence).IsEqualTo(3UL);
+            await Assert.That(continuation.Transitions[0].Value[0])
+                .IsEqualTo(LogicValue.One);
+        }
+    }
+
+    [Test]
     public async Task Execute_IncompatibleHotSwap_RetainsOldSessionAtomically()
     {
         var circuit = SequentialTestCircuit.Create();

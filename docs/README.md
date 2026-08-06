@@ -58,7 +58,7 @@ The [Implementation Plan](./implementation-plan.md#delivery-status) is the only 
 | .NET engineering and performance | five production projects, five executable test projects, one BenchmarkDotNet project, application-root locks, locked restore, analyzers-as-errors, format, build, and whole-solution test gates | later slice projects and locks, CI publication, architecture automation, frozen corpus, calibrated thresholds, and provider qualification |
 | Production operations | development-host lifecycle and security-header evidence | concrete TLS/proxy, secrets, persistence, migration, backup/restore, telemetry, alerting, and runbook evidence |
 
-Verification snapshot (2026-08-06): locked restore, formatting, warning-clean build, whitespace validation, and the 624-test whole-solution TUnit suite passed. The executable evidence above covers the completed vertical slices; it does not qualify the application for release while any remaining-evidence row is open.
+Verification snapshot (2026-08-06): locked restore, formatting, warning-clean build, whitespace validation, and the 629-test whole-solution TUnit suite passed. The executable evidence above covers the completed vertical slices; it does not qualify the application for release while any remaining-evidence row is open.
 
 ## Executable evidence
 
