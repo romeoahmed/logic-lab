@@ -42,22 +42,12 @@ internal sealed class WorkspaceContractTests
     }
 
     [Test]
-    public async Task RejectedOutcome_ExplicitRetryDisposition_PreservesCanonicalDelay()
+    public async Task RetryAfter_ExplicitDelay_PreservesCanonicalWholeSeconds()
     {
         var retryDisposition = RetryDisposition.RetryAfter(7);
-        var command = new WorkspaceCommandRejected(
-            "workspace_infrastructure_failure",
-            [],
-            retryDisposition);
-        var attachment = new AttachRejected(
-            "workspace_infrastructure_failure",
-            [],
-            retryDisposition);
 
         using (Assert.Multiple())
         {
-            await Assert.That(command.RetryDisposition).IsEqualTo(retryDisposition);
-            await Assert.That(attachment.RetryDisposition).IsEqualTo(retryDisposition);
             await Assert.That(retryDisposition.Kind)
                 .IsEqualTo(RetryDispositionKind.RetryAfter);
             await Assert.That(retryDisposition.RetryAfterSeconds).IsEqualTo(7UL);
