@@ -85,7 +85,7 @@ public partial class Editor
         }
     }
 
-    internal static NetPartition[] CreateSampleTopologyPartitions(
+    private static NetPartition[] CreateSampleTopologyPartitions(
         CircuitDefinition definition,
         Net net)
     {

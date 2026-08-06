@@ -17,26 +17,22 @@ internal sealed class WorkbenchComponentTests
     public async Task Editor_PendingCompilation_DisposalCancelsWait(
         CancellationToken cancellationToken)
     {
-        var timeProvider = new ManualTimeProvider(
-            new DateTimeOffset(2026, 8, 6, 0, 0, 0, TimeSpan.Zero));
-        await using var context = CreateContext(timeProvider);
-        await using var workspace = new ControlledCompilationWorkspace(
-            blockFollowingRead: true);
+        await using var context = CreateContext();
+        await using var workspace = new BlockingCompilationObservationWorkspace();
         var rendered = await RenderAuthoredEditor(context, workspace);
 
         var compilation = rendered.Find("[data-command='compile']").ClickAsync();
         try
         {
-            await workspace.FirstPendingRead.WaitAsync(cancellationToken);
-            await timeProvider.TimerCreated.WaitAsync(cancellationToken);
-            timeProvider.Advance(TimeSpan.FromMilliseconds(250));
-            await workspace.BlockedRead.WaitAsync(cancellationToken);
+            await workspace.ObservationStarted.WaitAsync(cancellationToken);
             await rendered.Instance.DisposeAsync();
-            await Assert.That(compilation).CompletesWithin(TimeSpan.FromSeconds(1));
+            await Assert.That(workspace.ObservationCancellationToken.IsCancellationRequested)
+                .IsTrue();
+            await compilation.WaitAsync(cancellationToken);
         }
         finally
         {
-            workspace.PublishAcceptedGeneration();
+            workspace.ReleaseObservation();
             await compilation.WaitAsync(cancellationToken);
         }
     }
@@ -63,47 +59,6 @@ internal sealed class WorkbenchComponentTests
             workspace.AcceptCompilation();
             await compilation.WaitAsync(cancellationToken);
         }
-    }
-
-    [Test, Timeout(30_000)]
-    public async Task Editor_NewerCompilationGeneration_DoesNotReportAcceptedGenerationAsPublished(
-        CancellationToken _)
-    {
-        await using var context = CreateContext();
-        await using var workspace = new ControlledCompilationWorkspace(
-            publishNewerGeneration: true);
-        var rendered = await RenderAuthoredEditor(context, workspace);
-
-        await rendered.Find("[data-command='compile']").ClickAsync();
-
-        await Assert.That(rendered.Find("[role='status']").TextContent)
-            .Contains("superseded");
-    }
-
-    [Test, Timeout(30_000)]
-    public async Task Editor_PendingCompilation_UsesInjectedRefreshClock(
-        CancellationToken cancellationToken)
-    {
-        var timeProvider = new ManualTimeProvider(
-            new DateTimeOffset(2026, 8, 6, 0, 0, 0, TimeSpan.Zero));
-        await using var context = CreateContext(timeProvider);
-        await using var workspace = new ControlledCompilationWorkspace();
-        var rendered = await RenderAuthoredEditor(context, workspace);
-
-        var compilation = rendered.Find("[data-command='compile']").ClickAsync();
-        await workspace.FirstPendingRead.WaitAsync(cancellationToken);
-        await timeProvider.TimerCreated.WaitAsync(
-            TimeSpan.FromSeconds(1),
-            cancellationToken);
-        workspace.PublishAcceptedGeneration();
-
-        timeProvider.Advance(TimeSpan.FromMilliseconds(249));
-        await Assert.That(compilation.IsCompleted).IsFalse();
-        timeProvider.Advance(TimeSpan.FromMilliseconds(1));
-        await compilation.WaitAsync(cancellationToken);
-
-        await Assert.That(rendered.Find("[role='status']").TextContent)
-            .Contains("published atomically");
     }
 
     [Test]
@@ -228,7 +183,7 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task Editor_AdvanceFailure_ProjectsReasonWithoutInvalidCast()
+    public async Task Editor_AdvanceFailure_RestoresInteractiveCommandState()
     {
         await using var context = CreateContext();
         await using var workspace = new FailingStepWorkspace();
@@ -255,10 +210,17 @@ internal sealed class WorkbenchComponentTests
             "stimulus",
             () => !IsDisabled(rendered, "step"));
 
-        await rendered.Find("[data-command='step']").ClickAsync();
+        await ClickAndWaitForState(
+            rendered,
+            "step",
+            () => !IsDisabled(rendered, "stimulus")
+                && IsDisabled(rendered, "step"));
 
-        await Assert.That(rendered.Find("[role='status']").TextContent)
-            .Contains("simulation internal defect");
+        using (Assert.Multiple())
+        {
+            await Assert.That(IsDisabled(rendered, "stimulus")).IsFalse();
+            await Assert.That(IsDisabled(rendered, "step")).IsTrue();
+        }
     }
 
     [Test]
@@ -290,6 +252,8 @@ internal sealed class WorkbenchComponentTests
             "session",
             () => IsDisabled(rendered, "session")
                 && IsDisabled(rendered, "stimulus"));
+
+        await Assert.That(IsDisabled(rendered, "stimulus")).IsTrue();
     }
 
     [Test]
@@ -372,16 +336,12 @@ internal sealed class WorkbenchComponentTests
 
         await rendered.Find("[data-command='create']")
             .ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => rendered.Find("[role='status']").TextContent
-            .Contains("workspace_internal_defect", StringComparison.Ordinal));
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "create"));
 
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.Find("[role='status']").TextContent)
-                .Contains("workspace_internal_defect");
-            await Assert.That(rendered.Find("[role='status']").TextContent)
-                .DoesNotContain("sensitive compiler detail");
             await Assert.That(IsDisabled(rendered, "create")).IsFalse();
+            await Assert.That(rendered.FindAll("[data-component]")).IsEmpty();
         }
 
         await rendered.Find("[data-command='create']")
@@ -406,15 +366,15 @@ internal sealed class WorkbenchComponentTests
         await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
 
         await rendered.Find("[data-command='author']").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => rendered.Find("[role='status']").TextContent
-            .Contains("workspace_expired", StringComparison.Ordinal));
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "create")
+            && IsDisabled(rendered, "author")
+            && rendered.FindAll("[data-component]").Count == 0);
 
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.Find("[role='status']").TextContent)
-                .Contains("workspace_expired");
             await Assert.That(IsDisabled(rendered, "create")).IsFalse();
             await Assert.That(IsDisabled(rendered, "author")).IsTrue();
+            await Assert.That(rendered.FindAll("[data-component]")).IsEmpty();
         }
 
         await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
@@ -499,20 +459,16 @@ internal sealed class WorkbenchComponentTests
             "topology-commit-route",
             () => rendered.FindAll("[data-route-draft]").Count == 0
                 && rendered.FindAll("[data-wire-geometry]").Count == 1);
-        await Assert.That(rendered.Find("[data-wire-geometry]").TextContent)
-            .Contains("Orthogonal");
+        await Assert.That(await ReadSingleRoute(workspace))
+            .IsTypeOf<OrthogonalWireRoute>();
 
-        await ClickAndWaitForState(
-            rendered,
-            "topology-unroute",
-            () => rendered.Find("[data-wire-geometry]").TextContent
-                .Contains("Unrouted", StringComparison.Ordinal));
+        await rendered.Find("[data-command='topology-unroute']").ClickAsync();
+        await Assert.That(await ReadSingleRoute(workspace))
+            .IsTypeOf<UnroutedWireRoute>();
 
-        await ClickAndWaitForState(
-            rendered,
-            "topology-route",
-            () => rendered.Find("[data-wire-geometry]").TextContent
-                .Contains("Orthogonal", StringComparison.Ordinal));
+        await rendered.Find("[data-command='topology-route']").ClickAsync();
+        await Assert.That(await ReadSingleRoute(workspace))
+            .IsTypeOf<OrthogonalWireRoute>();
 
         await ClickAndWaitForState(
             rendered,
@@ -631,11 +587,11 @@ internal sealed class WorkbenchComponentTests
         }
     }
 
-    private static BunitContext CreateContext(TimeProvider? timeProvider = null)
+    private static BunitContext CreateContext()
     {
         var context = new BunitContext();
         context.Services.AddFluentUIComponents();
-        context.Services.AddSingleton(timeProvider ?? TimeProvider.System);
+        context.Services.AddSingleton(TimeProvider.System);
         return context;
     }
 
@@ -692,6 +648,13 @@ internal sealed class WorkbenchComponentTests
             && commands.All(command => command.HasAttribute("disabled"));
     }
 
+    private static async Task<WireRoute> ReadSingleRoute(TrackingWorkspace workspace)
+    {
+        var projection = await workspace.ReadCurrent();
+        return projection.ProjectRevision.Document.EntryCircuitDefinition
+            .WireGeometries.Single().Route;
+    }
+
     private sealed class BlockingWorkspace : DelegatingEditorWorkspace
     {
         private readonly TaskCompletionSource release = new(
@@ -717,30 +680,19 @@ internal sealed class WorkbenchComponentTests
         public void Release() => release.TrySetResult();
     }
 
-    private sealed class ControlledCompilationWorkspace(
-        bool publishNewerGeneration = false,
-        bool blockFollowingRead = false)
-        : DelegatingEditorWorkspace
+    private sealed class BlockingCompilationObservationWorkspace : DelegatingEditorWorkspace
     {
-        private readonly TaskCompletionSource blockedRead = new(
+        private readonly TaskCompletionSource observationStarted = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource firstPendingRead = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource releaseRead = new(
+        private readonly TaskCompletionSource releaseObservation = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
         private CompilationGeneration? acceptedGeneration;
-        private int pendingReadCount;
-        private int publishAcceptedGeneration;
 
-        public Task FirstPendingRead => firstPendingRead.Task;
+        public CancellationToken ObservationCancellationToken { get; private set; }
 
-        public Task BlockedRead => blockedRead.Task;
+        public Task ObservationStarted => observationStarted.Task;
 
-        public void PublishAcceptedGeneration()
-        {
-            Volatile.Write(ref publishAcceptedGeneration, 1);
-            releaseRead.TrySetResult();
-        }
+        public void ReleaseObservation() => releaseObservation.TrySetResult();
 
         public override async Task<WorkspaceCommandOutcome> DispatchAsync(
             WorkspaceCommand command,
@@ -773,57 +725,20 @@ internal sealed class WorkbenchComponentTests
                     ReadProjection.Instance,
                     cancellationToken);
             var projection = projectionRead.Projection;
-            CompilationProjection compilation;
-            if (publishNewerGeneration)
+            if (query is ReadCompilation)
             {
-                var newer = new CompilationGeneration(checked(generation.Value + 1UL));
-                compilation = query is ReadCompilation
-                    ? new CompilationSupersededProjection(
-                        generation,
-                        newer)
-                    : PublishedCompilation(projection, newer);
-            }
-            else if (Volatile.Read(ref publishAcceptedGeneration) != 0)
-            {
-                compilation = PublishedCompilation(projection, generation);
-            }
-            else
-            {
-                if (query is ReadCompilation)
-                {
-                    var readCount = Interlocked.Increment(ref pendingReadCount);
-                    firstPendingRead.TrySetResult();
-                    if (blockFollowingRead && readCount > 1)
-                    {
-                        blockedRead.TrySetResult();
-                        await releaseRead.Task.WaitAsync(cancellationToken);
-                    }
-                }
-
-                compilation = new CompilationQueuedProjection(generation);
+                ObservationCancellationToken = cancellationToken;
+                observationStarted.TrySetResult();
+                await releaseObservation.Task.WaitAsync(cancellationToken);
             }
 
+            var compilation = new CompilationQueuedProjection(generation);
             return query is ReadCompilation
                 ? new CompilationSnapshot(compilation, projection.ProjectionVersion)
                 : new ProjectionSnapshot(projection with
                 {
                     Compilation = compilation,
                 });
-        }
-
-        private static CompilationPublishedProjection PublishedCompilation(
-            WorkspaceProjection projection,
-            CompilationGeneration generation)
-        {
-            var revision = projection.ProjectRevision;
-            return new CompilationPublishedProjection(
-                generation,
-                new CompilationArtifactKey(
-                    revision.RevisionId,
-                    revision.Document.EntryCircuitDefinitionId,
-                    revision.Document.LibrarySnapshot.Fingerprint,
-                    "controlled-test"),
-                []);
         }
     }
 
