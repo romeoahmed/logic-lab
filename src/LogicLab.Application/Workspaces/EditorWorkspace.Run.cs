@@ -24,22 +24,18 @@ internal sealed partial class EditorWorkspace
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
-        var generation = new RunGeneration(checked(++state.NextRunGeneration));
+        var generation = new RunGeneration(checked(state.NextRunGeneration + 1UL));
+        var projectionVersion = checked(state.ProjectionVersion + 1UL);
+        if (!QueueRunContinuation(state, generation))
+        {
+            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+        }
+
+        state.NextRunGeneration = generation.Value;
         state.Simulation = WithRun(
             simulation,
             new RunProjection(RunStatus.Running, generation, null));
-        state.ProjectionVersion++;
-        if (!QueueRunContinuation(state, generation))
-        {
-            state.Simulation = WithRun(
-                state.Simulation,
-                new RunProjection(
-                    RunStatus.Paused,
-                    generation,
-                    RunPauseReason.SupersededRun));
-            state.ProjectionVersion++;
-            return Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
-        }
+        state.ProjectionVersion = projectionVersion;
 
         return new RunStarted(
             generation,
@@ -143,7 +139,7 @@ internal sealed partial class EditorWorkspace
         RunGeneration generation)
     {
         var backgroundLease = RetainWorkspace(state);
-        if (workCoordinator.TryScheduleSession(
+        if (workCoordinator.TryScheduleSessionContinuation(
             state.Id,
             token => ContinueRunWithLeaseAsync(
                 backgroundLease,
@@ -200,16 +196,7 @@ internal sealed partial class EditorWorkspace
             var outcome = Step(state, cancellationToken);
             if (outcome is SessionStepped)
             {
-                if (!QueueRunContinuation(state, generation))
-                {
-                    state.Simulation = WithRun(
-                        state.Simulation!,
-                        new RunProjection(
-                            RunStatus.Paused,
-                            generation,
-                            RunPauseReason.SupersededRun));
-                    state.ProjectionVersion++;
-                }
+                _ = QueueRunContinuation(state, generation);
 
                 return outcome;
             }

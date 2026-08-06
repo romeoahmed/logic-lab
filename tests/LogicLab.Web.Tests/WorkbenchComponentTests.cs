@@ -1,6 +1,7 @@
 using Bunit;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
+using LogicLab.Engine.Compilation;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Components.Pages;
 using Microsoft.AspNetCore.Components;
@@ -12,6 +13,68 @@ namespace LogicLab.Web.Tests;
 
 internal sealed class WorkbenchComponentTests
 {
+    [Test, Timeout(30_000)]
+    public async Task Editor_PendingCompilation_PollsAtAControlledRate(
+        CancellationToken cancellationToken)
+    {
+        await using var context = CreateContext();
+        await using var workspace = new ControlledCompilationWorkspace();
+        var rendered = await RenderAuthoredEditor(context, workspace);
+
+        var compilation = rendered.Find("[data-command='compile']").ClickAsync();
+        try
+        {
+            await workspace.FirstPendingRead.WaitAsync(cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(75), cancellationToken);
+
+            await Assert.That(workspace.PendingReadCount).IsEqualTo(1);
+        }
+        finally
+        {
+            workspace.PublishAcceptedGeneration();
+            await compilation.WaitAsync(cancellationToken);
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task Editor_PendingCompilation_DisposalCancelsWait(
+        CancellationToken cancellationToken)
+    {
+        await using var context = CreateContext();
+        await using var workspace = new ControlledCompilationWorkspace(
+            blockFollowingRead: true);
+        var rendered = await RenderAuthoredEditor(context, workspace);
+
+        var compilation = rendered.Find("[data-command='compile']").ClickAsync();
+        try
+        {
+            await workspace.FirstPendingRead.WaitAsync(cancellationToken);
+            await workspace.BlockedRead.WaitAsync(cancellationToken);
+            await rendered.Instance.DisposeAsync();
+            await compilation.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken);
+        }
+        finally
+        {
+            workspace.PublishAcceptedGeneration();
+            await compilation.WaitAsync(cancellationToken);
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task Editor_NewerCompilationGeneration_DoesNotReportAcceptedGenerationAsPublished(
+        CancellationToken cancellationToken)
+    {
+        await using var context = CreateContext();
+        await using var workspace = new ControlledCompilationWorkspace(
+            publishNewerGeneration: true);
+        var rendered = await RenderAuthoredEditor(context, workspace);
+
+        await rendered.Find("[data-command='compile']").ClickAsync();
+
+        await Assert.That(rendered.Find("[role='status']").TextContent)
+            .Contains("superseded");
+    }
+
     [Test]
     public async Task Editor_StaticPrerender_RendersStableShellWithoutWorkspaceSideEffects()
     {
@@ -518,6 +581,23 @@ internal sealed class WorkbenchComponentTests
         return context.Render<Editor>();
     }
 
+    private static async Task<IRenderedComponent<Editor>> RenderAuthoredEditor(
+        BunitContext context,
+        IEditorWorkspace workspace)
+    {
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author"));
+        await ClickAndWaitForState(
+            rendered,
+            "author",
+            () => !IsDisabled(rendered, "compile"));
+        return rendered;
+    }
+
     private static async Task ClickAndWaitForState(
         IRenderedComponent<Editor> rendered,
         string command,
@@ -565,6 +645,116 @@ internal sealed class WorkbenchComponentTests
         }
 
         public void Release() => release.TrySetResult();
+    }
+
+    private sealed class ControlledCompilationWorkspace(
+        bool publishNewerGeneration = false,
+        bool blockFollowingRead = false)
+        : DelegatingEditorWorkspace
+    {
+        private readonly TaskCompletionSource blockedRead = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource firstPendingRead = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource releaseRead = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private CompilationGeneration? acceptedGeneration;
+        private int pendingReadCount;
+        private int publishAcceptedGeneration;
+
+        public Task FirstPendingRead => firstPendingRead.Task;
+
+        public Task BlockedRead => blockedRead.Task;
+
+        public int PendingReadCount => Volatile.Read(ref pendingReadCount);
+
+        public void PublishAcceptedGeneration()
+        {
+            Volatile.Write(ref publishAcceptedGeneration, 1);
+            releaseRead.TrySetResult();
+        }
+
+        public override async Task<WorkspaceCommandOutcome> DispatchAsync(
+            WorkspaceCommand command,
+            CancellationToken cancellationToken)
+        {
+            var outcome = await base.DispatchAsync(command, cancellationToken);
+            if (command is RequestCompilation && outcome is CompilationAccepted accepted)
+            {
+                acceptedGeneration = accepted.CompilationGeneration;
+            }
+
+            return outcome;
+        }
+
+        public override async Task<WorkspaceReadOutcome> ReadAsync(
+            WorkspaceQueryContext context,
+            CancellationToken cancellationToken)
+        {
+            var outcome = await base.ReadAsync(context, cancellationToken);
+            if (acceptedGeneration is not { } generation
+                || outcome is not ProjectionSnapshot snapshot)
+            {
+                return outcome;
+            }
+
+            if (publishNewerGeneration)
+            {
+                return new ProjectionSnapshot(snapshot.Projection with
+                {
+                    Compilation = PublishedCompilation(
+                        snapshot.Projection,
+                        new CompilationGeneration(checked(generation.Value + 1UL))),
+                });
+            }
+
+            if (Volatile.Read(ref publishAcceptedGeneration) != 0)
+            {
+                return new ProjectionSnapshot(snapshot.Projection with
+                {
+                    Compilation = PublishedCompilation(snapshot.Projection, generation),
+                });
+            }
+
+            var readCount = Interlocked.Increment(ref pendingReadCount);
+            firstPendingRead.TrySetResult();
+            if (blockFollowingRead && readCount > 1)
+            {
+                blockedRead.TrySetResult();
+                await releaseRead.Task.WaitAsync(cancellationToken);
+            }
+
+            return new ProjectionSnapshot(snapshot.Projection with
+            {
+                Compilation = new CompilationProjection(
+                    CompilationPublicationStatus.Queued,
+                    generation,
+                    null,
+                    [],
+                    null,
+                    null,
+                    null),
+            });
+        }
+
+        private static CompilationProjection PublishedCompilation(
+            WorkspaceProjection projection,
+            CompilationGeneration generation)
+        {
+            var revision = projection.ProjectRevision;
+            return new CompilationProjection(
+                CompilationPublicationStatus.Published,
+                generation,
+                new CompilationArtifactKey(
+                    revision.RevisionId,
+                    revision.Document.EntryCircuitDefinitionId,
+                    revision.Document.LibrarySnapshot.Fingerprint,
+                    "controlled-test"),
+                [],
+                null,
+                null,
+                null);
+        }
     }
 
     private sealed class RecoveringWorkspace : DelegatingEditorWorkspace

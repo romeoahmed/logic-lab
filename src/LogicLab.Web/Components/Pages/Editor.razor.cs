@@ -11,10 +11,14 @@ namespace LogicLab.Web.Components.Pages;
 public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposable
 {
     private const ulong MaximumScenePortCount = 100_000;
+    private static readonly TimeSpan CompilationRefreshInterval =
+        TimeSpan.FromMilliseconds(250);
     private readonly FixedWindowCommandAdmissionGate commandAdmission = new(
         maximumAdmissions: 30,
         window: TimeSpan.FromSeconds(1),
         TimeProvider.System);
+    private readonly CancellationTokenSource componentLifetime = new();
+    private int isDisposed;
 
     private WorkspaceProjection? Projection { get; set; }
 
@@ -229,9 +233,19 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
             revision.RevisionId,
             revision.Document.EntryCircuitDefinitionId,
             revision.Document.LibrarySnapshot.Fingerprint);
-        var outcome = await Execute(context => new RequestCompilation(
-            context,
-            precondition));
+        var cancellationToken = componentLifetime.Token;
+        WorkspaceCommandOutcome outcome;
+        try
+        {
+            outcome = await Execute(
+                context => new RequestCompilation(context, precondition),
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
         if (outcome is not CompilationAccepted accepted)
         {
             Status = $"Compilation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
@@ -239,19 +253,54 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
         }
 
         Status = $"Compilation generation {accepted.CompilationGeneration.Value} accepted.";
-        while (Projection?.Compilation is
-            {
-                Status: CompilationPublicationStatus.Queued
-                       or CompilationPublicationStatus.Running,
-            })
+        CompilationProjection? compilation;
+        try
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(10));
-            await Refresh();
+            compilation = await WaitForCompilationAsync(
+                accepted.CompilationGeneration,
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return;
         }
 
-        Status = Projection?.Compilation.Status is CompilationPublicationStatus.Published
-            ? "Compilation Artifact published atomically."
-            : $"Compilation rejected: {Projection?.Compilation.RejectionCode ?? "unknown"}.";
+        if (compilation is null)
+        {
+            Status = Projection is null
+                ? "Compilation status is unavailable because the Workspace detached."
+                : $"Compilation generation {accepted.CompilationGeneration.Value} "
+                    + "was superseded before publication.";
+            return;
+        }
+
+        Status = compilation.Status switch
+        {
+            CompilationPublicationStatus.Published =>
+                "Compilation Artifact published atomically.",
+            CompilationPublicationStatus.Superseded =>
+                $"Compilation generation {accepted.CompilationGeneration.Value} was superseded.",
+            _ => $"Compilation rejected: {compilation.RejectionCode ?? "unknown"}.",
+        };
+    }
+
+    private async Task<CompilationProjection?> WaitForCompilationAsync(
+        CompilationGeneration generation,
+        CancellationToken cancellationToken)
+    {
+        while (Projection?.Compilation is { } compilation
+            && compilation.Generation == generation
+            && compilation.Status is CompilationPublicationStatus.Queued
+                or CompilationPublicationStatus.Running)
+        {
+            await Task.Delay(CompilationRefreshInterval, cancellationToken);
+            await Refresh(cancellationToken);
+        }
+
+        return Projection?.Compilation is { } terminal
+            && terminal.Generation == generation
+                ? terminal
+                : null;
     }
 
     private async Task CreateSimulationSession()
@@ -326,28 +375,29 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
     }
 
     private async Task<WorkspaceCommandOutcome> Execute(
-        Func<WorkspaceCommandContext, WorkspaceCommand> createCommand)
+        Func<WorkspaceCommandContext, WorkspaceCommand> createCommand,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(createCommand);
         var outcome = await workspace.DispatchAsync(
             createCommand(CommandContext(CreateClientIntentId())),
-            CancellationToken.None);
+            cancellationToken);
         if (outcome is WorkspaceCommandRejected
             {
                 RetryDisposition.Kind: RetryDispositionKind.Reattach,
             }
-            && await TryReattachAsync())
+            && await TryReattachAsync(cancellationToken))
         {
             outcome = await workspace.DispatchAsync(
                 createCommand(CommandContext(CreateClientIntentId())),
-                CancellationToken.None);
+                cancellationToken);
         }
 
-        await Refresh();
+        await Refresh(cancellationToken);
         return outcome;
     }
 
-    private async Task<bool> TryReattachAsync()
+    private async Task<bool> TryReattachAsync(CancellationToken cancellationToken)
     {
         if (Attachment is not { } attachment || Projection is not { } projection)
         {
@@ -360,29 +410,28 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
                 attachment.AttachmentId,
                 attachment.Generation,
                 LogicLabWebBuild.Fingerprint),
-            CancellationToken.None);
+            cancellationToken);
         if (outcome is not Attached reattached)
         {
             return false;
         }
 
         Attachment = reattached;
-        Projection = reattached.Projection;
+        UpdateProjection(reattached.Projection);
         return true;
     }
 
-    private async Task Refresh()
+    private async Task Refresh(CancellationToken cancellationToken = default)
     {
         if (Projection is null)
         {
             return;
         }
 
-        var read = await workspace.ReadAsync(QueryContext(), CancellationToken.None);
+        var read = await workspace.ReadAsync(QueryContext(), cancellationToken);
         if (read is ProjectionSnapshot snapshot)
         {
-            Projection = snapshot.Projection;
-            ProjectScene();
+            UpdateProjection(snapshot.Projection);
             return;
         }
 
@@ -395,19 +444,42 @@ public sealed partial class Editor(IEditorWorkspace workspace) : IAsyncDisposabl
         RouteDraftActive = false;
     }
 
+    private void UpdateProjection(WorkspaceProjection projection)
+    {
+        ArgumentNullException.ThrowIfNull(projection);
+        var projectRevisionChanged = Projection?.ProjectRevision.RevisionId
+            != projection.ProjectRevision.RevisionId;
+        Projection = projection;
+        if (projectRevisionChanged)
+        {
+            ProjectScene();
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
-        if (Attachment is not { } attachment)
+        if (Interlocked.Exchange(ref isDisposed, 1) != 0)
         {
             return;
         }
 
-        _ = await workspace.DetachAsync(
-            new DetachRequest(
-                attachment.Projection.WorkspaceId,
-                attachment.AttachmentId,
-                attachment.Generation),
-            CancellationToken.None);
+        await componentLifetime.CancelAsync();
+        try
+        {
+            if (Attachment is { } attachment)
+            {
+                _ = await workspace.DetachAsync(
+                    new DetachRequest(
+                        attachment.Projection.WorkspaceId,
+                        attachment.AttachmentId,
+                        attachment.Generation),
+                    CancellationToken.None);
+            }
+        }
+        finally
+        {
+            componentLifetime.Dispose();
+        }
     }
 
     private static ClientIntentId CreateClientIntentId()

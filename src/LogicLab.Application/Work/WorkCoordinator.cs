@@ -9,11 +9,14 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     private readonly Lock gate = new();
     private readonly CancellationTokenSource stopping = new();
     private readonly Channel<CompilationWorkItem> compilationQueue;
-    private readonly Channel<SessionWorkItem> sessionQueue;
+    private readonly Queue<SessionWorkItem> sessionQueue = [];
+    private readonly SemaphoreSlim sessionQueueSignal = new(0);
+    private readonly int sessionQueueCapacity;
     private readonly ILogger<WorkCoordinator> logger;
     private readonly Dictionary<WorkspaceId, CompilationWorkItem> latestCompilations = [];
     private readonly Task compilationWorker;
     private readonly Task sessionWorker;
+    private int queuedExternalSessions;
     private bool isDisposed;
 
     public WorkCoordinator(
@@ -25,7 +28,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
         this.logger = logger;
         compilationQueue = CreateQueue<CompilationWorkItem>(policy.CompilationQueueCapacity);
-        sessionQueue = CreateQueue<SessionWorkItem>(policy.SessionQueueCapacity);
+        sessionQueueCapacity = policy.SessionQueueCapacity;
         compilationWorker = ConsumeCompilationsAsync();
         sessionWorker = ConsumeSessionsAsync();
     }
@@ -98,20 +101,25 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             item = new SessionWorkItem(
                 workspaceId,
                 operation,
+                countsTowardCapacity: true,
                 cancellationToken,
                 stopping.Token);
-            if (!sessionQueue.Writer.TryWrite(item))
+            if (queuedExternalSessions >= sessionQueueCapacity)
             {
                 item.Dispose();
                 return Task.FromResult<WorkspaceCommandOutcome>(
                     Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected));
             }
+
+            sessionQueue.Enqueue(item);
+            queuedExternalSessions++;
+            sessionQueueSignal.Release();
         }
 
         return item.Completion.Task;
     }
 
-    internal bool TryScheduleSession(
+    internal bool TryScheduleSessionContinuation(
         WorkspaceId workspaceId,
         Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation)
     {
@@ -127,15 +135,12 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             var item = new SessionWorkItem(
                 workspaceId,
                 operation,
+                countsTowardCapacity: false,
                 CancellationToken.None,
                 stopping.Token);
-            if (sessionQueue.Writer.TryWrite(item))
-            {
-                return true;
-            }
-
-            item.Dispose();
-            return false;
+            sessionQueue.Enqueue(item);
+            sessionQueueSignal.Release();
+            return true;
         }
     }
 
@@ -150,11 +155,12 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
             isDisposed = true;
             compilationQueue.Writer.TryComplete();
-            sessionQueue.Writer.TryComplete();
         }
 
         await stopping.CancelAsync().ConfigureAwait(false);
+        sessionQueueSignal.Release();
         await Task.WhenAll(compilationWorker, sessionWorker).ConfigureAwait(false);
+        sessionQueueSignal.Dispose();
         stopping.Dispose();
     }
 
@@ -228,8 +234,29 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
     private async Task ConsumeSessionsAsync()
     {
-        await foreach (var item in sessionQueue.Reader.ReadAllAsync().ConfigureAwait(false))
+        while (true)
         {
+            await sessionQueueSignal.WaitAsync().ConfigureAwait(false);
+            SessionWorkItem item;
+            lock (gate)
+            {
+                if (sessionQueue.Count == 0)
+                {
+                    if (isDisposed)
+                    {
+                        return;
+                    }
+
+                    continue;
+                }
+
+                item = sessionQueue.Dequeue();
+                if (item.CountsTowardCapacity)
+                {
+                    queuedExternalSessions--;
+                }
+            }
+
             try
             {
                 var outcome = await item.Operation(item.CancellationToken).ConfigureAwait(false);
@@ -395,12 +422,15 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     private sealed class SessionWorkItem(
         WorkspaceId workspaceId,
         Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
+        bool countsTowardCapacity,
         CancellationToken callerCancellationToken,
         CancellationToken stoppingToken)
         : WorkItem(workspaceId, callerCancellationToken, stoppingToken)
     {
         public Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> Operation { get; }
             = operation;
+
+        public bool CountsTowardCapacity { get; } = countsTowardCapacity;
     }
 }
 
