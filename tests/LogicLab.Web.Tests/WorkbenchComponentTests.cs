@@ -86,7 +86,7 @@ internal sealed class WorkbenchComponentTests
 
     [Test, Timeout(30_000)]
     public async Task Editor_NewerCompilationGeneration_DoesNotReportAcceptedGenerationAsPublished(
-        CancellationToken cancellationToken)
+        CancellationToken _)
     {
         await using var context = CreateContext();
         await using var workspace = new ControlledCompilationWorkspace(
