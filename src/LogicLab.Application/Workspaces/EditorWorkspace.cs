@@ -184,9 +184,11 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
     public async Task<WorkspaceReadOutcome> ReadAsync(
         WorkspaceQueryContext context,
+        WorkspaceQuery query,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         if (cancellationToken.IsCancellationRequested)
         {
             return RejectRead(WorkspaceOutcomeReasons.WorkspaceCancelled);
@@ -228,7 +230,14 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 TouchWorkspace(state);
             }
 
-            return new ProjectionSnapshot(Project(state));
+            return query switch
+            {
+                ReadProjection projection => ReadWorkspaceProjection(state, projection),
+                ReadCompilation compilation => ReadCompilationGeneration(
+                    state,
+                    compilation.CompilationGeneration),
+                _ => RejectRead(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
+            };
         }
         finally
         {
@@ -900,7 +909,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         SimulationProjection simulation,
         AdvanceFailureReason reason,
         IReadOnlyList<string> diagnosticCodes,
-        SimulationPolicyEvidenceProjection? policyEvidence,
+        PolicyEvidenceProjection? policyEvidence,
         ulong projectionVersion)
     {
         return new SessionAdvanceFailed(
@@ -929,12 +938,12 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         };
     }
 
-    private static SimulationPolicyEvidenceProjection? PolicyEvidenceFrom(
+    private static PolicyEvidenceProjection? PolicyEvidenceFrom(
         SimulationPolicyEvidence? evidence)
     {
         return evidence is null
             ? null
-            : new SimulationPolicyEvidenceProjection(
+            : new PolicyEvidenceProjection(
                 evidence.PolicyId,
                 evidence.PolicyRevision,
                 evidence.Dimension,
@@ -1114,12 +1123,52 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
     private static WorkspaceCommandRejected Reject(
         string code,
-        IEnumerable<string>? diagnosticCodes = null)
+        IEnumerable<string>? diagnosticCodes = null,
+        PolicyEvidenceProjection? policyEvidence = null)
     {
         return new WorkspaceCommandRejected(
             code,
             diagnosticCodes?.ToArray() ?? [],
-            WorkspaceOutcomeReasons.RetryFor(code));
+            WorkspaceOutcomeReasons.RetryFor(code),
+            policyEvidence);
+    }
+
+    private static WorkspaceReadOutcome ReadCompilationGeneration(
+        WorkspaceState state,
+        CompilationGeneration generation)
+    {
+        if (state.Compilation.Generation == generation)
+        {
+            return new CompilationSnapshot(
+                state.Compilation,
+                state.ProjectionVersion);
+        }
+
+        if (state.Compilation.Generation is { } newer
+            && newer.Value > generation.Value)
+        {
+            return new CompilationSnapshot(
+                new CompilationProjection(
+                    CompilationPublicationStatus.Superseded,
+                    generation,
+                    null,
+                    [],
+                    newer,
+                    null,
+                    null),
+                state.ProjectionVersion);
+        }
+
+        return RejectRead(WorkspaceOutcomeReasons.CompilationGenerationUnavailable);
+    }
+
+    private static WorkspaceReadOutcome ReadWorkspaceProjection(
+        WorkspaceState state,
+        ReadProjection query)
+    {
+        return query.AfterProjectionVersion == state.ProjectionVersion
+            ? new ProjectionUnchanged(state.ProjectionVersion)
+            : new ProjectionSnapshot(Project(state));
     }
 
     private static WorkspaceOpenRejected RejectOpen(

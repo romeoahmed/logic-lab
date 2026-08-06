@@ -27,7 +27,11 @@ internal abstract class DelegatingEditorWorkspace(
 
     public virtual Task<WorkspaceReadOutcome> ReadAsync(
         WorkspaceQueryContext context,
-        CancellationToken cancellationToken) => Inner.ReadAsync(context, cancellationToken);
+        WorkspaceQuery query,
+        CancellationToken cancellationToken) => Inner.ReadAsync(
+            context,
+            query,
+            cancellationToken);
 
     public virtual ValueTask DisposeAsync() => Inner.DisposeAsync();
 }

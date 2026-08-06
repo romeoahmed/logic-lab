@@ -175,6 +175,7 @@ internal sealed class EditorWorkspaceHierarchyTests
     {
         return ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(workspaceId, attached),
+            ReadProjection.Instance,
             CancellationToken.None)).Projection;
     }
 

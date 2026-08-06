@@ -25,6 +25,7 @@ public interface IEditorWorkspace : IAsyncDisposable
 
     Task<WorkspaceReadOutcome> ReadAsync(
         WorkspaceQueryContext context,
+        WorkspaceQuery query,
         CancellationToken cancellationToken);
 }
 
@@ -59,31 +60,58 @@ public sealed record WorkspaceAuthoringLimits
 public sealed record WorkspacePolicy
 {
     public WorkspacePolicy(
+        string policyId,
+        string policyRevision,
         int globalWorkspaceLimit,
         TimeSpan sandboxRetention,
         WorkspaceAuthoringLimits authoringLimits,
         int historyRevisionCount,
         int idempotencyRecordCount,
-        TimeSpan detachedRetention)
+        TimeSpan detachedRetention,
+        ulong hotSwapPeakBytes)
     {
+        ArgumentException.ThrowIfNullOrEmpty(policyId);
+        ArgumentException.ThrowIfNullOrEmpty(policyRevision);
+        ArgumentNullException.ThrowIfNull(authoringLimits);
+        if (!IsStableToken(policyId))
+        {
+            throw new ArgumentException(
+                "The Workspace Policy ID must be a Stable Token.",
+                nameof(policyId));
+        }
+
+        if (!IsStableToken(policyRevision))
+        {
+            throw new ArgumentException(
+                "The Workspace Policy revision must be a Stable Token.",
+                nameof(policyRevision));
+        }
+
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(globalWorkspaceLimit);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
             sandboxRetention,
             TimeSpan.Zero);
-        ArgumentNullException.ThrowIfNull(authoringLimits);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(historyRevisionCount);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(idempotencyRecordCount);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
             detachedRetention,
             TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfZero(hotSwapPeakBytes);
 
+        PolicyId = policyId;
+        PolicyRevision = policyRevision;
         GlobalWorkspaceLimit = globalWorkspaceLimit;
         SandboxRetention = sandboxRetention;
         AuthoringLimits = authoringLimits;
         HistoryRevisionCount = historyRevisionCount;
         IdempotencyRecordCount = idempotencyRecordCount;
         DetachedRetention = detachedRetention;
+        HotSwapPeakBytes = hotSwapPeakBytes;
     }
+
+    public string PolicyId { get; }
+
+    public string PolicyRevision { get; }
 
     public int GlobalWorkspaceLimit { get; }
 
@@ -97,13 +125,33 @@ public sealed record WorkspacePolicy
 
     public TimeSpan DetachedRetention { get; }
 
+    public ulong HotSwapPeakBytes { get; }
+
     public static WorkspacePolicy Default { get; } = new(
+        policyId: "workbench-workspace",
+        policyRevision: "1",
         globalWorkspaceLimit: 128,
         sandboxRetention: TimeSpan.FromMinutes(30),
         authoringLimits: WorkspaceAuthoringLimits.Default,
         historyRevisionCount: 128,
         idempotencyRecordCount: 1_024,
-        detachedRetention: TimeSpan.FromMinutes(30));
+        detachedRetention: TimeSpan.FromMinutes(30),
+        hotSwapPeakBytes: 512UL * 1024UL * 1024UL);
+
+    private static bool IsStableToken(string value)
+    {
+        return value.Length <= 96
+            && IsAsciiLetterOrDigit(value[0])
+            && value.All(character =>
+                IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
+    }
+
+    private static bool IsAsciiLetterOrDigit(char value)
+    {
+        return value is >= 'A' and <= 'Z'
+            or >= 'a' and <= 'z'
+            or >= '0' and <= '9';
+    }
 }
 
 public sealed record SchedulingPolicy

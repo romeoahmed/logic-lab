@@ -500,12 +500,15 @@ internal sealed class EditorWorkspaceRunTests
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
             operations,
             workspacePolicy: new WorkspacePolicy(
+                policyId: "test-workspace",
+                policyRevision: "1",
                 globalWorkspaceLimit: 16,
                 sandboxRetention: TimeSpan.FromMinutes(1),
                 authoringLimits: WorkspaceAuthoringLimits.Default,
                 historyRevisionCount: 16,
                 idempotencyRecordCount: 32,
-                detachedRetention: TimeSpan.FromMinutes(30)),
+                detachedRetention: TimeSpan.FromMinutes(30),
+                hotSwapPeakBytes: ulong.MaxValue),
             timeProvider: timeProvider);
         var controlled = await CreateClockWorkspace(workspace, cancellationToken);
         var initial = await Read(workspace, controlled, cancellationToken);
@@ -521,6 +524,7 @@ internal sealed class EditorWorkspaceRunTests
             EditorWorkspaceTestDriver.Query(
                 controlled.WorkspaceId,
                 controlled.Attached),
+            ReadProjection.Instance,
             cancellationToken);
         advanceGate.Release();
 
@@ -576,6 +580,80 @@ internal sealed class EditorWorkspaceRunTests
                 .IsEqualTo(beforeSwap.Compilation.ArtifactKey);
             await Assert.That(afterSwap.Simulation.Probes.Single().ProbeId)
                 .IsEqualTo(beforeEdit.Simulation!.Probes.Single().ProbeId);
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_HotSwapPeakLimitExceeded_RejectsAndRetainsSession(
+        CancellationToken cancellationToken)
+    {
+        var policy = new WorkspacePolicy(
+            policyId: "test-workspace",
+            policyRevision: "hot-swap-limit",
+            globalWorkspaceLimit: 16,
+            sandboxRetention: TimeSpan.FromMinutes(30),
+            authoringLimits: WorkspaceAuthoringLimits.Default,
+            historyRevisionCount: 16,
+            idempotencyRecordCount: 32,
+            detachedRetention: TimeSpan.FromMinutes(30),
+            hotSwapPeakBytes: 1);
+        await using var workspace = EditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint,
+            policy);
+        var controlled = await CreateInputWorkspace(workspace, cancellationToken);
+        var beforeEdit = await Read(workspace, controlled, cancellationToken);
+        var sink = beforeEdit.ProjectRevision.Document.EntryCircuitDefinition
+            .ComponentInstances.Single(instance =>
+                instance.Target is LibraryComponentTarget target
+                && target.ContractKey.ContractId == "sink.output");
+        await Apply(
+            workspace,
+            controlled,
+            beforeEdit,
+            "move-for-limited-swap",
+            new MoveComponentInstancesIntent(
+                beforeEdit.ProjectRevision.Document.EntryCircuitDefinitionId,
+                [new ComponentMove(
+                    sink.Id,
+                    new ComponentPlacement(new GridPoint(12, 2)))]),
+            cancellationToken);
+        var afterEdit = await Read(workspace, controlled, cancellationToken);
+        await Compile(workspace, controlled, afterEdit, cancellationToken);
+        var beforeSwap = await Read(workspace, controlled, cancellationToken);
+
+        var outcome = await workspace.DispatchAsync(
+            new HotSwapSession(
+                Command(controlled, "limited-hot-swap"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeSwap),
+                beforeSwap.Compilation.ArtifactKey!),
+            cancellationToken);
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
+        var afterSwap = await Read(workspace, controlled, cancellationToken);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code)
+                .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(rejected.PolicyEvidence).IsNotNull();
+            await Assert.That(rejected.PolicyEvidence!.PolicyId).IsEqualTo(policy.PolicyId);
+            await Assert.That(rejected.PolicyEvidence.PolicyRevision)
+                .IsEqualTo(policy.PolicyRevision);
+            await Assert.That(rejected.PolicyEvidence.Dimension)
+                .IsEqualTo("hot_swap_peak_bytes");
+            await Assert.That(rejected.PolicyEvidence.Observed).IsGreaterThan(1UL);
+            await Assert.That(afterSwap.Simulation!.SessionId)
+                .IsEqualTo(beforeSwap.Simulation!.SessionId);
+            await Assert.That(afterSwap.Simulation.SessionVersion)
+                .IsEqualTo(beforeSwap.Simulation.SessionVersion);
+            await Assert.That(afterSwap.Simulation.CompilationArtifactKey)
+                .IsEqualTo(beforeSwap.Simulation.CompilationArtifactKey);
+            await Assert.That(afterSwap.Simulation.LogicalTime)
+                .IsEqualTo(beforeSwap.Simulation.LogicalTime);
+            await Assert.That(afterSwap.Simulation.TraceCursor)
+                .IsEqualTo(beforeSwap.Simulation.TraceCursor);
+            await Assert.That(afterSwap.Simulation.Probes)
+                .IsEquivalentTo(beforeSwap.Simulation.Probes);
         }
     }
 
@@ -753,6 +831,7 @@ internal sealed class EditorWorkspaceRunTests
             EditorWorkspaceTestDriver.Query(
                 controlled.WorkspaceId,
                 controlled.Attached),
+            ReadProjection.Instance,
             cancellationToken)).Projection;
     }
 

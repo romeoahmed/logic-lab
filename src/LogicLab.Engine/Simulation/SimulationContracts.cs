@@ -431,13 +431,19 @@ public sealed record AdvanceToNextQuiescentBoundary : SimulationCommand;
 
 public sealed record HotSwapSimulation : SimulationCommand
 {
-    public HotSwapSimulation(CompilationArtifact compilationArtifact)
+    public HotSwapSimulation(
+        CompilationArtifact compilationArtifact,
+        ulong maximumPeakOwnedBufferBytes)
     {
         ArgumentNullException.ThrowIfNull(compilationArtifact);
+        ArgumentOutOfRangeException.ThrowIfZero(maximumPeakOwnedBufferBytes);
         CompilationArtifact = compilationArtifact;
+        MaximumPeakOwnedBufferBytes = maximumPeakOwnedBufferBytes;
     }
 
     public CompilationArtifact CompilationArtifact { get; }
+
+    public ulong MaximumPeakOwnedBufferBytes { get; }
 }
 
 public enum StimulusBatchInvalidRule
@@ -577,6 +583,30 @@ public sealed record HotSwapIncompatible : SimulationCommandOutcome
     public ReadOnlyCollection<CompilationSource> IncompatibleStateSources { get; }
 
     public ReadOnlyCollection<ProbeId> UnresolvedProbeIds { get; }
+}
+
+public sealed record HotSwapResourceLimitExceeded : SimulationCommandOutcome
+{
+    internal HotSwapResourceLimitExceeded(
+        ulong sessionVersion,
+        CompilationArtifactKey compilationArtifactKey,
+        ulong maximumPeakOwnedBufferBytes,
+        ulong observedPeakOwnedBufferBytes)
+    {
+        ArgumentNullException.ThrowIfNull(compilationArtifactKey);
+        SessionVersion = sessionVersion;
+        CompilationArtifactKey = compilationArtifactKey;
+        MaximumPeakOwnedBufferBytes = maximumPeakOwnedBufferBytes;
+        ObservedPeakOwnedBufferBytes = observedPeakOwnedBufferBytes;
+    }
+
+    public ulong SessionVersion { get; }
+
+    public CompilationArtifactKey CompilationArtifactKey { get; }
+
+    public ulong MaximumPeakOwnedBufferBytes { get; }
+
+    public ulong ObservedPeakOwnedBufferBytes { get; }
 }
 
 public sealed record AdvanceFailed : SimulationCommandOutcome

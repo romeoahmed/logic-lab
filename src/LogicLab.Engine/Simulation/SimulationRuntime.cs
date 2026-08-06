@@ -165,6 +165,7 @@ public static partial class SimulationRuntime
                 HotSwapSimulation hotSwap => HotSwap(
                     state,
                     hotSwap.CompilationArtifact,
+                    hotSwap.MaximumPeakOwnedBufferBytes,
                     cancellationToken),
                 _ => throw new InvalidOperationException(
                     "The Simulation command variant is undefined."),

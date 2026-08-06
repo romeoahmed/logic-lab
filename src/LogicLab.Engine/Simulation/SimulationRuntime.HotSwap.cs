@@ -7,9 +7,23 @@ public static partial class SimulationRuntime
     private static SimulationCommandOutcome HotSwap(
         SimulationSessionState state,
         CompilationArtifact replacement,
+        ulong maximumPeakOwnedBufferBytes,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var peakOwnedBuffers = HotSwapOwnedBufferAccounting.MeasurePeak(
+            state,
+            replacement);
+        if (peakOwnedBuffers.IsSaturated
+            || peakOwnedBuffers.Bytes > maximumPeakOwnedBufferBytes)
+        {
+            return new HotSwapResourceLimitExceeded(
+                state.SessionVersion,
+                state.Artifact!.Key,
+                maximumPeakOwnedBufferBytes,
+                peakOwnedBuffers.Bytes);
+        }
+
         CompilationArtifactValidator.Validate(
             replacement.SimulationIr,
             replacement.SourceMap,

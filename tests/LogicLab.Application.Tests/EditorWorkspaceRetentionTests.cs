@@ -158,10 +158,12 @@ internal sealed class EditorWorkspaceRetentionTests
 
         var staleRead = await workspace.ReadAsync(
             Query(opened.WorkspaceId, first),
+            ReadProjection.Instance,
             CancellationToken.None);
         timeProvider.Advance(TimeSpan.FromMinutes(1));
         var currentRead = await workspace.ReadAsync(
             Query(opened.WorkspaceId, second),
+            ReadProjection.Instance,
             CancellationToken.None);
 
         var staleRejection = await IsType<WorkspaceReadRejected>(staleRead);
@@ -251,6 +253,7 @@ internal sealed class EditorWorkspaceRetentionTests
             timeProvider.Advance(TimeSpan.FromMinutes(5));
             read = workspace.ReadAsync(
                 Query(opened.WorkspaceId, attached),
+                ReadProjection.Instance,
                 cancellationToken);
         }
         finally
@@ -317,6 +320,7 @@ internal sealed class EditorWorkspaceRetentionTests
     {
         var outcome = await workspace.ReadAsync(
             Query(workspaceId, attached),
+            ReadProjection.Instance,
             CancellationToken.None);
         return (await IsType<ProjectionSnapshot>(outcome)).Projection;
     }
@@ -349,12 +353,15 @@ internal sealed class EditorWorkspaceRetentionTests
         int globalWorkspaceLimit = 16)
     {
         return new WorkspacePolicy(
+            "test-workspace",
+            "1",
             globalWorkspaceLimit,
             sandboxRetention ?? TimeSpan.FromHours(1),
             WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 16,
             idempotencyRecordCount: 32,
-            detachedRetention ?? TimeSpan.FromMinutes(30));
+            detachedRetention ?? TimeSpan.FromMinutes(30),
+            hotSwapPeakBytes: ulong.MaxValue);
     }
 
     private static async Task<T> IsType<T>(object actual)

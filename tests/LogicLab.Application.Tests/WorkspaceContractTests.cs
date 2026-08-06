@@ -21,6 +21,52 @@ internal sealed class WorkspaceContractTests
     }
 
     [Test]
+    public async Task WorkspacePolicy_InvalidIdentityOrHotSwapLimit_RejectsConfiguration()
+    {
+        using (Assert.Multiple())
+        {
+            await Assert.That(() => Policy("bad value", "1", 1))
+                .ThrowsExactly<ArgumentException>();
+            await Assert.That(() => Policy("valid", "bad/value", 1))
+                .ThrowsExactly<ArgumentException>();
+            await Assert.That(() => Policy("valid", "1", 0))
+                .ThrowsExactly<ArgumentOutOfRangeException>();
+        }
+    }
+
+    [Test]
+    public async Task WorkspacePolicy_NullAuthoringLimits_ThrowsArgumentNullException()
+    {
+        await Assert.That(() => new WorkspacePolicy(
+                "valid",
+                "1",
+                globalWorkspaceLimit: 1,
+                sandboxRetention: TimeSpan.FromMinutes(1),
+                authoringLimits: null!,
+                historyRevisionCount: 1,
+                idempotencyRecordCount: 1,
+                detachedRetention: TimeSpan.FromMinutes(1),
+                hotSwapPeakBytes: 1))
+            .ThrowsExactly<ArgumentNullException>();
+    }
+
+    [Test]
+    public async Task CompilationSnapshot_WithoutGeneration_ThrowsArgumentException()
+    {
+        var compilation = new CompilationProjection(
+            CompilationPublicationStatus.NotRequested,
+            null,
+            null,
+            [],
+            null,
+            null,
+            null);
+
+        await Assert.That(() => new CompilationSnapshot(compilation, 1))
+            .ThrowsExactly<ArgumentException>();
+    }
+
+    [Test]
     public async Task WorkspaceId_NullValue_ThrowsArgumentNullException()
     {
         await Assert.That(() => new WorkspaceId(null!))
@@ -62,7 +108,7 @@ internal sealed class WorkspaceContractTests
         bool includePolicyEvidence)
     {
         var evidence = includePolicyEvidence
-            ? new SimulationPolicyEvidenceProjection(
+            ? new PolicyEvidenceProjection(
                 "workbench-simulation",
                 "2",
                 "advance_work_item_count",
@@ -71,5 +117,22 @@ internal sealed class WorkspaceContractTests
 
         await Assert.That(() => new AdvanceFailureProjection(reason, [], evidence))
             .ThrowsExactly<ArgumentException>();
+    }
+
+    private static WorkspacePolicy Policy(
+        string policyId,
+        string policyRevision,
+        ulong hotSwapPeakBytes)
+    {
+        return new WorkspacePolicy(
+            policyId,
+            policyRevision,
+            globalWorkspaceLimit: 1,
+            sandboxRetention: TimeSpan.FromMinutes(1),
+            authoringLimits: WorkspaceAuthoringLimits.Default,
+            historyRevisionCount: 1,
+            idempotencyRecordCount: 1,
+            detachedRetention: TimeSpan.FromMinutes(1),
+            hotSwapPeakBytes: hotSwapPeakBytes);
     }
 }

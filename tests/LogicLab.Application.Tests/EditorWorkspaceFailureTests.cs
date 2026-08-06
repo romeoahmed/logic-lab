@@ -67,6 +67,7 @@ internal sealed class EditorWorkspaceFailureTests
         var opened = await OpenCompiledCircuit(workspace, cancellationToken);
         var before = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
+            ReadProjection.Instance,
             CancellationToken.None)).Projection;
 
         var outcome = await workspace.DispatchAsync(
@@ -76,6 +77,7 @@ internal sealed class EditorWorkspaceFailureTests
             CancellationToken.None);
         var after = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
+            ReadProjection.Instance,
             CancellationToken.None)).Projection;
 
         var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
@@ -153,6 +155,7 @@ internal sealed class EditorWorkspaceFailureTests
         var opened = await OpenCompiledCircuit(workspace, cancellationToken);
         var before = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
+            ReadProjection.Instance,
             CancellationToken.None)).Projection;
 
         var outcome = await workspace.DispatchAsync(
@@ -162,6 +165,7 @@ internal sealed class EditorWorkspaceFailureTests
             CancellationToken.None);
         var after = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
+            ReadProjection.Instance,
             CancellationToken.None)).Projection;
 
         var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
@@ -203,6 +207,7 @@ internal sealed class EditorWorkspaceFailureTests
         var opened = await OpenCompiledCircuit(workspace, testCancellationToken);
         var before = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
+            ReadProjection.Instance,
             CancellationToken.None)).Projection;
 
         var outcome = await workspace.DispatchAsync(
@@ -212,6 +217,7 @@ internal sealed class EditorWorkspaceFailureTests
             cancellation.Token);
         var after = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
+            ReadProjection.Instance,
             CancellationToken.None)).Projection;
 
         var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
@@ -273,6 +279,7 @@ internal sealed class EditorWorkspaceFailureTests
             CancellationToken.None);
         var after = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
+            ReadProjection.Instance,
             CancellationToken.None)).Projection;
 
         var created = await Assert.That(session).IsTypeOf<SimulationSessionCreated>();
@@ -321,6 +328,7 @@ internal sealed class EditorWorkspaceFailureTests
             CancellationToken.None);
         var read = await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
+            ReadProjection.Instance,
             CancellationToken.None);
 
         using (Assert.Multiple())
@@ -432,6 +440,7 @@ internal sealed class EditorWorkspaceFailureTests
             EditorWorkspaceTestDriver.Query(
                 controlled.WorkspaceId,
                 controlled.Attached),
+            ReadProjection.Instance,
             CancellationToken.None);
         return read.Projection.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances
             .Single(instance => instance.Target is LibraryComponentTarget library
@@ -446,6 +455,7 @@ internal sealed class EditorWorkspaceFailureTests
             EditorWorkspaceTestDriver.Query(
                 controlled.WorkspaceId,
                 controlled.Attached),
+            ReadProjection.Instance,
             CancellationToken.None)).Projection;
     }
 

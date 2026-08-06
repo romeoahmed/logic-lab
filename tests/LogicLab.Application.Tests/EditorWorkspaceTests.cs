@@ -913,6 +913,7 @@ internal sealed class EditorWorkspaceTests
             cancellationToken);
         var after = await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, attachment),
+            ReadProjection.Instance,
             cancellationToken);
         var rejection = await Assert.That(rejected)
             .IsTypeOf<WorkspaceCommandRejected>();
@@ -1165,6 +1166,7 @@ internal sealed class EditorWorkspaceTests
             EditorWorkspaceTestDriver.Query(
                 controlled.WorkspaceId,
                 controlled.Attachment),
+            ReadProjection.Instance,
             CancellationToken.None);
         var snapshot = await Assert.That(outcome).IsTypeOf<ProjectionSnapshot>();
         Assert.NotNull(snapshot);

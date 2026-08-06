@@ -93,7 +93,7 @@ internal sealed partial class EditorWorkspace
 
         var outcome = operations.ExecuteSimulation(
             activeSession.Handle,
-            new HotSwapSimulation(replacement),
+            new HotSwapSimulation(replacement, workspacePolicy.HotSwapPeakBytes),
             cancellationToken);
         if (outcome is LogicLab.Engine.Simulation.HotSwapIncompatible)
         {
@@ -105,6 +105,17 @@ internal sealed partial class EditorWorkspace
             return Reject(
                 WorkspaceOutcomeReasons.FromSimulation(failed.Reason),
                 failed.Diagnostics.Select(item => item.Code));
+        }
+
+        if (outcome is HotSwapResourceLimitExceeded resourceLimit)
+        {
+            return Reject(
+                WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
+                policyEvidence: new PolicyEvidenceProjection(
+                    workspacePolicy.PolicyId,
+                    workspacePolicy.PolicyRevision,
+                    "hot_swap_peak_bytes",
+                    resourceLimit.ObservedPeakOwnedBufferBytes));
         }
 
         if (outcome is not LogicLab.Engine.Simulation.HotSwapCommitted committed)
