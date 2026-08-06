@@ -30,55 +30,21 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         sessionWorker = ConsumeSessionsAsync();
     }
 
-    internal Task<WorkspaceCommandOutcome> RunCompilationAsync(
-        WorkspaceId workspaceId,
-        Func<CompilationWorkContext, ValueTask<WorkspaceCommandOutcome>> operation,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(workspaceId);
-        ArgumentNullException.ThrowIfNull(operation);
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromResult<WorkspaceCommandOutcome>(
-                Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
-        }
-
-        _ = TryEnqueueCompilation(
-            workspaceId,
-            operation,
-            cancellationToken,
-            out var completion);
-        return completion;
-    }
-
     internal bool TryScheduleCompilation(
         WorkspaceId workspaceId,
         Func<CompilationWorkContext, ValueTask<WorkspaceCommandOutcome>> operation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        out string? rejectionCode)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(operation);
-        return TryEnqueueCompilation(
-            workspaceId,
-            operation,
-            cancellationToken,
-            out _);
-    }
-
-    private bool TryEnqueueCompilation(
-        WorkspaceId workspaceId,
-        Func<CompilationWorkContext, ValueTask<WorkspaceCommandOutcome>> operation,
-        CancellationToken cancellationToken,
-        out Task<WorkspaceCommandOutcome> completion)
-    {
         CompilationWorkItem item;
         CompilationWorkItem? previous = null;
         lock (gate)
         {
             if (isDisposed || cancellationToken.IsCancellationRequested)
             {
-                completion = Task.FromResult<WorkspaceCommandOutcome>(
-                    Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
+                rejectionCode = WorkspaceOutcomeReasons.WorkspaceCancelled;
                 return false;
             }
 
@@ -90,8 +56,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             if (!compilationQueue.Writer.TryWrite(item))
             {
                 item.Dispose();
-                completion = Task.FromResult<WorkspaceCommandOutcome>(
-                    Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected));
+                rejectionCode = WorkspaceOutcomeReasons.WorkspaceAdmissionRejected;
                 return false;
             }
 
@@ -104,7 +69,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         }
 
         previous?.CancelSuperseded();
-        completion = item.Completion.Task;
+        rejectionCode = null;
         return true;
     }
 

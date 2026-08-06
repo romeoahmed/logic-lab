@@ -101,31 +101,32 @@ internal sealed partial class EditorWorkspace
         WorkspaceCommand command,
         CancellationToken cancellationToken)
     {
-        return command switch
-        {
-            CreateSession create => OpenSessionWithPrecondition(
-                state,
-                create,
-                cancellationToken),
-            ScheduleInputStimulus schedule => ScheduleWithPrecondition(
-                state,
-                schedule,
-                cancellationToken),
-            StepSession step => StepWithPrecondition(
-                state,
-                step,
-                cancellationToken),
-            StartRun start => StartRunWithPrecondition(
-                state,
-                start),
-            PauseRun pause => PauseRunWithPrecondition(
-                state,
-                pause),
-            HotSwapSession hotSwap => HotSwapWithPrecondition(
-                state,
-                hotSwap,
-                cancellationToken),
-            _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
-        };
+        return RejectIfRunRequiresPause(state, command)
+            ?? command switch
+            {
+                CreateSession create => OpenSessionWithPrecondition(
+                    state,
+                    create,
+                    cancellationToken),
+                ScheduleInputStimulus schedule => ScheduleWithPrecondition(
+                    state,
+                    schedule,
+                    cancellationToken),
+                StepSession step => StepWithPrecondition(
+                    state,
+                    step,
+                    cancellationToken),
+                StartRun start => StartRunWithPrecondition(
+                    state,
+                    start),
+                PauseRun pause => PauseRunWithPrecondition(
+                    state,
+                    pause),
+                HotSwapSession hotSwap => HotSwapWithPrecondition(
+                    state,
+                    hotSwap,
+                    cancellationToken),
+                _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
+            };
     }
 }

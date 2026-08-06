@@ -112,6 +112,25 @@ internal sealed class SimulationTraceStore(TracePolicy policy)
         EarliestAvailableSequence,
         LatestSequence);
 
+    public SimulationTraceStore Fork()
+    {
+        var fork = new SimulationTraceStore(policy);
+        fork.EnsureCapacity(chunkCount);
+        for (var chunkOffset = 0; chunkOffset < chunkCount; chunkOffset++)
+        {
+            fork.Enqueue(ChunkAt(chunkOffset));
+        }
+
+        fork.LatestSequence = LatestSequence;
+        fork.ObservedBytes = ObservedBytes;
+        fork.ObservedTransitionCount = ObservedTransitionCount;
+        fork.ObservedChunkCount = ObservedChunkCount;
+        fork.retainedBytes = retainedBytes;
+        fork.retainedTransitionCount = retainedTransitionCount;
+        fork.hasEvicted = hasEvicted;
+        return fork;
+    }
+
     public void Append(
         ulong logicalTime,
         IReadOnlyList<(ProbeState Probe, LogicVector Value)> observations)

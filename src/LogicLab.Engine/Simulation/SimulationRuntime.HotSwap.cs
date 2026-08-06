@@ -63,31 +63,19 @@ public static partial class SimulationRuntime
             probe.ProbeId,
             probe.Source,
             settlement.NetValues[probe.NetOrdinal])).ToArray();
-        var trace = new SimulationTraceStore(state.TracePolicy);
+        var trace = state.Trace.Fork();
         trace.Append(
             state.LogicalTime,
             [.. probes.Select(probe => (probe, settlement.NetValues[probe.NetOrdinal]))]);
         var clockEvents = CreateClockEventCalendar(replacementIr, state.LogicalTime);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        state.Artifact = replacement;
-        state.DriverValues = driverValues;
-        state.NetValues = settlement.NetValues;
-        state.SequentialStates = sequentialStates;
-        state.MemoryStates = memoryStates;
-        state.Probes = probes;
-        state.Trace = trace;
-        state.Diagnostics = diagnostics;
-        state.SessionVersion = checked(state.SessionVersion + 1);
-        state.NextStimulusSequence = 0;
-        state.ScheduledBatches = new();
-        state.ScheduledAssignmentsByTime = [];
-        state.ScheduledAssignmentCount = 0;
-        state.ClockEvents = clockEvents;
-
+        var sessionVersion = checked(state.SessionVersion + 1UL);
+        var scheduledBatches =
+            new PriorityQueue<ScheduledStimulusBatch, ScheduledStimulusPriority>();
+        var scheduledAssignmentsByTime =
+            new Dictionary<ulong, SortedDictionary<int, LogicVector>>();
         var preservedProbeIds = probes.Select(probe => probe.ProbeId).ToArray();
-        return new HotSwapCommitted(
-            state.SessionVersion,
+        var committed = new HotSwapCommitted(
+            sessionVersion,
             replacement.Key,
             new HotSwapMigrationEvidence(
                 [.. migrations.Items
@@ -99,6 +87,23 @@ public static partial class SimulationRuntime
             observedProbes,
             diagnostics,
             trace.Cursor);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        state.Artifact = replacement;
+        state.DriverValues = driverValues;
+        state.NetValues = settlement.NetValues;
+        state.SequentialStates = sequentialStates;
+        state.MemoryStates = memoryStates;
+        state.Probes = probes;
+        state.Trace = trace;
+        state.Diagnostics = diagnostics;
+        state.SessionVersion = sessionVersion;
+        state.NextStimulusSequence = 0;
+        state.ScheduledBatches = scheduledBatches;
+        state.ScheduledAssignmentsByTime = scheduledAssignmentsByTime;
+        state.ScheduledAssignmentCount = 0;
+        state.ClockEvents = clockEvents;
+        return committed;
     }
 
     private static void EnsureWorkingLayerFits(

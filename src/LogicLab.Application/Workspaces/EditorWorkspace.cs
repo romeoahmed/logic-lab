@@ -308,6 +308,17 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                     case ContextualIntentReplay:
                         return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
                     case ContextualIntentAccepted accepted:
+                        var runRejection = RejectIfRunRequiresPause(state, command);
+                        if (runRejection is not null)
+                        {
+                            RecordIdempotencyUnderLock(
+                                state,
+                                command.Context.ClientIntentId,
+                                accepted.CanonicalIdentity,
+                                runRejection);
+                            return runRejection;
+                        }
+
                         if (!MatchesCompilationPrecondition(state, command.Precondition))
                         {
                             var rejected = Reject(
@@ -322,8 +333,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
                         var requestedRevision = state.Revision;
                         var generation = new CompilationGeneration(
-                            checked(++state.NextCompilationGeneration));
-                        state.Compilation = new CompilationProjection(
+                            checked(state.NextCompilationGeneration + 1UL));
+                        var compilation = new CompilationProjection(
                             CompilationPublicationStatus.Queued,
                             generation,
                             null,
@@ -331,11 +342,11 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                             null,
                             null,
                             null);
-                        state.ProjectionVersion++;
+                        var projectionVersion = checked(state.ProjectionVersion + 1UL);
                         var outcome = new CompilationAccepted(
                             generation,
                             requestedRevision.RevisionId,
-                            state.ProjectionVersion);
+                            projectionVersion);
                         var backgroundLease = RetainWorkspace(state);
                         if (!workCoordinator.TryScheduleCompilation(
                                 state.Id,
@@ -344,21 +355,11 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                                     requestedRevision,
                                     generation,
                                     context),
-                                cancellationToken))
+                                cancellationToken,
+                                out var schedulingRejectionCode))
                         {
                             backgroundLease.Dispose();
-                            state.Artifact = null;
-                            state.Compilation = new CompilationProjection(
-                                CompilationPublicationStatus.Rejected,
-                                generation,
-                                null,
-                                [],
-                                null,
-                                WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
-                                RetryDisposition.DoNotRetry);
-                            state.ProjectionVersion++;
-                            var rejected = Reject(
-                                WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
+                            var rejected = Reject(schedulingRejectionCode!);
                             RecordIdempotencyUnderLock(
                                 state,
                                 command.Context.ClientIntentId,
@@ -367,6 +368,9 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                             return rejected;
                         }
 
+                        state.NextCompilationGeneration = generation.Value;
+                        state.Compilation = compilation;
+                        state.ProjectionVersion = projectionVersion;
                         RecordIdempotencyUnderLock(
                             state,
                             command.Context.ClientIntentId,

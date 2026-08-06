@@ -160,6 +160,186 @@ internal sealed class EditorWorkspaceRunTests
     }
 
     [Test, Timeout(30_000)]
+    public async Task DispatchAsync_ApplyEditWhileRunning_RejectsWithoutChangingProject(
+        CancellationToken cancellationToken)
+    {
+        var advanceGate = new BlockingOperationGate();
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            BlockAdvances(advanceGate));
+        var controlled = await CreateClockWorkspace(workspace, cancellationToken);
+        var beforeRun = await Read(workspace, controlled, cancellationToken);
+        var started = (RunStarted)await workspace.DispatchAsync(
+            new StartRun(
+                Command(controlled, "run-before-edit"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
+            cancellationToken);
+        await advanceGate.Started.WaitAsync(cancellationToken);
+
+        var edit = workspace.DispatchAsync(
+            new ApplyEdit(
+                Command(controlled, "edit-while-running"),
+                new AuthoringPrecondition(beforeRun.ProjectRevision.RevisionId),
+                new RenameCircuitDefinitionIntent(
+                    beforeRun.ProjectRevision.Document.EntryCircuitDefinitionId,
+                    "Changed while running")),
+            cancellationToken);
+        advanceGate.Release();
+
+        var outcome = await edit.WaitAsync(cancellationToken);
+        var whileRunning = await Read(workspace, controlled, cancellationToken);
+        _ = await workspace.DispatchAsync(
+            new PauseRun(
+                Command(controlled, "pause-after-edit-rejection"),
+                new RunControlPrecondition(
+                    beforeRun.Simulation!.SessionId,
+                    started.RunGeneration)),
+            cancellationToken);
+        var rejection = await Assert.That(outcome)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejection);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejection.Code).IsEqualTo("session_precondition_failed");
+            await Assert.That(whileRunning.ProjectRevision.RevisionId)
+                .IsEqualTo(beforeRun.ProjectRevision.RevisionId);
+            await Assert.That(whileRunning.ProjectRevision.Document.EntryCircuitDefinition
+                    .DisplayName)
+                .IsEqualTo(beforeRun.ProjectRevision.Document.EntryCircuitDefinition.DisplayName);
+            await Assert.That(whileRunning.Compilation.Status)
+                .IsEqualTo(CompilationPublicationStatus.Published);
+            await Assert.That(whileRunning.Simulation!.Run.Status)
+                .IsEqualTo(RunStatus.Running);
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_RequestCompilationWhileRunning_RejectsWithoutChangingCompilation(
+        CancellationToken cancellationToken)
+    {
+        var advanceGate = new BlockingOperationGate();
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            BlockAdvances(advanceGate));
+        var controlled = await CreateClockWorkspace(workspace, cancellationToken);
+        var beforeRun = await Read(workspace, controlled, cancellationToken);
+        var started = (RunStarted)await workspace.DispatchAsync(
+            new StartRun(
+                Command(controlled, "run-before-compile"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
+            cancellationToken);
+        await advanceGate.Started.WaitAsync(cancellationToken);
+
+        var compilation = workspace.DispatchAsync(
+            new RequestCompilation(
+                Command(controlled, "compile-while-running"),
+                EditorWorkspaceTestDriver.Compilation(beforeRun)),
+            cancellationToken);
+        advanceGate.Release();
+
+        var outcome = await compilation.WaitAsync(cancellationToken);
+        var whileRunning = await Read(workspace, controlled, cancellationToken);
+        _ = await workspace.DispatchAsync(
+            new PauseRun(
+                Command(controlled, "pause-after-compilation-rejection"),
+                new RunControlPrecondition(
+                    beforeRun.Simulation!.SessionId,
+                    started.RunGeneration)),
+            cancellationToken);
+        var rejection = await Assert.That(outcome)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejection);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejection.Code).IsEqualTo("session_precondition_failed");
+            await Assert.That(whileRunning.Compilation.Status)
+                .IsEqualTo(CompilationPublicationStatus.Published);
+            await Assert.That(whileRunning.Compilation.Generation)
+                .IsEqualTo(beforeRun.Compilation.Generation);
+            await Assert.That(whileRunning.Compilation.ArtifactKey)
+                .IsEqualTo(beforeRun.Compilation.ArtifactKey);
+            await Assert.That(whileRunning.Simulation!.Run.Status)
+                .IsEqualTo(RunStatus.Running);
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_UndoAndRedoWhileRunning_RejectWithoutMovingHistory(
+        CancellationToken cancellationToken)
+    {
+        var advanceGate = new BlockingOperationGate();
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            BlockAdvances(advanceGate));
+        var controlled = await CreateClockWorkspace(workspace, cancellationToken);
+        var beforeEdit = await Read(workspace, controlled, cancellationToken);
+        await Apply(
+            workspace,
+            controlled,
+            beforeEdit,
+            "prepare-redo",
+            new RenameCircuitDefinitionIntent(
+                beforeEdit.ProjectRevision.Document.EntryCircuitDefinitionId,
+                "Prepared redo"),
+            cancellationToken);
+        var afterEdit = await Read(workspace, controlled, cancellationToken);
+        _ = await workspace.DispatchAsync(
+            new Undo(
+                Command(controlled, "prepare-redo-undo"),
+                new AuthoringPrecondition(afterEdit.ProjectRevision.RevisionId)),
+            cancellationToken);
+        var beforeRun = await Read(workspace, controlled, cancellationToken);
+        var started = (RunStarted)await workspace.DispatchAsync(
+            new StartRun(
+                Command(controlled, "run-before-history"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
+            cancellationToken);
+        await advanceGate.Started.WaitAsync(cancellationToken);
+
+        var undo = workspace.DispatchAsync(
+            new Undo(
+                Command(controlled, "undo-while-running"),
+                new AuthoringPrecondition(beforeRun.ProjectRevision.RevisionId)),
+            cancellationToken);
+        advanceGate.Release();
+
+        var undoOutcome = await undo.WaitAsync(cancellationToken);
+        var afterUndoAttempt = await Read(workspace, controlled, cancellationToken);
+        var redoOutcome = await workspace.DispatchAsync(
+            new Redo(
+                Command(controlled, "redo-while-running"),
+                new AuthoringPrecondition(
+                    afterUndoAttempt.ProjectRevision.RevisionId)),
+            cancellationToken);
+        var afterAttempts = await Read(workspace, controlled, cancellationToken);
+        _ = await workspace.DispatchAsync(
+            new PauseRun(
+                Command(controlled, "pause-after-history-rejections"),
+                new RunControlPrecondition(
+                    beforeRun.Simulation!.SessionId,
+                    started.RunGeneration)),
+            cancellationToken);
+        var undoRejection = await Assert.That(undoOutcome)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        var redoRejection = await Assert.That(redoOutcome)
+            .IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(undoRejection);
+        Assert.NotNull(redoRejection);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(undoRejection.Code)
+                .IsEqualTo("session_precondition_failed");
+            await Assert.That(redoRejection.Code)
+                .IsEqualTo("session_precondition_failed");
+            await Assert.That(afterAttempts.ProjectRevision.RevisionId)
+                .IsEqualTo(beforeRun.ProjectRevision.RevisionId);
+            await Assert.That(afterAttempts.History.CanRedo).IsTrue();
+            await Assert.That(afterAttempts.Simulation!.Run.Status)
+                .IsEqualTo(RunStatus.Running);
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task DetachAsync_ActiveRun_PausesAtAtomicBoundary(
         CancellationToken cancellationToken)
     {
@@ -377,6 +557,27 @@ internal sealed class EditorWorkspaceRunTests
         await Assert.That(outcome)
             .IsTypeOf<LogicLab.Application.Workspaces.HotSwapCommitted>();
         await Assert.That(readCount).IsEqualTo(1);
+    }
+
+    private static WorkspaceModuleOperations BlockAdvances(
+        BlockingOperationGate advanceGate)
+    {
+        var production = WorkspaceModuleOperations.Production;
+        return production with
+        {
+            ExecuteSimulation = (handle, command, operationCancellationToken) =>
+            {
+                if (command is AdvanceToNextQuiescentBoundary)
+                {
+                    advanceGate.Block(operationCancellationToken);
+                }
+
+                return production.ExecuteSimulation(
+                    handle,
+                    command,
+                    operationCancellationToken);
+            },
+        };
     }
 
     private static async Task<ControlledWorkspace> CreateClockWorkspace(
