@@ -666,7 +666,8 @@ public static partial class Compiler
             evaluatorInputSources,
             driverSources,
             netSources,
-            sccMemberSources);
+            sccMemberSources,
+            []);
         CompilationArtifactValidator.Validate(
             simulationIr,
             sourceMap,

@@ -295,10 +295,8 @@ public static partial class SimulationRuntime
 
     private sealed class ReplacementSourceIndex
     {
-        private readonly Dictionary<CompilationSource, SimulationEvaluator> evaluators = new(
-            CompilationSourceEqualityComparer.Instance);
-        private readonly Dictionary<CompilationSource, int> nets = new(
-            CompilationSourceEqualityComparer.Instance);
+        private readonly Dictionary<CompilationSource, SimulationEvaluator> evaluators = [];
+        private readonly Dictionary<CompilationSource, int> nets = [];
 
         private ReplacementSourceIndex()
         {
