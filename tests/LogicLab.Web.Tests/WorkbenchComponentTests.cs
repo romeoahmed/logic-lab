@@ -162,6 +162,26 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
+    public async Task Editor_ArithmeticGalleryWithMixedNetWidths_DisablesMergeCommand()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author-arithmetic"));
+        await ClickAndWaitForState(
+            rendered,
+            "author-arithmetic",
+            () => !IsDisabled(rendered, "compile"));
+
+        await Assert.That(IsDisabled(rendered, "topology-merge")).IsTrue();
+    }
+
+    [Test]
     public async Task Editor_CreateWhileBusy_DisablesCommandsAndIgnoresSecondClick()
     {
         await using var context = CreateContext();

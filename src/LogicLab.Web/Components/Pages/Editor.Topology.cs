@@ -20,7 +20,7 @@ public partial class Editor
         && Projection.ProjectRevision.Document.EntryCircuitDefinition
             .ComponentInstances.All(instance => instance.Target is LibraryComponentTarget);
 
-    private bool CanMergeTopology => CanEditTopology && Definition.Nets.Count > 1;
+    private bool CanMergeTopology => CanEditTopology && CanMergeAllNets(Definition.Nets);
 
     private bool CanSplitTopology => CanEditTopology
         && Definition.Nets.Count == 1
@@ -50,7 +50,7 @@ public partial class Editor
         var nets = Definition.Nets
             .OrderBy(net => net.Id.Value, StringComparer.Ordinal)
             .ToArray();
-        if (nets.Length < 2)
+        if (!CanMergeAllNets(nets))
         {
             return;
         }
@@ -62,6 +62,12 @@ public partial class Editor
         {
             Status = "Nets merged into the canonical destination.";
         }
+    }
+
+    private static bool CanMergeAllNets(IReadOnlyList<Net> nets)
+    {
+        return nets.Count > 1
+            && nets.Skip(1).All(net => net.Width == nets[0].Width);
     }
 
     private async Task SplitTopology()
