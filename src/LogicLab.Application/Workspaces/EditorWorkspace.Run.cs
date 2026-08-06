@@ -104,7 +104,8 @@ internal sealed partial class EditorWorkspace
         {
             return Reject(
                 WorkspaceOutcomeReasons.FromSimulation(failed.Reason),
-                failed.Diagnostics.Select(item => item.Code));
+                failed.Diagnostics.Select(item => item.Code),
+                PolicyEvidenceFrom(failed.PolicyEvidence));
         }
 
         if (outcome is HotSwapResourceLimitExceeded resourceLimit)

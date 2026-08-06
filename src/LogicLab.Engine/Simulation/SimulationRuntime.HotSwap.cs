@@ -11,30 +11,15 @@ public static partial class SimulationRuntime
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var peakOwnedBuffers = HotSwapOwnedBufferAccounting.MeasurePeak(
-            state,
-            replacement);
-        if (peakOwnedBuffers.IsSaturated
-            || peakOwnedBuffers.Bytes > maximumPeakOwnedBufferBytes)
-        {
-            return new HotSwapResourceLimitExceeded(
-                state.SessionVersion,
-                state.Artifact!.Key,
-                maximumPeakOwnedBufferBytes,
-                peakOwnedBuffers.Bytes);
-        }
-
         CompilationArtifactValidator.Validate(
             replacement.SimulationIr,
             replacement.SourceMap,
             cancellationToken);
-        EnsureWorkingLayerFits(replacement.SimulationIr, state.SimulationPolicy);
-
         var current = state.Artifact!;
         var replacementSources = ReplacementSourceIndex.Create(
             replacement,
             cancellationToken);
-        var unresolvedProbeIds = FindUnresolvedProbeIds(
+        var probeBindings = RebindProbes(
             state.Probes,
             replacementSources);
         var migrations = FindStateMigrations(
@@ -47,9 +32,25 @@ public static partial class SimulationRuntime
                 state.SessionVersion,
                 current.Key,
                 migrations.IncompatibleSources,
-                unresolvedProbeIds);
+                probeBindings.UnresolvedProbeIds);
         }
 
+        var peakOwnedBuffers = HotSwapOwnedBufferAccounting.MeasurePeak(
+            state,
+            replacement,
+            migrations.Items,
+            probeBindings.Probes.Length);
+        if (peakOwnedBuffers.IsSaturated
+            || peakOwnedBuffers.Bytes > maximumPeakOwnedBufferBytes)
+        {
+            return new HotSwapResourceLimitExceeded(
+                state.SessionVersion,
+                current.Key,
+                maximumPeakOwnedBufferBytes,
+                peakOwnedBuffers.Bytes);
+        }
+
+        EnsureWorkingLayerFits(replacement.SimulationIr, state.SimulationPolicy);
         var replacementIr = replacement.SimulationIr;
         var sequentialStates = CreateSequentialStates(replacementIr);
         var memoryStates = CreateMemoryStates(replacementIr);
@@ -80,7 +81,7 @@ public static partial class SimulationRuntime
             replacement,
             driverValues,
             settlement.NetResolutions);
-        var probes = RebindProbes(state.Probes, replacementSources);
+        var probes = probeBindings.Probes;
         var observedProbes = probes.Select(probe => new ProbeObservation(
             probe.ProbeId,
             probe.Source,
@@ -88,7 +89,7 @@ public static partial class SimulationRuntime
         var trace = state.Trace.Fork();
         trace.Append(
             state.LogicalTime,
-            [.. probes.Select(probe => (probe, settlement.NetValues[probe.NetOrdinal]))]);
+            ChangedProbeObservations(state, probes, settlement.NetValues));
         var clockEvents = CreateClockEventCalendar(replacementIr, state.LogicalTime);
         var sessionVersion = checked(state.SessionVersion + 1UL);
         var scheduledBatches =
@@ -104,7 +105,7 @@ public static partial class SimulationRuntime
                     .Select(item => item.Source)
                     .Order(CompilationSourceComparer.Instance)],
                 preservedProbeIds,
-                unresolvedProbeIds),
+                probeBindings.UnresolvedProbeIds),
             preservedProbeIds,
             observedProbes,
             diagnostics,
@@ -156,7 +157,7 @@ public static partial class SimulationRuntime
         ReplacementSourceIndex replacementSources,
         CancellationToken cancellationToken)
     {
-        var migrations = new List<StateMigration>();
+        var migrations = new List<HotSwapStateMigration>();
         var incompatible = new List<CompilationSource>();
         foreach (var evaluator in current.SimulationIr.Evaluators.Where(IsMigratedState))
         {
@@ -169,7 +170,10 @@ public static partial class SimulationRuntime
                 continue;
             }
 
-            migrations.Add(new StateMigration(evaluator, replacementEvaluator, source));
+            migrations.Add(new HotSwapStateMigration(
+                evaluator,
+                replacementEvaluator,
+                source));
         }
 
         return new StateMigrationResult(
@@ -206,39 +210,70 @@ public static partial class SimulationRuntime
                 pair.First.Width == pair.Second.Width);
     }
 
-    private static ProbeId[] FindUnresolvedProbeIds(
-        IEnumerable<ProbeState> probes,
-        ReplacementSourceIndex replacementSources)
-    {
-        return [.. probes
-            .Where(probe => !replacementSources.TryGetNetOrdinal(probe.Source, out _))
-            .Select(probe => probe.ProbeId)];
-    }
-
-    private static ProbeState[] RebindProbes(
-        IEnumerable<ProbeState> probes,
+    private static ProbeBindingResult RebindProbes(
+        ProbeState[] probes,
         ReplacementSourceIndex replacementSources)
     {
         var rebound = new List<ProbeState>();
+        var unresolved = new List<ProbeId>();
+        var boundNetOrdinals = new HashSet<int>();
         foreach (var probe in probes)
         {
-            if (replacementSources.TryGetNetOrdinal(probe.Source, out var netOrdinal))
+            if (!replacementSources.TryGetNetOrdinal(probe.Source, out var netOrdinal)
+                || !boundNetOrdinals.Add(netOrdinal))
             {
-                rebound.Add(new ProbeState(probe.ProbeId, probe.Source, netOrdinal));
+                unresolved.Add(probe.ProbeId);
+                continue;
             }
+
+            rebound.Add(new ProbeState(probe.ProbeId, probe.Source, netOrdinal));
         }
 
-        return [.. rebound];
+        return new ProbeBindingResult([.. rebound], [.. unresolved]);
     }
 
-    private sealed record StateMigration(
-        SimulationEvaluator Current,
-        SimulationEvaluator Replacement,
-        CompilationSource Source);
+    private static (ProbeState Probe, LogicVector Value)[] ChangedProbeObservations(
+        SimulationSessionState state,
+        ProbeState[] reboundProbes,
+        LogicVector[] replacementNetValues)
+    {
+        var observations = new List<(ProbeState Probe, LogicVector Value)>(
+            reboundProbes.Length);
+        var reboundIndex = 0;
+        foreach (var currentProbe in state.Probes)
+        {
+            if (reboundIndex == reboundProbes.Length)
+            {
+                break;
+            }
+
+            var reboundProbe = reboundProbes[reboundIndex];
+            if (reboundProbe.ProbeId != currentProbe.ProbeId)
+            {
+                continue;
+            }
+
+            var replacementValue = replacementNetValues[reboundProbe.NetOrdinal];
+            if (!ValuesEqual(
+                    state.NetValues[currentProbe.NetOrdinal],
+                    replacementValue))
+            {
+                observations.Add((reboundProbe, replacementValue));
+            }
+
+            reboundIndex++;
+        }
+
+        return [.. observations];
+    }
 
     private sealed record StateMigrationResult(
-        StateMigration[] Items,
+        HotSwapStateMigration[] Items,
         CompilationSource[] IncompatibleSources);
+
+    private sealed record ProbeBindingResult(
+        ProbeState[] Probes,
+        ProbeId[] UnresolvedProbeIds);
 
     private sealed class ReplacementSourceIndex
     {
@@ -292,3 +327,8 @@ public static partial class SimulationRuntime
         }
     }
 }
+
+internal sealed record HotSwapStateMigration(
+    SimulationEvaluator Current,
+    SimulationEvaluator Replacement,
+    CompilationSource Source);

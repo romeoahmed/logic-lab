@@ -657,6 +657,86 @@ internal sealed class EditorWorkspaceRunTests
         }
     }
 
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_HotSwapSimulationResourceLimit_PreservesPolicyEvidence(
+        CancellationToken cancellationToken)
+    {
+        var production = WorkspaceModuleOperations.Production;
+        var simulationPolicy = new SimulationPolicy(
+            "test-simulation",
+            "resource-limit",
+            [
+                new SimulationLimit(SimulationDimension.ScheduledBatchCount, 10_000),
+                new SimulationLimit(SimulationDimension.ScheduledAssignmentCount, 100_000),
+                new SimulationLimit(SimulationDimension.AdvanceWorkItemCount, 1_000_000),
+                new SimulationLimit(
+                    SimulationDimension.AdvanceFrontierItemCount,
+                    1_000_000),
+                new SimulationLimit(SimulationDimension.WorkingLayerSlotCount, 2),
+                new SimulationLimit(SimulationDimension.TriggerBatchCount, 100_000),
+                new SimulationLimit(SimulationDimension.ZeroTimeStateCount, 100_000),
+                new SimulationLimit(
+                    SimulationDimension.ZeroTimeStateWordCount,
+                    10_000_000),
+            ]);
+        var operations = production with
+        {
+            OpenSimulation = (request, operationCancellationToken) =>
+                production.OpenSimulation(
+                    new OpenSimulationRequest(
+                        request.CompilationArtifact,
+                        new SimulationSessionConfiguration(
+                            new SimulationPolicyReference(
+                                simulationPolicy.PolicyId,
+                                simulationPolicy.PolicyRevision),
+                            request.Configuration.TracePolicy,
+                            request.Configuration.InitialProbeBindings),
+                        simulationPolicy,
+                        request.TracePolicy),
+                    operationCancellationToken),
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        var controlled = await CreateInputWorkspace(workspace, cancellationToken);
+        var beforeEdit = await Read(workspace, controlled, cancellationToken);
+        await Apply(
+            workspace,
+            controlled,
+            beforeEdit,
+            "add-source-for-simulation-limit",
+            new PlaceComponentInstanceIntent(
+                beforeEdit.ProjectRevision.Document.EntryCircuitDefinitionId,
+                new ComponentContractKey("logiclab.core", "source.input"),
+                SequentialTestParameters.Input(),
+                new ComponentPlacement(new GridPoint(8, 0))),
+            cancellationToken);
+        var afterEdit = await Read(workspace, controlled, cancellationToken);
+        await Compile(workspace, controlled, afterEdit, cancellationToken);
+        var beforeSwap = await Read(workspace, controlled, cancellationToken);
+
+        var outcome = await workspace.DispatchAsync(
+            new HotSwapSession(
+                Command(controlled, "simulation-limited-hot-swap"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeSwap),
+                beforeSwap.Compilation.ArtifactKey!),
+            cancellationToken);
+
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("simulation_resource_limit");
+            await Assert.That(rejected.PolicyEvidence).IsNotNull();
+            await Assert.That(rejected.PolicyEvidence!.PolicyId)
+                .IsEqualTo(simulationPolicy.PolicyId);
+            await Assert.That(rejected.PolicyEvidence.PolicyRevision)
+                .IsEqualTo(simulationPolicy.PolicyRevision);
+            await Assert.That(rejected.PolicyEvidence.Dimension)
+                .IsEqualTo("working_layer_slot_count");
+            await Assert.That(rejected.PolicyEvidence.Observed)
+                .IsEqualTo(3UL);
+        }
+    }
+
     private static WorkspaceModuleOperations BlockAdvances(
         BlockingOperationGate advanceGate)
     {

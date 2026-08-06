@@ -62,7 +62,7 @@ internal sealed class SimulationHotSwapTests
     }
 
     [Test]
-    public async Task Execute_CompatibleHotSwap_PreservesTraceHistoryAndContinuationSequence()
+    public async Task Execute_ValueChangingHotSwap_PreservesTraceHistoryAndContinuationSequence()
     {
         var circuit = SequentialTestCircuit.Create();
         var input = circuit.Place(
@@ -123,6 +123,94 @@ internal sealed class SimulationHotSwapTests
             await Assert.That(continuation.Transitions[0].Sequence).IsEqualTo(3UL);
             await Assert.That(continuation.Transitions[0].Value[0])
                 .IsEqualTo(LogicValue.One);
+        }
+    }
+
+    [Test]
+    public async Task Execute_StatePreservingHotSwap_DoesNotRecordUnchangedProbeValues()
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var input = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.One));
+        var sink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        var outputNet = circuit.Connect((input, "Q"), (sink, "D"));
+        var originalArtifact = circuit.Compile();
+        var opened = Open(originalArtifact, outputNet);
+        var beforeSwap = Snapshot(opened);
+
+        circuit.Apply(new MoveComponentInstancesIntent(
+            circuit.Revision.Document.EntryCircuitDefinitionId,
+            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
+        var replacementArtifact = circuit.Compile();
+
+        var committed = (HotSwapCommitted)SimulationRuntime.Execute(
+            opened.Handle,
+            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
+            CancellationToken.None);
+        var continuation = (TraceTransitionsAvailable)SimulationRuntime.Read(
+            opened.Handle,
+            new ReadTraceWindow(new SimulationTraceWindowRequest(
+                opened.ProbeIds,
+                new LogicalTimeRange(0, 1),
+                beforeSwap.TraceCursor.LatestSequence)),
+            CancellationToken.None);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.TraceCursor).IsEqualTo(beforeSwap.TraceCursor);
+            await Assert.That(committed.ObservedProbes.Single().Value[0])
+                .IsEqualTo(LogicValue.One);
+            await Assert.That(continuation.Transitions).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task Execute_HotSwapMergingProbeNets_UnresolvesLaterDuplicateBinding()
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var firstInput = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.One));
+        var secondInput = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.Zero));
+        var firstSink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        var secondSink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        var firstNet = circuit.Connect((firstInput, "Q"), (firstSink, "D"));
+        var secondNet = circuit.Connect((secondInput, "Q"), (secondSink, "D"));
+        var originalArtifact = circuit.Compile();
+        var opened = Open(originalArtifact, firstNet, secondNet);
+
+        circuit.Apply(new MoveComponentInstancesIntent(
+            circuit.Revision.Document.EntryCircuitDefinitionId,
+            [new ComponentMove(
+                firstSink.Id,
+                new ComponentPlacement(new GridPoint(20, 3)))]));
+        var replacementArtifact = MergeReplacementNetSources(
+            circuit.Compile(),
+            firstNet,
+            secondNet);
+
+        var outcome = SimulationRuntime.Execute(
+            opened.Handle,
+            new HotSwapSimulation(replacementArtifact, ulong.MaxValue),
+            CancellationToken.None);
+        var snapshot = Snapshot(opened);
+
+        var committed = await Assert.That(outcome).IsTypeOf<HotSwapCommitted>();
+        Assert.NotNull(committed);
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.ProbeIds)
+                .IsEquivalentTo([opened.ProbeIds[0]]);
+            await Assert.That(committed.MigrationEvidence.PreservedProbeIds)
+                .IsEquivalentTo([opened.ProbeIds[0]]);
+            await Assert.That(committed.MigrationEvidence.UnresolvedProbeIds)
+                .IsEquivalentTo([opened.ProbeIds[1]]);
+            await Assert.That(snapshot.Probes).Count().IsEqualTo(1);
+            await Assert.That(snapshot.Probes[0].ProbeId).IsEqualTo(opened.ProbeIds[0]);
+            await Assert.That(snapshot.Probes[0].Value[0]).IsEqualTo(LogicValue.One);
         }
     }
 
@@ -280,14 +368,105 @@ internal sealed class SimulationHotSwapTests
         await AssertSnapshotsEquivalent(before, after);
     }
 
-    private static SimulationOpened Open(CompilationArtifact artifact, Net outputNet)
+    [Test]
+    public async Task Execute_HotSwapToNewRom_UsesOneInitialMemoryReferenceBuffer()
+    {
+        // 184 committed bytes plus a 376-byte replacement candidate.
+        const ulong exactPeakOwnedBufferBytes = 560;
+        var policy = new ProjectScalePolicy(
+            "hot-swap-memory-test",
+            "1",
+            [
+                new ProjectScaleLimit(ProjectScaleDimension.DefinitionCount, 100),
+                new ProjectScaleLimit(ProjectScaleDimension.EntityCount, 1_000),
+                new ProjectScaleLimit(ProjectScaleDimension.HierarchyDepth, 10),
+                new ProjectScaleLimit(ProjectScaleDimension.ElaboratedSlotCount, 10_000),
+                new ProjectScaleLimit(ProjectScaleDimension.MemoryCellCount, 2),
+            ]);
+        var circuit = MemoryTestCircuit.Create();
+        var input = circuit.Place(
+            "source.input",
+            MemoryTestCircuit.Input(LogicValue.One));
+        var sink = circuit.Place("sink.output", MemoryTestCircuit.Sink(1));
+        var outputNet = circuit.Connect((input, "Q"), (sink, "D"));
+        var originalArtifact = ((CompilationSucceeded)circuit.Compile(policy)).Artifact;
+        var acceptedSession = Open(originalArtifact, outputNet);
+        var rejectedSession = Open(originalArtifact, outputNet);
+        var image = circuit.CreateMemoryImage(
+            "Hot Swap ROM",
+            [LogicValue.Zero],
+            [LogicValue.One]);
+        var address = circuit.Place(
+            "source.input",
+            MemoryTestCircuit.Input(LogicValue.Zero));
+        var rom = circuit.Place(
+            "memory.rom",
+            MemoryTestCircuit.Memory(1, 1, image));
+        _ = circuit.Connect((address, "Q"), (rom, "A"));
+        var replacementArtifact = ((CompilationSucceeded)circuit.Compile(policy)).Artifact;
+
+        var accepted = SimulationRuntime.Execute(
+            acceptedSession.Handle,
+            new HotSwapSimulation(replacementArtifact, exactPeakOwnedBufferBytes),
+            CancellationToken.None);
+        var rejected = SimulationRuntime.Execute(
+            rejectedSession.Handle,
+            new HotSwapSimulation(
+                replacementArtifact,
+                exactPeakOwnedBufferBytes - 1UL),
+            CancellationToken.None);
+
+        var committed = await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
+        var resourceLimit = await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>();
+        Assert.NotNull(committed);
+        Assert.NotNull(resourceLimit);
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.CompilationArtifactKey)
+                .IsEqualTo(replacementArtifact.Key);
+            await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
+                .IsEqualTo(exactPeakOwnedBufferBytes);
+        }
+    }
+
+    private static SimulationOpened Open(
+        CompilationArtifact artifact,
+        params Net[] outputNets)
     {
         return (SimulationOpened)SimulationRuntime.Open(
             SequentialTestCircuit.Request(
                 artifact,
                 SimulationTestContext.PermissiveSimulationPolicy(),
-                SequentialTestCircuit.NetSource(artifact, outputNet)),
+                [.. outputNets.Select(net => SequentialTestCircuit.NetSource(artifact, net))]),
             CancellationToken.None);
+    }
+
+    private static CompilationArtifact MergeReplacementNetSources(
+        CompilationArtifact artifact,
+        Net retainedNet,
+        Net mergedNet)
+    {
+        var retained = SequentialTestCircuit.NetSource(artifact, retainedNet);
+        var merged = SequentialTestCircuit.NetSource(artifact, mergedNet);
+        _ = artifact.SourceMap.TryGetNetOrdinal(retained, out var retainedOrdinal);
+        _ = artifact.SourceMap.TryGetNetOrdinal(merged, out var mergedOrdinal);
+        var nets = artifact.SourceMap.Nets.ToArray();
+        nets[mergedOrdinal] = new SourceMapEntry(
+            mergedOrdinal,
+            artifact.SourceMap.Evaluators[0].Source);
+        var sourceMap = new SourceMap(
+            [.. artifact.SourceMap.Evaluators],
+            [.. artifact.SourceMap.EvaluatorInputs],
+            [.. artifact.SourceMap.Drivers],
+            nets,
+            [.. artifact.SourceMap.StronglyConnectedComponentMembers],
+            [.. artifact.SourceMap.NetAliases, new SourceMapEntry(retainedOrdinal, merged)]);
+        return new CompilationArtifact(
+            artifact.Key,
+            artifact.SimulationIr,
+            sourceMap,
+            artifact.SourceRevision);
     }
 
     private static AdvanceCommitted Advance(SimulationOpened opened)

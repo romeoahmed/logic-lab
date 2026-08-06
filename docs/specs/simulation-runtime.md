@@ -31,7 +31,7 @@ SimulationCommand =
   ScheduleStimulusBatch(validated future StimulusBatch)
   | AdvanceToNextQuiescentBoundary
   | ReplaceProbeBindings(ordered RetainProbe | CreateProbe bindings)
-  | HotSwapTo(sealed CompilationArtifact)
+  | HotSwapTo(sealed CompilationArtifact, maximumPeakOwnedBufferBytes)
 
 SimulationQuery =
   ReadSessionSnapshot
@@ -85,11 +85,15 @@ SimulationCommandOutcome =
     }
   | HotSwapCommitted {
       SessionVersion, CompilationArtifactKey, migrationEvidence,
-      ordered ProbeIds[], Diagnostics[], Trace cursor
+      ordered ProbeIds[], ordered observed Probes[], Diagnostics[], Trace cursor
     }
   | HotSwapIncompatible {
       unchanged SessionVersion, unchanged CompilationArtifactKey,
       incompatible state source locations[], unresolved ProbeIds[]
+    }
+  | HotSwapResourceLimitExceeded {
+      unchanged SessionVersion, unchanged CompilationArtifactKey,
+      maximumPeakOwnedBufferBytes, observedPeakOwnedBufferBytes
     }
   | SimulationCommandFailed {
       unchanged SessionVersion, unchanged LogicalTime,
@@ -125,7 +129,7 @@ SimulationWorkObservationV1
 
 Observations contain at most one row per `(policy, dimension)`, record the maximum reached before termination, and order all Simulation rows by their policy dimension order before all Trace rows by their policy dimension order. `AdvanceFailed.reason` and `SimulationCommandFailed.reason` are exactly `zero_time_oscillation | simulation_resource_limit | simulation_cancelled | simulation_infrastructure_failure | simulation_internal_defect`; only operations that can settle a candidate can return `zero_time_oscillation`. Their `policyEvidence` is present only for `simulation_resource_limit` and contains the matching policy ID/revision, dimension, and observed work. `SimulationWorkEvidence.policyLimitBreach` follows the same rule for an open rejection and is otherwise null. `SimulationReadFailed.reason` is exactly `simulation_cancelled | simulation_infrastructure_failure | simulation_internal_defect`. Open rejection uses those failure reasons when initial settlement encounters them. Every array is present and non-null, even when empty.
 
-Only the outcome variants valid for the supplied command or query can return. `AdvanceToNextQuiescentBoundary` reports its failures only through `AdvanceFailed`; the other commands report infrastructure/cancellation/defect failure only through `SimulationCommandFailed`. Application maps `InitialProbeBindingsInvalid`, `StimulusBatchInvalid`, and `ProbeBindingsInvalid` to `session_precondition_failed`, `HotSwapIncompatible` to `hot_swap_incompatible`, and the remaining reasons one-to-one through the [Diagnostics V1 reason registry](./diagnostics-v1.md#11-outcome-reason-registry). A family never changes shape according to nullable success data. Application validates and translates the Workspace-owned `SessionConfigurationV1` and `TraceWindowRequest` into the Engine-owned request types above, and translates the result records back to the [Editor Workspace Contract](../contracts/editor-workspace.md#7-trace-transfer); Engine never references Application contract types. Read returns one immutable Session snapshot or normalized Runtime Trace outcome, never Runtime storage. Close is idempotent and releases all handle-owned storage.
+Only the outcome variants valid for the supplied command or query can return. `AdvanceToNextQuiescentBoundary` reports its failures only through `AdvanceFailed`; the other commands report infrastructure/cancellation/defect failure only through `SimulationCommandFailed`. Application maps `InitialProbeBindingsInvalid`, `StimulusBatchInvalid`, and `ProbeBindingsInvalid` to `session_precondition_failed`, `HotSwapIncompatible` to `hot_swap_incompatible`, `HotSwapResourceLimitExceeded` to `workspace_admission_rejected` with Workspace Policy evidence, and the remaining reasons one-to-one through the [Diagnostics V1 reason registry](./diagnostics-v1.md#11-outcome-reason-registry). `maximumPeakOwnedBufferBytes` is the positive logical-byte budget that Application resolves from `WorkspacePolicy.hot_swap_peak_bytes`; the dedicated limit outcome remains distinct from Simulation Policy failures. A family never changes shape according to nullable success data. Application validates and translates the Workspace-owned `SessionConfigurationV1` and `TraceWindowRequest` into the Engine-owned request types above, and translates the result records back to the [Editor Workspace Contract](../contracts/editor-workspace.md#7-trace-transfer); Engine never references Application contract types. Read returns one immutable Session snapshot or normalized Runtime Trace outcome, never Runtime storage. Close is idempotent and releases all handle-owned storage.
 
 A handle is an in-process Runtime value, not a serialized ID, authorization capability, or public seam. Application owns it and must serialize `Open`/`Execute`/`Read`/`Close` per handle through the Session lane; concurrent use of one handle or use after Close violates the interface. Calls on different handles may run concurrently. Runtime creates no tasks, timers, background work queues, or dependency-injection scopes and knows no Run Generation or wall-clock pacing. Application implements Run by scheduling repeated `AdvanceToNextQuiescentBoundary` calls and implements Pause between atomic attempts.
 
@@ -302,7 +306,7 @@ All address ranges and allocation sizes use checked arithmetic and the active po
 
 ## 6. Trace and probes
 
-Probes bind through stable source identity and Hierarchy Path in the active Compilation Artifact. Trace records only committed transitions by default; optional delta-debug capture has a separate policy and never becomes simulation truth.
+Probes bind through stable source identity and Hierarchy Path in the active Compilation Artifact. Trace records only committed value transitions by default, including across Hot Swap; a state-preserving replacement does not advance the Trace cursor. Optional delta-debug capture has a separate policy and never becomes simulation truth.
 
 Runtime storage is an internal bounded circular sequence of immutable chunks. External callers receive normalized transition segments or an explicitly requested visual summary, never internal chunk bytes. Eviction creates a Trace Gap with the earliest available cursor. For a transition request without `afterSequence`, every requested Probe must have a retained transition at or before the requested range start; otherwise the result is `TraceRangeUnavailable { Evicted, ... }`, even when another Probe has retained data at that Logical Time. `afterSequence` is a continuation assertion for the exact same ordered Probe IDs whose continuous baseline the caller retained through that sequence; Application must start a new request without it when the Probe set changes. A gap is never filled, flattened, or represented as `X`.
 
