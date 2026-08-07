@@ -9,11 +9,28 @@ internal static class VectorNetResolver
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentNullException.ThrowIfNull(drivers);
 
-        var wordCount = LogicVector.GetWordCount(width);
-        var driverArray = drivers as LogicVector[] ?? [.. drivers];
+        return Resolve(width, new DriverSet(drivers));
+    }
 
-        foreach (var driver in driverArray)
+    internal static VectorNetResolution Resolve(
+        int width,
+        LogicVector[] driverValues,
+        IReadOnlyList<int> driverOrdinals)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentNullException.ThrowIfNull(driverValues);
+        ArgumentNullException.ThrowIfNull(driverOrdinals);
+
+        return Resolve(width, new DriverSet(driverValues, driverOrdinals));
+    }
+
+    private static VectorNetResolution Resolve(int width, DriverSet drivers)
+    {
+        var wordCount = LogicVector.GetWordCount(width);
+
+        for (var driverIndex = 0; driverIndex < drivers.Count; driverIndex++)
         {
+            var driver = drivers[driverIndex];
             if (driver is null)
             {
                 throw new ArgumentException(
@@ -42,9 +59,9 @@ internal static class VectorNetResolver
             var sawOne = 0UL;
             var sawUnknown = 0UL;
 
-            for (var driverIndex = 0; driverIndex < driverArray.Length; driverIndex++)
+            for (var driverIndex = 0; driverIndex < drivers.Count; driverIndex++)
             {
-                var driver = driverArray[driverIndex];
+                var driver = drivers[driverIndex];
                 var low = driver.GetLowWord(wordIndex);
                 var high = driver.GetHighWord(wordIndex);
                 sawZero |= ~(low | high) & mask;
@@ -74,5 +91,31 @@ internal static class VectorNetResolver
             undrivenBits,
             unknownDriverBits,
             contentionBits);
+    }
+
+    private readonly struct DriverSet
+    {
+        private readonly IReadOnlyList<LogicVector>? drivers;
+        private readonly LogicVector[]? driverValues;
+        private readonly IReadOnlyList<int>? driverOrdinals;
+
+        public DriverSet(IReadOnlyList<LogicVector> drivers)
+        {
+            this.drivers = drivers;
+        }
+
+        public DriverSet(
+            LogicVector[] driverValues,
+            IReadOnlyList<int> driverOrdinals)
+        {
+            this.driverValues = driverValues;
+            this.driverOrdinals = driverOrdinals;
+        }
+
+        public int Count => drivers?.Count ?? driverOrdinals!.Count;
+
+        public LogicVector this[int index] => drivers is not null
+            ? drivers[index]
+            : driverValues![driverOrdinals![index]];
     }
 }

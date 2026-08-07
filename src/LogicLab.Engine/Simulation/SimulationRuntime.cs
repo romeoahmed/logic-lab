@@ -647,31 +647,53 @@ public static partial class SimulationRuntime
         LogicVector?[] sequentialStates)
     {
         var driverValues = new LogicVector[ir.Drivers.Count];
-        for (var index = 0; index < driverValues.Length; index++)
+        foreach (var evaluator in ir.Evaluators)
         {
-            driverValues[index] = LogicVector.CreateFilled(
-                checked((int)ir.Drivers[index].Width),
-                LogicValue.Z);
-        }
-
-        foreach (var evaluator in ir.Evaluators.Where(
-            evaluator => evaluator.Kind is SimulationEvaluatorKind.InputSource
+            if (evaluator.Kind is SimulationEvaluatorKind.InputSource
                 or SimulationEvaluatorKind.ConstantSource
-                or SimulationEvaluatorKind.ClockSource))
-        {
-            foreach (var driverOrdinal in evaluator.OutputDriverOrdinals)
+                or SimulationEvaluatorKind.ClockSource)
             {
-                driverValues[driverOrdinal] = evaluator.InitialValue!;
+                foreach (var driverOrdinal in evaluator.OutputDriverOrdinals)
+                {
+                    driverValues[driverOrdinal] = evaluator.InitialValue!;
+                }
+
+                continue;
+            }
+
+            if (SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind))
+            {
+                UpdateSequentialDrivers(
+                    evaluator,
+                    sequentialStates[evaluator.Ordinal]!,
+                    driverValues);
             }
         }
 
-        foreach (var evaluator in ir.Evaluators.Where(evaluator =>
-            SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind)))
+        foreach (var component in ir.StronglyConnectedComponents)
         {
-            UpdateSequentialDrivers(
-                evaluator,
-                sequentialStates[evaluator.Ordinal]!,
-                driverValues);
+            if (!component.IsCyclic)
+            {
+                continue;
+            }
+
+            foreach (var evaluatorOrdinal in component.EvaluatorOrdinals)
+            {
+                foreach (var driverOrdinal in ir.Evaluators[evaluatorOrdinal]
+                    .OutputDriverOrdinals)
+                {
+                    driverValues[driverOrdinal] ??= LogicVector.CreateFilled(
+                        checked((int)ir.Drivers[driverOrdinal].Width),
+                        LogicValue.X);
+                }
+            }
+        }
+
+        for (var index = 0; index < driverValues.Length; index++)
+        {
+            driverValues[index] ??= LogicVector.CreateFilled(
+                checked((int)ir.Drivers[index].Width),
+                LogicValue.Z);
         }
 
         return driverValues;
@@ -732,6 +754,7 @@ public static partial class SimulationRuntime
         CancellationToken cancellationToken)
     {
         var ir = artifact.SimulationIr;
+        SettlementScratch? scratch = null;
         var netValues = new LogicVector[ir.Nets.Count];
         var netResolutions = new VectorNetResolution[ir.Nets.Count];
         for (var netOrdinal = 0; netOrdinal < ir.Nets.Count; netOrdinal++)
@@ -759,6 +782,7 @@ public static partial class SimulationRuntime
                     memoryStates,
                     policy,
                     work,
+                    scratch ??= SettlementScratch.Create(ir),
                     cyclicEvaluatorOrder,
                     cancellationToken);
                 continue;
@@ -814,31 +838,41 @@ public static partial class SimulationRuntime
         LogicVector[]?[] memoryStates,
         SimulationPolicy policy,
         SettlementWork work,
+        SettlementScratch scratch,
         IComparer<int> evaluatorOrder,
         CancellationToken cancellationToken)
     {
         var ir = artifact.SimulationIr;
-        var componentMembers = component.EvaluatorOrdinals.ToHashSet();
-        var internalDriverOrdinals = component.EvaluatorOrdinals
-            .SelectMany(evaluatorOrdinal =>
-                ir.Evaluators[evaluatorOrdinal].OutputDriverOrdinals)
-            .Order()
-            .ToArray();
-        foreach (var driverOrdinal in internalDriverOrdinals)
+        var ordinalBuffer = scratch.Ordinals;
+        var internalDriverCount = 0;
+        foreach (var evaluatorOrdinal in component.EvaluatorOrdinals)
         {
-            driverValues[driverOrdinal] = LogicVector.CreateFilled(
-                checked((int)ir.Drivers[driverOrdinal].Width),
-                LogicValue.X);
+            var evaluator = ir.Evaluators[evaluatorOrdinal];
+            foreach (var driverOrdinal in evaluator.OutputDriverOrdinals)
+            {
+                ordinalBuffer[internalDriverCount++] = driverOrdinal;
+            }
         }
 
-        var internalNetOrdinals = internalDriverOrdinals
-            .Select(driverOrdinal => ir.Drivers[driverOrdinal].NetOrdinal)
-            .OfType<int>()
-            .Distinct()
-            .Order()
-            .ToArray();
-        foreach (var netOrdinal in internalNetOrdinals)
+        Array.Sort(ordinalBuffer, 0, internalDriverCount);
+        for (var index = 0; index < internalDriverCount; index++)
         {
+            var driverOrdinal = ordinalBuffer[index];
+            if (!IsAllUnknown(driverValues[driverOrdinal]))
+            {
+                driverValues[driverOrdinal] = LogicVector.CreateFilled(
+                    checked((int)ir.Drivers[driverOrdinal].Width),
+                    LogicValue.X);
+            }
+        }
+
+        var internalNetCount = ReplaceWithDistinctNetOrdinals(
+            ir,
+            ordinalBuffer,
+            internalDriverCount);
+        for (var index = 0; index < internalNetCount; index++)
+        {
+            var netOrdinal = ordinalBuffer[index];
             cancellationToken.ThrowIfCancellationRequested();
             CountWork(
                 policy,
@@ -849,57 +883,65 @@ public static partial class SimulationRuntime
             netValues[netOrdinal] = resolution.Value;
         }
 
-        var pendingEvaluators = new SortedSet<int>(
-            component.EvaluatorOrdinals,
-            evaluatorOrder);
-        while (pendingEvaluators.Count != 0)
+        scratch.ResetPendingEvaluators(component, evaluatorOrder);
+        while (scratch.PendingEvaluatorCount != 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var evaluatorOrdinal = pendingEvaluators.Min;
-            pendingEvaluators.Remove(evaluatorOrdinal);
+            var evaluatorOrdinal = scratch.TakeNextEvaluator();
             CountWork(
                 policy,
                 SimulationDimension.AdvanceFrontierItemCount,
                 ref work.FrontierItems);
             var evaluator = ir.Evaluators[evaluatorOrdinal];
-            var previousOutputs = evaluator.OutputDriverOrdinals
-                .Select(driverOrdinal => driverValues[driverOrdinal])
-                .ToArray();
-            Evaluate(
-                evaluator,
-                netValues,
-                driverValues,
-                memoryStates,
-                policy,
-                work,
-                cancellationToken);
-
-            var refinedDrivers = new List<int>();
-            for (var outputIndex = 0;
-                outputIndex < evaluator.OutputDriverOrdinals.Count;
-                outputIndex++)
+            var outputCount = evaluator.OutputDriverOrdinals.Count;
+            var previousOutputs = scratch.PreviousOutputs;
+            for (var outputIndex = 0; outputIndex < outputCount; outputIndex++)
             {
                 var driverOrdinal = evaluator.OutputDriverOrdinals[outputIndex];
-                var previous = previousOutputs[outputIndex];
-                var current = driverValues[driverOrdinal];
-                CombinationalRefinement.RequireComponentOutputPreservingOrRefining(
-                    previous,
-                    current,
-                    evaluator.ContractKey,
-                    artifact.SourceMap.Evaluators[evaluatorOrdinal].Source,
-                    artifact.SourceMap.Drivers[driverOrdinal].Source);
-                if (!ValuesEqual(previous, current))
-                {
-                    refinedDrivers.Add(driverOrdinal);
-                }
+                previousOutputs[outputIndex] = driverValues[driverOrdinal];
             }
 
-            foreach (var netOrdinal in refinedDrivers
-                .Select(driverOrdinal => ir.Drivers[driverOrdinal].NetOrdinal)
-                .OfType<int>()
-                .Distinct()
-                .Order())
+            var refinedDriverCount = 0;
+            try
             {
+                Evaluate(
+                    evaluator,
+                    netValues,
+                    driverValues,
+                    memoryStates,
+                    policy,
+                    work,
+                    cancellationToken);
+
+                for (var outputIndex = 0; outputIndex < outputCount; outputIndex++)
+                {
+                    var driverOrdinal = evaluator.OutputDriverOrdinals[outputIndex];
+                    var previous = previousOutputs[outputIndex];
+                    var current = driverValues[driverOrdinal];
+                    CombinationalRefinement.RequireComponentOutputPreservingOrRefining(
+                        previous,
+                        current,
+                        evaluator.ContractKey,
+                        artifact.SourceMap.Evaluators[evaluatorOrdinal].Source,
+                        artifact.SourceMap.Drivers[driverOrdinal].Source);
+                    if (!ValuesEqual(previous, current))
+                    {
+                        ordinalBuffer[refinedDriverCount++] = driverOrdinal;
+                    }
+                }
+            }
+            finally
+            {
+                Array.Clear(previousOutputs, 0, outputCount);
+            }
+
+            var refinedNetCount = ReplaceWithDistinctNetOrdinals(
+                ir,
+                ordinalBuffer,
+                refinedDriverCount);
+            for (var index = 0; index < refinedNetCount; index++)
+            {
+                var netOrdinal = ordinalBuffer[index];
                 CountWork(
                     policy,
                     SimulationDimension.AdvanceWorkItemCount,
@@ -917,16 +959,44 @@ public static partial class SimulationRuntime
 
                 netValues[netOrdinal] = resolution.Value;
                 foreach (var dependentEvaluator in ir.Nets[netOrdinal]
-                    .ReceiverEvaluatorOrdinals.Where(evaluatorOrdinal =>
-                        componentMembers.Contains(evaluatorOrdinal)
-                        && SimulationEvaluatorKindFacts.ConsumesNetCombinationally(
-                            ir.Evaluators[evaluatorOrdinal],
-                            netOrdinal)))
+                    .ReceiverEvaluatorOrdinals)
                 {
-                    pendingEvaluators.Add(dependentEvaluator);
+                    if (SimulationEvaluatorKindFacts.ConsumesNetCombinationally(
+                            ir.Evaluators[dependentEvaluator],
+                            netOrdinal))
+                    {
+                        scratch.AddPendingEvaluator(dependentEvaluator);
+                    }
                 }
             }
         }
+    }
+
+    private static int ReplaceWithDistinctNetOrdinals(
+        SimulationIr ir,
+        int[] ordinals,
+        int driverCount)
+    {
+        var netCount = 0;
+        for (var index = 0; index < driverCount; index++)
+        {
+            if (ir.Drivers[ordinals[index]].NetOrdinal is { } netOrdinal)
+            {
+                ordinals[netCount++] = netOrdinal;
+            }
+        }
+
+        Array.Sort(ordinals, 0, netCount);
+        var distinctCount = 0;
+        for (var index = 0; index < netCount; index++)
+        {
+            if (distinctCount == 0 || ordinals[index] != ordinals[distinctCount - 1])
+            {
+                ordinals[distinctCount++] = ordinals[index];
+            }
+        }
+
+        return distinctCount;
     }
 
     private static void Evaluate(
@@ -1126,15 +1196,10 @@ public static partial class SimulationRuntime
         int netOrdinal)
     {
         var net = ir.Nets[netOrdinal];
-        var drivers = new LogicVector[net.DriverOrdinals.Count];
-        for (var index = 0; index < drivers.Length; index++)
-        {
-            drivers[index] = driverValues[net.DriverOrdinals[index]];
-        }
-
         return VectorNetResolver.Resolve(
             checked((int)net.Width),
-            drivers);
+            driverValues,
+            net.DriverOrdinals);
     }
 
     private static void CountWork(
@@ -1210,6 +1275,21 @@ public static partial class SimulationRuntime
         {
             if (left.GetLowWord(wordIndex) != right.GetLowWord(wordIndex)
                 || left.GetHighWord(wordIndex) != right.GetHighWord(wordIndex))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsAllUnknown(LogicVector value)
+    {
+        for (var wordIndex = 0; wordIndex < value.WordCount; wordIndex++)
+        {
+            if (value.GetLowWord(wordIndex) != 0UL
+                || value.GetHighWord(wordIndex)
+                != LogicVector.GetWordMask(value.Width, wordIndex))
             {
                 return false;
             }

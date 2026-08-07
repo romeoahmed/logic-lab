@@ -735,6 +735,51 @@ internal sealed class SimulationHotSwapTests
         }
     }
 
+    [Test]
+    public async Task Execute_CyclicHotSwap_AccountsForReusableSettlementScratch()
+    {
+        // 568 retained/candidate/publication bytes, 48 reusable scratch bytes,
+        // and one 16-byte previous-output plane retained across evaluation.
+        const ulong exactPeakOwnedBufferBytes = 632;
+        var circuit = SequentialTestCircuit.Create();
+        var input = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.Zero));
+        var logicOr = circuit.Place(
+            "logic.or",
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+            new ComponentParameterBinding("fanIn", new Unsigned32ParameterValue(2)));
+        var sink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        _ = circuit.Connect((input, "Q"), (logicOr, "A0"));
+        var outputNet = circuit.Connect((logicOr, "Q"), (logicOr, "A1"), (sink, "D"));
+        var originalArtifact = circuit.Compile();
+        var acceptedSession = Open(originalArtifact, outputNet);
+        var rejectedSession = Open(originalArtifact, outputNet);
+        var rejectedBefore = Snapshot(rejectedSession);
+        circuit.Apply(new MoveComponentInstancesIntent(
+            circuit.Revision.Document.EntryCircuitDefinitionId,
+            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(20, 3)))]));
+        var replacementArtifact = circuit.Compile();
+
+        var accepted = SimulationRuntime.Execute(
+            acceptedSession.Handle,
+            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            CancellationToken.None);
+        var rejected = SimulationRuntime.Execute(
+            rejectedSession.Handle,
+            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
+            CancellationToken.None);
+        var rejectedAfter = Snapshot(rejectedSession);
+
+        await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
+        var resourceLimit = await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>();
+        Assert.NotNull(resourceLimit);
+        await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
+            .IsEqualTo(exactPeakOwnedBufferBytes);
+        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+    }
+
     private static SimulationOpened Open(
         CompilationArtifact artifact,
         params Net[] outputNets)
@@ -802,14 +847,44 @@ internal sealed class SimulationHotSwapTests
                 .IsEqualTo(expected.CompilationArtifactKey);
             await Assert.That(actual.LogicalTime).IsEqualTo(expected.LogicalTime);
             await Assert.That(actual.TraceCursor).IsEqualTo(expected.TraceCursor);
-            await Assert.That(actual.Probes.Select(probe => probe.ProbeId))
-                .IsEquivalentTo(expected.Probes.Select(probe => probe.ProbeId));
-            await Assert.That(actual.Probes.SelectMany(probe =>
-                    LogicVectorTestData.ToValues(probe.Value)))
-                .IsEquivalentTo(expected.Probes.SelectMany(probe =>
-                    LogicVectorTestData.ToValues(probe.Value)));
-            await Assert.That(actual.Diagnostics.Select(diagnostic => diagnostic.Code))
-                .IsEquivalentTo(expected.Diagnostics.Select(diagnostic => diagnostic.Code));
+            await Assert.That(actual.Probes.Count).IsEqualTo(expected.Probes.Count);
+            await Assert.That(actual.Diagnostics.Count)
+                .IsEqualTo(expected.Diagnostics.Count);
+        }
+
+        for (var index = 0; index < expected.Probes.Count; index++)
+        {
+            var expectedProbe = expected.Probes[index];
+            var actualProbe = actual.Probes[index];
+            using (Assert.Multiple())
+            {
+                await Assert.That(actualProbe.ProbeId).IsEqualTo(expectedProbe.ProbeId);
+                await Assert.That(actualProbe.Source).IsEqualTo(expectedProbe.Source);
+                await Assert.That(LogicVectorTestData.ToValues(actualProbe.Value)
+                        .SequenceEqual(LogicVectorTestData.ToValues(expectedProbe.Value)))
+                    .IsTrue();
+            }
+        }
+
+        for (var index = 0; index < expected.Diagnostics.Count; index++)
+        {
+            var expectedDiagnostic = expected.Diagnostics[index];
+            var actualDiagnostic = actual.Diagnostics[index];
+            using (Assert.Multiple())
+            {
+                await Assert.That(actualDiagnostic.Code)
+                    .IsEqualTo(expectedDiagnostic.Code);
+                await Assert.That(actualDiagnostic.Severity)
+                    .IsEqualTo(expectedDiagnostic.Severity);
+                await Assert.That(actualDiagnostic.Primary)
+                    .IsEqualTo(expectedDiagnostic.Primary);
+                await Assert.That(actualDiagnostic.Arguments
+                        .SequenceEqual(expectedDiagnostic.Arguments))
+                    .IsTrue();
+                await Assert.That(actualDiagnostic.Related
+                        .SequenceEqual(expectedDiagnostic.Related))
+                    .IsTrue();
+            }
         }
     }
 }

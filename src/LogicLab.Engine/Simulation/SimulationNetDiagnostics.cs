@@ -13,9 +13,6 @@ internal static class SimulationNetDiagnostics
         VectorNetResolution[] resolutions)
     {
         var ir = artifact.SimulationIr;
-        var sources = artifact.SourceMap.Nets.ToDictionary(
-            entry => entry.Ordinal,
-            entry => entry.Source);
         return Canonicalize(InspectDiagnosticFacts(
             artifact,
             driverValues,
@@ -24,7 +21,7 @@ internal static class SimulationNetDiagnostics
                 ir,
                 driverValues,
                 resolutions,
-                sources)));
+                artifact.SourceMap)));
     }
 
     public static SimulationDiagnostic[] CreateExact(
@@ -34,9 +31,6 @@ internal static class SimulationNetDiagnostics
         int diagnosticCount)
     {
         var ir = artifact.SimulationIr;
-        var sources = artifact.SourceMap.Nets.ToDictionary(
-            entry => entry.Ordinal,
-            entry => entry.Source);
         var diagnostics = new SimulationDiagnostic[diagnosticCount];
         var index = 0;
         foreach (var fact in InspectDiagnosticFacts(
@@ -55,7 +49,7 @@ internal static class SimulationNetDiagnostics
                 ir,
                 driverValues,
                 resolutions,
-                sources);
+                artifact.SourceMap);
         }
 
         if (index != diagnostics.Length)
@@ -103,11 +97,11 @@ internal static class SimulationNetDiagnostics
         SimulationIr ir,
         LogicVector[] driverValues,
         VectorNetResolution[] resolutions,
-        Dictionary<int, CompilationSource> sources)
+        SourceMap sourceMap)
     {
         var net = ir.Nets[fact.NetOrdinal];
         var resolution = resolutions[fact.NetOrdinal];
-        var primary = sources[fact.NetOrdinal];
+        var primary = sourceMap.Nets[fact.NetOrdinal].Source;
         return fact.Kind switch
         {
             SimulationNetDiagnosticKind.Undriven => new SimulationDiagnostic(
