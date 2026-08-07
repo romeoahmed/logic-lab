@@ -2,6 +2,7 @@ using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
+using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Application.Tests;
 
@@ -137,6 +138,99 @@ internal sealed class EditorWorkspaceFailureTests
             await Assert.That(afterCompilation.DiagnosticCodes)
                 .IsEquivalentTo(beforeCompilation.DiagnosticCodes);
             await Assert.That(after.Simulation).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_OpenSessionResourceLimit_PreservesPolicyEvidence(
+        CancellationToken cancellationToken)
+    {
+        var policy = SimulationPolicyLimitedAt(
+            SimulationDimension.WorkingLayerSlotCount,
+            maximum: 1);
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations: OperationsWithSimulationPolicy(policy));
+        var opened = await OpenCompiledCircuit(workspace, cancellationToken);
+        var before = await Read(workspace, opened);
+
+        var outcome = await workspace.DispatchAsync(
+            new CreateSession(
+                EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
+                EditorWorkspaceTestDriver.SessionCreation(before)),
+            CancellationToken.None);
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("simulation_resource_limit");
+            await Assert.That(rejected.PolicyEvidence).IsNotNull();
+            await Assert.That(rejected.PolicyEvidence!.PolicyId)
+                .IsEqualTo(policy.PolicyId);
+            await Assert.That(rejected.PolicyEvidence.PolicyRevision)
+                .IsEqualTo(policy.PolicyRevision);
+            await Assert.That(rejected.PolicyEvidence.Dimension)
+                .IsEqualTo("working_layer_slot_count");
+            await Assert.That(rejected.PolicyEvidence.Observed).IsGreaterThan(1UL);
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_ScheduleResourceLimit_PreservesPolicyEvidence(
+        CancellationToken cancellationToken)
+    {
+        var policy = SimulationPolicyLimitedAt(
+            SimulationDimension.ScheduledBatchCount,
+            maximum: 1);
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations: OperationsWithSimulationPolicy(policy));
+        var opened = await OpenCompiledCircuit(workspace, cancellationToken);
+        var input = await Find(workspace, opened, "source.input");
+        var beforeSession = await Read(workspace, opened);
+        var created = await workspace.DispatchAsync(
+            new CreateSession(
+                EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
+                EditorWorkspaceTestDriver.SessionCreation(beforeSession)),
+            CancellationToken.None);
+        await Assert.That(created).IsTypeOf<SimulationSessionCreated>();
+
+        var beforeFirstSchedule = await Read(workspace, opened);
+        var first = await workspace.DispatchAsync(
+            new ScheduleInputStimulus(
+                EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
+                EditorWorkspaceTestDriver.SessionMutation(beforeFirstSchedule),
+                1,
+                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+            CancellationToken.None);
+        await Assert.That(first).IsTypeOf<StimulusScheduled>();
+        var beforeRejectedSchedule = await Read(workspace, opened);
+
+        var outcome = await workspace.DispatchAsync(
+            new ScheduleInputStimulus(
+                EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
+                EditorWorkspaceTestDriver.SessionMutation(beforeRejectedSchedule),
+                2,
+                [new InputStimulusAssignment(input.Id, [LogicValue.Zero])]),
+            CancellationToken.None);
+        var after = await Read(workspace, opened);
+        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
+        Assert.NotNull(rejected);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("simulation_resource_limit");
+            await Assert.That(rejected.PolicyEvidence).IsNotNull();
+            await Assert.That(rejected.PolicyEvidence!.PolicyId)
+                .IsEqualTo(policy.PolicyId);
+            await Assert.That(rejected.PolicyEvidence.PolicyRevision)
+                .IsEqualTo(policy.PolicyRevision);
+            await Assert.That(rejected.PolicyEvidence.Dimension)
+                .IsEqualTo("scheduled_batch_count");
+            await Assert.That(rejected.PolicyEvidence.Observed).IsEqualTo(2UL);
+            await Assert.That(after.ProjectionVersion)
+                .IsEqualTo(beforeRejectedSchedule.ProjectionVersion);
+            await Assert.That(after.Simulation!.SessionVersion)
+                .IsEqualTo(beforeRejectedSchedule.Simulation!.SessionVersion);
         }
     }
 
@@ -396,6 +490,41 @@ internal sealed class EditorWorkspaceFailureTests
         return infrastructureFailure
             ? new IOException("sensitive infrastructure detail")
             : new InvalidOperationException("sensitive implementation detail");
+    }
+
+    private static WorkspaceModuleOperations OperationsWithSimulationPolicy(
+        SimulationPolicy policy)
+    {
+        var production = WorkspaceModuleOperations.Production;
+        return production with
+        {
+            OpenSimulation = (request, cancellationToken) =>
+                production.OpenSimulation(
+                    new OpenSimulationRequest(
+                        request.CompilationArtifact,
+                        new SimulationSessionConfiguration(
+                            new SimulationPolicyReference(
+                                policy.PolicyId,
+                                policy.PolicyRevision),
+                            request.Configuration.TracePolicy,
+                            request.Configuration.InitialProbeBindings),
+                        policy,
+                        request.TracePolicy),
+                    cancellationToken),
+        };
+    }
+
+    private static SimulationPolicy SimulationPolicyLimitedAt(
+        SimulationDimension limitedDimension,
+        ulong maximum)
+    {
+        return new SimulationPolicy(
+            "test-simulation",
+            "resource-limit",
+            [.. Enum.GetValues<SimulationDimension>().Select(dimension =>
+                new SimulationLimit(
+                    dimension,
+                    dimension == limitedDimension ? maximum : 1_000_000UL))]);
     }
 
     private static async Task<ControlledWorkspace> OpenControlled(

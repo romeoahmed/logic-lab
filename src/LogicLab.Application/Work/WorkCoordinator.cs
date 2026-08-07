@@ -38,7 +38,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     internal bool TryScheduleCompilation(
         WorkspaceId workspaceId,
         Func<CompilationWorkContext, ValueTask> operation,
-        CancellationToken cancellationToken,
+        CancellationToken admissionCancellationToken,
         out string? rejectionCode)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
@@ -48,7 +48,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         var disposeSuperseded = false;
         lock (gate)
         {
-            if (isDisposed || cancellationToken.IsCancellationRequested)
+            if (isDisposed || admissionCancellationToken.IsCancellationRequested)
             {
                 rejectionCode = WorkspaceOutcomeReasons.WorkspaceCancelled;
                 return false;
@@ -57,7 +57,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             item = new CompilationWorkItem(
                 workspaceId,
                 operation,
-                cancellationToken,
                 stopping.Token);
             if (pendingCompilations.TryGetValue(workspaceId, out superseded))
             {
@@ -442,11 +441,29 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             WorkspaceId workspaceId,
             CancellationToken callerCancellationToken,
             CancellationToken stoppingToken)
+            : this(
+                workspaceId,
+                CancellationTokenSource.CreateLinkedTokenSource(
+                    callerCancellationToken,
+                    stoppingToken))
+        {
+        }
+
+        protected WorkItem(
+            WorkspaceId workspaceId,
+            CancellationToken stoppingToken)
+            : this(
+                workspaceId,
+                CancellationTokenSource.CreateLinkedTokenSource(stoppingToken))
+        {
+        }
+
+        private WorkItem(
+            WorkspaceId workspaceId,
+            CancellationTokenSource ownedCancellation)
         {
             WorkspaceId = workspaceId;
-            cancellation = CancellationTokenSource.CreateLinkedTokenSource(
-                callerCancellationToken,
-                stoppingToken);
+            cancellation = ownedCancellation;
             CancellationToken = cancellation.Token;
         }
 
@@ -475,9 +492,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     private sealed class CompilationWorkItem(
         WorkspaceId workspaceId,
         Func<CompilationWorkContext, ValueTask> operation,
-        CancellationToken callerCancellationToken,
         CancellationToken stoppingToken)
-        : WorkItem(workspaceId, callerCancellationToken, stoppingToken)
+        : WorkItem(workspaceId, stoppingToken)
     {
         public Func<CompilationWorkContext, ValueTask> Operation { get; }
             = operation;

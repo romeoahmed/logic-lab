@@ -253,11 +253,10 @@ internal sealed class EditorWorkspaceRunTests
     }
 
     [Test, Timeout(30_000)]
-    public async Task DispatchAsync_RunPublicationThrows_ProjectsTypedFailureAtUnchangedBoundary(
+    public async Task DispatchAsync_PauseAtRunPublicationFailure_ObservesTypedFailure(
         CancellationToken cancellationToken)
     {
-        var publicationStarted = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        var publicationGate = new BlockingOperationGate();
         var production = WorkspaceModuleOperations.Production;
         var operations = production with
         {
@@ -280,7 +279,7 @@ internal sealed class EditorWorkspaceRunTests
                     probe.ProbeId,
                     probe.Source,
                     new LogicVector([LogicValue.One]));
-                publicationStarted.TrySetResult();
+                publicationGate.Block(operationCancellationToken);
                 return (AdvanceCommitted)Activator.CreateInstance(
                     typeof(AdvanceCommitted),
                     System.Reflection.BindingFlags.Instance
@@ -305,7 +304,20 @@ internal sealed class EditorWorkspaceRunTests
                 Command(controlled, "run-with-invalid-publication"),
                 EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
             cancellationToken);
-        await publicationStarted.Task.WaitAsync(cancellationToken);
+        await publicationGate.Started.WaitAsync(cancellationToken);
+        var pause = workspace.DispatchAsync(
+            new PauseRun(
+                Command(controlled, "pause-at-publication-failure"),
+                new RunControlPrecondition(
+                    beforeRun.Simulation!.SessionId,
+                    started.RunGeneration)),
+            cancellationToken);
+        await Assert.That(pause.IsCompleted).IsFalse();
+        publicationGate.Release();
+
+        var failed = await Assert.That(await pause.WaitAsync(cancellationToken))
+            .IsTypeOf<SessionAdvanceFailed>();
+        Assert.NotNull(failed);
         var failedProjection = await WaitForRunStatus(
             workspace,
             controlled,
@@ -322,6 +334,7 @@ internal sealed class EditorWorkspaceRunTests
             await Assert.That(failedRun.RunGeneration).IsEqualTo(started.RunGeneration);
             await Assert.That(failedRun.Failure.Reason)
                 .IsEqualTo(AdvanceFailureReason.SimulationInternalDefect);
+            await Assert.That(failedRun.Failure).IsEqualTo(failed.Failure);
         }
     }
 
