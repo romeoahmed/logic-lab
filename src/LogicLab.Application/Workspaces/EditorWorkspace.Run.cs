@@ -131,7 +131,6 @@ internal sealed partial class EditorWorkspace
         }
 
         if (workCoordinator.TryStartSessionContinuation(
-            state.Id,
             (continuation, token) => ContinueRunRetainedAsync(
                 state,
                 continuation,
@@ -309,7 +308,10 @@ internal sealed partial class EditorWorkspace
 
         if (IsRunPauseRequested(state, generation))
         {
-            return PauseRunAtBoundary(state, generation);
+            return PauseRunAtBoundary(
+                state,
+                generation,
+                RunPauseReason.UserRequested);
         }
 
         var outcome = Step(state, cancellationToken);
@@ -317,7 +319,10 @@ internal sealed partial class EditorWorkspace
         {
             if (IsRunPauseRequested(state, generation))
             {
-                return PauseRunAtBoundary(state, generation);
+                return PauseRunAtBoundary(
+                    state,
+                    generation,
+                    RunPauseReason.UserRequested);
             }
 
             if (!QueueRunContinuation(state, continuation, generation))
@@ -337,7 +342,10 @@ internal sealed partial class EditorWorkspace
         if (outcome is WorkspaceCommandRejected rejected
             && rejected.Code == WorkspaceOutcomeReasons.NoScheduledStimulus)
         {
-            return PauseRunAtNoStimulusBoundary(state, generation);
+            return PauseRunAtBoundary(
+                state,
+                generation,
+                RunPauseReason.NoScheduledStimulus);
         }
 
         return outcome is SessionAdvanceFailed failed
@@ -377,59 +385,30 @@ internal sealed partial class EditorWorkspace
 
     private RunPaused PauseRunAtBoundary(
         WorkspaceState state,
-        RunGeneration generation)
+        RunGeneration generation,
+        RunPauseReason reason)
     {
         lock (state.ContinuityGate)
         {
-            return PauseRunAtBoundaryUnderLock(state, generation);
-        }
-    }
-
-    private RunPaused PauseRunAtBoundaryUnderLock(
-        WorkspaceState state,
-        RunGeneration generation)
-    {
-        var simulation = state.Simulation!;
-        state.Simulation = WithRun(
-            simulation,
-            new RunPausedProjection(
-                generation,
-                RunPauseReason.UserRequested));
-        state.ProjectionVersion++;
-        var outcome = new RunPaused(
-            generation,
-            simulation.SessionVersion,
-            simulation.LogicalTime,
-            RunPauseReason.UserRequested,
-            state.ProjectionVersion);
-        CompletePendingRunPauseUnderLock(state, generation, outcome);
-        return outcome;
-    }
-
-    private RunPaused PauseRunAtNoStimulusBoundary(
-        WorkspaceState state,
-        RunGeneration generation)
-    {
-        lock (state.ContinuityGate)
-        {
-            if (IsRunPauseRequestedUnderLock(state, generation))
+            if (reason == RunPauseReason.NoScheduledStimulus
+                && IsRunPauseRequestedUnderLock(state, generation))
             {
-                return PauseRunAtBoundaryUnderLock(state, generation);
+                reason = RunPauseReason.UserRequested;
             }
 
             var simulation = state.Simulation!;
             state.Simulation = WithRun(
                 simulation,
-                new RunPausedProjection(
-                    generation,
-                    RunPauseReason.NoScheduledStimulus));
+                new RunPausedProjection(generation, reason));
             state.ProjectionVersion++;
-            return new RunPaused(
+            var outcome = new RunPaused(
                 generation,
                 simulation.SessionVersion,
                 simulation.LogicalTime,
-                RunPauseReason.NoScheduledStimulus,
+                reason,
                 state.ProjectionVersion);
+            CompletePendingRunPauseUnderLock(state, generation, outcome);
+            return outcome;
         }
     }
 
@@ -473,10 +452,7 @@ internal sealed partial class EditorWorkspace
         }
 
         CompletePendingIdempotencyUnderLock(state, publication, outcome);
-        if (ReferenceEquals(state.PendingRunPause?.Publication, publication))
-        {
-            state.PendingRunPause = null;
-        }
+        state.PendingRunPause = null;
     }
 
     private WorkspaceCommandOutcome CompletePendingRunPause(
