@@ -15,7 +15,6 @@ public sealed partial class Editor : IAsyncDisposable
         TimeSpan.FromMilliseconds(250);
     private readonly IEditorWorkspace workspace;
     private readonly TimeProvider timeProvider;
-    private readonly FixedWindowCommandAdmissionGate commandAdmission;
     private readonly CancellationTokenSource componentLifetime = new();
     private int isDisposed;
 
@@ -25,10 +24,6 @@ public sealed partial class Editor : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(timeProvider);
         this.workspace = workspace;
         this.timeProvider = timeProvider;
-        commandAdmission = new FixedWindowCommandAdmissionGate(
-            maximumAdmissions: 30,
-            window: TimeSpan.FromSeconds(1),
-            timeProvider);
     }
 
     private WorkspaceProjection? Projection { get; set; }
@@ -117,12 +112,6 @@ public sealed partial class Editor : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(operation);
         if (ActiveCommand is not null || !canExecute())
         {
-            return;
-        }
-
-        if (!commandAdmission.TryAdmit())
-        {
-            Status = "Command rate limit reached. Try again shortly.";
             return;
         }
 
@@ -312,7 +301,7 @@ public sealed partial class Editor : IAsyncDisposable
                 cancellationToken);
             if (read is WorkspaceReadRejected
                 {
-                    RetryDisposition.Kind: RetryDispositionKind.Reattach,
+                    RetryDisposition: ReattachDisposition,
                 }
                 && !reattachAttempted
                 && await TryReattachAsync(cancellationToken))
@@ -449,7 +438,7 @@ public sealed partial class Editor : IAsyncDisposable
             commandCancellationToken);
         if (outcome is WorkspaceCommandRejected
             {
-                RetryDisposition.Kind: RetryDispositionKind.Reattach,
+                RetryDisposition: ReattachDisposition,
             }
             && await TryReattachAsync(observationCancellationToken))
         {

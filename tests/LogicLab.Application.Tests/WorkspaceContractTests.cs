@@ -98,12 +98,7 @@ internal sealed class WorkspaceContractTests
     {
         var retryDisposition = RetryDisposition.RetryAfter(7);
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(retryDisposition.Kind)
-                .IsEqualTo(RetryDispositionKind.RetryAfter);
-            await Assert.That(retryDisposition.RetryAfterSeconds).IsEqualTo(7UL);
-        }
+        await Assert.That(retryDisposition.Seconds).IsEqualTo(7UL);
     }
 
     [Test]
