@@ -242,16 +242,15 @@ public sealed class SimulationDiagnostic
     internal SimulationDiagnostic(
         string code,
         SimulationDiagnosticSeverity severity,
-        SimulationDiagnosticArgument[] arguments,
+        SimulationDiagnosticArgument[] ownedArguments,
         CompilationSource? primary,
-        CompilationSource[] related)
+        CompilationSource[] ownedRelated)
     {
         Code = code;
         Severity = severity;
-        Arguments = Array.AsReadOnly(
-            (SimulationDiagnosticArgument[])arguments.Clone());
+        Arguments = Array.AsReadOnly(ownedArguments);
         Primary = primary;
-        Related = Array.AsReadOnly((CompilationSource[])related.Clone());
+        Related = Array.AsReadOnly(ownedRelated);
     }
 
     public string Code { get; }
@@ -509,14 +508,13 @@ public sealed record NoScheduledStimulus(
 public sealed class HotSwapMigrationEvidence
 {
     internal HotSwapMigrationEvidence(
-        CompilationSource[] migratedStateSources,
-        ProbeId[] preservedProbeIds,
-        ProbeId[] unresolvedProbeIds)
+        CompilationSource[] ownedMigratedStateSources,
+        ProbeId[] ownedPreservedProbeIds,
+        ProbeId[] ownedUnresolvedProbeIds)
     {
-        MigratedStateSources = Array.AsReadOnly(
-            (CompilationSource[])migratedStateSources.Clone());
-        PreservedProbeIds = Array.AsReadOnly((ProbeId[])preservedProbeIds.Clone());
-        UnresolvedProbeIds = Array.AsReadOnly((ProbeId[])unresolvedProbeIds.Clone());
+        MigratedStateSources = Array.AsReadOnly(ownedMigratedStateSources);
+        PreservedProbeIds = Array.AsReadOnly(ownedPreservedProbeIds);
+        UnresolvedProbeIds = Array.AsReadOnly(ownedUnresolvedProbeIds);
     }
 
     public ReadOnlyCollection<CompilationSource> MigratedStateSources { get; }
@@ -532,17 +530,17 @@ public sealed record HotSwapCommitted : SimulationCommandOutcome
         ulong sessionVersion,
         CompilationArtifactKey compilationArtifactKey,
         HotSwapMigrationEvidence migrationEvidence,
-        ProbeId[] probeIds,
-        ProbeObservation[] observedProbes,
-        SimulationDiagnostic[] diagnostics,
+        ProbeId[] ownedProbeIds,
+        ProbeObservation[] ownedObservedProbes,
+        SimulationDiagnostic[] ownedDiagnostics,
         TraceCursor traceCursor)
     {
         SessionVersion = sessionVersion;
         CompilationArtifactKey = compilationArtifactKey;
         MigrationEvidence = migrationEvidence;
-        ProbeIds = Array.AsReadOnly((ProbeId[])probeIds.Clone());
-        ObservedProbes = Array.AsReadOnly((ProbeObservation[])observedProbes.Clone());
-        Diagnostics = Array.AsReadOnly((SimulationDiagnostic[])diagnostics.Clone());
+        ProbeIds = Array.AsReadOnly(ownedProbeIds);
+        ObservedProbes = Array.AsReadOnly(ownedObservedProbes);
+        Diagnostics = Array.AsReadOnly(ownedDiagnostics);
         TraceCursor = traceCursor;
     }
 

@@ -112,8 +112,9 @@ internal sealed partial class EditorWorkspace
                         state,
                         command,
                         accepted.CanonicalIdentity);
-                    state.PendingRunPause = publication;
-                    state.RequestedRunPauseGeneration = command.Precondition.RunGeneration;
+                    state.PendingRunPause = new RunPauseRequest(
+                        publication,
+                        command.Precondition.RunGeneration);
                     break;
             }
         }
@@ -138,10 +139,11 @@ internal sealed partial class EditorWorkspace
         {
             lock (state.ContinuityGate)
             {
-                if (ReferenceEquals(state.PendingRunPause, publication))
+                if (ReferenceEquals(
+                    state.PendingRunPause?.Publication,
+                    publication))
                 {
                     state.PendingRunPause = null;
-                    state.RequestedRunPauseGeneration = null;
                 }
             }
         }

@@ -16,85 +16,78 @@ internal static class SimulationNetDiagnostics
         var sources = artifact.SourceMap.Nets.ToDictionary(
             entry => entry.Ordinal,
             entry => entry.Source);
-        var diagnostics = new List<SimulationDiagnostic>();
-        for (var netOrdinal = 0; netOrdinal < ir.Nets.Count; netOrdinal++)
-        {
-            var net = ir.Nets[netOrdinal];
-            var resolution = resolutions[netOrdinal];
-            var primary = sources[netOrdinal];
-            if (HasCause(resolution, NetResolutionCauses.Undriven))
-            {
-                diagnostics.Add(new SimulationDiagnostic(
-                    "simulation_net_undriven",
-                    SimulationDiagnosticSeverity.Warning,
-                    [],
-                    primary,
-                    []));
-            }
-
-            if (HasCause(resolution, NetResolutionCauses.UnknownDriver))
-            {
-                diagnostics.Add(new SimulationDiagnostic(
-                    "simulation_unknown_driver",
-                    SimulationDiagnosticSeverity.Warning,
-                    [
-                        new SimulationDiagnosticArgument(
-                            "driverCount",
-                            new SimulationUnsignedDecimalValue(CountDrivers(
-                                net,
-                                driverValues,
-                                resolution,
-                                NetResolutionCauses.UnknownDriver,
-                                LogicValue.X))),
-                    ],
-                    primary,
-                    []));
-            }
-
-            if (HasCause(resolution, NetResolutionCauses.Contention))
-            {
-                diagnostics.Add(new SimulationDiagnostic(
-                    "simulation_contention",
-                    SimulationDiagnosticSeverity.Error,
-                    [
-                        new SimulationDiagnosticArgument(
-                            "zeroDrivers",
-                            new SimulationUnsignedDecimalValue(CountDrivers(
-                                net,
-                                driverValues,
-                                resolution,
-                                NetResolutionCauses.Contention,
-                                LogicValue.Zero))),
-                        new SimulationDiagnosticArgument(
-                            "oneDrivers",
-                            new SimulationUnsignedDecimalValue(CountDrivers(
-                                net,
-                                driverValues,
-                                resolution,
-                                NetResolutionCauses.Contention,
-                                LogicValue.One))),
-                        new SimulationDiagnosticArgument(
-                            "unknownDrivers",
-                            new SimulationUnsignedDecimalValue(CountDrivers(
-                                net,
-                                driverValues,
-                                resolution,
-                                NetResolutionCauses.Contention,
-                                LogicValue.X))),
-                    ],
-                    primary,
-                    []));
-            }
-        }
-
-        AddIndeterminateFeedbackDiagnostics(
+        return Canonicalize(InspectDiagnosticFacts(
             artifact,
             driverValues,
-            resolutions,
-            sources,
-            diagnostics);
+            resolutions).Select(fact => CreateDiagnostic(
+                fact,
+                ir,
+                driverValues,
+                resolutions,
+                sources)));
+    }
 
-        return Canonicalize(diagnostics);
+    public static SimulationDiagnostic[] CreateExact(
+        CompilationArtifact artifact,
+        LogicVector[] driverValues,
+        VectorNetResolution[] resolutions,
+        int diagnosticCount)
+    {
+        var ir = artifact.SimulationIr;
+        var sources = artifact.SourceMap.Nets.ToDictionary(
+            entry => entry.Ordinal,
+            entry => entry.Source);
+        var diagnostics = new SimulationDiagnostic[diagnosticCount];
+        var index = 0;
+        foreach (var fact in InspectDiagnosticFacts(
+            artifact,
+            driverValues,
+            resolutions))
+        {
+            if (index == diagnostics.Length)
+            {
+                throw new InvalidOperationException(
+                    "The Simulation Diagnostic preflight changed before materialization.");
+            }
+
+            diagnostics[index++] = CreateDiagnostic(
+                fact,
+                ir,
+                driverValues,
+                resolutions,
+                sources);
+        }
+
+        if (index != diagnostics.Length)
+        {
+            throw new InvalidOperationException(
+                "The Simulation Diagnostic preflight changed before materialization.");
+        }
+
+        Array.Sort(diagnostics, SimulationNetDiagnosticComparer.Instance);
+        return diagnostics;
+    }
+
+    public static SimulationDiagnosticBufferMeasure MeasureOwnedBuffers(
+        CompilationArtifact artifact,
+        LogicVector[] driverValues,
+        VectorNetResolution[] resolutions)
+    {
+        var count = 0;
+        ulong nestedReferenceSlots = 0;
+        foreach (var fact in InspectDiagnosticFacts(
+            artifact,
+            driverValues,
+            resolutions))
+        {
+            count = checked(count + 1);
+            nestedReferenceSlots = checked(
+                nestedReferenceSlots + (ulong)ArgumentCount(fact.Kind));
+        }
+
+        return new SimulationDiagnosticBufferMeasure(
+            count,
+            checked((ulong)count + nestedReferenceSlots));
     }
 
     public static SimulationDiagnostic[] Canonicalize(
@@ -105,12 +98,152 @@ internal static class SimulationNetDiagnostics
             SimulationNetDiagnosticComparer.Instance)];
     }
 
-    private static void AddIndeterminateFeedbackDiagnostics(
-        CompilationArtifact artifact,
+    private static SimulationDiagnostic CreateDiagnostic(
+        DiagnosticFact fact,
+        SimulationIr ir,
         LogicVector[] driverValues,
         VectorNetResolution[] resolutions,
-        Dictionary<int, CompilationSource> netSources,
-        List<SimulationDiagnostic> diagnostics)
+        Dictionary<int, CompilationSource> sources)
+    {
+        var net = ir.Nets[fact.NetOrdinal];
+        var resolution = resolutions[fact.NetOrdinal];
+        var primary = sources[fact.NetOrdinal];
+        return fact.Kind switch
+        {
+            SimulationNetDiagnosticKind.Undriven => new SimulationDiagnostic(
+                "simulation_net_undriven",
+                SimulationDiagnosticSeverity.Warning,
+                [],
+                primary,
+                []),
+            SimulationNetDiagnosticKind.UnknownDriver => new SimulationDiagnostic(
+                "simulation_unknown_driver",
+                SimulationDiagnosticSeverity.Warning,
+                [
+                    new SimulationDiagnosticArgument(
+                        "driverCount",
+                        new SimulationUnsignedDecimalValue(CountDrivers(
+                            net,
+                            driverValues,
+                            resolution,
+                            NetResolutionCauses.UnknownDriver,
+                            LogicValue.X))),
+                ],
+                primary,
+                []),
+            SimulationNetDiagnosticKind.Contention => new SimulationDiagnostic(
+                "simulation_contention",
+                SimulationDiagnosticSeverity.Error,
+                [
+                    new SimulationDiagnosticArgument(
+                        "zeroDrivers",
+                        new SimulationUnsignedDecimalValue(CountDrivers(
+                            net,
+                            driverValues,
+                            resolution,
+                            NetResolutionCauses.Contention,
+                            LogicValue.Zero))),
+                    new SimulationDiagnosticArgument(
+                        "oneDrivers",
+                        new SimulationUnsignedDecimalValue(CountDrivers(
+                            net,
+                            driverValues,
+                            resolution,
+                            NetResolutionCauses.Contention,
+                            LogicValue.One))),
+                    new SimulationDiagnosticArgument(
+                        "unknownDrivers",
+                        new SimulationUnsignedDecimalValue(CountDrivers(
+                            net,
+                            driverValues,
+                            resolution,
+                            NetResolutionCauses.Contention,
+                            LogicValue.X))),
+                ],
+                primary,
+                []),
+            SimulationNetDiagnosticKind.IndeterminateFeedback =>
+                new SimulationDiagnostic(
+                    "simulation_indeterminate_feedback",
+                    SimulationDiagnosticSeverity.Warning,
+                    [
+                        new SimulationDiagnosticArgument(
+                            "unknownCoordinates",
+                            new SimulationUnsignedDecimalValue(
+                                fact.UnknownCoordinates)),
+                    ],
+                    primary,
+                    []),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(fact),
+                fact,
+                "The Simulation Net Diagnostic kind is undefined."),
+        };
+    }
+
+    private static IEnumerable<DiagnosticFact> InspectDiagnosticFacts(
+        CompilationArtifact artifact,
+        LogicVector[] driverValues,
+        VectorNetResolution[] resolutions)
+    {
+        for (var netOrdinal = 0;
+            netOrdinal < artifact.SimulationIr.Nets.Count;
+            netOrdinal++)
+        {
+            var resolution = resolutions[netOrdinal];
+            if (HasCause(resolution, NetResolutionCauses.Undriven))
+            {
+                yield return new DiagnosticFact(
+                    SimulationNetDiagnosticKind.Undriven,
+                    netOrdinal,
+                    UnknownCoordinates: 0);
+            }
+
+            if (HasCause(resolution, NetResolutionCauses.UnknownDriver))
+            {
+                yield return new DiagnosticFact(
+                    SimulationNetDiagnosticKind.UnknownDriver,
+                    netOrdinal,
+                    UnknownCoordinates: 0);
+            }
+
+            if (HasCause(resolution, NetResolutionCauses.Contention))
+            {
+                yield return new DiagnosticFact(
+                    SimulationNetDiagnosticKind.Contention,
+                    netOrdinal,
+                    UnknownCoordinates: 0);
+            }
+        }
+
+        foreach (var feedback in InspectIndeterminateFeedback(
+            artifact,
+            driverValues,
+            resolutions))
+        {
+            yield return new DiagnosticFact(
+                SimulationNetDiagnosticKind.IndeterminateFeedback,
+                feedback.PrimaryNetOrdinal,
+                feedback.UnknownCoordinates);
+        }
+    }
+
+    private static int ArgumentCount(SimulationNetDiagnosticKind kind)
+    {
+        return kind switch
+        {
+            SimulationNetDiagnosticKind.Undriven => 0,
+            SimulationNetDiagnosticKind.UnknownDriver
+                or SimulationNetDiagnosticKind.IndeterminateFeedback => 1,
+            SimulationNetDiagnosticKind.Contention => 3,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+        };
+    }
+
+    private static IEnumerable<IndeterminateFeedback> InspectIndeterminateFeedback(
+        CompilationArtifact artifact,
+        LogicVector[] driverValues,
+        VectorNetResolution[] resolutions)
     {
         var ir = artifact.SimulationIr;
         foreach (var component in ir.StronglyConnectedComponents.Where(
@@ -135,22 +268,12 @@ internal static class SimulationNetDiagnostics
                     0UL,
                     (count, netOrdinal) => checked(
                         count + CountUnknown(resolutions[netOrdinal].Value)));
-            if (unknownCoordinates == 0)
+            if (unknownCoordinates != 0)
             {
-                continue;
+                yield return new IndeterminateFeedback(
+                    internalNetOrdinals[0],
+                    unknownCoordinates);
             }
-
-            var primaryNetOrdinal = internalNetOrdinals[0];
-            diagnostics.Add(new SimulationDiagnostic(
-                "simulation_indeterminate_feedback",
-                SimulationDiagnosticSeverity.Warning,
-                [
-                    new SimulationDiagnosticArgument(
-                        "unknownCoordinates",
-                        new SimulationUnsignedDecimalValue(unknownCoordinates)),
-                ],
-                netSources[primaryNetOrdinal],
-                []));
         }
     }
 
@@ -219,6 +342,23 @@ internal static class SimulationNetDiagnostics
         }
 
         return false;
+    }
+
+    private readonly record struct IndeterminateFeedback(
+        int PrimaryNetOrdinal,
+        ulong UnknownCoordinates);
+
+    private readonly record struct DiagnosticFact(
+        SimulationNetDiagnosticKind Kind,
+        int NetOrdinal,
+        ulong UnknownCoordinates);
+
+    private enum SimulationNetDiagnosticKind
+    {
+        Undriven,
+        UnknownDriver,
+        Contention,
+        IndeterminateFeedback,
     }
 
     private sealed class SimulationNetDiagnosticComparer : IComparer<SimulationDiagnostic>
@@ -363,3 +503,7 @@ internal static class SimulationNetDiagnostics
         }
     }
 }
+
+internal readonly record struct SimulationDiagnosticBufferMeasure(
+    int DiagnosticCount,
+    ulong OwnedReferenceSlotCount);

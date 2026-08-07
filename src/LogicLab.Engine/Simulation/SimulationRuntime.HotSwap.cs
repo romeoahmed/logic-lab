@@ -45,7 +45,8 @@ public static partial class SimulationRuntime
             state,
             replacement,
             migrationPreflight.MigratedRamCellReferenceCount,
-            probePreflight.PreservedProbeCount);
+            probePreflight.PreservedProbeCount,
+            state.Probes.Length - probePreflight.PreservedProbeCount);
         if (candidatePeakOwnedBuffers.IsSaturated
             || candidatePeakOwnedBuffers.Bytes > maximumPeakOwnedBufferBytes)
         {
@@ -93,19 +94,23 @@ public static partial class SimulationRuntime
             state.SimulationPolicy,
             new SettlementWork(),
             cancellationToken);
-        var diagnostics = SimulationNetDiagnostics.Create(
-            replacement,
-            driverValues,
-            settlement.NetResolutions);
         var probes = probeBindings.Probes;
         var changedProbeObservations = ChangedProbeObservations(
             state,
             probes,
             settlement.NetValues);
-        var peakOwnedBuffers = HotSwapOwnedBufferAccounting.AddTraceFork(
+        var diagnosticBuffers = SimulationNetDiagnostics.MeasureOwnedBuffers(
+            replacement,
+            driverValues,
+            settlement.NetResolutions);
+        var peakOwnedBuffers = HotSwapOwnedBufferAccounting.AddPublicationAndTraceFork(
             candidatePeakOwnedBuffers,
             state.Trace,
-            changedProbeObservations);
+            changedProbeObservations,
+            diagnosticBuffers.DiagnosticCount,
+            diagnosticBuffers.OwnedReferenceSlotCount,
+            migrationPreflight.MigrationCount,
+            probePreflight.PreservedProbeCount);
         if (peakOwnedBuffers.IsSaturated
             || peakOwnedBuffers.Bytes > maximumPeakOwnedBufferBytes)
         {
@@ -116,6 +121,11 @@ public static partial class SimulationRuntime
                 peakOwnedBuffers.Bytes);
         }
 
+        var diagnostics = SimulationNetDiagnostics.CreateExact(
+            replacement,
+            driverValues,
+            settlement.NetResolutions,
+            diagnosticBuffers.DiagnosticCount);
         var observedProbes = probes.Select(probe => new ProbeObservation(
             probe.ProbeId,
             probe.Source,
@@ -129,19 +139,27 @@ public static partial class SimulationRuntime
             new PriorityQueue<ScheduledStimulusBatch, ScheduledStimulusPriority>();
         var scheduledAssignmentsByTime =
             new Dictionary<ulong, SortedDictionary<int, LogicVector>>();
-        var preservedProbeIds = probes.Select(probe => probe.ProbeId).ToArray();
+        var migratedStateSources = new CompilationSource[migrations.Length];
+        for (var index = 0; index < migrations.Length; index++)
+        {
+            migratedStateSources[index] = migrations[index].Source;
+        }
+
+        Array.Sort(migratedStateSources, CompilationSourceComparer.Instance);
+        var evidencePreservedProbeIds = probes
+            .Select(probe => probe.ProbeId)
+            .ToArray();
+        var committedProbeIds = probes.Select(probe => probe.ProbeId).ToArray();
         var committed = new HotSwapCommitted(
             sessionVersion,
             replacement.Key,
             new HotSwapMigrationEvidence(
-                [.. migrations
-                    .Select(item => item.Source)
-                    .Order(CompilationSourceComparer.Instance)],
-                preservedProbeIds,
+                migratedStateSources,
+                evidencePreservedProbeIds,
                 probeBindings.UnresolvedProbeIds),
-            preservedProbeIds,
+            committedProbeIds,
             observedProbes,
-            diagnostics,
+            (SimulationDiagnostic[])diagnostics.Clone(),
             trace.Cursor);
         cancellationToken.ThrowIfCancellationRequested();
 

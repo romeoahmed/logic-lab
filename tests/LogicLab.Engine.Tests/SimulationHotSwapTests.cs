@@ -168,9 +168,9 @@ internal sealed class SimulationHotSwapTests
     [Test]
     public async Task Execute_StatePreservingHotSwap_UsesExactTraceForkPeakBudget()
     {
-        // 184 committed bytes, 128 replacement working-layer bytes,
-        // and a 32-byte Trace fork index with no transition chunk.
-        const ulong exactPeakOwnedBufferBytes = 344;
+        // 168 committed bytes, 104 replacement working-layer bytes,
+        // 24 publication bytes, and a 32-byte Trace fork index.
+        const ulong exactPeakOwnedBufferBytes = 328;
         var circuit = SequentialTestCircuit.Create();
         var input = circuit.Place(
             "source.input",
@@ -214,9 +214,159 @@ internal sealed class SimulationHotSwapTests
     }
 
     [Test]
+    public async Task Execute_StatePreservingSequentialHotSwap_CountsSharedVectorPlanesOnce()
+    {
+        // 296 committed bytes, 296 replacement working-layer bytes,
+        // 32 publication bytes, and a 32-byte Trace fork index.
+        const ulong exactPeakOwnedBufferBytes = 656;
+        var circuit = SequentialTestCircuit.Create();
+        var data = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.One));
+        var clock = circuit.Place("source.clock", SequentialTestCircuit.Clock());
+        var dff = circuit.Place(
+            "sequential.dff",
+            SequentialTestCircuit.Dff(LogicValue.Zero));
+        var sink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        _ = circuit.Connect((data, "Q"), (dff, "D"));
+        _ = circuit.Connect((clock, "Q"), (dff, "CLK"));
+        var outputNet = circuit.Connect((dff, "Q"), (sink, "D"));
+        var originalArtifact = circuit.Compile();
+        var acceptedSession = Open(originalArtifact, outputNet);
+        var rejectedSession = Open(originalArtifact, outputNet);
+        var rejectedBefore = Snapshot(rejectedSession);
+        circuit.Apply(new MoveComponentInstancesIntent(
+            circuit.Revision.Document.EntryCircuitDefinitionId,
+            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
+        var replacementArtifact = circuit.Compile();
+
+        var accepted = SimulationRuntime.Execute(
+            acceptedSession.Handle,
+            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            CancellationToken.None);
+        var rejected = SimulationRuntime.Execute(
+            rejectedSession.Handle,
+            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
+            CancellationToken.None);
+        var rejectedAfter = Snapshot(rejectedSession);
+
+        await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
+        var resourceLimit = await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>();
+        Assert.NotNull(resourceLimit);
+        await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
+            .IsEqualTo(exactPeakOwnedBufferBytes);
+        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+    }
+
+    [Test]
+    public async Task Execute_DiagnosticHotSwap_AccountsForSessionAndOutcomeBuffers()
+    {
+        // 288 committed bytes, 280 replacement working-layer bytes,
+        // 40 publication bytes, and a 32-byte Trace fork index.
+        const ulong exactPeakOwnedBufferBytes = 640;
+        var circuit = SequentialTestCircuit.Create();
+        var data = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.One));
+        var enable = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.Zero));
+        var triState = circuit.Place(
+            "logic.tristate",
+            SequentialTestCircuit.TriState());
+        var sink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        _ = circuit.Connect((data, "Q"), (triState, "D"));
+        _ = circuit.Connect((enable, "Q"), (triState, "EN"));
+        var outputNet = circuit.Connect((triState, "Q"), (sink, "D"));
+        var originalArtifact = circuit.Compile();
+        var acceptedSession = Open(originalArtifact, outputNet);
+        var rejectedSession = Open(originalArtifact, outputNet);
+        var rejectedBefore = Snapshot(rejectedSession);
+        circuit.Apply(new MoveComponentInstancesIntent(
+            circuit.Revision.Document.EntryCircuitDefinitionId,
+            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
+        var replacementArtifact = circuit.Compile();
+
+        var accepted = SimulationRuntime.Execute(
+            acceptedSession.Handle,
+            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            CancellationToken.None);
+        var rejected = SimulationRuntime.Execute(
+            rejectedSession.Handle,
+            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
+            CancellationToken.None);
+        var rejectedAfter = Snapshot(rejectedSession);
+
+        var committed = await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
+        var resourceLimit = await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>();
+        Assert.NotNull(committed);
+        Assert.NotNull(resourceLimit);
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.Diagnostics.Select(item => item.Code))
+                .IsEquivalentTo(["simulation_net_undriven"]);
+            await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
+                .IsEqualTo(exactPeakOwnedBufferBytes);
+        }
+
+        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+    }
+
+    [Test]
+    public async Task Execute_DiagnosticHotSwap_AccountsForNestedArgumentBuffers()
+    {
+        // 224 committed bytes, 128 replacement working-layer bytes,
+        // 64 publication bytes, and a 32-byte Trace fork index.
+        const ulong exactPeakOwnedBufferBytes = 448;
+        var circuit = SequentialTestCircuit.Create();
+        var zero = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.Zero));
+        var one = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.One));
+        var sink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        var outputNet = circuit.Connect((zero, "Q"), (one, "Q"), (sink, "D"));
+        var originalArtifact = circuit.Compile();
+        var acceptedSession = Open(originalArtifact, outputNet);
+        var rejectedSession = Open(originalArtifact, outputNet);
+        var rejectedBefore = Snapshot(rejectedSession);
+        circuit.Apply(new MoveComponentInstancesIntent(
+            circuit.Revision.Document.EntryCircuitDefinitionId,
+            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
+        var replacementArtifact = circuit.Compile();
+
+        var accepted = SimulationRuntime.Execute(
+            acceptedSession.Handle,
+            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            CancellationToken.None);
+        var rejected = SimulationRuntime.Execute(
+            rejectedSession.Handle,
+            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
+            CancellationToken.None);
+        var rejectedAfter = Snapshot(rejectedSession);
+
+        var committed = await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
+        var resourceLimit = await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>();
+        Assert.NotNull(committed);
+        Assert.NotNull(resourceLimit);
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.Diagnostics.Single().Arguments).Count().IsEqualTo(3);
+            await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
+                .IsEqualTo(exactPeakOwnedBufferBytes);
+        }
+
+        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+    }
+
+    [Test]
     public async Task Execute_ValueChangingHotSwap_UnrelatedWideNetDoesNotInflateTracePeak()
     {
-        const ulong exactPeakOwnedBufferBytes = 576;
+        const ulong exactPeakOwnedBufferBytes = 528;
         var circuit = SequentialTestCircuit.Create();
         var input = circuit.Place(
             "source.input",
@@ -270,9 +420,9 @@ internal sealed class SimulationHotSwapTests
     [Test]
     public async Task Execute_HotSwapWithScheduledStimulus_AccountsForRetainedEventFrontier()
     {
-        // 184 committed working-layer bytes, 64 scheduled-frontier bytes,
-        // 128 replacement working-layer bytes, and a 32-byte Trace fork index.
-        const ulong exactPeakOwnedBufferBytes = 408;
+        // 232 committed bytes including the scheduled frontier,
+        // 104 replacement bytes, 24 publication bytes, and a 32-byte Trace index.
+        const ulong exactPeakOwnedBufferBytes = 392;
         var circuit = SequentialTestCircuit.Create();
         var input = circuit.Place(
             "source.input",
@@ -324,9 +474,9 @@ internal sealed class SimulationHotSwapTests
     [Test]
     public async Task Execute_HotSwapWithClock_AccountsForBothEventCalendars()
     {
-        // 184 committed working-layer bytes, two 32-byte Clock calendars,
-        // 128 replacement working-layer bytes, and a 32-byte Trace fork index.
-        const ulong exactPeakOwnedBufferBytes = 408;
+        // 200 committed bytes, 136 replacement bytes including the new Clock calendar,
+        // 24 publication bytes, and a 32-byte Trace fork index.
+        const ulong exactPeakOwnedBufferBytes = 392;
         var circuit = SequentialTestCircuit.Create();
         var clock = circuit.Place("source.clock", SequentialTestCircuit.Clock());
         var sink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
@@ -525,9 +675,9 @@ internal sealed class SimulationHotSwapTests
     [Test]
     public async Task Execute_HotSwapToNewRom_UsesOneInitialMemoryReferenceBuffer()
     {
-        // 184 committed bytes, 280 replacement working-layer bytes,
-        // and a 32-byte Trace fork index with no transition chunk.
-        const ulong exactPeakOwnedBufferBytes = 496;
+        // 168 committed bytes, 240 replacement working-layer bytes,
+        // 24 publication bytes, and a 32-byte Trace fork index.
+        const ulong exactPeakOwnedBufferBytes = 464;
         var policy = new ProjectScalePolicy(
             "hot-swap-memory-test",
             "1",

@@ -190,19 +190,23 @@ queued Stimulus Batch (the batch reference and its two-part priority), one slot 
 Stimulus assignment reference, two slots per Logical-Time index entry, two slots per indexed
 Driver assignment, two slots per Clock bucket, and two slots per Clock transition. These are
 logical storage units; tree links, collection growth slack, and other CLR storage metadata are
-excluded. The peak includes the committed
-Session working-layer buffers and retained Trace storage once, the complete replacement
-working-layer candidate including its new Clock event calendar, one initial cell-reference
-buffer for every replacement Memory,
-one additional cell-reference buffer only for each compatible migrated RAM while both can
-coexist, and the Trace fork index plus its staged observation chunk. Shared immutable
-Compilation Artifact records and their source indexes, CLR object headers, allocator metadata,
-and transient preflight metadata are excluded. Arithmetic is checked and saturation is treated
-as over-limit. Candidate
-working-layer admission runs before any replacement working-layer or RAM clone allocation.
-After settlement determines the exact changed Probe values, Trace admission runs before the
-Trace fork or transition chunk allocation; the fork index is allocated once at the final
-capacity required by the staged chunk. Either rejection reports Workspace Policy ID/revision,
+excluded. The peak includes the committed Session working-layer buffers, nested Diagnostic
+reference buffers, and retained Trace storage once; the complete replacement working-layer
+candidate including its Diagnostics and new Clock event calendar; one initial cell-reference
+buffer for every replacement Memory; one additional cell-reference buffer only for each
+compatible migrated RAM while both can coexist; the Trace fork index plus its staged observation
+chunk; and the Hot Swap terminal publication arrays that coexist with the candidate, including
+migrated-state sources, evidence and outcome Probe IDs, observed Probes, and the outcome's
+top-level Diagnostic reference copy. The Session and outcome share immutable Diagnostic records,
+so their nested argument and related-source buffers are counted once. Shared immutable Compilation
+Artifact records and their source indexes, CLR object headers, allocator metadata, and transient
+preflight metadata are excluded. Arithmetic is checked and saturation is treated
+as over-limit. Initial candidate admission runs before any replacement working-layer or RAM clone
+allocation and covers every buffer materialized for settlement. After settlement determines the
+exact Diagnostics and changed Probe values, final admission completes the peak with Diagnostic,
+terminal-publication, and Trace storage before allocating any of those buffers. The Trace fork
+index is allocated once at the final capacity required by the staged chunk. Either rejection
+reports Workspace Policy ID/revision,
 `hot_swap_peak_bytes`, and the observed value while retaining the old Session unchanged. Both
 Durable Display Name dimensions must pass, and catalog requests cannot exceed the page/cursor
 maxima.
