@@ -557,7 +557,7 @@ public static class CoreLibrarySchema
 
     private static ComponentParameterSchema ChoiceParameter(
         string id,
-        params string[] values)
+        params ReadOnlySpan<string> values)
     {
         return new ComponentParameterSchema(
             id,
