@@ -276,21 +276,18 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             try
             {
                 var context = new CompilationWorkContext(
-                    publication => TryUpdate(
+                    publication => TryApplyCompilationPublication(
                         item,
                         publication,
-                        terminal: false,
-                        allowCancellation: false),
-                    publication => TryUpdate(
+                        CompilationPublicationKind.Update),
+                    publication => TryApplyCompilationPublication(
                         item,
                         publication,
-                        terminal: true,
-                        allowCancellation: false),
-                    publication => TryUpdate(
+                        CompilationPublicationKind.Publish),
+                    publication => TryApplyCompilationPublication(
                         item,
                         publication,
-                        terminal: true,
-                        allowCancellation: true),
+                        CompilationPublicationKind.Reject),
                     item.CancellationToken);
                 await item.Operation(context).ConfigureAwait(false);
             }
@@ -372,16 +369,16 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         }
     }
 
-    private bool TryUpdate(
+    private bool TryApplyCompilationPublication(
         CompilationWorkItem item,
         Action publication,
-        bool terminal,
-        bool allowCancellation)
+        CompilationPublicationKind kind)
     {
         lock (gate)
         {
             if (isDisposed
-                || (!allowCancellation && item.CancellationToken.IsCancellationRequested)
+                || (kind != CompilationPublicationKind.Reject
+                    && item.CancellationToken.IsCancellationRequested)
                 || !latestCompilations.TryGetValue(item.WorkspaceId, out var latest)
                 || !ReferenceEquals(latest, item))
             {
@@ -389,13 +386,20 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             }
 
             publication();
-            if (terminal)
+            if (kind != CompilationPublicationKind.Update)
             {
                 item.MarkPublishedUnderLock();
             }
 
             return true;
         }
+    }
+
+    private enum CompilationPublicationKind
+    {
+        Update,
+        Publish,
+        Reject,
     }
 
     private static WorkspaceCommandRejected Reject(string code)
