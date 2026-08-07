@@ -203,7 +203,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(operation);
         lock (gate)
         {
-            if (isDisposed || !continuation.CanScheduleUnderLock(this))
+            if (isDisposed || !continuation.CanScheduleUnderLock())
             {
                 return false;
             }
@@ -561,19 +561,18 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         private bool isQueued;
         private bool isReserved = true;
 
-        public WorkspaceId WorkspaceId { get; } = workspaceId;
+        internal WorkspaceId WorkspaceId { get; } = workspaceId;
 
-        public bool TrySchedule(
+        internal bool TrySchedule(
             Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation)
         {
             ArgumentNullException.ThrowIfNull(operation);
             return owner.TryScheduleSessionContinuation(this, operation);
         }
 
-        internal bool CanScheduleUnderLock(WorkCoordinator coordinator)
+        internal bool CanScheduleUnderLock()
         {
-            return ReferenceEquals(owner, coordinator)
-                && isReserved
+            return isReserved
                 && isExecuting
                 && !isQueued;
         }

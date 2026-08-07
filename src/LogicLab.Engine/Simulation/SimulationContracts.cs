@@ -182,14 +182,13 @@ public sealed class SimulationWorkEvidence
         CompilationArtifactKey compilationArtifactKey,
         SimulationPolicyReference simulationPolicy,
         TracePolicyReference tracePolicy,
-        SimulationWorkObservation[] observedDimensions,
+        SimulationWorkObservation[] ownedObservedDimensions,
         SimulationWorkObservation? policyLimitBreach)
     {
         CompilationArtifactKey = compilationArtifactKey;
         SimulationPolicy = simulationPolicy;
         TracePolicy = tracePolicy;
-        ObservedDimensions = Array.AsReadOnly(
-            (SimulationWorkObservation[])observedDimensions.Clone());
+        ObservedDimensions = Array.AsReadOnly(ownedObservedDimensions);
         PolicyLimitBreach = policyLimitBreach;
     }
 
@@ -279,9 +278,9 @@ public sealed record SimulationOpened : SimulationOpenOutcome
         ulong sessionVersion,
         CompilationArtifactKey compilationArtifactKey,
         ulong logicalTime,
-        ProbeId[] probeIds,
+        ProbeId[] ownedProbeIds,
         TraceCursor traceCursor,
-        SimulationDiagnostic[] diagnostics,
+        SimulationDiagnostic[] ownedDiagnostics,
         SimulationWorkEvidence workEvidence)
     {
         Handle = handle;
@@ -289,9 +288,9 @@ public sealed record SimulationOpened : SimulationOpenOutcome
         SessionVersion = sessionVersion;
         CompilationArtifactKey = compilationArtifactKey;
         LogicalTime = logicalTime;
-        ProbeIds = Array.AsReadOnly((ProbeId[])probeIds.Clone());
+        ProbeIds = Array.AsReadOnly(ownedProbeIds);
         TraceCursor = traceCursor;
-        Diagnostics = Array.AsReadOnly((SimulationDiagnostic[])diagnostics.Clone());
+        Diagnostics = Array.AsReadOnly(ownedDiagnostics);
         WorkEvidence = workEvidence;
     }
 
@@ -326,13 +325,13 @@ public sealed record InitialProbeBindingsInvalid : SimulationOpenOutcome
         InitialProbeBindingInvalidRule rule,
         int bindingIndex,
         int? conflictingBindingIndex,
-        SimulationDiagnostic[] diagnostics,
+        SimulationDiagnostic[] ownedDiagnostics,
         SimulationWorkEvidence workEvidence)
     {
         Rule = rule;
         BindingIndex = bindingIndex;
         ConflictingBindingIndex = conflictingBindingIndex;
-        Diagnostics = Array.AsReadOnly((SimulationDiagnostic[])diagnostics.Clone());
+        Diagnostics = Array.AsReadOnly(ownedDiagnostics);
         WorkEvidence = workEvidence;
     }
 
@@ -351,11 +350,11 @@ public sealed record SimulationOpenRejected : SimulationOpenOutcome
 {
     internal SimulationOpenRejected(
         SimulationFailureReason reason,
-        SimulationDiagnostic[] diagnostics,
+        SimulationDiagnostic[] ownedDiagnostics,
         SimulationWorkEvidence workEvidence)
     {
         Reason = reason;
-        Diagnostics = Array.AsReadOnly((SimulationDiagnostic[])diagnostics.Clone());
+        Diagnostics = Array.AsReadOnly(ownedDiagnostics);
         WorkEvidence = workEvidence;
     }
 
@@ -478,15 +477,14 @@ public sealed record AdvanceCommitted : SimulationCommandOutcome
     internal AdvanceCommitted(
         ulong sessionVersion,
         ulong logicalTime,
-        ProbeObservation[] observedProbePatch,
-        SimulationDiagnostic[] diagnostics,
+        ProbeObservation[] ownedObservedProbePatch,
+        SimulationDiagnostic[] ownedDiagnostics,
         TraceCursor traceCursor)
     {
         SessionVersion = sessionVersion;
         LogicalTime = logicalTime;
-        ObservedProbePatch = Array.AsReadOnly(
-            (ProbeObservation[])observedProbePatch.Clone());
-        Diagnostics = Array.AsReadOnly((SimulationDiagnostic[])diagnostics.Clone());
+        ObservedProbePatch = Array.AsReadOnly(ownedObservedProbePatch);
+        Diagnostics = Array.AsReadOnly(ownedDiagnostics);
         TraceCursor = traceCursor;
     }
 
@@ -564,14 +562,13 @@ public sealed record HotSwapIncompatible : SimulationCommandOutcome
     internal HotSwapIncompatible(
         ulong sessionVersion,
         CompilationArtifactKey compilationArtifactKey,
-        CompilationSource[] incompatibleStateSources,
-        ProbeId[] unresolvedProbeIds)
+        CompilationSource[] ownedIncompatibleStateSources,
+        ProbeId[] ownedUnresolvedProbeIds)
     {
         SessionVersion = sessionVersion;
         CompilationArtifactKey = compilationArtifactKey;
-        IncompatibleStateSources = Array.AsReadOnly(
-            (CompilationSource[])incompatibleStateSources.Clone());
-        UnresolvedProbeIds = Array.AsReadOnly((ProbeId[])unresolvedProbeIds.Clone());
+        IncompatibleStateSources = Array.AsReadOnly(ownedIncompatibleStateSources);
+        UnresolvedProbeIds = Array.AsReadOnly(ownedUnresolvedProbeIds);
     }
 
     public ulong SessionVersion { get; }
@@ -613,13 +610,13 @@ public sealed record AdvanceFailed : SimulationCommandOutcome
         ulong sessionVersion,
         ulong logicalTime,
         SimulationFailureReason reason,
-        SimulationDiagnostic[] diagnostics,
+        SimulationDiagnostic[] ownedDiagnostics,
         SimulationPolicyEvidence? policyEvidence)
     {
         SessionVersion = sessionVersion;
         LogicalTime = logicalTime;
         Reason = reason;
-        Diagnostics = Array.AsReadOnly((SimulationDiagnostic[])diagnostics.Clone());
+        Diagnostics = Array.AsReadOnly(ownedDiagnostics);
         PolicyEvidence = policyEvidence;
     }
 
@@ -640,13 +637,13 @@ public sealed record SimulationCommandFailed : SimulationCommandOutcome
         ulong sessionVersion,
         ulong logicalTime,
         SimulationFailureReason reason,
-        SimulationDiagnostic[] diagnostics,
+        SimulationDiagnostic[] ownedDiagnostics,
         SimulationPolicyEvidence? policyEvidence)
     {
         SessionVersion = sessionVersion;
         LogicalTime = logicalTime;
         Reason = reason;
-        Diagnostics = Array.AsReadOnly((SimulationDiagnostic[])diagnostics.Clone());
+        Diagnostics = Array.AsReadOnly(ownedDiagnostics);
         PolicyEvidence = policyEvidence;
     }
 
@@ -749,17 +746,17 @@ public sealed record SessionSnapshotRead : SimulationReadOutcome
         ulong sessionVersion,
         CompilationArtifactKey compilationArtifactKey,
         ulong logicalTime,
-        ProbeSnapshot[] probes,
+        ProbeSnapshot[] ownedProbes,
         TraceCursor traceCursor,
-        SimulationDiagnostic[] diagnostics)
+        SimulationDiagnostic[] ownedDiagnostics)
     {
         SessionId = sessionId;
         SessionVersion = sessionVersion;
         CompilationArtifactKey = compilationArtifactKey;
         LogicalTime = logicalTime;
-        Probes = Array.AsReadOnly((ProbeSnapshot[])probes.Clone());
+        Probes = Array.AsReadOnly(ownedProbes);
         TraceCursor = traceCursor;
-        Diagnostics = Array.AsReadOnly((SimulationDiagnostic[])diagnostics.Clone());
+        Diagnostics = Array.AsReadOnly(ownedDiagnostics);
     }
 
     public SimulationSessionId SessionId { get; }
@@ -780,12 +777,12 @@ public sealed record SessionSnapshotRead : SimulationReadOutcome
 public sealed record TraceTransitionsAvailable : SimulationReadOutcome
 {
     internal TraceTransitionsAvailable(
-        TraceTransition[] transitions,
+        TraceTransition[] ownedTransitions,
         LogicalTimeRange coveredRange,
         ulong earliestAvailable,
         ulong latestSequence)
     {
-        Transitions = Array.AsReadOnly((TraceTransition[])transitions.Clone());
+        Transitions = Array.AsReadOnly(ownedTransitions);
         CoveredRange = coveredRange;
         EarliestAvailable = earliestAvailable;
         LatestSequence = latestSequence;
@@ -829,10 +826,10 @@ public sealed record SimulationReadFailed : SimulationReadOutcome
 {
     internal SimulationReadFailed(
         SimulationFailureReason reason,
-        SimulationDiagnostic[] diagnostics)
+        SimulationDiagnostic[] ownedDiagnostics)
     {
         Reason = reason;
-        Diagnostics = Array.AsReadOnly((SimulationDiagnostic[])diagnostics.Clone());
+        Diagnostics = Array.AsReadOnly(ownedDiagnostics);
     }
 
     public SimulationFailureReason Reason { get; }

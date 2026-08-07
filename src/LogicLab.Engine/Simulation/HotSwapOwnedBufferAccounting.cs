@@ -40,7 +40,6 @@ internal static class HotSwapOwnedBufferAccounting
         HotSwapOwnedBufferEstimate candidatePeak,
         SimulationTraceStore trace,
         ChangedProbeBufferMeasure observations,
-        int diagnosticCount,
         ulong diagnosticOwnedReferenceSlotCount,
         int migrationCount,
         int preservedProbeCount)
@@ -60,7 +59,6 @@ internal static class HotSwapOwnedBufferAccounting
                         observations.PackedWordCount)
                     + ReferenceSlots(checked((ulong)observations.Count * 2UL))
                     + PublicationOwnedBufferBytes(
-                        diagnosticCount,
                         diagnosticOwnedReferenceSlotCount,
                         migrationCount,
                         preservedProbeCount)),
@@ -147,16 +145,14 @@ internal static class HotSwapOwnedBufferAccounting
     }
 
     private static ulong PublicationOwnedBufferBytes(
-        int diagnosticCount,
         ulong diagnosticOwnedReferenceSlotCount,
         int migrationCount,
         int preservedProbeCount)
     {
         return checked(
-            ReferenceSlots(
-                diagnosticOwnedReferenceSlotCount + (ulong)diagnosticCount)
+            ReferenceSlots(diagnosticOwnedReferenceSlotCount)
             + ReferenceSlots(migrationCount)
-            + ReferenceSlots(checked((ulong)preservedProbeCount * 3UL)));
+            + ReferenceSlots(checked((ulong)preservedProbeCount * 2UL)));
     }
 
     private static ulong DiagnosticOwnedBufferBytes(

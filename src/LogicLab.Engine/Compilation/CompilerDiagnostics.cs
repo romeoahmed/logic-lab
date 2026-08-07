@@ -52,17 +52,17 @@ public sealed class CompilerDiagnostic
 {
     internal CompilerDiagnostic(
         string code,
-        CompilerDiagnosticArgument[] arguments,
+        CompilerDiagnosticArgument[] ownedArguments,
         CompilerSourceLocation? primary = null,
-        CompilerSourceLocation[]? related = null)
+        CompilerSourceLocation[]? ownedRelated = null)
     {
         Code = code;
         Severity = CompilerDiagnosticSeverity.Error;
-        Arguments = Array.AsReadOnly(
-            (CompilerDiagnosticArgument[])arguments.Clone());
+        Arguments = Array.AsReadOnly(ownedArguments);
         Primary = primary;
-        Related = Array.AsReadOnly(
-            related is null ? [] : (CompilerSourceLocation[])related.Clone());
+        Related = ownedRelated is null
+            ? ReadOnlyCollection<CompilerSourceLocation>.Empty
+            : Array.AsReadOnly(ownedRelated);
     }
 
     public string Code { get; }

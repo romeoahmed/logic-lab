@@ -169,8 +169,8 @@ internal sealed class SimulationHotSwapTests
     public async Task Execute_StatePreservingHotSwap_UsesExactTraceForkPeakBudget()
     {
         // 168 committed bytes, 104 replacement working-layer bytes,
-        // 24 publication bytes, and a 32-byte Trace fork index.
-        const ulong exactPeakOwnedBufferBytes = 328;
+        // 16 publication bytes, and a 32-byte Trace fork index.
+        const ulong exactPeakOwnedBufferBytes = 320;
         var circuit = SequentialTestCircuit.Create();
         var input = circuit.Place(
             "source.input",
@@ -217,8 +217,8 @@ internal sealed class SimulationHotSwapTests
     public async Task Execute_StatePreservingSequentialHotSwap_CountsSharedVectorPlanesOnce()
     {
         // 296 committed bytes, 296 replacement working-layer bytes,
-        // 32 publication bytes, and a 32-byte Trace fork index.
-        const ulong exactPeakOwnedBufferBytes = 656;
+        // 24 publication bytes, and a 32-byte Trace fork index.
+        const ulong exactPeakOwnedBufferBytes = 648;
         var circuit = SequentialTestCircuit.Create();
         var data = circuit.Place(
             "source.input",
@@ -263,8 +263,8 @@ internal sealed class SimulationHotSwapTests
     public async Task Execute_DiagnosticHotSwap_AccountsForSessionAndOutcomeBuffers()
     {
         // 288 committed bytes, 344 replacement working-layer bytes,
-        // 40 publication bytes, and a 32-byte Trace fork index.
-        const ulong exactPeakOwnedBufferBytes = 704;
+        // 24 publication bytes, and a 32-byte Trace fork index.
+        const ulong exactPeakOwnedBufferBytes = 688;
         var circuit = SequentialTestCircuit.Create();
         var data = circuit.Place(
             "source.input",
@@ -318,8 +318,8 @@ internal sealed class SimulationHotSwapTests
     public async Task Execute_DiagnosticHotSwap_AccountsForNestedArgumentBuffers()
     {
         // 224 committed bytes, 128 replacement working-layer bytes,
-        // 64 publication bytes, and a 32-byte Trace fork index.
-        const ulong exactPeakOwnedBufferBytes = 448;
+        // 48 publication bytes, and a 32-byte Trace fork index.
+        const ulong exactPeakOwnedBufferBytes = 432;
         var circuit = SequentialTestCircuit.Create();
         var zero = circuit.Place(
             "source.input",
@@ -367,7 +367,7 @@ internal sealed class SimulationHotSwapTests
     public async Task Execute_ValueChangingHotSwap_UnrelatedWideNetDoesNotInflateTracePeak()
     {
         // Includes one two-reference changed-Probe staging entry.
-        const ulong exactPeakOwnedBufferBytes = 544;
+        const ulong exactPeakOwnedBufferBytes = 536;
         var circuit = SequentialTestCircuit.Create();
         var input = circuit.Place(
             "source.input",
@@ -422,8 +422,8 @@ internal sealed class SimulationHotSwapTests
     public async Task Execute_HotSwapWithScheduledStimulus_AccountsForRetainedEventFrontier()
     {
         // 232 committed bytes including the scheduled frontier,
-        // 104 replacement bytes, 24 publication bytes, and a 32-byte Trace index.
-        const ulong exactPeakOwnedBufferBytes = 392;
+        // 104 replacement bytes, 16 publication bytes, and a 32-byte Trace index.
+        const ulong exactPeakOwnedBufferBytes = 384;
         var circuit = SequentialTestCircuit.Create();
         var input = circuit.Place(
             "source.input",
@@ -476,8 +476,8 @@ internal sealed class SimulationHotSwapTests
     public async Task Execute_HotSwapWithClock_AccountsForBothEventCalendars()
     {
         // 200 committed bytes, 136 replacement bytes including the new Clock calendar,
-        // 24 publication bytes, and a 32-byte Trace fork index.
-        const ulong exactPeakOwnedBufferBytes = 392;
+        // 16 publication bytes, and a 32-byte Trace fork index.
+        const ulong exactPeakOwnedBufferBytes = 384;
         var circuit = SequentialTestCircuit.Create();
         var clock = circuit.Place("source.clock", SequentialTestCircuit.Clock());
         var sink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
@@ -677,8 +677,8 @@ internal sealed class SimulationHotSwapTests
     public async Task Execute_HotSwapToNewRom_UsesOneInitialMemoryReferenceBuffer()
     {
         // 168 committed bytes, 280 replacement working-layer bytes,
-        // 24 publication bytes, and a 32-byte Trace fork index.
-        const ulong exactPeakOwnedBufferBytes = 504;
+        // 16 publication bytes, and a 32-byte Trace fork index.
+        const ulong exactPeakOwnedBufferBytes = 496;
         var policy = new ProjectScalePolicy(
             "hot-swap-memory-test",
             "1",
@@ -739,9 +739,9 @@ internal sealed class SimulationHotSwapTests
     [Test]
     public async Task Execute_CyclicHotSwap_AccountsForReusableSettlementScratch()
     {
-        // 568 retained/candidate/publication bytes, 48 reusable SCC scratch bytes,
+        // 544 retained/candidate/publication bytes, 48 reusable SCC scratch bytes,
         // and a 48-byte evaluator envelope including the prior output plane.
-        const ulong exactPeakOwnedBufferBytes = 664;
+        const ulong exactPeakOwnedBufferBytes = 640;
         var circuit = SequentialTestCircuit.Create();
         var input = circuit.Place(
             "source.input",
@@ -785,8 +785,8 @@ internal sealed class SimulationHotSwapTests
     public async Task Execute_AcyclicGateHotSwap_AccountsForReusableEvaluatorWorkArea()
     {
         // 480 committed/candidate bytes including two input-reference slots and
-        // two coexisting output planes, plus 24 publication and 32 Trace-index bytes.
-        const ulong exactPeakOwnedBufferBytes = 536;
+        // two coexisting output planes, plus 16 publication and 32 Trace-index bytes.
+        const ulong exactPeakOwnedBufferBytes = 528;
         var circuit = SequentialTestCircuit.Create();
         var input = circuit.Place(
             "source.input",
