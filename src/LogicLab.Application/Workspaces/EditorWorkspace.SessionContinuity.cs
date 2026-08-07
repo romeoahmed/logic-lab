@@ -39,7 +39,6 @@ internal sealed partial class EditorWorkspace
         }
 
         var completed = await workCoordinator.RunSessionAsync(
-            state.Id,
             token => ExecuteReservedSessionCommandAsync(
                 state,
                 command,

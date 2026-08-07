@@ -99,11 +99,9 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     }
 
     internal Task<WorkspaceCommandOutcome> RunSessionAsync(
-        WorkspaceId workspaceId,
         Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(operation);
         if (cancellationToken.IsCancellationRequested)
         {
@@ -127,13 +125,12 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             }
 
             SessionWorkItem? item = SessionWorkItem.CreateCommand(
-                workspaceId,
                 operation,
                 cancellationToken,
                 stopping.Token);
             try
             {
-                completion = item.Completion.Task;
+                completion = item.Completion!.Task;
                 if (!sessionQueue.Writer.TryWrite(item))
                 {
                     return Task.FromResult<WorkspaceCommandOutcome>(
@@ -153,12 +150,10 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     }
 
     internal bool TryStartSessionContinuation(
-        WorkspaceId workspaceId,
         Func<SessionContinuation, CancellationToken, ValueTask<WorkspaceCommandOutcome>>
             operation,
         out string? rejectionCode)
     {
-        ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(operation);
         lock (gate)
         {
@@ -174,9 +169,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 return false;
             }
 
-            var continuation = new SessionContinuation(this, workspaceId);
+            var continuation = new SessionContinuation(this);
             SessionWorkItem? item = SessionWorkItem.CreateContinuation(
-                workspaceId,
                 token => operation(continuation, token),
                 continuation,
                 stopping.Token);
@@ -215,7 +209,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             }
 
             SessionWorkItem? item = SessionWorkItem.CreateContinuation(
-                continuation.WorkspaceId,
                 operation,
                 continuation,
                 stopping.Token);
@@ -343,19 +336,19 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             try
             {
                 var outcome = await item.Operation(item.CancellationToken).ConfigureAwait(false);
-                item.Completion.TrySetResult(outcome);
+                item.Complete(outcome);
             }
             catch (OperationCanceledException exception)
                 when (ExceptionClassifier.IsCooperativeCancellation(
                     exception,
                     item.CancellationToken))
             {
-                item.Completion.TrySetResult(
+                item.Complete(
                     Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
             }
             catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
             {
-                item.Completion.TrySetResult(FailureOutcome(exception, "session"));
+                item.Complete(FailureOutcome(exception, "session"));
             }
             finally
             {
@@ -448,36 +441,26 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         private CancellationTokenSource? cancellation;
 
         protected WorkItem(
-            WorkspaceId workspaceId,
             CancellationToken callerCancellationToken,
             CancellationToken stoppingToken)
             : this(
-                workspaceId,
                 CancellationTokenSource.CreateLinkedTokenSource(
                     callerCancellationToken,
                     stoppingToken))
         {
         }
 
-        protected WorkItem(
-            WorkspaceId workspaceId,
-            CancellationToken stoppingToken)
+        protected WorkItem(CancellationToken stoppingToken)
             : this(
-                workspaceId,
                 CancellationTokenSource.CreateLinkedTokenSource(stoppingToken))
         {
         }
 
-        private WorkItem(
-            WorkspaceId workspaceId,
-            CancellationTokenSource ownedCancellation)
+        private WorkItem(CancellationTokenSource ownedCancellation)
         {
-            WorkspaceId = workspaceId;
             cancellation = ownedCancellation;
             CancellationToken = cancellation.Token;
         }
-
-        public WorkspaceId WorkspaceId { get; }
 
         public CancellationToken CancellationToken { get; }
 
@@ -504,9 +487,11 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         Func<CompilationWorkContext, ValueTask> operation,
         Action releaseOwnership,
         CancellationToken stoppingToken)
-        : WorkItem(workspaceId, stoppingToken)
+        : WorkItem(stoppingToken)
     {
         private Action? ownershipRelease = releaseOwnership;
+
+        public WorkspaceId WorkspaceId { get; } = workspaceId;
 
         public Func<CompilationWorkContext, ValueTask> Operation { get; }
             = operation;
@@ -546,59 +531,58 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     }
 
     private sealed class SessionWorkItem(
-        WorkspaceId workspaceId,
         Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
         SessionContinuation? continuation,
+        TaskCompletionSource<WorkspaceCommandOutcome>? completion,
         CancellationToken callerCancellationToken,
         CancellationToken stoppingToken)
-        : WorkItem(workspaceId, callerCancellationToken, stoppingToken)
+        : WorkItem(callerCancellationToken, stoppingToken)
     {
         public Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> Operation { get; }
             = operation;
 
         public SessionContinuation? Continuation { get; } = continuation;
 
-        public TaskCompletionSource<WorkspaceCommandOutcome> Completion { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<WorkspaceCommandOutcome>? Completion { get; } = completion;
+
+        public void Complete(WorkspaceCommandOutcome outcome)
+        {
+            Completion?.TrySetResult(outcome);
+        }
 
         public static SessionWorkItem CreateCommand(
-            WorkspaceId workspaceId,
             Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
             CancellationToken callerCancellationToken,
             CancellationToken stoppingToken)
         {
             return new SessionWorkItem(
-                workspaceId,
                 operation,
                 continuation: null,
+                new TaskCompletionSource<WorkspaceCommandOutcome>(
+                    TaskCreationOptions.RunContinuationsAsynchronously),
                 callerCancellationToken,
                 stoppingToken);
         }
 
         public static SessionWorkItem CreateContinuation(
-            WorkspaceId workspaceId,
             Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
             SessionContinuation continuation,
             CancellationToken stoppingToken)
         {
             return new SessionWorkItem(
-                workspaceId,
                 operation,
                 continuation,
+                completion: null,
                 CancellationToken.None,
                 stoppingToken);
         }
     }
 
-    internal sealed class SessionContinuation(
-        WorkCoordinator owner,
-        WorkspaceId workspaceId)
+    internal sealed class SessionContinuation(WorkCoordinator owner)
     {
         private bool isExecuting;
         private bool isQueued;
         private bool isReserved = true;
-
-        internal WorkspaceId WorkspaceId { get; } = workspaceId;
 
         internal bool TrySchedule(
             Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation)
