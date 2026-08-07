@@ -185,17 +185,7 @@ public static partial class SimulationRuntime
         SimulationIr ir,
         SimulationPolicy policy)
     {
-        var observed = checked(
-            (ulong)ir.Drivers.Count
-            + (ulong)ir.Nets.Count
-            + (ulong)ir.Evaluators.Count(evaluator =>
-                SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind))
-            + (ulong)ir.Evaluators.Count(evaluator =>
-                evaluator.Kind == SimulationEvaluatorKind.ClockSource)
-            + ir.Evaluators.Aggregate(
-                0UL,
-                (count, evaluator) => checked(
-                    count + (ulong)(evaluator.InitialMemory?.Count ?? 0))));
+        var observed = MeasureWorkingLayerSlots(ir);
         if (observed > policy.Maximum(SimulationDimension.WorkingLayerSlotCount))
         {
             throw new SimulationPolicyLimitException(
