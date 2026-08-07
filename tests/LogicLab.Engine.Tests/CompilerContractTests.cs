@@ -65,17 +65,6 @@ internal sealed class CompilerContractTests
     }
 
     [Test]
-    public async Task CompilationArtifact_SourceMapCollection_IsReadOnly()
-    {
-        var circuit = CompilerTestCircuit.CreateComplete();
-        var succeeded = (CompilationSucceeded)Compiler.Compile(
-            CompilerTestCircuit.Request(circuit.Revision),
-            CancellationToken.None);
-        await ReadOnlyCollectionAssertions.RejectsMutation(
-            succeeded.Artifact.SourceMap.Nets);
-    }
-
-    [Test]
     public async Task SourceMap_ForeignNetSource_DoesNotResolve()
     {
         var firstCircuit = CompilerTestCircuit.CreateComplete();

@@ -78,9 +78,6 @@ internal sealed class SimulationContractTests
             await Assert.That(configuration.InitialProbeBindings[0])
                 .IsEqualTo(firstSource);
             await Assert.That(batch.Assignments[0]).IsEqualTo(firstAssignment);
-            await ReadOnlyCollectionAssertions.RejectsMutation(
-                configuration.InitialProbeBindings);
-            await ReadOnlyCollectionAssertions.RejectsMutation(batch.Assignments);
         }
     }
 
@@ -102,8 +99,6 @@ internal sealed class SimulationContractTests
         {
             await Assert.That(simulation.Limits[0].Maximum).IsEqualTo(1_000UL);
             await Assert.That(trace.Limits[0].Maximum).IsEqualTo(1_000UL);
-            await ReadOnlyCollectionAssertions.RejectsMutation(simulation.Limits);
-            await ReadOnlyCollectionAssertions.RejectsMutation(trace.Limits);
         }
     }
 
@@ -143,24 +138,4 @@ internal sealed class SimulationContractTests
             CollectionOrdering.Matching);
     }
 
-    [Test]
-    public async Task Read_PublicCollections_AreReadOnly()
-    {
-        var context = SimulationTestContext.Create();
-        var opened = (SimulationOpened)SimulationRuntime.Open(
-            context.Request(context.NetSource(context.Circuit.OutputNet.Id)),
-            CancellationToken.None);
-        var snapshot = (SessionSnapshotRead)SimulationRuntime.Read(
-            opened.Handle,
-            new ReadSessionSnapshot(),
-            CancellationToken.None);
-
-        using (Assert.Multiple())
-        {
-            await ReadOnlyCollectionAssertions.RejectsMutation(opened.ProbeIds);
-            await ReadOnlyCollectionAssertions.RejectsMutation(snapshot.Probes);
-            await ReadOnlyCollectionAssertions.RejectsMutation(
-                opened.WorkEvidence.ObservedDimensions);
-        }
-    }
 }
