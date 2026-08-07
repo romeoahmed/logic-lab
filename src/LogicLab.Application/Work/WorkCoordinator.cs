@@ -38,11 +38,13 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     internal bool TryScheduleCompilation(
         WorkspaceId workspaceId,
         Func<CompilationWorkContext, ValueTask> operation,
+        Action releaseOwnership,
         CancellationToken admissionCancellationToken,
         out string? rejectionCode)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(releaseOwnership);
         CompilationWorkItem item;
         CompilationWorkItem? superseded = null;
         var disposeSuperseded = false;
@@ -57,6 +59,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             item = new CompilationWorkItem(
                 workspaceId,
                 operation,
+                releaseOwnership,
                 stopping.Token);
             if (pendingCompilations.TryGetValue(workspaceId, out superseded))
             {
@@ -82,10 +85,13 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             latestCompilations[workspaceId] = item;
         }
 
-        superseded?.CancelSuperseded();
         if (disposeSuperseded)
         {
-            superseded?.Dispose();
+            superseded!.Abandon();
+        }
+        else
+        {
+            superseded?.CancelSuperseded();
         }
 
         rejectionCode = null;
@@ -313,7 +319,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                     }
                 }
 
-                item.Dispose();
+                item.ReleaseOwnership();
             }
         }
     }
@@ -496,9 +502,12 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     private sealed class CompilationWorkItem(
         WorkspaceId workspaceId,
         Func<CompilationWorkContext, ValueTask> operation,
+        Action releaseOwnership,
         CancellationToken stoppingToken)
         : WorkItem(workspaceId, stoppingToken)
     {
+        private Action? ownershipRelease = releaseOwnership;
+
         public Func<CompilationWorkContext, ValueTask> Operation { get; }
             = operation;
 
@@ -507,6 +516,30 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         public void CancelSuperseded()
         {
             Cancel();
+        }
+
+        public void Abandon()
+        {
+            try
+            {
+                Cancel();
+            }
+            finally
+            {
+                ReleaseOwnership();
+            }
+        }
+
+        public void ReleaseOwnership()
+        {
+            try
+            {
+                Interlocked.Exchange(ref ownershipRelease, null)?.Invoke();
+            }
+            finally
+            {
+                Dispose();
+            }
         }
 
         public void MarkPublishedUnderLock() => WasPublishedUnderLock = true;

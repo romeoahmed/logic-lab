@@ -38,6 +38,37 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test, Timeout(30_000)]
+    public async Task Editor_DisposalDuringTypedCancelledObservation_DetachesCapturedAttachment(
+        CancellationToken cancellationToken)
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TypedCancellationCompilationObservationWorkspace();
+        var rendered = await RenderAuthoredEditor(context, workspace);
+
+        var compilation = rendered.Find("[data-command='compile']").ClickAsync();
+        Task disposal = Task.CompletedTask;
+        try
+        {
+            await workspace.ObservationStarted.WaitAsync(cancellationToken);
+            disposal = rendered.Instance.DisposeAsync().AsTask();
+            await workspace.CancellationStarted.WaitAsync(cancellationToken);
+            workspace.ReleaseObservation();
+            await compilation.WaitAsync(cancellationToken);
+            workspace.AllowCancellationToComplete();
+            await disposal.WaitAsync(cancellationToken);
+
+            await Assert.That(workspace.DetachCount).IsEqualTo(1);
+        }
+        finally
+        {
+            workspace.AllowCancellationToComplete();
+            workspace.ReleaseObservation();
+            await compilation.WaitAsync(cancellationToken);
+            await disposal.WaitAsync(cancellationToken);
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task Editor_AcceptedCompilation_DisposalCancelsObservationOnly(
         CancellationToken cancellationToken)
     {
@@ -756,6 +787,95 @@ internal sealed class WorkbenchComponentTests
                 {
                     Compilation = compilation,
                 });
+        }
+    }
+
+    private sealed class TypedCancellationCompilationObservationWorkspace
+        : DelegatingEditorWorkspace
+    {
+        private readonly TaskCompletionSource observationStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource releaseObservation = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource cancellationStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly ManualResetEventSlim allowCancellationToComplete = new();
+        private CompilationGeneration? acceptedGeneration;
+        private int detachCount;
+
+        public int DetachCount => Volatile.Read(ref detachCount);
+
+        public Task CancellationStarted => cancellationStarted.Task;
+
+        public Task ObservationStarted => observationStarted.Task;
+
+        public void AllowCancellationToComplete() => allowCancellationToComplete.Set();
+
+        public void ReleaseObservation() => releaseObservation.TrySetResult();
+
+        public override async Task<WorkspaceCommandOutcome> DispatchAsync(
+            WorkspaceCommand command,
+            CancellationToken cancellationToken)
+        {
+            var outcome = await base.DispatchAsync(command, cancellationToken);
+            if (command is RequestCompilation && outcome is CompilationAccepted accepted)
+            {
+                acceptedGeneration = accepted.CompilationGeneration;
+            }
+
+            return outcome;
+        }
+
+        public override async Task<WorkspaceReadOutcome> ReadAsync(
+            WorkspaceQueryContext context,
+            WorkspaceQuery query,
+            CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return CancelledRead();
+            }
+
+            var outcome = await base.ReadAsync(context, query, cancellationToken);
+            if (acceptedGeneration is not { } generation)
+            {
+                return outcome;
+            }
+
+            if (query is ReadCompilation)
+            {
+                observationStarted.TrySetResult();
+                _ = cancellationToken.Register(() =>
+                {
+                    cancellationStarted.TrySetResult();
+                    if (!allowCancellationToComplete.Wait(TimeSpan.FromSeconds(5)))
+                    {
+                        throw new InvalidOperationException(
+                            "The test did not release observation cancellation.");
+                    }
+                });
+                await releaseObservation.Task;
+
+                return CancelledRead();
+            }
+
+            return outcome;
+        }
+
+        public override Task<WorkspaceDetachOutcome> DetachAsync(
+            DetachRequest request,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref detachCount);
+            return base.DetachAsync(request, cancellationToken);
+        }
+
+        private static WorkspaceReadRejected CancelledRead()
+        {
+            return new WorkspaceReadRejected(
+                "workspace_cancelled",
+                [],
+                RetryDisposition.RefreshProjection);
         }
     }
 

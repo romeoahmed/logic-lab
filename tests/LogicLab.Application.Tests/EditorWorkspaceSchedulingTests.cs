@@ -1,4 +1,7 @@
 using LogicLab.Application.Workspaces;
+using LogicLab.Domain;
+using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
 using LogicLab.Engine.Compilation;
 
 namespace LogicLab.Application.Tests;
@@ -365,6 +368,170 @@ internal sealed class EditorWorkspaceSchedulingTests
             await Assert.That(published.Compilation.Generation)
                 .IsEqualTo(thirdAcceptance.CompilationGeneration);
             await Assert.That(invocationCount).IsEqualTo(2);
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_CoalescedCompilationThenClose_ReleasesSessionAfterAbandonedGeneration(
+        CancellationToken cancellationToken)
+    {
+        var compilationGate = new BlockingOperationGate();
+        var compilationCount = 0;
+        var closeSimulationCount = 0;
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            Compile = (request, operationCancellationToken) =>
+            {
+                if (Interlocked.Increment(ref compilationCount) == 2)
+                {
+                    compilationGate.Block(CancellationToken.None);
+                }
+
+                return production.Compile(request, operationCancellationToken);
+            },
+            CloseSimulation = handle =>
+            {
+                Interlocked.Increment(ref closeSimulationCount);
+                return production.CloseSimulation(handle);
+            },
+        };
+        var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations,
+            schedulingPolicy: new SchedulingPolicy(1, 1));
+
+        try
+        {
+            var opened = await Open(workspace, "Abandoned generation", cancellationToken);
+            var authored = await AuthorInputOutput(
+                workspace,
+                opened,
+                cancellationToken);
+            RequestCompilation Compilation(string intentId) => new(
+                EditorWorkspaceTestDriver.Command(
+                    opened.Opened.WorkspaceId,
+                    opened.Attached,
+                    intentId),
+                EditorWorkspaceTestDriver.Compilation(authored));
+            _ = await workspace.DispatchAsync(
+                Compilation("initial-compilation"),
+                cancellationToken);
+            var published = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
+                workspace,
+                opened.Opened.WorkspaceId,
+                opened.Attached,
+                cancellationToken);
+            var session = await workspace.DispatchAsync(
+                new CreateSession(
+                    EditorWorkspaceTestDriver.Command(
+                        opened.Opened.WorkspaceId,
+                        opened.Attached,
+                        "create-session"),
+                    EditorWorkspaceTestDriver.SessionCreation(published)),
+                cancellationToken);
+            await Assert.That(session).IsTypeOf<SimulationSessionCreated>();
+
+            _ = await workspace.DispatchAsync(
+                Compilation("running-compilation"),
+                cancellationToken);
+            await compilationGate.Started.WaitAsync(cancellationToken);
+            _ = await workspace.DispatchAsync(
+                Compilation("abandoned-pending-compilation"),
+                cancellationToken);
+            _ = await workspace.DispatchAsync(
+                Compilation("replacement-pending-compilation"),
+                cancellationToken);
+
+            var closed = await workspace.DispatchAsync(
+                new CloseWorkspace(EditorWorkspaceTestDriver.Command(
+                    opened.Opened.WorkspaceId,
+                    opened.Attached,
+                    "close")),
+                cancellationToken);
+            await Assert.That(closed).IsTypeOf<WorkspaceClosed>();
+
+            compilationGate.Release();
+            await workspace.DisposeAsync();
+
+            await Assert.That(closeSimulationCount).IsEqualTo(1);
+        }
+        finally
+        {
+            compilationGate.Release();
+            await workspace.DisposeAsync();
+        }
+    }
+
+    private static async Task<WorkspaceProjection> AuthorInputOutput(
+        IEditorWorkspace workspace,
+        ControlledWorkspace controlled,
+        CancellationToken cancellationToken)
+    {
+        var projection = controlled.Attached.Projection;
+        var definitionId = projection.ProjectRevision.Document.EntryCircuitDefinitionId;
+        projection = await Apply(
+            new PlaceComponentInstanceIntent(
+                definitionId,
+                new ComponentContractKey("logiclab.core", "source.input"),
+                [
+                    new ComponentParameterBinding(
+                        "width",
+                        new Unsigned32ParameterValue(1)),
+                    new ComponentParameterBinding(
+                        "initialValue",
+                        new LogicVectorParameterValue([LogicValue.Zero])),
+                ],
+                new ComponentPlacement(new GridPoint(0, 0))),
+            "place-input");
+        projection = await Apply(
+            new PlaceComponentInstanceIntent(
+                definitionId,
+                new ComponentContractKey("logiclab.core", "sink.output"),
+                [
+                    new ComponentParameterBinding(
+                        "width",
+                        new Unsigned32ParameterValue(1)),
+                    new ComponentParameterBinding(
+                        "radix",
+                        new ChoiceParameterValue("binary")),
+                ],
+                new ComponentPlacement(new GridPoint(4, 0))),
+            "place-sink");
+        var instances = projection.ProjectRevision.Document.EntryCircuitDefinition
+            .ComponentInstances;
+        var input = instances.Single(instance =>
+            ((LibraryComponentTarget)instance.Target).ContractKey.ContractId
+                == "source.input");
+        var sink = instances.Single(instance =>
+            ((LibraryComponentTarget)instance.Target).ContractKey.ContractId
+                == "sink.output");
+        return await Apply(
+            new ConnectTerminalsIntent(
+                [
+                    new InstanceTerminalReference(definitionId, input.Id, "Q"),
+                    new InstanceTerminalReference(definitionId, sink.Id, "D"),
+                ]),
+            "connect");
+
+        async Task<WorkspaceProjection> Apply(EditIntent intent, string intentId)
+        {
+            var outcome = await workspace.DispatchAsync(
+                new ApplyEdit(
+                    EditorWorkspaceTestDriver.Command(
+                        controlled.Opened.WorkspaceId,
+                        controlled.Attached,
+                        intentId),
+                    new AuthoringPrecondition(projection.ProjectRevision.RevisionId),
+                    intent),
+                cancellationToken);
+            _ = await Assert.That(outcome).IsTypeOf<AuthoringCommitted>();
+            var read = await workspace.ReadAsync(
+                EditorWorkspaceTestDriver.Query(
+                    controlled.Opened.WorkspaceId,
+                    controlled.Attached),
+                ReadProjection.Instance,
+                cancellationToken);
+            return ((ProjectionSnapshot)read).Projection;
         }
     }
 

@@ -369,6 +369,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                                     requestedRevision,
                                     generation,
                                     context),
+                                () => Release(state),
                                 cancellationToken,
                                 out var schedulingRejectionCode))
                         {
@@ -454,10 +455,6 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 generation,
                 code,
                 context).ConfigureAwait(false);
-        }
-        finally
-        {
-            Release(state);
         }
     }
 

@@ -209,8 +209,12 @@ Driver in the largest cyclic region, one previous-output reference per output of
 evaluator. A cyclic Driver already at the least-fixed-point bottom is reused; an epoch reset
 allocates a replacement plane only when the preceding value differs. Settlement also charges the
 maximum temporary envelope of one evaluator invocation: its superseded output planes, fan-in and
-multi-output reference buffers, packed intermediate values, and evaluator-specific value/index work buffers.
-Only one such envelope is charged because evaluator invocations are serial. Arithmetic is checked
+multi-output reference buffers, packed intermediate values, and evaluator-specific value/index
+work buffers. Recomputing an output Net retains its preceding resolution until the replacement
+value and cause planes are complete. Because evaluator materialization and Net replacement are
+serial and do not overlap, settlement charges the larger of the evaluator envelope and the widest
+recomputed Net resolution plane. Multi-output values are counted by unique owned plane; in
+particular, Demux outputs share one selected-data plane and one zero plane. Arithmetic is checked
 and saturation is treated as over-limit. Initial candidate admission runs before any replacement
 working-layer or RAM clone allocation and covers every buffer materialized for settlement. After
 settlement determines the exact Diagnostics and changed Probe values without allocating their
