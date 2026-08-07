@@ -18,17 +18,7 @@ public static partial class SimulationRuntime
             cancellationToken.ThrowIfCancellationRequested();
             ValidateRequest(request, cancellationToken);
             var ir = request.CompilationArtifact.SimulationIr;
-            work.WorkingLayerSlots = checked(
-                (ulong)ir.Drivers.Count
-                + (ulong)ir.Nets.Count
-                + (ulong)ir.Evaluators.Count(evaluator =>
-                    SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind))
-                + (ulong)ir.Evaluators.Count(evaluator =>
-                    evaluator.Kind == SimulationEvaluatorKind.ClockSource)
-                + ir.Evaluators.Aggregate(
-                    0UL,
-                    (count, evaluator) => checked(
-                        count + (ulong)(evaluator.InitialMemory?.Count ?? 0))));
+            work.WorkingLayerSlots = MeasureWorkingLayerSlots(ir);
             if (work.WorkingLayerSlots > request.SimulationPolicy.Maximum(
                 SimulationDimension.WorkingLayerSlotCount))
             {
@@ -1239,6 +1229,27 @@ public static partial class SimulationRuntime
         {
             throw new SimulationPolicyLimitException(dimension, observed);
         }
+    }
+
+    private static ulong MeasureWorkingLayerSlots(SimulationIr ir)
+    {
+        var slots = checked((ulong)ir.Drivers.Count + (ulong)ir.Nets.Count);
+        foreach (var evaluator in ir.Evaluators)
+        {
+            if (SimulationEvaluatorKindFacts.IsSequential(evaluator.Kind))
+            {
+                slots = checked(slots + 1UL);
+            }
+
+            if (evaluator.Kind == SimulationEvaluatorKind.ClockSource)
+            {
+                slots = checked(slots + 1UL);
+            }
+
+            slots = checked(slots + (ulong)(evaluator.InitialMemory?.Count ?? 0));
+        }
+
+        return slots;
     }
 
     private static SimulationCommandOutcome Failure(
