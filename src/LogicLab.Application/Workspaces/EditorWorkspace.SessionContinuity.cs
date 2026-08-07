@@ -125,28 +125,7 @@ internal sealed partial class EditorWorkspace
                 .ConfigureAwait(false);
         }
 
-        try
-        {
-            var completed = await ExecuteReservedSessionCommandAsync(
-                state,
-                command,
-                publication!,
-                CancellationToken.None).ConfigureAwait(false);
-            CompletePendingIdempotency(state, publication!, completed);
-            return await publication!.PendingIntent.Completion.Task.ConfigureAwait(false);
-        }
-        finally
-        {
-            lock (state.ContinuityGate)
-            {
-                if (ReferenceEquals(
-                    state.PendingRunPause?.Publication,
-                    publication))
-                {
-                    state.PendingRunPause = null;
-                }
-            }
-        }
+        return await publication!.PendingIntent.Completion.Task.ConfigureAwait(false);
     }
 
     private async ValueTask<WorkspaceCommandOutcome> ExecuteReservedSessionCommandAsync(
@@ -218,9 +197,6 @@ internal sealed partial class EditorWorkspace
                 StartRun start => StartRunWithPrecondition(
                     state,
                     start),
-                PauseRun pause => PauseRunWithPrecondition(
-                    state,
-                    pause),
                 HotSwapSession hotSwap => HotSwapWithPrecondition(
                     state,
                     hotSwap,

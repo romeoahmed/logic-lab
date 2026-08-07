@@ -46,46 +46,6 @@ internal sealed partial class EditorWorkspace
             state.ProjectionVersion);
     }
 
-    private static WorkspaceCommandOutcome PauseRunWithPrecondition(
-        WorkspaceState state,
-        PauseRun command)
-    {
-        var simulation = state.Simulation;
-        if (simulation is null
-            || simulation.SessionId != command.Precondition.SessionId
-            || simulation.Run.RunGeneration != command.Precondition.RunGeneration)
-        {
-            return Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
-        }
-
-        if (simulation.Run is RunPausedProjection
-            {
-                PauseReason: RunPauseReason.UserRequested,
-            })
-        {
-            return new RunPaused(
-                command.Precondition.RunGeneration,
-                simulation.SessionVersion,
-                simulation.LogicalTime,
-                RunPauseReason.UserRequested,
-                state.ProjectionVersion);
-        }
-
-        if (simulation.Run is RunFailedProjection failed
-            && IsRunPauseRequested(state, command.Precondition.RunGeneration))
-        {
-            return new SessionAdvanceFailed(
-                simulation.SessionVersion,
-                simulation.LogicalTime,
-                failed.Failure,
-                state.ProjectionVersion);
-        }
-
-        return simulation.Run is RunRunningProjection
-            ? PauseRunAtBoundary(state, command.Precondition.RunGeneration)
-            : Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
-    }
-
     private WorkspaceCommandOutcome HotSwapWithPrecondition(
         WorkspaceState state,
         HotSwapSession command,
@@ -239,8 +199,15 @@ internal sealed partial class EditorWorkspace
         var correlation = Guid.CreateVersion7().ToString("N");
         LogAdvanceFailure(logger, exception, correlation, reason);
 
-        if (state.IsRetired
-            || state.Simulation is not
+        if (state.IsRetired)
+        {
+            return CompletePendingRunPause(
+                state,
+                generation,
+                Reject(WorkspaceOutcomeReasons.WorkspaceNotFound));
+        }
+
+        if (state.Simulation is not
             {
                 Run: RunRunningProjection
                 {
@@ -249,7 +216,10 @@ internal sealed partial class EditorWorkspace
             }
             || activeGeneration != generation)
         {
-            return Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
+            return CompletePendingRunPause(
+                state,
+                generation,
+                Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed));
         }
 
         return FailRun(
@@ -273,7 +243,10 @@ internal sealed partial class EditorWorkspace
                 exception,
                 cancellationToken))
         {
-            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            return CompletePendingRunPause(
+                state,
+                generation,
+                Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
         }
 
         try
@@ -316,12 +289,22 @@ internal sealed partial class EditorWorkspace
         RunGeneration generation,
         CancellationToken cancellationToken)
     {
-        if (state.IsRetired
-            || state.Simulation is not
+        if (state.IsRetired)
+        {
+            return CompletePendingRunPause(
+                state,
+                generation,
+                Reject(WorkspaceOutcomeReasons.WorkspaceNotFound));
+        }
+
+        if (state.Simulation is not
             { Run: RunRunningProjection running }
             || running.RunGeneration != generation)
         {
-            return Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
+            return CompletePendingRunPause(
+                state,
+                generation,
+                Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed));
         }
 
         if (IsRunPauseRequested(state, generation))
@@ -392,7 +375,17 @@ internal sealed partial class EditorWorkspace
         }
     }
 
-    private static RunPaused PauseRunAtBoundary(
+    private RunPaused PauseRunAtBoundary(
+        WorkspaceState state,
+        RunGeneration generation)
+    {
+        lock (state.ContinuityGate)
+        {
+            return PauseRunAtBoundaryUnderLock(state, generation);
+        }
+    }
+
+    private RunPaused PauseRunAtBoundaryUnderLock(
         WorkspaceState state,
         RunGeneration generation)
     {
@@ -403,15 +396,17 @@ internal sealed partial class EditorWorkspace
                 generation,
                 RunPauseReason.UserRequested));
         state.ProjectionVersion++;
-        return new RunPaused(
+        var outcome = new RunPaused(
             generation,
             simulation.SessionVersion,
             simulation.LogicalTime,
             RunPauseReason.UserRequested,
             state.ProjectionVersion);
+        CompletePendingRunPauseUnderLock(state, generation, outcome);
+        return outcome;
     }
 
-    private static RunPaused PauseRunAtNoStimulusBoundary(
+    private RunPaused PauseRunAtNoStimulusBoundary(
         WorkspaceState state,
         RunGeneration generation)
     {
@@ -419,7 +414,7 @@ internal sealed partial class EditorWorkspace
         {
             if (IsRunPauseRequestedUnderLock(state, generation))
             {
-                return PauseRunAtBoundary(state, generation);
+                return PauseRunAtBoundaryUnderLock(state, generation);
             }
 
             var simulation = state.Simulation!;
@@ -438,23 +433,62 @@ internal sealed partial class EditorWorkspace
         }
     }
 
-    private static SessionAdvanceFailed FailRun(
+    private SessionAdvanceFailed FailRun(
         WorkspaceState state,
         RunGeneration generation,
         AdvanceFailureProjection failure)
     {
-        var simulation = state.Simulation!;
-        state.Simulation = WithRun(
-            simulation,
-            new RunFailedProjection(
-                generation,
-                failure));
-        state.ProjectionVersion++;
-        return new SessionAdvanceFailed(
-            simulation.SessionVersion,
-            simulation.LogicalTime,
-            failure,
-            state.ProjectionVersion);
+        lock (state.ContinuityGate)
+        {
+            var simulation = state.Simulation!;
+            state.Simulation = WithRun(
+                simulation,
+                new RunFailedProjection(
+                    generation,
+                    failure));
+            state.ProjectionVersion++;
+            var outcome = new SessionAdvanceFailed(
+                simulation.SessionVersion,
+                simulation.LogicalTime,
+                failure,
+                state.ProjectionVersion);
+            CompletePendingRunPauseUnderLock(state, generation, outcome);
+            return outcome;
+        }
+    }
+
+    private void CompletePendingRunPauseUnderLock(
+        WorkspaceState state,
+        RunGeneration generation,
+        WorkspaceCommandOutcome outcome)
+    {
+        if (state.PendingRunPause is not
+            {
+                RunGeneration: var requestedGeneration,
+                Publication: var publication,
+            }
+            || requestedGeneration != generation)
+        {
+            return;
+        }
+
+        CompletePendingIdempotencyUnderLock(state, publication, outcome);
+        if (ReferenceEquals(state.PendingRunPause?.Publication, publication))
+        {
+            state.PendingRunPause = null;
+        }
+    }
+
+    private WorkspaceCommandOutcome CompletePendingRunPause(
+        WorkspaceState state,
+        RunGeneration generation,
+        WorkspaceCommandOutcome outcome)
+    {
+        lock (state.ContinuityGate)
+        {
+            CompletePendingRunPauseUnderLock(state, generation, outcome);
+            return outcome;
+        }
     }
 
     private static bool IsRunPauseRequestedUnderLock(

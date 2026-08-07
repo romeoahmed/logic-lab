@@ -39,7 +39,7 @@ internal static class HotSwapOwnedBufferAccounting
     public static HotSwapOwnedBufferEstimate AddPublicationAndTraceFork(
         HotSwapOwnedBufferEstimate candidatePeak,
         SimulationTraceStore trace,
-        IReadOnlyList<(ProbeState Probe, LogicVector Value)> observations,
+        ChangedProbeBufferMeasure observations,
         int diagnosticCount,
         ulong diagnosticOwnedReferenceSlotCount,
         int migrationCount,
@@ -55,7 +55,10 @@ internal static class HotSwapOwnedBufferAccounting
             return new HotSwapOwnedBufferEstimate(
                 checked(
                     candidatePeak.Bytes
-                    + trace.ForkCandidateOwnedBufferBytes(observations)
+                    + trace.ForkCandidateOwnedBufferBytes(
+                        observations.Count,
+                        observations.PackedWordCount)
+                    + ReferenceSlots(checked((ulong)observations.Count * 2UL))
                     + PublicationOwnedBufferBytes(
                         diagnosticCount,
                         diagnosticOwnedReferenceSlotCount,
@@ -114,7 +117,7 @@ internal static class HotSwapOwnedBufferAccounting
             + ReferenceSlots(netCount)
             + ReferenceSlots(preservedProbeCount)
             + ReferenceSlots(unresolvedProbeCount)
-            + SettlementScratch.PeakOwnedBufferBytes(replacement)
+            + SettlementOwnedBufferAccounting.PeakOwnedBufferBytes(replacement)
             + ClockEventCalendar.CandidateOwnedBufferBytes(
                 replacement,
                 logicalTimeOrigin));
@@ -310,3 +313,7 @@ internal static class HotSwapOwnedBufferAccounting
 internal readonly record struct HotSwapOwnedBufferEstimate(
     ulong Bytes,
     bool IsSaturated);
+
+internal readonly record struct ChangedProbeBufferMeasure(
+    int Count,
+    ulong PackedWordCount);

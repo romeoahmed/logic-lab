@@ -95,7 +95,7 @@ public static partial class SimulationRuntime
             new SettlementWork(),
             cancellationToken);
         var probes = probeBindings.Probes;
-        var changedProbeObservations = ChangedProbeObservations(
+        var changedProbeSummary = MeasureChangedProbeObservations(
             state,
             probes,
             settlement.NetValues);
@@ -106,7 +106,7 @@ public static partial class SimulationRuntime
         var peakOwnedBuffers = HotSwapOwnedBufferAccounting.AddPublicationAndTraceFork(
             candidatePeakOwnedBuffers,
             state.Trace,
-            changedProbeObservations,
+            changedProbeSummary,
             diagnosticBuffers.DiagnosticCount,
             diagnosticBuffers.OwnedReferenceSlotCount,
             migrationPreflight.MigrationCount,
@@ -121,6 +121,11 @@ public static partial class SimulationRuntime
                 peakOwnedBuffers.Bytes);
         }
 
+        var changedProbeObservations = CreateChangedProbeObservations(
+            state,
+            probes,
+            settlement.NetValues,
+            changedProbeSummary.Count);
         var diagnostics = SimulationNetDiagnostics.CreateExact(
             replacement,
             driverValues,
@@ -203,13 +208,13 @@ public static partial class SimulationRuntime
         }
     }
 
-    private static (ProbeState Probe, LogicVector Value)[] ChangedProbeObservations(
+    private static ChangedProbeBufferMeasure MeasureChangedProbeObservations(
         SimulationSessionState state,
         ProbeState[] reboundProbes,
         LogicVector[] replacementNetValues)
     {
-        var observations = new List<(ProbeState Probe, LogicVector Value)>(
-            reboundProbes.Length);
+        var count = 0;
+        ulong packedWordCount = 0;
         var reboundIndex = 0;
         foreach (var currentProbe in state.Probes)
         {
@@ -229,13 +234,50 @@ public static partial class SimulationRuntime
                     state.NetValues[currentProbe.NetOrdinal],
                     replacementValue))
             {
-                observations.Add((reboundProbe, replacementValue));
+                count++;
+                packedWordCount = checked(
+                    packedWordCount + (ulong)replacementValue.WordCount);
             }
 
             reboundIndex++;
         }
 
-        return [.. observations];
+        return new ChangedProbeBufferMeasure(count, packedWordCount);
     }
 
+    private static (ProbeState Probe, LogicVector Value)[] CreateChangedProbeObservations(
+        SimulationSessionState state,
+        ProbeState[] reboundProbes,
+        LogicVector[] replacementNetValues,
+        int observationCount)
+    {
+        var observations = new (ProbeState Probe, LogicVector Value)[observationCount];
+        var observationIndex = 0;
+        var reboundIndex = 0;
+        foreach (var currentProbe in state.Probes)
+        {
+            if (reboundIndex == reboundProbes.Length)
+            {
+                break;
+            }
+
+            var reboundProbe = reboundProbes[reboundIndex];
+            if (reboundProbe.ProbeId != currentProbe.ProbeId)
+            {
+                continue;
+            }
+
+            var replacementValue = replacementNetValues[reboundProbe.NetOrdinal];
+            if (!ValuesEqual(
+                    state.NetValues[currentProbe.NetOrdinal],
+                    replacementValue))
+            {
+                observations[observationIndex++] = (reboundProbe, replacementValue);
+            }
+
+            reboundIndex++;
+        }
+
+        return observations;
+    }
 }

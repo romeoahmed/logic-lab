@@ -194,23 +194,27 @@ excluded. The peak includes the committed Session working-layer buffers, nested 
 reference buffers, and retained Trace storage once; the complete replacement working-layer
 candidate including its Diagnostics and new Clock event calendar; one initial cell-reference
 buffer for every replacement Memory; one additional cell-reference buffer only for each
-compatible migrated RAM while both can coexist; the Trace fork index plus its staged observation
-chunk; and the Hot Swap terminal publication arrays that coexist with the candidate, including
-migrated-state sources, evidence and outcome Probe IDs, observed Probes, and the outcome's
-top-level Diagnostic reference copy. The Session and outcome share immutable Diagnostic records,
-so their nested argument and related-source buffers are counted once. Shared immutable Compilation
-Artifact records and their source indexes, CLR object headers, allocator metadata, and transient
-preflight metadata are excluded. Net resolution reads the Artifact's Driver ordinals directly and
-does not materialize a per-Net reference buffer. When the replacement contains cyclic regions,
+compatible migrated RAM while both can coexist; the exact changed-Probe staging array, Trace fork
+index, and staged transition chunk; and the Hot Swap terminal publication arrays that coexist with
+the candidate, including migrated-state sources, evidence and outcome Probe IDs, observed Probes,
+and the outcome's top-level Diagnostic reference copy. The Session and outcome share immutable
+Diagnostic records, so their nested argument and related-source buffers are counted once. Shared
+immutable Compilation Artifact records and their source indexes, CLR object headers, allocator
+metadata, and transient preflight metadata are excluded. Net resolution reads the Artifact's
+Driver ordinals directly and does not materialize a per-Net reference buffer. When the replacement
+contains cyclic regions,
 settlement reserves one reusable work area before execution: one pending-ordinal slot for each
 member of the largest cyclic region, one pending-state slot per evaluator, one ordinal slot per
 Driver in the largest cyclic region, one previous-output reference per output of the widest cyclic
-evaluator, and the packed previous-output planes that coexist with its refined outputs. A cyclic
-Driver already at the least-fixed-point bottom is reused; an epoch reset allocates a replacement
-plane only when the preceding value differs. Arithmetic is checked and saturation is treated
-as over-limit. Initial candidate admission runs before any replacement working-layer or RAM clone
-allocation and covers every buffer materialized for settlement. After settlement determines the
-exact Diagnostics and changed Probe values, final admission completes the peak with Diagnostic,
+evaluator. A cyclic Driver already at the least-fixed-point bottom is reused; an epoch reset
+allocates a replacement plane only when the preceding value differs. Settlement also charges the
+maximum temporary envelope of one evaluator invocation: its superseded output planes, fan-in and
+multi-output reference buffers, packed intermediate values, and evaluator-specific value/index work buffers.
+Only one such envelope is charged because evaluator invocations are serial. Arithmetic is checked
+and saturation is treated as over-limit. Initial candidate admission runs before any replacement
+working-layer or RAM clone allocation and covers every buffer materialized for settlement. After
+settlement determines the exact Diagnostics and changed Probe values without allocating their
+staging array, final admission completes the peak with Diagnostic, changed-Probe staging,
 terminal-publication, and Trace storage before allocating any of those buffers. The Trace fork
 index is allocated once at the final capacity required by the staged chunk. Either rejection
 reports Workspace Policy ID/revision,

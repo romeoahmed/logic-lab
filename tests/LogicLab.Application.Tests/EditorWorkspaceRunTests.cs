@@ -103,6 +103,58 @@ internal sealed class EditorWorkspaceRunTests
     }
 
     [Test, Timeout(30_000)]
+    public async Task DispatchAsync_PauseBoundaryPublishesBeforeQueuedReattach(
+        CancellationToken cancellationToken)
+    {
+        var advanceGate = new BlockingOperationGate();
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            BlockAdvances(advanceGate));
+        var controlled = await CreateClockWorkspace(workspace, cancellationToken);
+        var beforeRun = await Read(workspace, controlled, cancellationToken);
+        var started = (RunStarted)await workspace.DispatchAsync(
+            new StartRun(
+                Command(controlled, "run-before-reattach"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
+            cancellationToken);
+        await advanceGate.Started.WaitAsync(cancellationToken);
+
+        var reattach = workspace.AttachAsync(
+            new Reattach(
+                controlled.WorkspaceId,
+                controlled.Attached.AttachmentId,
+                controlled.Attached.Generation,
+                WorkspaceBuild.DevelopmentFingerprint),
+            cancellationToken);
+        await Assert.That(reattach.IsCompleted).IsFalse();
+        var pause = workspace.DispatchAsync(
+            new PauseRun(
+                Command(controlled, "pause-before-reattach"),
+                new RunControlPrecondition(
+                    beforeRun.Simulation!.SessionId,
+                    started.RunGeneration)),
+            cancellationToken);
+        await Assert.That(pause.IsCompleted).IsFalse();
+        advanceGate.Release();
+
+        var paused = await Assert.That(await pause.WaitAsync(cancellationToken))
+            .IsTypeOf<RunPaused>();
+        var attached = await Assert.That(await reattach.WaitAsync(cancellationToken))
+            .IsTypeOf<Attached>();
+        Assert.NotNull(paused);
+        Assert.NotNull(attached);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(paused.RunGeneration).IsEqualTo(started.RunGeneration);
+            await Assert.That(paused.Reason).IsEqualTo(RunPauseReason.UserRequested);
+            await Assert.That(attached.Projection.Simulation!.Run.Status)
+                .IsEqualTo(RunStatus.Paused);
+            await Assert.That(attached.Projection.PausedRun().PauseReason)
+                .IsEqualTo(RunPauseReason.UserRequested);
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task DispatchAsync_ActiveRunReservation_RejectsExternalWorkAndAdmitsPause(
         CancellationToken cancellationToken)
     {

@@ -634,26 +634,34 @@ internal sealed partial class EditorWorkspace
     {
         lock (state.ContinuityGate)
         {
-            var clientIntentId = publication.Context.ClientIntentId;
-            if (!state.PendingIntents.TryGetValue(clientIntentId, out var pending)
-                || !ReferenceEquals(pending, publication.PendingIntent))
-            {
-                return;
-            }
-
-            state.PendingIntents.Remove(clientIntentId);
-
-            if (HasCurrentAttachmentUnderLock(state, publication.Context))
-            {
-                RecordIdempotencyUnderLock(
-                    state,
-                    clientIntentId,
-                    publication.CanonicalIdentity,
-                    outcome);
-            }
-
-            pending.Completion.TrySetResult(outcome);
+            CompletePendingIdempotencyUnderLock(state, publication, outcome);
         }
+    }
+
+    private void CompletePendingIdempotencyUnderLock(
+        WorkspaceState state,
+        ContextualCommandPublication publication,
+        WorkspaceCommandOutcome outcome)
+    {
+        var clientIntentId = publication.Context.ClientIntentId;
+        if (!state.PendingIntents.TryGetValue(clientIntentId, out var pending)
+            || !ReferenceEquals(pending, publication.PendingIntent))
+        {
+            return;
+        }
+
+        state.PendingIntents.Remove(clientIntentId);
+
+        if (HasCurrentAttachmentUnderLock(state, publication.Context))
+        {
+            RecordIdempotencyUnderLock(
+                state,
+                clientIntentId,
+                publication.CanonicalIdentity,
+                outcome);
+        }
+
+        pending.Completion.TrySetResult(outcome);
     }
 
     private static string CanonicalIdentity(WorkspaceCommand command)

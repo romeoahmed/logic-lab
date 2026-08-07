@@ -150,18 +150,13 @@ internal sealed class SimulationTraceStore
     }
 
     internal ulong ForkCandidateOwnedBufferBytes(
-        IReadOnlyList<(ProbeState Probe, LogicVector Value)> observations)
+        int observationCount,
+        ulong packedWordCount)
     {
-        ulong appendedBytes = 0;
-        for (var index = 0; index < observations.Count; index++)
-        {
-            appendedBytes = checked(
-                appendedBytes + TransitionBytes(observations[index].Value));
-        }
-
         return checked(
-            ((ulong)ForkCapacity(observations.Count) * sizeof(ulong))
-            + appendedBytes);
+            ((ulong)ForkCapacity(observationCount) * sizeof(ulong))
+            + ((ulong)observationCount * TransitionBaseBytes)
+            + (packedWordCount * 2UL * sizeof(ulong)));
     }
 
     private int ForkCapacity(int observationCount)

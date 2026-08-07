@@ -35,7 +35,7 @@ internal sealed class SettlementScratch
         return new SettlementScratch(Shape(ir));
     }
 
-    public static ulong PeakOwnedBufferBytes(SimulationIr ir)
+    public static ulong OwnedBufferBytes(SimulationIr ir)
     {
         ArgumentNullException.ThrowIfNull(ir);
         var shape = Shape(ir);
@@ -44,8 +44,7 @@ internal sealed class SettlementScratch
                 + (ulong)shape.PendingEvaluatorStateCapacity
                 + (ulong)shape.OrdinalCapacity
                 + (ulong)shape.PreviousOutputCapacity)
-            * (ulong)sizeof(ulong)
-            + shape.PreviousOutputPlaneBytes);
+            * (ulong)sizeof(ulong));
     }
 
     public void ResetPendingEvaluators(
@@ -168,7 +167,6 @@ internal sealed class SettlementScratch
         var hasCyclicComponent = false;
         var ordinalCapacity = 0;
         var previousOutputCapacity = 0;
-        ulong previousOutputPlaneBytes = 0;
         foreach (var component in ir.StronglyConnectedComponents)
         {
             if (!component.IsCyclic)
@@ -189,17 +187,6 @@ internal sealed class SettlementScratch
                 previousOutputCapacity = Math.Max(
                     previousOutputCapacity,
                     evaluator.OutputDriverOrdinals.Count);
-                ulong evaluatorOutputPlaneBytes = 0;
-                foreach (var driverOrdinal in evaluator.OutputDriverOrdinals)
-                {
-                    evaluatorOutputPlaneBytes = checked(
-                        evaluatorOutputPlaneBytes
-                        + VectorPlaneBytes(ir.Drivers[driverOrdinal].Width));
-                }
-
-                previousOutputPlaneBytes = Math.Max(
-                    previousOutputPlaneBytes,
-                    evaluatorOutputPlaneBytes);
             }
 
             ordinalCapacity = Math.Max(ordinalCapacity, componentDriverCount);
@@ -209,16 +196,7 @@ internal sealed class SettlementScratch
             pendingEvaluatorCapacity,
             hasCyclicComponent ? ir.Evaluators.Count : 0,
             ordinalCapacity,
-            previousOutputCapacity,
-            previousOutputPlaneBytes);
-    }
-
-    private static ulong VectorPlaneBytes(uint width)
-    {
-        return checked(
-            (ulong)LogicVector.GetWordCount(checked((int)width))
-            * 2UL
-            * sizeof(ulong));
+            previousOutputCapacity);
     }
 
     private enum PendingEvaluatorState : byte
@@ -232,6 +210,5 @@ internal sealed class SettlementScratch
         int PendingEvaluatorCapacity,
         int PendingEvaluatorStateCapacity,
         int OrdinalCapacity,
-        int PreviousOutputCapacity,
-        ulong PreviousOutputPlaneBytes);
+        int PreviousOutputCapacity);
 }
