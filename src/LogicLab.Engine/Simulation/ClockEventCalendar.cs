@@ -1,3 +1,5 @@
+using LogicLab.Engine.Compilation;
+
 namespace LogicLab.Engine.Simulation;
 
 internal readonly record struct ScheduledClockTransition(
@@ -10,9 +12,47 @@ internal readonly record struct ScheduledClockEvent(
 
 internal sealed class ClockEventCalendar
 {
+    private const ulong SlotBytes = sizeof(ulong);
     private readonly SortedDictionary<
         ulong,
         SortedDictionary<int, ScheduledClockTransition>> buckets = [];
+
+    internal ulong RetainedOwnedBufferBytes
+    {
+        get
+        {
+            var transitionCount = buckets.Aggregate(
+                0UL,
+                (count, bucket) => checked(count + (ulong)bucket.Value.Count));
+            return OwnedBufferBytes((ulong)buckets.Count, transitionCount);
+        }
+    }
+
+    internal static ulong CandidateOwnedBufferBytes(
+        SimulationIr ir,
+        ulong logicalTimeOrigin)
+    {
+        var logicalTimes = new HashSet<ulong>();
+        ulong transitionCount = 0;
+        foreach (var evaluator in ir.Evaluators)
+        {
+            if (evaluator.Kind != SimulationEvaluatorKind.ClockSource)
+            {
+                continue;
+            }
+
+            var firstTransition = evaluator.ClockSchedule!.FirstTransition;
+            if (firstTransition > ulong.MaxValue - logicalTimeOrigin)
+            {
+                continue;
+            }
+
+            logicalTimes.Add(checked(logicalTimeOrigin + firstTransition));
+            transitionCount++;
+        }
+
+        return OwnedBufferBytes((ulong)logicalTimes.Count, transitionCount);
+    }
 
     public ulong? PeekLogicalTime()
     {
@@ -56,5 +96,14 @@ internal sealed class ClockEventCalendar
         {
             Schedule(scheduledEvent);
         }
+    }
+
+    private static ulong OwnedBufferBytes(
+        ulong bucketCount,
+        ulong transitionCount)
+    {
+        return checked(
+            (bucketCount * 2UL * SlotBytes)
+            + (transitionCount * 2UL * SlotBytes));
     }
 }

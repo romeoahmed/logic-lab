@@ -339,6 +339,10 @@ public sealed record StronglyConnectedComponentMemberSourceMapEntry(
 
 public sealed class SourceMap
 {
+    private readonly Dictionary<CompilationSource, int> evaluatorOrdinals;
+    private readonly Dictionary<CompilationSource, int> driverOrdinals;
+    private readonly Dictionary<CompilationSource, int> netOrdinals;
+
     internal SourceMap(
         SourceMapEntry[] evaluators,
         EvaluatorInputSourceMapEntry[] evaluatorInputs,
@@ -357,6 +361,9 @@ public sealed class SourceMap
         StronglyConnectedComponentMembers = Array.AsReadOnly(
             (StronglyConnectedComponentMemberSourceMapEntry[])
             stronglyConnectedComponentMembers.Clone());
+        evaluatorOrdinals = Index(evaluators);
+        driverOrdinals = Index(drivers);
+        netOrdinals = Index(nets, netAliases);
     }
 
     public ReadOnlyCollection<SourceMapEntry> Evaluators { get; }
@@ -377,34 +384,47 @@ public sealed class SourceMap
         CompilationSource source,
         out int ordinal)
     {
-        return TryGetOrdinal(Nets, source, out ordinal)
-            || TryGetOrdinal(NetAliases, source, out ordinal);
+        ArgumentNullException.ThrowIfNull(source);
+        return netOrdinals.TryGetValue(source, out ordinal);
     }
 
     public bool TryGetDriverOrdinal(
         CompilationSource source,
         out int ordinal)
     {
-        return TryGetOrdinal(Drivers, source, out ordinal);
+        ArgumentNullException.ThrowIfNull(source);
+        return driverOrdinals.TryGetValue(source, out ordinal);
     }
 
-    private static bool TryGetOrdinal(
-        ReadOnlyCollection<SourceMapEntry> entries,
+    internal bool TryGetEvaluatorOrdinal(
         CompilationSource source,
         out int ordinal)
     {
         ArgumentNullException.ThrowIfNull(source);
-        foreach (var entry in entries)
+        return evaluatorOrdinals.TryGetValue(source, out ordinal);
+    }
+
+    private static Dictionary<CompilationSource, int> Index(
+        SourceMapEntry[] entries,
+        SourceMapEntry[]? aliases = null)
+    {
+        var index = new Dictionary<CompilationSource, int>(checked(
+            entries.Length + (aliases?.Length ?? 0)));
+        AddEntries(entries);
+        if (aliases is not null)
         {
-            if (entry.Source.Equals(source))
-            {
-                ordinal = entry.Ordinal;
-                return true;
-            }
+            AddEntries(aliases);
         }
 
-        ordinal = default;
-        return false;
+        return index;
+
+        void AddEntries(SourceMapEntry[] additions)
+        {
+            foreach (var entry in additions)
+            {
+                index.TryAdd(entry.Source, entry.Ordinal);
+            }
+        }
     }
 }
 

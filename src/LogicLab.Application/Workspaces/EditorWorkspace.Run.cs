@@ -71,6 +71,16 @@ internal sealed partial class EditorWorkspace
                 state.ProjectionVersion);
         }
 
+        if (simulation.Run is RunFailedProjection failed
+            && IsRunPauseRequested(state, command.Precondition.RunGeneration))
+        {
+            return new SessionAdvanceFailed(
+                simulation.SessionVersion,
+                simulation.LogicalTime,
+                failed.Failure,
+                state.ProjectionVersion);
+        }
+
         return simulation.Run is RunRunningProjection
             ? PauseRunAtBoundary(state, command.Precondition.RunGeneration)
             : Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
