@@ -430,7 +430,7 @@ internal sealed class EditorWorkspaceSchedulingTests
     }
 
     [Test, Timeout(30_000)]
-    public async Task DispatchAsync_AcceptedCompilationCancelledBeforeExecution_PublishesRejection(
+    public async Task DispatchAsync_AcceptedCompilationIgnoresLaterRequestCancellation(
         CancellationToken cancellationToken)
     {
         var compilationGate = new BlockingOperationGate();
@@ -453,13 +453,16 @@ internal sealed class EditorWorkspaceSchedulingTests
             CompilationCommand(blocking, "blocking"),
             cancellationToken);
         using var requestCancellation = new CancellationTokenSource();
+        CompilationGeneration acceptedGeneration;
         try
         {
             await compilationGate.Started.WaitAsync(cancellationToken);
-            var accepted = await workspace.DispatchAsync(
+            var outcome = await workspace.DispatchAsync(
                 CompilationCommand(cancelled, "cancelled"),
                 requestCancellation.Token);
-            await Assert.That(accepted).IsTypeOf<CompilationAccepted>();
+            var accepted = await Assert.That(outcome).IsTypeOf<CompilationAccepted>();
+            Assert.NotNull(accepted);
+            acceptedGeneration = accepted.CompilationGeneration;
             requestCancellation.Cancel();
         }
         finally
@@ -467,18 +470,18 @@ internal sealed class EditorWorkspaceSchedulingTests
             compilationGate.Release();
         }
 
-        var rejected = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
+        var published = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
             workspace,
             cancelled.Opened.WorkspaceId,
             cancelled.Attached,
             cancellationToken);
-        var rejectedCompilation = rejected.RejectedCompilation();
+        var publishedCompilation = published.PublishedCompilation();
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Compilation.Status)
-                .IsEqualTo(CompilationPublicationStatus.Rejected);
-            await Assert.That(rejectedCompilation.RejectionCode)
-                .IsEqualTo("workspace_cancelled");
+            await Assert.That(published.Compilation.Status)
+                .IsEqualTo(CompilationPublicationStatus.Published);
+            await Assert.That(publishedCompilation.Generation)
+                .IsEqualTo(acceptedGeneration);
         }
     }
 

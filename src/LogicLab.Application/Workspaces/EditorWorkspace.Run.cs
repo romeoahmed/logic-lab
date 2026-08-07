@@ -224,53 +224,38 @@ internal sealed partial class EditorWorkspace
                 generation,
                 cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
-        {
-            return await FailRunAfterExceptionAsync(
-                state,
-                generation,
-                exception).ConfigureAwait(false);
-        }
         finally
         {
             Release(state);
         }
     }
 
-    private async ValueTask<WorkspaceCommandOutcome> FailRunAfterExceptionAsync(
-            WorkspaceState state,
-            RunGeneration generation,
-            Exception exception)
+    private WorkspaceCommandOutcome FailRunAfterException(
+        WorkspaceState state,
+        RunGeneration generation,
+        Exception exception)
     {
         var reason = AdvanceFailureReasonFrom(exception);
         var correlation = Guid.CreateVersion7().ToString("N");
         LogAdvanceFailure(logger, exception, correlation, reason);
 
-        await state.CommandGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-        try
-        {
-            if (state.IsRetired
-                || state.Simulation is not
-                {
-                    Run: RunRunningProjection
-                    {
-                        RunGeneration: var activeGeneration,
-                    },
-                }
-                || activeGeneration != generation)
+        if (state.IsRetired
+            || state.Simulation is not
             {
-                return Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
+                Run: RunRunningProjection
+                {
+                    RunGeneration: var activeGeneration,
+                },
             }
-
-            return FailRun(
-                state,
-                generation,
-                new AdvanceFailureProjection(reason, [], policyEvidence: null));
-        }
-        finally
+            || activeGeneration != generation)
         {
-            state.CommandGate.Release();
+            return Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
         }
+
+        return FailRun(
+            state,
+            generation,
+            new AdvanceFailureProjection(reason, [], policyEvidence: null));
     }
 
     private async ValueTask<WorkspaceCommandOutcome> ContinueRunAsync(
@@ -293,63 +278,96 @@ internal sealed partial class EditorWorkspace
 
         try
         {
-            if (state.IsRetired
-                || state.Simulation is not
-                { Run: RunRunningProjection running }
-                || running.RunGeneration != generation)
-            {
-                return Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
-            }
-
-            if (IsRunPauseRequested(state, generation))
-            {
-                return PauseRunAtBoundary(state, generation);
-            }
-
-            var outcome = Step(state, cancellationToken);
-            if (outcome is SessionStepped)
-            {
-                if (IsRunPauseRequested(state, generation))
-                {
-                    return PauseRunAtBoundary(state, generation);
-                }
-
-                if (!QueueRunContinuation(state, continuation, generation))
-                {
-                    return FailRun(
-                        state,
-                        generation,
-                        new AdvanceFailureProjection(
-                            AdvanceFailureReason.SimulationInternalDefect,
-                            [],
-                            policyEvidence: null));
-                }
-
-                return outcome;
-            }
-
-            if (outcome is WorkspaceCommandRejected rejected
-                && rejected.Code == WorkspaceOutcomeReasons.NoScheduledStimulus)
-            {
-                return PauseRunAtNoStimulusBoundary(state, generation);
-            }
-
-            return outcome is SessionAdvanceFailed failed
-                ? FailRun(state, generation, failed.Failure)
-                : FailRun(
-                    state,
-                    generation,
-                    new AdvanceFailureProjection(
-                        AdvanceFailureReason.SimulationInternalDefect,
-                        outcome is WorkspaceCommandRejected unexpectedRejection
-                            ? unexpectedRejection.DiagnosticCodes
-                            : [],
-                        policyEvidence: null));
+            return ContinueRunAtBoundarySafely(
+                state,
+                continuation,
+                generation,
+                cancellationToken);
         }
         finally
         {
             state.CommandGate.Release();
         }
+    }
+
+    private WorkspaceCommandOutcome ContinueRunAtBoundarySafely(
+        WorkspaceState state,
+        WorkCoordinator.SessionContinuation continuation,
+        RunGeneration generation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return ContinueRunAtBoundary(
+                state,
+                continuation,
+                generation,
+                cancellationToken);
+        }
+        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
+        {
+            return FailRunAfterException(state, generation, exception);
+        }
+    }
+
+    private WorkspaceCommandOutcome ContinueRunAtBoundary(
+        WorkspaceState state,
+        WorkCoordinator.SessionContinuation continuation,
+        RunGeneration generation,
+        CancellationToken cancellationToken)
+    {
+        if (state.IsRetired
+            || state.Simulation is not
+            { Run: RunRunningProjection running }
+            || running.RunGeneration != generation)
+        {
+            return Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
+        }
+
+        if (IsRunPauseRequested(state, generation))
+        {
+            return PauseRunAtBoundary(state, generation);
+        }
+
+        var outcome = Step(state, cancellationToken);
+        if (outcome is SessionStepped)
+        {
+            if (IsRunPauseRequested(state, generation))
+            {
+                return PauseRunAtBoundary(state, generation);
+            }
+
+            if (!QueueRunContinuation(state, continuation, generation))
+            {
+                return FailRun(
+                    state,
+                    generation,
+                    new AdvanceFailureProjection(
+                        AdvanceFailureReason.SimulationInternalDefect,
+                        [],
+                        policyEvidence: null));
+            }
+
+            return outcome;
+        }
+
+        if (outcome is WorkspaceCommandRejected rejected
+            && rejected.Code == WorkspaceOutcomeReasons.NoScheduledStimulus)
+        {
+            return PauseRunAtNoStimulusBoundary(state, generation);
+        }
+
+        return outcome is SessionAdvanceFailed failed
+            ? FailRun(state, generation, failed.Failure)
+            : FailRun(
+                state,
+                generation,
+                new AdvanceFailureProjection(
+                    AdvanceFailureReason.SimulationInternalDefect,
+                    outcome is WorkspaceCommandRejected unexpectedRejection
+                        ? unexpectedRejection.DiagnosticCodes
+                        : [],
+                    policyEvidence: null));
     }
 
     private static bool MatchesRunControlPrecondition(

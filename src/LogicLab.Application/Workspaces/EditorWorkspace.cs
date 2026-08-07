@@ -660,7 +660,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         {
             return Reject(
                 WorkspaceOutcomeReasons.FromSimulation(rejected.Reason),
-                rejected.Diagnostics.Select(item => item.Code));
+                rejected.Diagnostics.Select(item => item.Code),
+                PolicyEvidenceFrom(rejected.WorkEvidence));
         }
 
         if (outcome is not SimulationOpened opened)
@@ -751,7 +752,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         {
             return Reject(
                 WorkspaceOutcomeReasons.FromSimulation(failed.Reason),
-                failed.Diagnostics.Select(item => item.Code));
+                failed.Diagnostics.Select(item => item.Code),
+                PolicyEvidenceFrom(failed.PolicyEvidence));
         }
 
         if (outcome is not StimulusBatchScheduled scheduled)
@@ -901,6 +903,35 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 evidence.PolicyRevision,
                 evidence.Dimension,
                 evidence.Observed);
+    }
+
+    private static PolicyEvidenceProjection? PolicyEvidenceFrom(
+        SimulationWorkEvidence evidence)
+    {
+        var breach = evidence.PolicyLimitBreach;
+        if (breach is null)
+        {
+            return null;
+        }
+
+        var (policyId, policyRevision) = breach.Policy switch
+        {
+            SimulationWorkPolicy.Simulation => (
+                evidence.SimulationPolicy.PolicyId,
+                evidence.SimulationPolicy.PolicyRevision),
+            SimulationWorkPolicy.Trace => (
+                evidence.TracePolicy.PolicyId,
+                evidence.TracePolicy.PolicyRevision),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(evidence),
+                breach.Policy,
+                "The Simulation work policy is undefined."),
+        };
+        return new PolicyEvidenceProjection(
+            policyId,
+            policyRevision,
+            breach.Dimension,
+            breach.Observed);
     }
 
     [LoggerMessage(
