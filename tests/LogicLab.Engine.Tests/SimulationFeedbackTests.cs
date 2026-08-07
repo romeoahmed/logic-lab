@@ -157,7 +157,7 @@ internal sealed partial class SimulationFeedbackTests
             primary,
             related);
 
-        var defect = CaptureDefect(() =>
+        var defect = Assert.ThrowsExactly<SimulationContractDefectException>(() =>
             CombinationalRefinement.RequireComponentOutputPreservingOrRefining(
                 new LogicVector([LogicValue.Zero]),
                 new LogicVector([LogicValue.One]),
@@ -184,7 +184,7 @@ internal sealed partial class SimulationFeedbackTests
         var related = circuit.Artifact.SourceMap.Drivers[
             evaluator.OutputDriverOrdinals.Single()].Source;
 
-        var defect = CaptureDefect(() =>
+        var defect = Assert.ThrowsExactly<SimulationContractDefectException>(() =>
             CombinationalRefinement.RequireComponentOutputPreservingOrRefining(
                 new LogicVector([LogicValue.X]),
                 new LogicVector([LogicValue.X, LogicValue.X]),
@@ -478,21 +478,6 @@ internal sealed partial class SimulationFeedbackTests
             new ReadSessionSnapshot(),
             CancellationToken.None);
         return (opened, snapshot);
-    }
-
-    private static SimulationContractDefectException CaptureDefect(Action action)
-    {
-        try
-        {
-            action();
-        }
-        catch (SimulationContractDefectException exception)
-        {
-            return exception;
-        }
-
-        throw new InvalidOperationException(
-            "The expected Simulation Contract defect was not raised.");
     }
 
     private static FeedbackCircuit CreateAndZeroFeedback()

@@ -25,11 +25,13 @@ internal sealed class AccessibleCircuitSceneTests
         var connectionIds = rendered.FindAll("[data-connection]")
             .Select(element => element.GetAttribute("data-connection")!)
             .ToArray();
+        var section = rendered.Find("section[aria-labelledby]");
+        var heading = rendered.Find("section h2[id]");
 
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.Find("section").GetAttribute("aria-labelledby"))
-                .IsEqualTo("circuit-scene-heading");
+            await Assert.That(section.GetAttribute("aria-labelledby")).IsEqualTo(heading.Id);
+            await Assert.That(heading.TextContent).IsEqualTo(scene.DisplayName);
             await Assert.That(componentIds).IsEquivalentTo(
                 scene.Components.Select(component => component.Source.ComponentInstanceId.Value));
             await Assert.That(connectionIds).IsEquivalentTo(
