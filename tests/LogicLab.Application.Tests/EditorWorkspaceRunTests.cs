@@ -252,6 +252,67 @@ internal sealed class EditorWorkspaceRunTests
     }
 
     [Test, Timeout(30_000)]
+    public async Task DispatchAsync_AcceptedPauseAtFailedAdvanceBoundary_ObservesRunFailure(
+        CancellationToken cancellationToken)
+    {
+        var advanceGate = new BlockingOperationGate();
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            ExecuteSimulation = (handle, command, operationCancellationToken) =>
+            {
+                if (command is AdvanceToNextQuiescentBoundary)
+                {
+                    advanceGate.Block(operationCancellationToken);
+                    throw new IOException("sensitive infrastructure detail");
+                }
+
+                return production.ExecuteSimulation(
+                    handle,
+                    command,
+                    operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        var controlled = await CreateClockWorkspace(workspace, cancellationToken);
+        var beforeRun = await Read(workspace, controlled, cancellationToken);
+        var started = (RunStarted)await workspace.DispatchAsync(
+            new StartRun(
+                Command(controlled, "run-before-failed-pause"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
+            cancellationToken);
+        await advanceGate.Started.WaitAsync(cancellationToken);
+
+        var pause = workspace.DispatchAsync(
+            new PauseRun(
+                Command(controlled, "pause-at-failed-boundary"),
+                new RunControlPrecondition(
+                    beforeRun.Simulation!.SessionId,
+                    started.RunGeneration)),
+            cancellationToken);
+        await Assert.That(pause.IsCompleted).IsFalse();
+        advanceGate.Release();
+
+        var failed = await Assert.That(await pause.WaitAsync(cancellationToken))
+            .IsTypeOf<SessionAdvanceFailed>();
+        Assert.NotNull(failed);
+        var projection = await Read(workspace, controlled, cancellationToken);
+        var failedRun = projection.FailedRun();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(failed.Failure.Reason)
+                .IsEqualTo(AdvanceFailureReason.SimulationInfrastructureFailure);
+            await Assert.That(failed.SessionVersion)
+                .IsEqualTo(beforeRun.Simulation!.SessionVersion);
+            await Assert.That(failed.LogicalTime)
+                .IsEqualTo(beforeRun.Simulation.LogicalTime);
+            await Assert.That(failedRun.RunGeneration).IsEqualTo(started.RunGeneration);
+            await Assert.That(failedRun.Failure).IsEqualTo(failed.Failure);
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task DispatchAsync_PauseRun_WaitsForAtomicAdvanceAndSerializesSessionWork(
         CancellationToken cancellationToken)
     {

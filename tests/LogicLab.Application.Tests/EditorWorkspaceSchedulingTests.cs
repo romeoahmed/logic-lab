@@ -302,6 +302,73 @@ internal sealed class EditorWorkspaceSchedulingTests
     }
 
     [Test, Timeout(30_000)]
+    public async Task DispatchAsync_RepeatedPendingCompilation_CoalescesWithoutConsumingCapacity(
+        CancellationToken cancellationToken)
+    {
+        var compilationGate = new BlockingOperationGate();
+        var invocationCount = 0;
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            Compile = (request, operationCancellationToken) =>
+            {
+                if (Interlocked.Increment(ref invocationCount) == 1)
+                {
+                    compilationGate.Block(CancellationToken.None);
+                }
+
+                return production.Compile(request, operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            schedulingPolicy: new SchedulingPolicy(1, 1),
+            operations: operations);
+        var opened = await Open(workspace, "Pending coalescing", cancellationToken);
+        var first = await workspace.DispatchAsync(
+            CompilationCommand(opened, "first"),
+            cancellationToken);
+        await Assert.That(first).IsTypeOf<CompilationAccepted>();
+
+        CompilationAccepted? secondAcceptance = null;
+        CompilationAccepted? thirdAcceptance = null;
+        try
+        {
+            await compilationGate.Started.WaitAsync(cancellationToken);
+            secondAcceptance = await Assert.That(await workspace.DispatchAsync(
+                    CompilationCommand(opened, "second"),
+                    cancellationToken))
+                .IsTypeOf<CompilationAccepted>();
+            thirdAcceptance = await Assert.That(await workspace.DispatchAsync(
+                    CompilationCommand(opened, "third"),
+                    cancellationToken))
+                .IsTypeOf<CompilationAccepted>();
+        }
+        finally
+        {
+            compilationGate.Release();
+        }
+
+        Assert.NotNull(secondAcceptance);
+        Assert.NotNull(thirdAcceptance);
+        var published = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
+            workspace,
+            opened.Opened.WorkspaceId,
+            opened.Attached,
+            cancellationToken);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(thirdAcceptance.CompilationGeneration.Value)
+                .IsGreaterThan(secondAcceptance.CompilationGeneration.Value);
+            await Assert.That(published.Compilation.Status)
+                .IsEqualTo(CompilationPublicationStatus.Published);
+            await Assert.That(published.Compilation.Generation)
+                .IsEqualTo(thirdAcceptance.CompilationGeneration);
+            await Assert.That(invocationCount).IsEqualTo(2);
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task ReadAsync_SupersededCompilationGeneration_ReportsNewerGeneration(
         CancellationToken cancellationToken)
     {

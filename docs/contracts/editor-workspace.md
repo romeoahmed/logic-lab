@@ -264,7 +264,7 @@ Compilation state. Undo, Redo, or a later edit can make the current Project Revi
 new Compilation while the existing Session continues against the Project Revision and Artifact
 that created it.
 
-`Pause` does not require the rapidly changing Session Version. `StartRun` creates a monotonic Run Generation; Pause targets that generation and becomes effective at the next committed or rolled-back boundary. A delayed Pause cannot stop a later run generation.
+`Pause` does not require the rapidly changing Session Version. `StartRun` creates a monotonic Run Generation; Pause targets that generation and becomes effective at the next committed or rolled-back boundary. A delayed Pause cannot stop a later run generation. If the boundary itself produces `AdvanceFailed`, the accepted Pause observes that same typed failure instead of a later generation-precondition rejection; the Run remains `Failed` so no failure evidence is lost.
 
 Run projection state is exactly `NotRunning | Running(RunGeneration) | Paused(RunGeneration, reason) | Failed(RunGeneration, AdvanceFailed)`. `Failed` preserves the unchanged Session Version and Logical Time plus the closed Advance failure reason, Diagnostics, and conditional policy evidence; it is never represented as a Paused state.
 

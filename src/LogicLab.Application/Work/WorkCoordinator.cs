@@ -8,11 +8,12 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 {
     private readonly Lock gate = new();
     private readonly CancellationTokenSource stopping = new();
-    private readonly Channel<CompilationWorkItem> compilationQueue;
+    private readonly Channel<WorkspaceId> compilationQueue;
     private readonly Channel<SessionWorkItem> sessionQueue;
     private readonly int sessionQueueCapacity;
     private readonly ILogger<WorkCoordinator> logger;
     private readonly Dictionary<WorkspaceId, CompilationWorkItem> latestCompilations = [];
+    private readonly Dictionary<WorkspaceId, CompilationWorkItem> pendingCompilations = [];
     private readonly Task compilationWorker;
     private readonly Task sessionWorker;
     private int reservedSessionItems;
@@ -26,7 +27,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(logger);
 
         this.logger = logger;
-        compilationQueue = CreateBoundedQueue<CompilationWorkItem>(
+        compilationQueue = CreateBoundedQueue<WorkspaceId>(
             policy.CompilationQueueCapacity);
         sessionQueue = CreateBoundedQueue<SessionWorkItem>(policy.SessionQueueCapacity);
         sessionQueueCapacity = policy.SessionQueueCapacity;
@@ -43,7 +44,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(operation);
         CompilationWorkItem item;
-        CompilationWorkItem? previous = null;
+        CompilationWorkItem? superseded = null;
+        var disposeSuperseded = false;
         lock (gate)
         {
             if (isDisposed || cancellationToken.IsCancellationRequested)
@@ -57,22 +59,36 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 operation,
                 cancellationToken,
                 stopping.Token);
-            if (!compilationQueue.Writer.TryWrite(item))
+            if (pendingCompilations.TryGetValue(workspaceId, out superseded))
+            {
+                pendingCompilations[workspaceId] = item;
+                disposeSuperseded = true;
+            }
+            else if (!compilationQueue.Writer.TryWrite(workspaceId))
             {
                 item.Dispose();
                 rejectionCode = WorkspaceOutcomeReasons.WorkspaceAdmissionRejected;
                 return false;
             }
-
-            _ = latestCompilations.TryGetValue(workspaceId, out previous);
-            latestCompilations[workspaceId] = item;
-            if (previous is not null && previous.WasPublishedUnderLock)
+            else
             {
-                previous = null;
+                pendingCompilations.Add(workspaceId, item);
+                _ = latestCompilations.TryGetValue(workspaceId, out superseded);
+                if (superseded is not null && superseded.WasPublishedUnderLock)
+                {
+                    superseded = null;
+                }
             }
+
+            latestCompilations[workspaceId] = item;
         }
 
-        previous?.CancelSuperseded();
+        superseded?.CancelSuperseded();
+        if (disposeSuperseded)
+        {
+            superseded?.Dispose();
+        }
+
         rejectionCode = null;
         return true;
     }
@@ -248,8 +264,16 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
     private async Task ConsumeCompilationsAsync()
     {
-        await foreach (var item in compilationQueue.Reader.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var workspaceId in compilationQueue.Reader.ReadAllAsync()
+            .ConfigureAwait(false))
         {
+            CompilationWorkItem item;
+            lock (gate)
+            {
+                item = pendingCompilations[workspaceId];
+                _ = pendingCompilations.Remove(workspaceId);
+            }
+
             try
             {
                 var context = new CompilationWorkContext(
@@ -289,7 +313,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                     if (latestCompilations.TryGetValue(item.WorkspaceId, out var latest)
                         && ReferenceEquals(latest, item))
                     {
-                        latestCompilations.Remove(item.WorkspaceId);
+                        _ = latestCompilations.Remove(item.WorkspaceId);
                     }
                 }
 

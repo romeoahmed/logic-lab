@@ -84,17 +84,28 @@ internal readonly record struct ScheduledStimulusPriority(
     }
 }
 
-internal sealed class SimulationTraceStore(TracePolicy policy)
+internal sealed class SimulationTraceStore
 {
     private const ulong TransitionBaseBytes = 48;
     private const int InitialChunkCapacity = 4;
-    private readonly TracePolicy policy = policy;
-    private TraceChunk?[] chunks = new TraceChunk?[InitialChunkCapacity];
+    private readonly TracePolicy policy;
+    private TraceChunk?[] chunks;
     private int head;
     private int chunkCount;
     private ulong retainedBytes;
     private ulong retainedTransitionCount;
     private bool hasEvicted;
+
+    public SimulationTraceStore(TracePolicy policy)
+        : this(policy, InitialChunkCapacity)
+    {
+    }
+
+    private SimulationTraceStore(TracePolicy policy, int chunkCapacity)
+    {
+        this.policy = policy;
+        chunks = new TraceChunk?[chunkCapacity];
+    }
 
     public ulong LatestSequence { get; private set; }
 
@@ -115,10 +126,13 @@ internal sealed class SimulationTraceStore(TracePolicy policy)
         EarliestAvailableSequence,
         LatestSequence);
 
-    public SimulationTraceStore Fork()
+    public SimulationTraceStore ForkWithAppend(
+        ulong logicalTime,
+        IReadOnlyList<(ProbeState Probe, LogicVector Value)> observations)
     {
-        var fork = new SimulationTraceStore(policy);
-        fork.EnsureCapacity(chunkCount);
+        var fork = new SimulationTraceStore(
+            policy,
+            ForkCapacity(observations.Count));
         for (var chunkOffset = 0; chunkOffset < chunkCount; chunkOffset++)
         {
             fork.Enqueue(ChunkAt(chunkOffset));
@@ -131,15 +145,13 @@ internal sealed class SimulationTraceStore(TracePolicy policy)
         fork.retainedBytes = retainedBytes;
         fork.retainedTransitionCount = retainedTransitionCount;
         fork.hasEvicted = hasEvicted;
+        fork.Append(logicalTime, observations);
         return fork;
     }
 
     internal ulong ForkCandidateOwnedBufferBytes(
         IReadOnlyList<(ProbeState Probe, LogicVector Value)> observations)
     {
-        var requiredChunkCount = checked(
-            chunkCount + (observations.Count == 0 ? 0 : 1));
-        var forkCapacity = CapacityFor(requiredChunkCount);
         ulong appendedBytes = 0;
         for (var index = 0; index < observations.Count; index++)
         {
@@ -147,7 +159,16 @@ internal sealed class SimulationTraceStore(TracePolicy policy)
                 appendedBytes + TransitionBytes(observations[index].Value));
         }
 
-        return checked(((ulong)forkCapacity * sizeof(ulong)) + appendedBytes);
+        return checked(
+            ((ulong)ForkCapacity(observations.Count) * sizeof(ulong))
+            + appendedBytes);
+    }
+
+    private int ForkCapacity(int observationCount)
+    {
+        var requiredChunkCount = checked(
+            chunkCount + (observationCount == 0 ? 0 : 1));
+        return CapacityFor(requiredChunkCount);
     }
 
     public void Append(

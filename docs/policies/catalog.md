@@ -185,16 +185,24 @@ they never make a valid edit partially commit. Retention uses `TimeProvider`.
 RSS. The accounting uses fixed logical byte units: eight bytes per owned reference or index
 slot, sixteen bytes per packed Logic Vector word (the two 64-bit logic planes), twenty-four
 bytes per resolved Net word (the three 64-bit cause planes), and the Trace Policy's 48-byte
-transition base plus packed value words. The peak includes the committed
+transition base plus packed value words. Event-frontier accounting charges three slots per
+queued Stimulus Batch (the batch reference and its two-part priority), one slot per queued
+Stimulus assignment reference, two slots per Logical-Time index entry, two slots per indexed
+Driver assignment, two slots per Clock bucket, and two slots per Clock transition. These are
+logical storage units; tree links, collection growth slack, and other CLR storage metadata are
+excluded. The peak includes the committed
 Session working-layer buffers and retained Trace storage once, the complete replacement
-working-layer candidate, one initial cell-reference buffer for every replacement Memory,
+working-layer candidate including its new Clock event calendar, one initial cell-reference
+buffer for every replacement Memory,
 one additional cell-reference buffer only for each compatible migrated RAM while both can
 coexist, and the Trace fork index plus its staged observation chunk. Shared immutable
-Compilation Artifact records, CLR object headers, allocator metadata, and transient scalar
-locals are excluded. Arithmetic is checked and saturation is treated as over-limit. Candidate
+Compilation Artifact records and their source indexes, CLR object headers, allocator metadata,
+and transient preflight metadata are excluded. Arithmetic is checked and saturation is treated
+as over-limit. Candidate
 working-layer admission runs before any replacement working-layer or RAM clone allocation.
 After settlement determines the exact changed Probe values, Trace admission runs before the
-Trace fork or transition chunk allocation. Either rejection reports Workspace Policy ID/revision,
+Trace fork or transition chunk allocation; the fork index is allocated once at the final
+capacity required by the staged chunk. Either rejection reports Workspace Policy ID/revision,
 `hot_swap_peak_bytes`, and the observed value while retaining the old Session unchanged. Both
 Durable Display Name dimensions must pass, and catalog requests cannot exceed the page/cursor
 maxima.
