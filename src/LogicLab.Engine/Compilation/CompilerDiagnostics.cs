@@ -61,7 +61,7 @@ public sealed class CompilerDiagnostic
         Arguments = Array.AsReadOnly(ownedArguments);
         Primary = primary;
         Related = ownedRelated is null
-            ? ReadOnlyCollection<CompilerSourceLocation>.Empty
+            ? []
             : Array.AsReadOnly(ownedRelated);
     }
 
