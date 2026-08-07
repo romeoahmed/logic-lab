@@ -8,7 +8,7 @@
 
 Logic Lab should begin with owned managed storage and safe, idiomatic loops. Spans are synchronous views, not ownership; memory and pool types add lifetime obligations, not automatic performance. Unsafe code is justified only for a measured leaf kernel whose safe implementation remains the semantic oracle.
 
-This is a stricter project policy than the platform requires. .NET permits `Memory<T>` across asynchronous work and supports explicit pinning and unsafe access. Logic Lab currently has no native production dependency, so those capabilities add risk without leverage.
+This is a stricter project policy than the platform requires. .NET permits `Memory<T>` across asynchronous work and supports explicit pinning and unsafe access. Logic Lab had no native production dependency at the research checkpoint, so those capabilities added risk without leverage.
 
 ## 2. Platform facts and Logic Lab decisions
 
@@ -23,7 +23,7 @@ This is a stricter project policy than the platform requires. .NET permits `Memo
 
 C# 14 makes array, string, `Span<T>`, and `ReadOnlySpan<T>` conversions first-class for applicability, inference, and overload resolution, and often prefers a read-only span target ([C# 14 overview](https://learn.microsoft.com/en-us/dotnet/csharp/whats-new/csharp-14#implicit-span-conversions), [language design](https://github.com/dotnet/csharplang/blob/main/proposals/csharp-14.0/first-class-span-types.md)). This can change which existing overload binds. Logic Lab should avoid parallel array/span overload families at Module interfaces, prefer one read-only span overload inside a kernel, and use an explicit `.AsSpan()` where binding must be obvious.
 
-The current unsafe-code article also describes a new caller-unsafe model, but identifies it as a C# 15/.NET 11 preview. It is not part of the C# 14/.NET 10 baseline; `AllowUnsafeBlocks` and the original unsafe-context rules still apply ([unsafe code](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/unsafe-code#two-models-for-unsafe-code)).
+The inspected unsafe-code article also described a new caller-unsafe model, but identified it as a C# 15/.NET 11 preview. It is not part of the C# 14/.NET 10 baseline; `AllowUnsafeBlocks` and the original unsafe-context rules still apply ([unsafe code](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/unsafe-code#two-models-for-unsafe-code)).
 
 ## 3. Ownership and pooling
 

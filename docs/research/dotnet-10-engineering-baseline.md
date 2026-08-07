@@ -11,7 +11,7 @@ This review began with every Markdown document in the repository, then tested th
 - [.NET runtime libraries overview](https://learn.microsoft.com/en-us/dotnet/standard/runtime-libraries-overview)
 - [What's new in .NET 10](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/overview)
 
-The authoritative project decisions are now in [.NET Engineering Baseline](../specs/dotnet-engineering.md), [Architecture](../../ARCHITECTURE.md), [Web Host](../specs/web-host.md), the focused specifications, and the seam contracts. This note explains why those decisions are appropriate, records rejected alternatives, and identifies evidence that prose cannot supply.
+The authoritative project decisions reside in [.NET Engineering Baseline](../specs/dotnet-engineering.md), [Architecture](../../ARCHITECTURE.md), [Web Host](../specs/web-host.md), the focused specifications, and the seam contracts. This note explains why those decisions are appropriate, records rejected alternatives, and identifies evidence that prose cannot supply.
 
 The assessment uses three different meanings of “ready”:
 
@@ -33,7 +33,7 @@ The maintained area-by-area status is the [Development Readiness](../README.md#d
 
 `net10.0` is the only appropriate target. Multi-targeting would multiply compatibility and test obligations without another consumer. C# 14 is the language associated with .NET 10; an explicit `14.0` makes the repository policy visible. `latest` and `preview` are unsuitable because their meaning changes with the installed SDK. Microsoft explicitly warns that selecting a language newer than the target framework is unsupported and can create runtime or reference-assembly mismatches ([C# language version configuration](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/configure-language-version)).
 
-The exact SDK pin and dependency lock graph are one reviewed unit. `global.json` requires a full SDK version and supports no wildcard or version range. Microsoft now explicitly recommends `rollForward: disable` when package lock files are used so that the SDK and dependency graph remain in lockstep ([`global.json` roll-forward policies](https://learn.microsoft.com/en-us/dotnet/core/tools/global-json#rollforward)). The checked-in `10.0.302`, disabled roll-forward, and `allowPrerelease: false` are therefore the reproducible choice.
+The exact SDK pin and dependency lock graph are one reviewed unit. `global.json` requires a full SDK version and supports no wildcard or version range. Microsoft explicitly recommends `rollForward: disable` when package lock files are used so that the SDK and dependency graph remain in lockstep ([`global.json` roll-forward policies](https://learn.microsoft.com/en-us/dotnet/core/tools/global-json#rollforward)). The checked-in `10.0.302`, disabled roll-forward, and `allowPrerelease: false` are therefore the reproducible choice.
 
 Exact pinning does not mean ignoring servicing. .NET 10 is LTS through **2028-11-14**, and Microsoft requires systems to remain current on released patches to qualify for support ([.NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core)). A dependency-maintenance change should update the SDK pin, restore lock files, build, test, publish, and review the resulting artifacts together. A framework-dependent production host also consumes the installed runtime's current security patch independently of the build SDK.
 
@@ -216,7 +216,7 @@ The shortest route from the documentation baseline to a trustworthy project is:
 | unbounded queues or fire-and-forget tasks | reject | lose admission, identity, cancellation, and shutdown semantics |
 | custom DI container, mediator, mapper, generic Result | reject until a measured missing capability exists | adds vocabulary and indirection without a real seam |
 | public REST/OpenAPI surface | defer | V1 has no independent API consumer |
-| Aspire ServiceDefaults project | defer | observability can be composed directly in the single Web host; another project currently adds no deep seam |
+| Aspire ServiceDefaults project | defer | observability can be composed directly in the single V1 Web host; another project adds no deep seam |
 | self-contained, trimming, single-file, or ReadyToRun | separate measured profiles | deployment optimizations have compatibility, size, servicing, and startup trade-offs |
 | Native AOT for the Web host | reject for V1 | ASP.NET Core lists Blazor Server as unsupported |
 | invariant globalization | reject | incompatible with the localized Unicode product |

@@ -14,8 +14,9 @@ Logic Lab has a closed V1 design baseline. Read each document according to its a
 | ASP.NET Core routes, render modes, culture, circuits, security, and host operations | [Web Host](./specs/web-host.md) |
 | Canvas/waveform transforms, frames, input, accessibility, and browser resources | [Browser Runtime](./specs/browser-runtime.md) |
 | .NET SDK, build, dependency, C#, async, DI, configuration, serialization, observability, and publication rules | [.NET Engineering Baseline](./specs/dotnet-engineering.md) |
+| delivery order, completion status, and blocking frontier | [Implementation Plan](./implementation-plan.md) |
 | hard-to-reverse decision rationale | [ADRs](./adr/README.md) |
-| evidence, derivation, alternatives, and source qualification | [research](./research/) |
+| evidence, derivation, alternatives, and source qualification | [Research Index](./research/README.md) |
 
 There is no generic “narrower file wins” rule. A specification defines current behavior, Architecture defines ownership and seams, Workbench defines experience, a contract defines values at one real seam, a glossary defines terminology, an ADR explains a choice, and research supplies evidence. A conflict is a documentation defect and must be repaired in the owning artifact.
 
@@ -42,13 +43,9 @@ There is no generic “narrower file wins” rule. A specification defines curre
 - [Browser Adapters](./contracts/browser-adapters.md)
 - [HTTP Transfer](./contracts/http-transfer.md)
 
-## Implementation plan
-
-- [Logic Lab V1 Implementation Plan](./implementation-plan.md) translates the design baseline into context-sized delivery slices and blocking edges. It is a non-normative execution plan; the authorities above continue to own behavior and interfaces.
-
 ## Development readiness
 
-The [Implementation Plan](./implementation-plan.md#delivery-status) is the only completion ledger: Phase A items `01`–`06`, Phase B items `07`–`16`, and Phase C items `17`–`18` are complete at the seams promised there. This section summarizes executable evidence and open gaps; it does not redefine slice completion. The application is neither V1-complete nor production-qualified.
+The [Implementation Plan](./implementation-plan.md#delivery-status) is the only completion ledger. This section summarizes executable evidence and open gaps without redefining slice completion. The application is neither V1-complete nor production-qualified.
 
 | Area | Executable now | Not yet claimed |
 |---|---|---|
@@ -58,25 +55,15 @@ The [Implementation Plan](./implementation-plan.md#delivery-status) is the only 
 | .NET engineering and performance | five production projects, five executable test projects, one BenchmarkDotNet project, application-root locks, locked restore, analyzers-as-errors, format, build, and whole-solution test gates | later slice projects and locks, CI publication, architecture automation, frozen corpus, calibrated thresholds, and provider qualification |
 | Production operations | development-host lifecycle and security-header evidence | concrete TLS/proxy, secrets, persistence, migration, backup/restore, telemetry, alerting, and runbook evidence |
 
-Verification snapshot (2026-08-06): locked restore, formatting, warning-clean build, whitespace validation, and the whole-solution TUnit suite passed. The executable evidence above covers the completed vertical slices; it does not qualify the application for release while any remaining-evidence row is open.
+The repository gates in the [.NET Engineering Baseline](./specs/dotnet-engineering.md#9-verification-and-completion-gate) reproduce build and test evidence. Routine verification snapshots belong in the change or CI record, not this maintained map. Passing those gates does not qualify the application for release while any remaining-evidence row is open.
 
 ## Executable evidence
 
-- [Engine Performance Benchmarks](../benchmarks/LogicLab.Engine.Benchmarks/README.md) records production-shaped kernel, Compilation, and initial-settlement comparisons. It is directional performance evidence, not a release threshold.
+[Engine Performance Benchmarks](../benchmarks/LogicLab.Engine.Benchmarks/README.md) records production-shaped kernel, Compilation, and initial-settlement comparisons. It is directional performance evidence, not a release threshold.
 
 ## Research evidence
 
-- [Least-Fixed-Point Semantics](./research/least-fixed-point-semantics.md)
-- [.NET Memory and Unsafe Code](./research/dotnet-memory-and-unsafe.md)
-- [.NET 10 Engineering Baseline](./research/dotnet-10-engineering-baseline.md)
-- [TUnit Modern Testing](./research/tunit-modern-testing.md)
-- [Compiler Representations](./research/compiler-representations.md)
-- [Boolean Analysis](./research/boolean-analysis.md)
-- [Blazor Web Platform](./research/blazor-web-platform.md)
-- [Diagram Presentation](./research/diagram-presentation.md)
-- [.NET Performance Review](./research/performance-review.md)
-
-Research is not a second implementation specification. It preserves primary-source claims, mathematical reasoning, rejected alternatives, and qualification gaps. Project choices link to the owning specification or ADR.
+[Research](./research/README.md) preserves primary-source claims, mathematical reasoning, rejected alternatives, and qualification gaps. It is evidence, not a second implementation specification; project choices remain in the owning specification or ADR.
 
 Research notes identify optional untracked standards copies by filename. When available, use `pdftotext -layout` for searchable prose and inspect original pages for figures and typography; do not treat those files as project assets.
 
@@ -89,4 +76,6 @@ Research notes identify optional untracked standards copies by filename. When av
 - Add an ADR only for a genuine hard-to-reverse trade-off.
 - Classify every number as semantic, format, provisional policy, or measured threshold.
 - Cite primary sources at the claim; qualify secondary tutorials and Wikipedia as navigation only.
+- Keep delivery status only in the Implementation Plan, reproducible commands in the .NET Engineering Baseline, and routine verification snapshots in change or CI records.
+- Frame time-sensitive implementation observations in research as dated checkpoint evidence, never as maintained current state.
 - Update links and supersession notes in the same change that moves authority.

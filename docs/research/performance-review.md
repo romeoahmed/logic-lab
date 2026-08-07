@@ -12,9 +12,10 @@ supported at production widths. Two LINQ-backed projections in Simulation settle
 confirmed as local allocation hot spots and replaced with explicit, exact-sized array fills.
 No Module contract changed.
 
-Benchmark coverage previously proved only multi-driver vector resolution. It now also compares
-the packed binary-logic and conservative-merge kernels and establishes scale baselines for
-Compilation and initial Session settlement on a real authored circuit. The remaining gaps are
+Benchmark coverage before this review proved only multi-driver vector resolution. The expanded
+checkpoint suite also compared the packed binary-logic and conservative-merge kernels and
+established scale baselines for Compilation and initial Session settlement on a real authored
+circuit. The remaining gaps are
 classified by the evidence capable of answering them instead of treating BenchmarkDotNet as a
 universal performance test tool.
 
@@ -42,8 +43,8 @@ universal performance test tool.
   implementation remains only when a production-shaped comparison demonstrates value. Public
   Module values stay owned and immutable, and storage layout stays internal.
 
-BenchmarkDotNet 0.15.8 is the centrally locked version used for this review. It is the current
-official release, and the 0.15 line includes .NET 10 support
+BenchmarkDotNet 0.15.8 is the centrally locked version used for this review. It was the official
+release at the checkpoint, and the 0.15 line includes .NET 10 support
 ([repository](https://github.com/dotnet/BenchmarkDotNet),
 [releases](https://github.com/dotnet/BenchmarkDotNet/releases)).
 
@@ -76,7 +77,7 @@ profile, but it prevents speculative repository-wide rewrites.
 | indexed fill for net-driver projection | production shape improved 57.876 to 24.765 ns, 72.414 to 39.133 ns, and 298.687 to 232.653 ns; allocation fell in all cases | retain |
 | indexed fill for combinational gate inputs | 256-gate public Session-open path improved 145.554 to 136.105 us; allocation fell 56 KB, or 224 B per gate | retain |
 | ordinal-based `ReadOnlySpan<int>` resolver interface | removed a temporary array but slowed the 1024-bit production shape to 348.600 ns | remove |
-| pooling, stack allocation, unsafe access, runtime/GC switches | no deployment profile or end-to-end evidence; current arrays escape as result-owned values or are small exact scratch | reject for this review |
+| pooling, stack allocation, unsafe access, runtime/GC switches | no deployment profile or end-to-end evidence; inspected arrays escape as result-owned values or are small exact scratch | reject for this review |
 
 The retained changes preserve the existing `IReadOnlyList<LogicVector>` kernel contracts and
 one allocation for required reference storage. They remove iterator and collection-expression
