@@ -8,6 +8,7 @@ public static partial class SimulationRuntime
         SimulationSessionState state,
         CompilationArtifact replacement,
         ulong maximumPeakOwnedBufferBytes,
+        HotSwapConsumerBufferRequirements consumerBuffers,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -46,7 +47,8 @@ public static partial class SimulationRuntime
             replacement,
             migrationPreflight.MigratedRamCellReferenceCount,
             probePreflight.PreservedProbeCount,
-            state.Probes.Length - probePreflight.PreservedProbeCount);
+            state.Probes.Length - probePreflight.PreservedProbeCount,
+            consumerBuffers);
         if (candidatePeakOwnedBuffers.IsSaturated
             || candidatePeakOwnedBuffers.Bytes > maximumPeakOwnedBufferBytes)
         {
@@ -103,13 +105,36 @@ public static partial class SimulationRuntime
             replacement,
             driverValues,
             settlement.NetResolutions);
-        var peakOwnedBuffers = HotSwapOwnedBufferAccounting.AddPublicationAndTraceFork(
-            candidatePeakOwnedBuffers,
-            state.Trace,
-            changedProbeSummary,
-            diagnosticBuffers.OwnedReferenceSlotCount,
-            migrationPreflight.MigrationCount,
-            probePreflight.PreservedProbeCount);
+        var preCommitPeakOwnedBuffers =
+            HotSwapOwnedBufferAccounting.AddPublicationAndTraceFork(
+                candidatePeakOwnedBuffers,
+                state.Trace,
+                changedProbeSummary,
+                diagnosticBuffers.OwnedReferenceSlotCount,
+                migrationPreflight.MigrationCount,
+                probePreflight.PreservedProbeCount);
+        var observedProbeSummary = MeasureObservedProbeBuffers(
+            probes,
+            settlement.NetValues);
+        var postCommitPeakOwnedBuffers =
+            HotSwapOwnedBufferAccounting.MeasurePostCommitPeak(
+                replacement,
+                driverValues,
+                settlement.NetValues,
+                sequentialStates,
+                memoryStates,
+                probes,
+                state.Trace,
+                changedProbeSummary,
+                diagnosticBuffers.OwnedReferenceSlotCount,
+                migrationPreflight.MigrationCount,
+                probeBindings.UnresolvedProbeIds.Length,
+                state.LogicalTime,
+                consumerBuffers,
+                observedProbeSummary);
+        var peakOwnedBuffers = HotSwapOwnedBufferAccounting.Maximum(
+            preCommitPeakOwnedBuffers,
+            postCommitPeakOwnedBuffers);
         if (peakOwnedBuffers.IsSaturated
             || peakOwnedBuffers.Bytes > maximumPeakOwnedBufferBytes)
         {
@@ -229,6 +254,20 @@ public static partial class SimulationRuntime
         }
 
         return new ChangedProbeBufferMeasure(count, packedWordCount);
+    }
+
+    private static ObservedProbeBufferMeasure MeasureObservedProbeBuffers(
+        ProbeState[] probes,
+        LogicVector[] replacementNetValues)
+    {
+        ulong bitCount = 0;
+        foreach (var probe in probes)
+        {
+            bitCount = checked(
+                bitCount + (ulong)replacementNetValues[probe.NetOrdinal].Width);
+        }
+
+        return new ObservedProbeBufferMeasure(probes.Length, bitCount);
     }
 
     private static (ProbeState Probe, LogicVector Value)[] CreateChangedProbeObservations(

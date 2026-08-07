@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using LogicLab.Application.Work;
 using LogicLab.Domain;
@@ -961,6 +962,38 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         })];
     }
 
+    private static ProbeProjection[] ProjectProbes(
+        ReadOnlyCollection<ProbeObservation> observations)
+    {
+        var projections = new ProbeProjection[observations.Count];
+        for (var index = 0; index < observations.Count; index++)
+        {
+            var observation = observations[index];
+            projections[index] = ProbeProjection.FromOwnedValue(
+                observation.ProbeId,
+                observation.Source.Identity,
+                Values(observation.Value));
+        }
+
+        return projections;
+    }
+
+    private static ProbeProjection[] ProjectProbes(
+        ReadOnlyCollection<ProbeSnapshot> snapshots)
+    {
+        var projections = new ProbeProjection[snapshots.Count];
+        for (var index = 0; index < snapshots.Count; index++)
+        {
+            var snapshot = snapshots[index];
+            projections[index] = ProbeProjection.FromOwnedValue(
+                snapshot.ProbeId,
+                snapshot.Source.Identity,
+                Values(snapshot.Value));
+        }
+
+        return projections;
+    }
+
     private static CompilationSource[] OutputProbeSources(
         ProjectRevision revision,
         CompilationArtifact artifact)
@@ -1070,23 +1103,26 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
 
-        simulation = new SimulationProjection(
+        simulation = SimulationProjection.FromOwnedProbes(
             snapshot.SessionId,
             snapshot.SessionVersion,
             snapshot.CompilationArtifactKey,
             snapshot.LogicalTime,
             snapshot.TraceCursor,
-            [.. snapshot.Probes.Select(probe => new ProbeProjection(
-                probe.ProbeId,
-                probe.Source.Identity,
-                Values(probe.Value)))],
+            ProjectProbes(snapshot.Probes),
             RunNotRunningProjection.Instance);
         return null;
     }
 
     private static LogicValue[] Values(LogicVector vector)
     {
-        return [.. Enumerable.Range(0, vector.Width).Select(index => vector[index])];
+        var values = new LogicValue[vector.Width];
+        for (var index = 0; index < values.Length; index++)
+        {
+            values[index] = vector[index];
+        }
+
+        return values;
     }
 
     private static WorkspaceProjection Project(WorkspaceState state)

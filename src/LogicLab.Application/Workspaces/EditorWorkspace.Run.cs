@@ -61,9 +61,13 @@ internal sealed partial class EditorWorkspace
             return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
         }
 
+        var priorSimulation = state.Simulation!;
         var outcome = operations.ExecuteSimulation(
             activeSession.Handle,
-            new HotSwapTo(replacement, workspacePolicy.HotSwapPeakBytes),
+            new HotSwapTo(
+                replacement,
+                workspacePolicy.HotSwapPeakBytes,
+                HotSwapProjectionBufferAccounting.RequirementsFor(priorSimulation)),
             cancellationToken);
         if (outcome is LogicLab.Engine.Simulation.HotSwapIncompatible)
         {
@@ -98,26 +102,19 @@ internal sealed partial class EditorWorkspace
             activeSession.Handle,
             state.Revision,
             replacement);
-        var priorSimulation = state.Simulation!;
-        state.Simulation = new SimulationProjection(
+        state.Simulation = SimulationProjection.FromOwnedProbes(
             priorSimulation.SessionId,
             committed.SessionVersion,
             committed.CompilationArtifactKey,
             priorSimulation.LogicalTime,
             committed.TraceCursor,
-            [.. committed.ObservedProbes.Select(probe => new ProbeProjection(
-                probe.ProbeId,
-                probe.Source.Identity,
-                Values(probe.Value)))],
+            ProjectProbes(committed.ObservedProbes),
             priorSimulation.Run);
         state.ProjectionVersion++;
         return new HotSwapCommitted(
             committed.SessionVersion,
             committed.CompilationArtifactKey,
-            new HotSwapMigrationProjection(
-                committed.MigrationEvidence.MigratedStateSources,
-                committed.MigrationEvidence.PreservedProbeIds,
-                committed.MigrationEvidence.UnresolvedProbeIds),
+            HotSwapMigrationProjection.FromImmutable(committed.MigrationEvidence),
             state.ProjectionVersion);
     }
 

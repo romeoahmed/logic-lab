@@ -31,7 +31,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapTo(replacementArtifact, ulong.MaxValue),
+            HotSwap(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var snapshot = Snapshot(opened);
         var nextClock = Advance(opened);
@@ -90,7 +90,7 @@ internal sealed class SimulationHotSwapTests
 
         var committed = (HotSwapCommitted)SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapTo(replacementArtifact, ulong.MaxValue),
+            HotSwap(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var fullTrace = (TraceTransitionsAvailable)SimulationRuntime.Read(
             opened.Handle,
@@ -145,7 +145,7 @@ internal sealed class SimulationHotSwapTests
 
         var committed = (HotSwapCommitted)SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapTo(replacementArtifact, ulong.MaxValue),
+            HotSwap(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var continuation = (TraceTransitionsAvailable)SimulationRuntime.Read(
             opened.Handle,
@@ -188,11 +188,11 @@ internal sealed class SimulationHotSwapTests
 
         var accepted = SimulationRuntime.Execute(
             acceptedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
             CancellationToken.None);
         var rejected = SimulationRuntime.Execute(
             rejectedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
             CancellationToken.None);
         var rejectedAfter = Snapshot(rejectedSession);
 
@@ -207,6 +207,58 @@ internal sealed class SimulationHotSwapTests
                 .IsEqualTo(exactPeakOwnedBufferBytes);
         }
 
+        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+    }
+
+    [Test]
+    public async Task Execute_ConsumerProjectionBuffers_UseExactPostCommitPeakBudget()
+    {
+        const uint width = 1_024;
+        // 56 replacement Session reference bytes, one 256-byte packed Net plane,
+        // a 336-byte retained Trace, 16 outcome bytes, and 1,032 consumer bytes.
+        const ulong exactPeakOwnedBufferBytes = 1_696;
+        var circuit = SequentialTestCircuit.Create();
+        var input = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.One, width));
+        var sink = circuit.Place(
+            "sink.output",
+            SequentialTestCircuit.Sink(width));
+        var outputNet = circuit.Connect((input, "Q"), (sink, "D"));
+        var originalArtifact = circuit.Compile();
+        circuit.Apply(new MoveComponentInstancesIntent(
+            circuit.Revision.Document.EntryCircuitDefinitionId,
+            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
+        var replacementArtifact = circuit.Compile();
+        var consumerBuffers = new HotSwapConsumerBufferRequirements(
+            retainedOwnedBufferBytes: 0,
+            ownedReferenceSlotsPerObservedProbe: 1,
+            ownedBytesPerObservedProbeBit: sizeof(byte));
+        var acceptedSession = Open(originalArtifact, outputNet);
+        var rejectedSession = Open(originalArtifact, outputNet);
+        var rejectedBefore = Snapshot(rejectedSession);
+
+        var accepted = SimulationRuntime.Execute(
+            acceptedSession.Handle,
+            new HotSwapTo(
+                replacementArtifact,
+                exactPeakOwnedBufferBytes,
+                consumerBuffers),
+            CancellationToken.None);
+        var rejected = SimulationRuntime.Execute(
+            rejectedSession.Handle,
+            new HotSwapTo(
+                replacementArtifact,
+                exactPeakOwnedBufferBytes - 1UL,
+                consumerBuffers),
+            CancellationToken.None);
+        var rejectedAfter = Snapshot(rejectedSession);
+
+        await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
+        var resourceLimit = (await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
+        await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
+            .IsEqualTo(exactPeakOwnedBufferBytes);
         await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
     }
 
@@ -239,11 +291,11 @@ internal sealed class SimulationHotSwapTests
 
         var accepted = SimulationRuntime.Execute(
             acceptedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
             CancellationToken.None);
         var rejected = SimulationRuntime.Execute(
             rejectedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
             CancellationToken.None);
         var rejectedAfter = Snapshot(rejectedSession);
 
@@ -286,11 +338,11 @@ internal sealed class SimulationHotSwapTests
 
         var accepted = SimulationRuntime.Execute(
             acceptedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
             CancellationToken.None);
         var rejected = SimulationRuntime.Execute(
             rejectedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
             CancellationToken.None);
         var rejectedAfter = Snapshot(rejectedSession);
 
@@ -334,11 +386,11 @@ internal sealed class SimulationHotSwapTests
 
         var accepted = SimulationRuntime.Execute(
             acceptedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
             CancellationToken.None);
         var rejected = SimulationRuntime.Execute(
             rejectedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
             CancellationToken.None);
         var rejectedAfter = Snapshot(rejectedSession);
 
@@ -384,11 +436,11 @@ internal sealed class SimulationHotSwapTests
 
         var accepted = SimulationRuntime.Execute(
             acceptedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
             CancellationToken.None);
         var rejected = SimulationRuntime.Execute(
             rejectedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
             CancellationToken.None);
         var rejectedAfter = Snapshot(rejectedSession);
 
@@ -445,11 +497,11 @@ internal sealed class SimulationHotSwapTests
 
         var accepted = SimulationRuntime.Execute(
             acceptedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
             CancellationToken.None);
         var rejected = SimulationRuntime.Execute(
             rejectedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
             CancellationToken.None);
         var rejectedAfter = Snapshot(rejectedSession);
 
@@ -482,11 +534,11 @@ internal sealed class SimulationHotSwapTests
 
         var accepted = SimulationRuntime.Execute(
             acceptedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
             CancellationToken.None);
         var rejected = SimulationRuntime.Execute(
             rejectedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
             CancellationToken.None);
         var rejectedAfter = Snapshot(rejectedSession);
 
@@ -527,7 +579,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapTo(replacementArtifact, ulong.MaxValue),
+            HotSwap(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var snapshot = Snapshot(opened);
 
@@ -571,7 +623,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapTo(replacementArtifact, ulong.MaxValue),
+            HotSwap(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var after = Snapshot(opened);
 
@@ -609,7 +661,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapTo(replacementArtifact, ulong.MaxValue),
+            HotSwap(replacementArtifact, ulong.MaxValue),
             CancellationToken.None);
         var snapshot = Snapshot(opened);
 
@@ -643,7 +695,7 @@ internal sealed class SimulationHotSwapTests
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
-            new HotSwapTo(replacementArtifact, ulong.MaxValue),
+            HotSwap(replacementArtifact, ulong.MaxValue),
             new CancellationToken(canceled: true));
         var after = Snapshot(opened);
 
@@ -697,11 +749,11 @@ internal sealed class SimulationHotSwapTests
 
         var accepted = SimulationRuntime.Execute(
             acceptedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
             CancellationToken.None);
         var rejected = SimulationRuntime.Execute(
             rejectedSession.Handle,
-            new HotSwapTo(
+            HotSwap(
                 replacementArtifact,
                 exactPeakOwnedBufferBytes - 1UL),
             CancellationToken.None);
@@ -746,11 +798,11 @@ internal sealed class SimulationHotSwapTests
 
         var accepted = SimulationRuntime.Execute(
             acceptedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
             CancellationToken.None);
         var rejected = SimulationRuntime.Execute(
             rejectedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
             CancellationToken.None);
         var rejectedAfter = Snapshot(rejectedSession);
 
@@ -790,11 +842,11 @@ internal sealed class SimulationHotSwapTests
 
         var accepted = SimulationRuntime.Execute(
             acceptedSession.Handle,
-            new HotSwapTo(replacementArtifact, exactPeakOwnedBufferBytes),
+            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
             CancellationToken.None);
         var rejected = SimulationRuntime.Execute(
             rejectedSession.Handle,
-            new HotSwapTo(
+            HotSwap(
                 replacementArtifact,
                 exactPeakOwnedBufferBytes - 1UL),
             CancellationToken.None);
@@ -818,6 +870,16 @@ internal sealed class SimulationHotSwapTests
                 SimulationTestContext.PermissiveSimulationPolicy(),
                 [.. outputNets.Select(net => SequentialTestCircuit.NetSource(artifact, net))]),
             CancellationToken.None);
+    }
+
+    private static HotSwapTo HotSwap(
+        CompilationArtifact artifact,
+        ulong maximumPeakOwnedBufferBytes)
+    {
+        return new HotSwapTo(
+            artifact,
+            maximumPeakOwnedBufferBytes,
+            HotSwapConsumerBufferRequirements.None);
     }
 
     private static CompilationArtifact MergeReplacementNetSources(

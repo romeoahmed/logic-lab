@@ -26,13 +26,15 @@ internal sealed class HotSwapOwnedBufferAccountingTests
             twoOutputDemux,
             migratedRamCellReferenceCount: 0,
             preservedProbeCount: 0,
-            unresolvedProbeCount: 0);
+            unresolvedProbeCount: 0,
+            consumerBuffers: HotSwapConsumerBufferRequirements.None);
         var eightOutputPeak = HotSwapOwnedBufferAccounting.MeasureCandidatePeak(
             opened.Handle.State,
             eightOutputDemux,
             migratedRamCellReferenceCount: 0,
             preservedProbeCount: 0,
-            unresolvedProbeCount: 0);
+            unresolvedProbeCount: 0,
+            consumerBuffers: HotSwapConsumerBufferRequirements.None);
 
         // Six additional output Drivers require six candidate Driver references,
         // six superseded initial-Z planes, and six evaluator-result references.

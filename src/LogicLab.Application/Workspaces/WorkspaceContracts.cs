@@ -420,11 +420,31 @@ public sealed class HotSwapMigrationProjection
         UnresolvedProbeIds = Array.AsReadOnly(unresolvedProbeIds.ToArray());
     }
 
+    private HotSwapMigrationProjection(
+        ReadOnlyCollection<CompilationSource> migratedStateSources,
+        ReadOnlyCollection<ProbeId> preservedProbeIds,
+        ReadOnlyCollection<ProbeId> unresolvedProbeIds)
+    {
+        MigratedStateSources = migratedStateSources;
+        PreservedProbeIds = preservedProbeIds;
+        UnresolvedProbeIds = unresolvedProbeIds;
+    }
+
     public ReadOnlyCollection<CompilationSource> MigratedStateSources { get; }
 
     public ReadOnlyCollection<ProbeId> PreservedProbeIds { get; }
 
     public ReadOnlyCollection<ProbeId> UnresolvedProbeIds { get; }
+
+    internal static HotSwapMigrationProjection FromImmutable(
+        HotSwapMigrationEvidence evidence)
+    {
+        ArgumentNullException.ThrowIfNull(evidence);
+        return new HotSwapMigrationProjection(
+            evidence.MigratedStateSources,
+            evidence.PreservedProbeIds,
+            evidence.UnresolvedProbeIds);
+    }
 }
 
 public sealed record HotSwapCommitted(
@@ -707,11 +727,35 @@ public sealed record ProbeProjection
         Value = Array.AsReadOnly(value.ToArray());
     }
 
+    private ProbeProjection(
+        ProbeId probeId,
+        AuthoredSourceIdentity source,
+        ReadOnlyCollection<LogicValue> value)
+    {
+        ProbeId = probeId;
+        Source = source;
+        Value = value;
+    }
+
     public ProbeId ProbeId { get; }
 
     public AuthoredSourceIdentity Source { get; }
 
     public ReadOnlyCollection<LogicValue> Value { get; }
+
+    internal static ProbeProjection FromOwnedValue(
+        ProbeId probeId,
+        AuthoredSourceIdentity source,
+        LogicValue[] ownedValue)
+    {
+        ArgumentNullException.ThrowIfNull(probeId);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(ownedValue);
+        return new ProbeProjection(
+            probeId,
+            source,
+            Array.AsReadOnly(ownedValue));
+    }
 }
 
 public enum RunStatus
@@ -820,6 +864,24 @@ public sealed record SimulationProjection
         Run = run;
     }
 
+    private SimulationProjection(
+        SimulationSessionId sessionId,
+        ulong sessionVersion,
+        CompilationArtifactKey compilationArtifactKey,
+        ulong logicalTime,
+        TraceCursor traceCursor,
+        ReadOnlyCollection<ProbeProjection> probes,
+        RunProjection run)
+    {
+        SessionId = sessionId;
+        SessionVersion = sessionVersion;
+        CompilationArtifactKey = compilationArtifactKey;
+        LogicalTime = logicalTime;
+        TraceCursor = traceCursor;
+        Probes = probes;
+        Run = run;
+    }
+
     public SimulationSessionId SessionId { get; }
 
     public ulong SessionVersion { get; }
@@ -833,6 +895,29 @@ public sealed record SimulationProjection
     public ReadOnlyCollection<ProbeProjection> Probes { get; }
 
     public RunProjection Run { get; }
+
+    internal static SimulationProjection FromOwnedProbes(
+        SimulationSessionId sessionId,
+        ulong sessionVersion,
+        CompilationArtifactKey compilationArtifactKey,
+        ulong logicalTime,
+        TraceCursor traceCursor,
+        ProbeProjection[] ownedProbes,
+        RunProjection run)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+        ArgumentNullException.ThrowIfNull(compilationArtifactKey);
+        ArgumentNullException.ThrowIfNull(ownedProbes);
+        ArgumentNullException.ThrowIfNull(run);
+        return new SimulationProjection(
+            sessionId,
+            sessionVersion,
+            compilationArtifactKey,
+            logicalTime,
+            traceCursor,
+            Array.AsReadOnly(ownedProbes),
+            run);
+    }
 }
 
 public sealed record WorkspaceProjection(
