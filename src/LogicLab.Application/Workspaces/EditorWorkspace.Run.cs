@@ -224,9 +224,52 @@ internal sealed partial class EditorWorkspace
                 generation,
                 cancellationToken).ConfigureAwait(false);
         }
+        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
+        {
+            return await FailRunAfterExceptionAsync(
+                state,
+                generation,
+                exception).ConfigureAwait(false);
+        }
         finally
         {
             Release(state);
+        }
+    }
+
+    private async ValueTask<WorkspaceCommandOutcome> FailRunAfterExceptionAsync(
+            WorkspaceState state,
+            RunGeneration generation,
+            Exception exception)
+    {
+        var reason = AdvanceFailureReasonFrom(exception);
+        var correlation = Guid.CreateVersion7().ToString("N");
+        LogAdvanceFailure(logger, exception, correlation, reason);
+
+        await state.CommandGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            if (state.IsRetired
+                || state.Simulation is not
+                {
+                    Run: RunRunningProjection
+                    {
+                        RunGeneration: var activeGeneration,
+                    },
+                }
+                || activeGeneration != generation)
+            {
+                return Reject(WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
+            }
+
+            return FailRun(
+                state,
+                generation,
+                new AdvanceFailureProjection(reason, [], policyEvidence: null));
+        }
+        finally
+        {
+            state.CommandGate.Release();
         }
     }
 
@@ -327,7 +370,7 @@ internal sealed partial class EditorWorkspace
     {
         lock (state.ContinuityGate)
         {
-            return state.RequestedRunPauseGeneration == generation;
+            return IsRunPauseRequestedUnderLock(state, generation);
         }
     }
 
@@ -356,7 +399,7 @@ internal sealed partial class EditorWorkspace
     {
         lock (state.ContinuityGate)
         {
-            if (state.RequestedRunPauseGeneration == generation)
+            if (IsRunPauseRequestedUnderLock(state, generation))
             {
                 return PauseRunAtBoundary(state, generation);
             }
@@ -394,6 +437,20 @@ internal sealed partial class EditorWorkspace
             simulation.LogicalTime,
             failure,
             state.ProjectionVersion);
+    }
+
+    private static bool IsRunPauseRequestedUnderLock(
+        WorkspaceState state,
+        RunGeneration generation)
+    {
+        return state.PendingRunPause is
+        {
+            RunGeneration: var requestedGeneration,
+            Publication.Context: var context,
+        }
+            && requestedGeneration == generation
+            && state.AttachmentId == context.AttachmentId
+            && state.AttachmentGeneration == context.AttachmentGeneration;
     }
 
     private static SimulationProjection WithRun(

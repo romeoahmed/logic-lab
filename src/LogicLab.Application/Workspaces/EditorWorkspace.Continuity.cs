@@ -214,6 +214,7 @@ internal sealed partial class EditorWorkspace
             state.PendingIntents.Clear();
             state.IdempotencyOrder.Clear();
             state.IsIdempotencyWindowClosed = false;
+            state.PendingRunPause = null;
             return new Attached(state.AttachmentId, generation, Project(state));
         }
     }
@@ -802,6 +803,10 @@ internal sealed partial class EditorWorkspace
         WorkspaceCommandContext Context,
         string CanonicalIdentity,
         PendingIntent PendingIntent);
+
+    private sealed record RunPauseRequest(
+        ContextualCommandPublication Publication,
+        RunGeneration RunGeneration);
 
     private abstract record ContextualIntentInspection;
 

@@ -806,9 +806,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
-            var reason = exception is IOException or TimeoutException
-                ? AdvanceFailureReason.SimulationInfrastructureFailure
-                : AdvanceFailureReason.SimulationInternalDefect;
+            var reason = AdvanceFailureReasonFrom(exception);
             var correlation = Guid.CreateVersion7().ToString("N");
             LogAdvanceFailure(logger, exception, correlation, reason);
             return AdvanceFailure(
@@ -884,6 +882,13 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 AdvanceFailureReason.SimulationInternalDefect,
             _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null),
         };
+    }
+
+    private static AdvanceFailureReason AdvanceFailureReasonFrom(Exception exception)
+    {
+        return exception is IOException or TimeoutException
+            ? AdvanceFailureReason.SimulationInfrastructureFailure
+            : AdvanceFailureReason.SimulationInternalDefect;
     }
 
     private static PolicyEvidenceProjection? PolicyEvidenceFrom(

@@ -266,10 +266,10 @@ public sealed partial class Editor : IAsyncDisposable
         }
 
         Status = $"Compilation generation {accepted.CompilationGeneration.Value} accepted.";
-        CompilationProjection? compilation;
+        WorkspaceReadOutcome? observation;
         try
         {
-            compilation = await WaitForCompilationAsync(
+            observation = await WaitForCompilationAsync(
                 accepted.CompilationGeneration,
                 observationCancellationToken);
         }
@@ -279,41 +279,52 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
-        if (compilation is null)
+        if (observation is null)
         {
-            Status = Projection is null
-                ? "Compilation status is unavailable because the Workspace detached."
-                : $"Compilation generation {accepted.CompilationGeneration.Value} "
-                    + "was superseded before publication.";
+            Status = "Compilation status is unavailable because the Workspace detached.";
             return;
         }
 
-        Status = compilation switch
+        Status = observation switch
         {
-            CompilationPublishedProjection =>
+            CompilationSnapshot { Compilation: CompilationPublishedProjection } =>
                 "Compilation Artifact published atomically.",
-            CompilationSupersededProjection =>
+            CompilationSnapshot { Compilation: CompilationSupersededProjection } =>
                 $"Compilation generation {accepted.CompilationGeneration.Value} was superseded.",
-            CompilationRejectedProjection rejected =>
+            CompilationSnapshot { Compilation: CompilationRejectedProjection rejected } =>
                 $"Compilation rejected: {rejected.RejectionCode}.",
+            WorkspaceReadRejected rejected =>
+                $"Compilation status unavailable: {rejected.Code}.",
             _ => "Compilation ended in an unknown state.",
         };
     }
 
-    private async Task<CompilationProjection?> WaitForCompilationAsync(
+    private async Task<WorkspaceReadOutcome?> WaitForCompilationAsync(
         CompilationGeneration generation,
         CancellationToken cancellationToken)
     {
+        var reattachAttempted = false;
         while (Projection is not null)
         {
             var read = await workspace.ReadAsync(
                 QueryContext(),
                 new ReadCompilation(generation),
                 cancellationToken);
+            if (read is WorkspaceReadRejected
+                {
+                    RetryDisposition.Kind: RetryDispositionKind.Reattach,
+                }
+                && !reattachAttempted
+                && await TryReattachAsync(cancellationToken))
+            {
+                reattachAttempted = true;
+                continue;
+            }
+
             if (read is not CompilationSnapshot snapshot)
             {
                 await Refresh(cancellationToken);
-                return null;
+                return read;
             }
 
             if (snapshot.Compilation is CompilationQueuedProjection
@@ -328,7 +339,7 @@ public sealed partial class Editor : IAsyncDisposable
             }
 
             await Refresh(cancellationToken);
-            return snapshot.Compilation;
+            return snapshot;
         }
 
         return null;

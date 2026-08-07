@@ -2,6 +2,7 @@ using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
+using LogicLab.Engine;
 using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Application.Tests;
@@ -248,6 +249,79 @@ internal sealed class EditorWorkspaceRunTests
             await Assert.That(failure.Reason).IsEqualTo(expectedReason);
             await Assert.That(failure.DiagnosticCodes).IsEmpty();
             await Assert.That(failure.PolicyEvidence).IsNull();
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_RunPublicationThrows_ProjectsTypedFailureAtUnchangedBoundary(
+        CancellationToken cancellationToken)
+    {
+        var publicationStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            ExecuteSimulation = (handle, command, operationCancellationToken) =>
+            {
+                if (command is not AdvanceToNextQuiescentBoundary)
+                {
+                    return production.ExecuteSimulation(
+                        handle,
+                        command,
+                        operationCancellationToken);
+                }
+
+                var snapshot = (SessionSnapshotRead)production.ReadSimulation(
+                    handle,
+                    new ReadSessionSnapshot(),
+                    operationCancellationToken);
+                var probe = snapshot.Probes.Single();
+                var observation = new ProbeObservation(
+                    probe.ProbeId,
+                    probe.Source,
+                    new LogicVector([LogicValue.One]));
+                publicationStarted.TrySetResult();
+                return (AdvanceCommitted)Activator.CreateInstance(
+                    typeof(AdvanceCommitted),
+                    System.Reflection.BindingFlags.Instance
+                        | System.Reflection.BindingFlags.NonPublic,
+                    binder: null,
+                    [
+                        checked(snapshot.SessionVersion + 1UL),
+                        checked(snapshot.LogicalTime + 1UL),
+                        new[] { observation, observation },
+                        Array.Empty<SimulationDiagnostic>(),
+                        snapshot.TraceCursor,
+                    ],
+                    culture: null)!;
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        var controlled = await CreateClockWorkspace(workspace, cancellationToken);
+        var beforeRun = await Read(workspace, controlled, cancellationToken);
+
+        var started = (RunStarted)await workspace.DispatchAsync(
+            new StartRun(
+                Command(controlled, "run-with-invalid-publication"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
+            cancellationToken);
+        await publicationStarted.Task.WaitAsync(cancellationToken);
+        var failedProjection = await WaitForRunStatus(
+            workspace,
+            controlled,
+            RunStatus.Failed,
+            cancellationToken);
+        var failedRun = failedProjection.FailedRun();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(failedProjection.Simulation!.SessionVersion)
+                .IsEqualTo(beforeRun.Simulation!.SessionVersion);
+            await Assert.That(failedProjection.Simulation.LogicalTime)
+                .IsEqualTo(beforeRun.Simulation.LogicalTime);
+            await Assert.That(failedRun.RunGeneration).IsEqualTo(started.RunGeneration);
+            await Assert.That(failedRun.Failure.Reason)
+                .IsEqualTo(AdvanceFailureReason.SimulationInternalDefect);
         }
     }
 
