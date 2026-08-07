@@ -271,12 +271,12 @@ internal static class HotSwapOwnedBufferAccounting
     private static ulong ScheduledEventFrontierBytes(SimulationSessionState state)
     {
         ulong bytes = 0;
-        foreach (var item in state.ScheduledBatches.UnorderedItems)
+        foreach (var (batch, _) in state.ScheduledBatches.UnorderedItems)
         {
             bytes = checked(
                 bytes
                 + OwnedSlots(ScheduledBatchSlotCount)
-                + ReferenceSlots(item.Element.Assignments.Length));
+                + ReferenceSlots(batch.Assignments.Length));
         }
 
         foreach (var bucket in state.ScheduledAssignmentsByTime)

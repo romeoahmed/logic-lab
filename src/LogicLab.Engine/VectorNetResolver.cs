@@ -30,13 +30,10 @@ internal static class VectorNetResolver
 
         for (var driverIndex = 0; driverIndex < drivers.Count; driverIndex++)
         {
-            var driver = drivers[driverIndex];
-            if (driver is null)
-            {
-                throw new ArgumentException(
+            var driver = drivers[driverIndex]
+                ?? throw new ArgumentException(
                     "Net Driver vectors cannot be null.",
                     nameof(drivers));
-            }
 
             if (driver.Width != width)
             {
