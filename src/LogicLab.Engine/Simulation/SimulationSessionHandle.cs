@@ -155,8 +155,47 @@ internal sealed class SimulationTraceStore
     {
         return checked(
             ((ulong)ForkCapacity(observationCount) * sizeof(ulong))
-            + ((ulong)observationCount * TransitionBaseBytes)
-            + (packedWordCount * 2UL * sizeof(ulong)));
+            + NewChunkOwnedBufferBytes(observationCount, packedWordCount));
+    }
+
+    internal ulong ForkResultRetainedOwnedBufferBytes(
+        int observationCount,
+        ulong packedWordCount)
+    {
+        var resultChunkCount = checked(
+            chunkCount + (observationCount == 0 ? 0 : 1));
+        var resultTransitionCount = checked(
+            retainedTransitionCount + (ulong)observationCount);
+        var newChunkBytes = NewChunkOwnedBufferBytes(
+            observationCount,
+            packedWordCount);
+        var resultRetainedBytes = checked(retainedBytes + newChunkBytes);
+        var removedChunkOffset = 0;
+        while (resultChunkCount != 0
+            && (resultTransitionCount
+                    > policy.Maximum(TraceDimension.RetainedTransitionCount)
+                || (ulong)resultChunkCount
+                    > policy.Maximum(TraceDimension.SealedChunkCount)
+                || resultRetainedBytes > policy.Maximum(TraceDimension.RetainedBytes)))
+        {
+            if (removedChunkOffset < chunkCount)
+            {
+                var removed = ChunkAt(removedChunkOffset++);
+                resultTransitionCount -= (ulong)removed.Transitions.Length;
+                resultRetainedBytes -= removed.Bytes;
+            }
+            else
+            {
+                resultTransitionCount -= (ulong)observationCount;
+                resultRetainedBytes -= newChunkBytes;
+            }
+
+            resultChunkCount--;
+        }
+
+        return checked(
+            resultRetainedBytes
+            + ((ulong)ForkCapacity(observationCount) * sizeof(ulong)));
     }
 
     private int ForkCapacity(int observationCount)
@@ -164,6 +203,15 @@ internal sealed class SimulationTraceStore
         var requiredChunkCount = checked(
             chunkCount + (observationCount == 0 ? 0 : 1));
         return CapacityFor(requiredChunkCount);
+    }
+
+    private static ulong NewChunkOwnedBufferBytes(
+        int observationCount,
+        ulong packedWordCount)
+    {
+        return checked(
+            ((ulong)observationCount * TransitionBaseBytes)
+            + (packedWordCount * 2UL * sizeof(ulong)));
     }
 
     public void Append(

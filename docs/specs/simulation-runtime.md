@@ -31,7 +31,15 @@ SimulationCommand =
   ScheduleStimulusBatch(validated future StimulusBatch)
   | AdvanceToNextQuiescentBoundary
   | ReplaceProbeBindings(ordered RetainProbe | CreateProbe bindings)
-  | HotSwapTo(sealed CompilationArtifact, maximumPeakOwnedBufferBytes)
+  | HotSwapTo(
+      sealed CompilationArtifact,
+      maximumPeakOwnedBufferBytes,
+      HotSwapConsumerBufferRequirements)
+
+HotSwapConsumerBufferRequirements
+  retainedOwnedBufferBytes: UnsignedDecimal
+  ownedReferenceSlotsPerObservedProbe: UnsignedDecimal
+  ownedBytesPerObservedProbeBit: UnsignedDecimal
 
 SimulationQuery =
   ReadSessionSnapshot
@@ -43,6 +51,13 @@ SimulationTraceWindowRequest
   representation: Transitions | VisualSummary(maxPoints, "logic-envelope-v1")
   afterSequence?
 ```
+
+`HotSwapConsumerBufferRequirements` declares the caller-owned buffers that coexist with
+Runtime storage across the command boundary: retained owned bytes, owned reference slots per
+observed Probe, and owned bytes per observed Probe bit. Runtime combines those coefficients with
+the exact rebound Probe count and widths; callers do not predict replacement widths or duplicate
+Runtime preflight. A consumer that retains or materializes no additional buffers supplies the
+canonical all-zero value.
 
 The outcome families are closed:
 
@@ -129,7 +144,7 @@ SimulationWorkObservationV1
 
 Observations contain at most one row per `(policy, dimension)`, record the maximum reached before termination, and order all Simulation rows by their policy dimension order before all Trace rows by their policy dimension order. `AdvanceFailed.reason` and `SimulationCommandFailed.reason` are exactly `zero_time_oscillation | simulation_resource_limit | simulation_cancelled | simulation_infrastructure_failure | simulation_internal_defect`; only operations that can settle a candidate can return `zero_time_oscillation`. Their `policyEvidence` is present only for `simulation_resource_limit` and contains the matching policy ID/revision, dimension, and observed work. `SimulationWorkEvidence.policyLimitBreach` follows the same rule for an open rejection and is otherwise null. `SimulationReadFailed.reason` is exactly `simulation_cancelled | simulation_infrastructure_failure | simulation_internal_defect`. Open rejection uses those failure reasons when initial settlement encounters them. Every array is present and non-null, even when empty.
 
-Only the outcome variants valid for the supplied command or query can return. `AdvanceToNextQuiescentBoundary` reports its failures only through `AdvanceFailed`; the other commands report infrastructure/cancellation/defect failure only through `SimulationCommandFailed`. Application maps `InitialProbeBindingsInvalid`, `StimulusBatchInvalid`, and `ProbeBindingsInvalid` to `session_precondition_failed`, `HotSwapIncompatible` to `hot_swap_incompatible`, `HotSwapResourceLimitExceeded` to `workspace_admission_rejected` with Workspace Policy evidence, and the remaining reasons one-to-one through the [Diagnostics V1 reason registry](./diagnostics-v1.md#11-outcome-reason-registry). `maximumPeakOwnedBufferBytes` is the positive logical-byte budget that Application resolves from `WorkspacePolicy.hot_swap_peak_bytes`; the dedicated limit outcome remains distinct from Simulation Policy failures. A family never changes shape according to nullable success data. Application validates and translates the Workspace-owned `SessionConfigurationV1` and `TraceWindowRequest` into the Engine-owned request types above, and translates the result records back to the [Editor Workspace Contract](../contracts/editor-workspace.md#7-trace-transfer); Engine never references Application contract types. Read returns one immutable Session snapshot or normalized Runtime Trace outcome, never Runtime storage. Close is idempotent and releases all handle-owned storage.
+Only the outcome variants valid for the supplied command or query can return. `AdvanceToNextQuiescentBoundary` reports its failures only through `AdvanceFailed`; the other commands report infrastructure/cancellation/defect failure only through `SimulationCommandFailed`. Application maps `InitialProbeBindingsInvalid`, `StimulusBatchInvalid`, and `ProbeBindingsInvalid` to `session_precondition_failed`, `HotSwapIncompatible` to `hot_swap_incompatible`, `HotSwapResourceLimitExceeded` to `workspace_admission_rejected` with Workspace Policy evidence, and the remaining reasons one-to-one through the [Diagnostics V1 reason registry](./diagnostics-v1.md#11-outcome-reason-registry). `maximumPeakOwnedBufferBytes` is the positive logical-byte budget that Application resolves from `WorkspacePolicy.hot_swap_peak_bytes`; Application also supplies its immutable projection-buffer requirements, while Engine derives the replacement-dependent portion before publication. The dedicated limit outcome remains distinct from Simulation Policy failures. A family never changes shape according to nullable success data. Application validates and translates the Workspace-owned `SessionConfigurationV1` and `TraceWindowRequest` into the Engine-owned request types above, and translates the result records back to the [Editor Workspace Contract](../contracts/editor-workspace.md#7-trace-transfer); Engine never references Application contract types. Read returns one immutable Session snapshot or normalized Runtime Trace outcome, never Runtime storage. Close is idempotent and releases all handle-owned storage.
 
 A handle is an in-process Runtime value, not a serialized ID, authorization capability, or public seam. Application owns it and must serialize `Open`/`Execute`/`Read`/`Close` per handle through the Session lane; concurrent use of one handle or use after Close violates the interface. Calls on different handles may run concurrently. Runtime creates no tasks, timers, background work queues, or dependency-injection scopes and knows no Run Generation or wall-clock pacing. Application implements Run by scheduling repeated `AdvanceToNextQuiescentBoundary` calls and implements Pause between atomic attempts.
 

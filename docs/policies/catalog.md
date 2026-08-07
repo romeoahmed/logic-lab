@@ -184,7 +184,8 @@ they never make a valid edit partially commit. Retention uses `TimeProvider`.
 `hot_swap_peak_bytes` is declared owned-buffer accounting, not a promise about total process
 RSS. The accounting uses fixed logical byte units: eight bytes per owned reference or index
 slot, sixteen bytes per packed Logic Vector word (the two 64-bit logic planes), twenty-four
-bytes per resolved Net word (the three 64-bit cause planes), and the Trace Policy's 48-byte
+bytes per resolved Net word (the three 64-bit cause planes), one byte per unpacked Application
+`LogicValue`, and the Trace Policy's 48-byte
 transition base plus packed value words. Event-frontier accounting charges three slots per
 queued Stimulus Batch (the batch reference and its two-part priority), one slot per queued
 Stimulus assignment reference, two slots per Logical-Time index entry, two slots per indexed
@@ -197,8 +198,13 @@ buffer for every replacement Memory; one additional cell-reference buffer only f
 compatible migrated RAM while both can coexist; the exact changed-Probe staging array, Trace fork
 index, and staged transition chunk; and the Hot Swap terminal publication arrays that coexist with
 the candidate, including migrated-state sources, shared evidence/outcome Probe IDs, and observed
-Probes. The Session and outcome share the top-level Diagnostic reference array and its immutable
-Diagnostic records, so those buffers are counted once. Shared
+Probes. Application reports the retained Workspace Projection buffers that coexist with the
+Runtime attempt. Runtime derives the replacement-dependent consumer publication bytes from the
+exact rebound Probe count and widths. Application materializes one owned Probe-reference array
+and one unpacked value array per Probe, while its Hot Swap outcome shares the Engine outcome's
+immutable migration-evidence collections instead of cloning them. The Session and outcome share
+the top-level Diagnostic reference array and its immutable Diagnostic records, so those buffers
+are counted once. Shared
 immutable Compilation Artifact records and their source indexes, CLR object headers, allocator
 metadata, and transient preflight metadata are excluded. Net resolution reads the Artifact's
 Driver ordinals directly and does not materialize a per-Net reference buffer. When the replacement
@@ -218,9 +224,13 @@ particular, Demux outputs share one selected-data plane and one zero plane. Arit
 and saturation is treated as over-limit. Initial candidate admission runs before any replacement
 working-layer or RAM clone allocation and covers every buffer materialized for settlement. After
 settlement determines the exact Diagnostics and changed Probe values without allocating their
-staging array, final admission completes the peak with Diagnostic, changed-Probe staging,
-terminal-publication, and Trace storage before allocating any of those buffers. The Trace fork
-index is allocated once at the final capacity required by the staged chunk. Either rejection
+staging array, final admission compares two non-overlapping lifecycle peaks: the pre-commit
+Runtime candidate with the retained Application projection, and the post-commit replacement
+Session plus Engine terminal outcome and retained/new Application projections. It uses the larger
+value before allocating Diagnostic, changed-Probe staging, terminal-publication, Trace, or
+Application projection buffers. The Trace fork index is allocated once at the final capacity
+required by the staged chunk, and its post-eviction retained size is measured without allocating
+the fork. Either rejection
 reports Workspace Policy ID/revision,
 `hot_swap_peak_bytes`, and the observed value while retaining the old Session unchanged. Both
 Durable Display Name dimensions must pass, and catalog requests cannot exceed the page/cursor

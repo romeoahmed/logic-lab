@@ -427,21 +427,47 @@ public sealed record ScheduleStimulusBatch : SimulationCommand
 
 public sealed record AdvanceToNextQuiescentBoundary : SimulationCommand;
 
+public sealed record HotSwapConsumerBufferRequirements
+{
+    public HotSwapConsumerBufferRequirements(
+        ulong retainedOwnedBufferBytes,
+        ulong ownedReferenceSlotsPerObservedProbe,
+        ulong ownedBytesPerObservedProbeBit)
+    {
+        RetainedOwnedBufferBytes = retainedOwnedBufferBytes;
+        OwnedReferenceSlotsPerObservedProbe = ownedReferenceSlotsPerObservedProbe;
+        OwnedBytesPerObservedProbeBit = ownedBytesPerObservedProbeBit;
+    }
+
+    public ulong RetainedOwnedBufferBytes { get; }
+
+    public ulong OwnedReferenceSlotsPerObservedProbe { get; }
+
+    public ulong OwnedBytesPerObservedProbeBit { get; }
+
+    public static HotSwapConsumerBufferRequirements None { get; } = new(0, 0, 0);
+}
+
 public sealed record HotSwapTo : SimulationCommand
 {
     public HotSwapTo(
         CompilationArtifact compilationArtifact,
-        ulong maximumPeakOwnedBufferBytes)
+        ulong maximumPeakOwnedBufferBytes,
+        HotSwapConsumerBufferRequirements consumerBuffers)
     {
         ArgumentNullException.ThrowIfNull(compilationArtifact);
+        ArgumentNullException.ThrowIfNull(consumerBuffers);
         ArgumentOutOfRangeException.ThrowIfZero(maximumPeakOwnedBufferBytes);
         CompilationArtifact = compilationArtifact;
         MaximumPeakOwnedBufferBytes = maximumPeakOwnedBufferBytes;
+        ConsumerBuffers = consumerBuffers;
     }
 
     public CompilationArtifact CompilationArtifact { get; }
 
     public ulong MaximumPeakOwnedBufferBytes { get; }
+
+    public HotSwapConsumerBufferRequirements ConsumerBuffers { get; }
 }
 
 public enum StimulusBatchInvalidRule

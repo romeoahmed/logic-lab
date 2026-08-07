@@ -43,11 +43,14 @@ internal sealed class SimulationContractTests
     [Test]
     public async Task CommandAndQuery_NullPayload_ThrowArgumentNullException()
     {
+        var artifact = SimulationTestContext.Create().Artifact;
         using (Assert.Multiple())
         {
             await Assert.That(() => new ScheduleStimulusBatch(null!))
                 .ThrowsExactly<ArgumentNullException>();
             await Assert.That(() => new ReadTraceWindow(null!))
+                .ThrowsExactly<ArgumentNullException>();
+            await Assert.That(() => new HotSwapTo(artifact, 1, null!))
                 .ThrowsExactly<ArgumentNullException>();
         }
     }

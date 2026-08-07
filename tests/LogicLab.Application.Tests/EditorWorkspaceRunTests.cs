@@ -869,19 +869,21 @@ internal sealed class EditorWorkspaceRunTests
     }
 
     [Test, Timeout(30_000)]
-    public async Task DispatchAsync_HotSwapPeakLimitExceeded_RejectsAndRetainsSession(
+    public async Task DispatchAsync_HotSwapProjectionExceedsPeakLimit_RejectsAndRetainsSession(
         CancellationToken cancellationToken)
     {
+        // The Runtime-only peak is 320 bytes. The retained one-Probe Workspace
+        // projection adds one reference slot and one unpacked LogicValue byte.
         var policy = new WorkspacePolicy(
             policyId: "test-workspace",
-            policyRevision: "hot-swap-limit",
+            policyRevision: "hot-swap-projection-limit",
             globalWorkspaceLimit: 16,
             sandboxRetention: TimeSpan.FromMinutes(30),
             authoringLimits: WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 16,
             idempotencyRecordCount: 32,
             detachedRetention: TimeSpan.FromMinutes(30),
-            hotSwapPeakBytes: 1);
+            hotSwapPeakBytes: 320);
         await using var workspace = EditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             policy);
@@ -925,7 +927,7 @@ internal sealed class EditorWorkspaceRunTests
                 .IsEqualTo(policy.PolicyRevision);
             await Assert.That(rejected.PolicyEvidence.Dimension)
                 .IsEqualTo("hot_swap_peak_bytes");
-            await Assert.That(rejected.PolicyEvidence.Observed).IsGreaterThan(1UL);
+            await Assert.That(rejected.PolicyEvidence.Observed).IsEqualTo(329UL);
             await Assert.That(afterSwap.Simulation!.SessionId)
                 .IsEqualTo(beforeSwap.Simulation!.SessionId);
             await Assert.That(afterSwap.Simulation.SessionVersion)

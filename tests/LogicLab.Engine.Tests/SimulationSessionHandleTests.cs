@@ -6,6 +6,30 @@ namespace LogicLab.Engine.Tests;
 internal sealed class SimulationSessionHandleTests
 {
     [Test]
+    public async Task ForkResultRetainedOwnedBufferBytes_Eviction_MatchesForkedTrace()
+    {
+        var context = SimulationTestContext.Create();
+        var trace = new SimulationTraceStore(
+            SimulationTestContext.TracePolicyWithRetention(
+                retainedTransitionCount: 1,
+                sealedChunkCount: 1));
+        var probe = new ProbeState(
+            ProbeId.Create(),
+            context.NetSource(context.Circuit.OutputNet.Id),
+            NetOrdinal: 0);
+        var firstValue = new LogicVector([LogicValue.Zero]);
+        trace.Append(0, [(probe, firstValue)]);
+        var replacementValue = new LogicVector([LogicValue.One]);
+
+        var predicted = trace.ForkResultRetainedOwnedBufferBytes(
+            observationCount: 1,
+            packedWordCount: (ulong)replacementValue.WordCount);
+        var fork = trace.ForkWithAppend(1, [(probe, replacementValue)]);
+
+        await Assert.That(predicted).IsEqualTo(fork.RetainedOwnedBufferBytes);
+    }
+
+    [Test]
     public async Task Read_UnchangedProbeBaselineWasEvicted_ReturnsTraceRangeUnavailable()
     {
         var context = SimulationTestContext.Create();
