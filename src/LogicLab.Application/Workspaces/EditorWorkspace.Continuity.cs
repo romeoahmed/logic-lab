@@ -153,7 +153,6 @@ internal sealed partial class EditorWorkspace
                         WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
                 }
 
-                state.IsAttached = false;
                 if (state.Simulation is
                     {
                         Run: RunRunningProjection
@@ -168,8 +167,18 @@ internal sealed partial class EditorWorkspace
                             runGeneration,
                             RunPauseReason.Detached));
                     state.ProjectionVersion++;
+                    CompletePendingRunPauseUnderLock(
+                        state,
+                        runGeneration,
+                        new RunPaused(
+                            runGeneration,
+                            simulation.SessionVersion,
+                            simulation.LogicalTime,
+                            RunPauseReason.Detached,
+                            state.ProjectionVersion));
                 }
 
+                state.IsAttached = false;
                 lock (gate)
                 {
                     state.DetachedAtTimestamp = timeProvider.GetTimestamp();

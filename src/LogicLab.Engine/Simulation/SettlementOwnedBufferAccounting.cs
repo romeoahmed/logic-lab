@@ -9,7 +9,33 @@ internal static class SettlementOwnedBufferAccounting
         ArgumentNullException.ThrowIfNull(ir);
         return checked(
             SettlementScratch.OwnedBufferBytes(ir)
-            + PeakEvaluatorTemporaryOwnedBufferBytes(ir));
+            + Math.Max(
+                PeakEvaluatorTemporaryOwnedBufferBytes(ir),
+                PeakRecomputedNetResolutionOwnedBufferBytes(ir)));
+    }
+
+    private static ulong PeakRecomputedNetResolutionOwnedBufferBytes(SimulationIr ir)
+    {
+        ulong peakBytes = 0;
+        foreach (var evaluator in ir.Evaluators)
+        {
+            if (!IsEvaluatedDuringSettlement(evaluator.Kind))
+            {
+                continue;
+            }
+
+            foreach (var driverOrdinal in evaluator.OutputDriverOrdinals)
+            {
+                if (ir.Drivers[driverOrdinal].NetOrdinal is { } netOrdinal)
+                {
+                    peakBytes = Math.Max(
+                        peakBytes,
+                        NetResolutionPlaneBytes(ir.Nets[netOrdinal].Width));
+                }
+            }
+        }
+
+        return peakBytes;
     }
 
     private static ulong PeakEvaluatorTemporaryOwnedBufferBytes(SimulationIr ir)
@@ -160,6 +186,14 @@ internal static class SettlementOwnedBufferAccounting
         return checked(
             (ulong)LogicVector.GetWordCount(checked((int)width))
             * 2UL
+            * sizeof(ulong));
+    }
+
+    private static ulong NetResolutionPlaneBytes(uint width)
+    {
+        return checked(
+            (ulong)LogicVector.GetWordCount(checked((int)width))
+            * 5UL
             * sizeof(ulong));
     }
 

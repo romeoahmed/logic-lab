@@ -531,10 +531,11 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
+        var attachment = Attachment;
         await componentLifetime.CancelAsync();
         try
         {
-            if (Attachment is { } attachment)
+            if (attachment is not null)
             {
                 _ = await workspace.DetachAsync(
                     new DetachRequest(

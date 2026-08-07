@@ -682,6 +682,97 @@ internal sealed class EditorWorkspaceRunTests
     }
 
     [Test, Timeout(30_000)]
+    public async Task DetachAsync_PendingPause_CompletesPauseAtDetachBoundary(
+        CancellationToken cancellationToken)
+    {
+        var runningAdvanceGate = new BlockingOperationGate();
+        var queuedCommandGate = new BlockingOperationGate();
+        var advanceCount = 0;
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            ExecuteSimulation = (handle, command, operationCancellationToken) =>
+            {
+                if (command is AdvanceToNextQuiescentBoundary)
+                {
+                    var ordinal = Interlocked.Increment(ref advanceCount);
+                    if (ordinal == 1)
+                    {
+                        runningAdvanceGate.Block(operationCancellationToken);
+                    }
+                    else if (ordinal == 2)
+                    {
+                        queuedCommandGate.Block(operationCancellationToken);
+                    }
+                }
+
+                return production.ExecuteSimulation(
+                    handle,
+                    command,
+                    operationCancellationToken);
+            },
+        };
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            operations,
+            schedulingPolicy: new SchedulingPolicy(1, 4));
+        var running = await CreateClockWorkspace(workspace, cancellationToken);
+        var blocker = await CreateInputWorkspace(workspace, cancellationToken);
+        var beforeRun = await Read(workspace, running, cancellationToken);
+        var started = (RunStarted)await workspace.DispatchAsync(
+            new StartRun(
+                Command(running, "run-before-pending-pause"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
+            cancellationToken);
+        await runningAdvanceGate.Started.WaitAsync(cancellationToken);
+        var blockerProjection = await Read(workspace, blocker, cancellationToken);
+        var queuedCommand = workspace.DispatchAsync(
+            new StepSession(
+                Command(blocker, "block-next-run-continuation"),
+                EditorWorkspaceTestDriver.SessionMutation(blockerProjection)),
+            cancellationToken);
+
+        var pauseCommand = new PauseRun(
+            Command(running, "pause-before-detach-boundary"),
+            new RunControlPrecondition(
+                beforeRun.Simulation!.SessionId,
+                started.RunGeneration));
+        Task<WorkspaceCommandOutcome>? pause = null;
+        try
+        {
+            runningAdvanceGate.Release();
+            await queuedCommandGate.Started.WaitAsync(cancellationToken);
+
+            pause = workspace.DispatchAsync(pauseCommand, cancellationToken);
+            await Assert.That(pause.IsCompleted).IsFalse();
+
+            var detached = await workspace.DetachAsync(
+                new DetachRequest(
+                    running.WorkspaceId,
+                    running.Attached.AttachmentId,
+                    running.Attached.Generation),
+                cancellationToken);
+            await Assert.That(detached).IsTypeOf<Detached>();
+        }
+        finally
+        {
+            runningAdvanceGate.Release();
+            queuedCommandGate.Release();
+        }
+
+        _ = await queuedCommand.WaitAsync(cancellationToken);
+        Assert.NotNull(pause);
+        var paused = await Assert.That(await pause.WaitAsync(cancellationToken))
+            .IsTypeOf<RunPaused>();
+        Assert.NotNull(paused);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(paused.Reason).IsEqualTo(RunPauseReason.Detached);
+            await Assert.That(paused.RunGeneration).IsEqualTo(started.RunGeneration);
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task ReadAsync_ActiveRunLease_PreventsSandboxExpiry(
         CancellationToken cancellationToken)
     {

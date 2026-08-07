@@ -224,17 +224,34 @@ internal static class HotSwapOwnedBufferAccounting
         ulong bytes = 0;
         foreach (var evaluator in replacement.Evaluators)
         {
-            for (var index = 0; index < evaluator.OutputDriverOrdinals.Count; index++)
-            {
-                if (SharesArtifactOrStateVector(evaluator, index))
-                {
-                    continue;
-                }
+            bytes = checked(
+                bytes + ReplacementOwnedOutputPlaneBytes(replacement, evaluator));
+        }
 
-                var driver = replacement.Drivers[
-                    evaluator.OutputDriverOrdinals[index]];
-                bytes = checked(bytes + VectorPlaneBytes(driver.Width));
+        return bytes;
+    }
+
+    private static ulong ReplacementOwnedOutputPlaneBytes(
+        SimulationIr replacement,
+        SimulationEvaluator evaluator)
+    {
+        if (evaluator.Kind is SimulationEvaluatorKind.LogicDemux)
+        {
+            var outputWidth = replacement.Drivers[
+                evaluator.OutputDriverOrdinals[0]].Width;
+            return checked(2UL * VectorPlaneBytes(outputWidth));
+        }
+
+        ulong bytes = 0;
+        for (var index = 0; index < evaluator.OutputDriverOrdinals.Count; index++)
+        {
+            if (SharesArtifactOrStateVector(evaluator, index))
+            {
+                continue;
             }
+
+            var driver = replacement.Drivers[evaluator.OutputDriverOrdinals[index]];
+            bytes = checked(bytes + VectorPlaneBytes(driver.Width));
         }
 
         return bytes;
