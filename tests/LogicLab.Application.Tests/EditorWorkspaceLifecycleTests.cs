@@ -116,12 +116,16 @@ internal sealed class EditorWorkspaceLifecycleTests
             WorkspaceBuild.DevelopmentFingerprint,
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider);
-        _ = await Open(workspace);
+        var initial = await Open(workspace);
 
         timeProvider.Advance(TimeSpan.FromMinutes(5));
         var replacement = await Open(workspace);
 
-        await Assert.That(replacement).IsTypeOf<WorkspaceOpened>();
+        using (Assert.Multiple())
+        {
+            await Assert.That(initial).IsTypeOf<WorkspaceOpened>();
+            await Assert.That(replacement).IsTypeOf<WorkspaceOpened>();
+        }
     }
 
     [Test]
@@ -206,7 +210,8 @@ internal sealed class EditorWorkspaceLifecycleTests
             WorkspaceBuild.DevelopmentFingerprint,
             Policy(limit, TimeSpan.FromMinutes(1)),
             timeProvider: timeProvider);
-        _ = await Task.WhenAll(Enumerable.Range(0, limit).Select(_ => Open(workspace)));
+        var initial = await Task.WhenAll(
+            Enumerable.Range(0, limit).Select(_ => Open(workspace)));
         timeProvider.Advance(TimeSpan.FromMinutes(1));
 
         var outcomes = await OpenSimultaneously(
@@ -215,9 +220,13 @@ internal sealed class EditorWorkspaceLifecycleTests
             "Replacement",
             cancellationToken);
 
-        await Assert.That(outcomes.OfType<WorkspaceOpened>()).Count().IsEqualTo(limit);
-        await Assert.That(outcomes.OfType<WorkspaceOpenRejected>()).Count()
-            .IsEqualTo(outcomes.Length - limit);
+        using (Assert.Multiple())
+        {
+            await Assert.That(initial.OfType<WorkspaceOpened>()).Count().IsEqualTo(limit);
+            await Assert.That(outcomes.OfType<WorkspaceOpened>()).Count().IsEqualTo(limit);
+            await Assert.That(outcomes.OfType<WorkspaceOpenRejected>()).Count()
+                .IsEqualTo(outcomes.Length - limit);
+        }
     }
 
     private static Task<WorkspaceOpenOutcome> Open(IEditorWorkspace workspace)
