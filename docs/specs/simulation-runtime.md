@@ -268,7 +268,7 @@ previous Quiescent Boundary
   -> atomically publish the next Quiescent Boundary and Trace batch
 ```
 
-The working layer includes Driver and Net values, component state, memory writes, event-frontier state, diagnostics, and staged Trace transitions. Later Delta Steps can see earlier working commits; callers cannot.
+The working layer includes Driver and Net values, component state, memory writes, event-frontier state, reusable cyclic-settlement scratch, diagnostics, and staged Trace transitions. Later Delta Steps can see earlier working commits; callers cannot.
 
 Stable source ordinals break all otherwise equal worklist and event ties. Dictionary or hash iteration order is never observable. V1 uses one deterministic scheduler; parallel execution requires differential proof and measurement before adoption.
 

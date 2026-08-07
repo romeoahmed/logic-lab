@@ -200,7 +200,14 @@ migrated-state sources, evidence and outcome Probe IDs, observed Probes, and the
 top-level Diagnostic reference copy. The Session and outcome share immutable Diagnostic records,
 so their nested argument and related-source buffers are counted once. Shared immutable Compilation
 Artifact records and their source indexes, CLR object headers, allocator metadata, and transient
-preflight metadata are excluded. Arithmetic is checked and saturation is treated
+preflight metadata are excluded. Net resolution reads the Artifact's Driver ordinals directly and
+does not materialize a per-Net reference buffer. When the replacement contains cyclic regions,
+settlement reserves one reusable work area before execution: one pending-ordinal slot for each
+member of the largest cyclic region, one pending-state slot per evaluator, one ordinal slot per
+Driver in the largest cyclic region, one previous-output reference per output of the widest cyclic
+evaluator, and the packed previous-output planes that coexist with its refined outputs. A cyclic
+Driver already at the least-fixed-point bottom is reused; an epoch reset allocates a replacement
+plane only when the preceding value differs. Arithmetic is checked and saturation is treated
 as over-limit. Initial candidate admission runs before any replacement working-layer or RAM clone
 allocation and covers every buffer materialized for settlement. After settlement determines the
 exact Diagnostics and changed Probe values, final admission completes the peak with Diagnostic,

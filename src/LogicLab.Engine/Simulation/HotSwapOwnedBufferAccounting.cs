@@ -114,6 +114,7 @@ internal static class HotSwapOwnedBufferAccounting
             + ReferenceSlots(netCount)
             + ReferenceSlots(preservedProbeCount)
             + ReferenceSlots(unresolvedProbeCount)
+            + SettlementScratch.PeakOwnedBufferBytes(replacement)
             + ClockEventCalendar.CandidateOwnedBufferBytes(
                 replacement,
                 logicalTimeOrigin));
