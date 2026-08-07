@@ -445,7 +445,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
-            var code = exception is IOException or TimeoutException
+            var code = ExceptionClassifier.IsInfrastructureFailure(exception)
                 ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
                 : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
             var correlation = Guid.CreateVersion7().ToString("N");
@@ -886,7 +886,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
     private static AdvanceFailureReason AdvanceFailureReasonFrom(Exception exception)
     {
-        return exception is IOException or TimeoutException
+        return ExceptionClassifier.IsInfrastructureFailure(exception)
             ? AdvanceFailureReason.SimulationInfrastructureFailure
             : AdvanceFailureReason.SimulationInternalDefect;
     }

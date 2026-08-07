@@ -1,40 +1,28 @@
 namespace LogicLab.Application.Workspaces;
 
-public enum RetryDispositionKind
+public abstract record RetryDisposition
 {
-    DoNotRetry,
-    ReplaySameIntent,
-    RefreshProjection,
-    Reattach,
-    RetryAfter,
-}
-
-public sealed record RetryDisposition
-{
-    private RetryDisposition(
-        RetryDispositionKind kind,
-        ulong? retryAfterSeconds = null)
+    private protected RetryDisposition()
     {
-        Kind = kind;
-        RetryAfterSeconds = retryAfterSeconds;
     }
 
-    public RetryDispositionKind Kind { get; }
+    public static DoNotRetryDisposition DoNotRetry { get; } = new();
 
-    public ulong? RetryAfterSeconds { get; }
+    public static ReplaySameIntentDisposition ReplaySameIntent { get; } = new();
 
-    public static RetryDisposition DoNotRetry { get; } = new(
-        RetryDispositionKind.DoNotRetry);
+    public static RefreshProjectionDisposition RefreshProjection { get; } = new();
 
-    public static RetryDisposition ReplaySameIntent { get; } = new(
-        RetryDispositionKind.ReplaySameIntent);
+    public static ReattachDisposition Reattach { get; } = new();
 
-    public static RetryDisposition RefreshProjection { get; } = new(
-        RetryDispositionKind.RefreshProjection);
-
-    public static RetryDisposition Reattach { get; } = new(
-        RetryDispositionKind.Reattach);
-
-    public static RetryDisposition RetryAfter(ulong seconds)
-        => new(RetryDispositionKind.RetryAfter, seconds);
+    public static RetryAfterDisposition RetryAfter(ulong seconds) => new(seconds);
 }
+
+public sealed record DoNotRetryDisposition : RetryDisposition;
+
+public sealed record ReplaySameIntentDisposition : RetryDisposition;
+
+public sealed record RefreshProjectionDisposition : RetryDisposition;
+
+public sealed record ReattachDisposition : RetryDisposition;
+
+public sealed record RetryAfterDisposition(ulong Seconds) : RetryDisposition;

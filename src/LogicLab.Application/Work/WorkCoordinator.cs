@@ -416,7 +416,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
     private string ReportFailure(Exception exception, string lane)
     {
-        var code = exception is IOException or TimeoutException
+        var code = ExceptionClassifier.IsInfrastructureFailure(exception)
             ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
             : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
         var correlation = Guid.CreateVersion7().ToString("N");

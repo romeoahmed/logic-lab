@@ -2,28 +2,6 @@ using LogicLab.Domain.Authoring;
 
 namespace LogicLab.Application.Workspaces;
 
-internal sealed class AuthoringAdmissionBudget
-{
-    private int remaining;
-
-    public AuthoringAdmissionBudget(int maximum)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximum);
-        remaining = maximum;
-    }
-
-    public bool TryConsume(int itemCount)
-    {
-        if (itemCount < 0 || itemCount > remaining)
-        {
-            return false;
-        }
-
-        remaining -= itemCount;
-        return true;
-    }
-}
-
 internal static class AuthoringAdmission
 {
     public static bool AdmitsCommand(
@@ -282,5 +260,27 @@ internal static class AuthoringAdmission
                 && budget.TryConsume(orthogonal.Points.Count),
             _ => false,
         };
+    }
+
+    private sealed class AuthoringAdmissionBudget
+    {
+        private int remaining;
+
+        public AuthoringAdmissionBudget(int maximum)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximum);
+            remaining = maximum;
+        }
+
+        public bool TryConsume(int itemCount)
+        {
+            if (itemCount < 0 || itemCount > remaining)
+            {
+                return false;
+            }
+
+            remaining -= itemCount;
+            return true;
+        }
     }
 }

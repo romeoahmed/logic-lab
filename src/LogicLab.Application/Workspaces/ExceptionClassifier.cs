@@ -16,4 +16,9 @@ internal static class ExceptionClassifier
             or StackOverflowException
             or AccessViolationException;
     }
+
+    public static bool IsInfrastructureFailure(Exception exception)
+    {
+        return exception is IOException or TimeoutException;
+    }
 }
