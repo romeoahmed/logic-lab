@@ -1,14 +1,13 @@
 # Logic Lab Architecture
 
-> Status: normative V1 architecture; implementation in progress
+> Status: normative V1 architecture
 > Target: .NET 10, C# 14, Blazor Web App
-> Last reviewed: 2026-08-05
 
 Architecture owns system shape, dependency direction, Module seams, fact ownership, and deployment shape. Specifications own exact interfaces and observable behavior; contracts own values exchanged at real seams; [Workbench](./WORKBENCH.md) owns product behavior; [Context Map](./CONTEXT-MAP.md) owns domain language. The [Implementation Plan](./docs/implementation-plan.md) owns delivery order and completion status.
 
 ## 1. Baseline and product scope
 
-`logic-lab.slnx` grows one executable vertical slice at a time. The current solution exercises Domain, Engine, Presentation, Application, and Web through authoring, Compilation, Simulation, accessible projection, and the `/editor` route. Modules and behavior assigned to incomplete plan items remain target design. The [Documentation Map](./docs/README.md) indexes authority; its [Development Readiness](./docs/README.md#development-readiness) table owns current evidence and gaps.
+This section defines the V1 target. The [Implementation Plan](./docs/implementation-plan.md#delivery-status) tracks delivery, and [Development Readiness](./docs/README.md#development-readiness) summarizes executable evidence and gaps.
 
 V1 supports:
 
@@ -177,7 +176,7 @@ C# 14 is the sole production language. The [.NET Engineering Baseline](./docs/sp
 
 | Need | Selection |
 |---|---|
-| Web chrome | Fluent UI Blazor v5 RC, exact pin, Web only |
+| Web chrome | centrally pinned Fluent UI Blazor package, Web only |
 | persistence/auth | EF Core 10 SQLite and ASP.NET Core Identity |
 | unit/integration | TUnit on Microsoft Testing Platform |
 | properties | TUnit.FsCheck with FsCheck generation, shrinking, and replay |

@@ -253,16 +253,9 @@ The snapshot is an in-process composition of owned immutable values, not a seria
 | Operation | cancel analysis | Operation ID and optional expected terminal/running state |
 | Proposal | accept simplification | Proposal ID, source Project Revision ID, region digest |
 
-The Compilation precondition carries the base Project Revision ID, entry Circuit
-Definition ID, and Library Snapshot fingerprint. Session Creation carries the target
-Compilation Artifact Key. Session Mutation carries the Session ID, expected Session Version,
-and Compilation Artifact Key. These values are compared before execution and are part of the
-canonical Client Intent identity.
+The Compilation precondition carries the base Project Revision ID, entry Circuit Definition ID, and Library Snapshot fingerprint. Session Creation carries the target Compilation Artifact Key. Session Mutation carries the Session ID, expected Session Version, and Compilation Artifact Key. These values are compared before execution and are part of the canonical Client Intent identity.
 
-The Session summary retains its Compilation Artifact Key independently of the current
-Compilation state. Undo, Redo, or a later edit can make the current Project Revision require
-new Compilation while the existing Session continues against the Project Revision and Artifact
-that created it.
+The Session summary retains its Compilation Artifact Key independently of the current Compilation state. Undo, Redo, or a later edit can make the current Project Revision require new Compilation while the existing Session continues against the Project Revision and Artifact that created it.
 
 `Pause` does not require the rapidly changing Session Version. `StartRun` creates a monotonic Run Generation; Pause targets that generation and becomes effective at the next committed or rolled-back boundary. The boundary publishes the Run projection and the accepted Pause's terminal idempotency result in one commit section; the caller only observes that terminal publication. A delayed Pause cannot stop a later run generation. If the boundary itself produces `AdvanceFailed`, the accepted Pause observes that same typed failure instead of a later generation-precondition rejection; the Run remains `Failed` so no failure evidence is lost.
 
@@ -285,21 +278,9 @@ The Workspace mutation and idempotency result share one in-memory commit section
 
 Reusing a Client Intent ID for a different typed command returns `IdempotencyKeyConflict`. A new attachment generation starts a new scope and does not replay unacknowledged old commands automatically.
 
-`CloseWorkspace` is absence-idempotent: closing an already absent or expired Workspace returns
-`WorkspaceClosed` without recreating state. Other commands against the absent Workspace return
-`workspace_not_found`.
+`CloseWorkspace` is absence-idempotent: closing an already absent or expired Workspace returns `WorkspaceClosed` without recreating state. Other commands against the absent Workspace return `workspace_not_found`.
 
-Application enforces Workspace Policy authoring admission independently of browser shape
-validation and Compiler policy. It counts the complete nested Edit Intent before execution,
-then counts definitions and authored entities in the candidate Project Document before atomic
-publication. Exhaustion returns `workspace_admission_rejected`, publishes no Project Revision,
-and does not invalidate the current Compilation. Compiler Project Scale Policy remains the
-authority for compilation, hierarchy, elaborated slots, and memory cells. Deployments supply
-these authoring dimensions through the same Workspace Policy as Workspace count and retention;
-`WorkspacePolicy.AuthoringLimits` groups the three dimensions into one immutable value, and
-authoring admission is not a separate hidden policy.
-Constructing a custom `WorkspacePolicy` requires this value explicitly; only the canonical
-`WorkspacePolicy.Default` composition supplies the development baseline limits.
+Application enforces Workspace Policy authoring admission independently of browser shape validation and Compiler policy. It counts the complete nested Edit Intent before execution, then counts definitions and authored entities in the candidate Project Document before atomic publication. Exhaustion returns `workspace_admission_rejected`, publishes no Project Revision, and does not invalidate the current Compilation. Compiler Project Scale Policy remains the authority for compilation, hierarchy, elaborated slots, and memory cells. Deployments supply these authoring dimensions through the same Workspace Policy as Workspace count and retention; `WorkspacePolicy.AuthoringLimits` groups the three dimensions into one immutable value, and authoring admission is not a separate hidden policy. Constructing a custom `WorkspacePolicy` requires this value explicitly; only the canonical `WorkspacePolicy.Default` composition supplies the development baseline limits.
 
 ## 4. Authoring outcomes
 

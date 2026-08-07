@@ -30,17 +30,17 @@ omitted:
   - section: rounded
     reason: Fluent UI owns chrome radii; schematic shapes are semantic geometry.
   - section: components
-    reason: Component-level token overrides await implementation visual qualification.
+    reason: Component-level token overrides require visual qualification before adoption.
 ---
 
 # Logic Lab Workbench
 
 > Status: normative V1 visual and interaction contract
-> Platform: Blazor Web App, per-page Interactive Server editor, Fluent UI Blazor v5 RC
-
-The current `/editor` route implements the accessible Sandbox tracer and bounded Phase B authoring/projection surface recorded in [Development Readiness](./docs/README.md#development-readiness). It does not imply browser projection for every executable Component Contract. Layout breadth, Canvas interaction, instruments, persistence, and qualification requirements remain target V1 behavior until their owning items complete.
+> Platform: Blazor Web App with a per-page Interactive Server editor
 
 This document owns the workbench experience. System ownership lives in [Architecture](./ARCHITECTURE.md), static schematic geometry in [Diagram Presentation](./docs/specs/diagram-presentation.md), browser records in the [Browser Adapter Contract](./docs/contracts/browser-adapters.md), and Canvas/input/resource behavior in [Browser Runtime](./docs/specs/browser-runtime.md).
+
+This is a target contract, not a delivery ledger. [Development Readiness](./docs/README.md#development-readiness) records the implemented Web surface and remaining gaps.
 
 ## Overview
 
@@ -308,9 +308,9 @@ After a server-acknowledged Session commit, changed Probe markers and correspond
 
 Pointer previews follow locally without decorative easing. There is no ambient animation.
 
-## Fluent UI Blazor qualification
+## Fluent UI boundary
 
-Use Fluent UI Blazor v5 RC only for Web chrome. Geometry Plans and Scene code never depend on Fluent DOM or CSS internals. [Architecture](./ARCHITECTURE.md#82-net-and-dependencies) owns package containment and qualification; the exact build is implementation state, not a design invariant.
+Use the centrally pinned Fluent UI Blazor package only for Web chrome. Geometry Plans and Scene code never depend on Fluent DOM or CSS internals. [Architecture](./ARCHITECTURE.md#82-net-and-dependencies) owns package containment; package qualification and the exact build are implementation evidence, not design invariants.
 
 ## Verification
 

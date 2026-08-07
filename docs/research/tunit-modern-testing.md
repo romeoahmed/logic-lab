@@ -3,7 +3,7 @@
 > Verified 2026-07-31 (Asia/Shanghai)
 > Scope: migration from xUnit v3 to TUnit for Logic Lab, including execution, assertions, data, lifecycle, parallelism, reporting, AOT, and FsCheck
 > Authority: TUnit's official documentation, official GitHub repository, NuGet, and Microsoft Testing Platform documentation; normative project choices remain in the repository specifications
-> Snapshot boundary: migration counts and mappings describe the 2026-07-31 checkpoint; current suite composition lives in [Development Readiness](../README.md#development-readiness). CLI forwarding behavior was rechecked on 2026-08-05.
+> Snapshot boundary: migration counts and mappings describe the 2026-07-31 checkpoint and are not a maintained suite inventory. [Development Readiness](../README.md#development-readiness) summarizes current capability; CLI forwarding behavior was rechecked on 2026-08-05.
 
 This note distinguishes **source fact** from **Logic Lab inference**. The investigation began from TUnit's official [`llms.txt`](https://tunit.dev/llms.txt) index and followed its links to first-party documentation and source. The official repository was inspected at commit [`d0c74ca21e191e02a8fe56a878d4922046ba7b19`](https://github.com/thomhurst/TUnit/tree/d0c74ca21e191e02a8fe56a878d4922046ba7b19), dated 2026-07-31. Package versions must still be resolved through the repository's normal qualification and lock-file process at implementation time.
 
@@ -44,7 +44,7 @@ That C# corpus contained:
 
 **Source fact:** TUnit's official installation guide says to reference the `TUnit` meta-package, use an executable test project, and not reference `Microsoft.NET.Test.Sdk`, because the latter interferes with discovery. The meta-package includes the TUnit engine and assertions plus Microsoft Testing Platform coverage, TRX, and telemetry extensions ([installation](https://tunit.dev/docs/getting-started/installation), [built-in extensions](https://tunit.dev/docs/extending/built-in-extensions)).
 
-**Source fact:** The current package build imports properties that set `IsTestProject`, `IsTestingPlatformApplication`, `TestingPlatformDotnetTestSupport`, `OutputType=Exe`, and Testing Platform protocol properties. It also enables TUnit and assertion implicit usings and defaults an otherwise unspecified C# language version to `latest` because assertion overload resolution relies on C# 13's `OverloadResolutionPriority` ([`TUnit.props`](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/src/TUnit/TUnit.props), [`TUnit.Engine.props`](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/src/TUnit.Engine/TUnit.Engine.props)). Logic Lab already fixes C# 14, so this requirement is satisfied without relying on the package default.
+**Source fact:** The inspected package build imports properties that set `IsTestProject`, `IsTestingPlatformApplication`, `TestingPlatformDotnetTestSupport`, `OutputType=Exe`, and Testing Platform protocol properties. It also enables TUnit and assertion implicit usings and defaults an otherwise unspecified C# language version to `latest` because assertion overload resolution relies on C# 13's `OverloadResolutionPriority` ([`TUnit.props`](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/src/TUnit/TUnit.props), [`TUnit.Engine.props`](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/src/TUnit.Engine/TUnit.Engine.props)). Logic Lab already fixed C# 14, so this requirement was satisfied without relying on the package default.
 
 **Source fact:** The official xUnit migration guide provides a Roslyn analyzer/code fixer under diagnostic `TUXU0001`. It converts common facts, theories, inline/member data, assertions, and method signatures, but calls out manual work for custom member-data shapes, fixtures, collection definitions, and ambiguous assertions. The diagnostic is information-level; `dotnet format analyzers --severity info --diagnostics TUXU0001` is the documented invocation ([xUnit migration](https://tunit.dev/docs/migration/xunit)).
 
@@ -72,7 +72,7 @@ At the inspected commit, the package source depended on Microsoft Testing Platfo
 4. remove xUnit and the temporary implicit-using suppression;
 5. restore, build, list, execute, format, and compare semantic coverage before changing the authoritative test policy.
 
-The official migration guide warns that multi-targeted projects must select one framework when applying the fixer. Logic Lab currently single-targets `net10.0`, so that Roslyn linked-file failure mode does not apply ([multi-targeting warning](https://tunit.dev/docs/migration/xunit#automated-migration-with-code-fixers)).
+The official migration guide warns that multi-targeted projects must select one framework when applying the fixer. Logic Lab single-targeted `net10.0` at the migration checkpoint, so that Roslyn linked-file failure mode did not apply ([multi-targeting warning](https://tunit.dev/docs/migration/xunit#automated-migration-with-code-fixers)).
 
 ## 4. Microsoft Testing Platform and execution modes
 
@@ -176,7 +176,7 @@ TUnit's official data guide separates the mechanisms as follows ([data approach]
 
 **Source fact:** Static `[MethodDataSource]` is the AOT-compatible form. It supports typed single values, tuples, factories such as `Func<T>` to create a fresh reference per invocation, and cancellation-aware `IAsyncEnumerable<T>`. Instance member sources are evaluated during discovery before `IAsyncInitializer`, which can silently yield no cases if data depends on execution-time initialization ([method data](https://tunit.dev/docs/writing-tests/method-data-source)).
 
-**Logic Lab inference:** Use static typed tuples for any migrated table too large for readable attributes. Never load project files, databases, or external services in discovery for the current unit suite. If future corpus enumeration is expensive, make the corpus stable and local, then qualify `DeferEnumeration=true` rather than hiding I/O in discovery.
+**Logic Lab inference:** Use static typed tuples for any migrated table too large for readable attributes. Never load project files, databases, or external services in discovery for the migration-checkpoint unit suite. If future corpus enumeration is expensive, make the corpus stable and local, then qualify `DeferEnumeration=true` rather than hiding I/O in discovery.
 
 ### 6.4 Matrix and combinatorial coverage
 
@@ -190,13 +190,13 @@ TUnit's official data guide separates the mechanisms as follows ([data approach]
 
 **Source fact:** Strongly typed `DataSourceGeneratorAttribute<T...>` returns factories for rows; asynchronous and untyped variants exist. Async generator code runs during discovery, so expensive or failure-prone I/O can delay or break listing before tests start ([data-source generators](https://tunit.dev/docs/extending/data-source-generators)). Dynamic tests can register tests at discovery or during another test, but are a reflection-oriented escape hatch rather than a normal data mechanism ([dynamic tests](https://tunit.dev/docs/extending/dynamic-tests)).
 
-**Logic Lab inference:** Prefer built-in Arguments, MethodDataSource, Matrix, and FsCheck. A custom generator is justified only if a reusable Logic Lab corpus has stable generation rules and materially improves names/metadata. Dynamic tests are not justified by the current suite.
+**Logic Lab inference:** Prefer built-in Arguments, MethodDataSource, Matrix, and FsCheck. A custom generator is justified only if a reusable Logic Lab corpus has stable generation rules and materially improves names/metadata. Dynamic tests were not justified by the checkpoint suite.
 
 ### 6.6 Discovery deferral
 
 **Source fact:** `DeferEnumeration=true` keeps a large data source as one placeholder node during discovery and expands cases only during execution. It reduces IDE/discovery overhead at the cost of individual pre-run visibility and some filtering; if any source on a test defers, the whole test expansion is deferred ([deferred enumeration](https://tunit.dev/docs/writing-tests/defer-enumeration)).
 
-**Logic Lab inference:** Do not defer current rows: the corpus is small, and individual case visibility is valuable. Reserve it for future large imported/compiler corpus suites after measuring discovery cost.
+**Logic Lab inference:** Do not defer the checkpoint rows: the corpus was small, and individual case visibility was valuable. Reserve deferred enumeration for future large imported/compiler corpus suites after measuring discovery cost.
 
 ## 7. FsCheck integration
 
@@ -223,7 +223,7 @@ Because FsCheck invocations are generated inside one TUnit test execution rather
 
 **Source fact:** Every unconstrained TUnit test is eligible to execute concurrently. `[NotInParallel]` without a key runs completely alone; keyed constraints prevent overlap only among tests sharing a key. `[ParallelGroup]` makes isolated phases whose members run together. `[ParallelLimiter<T>]` caps concurrency among tests using the same limiter type. Method attributes override class and assembly attributes ([parallelism](https://tunit.dev/docs/execution/parallelism)).
 
-**Source fact:** A global maximum can be set by `--maximum-parallel-tests`, `TUNIT_MAX_PARALLEL_TESTS`, or `context.Settings.Parallelism.MaximumParallelTests` in `[Before(TestDiscovery)]`. The current implementation defaults the global scheduler to four times `Environment.ProcessorCount`; this is more precise than the parallelism page's broad statement that the thread pool determines execution ([programmatic settings](https://tunit.dev/docs/reference/programmatic-configuration), [`TestScheduler.GetMaxParallelism`](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/src/TUnit.Engine/Scheduling/TestScheduler.cs#L508-L570)).
+**Source fact:** A global maximum can be set by `--maximum-parallel-tests`, `TUNIT_MAX_PARALLEL_TESTS`, or `context.Settings.Parallelism.MaximumParallelTests` in `[Before(TestDiscovery)]`. The inspected implementation defaulted the global scheduler to four times `Environment.ProcessorCount`; this was more precise than the parallelism page's broad statement that the thread pool determines execution ([programmatic settings](https://tunit.dev/docs/reference/programmatic-configuration), [`TestScheduler.GetMaxParallelism`](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/src/TUnit.Engine/Scheduling/TestScheduler.cs#L508-L570)).
 
 **Logic Lab inference:** Preserve per-test parallel eligibility for the pure Domain and Engine suites. Implement the repository's existing CI cap with either a version-controlled discovery hook or `TUNIT_MAX_PARALLEL_TESTS`; allow the CLI to override it on a deliberate run. Prefer keyed constraints or resource-specific limiters over assembly-wide serialization when database, server, browser, solver, or container tests arrive.
 
@@ -233,7 +233,7 @@ Because FsCheck invocations are generated inside one TUnit test execution rather
 
 **Source fact:** Combining `[DependsOn]` with different parallel groups or limiter configurations can make ordering unsupported, so dependency and scheduling constraints must be designed together ([parallelism caveats](https://tunit.dev/docs/execution/parallelism#caveats)).
 
-**Logic Lab inference:** Do not introduce `[DependsOn]` into current semantic unit tests. Use it only for an inherently stateful future end-to-end workflow that cannot afford independent setup, and never use one test as another test's semantic oracle. Shared setup belongs in a fixture/data source, not a predecessor test.
+**Logic Lab inference:** Do not introduce `[DependsOn]` into semantic unit tests. Use it only for an inherently stateful future end-to-end workflow that cannot afford independent setup, and never use one test as another test's semantic oracle. Shared setup belongs in a fixture/data source, not a predecessor test.
 
 ## 9. Lifecycle, injection, and extension points
 
@@ -381,7 +381,7 @@ The 2026-07-31 migration was accepted against the following criteria. Counts in 
 - **Unawaited assertions can pass silently.** The analyzer is a guard, not permission to ignore review ([awaiting](https://tunit.dev/docs/assertions/awaiting)).
 - **TUnit tree filters are not VSTest filters.** A familiar `--filter` can run zero tests ([filters](https://tunit.dev/docs/execution/test-filters)).
 - **All tests are parallel candidates and every invocation gets a new class instance.** Mutable instance state is not a fixture; mutable shared data needs explicit ownership and scheduling ([things to know](https://tunit.dev/docs/writing-tests/things-to-know)).
-- **The parallelism overview and current source differ in precision.** The page says the thread pool determines how many run, while current scheduler source imposes a default `ProcessorCount * 4` global cap. Treat the documented configuration APIs as stable and set an explicit CI cap instead of depending on either wording ([parallelism](https://tunit.dev/docs/execution/parallelism), [scheduler source](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/src/TUnit.Engine/Scheduling/TestScheduler.cs#L508-L570)).
+- **The parallelism overview and inspected source differed in precision.** The page said the thread pool determined how many run, while the inspected scheduler source imposed a default `ProcessorCount * 4` global cap. Treat the documented configuration APIs as stable and set an explicit CI cap instead of depending on either wording ([parallelism](https://tunit.dev/docs/execution/parallelism), [scheduler source](https://github.com/thomhurst/TUnit/blob/d0c74ca21e191e02a8fe56a878d4922046ba7b19/src/TUnit.Engine/Scheduling/TestScheduler.cs#L508-L570)).
 - **Discovery is an execution phase.** Instance/async data that is not initialized yet can yield no tests; expensive discovery runs repeatedly in IDEs and CI ([property injection](https://tunit.dev/docs/writing-tests/property-injection#discovery-phase-initialization)).
 - **Matrix and CombinedDataSources multiply cases.** Preserve bounds and make the intended count reviewable ([combined source performance](https://tunit.dev/docs/writing-tests/combined-data-source#performance-considerations)).
 - **`.And` and `.Or` cannot be mixed in one chain.** Split the assertion or express one boolean predicate ([combining](https://tunit.dev/docs/assertions/combining-assertions#or-conditions)).
