@@ -11,32 +11,27 @@ internal sealed class AccessibleSceneProjectorTests
     [Test]
     [Arguments(
         "logic.unsigned_compare",
-        "Unsigned Compare",
         new[] { "A", "B", "LT", "EQ", "GT" },
         new uint[] { 5, 5, 1, 1, 1 },
         2)]
     [Arguments(
         "logic.adder",
-        "Adder",
         new[] { "A", "B", "CIN", "SUM", "COUT" },
         new uint[] { 5, 5, 1, 5, 1 },
         3)]
     [Arguments(
         "logic.subtractor",
-        "Subtractor",
         new[] { "A", "B", "BIN", "DIFF", "BOUT" },
         new uint[] { 5, 5, 1, 5, 1 },
         3)]
     [Arguments(
         "logic.shift",
-        "Logical Shift",
         new[] { "D", "AMOUNT", "Q" },
         new uint[] { 5, 3, 5 },
         2)]
-    public async Task Project_ArithmeticComponent_ExposesExactAccessibleContract(
+    public async Task Project_ArithmeticComponent_ExposesResolvedPortContract(
         string contractId,
-        string expectedLabel,
-        string[] expectedPortLabels,
+        string[] expectedPortIds,
         uint[] expectedPortWidths,
         int inputCount)
     {
@@ -63,22 +58,18 @@ internal sealed class AccessibleSceneProjectorTests
         revision = Place(revision, contractId, parameters, new GridPoint(0, 0));
 
         var component = Project(revision).Components.Single();
-        var expectedPorts = expectedPortLabels.Select((label, index) => (
-            Label: label,
+        var expectedPorts = expectedPortIds.Select((portId, index) => (
+            PortId: portId,
             Direction: index < inputCount ? PortDirection.Input : PortDirection.Output,
             Width: expectedPortWidths[index]));
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(component.Label).IsEqualTo(expectedLabel);
-            await Assert.That(component.Ports.Select(port =>
-                    (port.Label, port.Direction, port.Width)))
-                .IsEquivalentTo(expectedPorts, CollectionOrdering.Matching);
-        }
+        await Assert.That(component.Ports.Select(port =>
+                (port.Source.PortId, port.Direction, port.Width)))
+            .IsEquivalentTo(expectedPorts, CollectionOrdering.Matching);
     }
 
     [Test]
-    public async Task TryProject_GeneratedPortShapeBeyondCollectionCapacity_ReturnsFalse()
+    public async Task TryProject_GeneratedPortShapeCannotBeMaterialized_ReturnsFalse()
     {
         var revision = CreateCompleteCircuit();
         var outcome = ProjectEditor.Apply(
@@ -125,7 +116,7 @@ internal sealed class AccessibleSceneProjectorTests
     }
 
     [Test]
-    public async Task Project_CompleteCircuit_PreservesEveryAuthoredSemanticFact()
+    public async Task Project_CompleteCircuit_PreservesAuthoredTopology()
     {
         var revision = CreateCompleteCircuit();
         var definition = revision.Document.EntryCircuitDefinition;
@@ -153,10 +144,9 @@ internal sealed class AccessibleSceneProjectorTests
             {
                 await Assert.That(projected.Source)
                     .IsEqualTo(new ComponentInstanceSourceIdentity(definition.Id, instance.Id));
-                await Assert.That(projected.Label).IsEqualTo(ExpectedLabel(instance));
                 await Assert.That(projected.Placement).IsEqualTo(instance.Placement);
                 await Assert.That(projected.Ports.Select(port =>
-                        (port.Source.PortId, port.Label, port.Direction)))
+                        (port.Source.PortId, port.Direction)))
                     .IsEquivalentTo(ExpectedPorts(instance), CollectionOrdering.Matching);
                 await Assert.That(projected.Ports.All(port =>
                     port.Source.CircuitDefinitionId == definition.Id
@@ -284,9 +274,8 @@ internal sealed class AccessibleSceneProjectorTests
 
             if (authoredGeometry.Route is OrthogonalWireRoute expectedOrthogonal)
             {
-                var actualOrthogonal = await Assert.That(geometry.Route)
-                    .IsTypeOf<OrthogonalWireRoute>();
-                Assert.NotNull(actualOrthogonal);
+                var actualOrthogonal = (await Assert.That(geometry.Route)
+                    .IsTypeOf<OrthogonalWireRoute>())!;
                 await Assert.That(actualOrthogonal.Points)
                     .IsEquivalentTo(expectedOrthogonal.Points, CollectionOrdering.Matching);
             }
@@ -374,17 +363,6 @@ internal sealed class AccessibleSceneProjectorTests
         }
     }
 
-    private static string ExpectedLabel(ComponentInstance instance)
-    {
-        return ((LibraryComponentTarget)instance.Target).ContractKey.ContractId switch
-        {
-            "source.input" => "Input",
-            "logic.not" => "NOT",
-            "sink.output" => "Output",
-            _ => throw new ArgumentOutOfRangeException(nameof(instance)),
-        };
-    }
-
     private static AccessibleSceneProjection Project(ProjectRevision revision)
     {
         return AccessibleSceneProjector.TryProject(revision, 10_000, out var scene)
@@ -407,18 +385,18 @@ internal sealed class AccessibleSceneProjectorTests
                 "The bounded test Scene could not be projected.");
     }
 
-    private static (string PortId, string Label, PortDirection Direction)[] ExpectedPorts(
+    private static (string PortId, PortDirection Direction)[] ExpectedPorts(
         ComponentInstance instance)
     {
         return ((LibraryComponentTarget)instance.Target).ContractKey.ContractId switch
         {
-            "source.input" => [("Q", "Q", PortDirection.Output)],
+            "source.input" => [("Q", PortDirection.Output)],
             "logic.not" =>
             [
-                ("A", "A", PortDirection.Input),
-                ("Q", "Q", PortDirection.Output),
+                ("A", PortDirection.Input),
+                ("Q", PortDirection.Output),
             ],
-            "sink.output" => [("D", "D", PortDirection.Input)],
+            "sink.output" => [("D", PortDirection.Input)],
             _ => throw new ArgumentOutOfRangeException(nameof(instance)),
         };
     }

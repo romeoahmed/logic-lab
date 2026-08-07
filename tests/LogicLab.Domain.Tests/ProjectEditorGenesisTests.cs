@@ -12,8 +12,7 @@ internal sealed class ProjectEditorGenesisTests
 
         var outcome = ProjectEditor.Begin(seed);
 
-        var committed = await Assert.That(outcome).IsTypeOf<ProjectGenesisCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<ProjectGenesisCommitted>())!;
         var revision = committed.Revision;
         var document = revision.Document;
         var entryDefinition = document.EntryCircuitDefinition;
@@ -41,8 +40,7 @@ internal sealed class ProjectEditorGenesisTests
     {
         var outcome = ProjectEditor.Begin(CreateSeed("Project", "Main"));
 
-        var committed = await Assert.That(outcome).IsTypeOf<ProjectGenesisCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<ProjectGenesisCommitted>())!;
 
         var expected = new AuthoredSourceIdentity[]
         {
@@ -67,8 +65,7 @@ internal sealed class ProjectEditorGenesisTests
 
         var outcome = ProjectEditor.Begin(seed);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<ProjectGenesisRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<ProjectGenesisRejected>())!;
 
         using (Assert.Multiple())
         {
@@ -129,8 +126,7 @@ internal sealed class ProjectEditorGenesisTests
 
         var outcome = ProjectEditor.Begin(seed);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<ProjectGenesisRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<ProjectGenesisRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
@@ -169,8 +165,7 @@ internal sealed class ProjectEditorGenesisTests
 
         var outcome = ProjectEditor.Begin(seed);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<ProjectGenesisRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<ProjectGenesisRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics).Count().IsEqualTo(1);

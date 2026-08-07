@@ -25,8 +25,7 @@ internal sealed class EditorWorkspaceFailureTests
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
                 EditorWorkspaceTestDriver.Compilation(opened.Projection)),
             CancellationToken.None);
-        var accepted = await Assert.That(outcome).IsTypeOf<CompilationAccepted>();
-        Assert.NotNull(accepted);
+        var accepted = (await Assert.That(outcome).IsTypeOf<CompilationAccepted>())!;
 
         var projection = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
                 workspace,
@@ -76,8 +75,7 @@ internal sealed class EditorWorkspaceFailureTests
             opened.Attached,
             cancellationToken);
 
-        var accepted = await Assert.That(outcome).IsTypeOf<CompilationAccepted>();
-        Assert.NotNull(accepted);
+        var accepted = (await Assert.That(outcome).IsTypeOf<CompilationAccepted>())!;
         var rejected = after.RejectedCompilation();
         using (Assert.Multiple())
         {
@@ -122,8 +120,7 @@ internal sealed class EditorWorkspaceFailureTests
             ReadProjection.Instance,
             CancellationToken.None)).Projection;
 
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
         var beforeCompilation = before.PublishedCompilation();
         var afterCompilation = after.PublishedCompilation();
         using (Assert.Multiple())
@@ -158,8 +155,7 @@ internal sealed class EditorWorkspaceFailureTests
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
                 EditorWorkspaceTestDriver.SessionCreation(before)),
             CancellationToken.None);
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
 
         using (Assert.Multiple())
         {
@@ -213,8 +209,7 @@ internal sealed class EditorWorkspaceFailureTests
                 [new InputStimulusAssignment(input.Id, [LogicValue.Zero])]),
             CancellationToken.None);
         var after = await Read(workspace, opened);
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
 
         using (Assert.Multiple())
         {
@@ -261,8 +256,7 @@ internal sealed class EditorWorkspaceFailureTests
             callerCancellation.Token);
         var after = await Read(workspace, opened);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Code).IsEqualTo("workspace_internal_defect");
@@ -305,8 +299,7 @@ internal sealed class EditorWorkspaceFailureTests
             ReadProjection.Instance,
             CancellationToken.None)).Projection;
 
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Code).IsEqualTo("workspace_infrastructure_failure");
@@ -357,8 +350,7 @@ internal sealed class EditorWorkspaceFailureTests
             ReadProjection.Instance,
             CancellationToken.None)).Projection;
 
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Code).IsEqualTo("workspace_cancelled");
@@ -419,12 +411,9 @@ internal sealed class EditorWorkspaceFailureTests
             ReadProjection.Instance,
             CancellationToken.None)).Projection;
 
-        var created = await Assert.That(session).IsTypeOf<SimulationSessionCreated>();
-        var stimulus = await Assert.That(scheduled).IsTypeOf<StimulusScheduled>();
-        var step = await Assert.That(stepped).IsTypeOf<SessionStepped>();
-        Assert.NotNull(created);
-        Assert.NotNull(stimulus);
-        Assert.NotNull(step);
+        var created = (await Assert.That(session).IsTypeOf<SimulationSessionCreated>())!;
+        var stimulus = (await Assert.That(scheduled).IsTypeOf<StimulusScheduled>())!;
+        var step = (await Assert.That(stepped).IsTypeOf<SessionStepped>())!;
         await Assert.That(after.Simulation).IsNotNull();
         using (Assert.Multiple())
         {

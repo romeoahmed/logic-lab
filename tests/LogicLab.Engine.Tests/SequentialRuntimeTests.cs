@@ -63,8 +63,7 @@ internal sealed class SequentialRuntimeTests
             await Assert.That(committed.LogicalTime).IsEqualTo(ulong.MaxValue);
             await Assert.That(committed.ObservedProbePatch.Single().Value[0])
                 .IsEqualTo(LogicValue.One);
-            var noStimulus = await Assert.That(exhausted).IsTypeOf<NoScheduledStimulus>();
-            Assert.NotNull(noStimulus);
+            var noStimulus = (await Assert.That(exhausted).IsTypeOf<NoScheduledStimulus>())!;
             await Assert.That(noStimulus.LogicalTime)
                 .IsEqualTo(ulong.MaxValue);
         }
@@ -429,9 +428,8 @@ internal sealed class SequentialRuntimeTests
                 .IsEqualTo(SimulationDiagnosticSeverity.Error);
             await Assert.That(conflict.Arguments.Single().Value)
                 .IsEqualTo(new SimulationStableTokenValue("set_reset"));
-            var primary = await Assert.That(conflict.Primary?.Identity)
-                .IsTypeOf<ComponentInstanceSourceIdentity>();
-            Assert.NotNull(primary);
+            var primary = (await Assert.That(conflict.Primary?.Identity)
+                .IsTypeOf<ComponentInstanceSourceIdentity>())!;
             await Assert.That(primary.ComponentInstanceId).IsEqualTo(latch.Id);
         }
     }
@@ -609,10 +607,8 @@ internal sealed class SequentialRuntimeTests
             new AdvanceToNextQuiescentBoundary(),
             CancellationToken.None);
 
-        var firstFailure = await Assert.That(failed).IsTypeOf<AdvanceFailed>();
-        var retryFailure = await Assert.That(retry).IsTypeOf<AdvanceFailed>();
-        Assert.NotNull(firstFailure);
-        Assert.NotNull(retryFailure);
+        var firstFailure = (await Assert.That(failed).IsTypeOf<AdvanceFailed>())!;
+        var retryFailure = (await Assert.That(retry).IsTypeOf<AdvanceFailed>())!;
         using (Assert.Multiple())
         {
             await Assert.That(firstFailure.Reason)
@@ -636,8 +632,7 @@ internal sealed class SequentialRuntimeTests
             CancellationToken.None);
         var after = Snapshot(opened);
 
-        var failure = await Assert.That(failed).IsTypeOf<AdvanceFailed>();
-        Assert.NotNull(failure);
+        var failure = (await Assert.That(failed).IsTypeOf<AdvanceFailed>())!;
         var policyEvidence = failure.PolicyEvidence;
         Assert.NotNull(policyEvidence);
         using (Assert.Multiple())
@@ -666,8 +661,7 @@ internal sealed class SequentialRuntimeTests
             CancellationToken.None);
         var after = Snapshot(opened);
 
-        var failure = await Assert.That(failed).IsTypeOf<AdvanceFailed>();
-        Assert.NotNull(failure);
+        var failure = (await Assert.That(failed).IsTypeOf<AdvanceFailed>())!;
         var policyEvidence = failure.PolicyEvidence;
         Assert.NotNull(policyEvidence);
         using (Assert.Multiple())
@@ -715,10 +709,8 @@ internal sealed class SequentialRuntimeTests
             CancellationToken.None);
         var afterRetry = Snapshot(opened);
 
-        var firstFailure = await Assert.That(first).IsTypeOf<AdvanceFailed>();
-        var retryFailure = await Assert.That(retry).IsTypeOf<AdvanceFailed>();
-        Assert.NotNull(firstFailure);
-        Assert.NotNull(retryFailure);
+        var firstFailure = (await Assert.That(first).IsTypeOf<AdvanceFailed>())!;
+        var retryFailure = (await Assert.That(retry).IsTypeOf<AdvanceFailed>())!;
         var firstPolicyEvidence = firstFailure.PolicyEvidence;
         var retryPolicyEvidence = retryFailure.PolicyEvidence;
         Assert.NotNull(firstPolicyEvidence);

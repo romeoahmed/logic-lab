@@ -42,8 +42,7 @@ internal sealed class ProjectEditorComponentContractTests
             revision,
             PlaceIntent(revision, contractId, parameters));
 
-        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         var instance = FindByContract(committed.Revision, contractId);
         await Assert.That(instance.Parameters)
             .IsEquivalentTo(parameters, CollectionOrdering.Matching);
@@ -62,8 +61,7 @@ internal sealed class ProjectEditorComponentContractTests
             revision,
             PlaceIntent(revision, "topology.split", parameters));
 
-        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         var split = FindByContract(committed.Revision, "topology.split");
         await Assert.That(split.Parameters)
             .IsEquivalentTo(parameters, CollectionOrdering.Matching);
@@ -138,7 +136,7 @@ internal sealed class ProjectEditorComponentContractTests
             revision,
             PlaceIntent(revision, "topology.split", parameters));
 
-        await AssertInvalidParameterRejection(outcome);
+        await AssertRejection(outcome, "authoring_invalid_parameter");
     }
 
     [Test]
@@ -163,7 +161,7 @@ internal sealed class ProjectEditorComponentContractTests
             revision,
             PlaceIntent(revision, contractId, parameters));
 
-        await AssertInvalidParameterRejection(outcome);
+        await AssertRejection(outcome, "authoring_invalid_parameter");
     }
 
     [Test]
@@ -197,7 +195,7 @@ internal sealed class ProjectEditorComponentContractTests
                     new InstanceTerminalReference(definitionId, sink.Id, "D"),
                 ]));
 
-        await AssertInvalidParameterRejection(outcome);
+        await AssertRejection(outcome, "authoring_width_mismatch");
         await Assert.That(revision.Document.EntryCircuitDefinition.Nets).IsEmpty();
     }
 
@@ -263,17 +261,17 @@ internal sealed class ProjectEditorComponentContractTests
         };
     }
 
-    private static async Task AssertInvalidParameterRejection(EditOutcome outcome)
+    private static async Task AssertRejection(
+        EditOutcome outcome,
+        string expectedDiagnosticCode)
     {
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason).IsEqualTo("authoring_invalid");
             await Assert.That(rejected.Diagnostics).IsNotEmpty();
             await Assert.That(rejected.Diagnostics.All(diagnostic =>
-                diagnostic.Code == "authoring_invalid_parameter"
-                || diagnostic.Code == "authoring_width_mismatch")).IsTrue();
+                diagnostic.Code == expectedDiagnosticCode)).IsTrue();
         }
     }
 

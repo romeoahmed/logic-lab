@@ -35,9 +35,8 @@ internal sealed class EditorWorkspaceRunTests
         await Assert.That(pause.IsCompleted).IsFalse();
         advanceGate.Release();
 
-        var paused = await Assert.That(await pause.WaitAsync(cancellationToken))
-            .IsTypeOf<RunPaused>();
-        Assert.NotNull(paused);
+        var paused = (await Assert.That(await pause.WaitAsync(cancellationToken))
+            .IsTypeOf<RunPaused>())!;
         var projection = await Read(workspace, controlled, cancellationToken);
 
         using (Assert.Multiple())
@@ -88,8 +87,7 @@ internal sealed class EditorWorkspaceRunTests
         }
 
         var outcome = await pause.WaitAsync(cancellationToken);
-        var paused = await Assert.That(outcome).IsTypeOf<RunPaused>();
-        Assert.NotNull(paused);
+        var paused = (await Assert.That(outcome).IsTypeOf<RunPaused>())!;
         var projection = await Read(workspace, controlled, cancellationToken);
 
         using (Assert.Multiple())
@@ -136,12 +134,10 @@ internal sealed class EditorWorkspaceRunTests
         await Assert.That(pause.IsCompleted).IsFalse();
         advanceGate.Release();
 
-        var paused = await Assert.That(await pause.WaitAsync(cancellationToken))
-            .IsTypeOf<RunPaused>();
-        var attached = await Assert.That(await reattach.WaitAsync(cancellationToken))
-            .IsTypeOf<Attached>();
-        Assert.NotNull(paused);
-        Assert.NotNull(attached);
+        var paused = (await Assert.That(await pause.WaitAsync(cancellationToken))
+            .IsTypeOf<RunPaused>())!;
+        var attached = (await Assert.That(await reattach.WaitAsync(cancellationToken))
+            .IsTypeOf<Attached>())!;
 
         using (Assert.Multiple())
         {
@@ -346,9 +342,8 @@ internal sealed class EditorWorkspaceRunTests
         await Assert.That(pause.IsCompleted).IsFalse();
         advanceGate.Release();
 
-        var failed = await Assert.That(await pause.WaitAsync(cancellationToken))
-            .IsTypeOf<SessionAdvanceFailed>();
-        Assert.NotNull(failed);
+        var failed = (await Assert.That(await pause.WaitAsync(cancellationToken))
+            .IsTypeOf<SessionAdvanceFailed>())!;
         var projection = await Read(workspace, controlled, cancellationToken);
         var failedRun = projection.FailedRun();
 
@@ -406,8 +401,7 @@ internal sealed class EditorWorkspaceRunTests
                 Command(controlled, "run"),
                 EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
             cancellationToken);
-        var started = await Assert.That(startedOutcome).IsTypeOf<RunStarted>();
-        Assert.NotNull(started);
+        var started = (await Assert.That(startedOutcome).IsTypeOf<RunStarted>())!;
         await advanceGate.Started.WaitAsync(cancellationToken);
 
         var pauseTask = workspace.DispatchAsync(
@@ -421,8 +415,7 @@ internal sealed class EditorWorkspaceRunTests
         advanceGate.Release();
 
         var pauseOutcome = await pauseTask.WaitAsync(cancellationToken);
-        var paused = await Assert.That(pauseOutcome).IsTypeOf<RunPaused>();
-        Assert.NotNull(paused);
+        var paused = (await Assert.That(pauseOutcome).IsTypeOf<RunPaused>())!;
         var afterPause = await Read(workspace, controlled, cancellationToken);
 
         using (Assert.Multiple())
@@ -490,9 +483,8 @@ internal sealed class EditorWorkspaceRunTests
         advanceGate.Release();
 
         var staleOutcome = await stalePause.WaitAsync(cancellationToken);
-        var rejection = await Assert.That(staleOutcome)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejection);
+        var rejection = (await Assert.That(staleOutcome)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
         var afterStalePause = await Read(workspace, controlled, cancellationToken);
 
         using (Assert.Multiple())
@@ -551,9 +543,8 @@ internal sealed class EditorWorkspaceRunTests
                     beforeRun.Simulation!.SessionId,
                     started.RunGeneration)),
             cancellationToken);
-        var rejection = await Assert.That(outcome)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejection);
+        var rejection = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
 
         using (Assert.Multiple())
         {
@@ -602,9 +593,8 @@ internal sealed class EditorWorkspaceRunTests
                     beforeRun.Simulation!.SessionId,
                     started.RunGeneration)),
             cancellationToken);
-        var rejection = await Assert.That(outcome)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejection);
+        var rejection = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
 
         using (Assert.Multiple())
         {
@@ -661,15 +651,14 @@ internal sealed class EditorWorkspaceRunTests
         advanceGate.Release();
         await Assert.That(await detach.WaitAsync(cancellationToken)).IsTypeOf<Detached>();
 
-        var reattached = await Assert.That(await workspace.AttachAsync(
+        var reattached = (await Assert.That(await workspace.AttachAsync(
                 new Reattach(
                     controlled.WorkspaceId,
                     controlled.Attached.AttachmentId,
                     controlled.Attached.Generation,
                     WorkspaceBuild.DevelopmentFingerprint),
                 cancellationToken))
-            .IsTypeOf<Attached>();
-        Assert.NotNull(reattached);
+            .IsTypeOf<Attached>())!;
         using (Assert.Multiple())
         {
             await Assert.That(reattached.Projection.Simulation!.Run.Status)
@@ -761,9 +750,8 @@ internal sealed class EditorWorkspaceRunTests
 
         _ = await queuedCommand.WaitAsync(cancellationToken);
         Assert.NotNull(pause);
-        var paused = await Assert.That(await pause.WaitAsync(cancellationToken))
-            .IsTypeOf<RunPaused>();
-        Assert.NotNull(paused);
+        var paused = (await Assert.That(await pause.WaitAsync(cancellationToken))
+            .IsTypeOf<RunPaused>())!;
 
         using (Assert.Multiple())
         {
@@ -862,9 +850,8 @@ internal sealed class EditorWorkspaceRunTests
                 EditorWorkspaceTestDriver.SessionMutation(beforeSwap),
                 beforeSwap.PublishedCompilation().ArtifactKey),
             cancellationToken);
-        var committed = await Assert.That(outcome)
-            .IsTypeOf<LogicLab.Application.Workspaces.HotSwapCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome)
+            .IsTypeOf<LogicLab.Application.Workspaces.HotSwapCommitted>())!;
         var afterSwap = await Read(workspace, controlled, cancellationToken);
 
         using (Assert.Multiple())
@@ -925,8 +912,7 @@ internal sealed class EditorWorkspaceRunTests
                 EditorWorkspaceTestDriver.SessionMutation(beforeSwap),
                 beforeSwap.PublishedCompilation().ArtifactKey),
             cancellationToken);
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
         var afterSwap = await Read(workspace, controlled, cancellationToken);
 
         using (Assert.Multiple())
@@ -1018,8 +1004,7 @@ internal sealed class EditorWorkspaceRunTests
                 beforeSwap.PublishedCompilation().ArtifactKey),
             cancellationToken);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Code).IsEqualTo("simulation_resource_limit");

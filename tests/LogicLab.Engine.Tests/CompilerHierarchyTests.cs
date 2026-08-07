@@ -17,8 +17,7 @@ internal sealed class CompilerHierarchyTests
             CompilerTestCircuit.Request(circuit.Revision),
             CancellationToken.None);
 
-        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        Assert.NotNull(succeeded);
+        var succeeded = (await Assert.That(outcome).IsTypeOf<CompilationSucceeded>())!;
         var artifact = succeeded.Artifact;
         var childPath = new HierarchyPath(
             circuit.MainDefinition.Id,
@@ -98,8 +97,7 @@ internal sealed class CompilerHierarchyTests
             CompilerTestCircuit.Request(circuit.Revision),
             CancellationToken.None);
 
-        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        Assert.NotNull(succeeded);
+        var succeeded = (await Assert.That(outcome).IsTypeOf<CompilationSucceeded>())!;
         var artifact = succeeded.Artifact;
         var nestedSources = artifact.SourceMap.Evaluators
             .Where(entry => entry.Source.Identity == new ComponentInstanceSourceIdentity(
@@ -149,8 +147,7 @@ internal sealed class CompilerHierarchyTests
             CompilerTestCircuit.Request(revision),
             CancellationToken.None);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<CompilationRejected>())!;
         var diagnostic = rejected.Diagnostics.Single();
         using (Assert.Multiple())
         {
@@ -201,8 +198,7 @@ internal sealed class CompilerHierarchyTests
             CompilerTestCircuit.Request(revision),
             CancellationToken.None);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<CompilationRejected>())!;
         var diagnostic = rejected.Diagnostics.Single();
         var relatedIdentities = diagnostic.Related
             .Cast<CompilerCircuitLocation>()
@@ -430,8 +426,7 @@ internal sealed class CompilerHierarchyTests
         ProjectScaleDimension dimension,
         ulong observed)
     {
-        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<CompilationRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason).IsEqualTo("compilation_policy_exhausted");

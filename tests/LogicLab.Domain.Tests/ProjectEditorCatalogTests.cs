@@ -32,8 +32,7 @@ internal sealed class ProjectEditorCatalogTests
                 instanceId,
                 "Renamed instance"));
 
-        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         var definition = committed.Revision.Document.EntryCircuitDefinition;
         using (Assert.Multiple())
         {
@@ -70,8 +69,7 @@ internal sealed class ProjectEditorCatalogTests
                             CardinalDirection.South)),
                 ]));
 
-        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         var ports = committed.Revision.Document.EntryCircuitDefinition.Ports;
         using (Assert.Multiple())
         {
@@ -118,10 +116,8 @@ internal sealed class ProjectEditorCatalogTests
                 instanceId,
                 SinkParameters(2)));
 
-        var committed = await Assert.That(sameShape).IsTypeOf<EditCommitted>();
-        var rejected = await Assert.That(changedShape).IsTypeOf<EditRejected>();
-        Assert.NotNull(committed);
-        Assert.NotNull(rejected);
+        var committed = (await Assert.That(sameShape).IsTypeOf<EditCommitted>())!;
+        var rejected = (await Assert.That(changedShape).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.Revision.Document.EntryCircuitDefinition
@@ -184,8 +180,7 @@ internal sealed class ProjectEditorCatalogTests
                 definitionId,
                 [.. instances.Select(instance => instance.Id)]));
 
-        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.Revision.Document.EntryCircuitDefinition
@@ -220,8 +215,7 @@ internal sealed class ProjectEditorCatalogTests
             revision,
             new RemoveCircuitDefinitionIntent(child.Id));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Single().Code)

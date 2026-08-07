@@ -281,11 +281,9 @@ internal sealed class TopologyRuntimeTests
             new AdvanceToNextQuiescentBoundary(),
             CancellationToken.None);
 
-        var scheduled = await Assert.That(scheduledOutcome)
-            .IsTypeOf<StimulusBatchScheduled>();
-        Assert.NotNull(scheduled);
-        var committed = await Assert.That(outcome).IsTypeOf<AdvanceCommitted>();
-        Assert.NotNull(committed);
+        var scheduled = (await Assert.That(scheduledOutcome)
+            .IsTypeOf<StimulusBatchScheduled>())!;
+        var committed = (await Assert.That(outcome).IsTypeOf<AdvanceCommitted>())!;
         var snapshot = ReadSnapshot(opened);
         using (Assert.Multiple())
         {
@@ -336,8 +334,7 @@ internal sealed class TopologyRuntimeTests
             CancellationToken.None);
         var after = ReadSnapshot(opened);
 
-        var failed = await Assert.That(outcome).IsTypeOf<SimulationCommandFailed>();
-        Assert.NotNull(failed);
+        var failed = (await Assert.That(outcome).IsTypeOf<SimulationCommandFailed>())!;
         using (Assert.Multiple())
         {
             await Assert.That(failed.Reason)

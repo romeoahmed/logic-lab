@@ -17,8 +17,7 @@ internal sealed class TopologyCompilerTests
             CompilerTestCircuit.Request(circuit.Revision),
             CancellationToken.None);
 
-        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        Assert.NotNull(succeeded);
+        var succeeded = (await Assert.That(outcome).IsTypeOf<CompilationSucceeded>())!;
         var artifact = succeeded.Artifact;
         var componentIds = circuit.Components.Values.Select(instance => instance.Id).ToArray();
         var evaluatorIds = artifact.SourceMap.Evaluators.Select(entry =>
@@ -84,8 +83,7 @@ internal sealed class TopologyCompilerTests
             CompilerTestCircuit.Request(circuit.Revision),
             CancellationToken.None);
 
-        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        Assert.NotNull(succeeded);
+        var succeeded = (await Assert.That(outcome).IsTypeOf<CompilationSucceeded>())!;
         var artifact = succeeded.Artifact;
         var childDriverEntries = artifact.SourceMap.Drivers.Where(entry =>
             entry.Source.Identity is InstancePortSourceIdentity source
@@ -168,8 +166,7 @@ internal sealed class TopologyCompilerTests
         CompilationOutcome outcome,
         ulong observed)
     {
-        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<CompilationRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason).IsEqualTo("compilation_policy_exhausted");

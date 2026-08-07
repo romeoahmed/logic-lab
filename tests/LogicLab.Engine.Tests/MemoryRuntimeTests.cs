@@ -48,8 +48,7 @@ internal sealed class MemoryRuntimeTests
 
         var outcome = circuit.Compile(MemoryPolicy(maximumCells: 8));
 
-        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        Assert.NotNull(succeeded);
+        var succeeded = (await Assert.That(outcome).IsTypeOf<CompilationSucceeded>())!;
         using (Assert.Multiple())
         {
             await Assert.That(succeeded.Evidence.ObservedDimensions.Single(dimension =>
@@ -76,8 +75,7 @@ internal sealed class MemoryRuntimeTests
                 outputNet),
             CancellationToken.None);
 
-        var opened = await Assert.That(outcome).IsTypeOf<SimulationOpened>();
-        Assert.NotNull(opened);
+        var opened = (await Assert.That(outcome).IsTypeOf<SimulationOpened>())!;
         var snapshot = (SessionSnapshotRead)SimulationRuntime.Read(
             opened.Handle,
             new ReadSessionSnapshot(),
@@ -292,8 +290,7 @@ internal sealed class MemoryRuntimeTests
 
         var outcome = circuit.Compile(MemoryPolicy(maximumCells: 3));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<CompilationRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason).IsEqualTo("compilation_policy_exhausted");
@@ -321,8 +318,7 @@ internal sealed class MemoryRuntimeTests
                 outputNet),
             CancellationToken.None);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason)
@@ -394,8 +390,7 @@ internal sealed class MemoryRuntimeTests
             CancellationToken.None);
         var after = Snapshot(opened);
 
-        var failed = await Assert.That(outcome).IsTypeOf<AdvanceFailed>();
-        Assert.NotNull(failed);
+        var failed = (await Assert.That(outcome).IsTypeOf<AdvanceFailed>())!;
         using (Assert.Multiple())
         {
             await Assert.That(failed.Reason)
@@ -481,10 +476,8 @@ internal sealed class MemoryRuntimeTests
             CancellationToken.None);
         var afterRetry = Snapshot(opened);
 
-        var firstFailure = await Assert.That(first).IsTypeOf<AdvanceFailed>();
-        var retryFailure = await Assert.That(retry).IsTypeOf<AdvanceFailed>();
-        Assert.NotNull(firstFailure);
-        Assert.NotNull(retryFailure);
+        var firstFailure = (await Assert.That(first).IsTypeOf<AdvanceFailed>())!;
+        var retryFailure = (await Assert.That(retry).IsTypeOf<AdvanceFailed>())!;
         using (Assert.Multiple())
         {
             await Assert.That(firstFailure.Reason)

@@ -32,11 +32,10 @@ internal sealed class EditorWorkspaceSchedulingTests
         try
         {
             await compilationGate.Started.WaitAsync(cancellationToken);
-            var accepted = await Assert.That(await dispatch.WaitAsync(
+            var accepted = (await Assert.That(await dispatch.WaitAsync(
                     TimeSpan.FromSeconds(1),
                     cancellationToken))
-                .IsTypeOf<CompilationAccepted>();
-            Assert.NotNull(accepted);
+                .IsTypeOf<CompilationAccepted>())!;
             var running = ((ProjectionSnapshot)await workspace.ReadAsync(
                 EditorWorkspaceTestDriver.Query(
                     controlled.Opened.WorkspaceId,
@@ -128,9 +127,8 @@ internal sealed class EditorWorkspaceSchedulingTests
             secondWorkspace.Opened.WorkspaceId,
             secondWorkspace.Attached,
             cancellationToken);
-        var rejection = await Assert.That(rejected)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejection);
+        var rejection = (await Assert.That(rejected)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
 
         using (Assert.Multiple())
         {
@@ -176,11 +174,10 @@ internal sealed class EditorWorkspaceSchedulingTests
             cancellationToken);
         await Assert.That(initial.Compilation.Status)
             .IsEqualTo(CompilationPublicationStatus.Published);
-        var accepted = await Assert.That(await workspace.DispatchAsync(
+        var accepted = (await Assert.That(await workspace.DispatchAsync(
                 CompilationCommand(controlled, "accepted"),
                 cancellationToken))
-            .IsTypeOf<CompilationAccepted>();
-        Assert.NotNull(accepted);
+            .IsTypeOf<CompilationAccepted>())!;
 
         WorkspaceCommandOutcome rejected;
         WorkspaceProjection duringRejection;
@@ -205,9 +202,8 @@ internal sealed class EditorWorkspaceSchedulingTests
             compilationGate.Release();
         }
 
-        var rejection = await Assert.That(rejected)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejection);
+        var rejection = (await Assert.That(rejected)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
 
         using (Assert.Multiple())
         {
@@ -280,12 +276,10 @@ internal sealed class EditorWorkspaceSchedulingTests
 
         var firstOutcome = await first.WaitAsync(cancellationToken);
         var secondOutcome = await second.WaitAsync(cancellationToken);
-        var firstAcceptance = await Assert.That(firstOutcome)
-            .IsTypeOf<CompilationAccepted>();
-        var secondAcceptance = await Assert.That(secondOutcome)
-            .IsTypeOf<CompilationAccepted>();
-        Assert.NotNull(firstAcceptance);
-        Assert.NotNull(secondAcceptance);
+        var firstAcceptance = (await Assert.That(firstOutcome)
+            .IsTypeOf<CompilationAccepted>())!;
+        var secondAcceptance = (await Assert.That(secondOutcome)
+            .IsTypeOf<CompilationAccepted>())!;
         var published = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
             workspace,
             opened.Opened.WorkspaceId,
@@ -556,8 +550,7 @@ internal sealed class EditorWorkspaceSchedulingTests
         var first = await workspace.DispatchAsync(
             CompilationCommand(opened, "first"),
             cancellationToken);
-        var firstAcceptance = await Assert.That(first).IsTypeOf<CompilationAccepted>();
-        Assert.NotNull(firstAcceptance);
+        var firstAcceptance = (await Assert.That(first).IsTypeOf<CompilationAccepted>())!;
 
         try
         {
@@ -565,9 +558,8 @@ internal sealed class EditorWorkspaceSchedulingTests
             var second = await workspace.DispatchAsync(
                 CompilationCommand(opened, "second"),
                 cancellationToken);
-            var secondAcceptance = await Assert.That(second)
-                .IsTypeOf<CompilationAccepted>();
-            Assert.NotNull(secondAcceptance);
+            var secondAcceptance = (await Assert.That(second)
+                .IsTypeOf<CompilationAccepted>())!;
 
             var read = await workspace.ReadAsync(
                 EditorWorkspaceTestDriver.Query(
@@ -575,8 +567,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                     opened.Attached),
                 new ReadCompilation(firstAcceptance.CompilationGeneration),
                 cancellationToken);
-            var snapshot = await Assert.That(read).IsTypeOf<CompilationSnapshot>();
-            Assert.NotNull(snapshot);
+            var snapshot = (await Assert.That(read).IsTypeOf<CompilationSnapshot>())!;
             var superseded = snapshot.Compilation as CompilationSupersededProjection;
             Assert.NotNull(superseded);
 
@@ -627,8 +618,7 @@ internal sealed class EditorWorkspaceSchedulingTests
             var outcome = await workspace.DispatchAsync(
                 CompilationCommand(cancelled, "cancelled"),
                 requestCancellation.Token);
-            var accepted = await Assert.That(outcome).IsTypeOf<CompilationAccepted>();
-            Assert.NotNull(accepted);
+            var accepted = (await Assert.That(outcome).IsTypeOf<CompilationAccepted>())!;
             acceptedGeneration = accepted.CompilationGeneration;
             requestCancellation.Cancel();
         }
@@ -714,8 +704,7 @@ internal sealed class EditorWorkspaceSchedulingTests
             new CreateSandbox(projectDisplayName, "Main"),
             cancellationToken);
 
-        var opened = await Assert.That(outcome).IsTypeOf<WorkspaceOpened>();
-        Assert.NotNull(opened);
+        var opened = (await Assert.That(outcome).IsTypeOf<WorkspaceOpened>())!;
         var attached = await EditorWorkspaceTestDriver.AttachAsync(
             workspace,
             opened.WorkspaceId,

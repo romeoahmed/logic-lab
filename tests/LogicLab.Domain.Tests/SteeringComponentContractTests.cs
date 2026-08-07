@@ -182,8 +182,7 @@ internal sealed class SteeringComponentContractTests
                 ],
                 new ComponentPlacement(new GridPoint(0, 0))));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         var diagnostic = await Assert.That(rejected.Diagnostics).HasSingleItem();
         using (Assert.Multiple())
         {

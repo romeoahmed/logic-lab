@@ -36,8 +36,7 @@ internal sealed class EditorWorkspaceTests
                     after.ProjectRevision.Document.EntryCircuitDefinitionId,
                     after.ProjectRevision.Document.LibrarySnapshot.Fingerprint)),
             CancellationToken.None);
-        var accepted = await Assert.That(compilation).IsTypeOf<CompilationAccepted>();
-        Assert.NotNull(accepted);
+        var accepted = (await Assert.That(compilation).IsTypeOf<CompilationAccepted>())!;
         var compiled = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
             workspace,
             opened.WorkspaceId,
@@ -186,13 +185,10 @@ internal sealed class EditorWorkspaceTests
         }
 
         var outcomes = await Task.WhenAll(first, replay).WaitAsync(cancellationToken);
-        var published = await Assert.That(outcomes[0]).IsTypeOf<CompilationAccepted>();
-        var replayed = await Assert.That(outcomes[1]).IsTypeOf<CompilationAccepted>();
-        var conflict = await Assert.That(conflictingIntent!)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(published);
-        Assert.NotNull(replayed);
-        Assert.NotNull(conflict);
+        var published = (await Assert.That(outcomes[0]).IsTypeOf<CompilationAccepted>())!;
+        var replayed = (await Assert.That(outcomes[1]).IsTypeOf<CompilationAccepted>())!;
+        var conflict = (await Assert.That(conflictingIntent!)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(replayed.CompilationGeneration)
@@ -241,12 +237,10 @@ internal sealed class EditorWorkspaceTests
         }
 
         _ = await original.WaitAsync(cancellationToken);
-        var originalAcceptance = await Assert.That(await original)
-            .IsTypeOf<CompilationAccepted>();
-        var replayAcceptance = await Assert.That(replay)
-            .IsTypeOf<CompilationAccepted>();
-        Assert.NotNull(originalAcceptance);
-        Assert.NotNull(replayAcceptance);
+        var originalAcceptance = (await Assert.That(await original)
+            .IsTypeOf<CompilationAccepted>())!;
+        var replayAcceptance = (await Assert.That(replay)
+            .IsTypeOf<CompilationAccepted>())!;
         await Assert.That(replayAcceptance.CompilationGeneration)
             .IsEqualTo(originalAcceptance.CompilationGeneration);
     }
@@ -308,10 +302,8 @@ internal sealed class EditorWorkspaceTests
 
         _ = await first.WaitAsync(cancellationToken);
         var outcomes = await Task.WhenAll(second, replay).WaitAsync(cancellationToken);
-        var published = await Assert.That(outcomes[0]).IsTypeOf<CompilationAccepted>();
-        var replayed = await Assert.That(outcomes[1]).IsTypeOf<CompilationAccepted>();
-        Assert.NotNull(published);
-        Assert.NotNull(replayed);
+        var published = (await Assert.That(outcomes[0]).IsTypeOf<CompilationAccepted>())!;
+        var replayed = (await Assert.That(outcomes[1]).IsTypeOf<CompilationAccepted>())!;
         Assert.NotNull(secondAttachment);
         var finalCompilation = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
             workspace,
@@ -468,12 +460,10 @@ internal sealed class EditorWorkspaceTests
             CancellationToken.None);
         var projection = await Read(workspace, opened);
 
-        var compilationAcceptance = await Assert.That(compilation)
-            .IsTypeOf<CompilationAccepted>();
-        var sessionRejection = await Assert.That(session)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(compilationAcceptance);
-        Assert.NotNull(sessionRejection);
+        var compilationAcceptance = (await Assert.That(compilation)
+            .IsTypeOf<CompilationAccepted>())!;
+        var sessionRejection = (await Assert.That(session)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejectedCompilation.RejectionCode)
@@ -500,8 +490,7 @@ internal sealed class EditorWorkspaceTests
             cancellationToken);
         var after = await Read(workspace, opened);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Code).IsEqualTo("workspace_cancelled");
@@ -599,8 +588,7 @@ internal sealed class EditorWorkspaceTests
             cancellationToken);
         var after = await Read(workspace, opened);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Code).IsEqualTo("workspace_cancelled");
@@ -675,9 +663,8 @@ internal sealed class EditorWorkspaceTests
 
         var outcome = await compilation.WaitAsync(cancellationToken);
         var afterCompilation = await Read(workspace, opened);
-        var acceptance = await Assert.That(outcome)
-            .IsTypeOf<CompilationAccepted>();
-        Assert.NotNull(acceptance);
+        var acceptance = (await Assert.That(outcome)
+            .IsTypeOf<CompilationAccepted>())!;
 
         using (Assert.Multiple())
         {
@@ -705,8 +692,7 @@ internal sealed class EditorWorkspaceTests
                 [new InputStimulusAssignment(input.Id, [])]),
             CancellationToken.None);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
         await Assert.That(rejected.Code).IsEqualTo("session_precondition_failed");
     }
 
@@ -727,8 +713,7 @@ internal sealed class EditorWorkspaceTests
                 [new InputStimulusAssignment(input.Id, [LogicValue.Zero, LogicValue.One])]),
             CancellationToken.None);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
         await Assert.That(rejected.Code).IsEqualTo("session_precondition_failed");
     }
 
@@ -744,8 +729,7 @@ internal sealed class EditorWorkspaceTests
             Step(opened, await Read(workspace, opened)),
             CancellationToken.None);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
         await Assert.That(rejected.Code).IsEqualTo("no_scheduled_stimulus");
     }
 
@@ -809,9 +793,8 @@ internal sealed class EditorWorkspaceTests
 
         var outcomes = await Task.WhenAll(first, second).WaitAsync(cancellationToken);
         var projection = await Read(workspace, opened);
-        var secondRejection = await Assert.That(outcomes[1])
-            .IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(secondRejection);
+        var secondRejection = (await Assert.That(outcomes[1])
+            .IsTypeOf<WorkspaceCommandRejected>())!;
 
         using (Assert.Multiple())
         {
@@ -912,18 +895,14 @@ internal sealed class EditorWorkspaceTests
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, attachment),
             ReadProjection.Instance,
             cancellationToken);
-        var rejection = await Assert.That(rejected)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        var replayRejection = await Assert.That(replay)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        var conflictRejection = await Assert.That(conflict)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        var staleRejection = await Assert.That(stale)
-            .IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejection);
-        Assert.NotNull(replayRejection);
-        Assert.NotNull(conflictRejection);
-        Assert.NotNull(staleRejection);
+        var rejection = (await Assert.That(rejected)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        var replayRejection = (await Assert.That(replay)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        var conflictRejection = (await Assert.That(conflict)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        var staleRejection = (await Assert.That(stale)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
 
         using (Assert.Multiple())
         {
@@ -988,8 +967,7 @@ internal sealed class EditorWorkspaceTests
         }
 
         _ = await original.WaitAsync(cancellationToken);
-        var rejection = await Assert.That(replay).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejection);
+        var rejection = (await Assert.That(replay).IsTypeOf<WorkspaceCommandRejected>())!;
         await Assert.That(rejection.Code).IsEqualTo("workspace_cancelled");
     }
 
@@ -1133,8 +1111,7 @@ internal sealed class EditorWorkspaceTests
         var outcome = await workspace.OpenAsync(
             new CreateSandbox("Test project", "Main"),
             cancellationToken);
-        var opened = await Assert.That(outcome).IsTypeOf<WorkspaceOpened>();
-        Assert.NotNull(opened);
+        var opened = (await Assert.That(outcome).IsTypeOf<WorkspaceOpened>())!;
         var attached = await Attach(workspace, opened.WorkspaceId, cancellationToken);
         return new ControlledWorkspace(opened, attached);
     }
@@ -1165,8 +1142,7 @@ internal sealed class EditorWorkspaceTests
                 controlled.Attachment),
             ReadProjection.Instance,
             CancellationToken.None);
-        var snapshot = await Assert.That(outcome).IsTypeOf<ProjectionSnapshot>();
-        Assert.NotNull(snapshot);
+        var snapshot = (await Assert.That(outcome).IsTypeOf<ProjectionSnapshot>())!;
         return snapshot.Projection;
     }
 

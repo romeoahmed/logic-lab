@@ -15,8 +15,7 @@ internal sealed class CompilerSuccessTests
 
         var outcome = Compiler.Compile(request, CancellationToken.None);
 
-        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        Assert.NotNull(succeeded);
+        var succeeded = (await Assert.That(outcome).IsTypeOf<CompilationSucceeded>())!;
         using (Assert.Multiple())
         {
             await Assert.That(succeeded.Diagnostics).IsEmpty();
@@ -80,8 +79,7 @@ internal sealed class CompilerSuccessTests
             CompilerTestCircuit.Request(authored),
             CancellationToken.None);
 
-        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        Assert.NotNull(succeeded);
+        var succeeded = (await Assert.That(outcome).IsTypeOf<CompilationSucceeded>())!;
         using (Assert.Multiple())
         {
             await Assert.That(succeeded.Artifact.SimulationIr.Nets).Count().IsEqualTo(2);
@@ -293,8 +291,7 @@ internal sealed class CompilerSuccessTests
             CompilerTestCircuit.Request(revision),
             CancellationToken.None);
 
-        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        Assert.NotNull(succeeded);
+        var succeeded = (await Assert.That(outcome).IsTypeOf<CompilationSucceeded>())!;
         using (Assert.Multiple())
         {
             await Assert.That(succeeded.Artifact.SimulationIr.Drivers).Count().IsEqualTo(1);
@@ -367,8 +364,7 @@ internal sealed class CompilerSuccessTests
             CompilerTestCircuit.Request(revision),
             CancellationToken.None);
 
-        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        Assert.NotNull(succeeded);
+        var succeeded = (await Assert.That(outcome).IsTypeOf<CompilationSucceeded>())!;
         var component = succeeded.Artifact.SimulationIr.StronglyConnectedComponents.Single();
         var memberSource = succeeded.Artifact.SourceMap
             .StronglyConnectedComponentMembers.Single();
@@ -468,8 +464,7 @@ internal sealed class CompilerSuccessTests
             CompilerTestCircuit.Request(revision),
             CancellationToken.None);
 
-        var succeeded = await Assert.That(outcome).IsTypeOf<CompilationSucceeded>();
-        Assert.NotNull(succeeded);
+        var succeeded = (await Assert.That(outcome).IsTypeOf<CompilationSucceeded>())!;
         var net = succeeded.Artifact.SimulationIr.Nets.Single();
         using (Assert.Multiple())
         {
