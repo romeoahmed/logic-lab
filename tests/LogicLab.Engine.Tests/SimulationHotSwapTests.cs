@@ -36,8 +36,7 @@ internal sealed class SimulationHotSwapTests
         var snapshot = Snapshot(opened);
         var nextClock = Advance(opened);
 
-        var committed = await Assert.That(outcome).IsTypeOf<HotSwapCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<HotSwapCommitted>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.SessionVersion).IsEqualTo(3UL);
@@ -197,11 +196,9 @@ internal sealed class SimulationHotSwapTests
             CancellationToken.None);
         var rejectedAfter = Snapshot(rejectedSession);
 
-        var committed = await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>();
-        Assert.NotNull(committed);
-        Assert.NotNull(resourceLimit);
+        var committed = (await Assert.That(accepted).IsTypeOf<HotSwapCommitted>())!;
+        var resourceLimit = (await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.TraceCursor)
@@ -251,9 +248,8 @@ internal sealed class SimulationHotSwapTests
         var rejectedAfter = Snapshot(rejectedSession);
 
         await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>();
-        Assert.NotNull(resourceLimit);
+        var resourceLimit = (await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
         await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
             .IsEqualTo(exactPeakOwnedBufferBytes);
         await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
@@ -298,11 +294,9 @@ internal sealed class SimulationHotSwapTests
             CancellationToken.None);
         var rejectedAfter = Snapshot(rejectedSession);
 
-        var committed = await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>();
-        Assert.NotNull(committed);
-        Assert.NotNull(resourceLimit);
+        var committed = (await Assert.That(accepted).IsTypeOf<HotSwapCommitted>())!;
+        var resourceLimit = (await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.Diagnostics.Select(item => item.Code))
@@ -348,11 +342,9 @@ internal sealed class SimulationHotSwapTests
             CancellationToken.None);
         var rejectedAfter = Snapshot(rejectedSession);
 
-        var committed = await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>();
-        Assert.NotNull(committed);
-        Assert.NotNull(resourceLimit);
+        var committed = (await Assert.That(accepted).IsTypeOf<HotSwapCommitted>())!;
+        var resourceLimit = (await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.Diagnostics.Single().Arguments).Count().IsEqualTo(3);
@@ -400,11 +392,9 @@ internal sealed class SimulationHotSwapTests
             CancellationToken.None);
         var rejectedAfter = Snapshot(rejectedSession);
 
-        var committed = await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>();
-        Assert.NotNull(committed);
-        Assert.NotNull(resourceLimit);
+        var committed = (await Assert.That(accepted).IsTypeOf<HotSwapCommitted>())!;
+        var resourceLimit = (await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.TraceCursor.LatestSequence)
@@ -464,9 +454,8 @@ internal sealed class SimulationHotSwapTests
         var rejectedAfter = Snapshot(rejectedSession);
 
         await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>();
-        Assert.NotNull(resourceLimit);
+        var resourceLimit = (await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
         await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
             .IsEqualTo(exactPeakOwnedBufferBytes);
         await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
@@ -502,9 +491,8 @@ internal sealed class SimulationHotSwapTests
         var rejectedAfter = Snapshot(rejectedSession);
 
         await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>();
-        Assert.NotNull(resourceLimit);
+        var resourceLimit = (await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
         await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
             .IsEqualTo(exactPeakOwnedBufferBytes);
         await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
@@ -543,8 +531,7 @@ internal sealed class SimulationHotSwapTests
             CancellationToken.None);
         var snapshot = Snapshot(opened);
 
-        var committed = await Assert.That(outcome).IsTypeOf<HotSwapCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<HotSwapCommitted>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.ProbeIds)
@@ -588,9 +575,8 @@ internal sealed class SimulationHotSwapTests
             CancellationToken.None);
         var after = Snapshot(opened);
 
-        var incompatible = await Assert.That(outcome)
-            .IsTypeOf<HotSwapIncompatible>();
-        Assert.NotNull(incompatible);
+        var incompatible = (await Assert.That(outcome)
+            .IsTypeOf<HotSwapIncompatible>())!;
         using (Assert.Multiple())
         {
             await Assert.That(incompatible.SessionVersion).IsEqualTo(before.SessionVersion);
@@ -627,8 +613,7 @@ internal sealed class SimulationHotSwapTests
             CancellationToken.None);
         var snapshot = Snapshot(opened);
 
-        var committed = await Assert.That(outcome).IsTypeOf<HotSwapCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<HotSwapCommitted>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.ProbeIds).IsEmpty();
@@ -662,8 +647,7 @@ internal sealed class SimulationHotSwapTests
             new CancellationToken(canceled: true));
         var after = Snapshot(opened);
 
-        var failed = await Assert.That(outcome).IsTypeOf<SimulationCommandFailed>();
-        Assert.NotNull(failed);
+        var failed = (await Assert.That(outcome).IsTypeOf<SimulationCommandFailed>())!;
         using (Assert.Multiple())
         {
             await Assert.That(failed.Reason)
@@ -722,11 +706,9 @@ internal sealed class SimulationHotSwapTests
                 exactPeakOwnedBufferBytes - 1UL),
             CancellationToken.None);
 
-        var committed = await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>();
-        Assert.NotNull(committed);
-        Assert.NotNull(resourceLimit);
+        var committed = (await Assert.That(accepted).IsTypeOf<HotSwapCommitted>())!;
+        var resourceLimit = (await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.CompilationArtifactKey)
@@ -773,9 +755,8 @@ internal sealed class SimulationHotSwapTests
         var rejectedAfter = Snapshot(rejectedSession);
 
         await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>();
-        Assert.NotNull(resourceLimit);
+        var resourceLimit = (await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
         await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
             .IsEqualTo(exactPeakOwnedBufferBytes);
         await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
@@ -820,9 +801,8 @@ internal sealed class SimulationHotSwapTests
         var rejectedAfter = Snapshot(rejectedSession);
 
         await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>();
-        Assert.NotNull(resourceLimit);
+        var resourceLimit = (await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
         await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
             .IsEqualTo(exactPeakOwnedBufferBytes);
         await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);

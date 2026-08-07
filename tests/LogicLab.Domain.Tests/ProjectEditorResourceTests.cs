@@ -58,12 +58,9 @@ internal sealed class ProjectEditorResourceTests
                 MemoryParameters(0, 1, staleImageId),
                 new ComponentPlacement(new GridPoint(8, 0))));
 
-        var committed = await Assert.That(matching).IsTypeOf<EditCommitted>();
-        var rejectedShape = await Assert.That(wrongShape).IsTypeOf<EditRejected>();
-        var rejectedMissing = await Assert.That(missing).IsTypeOf<EditRejected>();
-        Assert.NotNull(committed);
-        Assert.NotNull(rejectedShape);
-        Assert.NotNull(rejectedMissing);
+        var committed = (await Assert.That(matching).IsTypeOf<EditCommitted>())!;
+        var rejectedShape = (await Assert.That(wrongShape).IsTypeOf<EditRejected>())!;
+        var rejectedMissing = (await Assert.That(missing).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.Revision.Document.EntryCircuitDefinition
@@ -139,10 +136,8 @@ internal sealed class ProjectEditorResourceTests
                         MemoryParameters(2, 4, imageId)),
                 ]));
 
-        var rejected = await Assert.That(incompatible).IsTypeOf<EditRejected>();
-        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        Assert.NotNull(rejected);
-        Assert.NotNull(committed);
+        var rejected = (await Assert.That(incompatible).IsTypeOf<EditRejected>())!;
+        var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.SelectMany(item => item.Arguments)
@@ -217,8 +212,7 @@ internal sealed class ProjectEditorResourceTests
                         rom.Id,
                         MemoryParameters(2, 2, imageId)),
                 ]));
-        var permitted = await Assert.That(permittedOutcome).IsTypeOf<EditCommitted>();
-        Assert.NotNull(permitted);
+        var permitted = (await Assert.That(permittedOutcome).IsTypeOf<EditCommitted>())!;
 
         var rejectedOutcome = ProjectEditor.Apply(
             permitted.Revision,
@@ -235,8 +229,7 @@ internal sealed class ProjectEditorResourceTests
                         MemoryParameters(2, 4, imageId)),
                 ]));
 
-        var rejected = await Assert.That(rejectedOutcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(rejectedOutcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.SelectMany(item => item.Arguments)
@@ -294,8 +287,7 @@ internal sealed class ProjectEditorResourceTests
             replaced.Revision,
             new RemoveMemoryImageIntent(image.Id));
 
-        var committedRemoval = await Assert.That(removed).IsTypeOf<EditCommitted>();
-        Assert.NotNull(committedRemoval);
+        var committedRemoval = (await Assert.That(removed).IsTypeOf<EditCommitted>())!;
         using (Assert.Multiple())
         {
             await Assert.That(image.Words[0].Values.ToArray())
@@ -333,8 +325,7 @@ internal sealed class ProjectEditorResourceTests
                 depth,
                 [new MemoryImageWord([LogicValue.One])]));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Single().Code)
@@ -393,10 +384,8 @@ internal sealed class ProjectEditorResourceTests
                     new GridPoint(0, 0),
                     AnnotationAlignment.Start)));
 
-        var committedRemoval = await Assert.That(removed).IsTypeOf<EditCommitted>();
-        var rejected = await Assert.That(invalid).IsTypeOf<EditRejected>();
-        Assert.NotNull(committedRemoval);
-        Assert.NotNull(rejected);
+        var committedRemoval = (await Assert.That(removed).IsTypeOf<EditCommitted>())!;
+        var rejected = (await Assert.That(invalid).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(annotations.Select(item => item.Text).ToArray())
@@ -444,12 +433,9 @@ internal sealed class ProjectEditorResourceTests
                 TeachingMixedProfile(),
                 []));
 
-        var committedVariant = await Assert.That(compatible).IsTypeOf<EditCommitted>();
-        var rejectedVariant = await Assert.That(incompatible).IsTypeOf<EditRejected>();
-        var committedProfile = await Assert.That(profile).IsTypeOf<EditCommitted>();
-        Assert.NotNull(committedVariant);
-        Assert.NotNull(rejectedVariant);
-        Assert.NotNull(committedProfile);
+        var committedVariant = (await Assert.That(compatible).IsTypeOf<EditCommitted>())!;
+        var rejectedVariant = (await Assert.That(incompatible).IsTypeOf<EditRejected>())!;
+        var committedProfile = (await Assert.That(profile).IsTypeOf<EditCommitted>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committedVariant.Revision.Document.EntryCircuitDefinition

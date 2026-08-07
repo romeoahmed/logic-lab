@@ -44,8 +44,7 @@ internal sealed class ProjectEditorMigrationTests
                 ],
                 []));
 
-        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.Revision.Document.EntryCircuitDefinition.Nets
@@ -108,8 +107,7 @@ internal sealed class ProjectEditorMigrationTests
                         ]),
                 ]));
 
-        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.Revision.Document.EntryCircuitDefinition.Nets).IsEmpty();
@@ -198,8 +196,7 @@ internal sealed class ProjectEditorMigrationTests
                         ]),
                 ]));
 
-        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         var changedChild = committed.Revision.Document.FindCircuitDefinition(child.Id)!;
         var changedCallSite = committed.Revision.Document.EntryCircuitDefinition
             .FindComponentInstance(callSite.Id)!;
@@ -253,8 +250,7 @@ internal sealed class ProjectEditorMigrationTests
                 [new NewDefinitionPortContract(Port("B", PortDirection.Input, 1))],
                 []));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
@@ -307,8 +303,7 @@ internal sealed class ProjectEditorMigrationTests
                 [new InstancePortMigration("A", "A"), new InstancePortMigration("Q", "Q")],
                 null));
 
-        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         var changed = committed.Revision.Document.EntryCircuitDefinition;
         using (Assert.Multiple())
         {

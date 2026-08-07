@@ -20,8 +20,7 @@ internal sealed class CompilerRejectionTests
 
         var outcome = Compiler.Compile(request, CancellationToken.None);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<CompilationRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason).IsEqualTo("compilation_invalid");
@@ -133,8 +132,7 @@ internal sealed class CompilerRejectionTests
             CompilerTestCircuit.Request(circuit.Revision, policy),
             CancellationToken.None);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<CompilationRejected>())!;
         var expectedBreach = new ObservedProjectScaleDimension(
             ProjectScaleDimension.EntityCount,
             5);
@@ -179,8 +177,7 @@ internal sealed class CompilerRejectionTests
             CompilerTestCircuit.Request(circuit.Revision),
             cancellationToken);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<CompilationRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason).IsEqualTo("compilation_cancelled");

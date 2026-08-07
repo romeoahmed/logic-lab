@@ -207,8 +207,7 @@ internal sealed class EditorWorkspaceAdmissionTests
         WorkspaceProjection before,
         WorkspaceProjection after)
     {
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Code).IsEqualTo("workspace_admission_rejected");

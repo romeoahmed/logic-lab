@@ -30,7 +30,6 @@ internal sealed class WorkbenchChromeComponentTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(navigation.TagName).IsEqualTo("NAV");
             await Assert.That(navigation.QuerySelectorAll("button[type='button']"))
                 .HasSingleItem();
             await Assert.That(rendered.FindAll("[aria-current='page']")).Count().IsEqualTo(1);

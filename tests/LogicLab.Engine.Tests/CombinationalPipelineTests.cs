@@ -28,8 +28,7 @@ internal sealed class CombinationalPipelineTests
             CompilerTestCircuit.Request(revision),
             CancellationToken.None);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<CompilationRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<CompilationRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason).IsEqualTo("compilation_policy_exhausted");
@@ -306,8 +305,7 @@ internal sealed class CombinationalPipelineTests
                 SimulationTestContext.PermissiveTracePolicy()),
             CancellationToken.None);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<SimulationOpenRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason)

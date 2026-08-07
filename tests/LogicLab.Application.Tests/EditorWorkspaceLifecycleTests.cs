@@ -40,8 +40,7 @@ internal sealed class EditorWorkspaceLifecycleTests
             }
         }
 
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
         await Assert.That(rejected.Code).IsEqualTo("workspace_cancelled");
     }
 
@@ -58,8 +57,7 @@ internal sealed class EditorWorkspaceLifecycleTests
             new CreateSandbox("Rejected", "Main"),
             CancellationToken.None);
 
-        var openRejection = await Assert.That(rejected).IsTypeOf<WorkspaceOpenRejected>();
-        Assert.NotNull(openRejection);
+        var openRejection = (await Assert.That(rejected).IsTypeOf<WorkspaceOpenRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(first).IsTypeOf<WorkspaceOpened>();
@@ -86,8 +84,7 @@ internal sealed class EditorWorkspaceLifecycleTests
             ReadProjection.Instance,
             CancellationToken.None);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<WorkspaceReadRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceReadRejected>())!;
         await Assert.That(rejected.Code).IsEqualTo("workspace_expired");
     }
 
@@ -105,8 +102,7 @@ internal sealed class EditorWorkspaceLifecycleTests
             new ReadProjection(opened.Projection.ProjectionVersion),
             CancellationToken.None);
 
-        var unchanged = await Assert.That(outcome).IsTypeOf<ProjectionUnchanged>();
-        Assert.NotNull(unchanged);
+        var unchanged = (await Assert.That(outcome).IsTypeOf<ProjectionUnchanged>())!;
         await Assert.That(unchanged.ProjectionVersion)
             .IsEqualTo(opened.Projection.ProjectionVersion);
     }
@@ -165,8 +161,7 @@ internal sealed class EditorWorkspaceLifecycleTests
             CancellationToken.None);
         var replacement = await Open(workspace);
 
-        var readRejection = await Assert.That(read).IsTypeOf<WorkspaceReadRejected>();
-        Assert.NotNull(readRejection);
+        var readRejection = (await Assert.That(read).IsTypeOf<WorkspaceReadRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(closed).IsTypeOf<WorkspaceClosed>();

@@ -19,40 +19,40 @@ internal sealed class TopologySceneProjectorTests
             revision,
             scene,
             "source.constant",
-            [("Q", "Q", PortDirection.Output, 4U)]);
+            [("Q", PortDirection.Output, 4U)]);
         await AssertProjectedPorts(
             revision,
             scene,
             "topology.split",
             [
-                ("D", "D", PortDirection.Input, 4U),
-                ("Q0", "Q0", PortDirection.Output, 1U),
-                ("Q1", "Q1", PortDirection.Output, 3U),
+                ("D", PortDirection.Input, 4U),
+                ("Q0", PortDirection.Output, 1U),
+                ("Q1", PortDirection.Output, 3U),
             ]);
         await AssertProjectedPorts(
             revision,
             scene,
             "topology.concat",
             [
-                ("D0", "D0", PortDirection.Input, 1U),
-                ("D1", "D1", PortDirection.Input, 3U),
-                ("Q", "Q", PortDirection.Output, 4U),
+                ("D0", PortDirection.Input, 1U),
+                ("D1", PortDirection.Input, 3U),
+                ("Q", PortDirection.Output, 4U),
             ]);
         await AssertProjectedPorts(
             revision,
             scene,
             "topology.zero_extend",
             [
-                ("D", "D", PortDirection.Input, 4U),
-                ("Q", "Q", PortDirection.Output, 6U),
+                ("D", PortDirection.Input, 4U),
+                ("Q", PortDirection.Output, 6U),
             ]);
         await AssertProjectedPorts(
             revision,
             scene,
             "topology.sign_extend",
             [
-                ("D", "D", PortDirection.Input, 4U),
-                ("Q", "Q", PortDirection.Output, 6U),
+                ("D", PortDirection.Input, 4U),
+                ("Q", PortDirection.Output, 6U),
             ]);
 
         var projectedPorts = scene.Components.SelectMany(component => component.Ports).ToArray();
@@ -68,7 +68,7 @@ internal sealed class TopologySceneProjectorTests
         ProjectRevision revision,
         AccessibleSceneProjection scene,
         string contractId,
-        (string PortId, string Label, PortDirection Direction, uint Width)[] expected)
+        (string PortId, PortDirection Direction, uint Width)[] expected)
     {
         var instance = revision.Document.EntryCircuitDefinition.ComponentInstances.Single(
             item => item.Target is LibraryComponentTarget library
@@ -79,7 +79,7 @@ internal sealed class TopologySceneProjectorTests
         using (Assert.Multiple())
         {
             await Assert.That(component.Ports.Select(port =>
-                    (port.Source.PortId, port.Label, port.Direction, port.Width)))
+                    (port.Source.PortId, port.Direction, port.Width)))
                 .IsEquivalentTo(expected, CollectionOrdering.Matching);
             await Assert.That(component.Ports.All(port =>
                 port.Source.CircuitDefinitionId

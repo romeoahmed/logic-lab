@@ -8,7 +8,7 @@ namespace LogicLab.Domain.Tests;
 internal sealed class ComponentContractSchemaTests
 {
     [Test]
-    public async Task CoreContracts_StateAndSemanticMetadata_AffectPublishedDigests()
+    public async Task CoreContracts_ExposeCatalogStateShapesAndSemanticVersion()
     {
         var split = await FindCoreContract("topology.split");
         var input = await FindCoreContract("source.input");
@@ -262,8 +262,7 @@ internal sealed class ComponentContractSchemaTests
     {
         var contract = CoreLibrarySchema.FindContract(
             new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId));
-        var schema = await Assert.That(contract).IsTypeOf<ComponentContractSchema>();
-        Assert.NotNull(schema);
+        var schema = (await Assert.That(contract).IsTypeOf<ComponentContractSchema>())!;
         return schema;
     }
 

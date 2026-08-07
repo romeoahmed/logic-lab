@@ -122,8 +122,7 @@ internal sealed partial class SimulationFeedbackTests
             new ReadSessionSnapshot(),
             CancellationToken.None);
 
-        var failed = await Assert.That(outcome).IsTypeOf<AdvanceFailed>();
-        Assert.NotNull(failed);
+        var failed = (await Assert.That(outcome).IsTypeOf<AdvanceFailed>())!;
         using (Assert.Multiple())
         {
             await Assert.That(failed.Reason)
@@ -231,8 +230,7 @@ internal sealed partial class SimulationFeedbackTests
             new ReadSessionSnapshot(),
             CancellationToken.None);
 
-        var failed = await Assert.That(outcome).IsTypeOf<AdvanceFailed>();
-        Assert.NotNull(failed);
+        var failed = (await Assert.That(outcome).IsTypeOf<AdvanceFailed>())!;
         var diagnostic = failed.Diagnostics.Single();
         var correlation = (SimulationCorrelationTokenValue)
             diagnostic.Arguments[2].Value;

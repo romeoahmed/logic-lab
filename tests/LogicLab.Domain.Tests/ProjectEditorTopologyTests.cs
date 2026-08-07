@@ -84,8 +84,7 @@ internal sealed class ProjectEditorTopologyTests
                     Terminal(definitionId, circuit.Output, "D"),
                 ]));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics).Count().IsEqualTo(1);
@@ -269,8 +268,7 @@ internal sealed class ProjectEditorTopologyTests
             topology.Revision,
             new SplitNetIntent(definition.Id, topology.Net.Id, [first, second]));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code))
@@ -376,8 +374,7 @@ internal sealed class ProjectEditorTopologyTests
                     new NetPartition([.. terminals.Skip(2)], [], []),
                 ]));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Single().Code)
@@ -468,8 +465,7 @@ internal sealed class ProjectEditorTopologyTests
                 updatedDefinition.Id,
                 wireOnlyGeometry.Id));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Single().Code)
@@ -513,8 +509,7 @@ internal sealed class ProjectEditorTopologyTests
                 net.Id,
                 new OrthogonalWireRoute(points)));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics).Count().IsEqualTo(1);

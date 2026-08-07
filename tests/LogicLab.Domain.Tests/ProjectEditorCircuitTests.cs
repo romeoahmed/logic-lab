@@ -187,8 +187,7 @@ internal sealed class ProjectEditorCircuitTests
 
         var outcome = ProjectEditor.Apply(genesis, intent);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason).IsEqualTo("authoring_invalid");
@@ -223,8 +222,7 @@ internal sealed class ProjectEditorCircuitTests
 
         var outcome = ProjectEditor.Apply(genesis, intent);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
@@ -256,8 +254,7 @@ internal sealed class ProjectEditorCircuitTests
 
         var outcome = ProjectEditor.Apply(genesis, intent);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         await Assert.That(rejected.Diagnostics[0].Arguments)
             .IsEquivalentTo(
                 [
@@ -294,8 +291,7 @@ internal sealed class ProjectEditorCircuitTests
 
         var outcome = ProjectEditor.Apply(genesis, intent);
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics).Count().IsEqualTo(1);
@@ -367,8 +363,7 @@ internal sealed class ProjectEditorCircuitTests
                     Terminal(definitionId, logicNot, "A"),
                 ]));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
@@ -430,8 +425,7 @@ internal sealed class ProjectEditorCircuitTests
                     Terminal(definitionId, circuit.LogicNot, "A"),
                 ]));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
@@ -471,8 +465,7 @@ internal sealed class ProjectEditorCircuitTests
                         new ComponentPlacement(new GridPoint(30, 30))),
                 ]));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
@@ -525,8 +518,7 @@ internal sealed class ProjectEditorCircuitTests
         var expectedOutcome = ProjectEditor.Apply(
             circuit.Revision,
             new MoveComponentInstancesIntent(definitionId, permutations[0]));
-        var expected = await Assert.That(expectedOutcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(expected);
+        var expected = (await Assert.That(expectedOutcome).IsTypeOf<EditRejected>())!;
 
         await Assert.That(expected.Diagnostics.Select(item => item.Code).ToArray())
             .IsEquivalentTo(
@@ -539,8 +531,7 @@ internal sealed class ProjectEditorCircuitTests
                 circuit.Revision,
                 new MoveComponentInstancesIntent(definitionId, moves));
 
-            var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-            Assert.NotNull(rejected);
+            var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
             await Assert.That(rejected.Diagnostics).Count()
                 .IsEqualTo(expected.Diagnostics.Count);
             for (var index = 0; index < expected.Diagnostics.Count; index++)
@@ -575,8 +566,7 @@ internal sealed class ProjectEditorCircuitTests
                 circuit.Revision.Document.EntryCircuitDefinition.Id,
                 []));
 
-        var rejected = await Assert.That(outcome).IsTypeOf<EditRejected>();
-        Assert.NotNull(rejected);
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
@@ -669,8 +659,7 @@ internal sealed class ProjectEditorCircuitTests
                 parameters,
                 new ComponentPlacement(origin)));
 
-        var committed = await Assert.That(outcome).IsTypeOf<EditCommitted>();
-        Assert.NotNull(committed);
+        var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         var instance = committed.Revision.Document.EntryCircuitDefinition.ComponentInstances
             .Single(candidate => candidate.Target is LibraryComponentTarget library
                 && library.ContractKey.ContractId == contractId);
