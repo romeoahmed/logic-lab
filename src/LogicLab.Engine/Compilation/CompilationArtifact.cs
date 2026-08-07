@@ -115,8 +115,8 @@ internal sealed class SimulationEvaluator
         SimulationEvaluatorKind kind,
         ComponentContractKey contractKey,
         uint width,
-        int[] inputNetOrdinals,
-        int[] outputDriverOrdinals,
+        int[] ownedInputNetOrdinals,
+        int[] ownedOutputDriverOrdinals,
         LogicVector? initialValue,
         IReadOnlyList<BitSlice>? slices = null,
         bool option = false,
@@ -128,8 +128,8 @@ internal sealed class SimulationEvaluator
         Kind = kind;
         ContractKey = contractKey;
         Width = width;
-        InputNetOrdinals = Array.AsReadOnly((int[])inputNetOrdinals.Clone());
-        OutputDriverOrdinals = Array.AsReadOnly((int[])outputDriverOrdinals.Clone());
+        InputNetOrdinals = Array.AsReadOnly(ownedInputNetOrdinals);
+        OutputDriverOrdinals = Array.AsReadOnly(ownedOutputDriverOrdinals);
         InitialValue = initialValue;
         Slices = Array.AsReadOnly(
             slices is null ? [] : slices.ToArray());
@@ -177,14 +177,13 @@ internal sealed class SimulationNet
     internal SimulationNet(
         int ordinal,
         uint width,
-        int[] driverOrdinals,
-        int[] receiverEvaluatorOrdinals)
+        int[] ownedDriverOrdinals,
+        int[] ownedReceiverEvaluatorOrdinals)
     {
         Ordinal = ordinal;
         Width = width;
-        DriverOrdinals = Array.AsReadOnly((int[])driverOrdinals.Clone());
-        ReceiverEvaluatorOrdinals = Array.AsReadOnly(
-            (int[])receiverEvaluatorOrdinals.Clone());
+        DriverOrdinals = Array.AsReadOnly(ownedDriverOrdinals);
+        ReceiverEvaluatorOrdinals = Array.AsReadOnly(ownedReceiverEvaluatorOrdinals);
     }
 
     public int Ordinal { get; }
@@ -200,11 +199,11 @@ internal sealed class CombinationalStronglyConnectedComponent
 {
     internal CombinationalStronglyConnectedComponent(
         int ordinal,
-        int[] evaluatorOrdinals,
+        int[] ownedEvaluatorOrdinals,
         bool isCyclic)
     {
         Ordinal = ordinal;
-        EvaluatorOrdinals = Array.AsReadOnly((int[])evaluatorOrdinals.Clone());
+        EvaluatorOrdinals = Array.AsReadOnly(ownedEvaluatorOrdinals);
         IsCyclic = isCyclic;
     }
 
@@ -218,24 +217,22 @@ internal sealed class CombinationalStronglyConnectedComponent
 internal sealed class SimulationIr
 {
     internal SimulationIr(
-        SimulationEvaluator[] evaluators,
-        SimulationDriver[] drivers,
-        SimulationNet[] nets,
-        int[] fanoutOffsets,
-        int[] fanoutEvaluatorOrdinals,
-        CombinationalStronglyConnectedComponent[] stronglyConnectedComponents,
-        int[] condensationOrder)
+        SimulationEvaluator[] ownedEvaluators,
+        SimulationDriver[] ownedDrivers,
+        SimulationNet[] ownedNets,
+        int[] ownedFanoutOffsets,
+        int[] ownedFanoutEvaluatorOrdinals,
+        CombinationalStronglyConnectedComponent[] ownedStronglyConnectedComponents,
+        int[] ownedCondensationOrder)
     {
-        Evaluators = Array.AsReadOnly((SimulationEvaluator[])evaluators.Clone());
-        Drivers = Array.AsReadOnly((SimulationDriver[])drivers.Clone());
-        Nets = Array.AsReadOnly((SimulationNet[])nets.Clone());
-        FanoutOffsets = Array.AsReadOnly((int[])fanoutOffsets.Clone());
-        FanoutEvaluatorOrdinals = Array.AsReadOnly(
-            (int[])fanoutEvaluatorOrdinals.Clone());
+        Evaluators = Array.AsReadOnly(ownedEvaluators);
+        Drivers = Array.AsReadOnly(ownedDrivers);
+        Nets = Array.AsReadOnly(ownedNets);
+        FanoutOffsets = Array.AsReadOnly(ownedFanoutOffsets);
+        FanoutEvaluatorOrdinals = Array.AsReadOnly(ownedFanoutEvaluatorOrdinals);
         StronglyConnectedComponents = Array.AsReadOnly(
-            (CombinationalStronglyConnectedComponent[])
-            stronglyConnectedComponents.Clone());
-        CondensationOrder = Array.AsReadOnly((int[])condensationOrder.Clone());
+            ownedStronglyConnectedComponents);
+        CondensationOrder = Array.AsReadOnly(ownedCondensationOrder);
     }
 
     public ReadOnlyCollection<SimulationEvaluator> Evaluators { get; }
@@ -344,26 +341,24 @@ public sealed class SourceMap
     private readonly Dictionary<CompilationSource, int> netOrdinals;
 
     internal SourceMap(
-        SourceMapEntry[] evaluators,
-        EvaluatorInputSourceMapEntry[] evaluatorInputs,
-        SourceMapEntry[] drivers,
-        SourceMapEntry[] nets,
+        SourceMapEntry[] ownedEvaluators,
+        EvaluatorInputSourceMapEntry[] ownedEvaluatorInputs,
+        SourceMapEntry[] ownedDrivers,
+        SourceMapEntry[] ownedNets,
         StronglyConnectedComponentMemberSourceMapEntry[]
-            stronglyConnectedComponentMembers,
-        SourceMapEntry[] netAliases)
+            ownedStronglyConnectedComponentMembers,
+        SourceMapEntry[] ownedNetAliases)
     {
-        Evaluators = Array.AsReadOnly((SourceMapEntry[])evaluators.Clone());
-        EvaluatorInputs = Array.AsReadOnly(
-            (EvaluatorInputSourceMapEntry[])evaluatorInputs.Clone());
-        Drivers = Array.AsReadOnly((SourceMapEntry[])drivers.Clone());
-        Nets = Array.AsReadOnly((SourceMapEntry[])nets.Clone());
-        NetAliases = Array.AsReadOnly((SourceMapEntry[])netAliases.Clone());
+        Evaluators = Array.AsReadOnly(ownedEvaluators);
+        EvaluatorInputs = Array.AsReadOnly(ownedEvaluatorInputs);
+        Drivers = Array.AsReadOnly(ownedDrivers);
+        Nets = Array.AsReadOnly(ownedNets);
+        NetAliases = Array.AsReadOnly(ownedNetAliases);
         StronglyConnectedComponentMembers = Array.AsReadOnly(
-            (StronglyConnectedComponentMemberSourceMapEntry[])
-            stronglyConnectedComponentMembers.Clone());
-        evaluatorOrdinals = Index(evaluators);
-        driverOrdinals = Index(drivers);
-        netOrdinals = Index(nets, netAliases);
+            ownedStronglyConnectedComponentMembers);
+        evaluatorOrdinals = Index(ownedEvaluators);
+        driverOrdinals = Index(ownedDrivers);
+        netOrdinals = Index(ownedNets, ownedNetAliases);
     }
 
     public ReadOnlyCollection<SourceMapEntry> Evaluators { get; }

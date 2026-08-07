@@ -113,7 +113,7 @@ public sealed class CompilationEvidence
         string librarySnapshotFingerprint,
         string compilerSemanticVersion,
         CompilationPolicyReference policy,
-        ObservedProjectScaleDimension[] observedDimensions,
+        ObservedProjectScaleDimension[] ownedObservedDimensions,
         ObservedProjectScaleDimension? policyLimitBreach)
     {
         RequestedProjectRevisionId = requestedProjectRevisionId;
@@ -121,8 +121,7 @@ public sealed class CompilationEvidence
         LibrarySnapshotFingerprint = librarySnapshotFingerprint;
         CompilerSemanticVersion = compilerSemanticVersion;
         Policy = policy;
-        ObservedDimensions = Array.AsReadOnly(
-            (ObservedProjectScaleDimension[])observedDimensions.Clone());
+        ObservedDimensions = Array.AsReadOnly(ownedObservedDimensions);
         PolicyLimitBreach = policyLimitBreach;
     }
 
@@ -152,11 +151,11 @@ public sealed record CompilationSucceeded : CompilationOutcome
 {
     internal CompilationSucceeded(
         CompilationArtifact artifact,
-        CompilerDiagnostic[] diagnostics,
+        CompilerDiagnostic[] ownedDiagnostics,
         CompilationEvidence evidence)
     {
         Artifact = artifact;
-        Diagnostics = Array.AsReadOnly((CompilerDiagnostic[])diagnostics.Clone());
+        Diagnostics = Array.AsReadOnly(ownedDiagnostics);
         Evidence = evidence;
     }
 
@@ -171,11 +170,11 @@ public sealed record CompilationRejected : CompilationOutcome
 {
     internal CompilationRejected(
         string reason,
-        CompilerDiagnostic[] diagnostics,
+        CompilerDiagnostic[] ownedDiagnostics,
         CompilationEvidence evidence)
     {
         Reason = reason;
-        Diagnostics = Array.AsReadOnly((CompilerDiagnostic[])diagnostics.Clone());
+        Diagnostics = Array.AsReadOnly(ownedDiagnostics);
         Evidence = evidence;
     }
 

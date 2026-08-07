@@ -1311,7 +1311,7 @@ public static partial class SimulationRuntime
             state.LogicalTime,
             probes,
             state.Trace.Cursor,
-            state.Diagnostics);
+            (SimulationDiagnostic[])state.Diagnostics.Clone());
     }
 
     private static SimulationOpenRejected Rejected(

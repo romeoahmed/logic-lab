@@ -196,9 +196,9 @@ candidate including its Diagnostics and new Clock event calendar; one initial ce
 buffer for every replacement Memory; one additional cell-reference buffer only for each
 compatible migrated RAM while both can coexist; the exact changed-Probe staging array, Trace fork
 index, and staged transition chunk; and the Hot Swap terminal publication arrays that coexist with
-the candidate, including migrated-state sources, evidence and outcome Probe IDs, observed Probes,
-and the outcome's top-level Diagnostic reference copy. The Session and outcome share immutable
-Diagnostic records, so their nested argument and related-source buffers are counted once. Shared
+the candidate, including migrated-state sources, shared evidence/outcome Probe IDs, and observed
+Probes. The Session and outcome share the top-level Diagnostic reference array and its immutable
+Diagnostic records, so those buffers are counted once. Shared
 immutable Compilation Artifact records and their source indexes, CLR object headers, allocator
 metadata, and transient preflight metadata are excluded. Net resolution reads the Artifact's
 Driver ordinals directly and does not materialize a per-Net reference buffer. When the replacement

@@ -107,7 +107,6 @@ public static partial class SimulationRuntime
             candidatePeakOwnedBuffers,
             state.Trace,
             changedProbeSummary,
-            diagnosticBuffers.DiagnosticCount,
             diagnosticBuffers.OwnedReferenceSlotCount,
             migrationPreflight.MigrationCount,
             probePreflight.PreservedProbeCount);
@@ -151,20 +150,17 @@ public static partial class SimulationRuntime
         }
 
         Array.Sort(migratedStateSources, CompilationSourceComparer.Instance);
-        var evidencePreservedProbeIds = probes
-            .Select(probe => probe.ProbeId)
-            .ToArray();
-        var committedProbeIds = probes.Select(probe => probe.ProbeId).ToArray();
+        var preservedProbeIds = probes.Select(probe => probe.ProbeId).ToArray();
         var committed = new HotSwapCommitted(
             sessionVersion,
             replacement.Key,
             new HotSwapMigrationEvidence(
                 migratedStateSources,
-                evidencePreservedProbeIds,
+                preservedProbeIds,
                 probeBindings.UnresolvedProbeIds),
-            committedProbeIds,
+            preservedProbeIds,
             observedProbes,
-            (SimulationDiagnostic[])diagnostics.Clone(),
+            diagnostics,
             trace.Cursor);
         cancellationToken.ThrowIfCancellationRequested();
 
