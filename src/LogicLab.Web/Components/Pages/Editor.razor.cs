@@ -138,7 +138,10 @@ public sealed partial class Editor : IAsyncDisposable
         }
 
         var attachOutcome = await workspace.AttachAsync(
-            new InitialAttach(opened.WorkspaceId, LogicLabWebBuild.Fingerprint),
+            new InitialAttach(
+                opened.WorkspaceId,
+                LogicLabWebBuild.Fingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         if (attachOutcome is not Attached attached)
         {
@@ -463,7 +466,8 @@ public sealed partial class Editor : IAsyncDisposable
                 projection.WorkspaceId,
                 attachment.AttachmentId,
                 attachment.Generation,
-                LogicLabWebBuild.Fingerprint),
+                LogicLabWebBuild.Fingerprint,
+                AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         if (outcome is not Attached reattached)
         {
@@ -530,7 +534,8 @@ public sealed partial class Editor : IAsyncDisposable
                     new DetachRequest(
                         attachment.Projection.WorkspaceId,
                         attachment.AttachmentId,
-                        attachment.Generation),
+                        attachment.Generation,
+                        AnonymousWorkspaceCaller.Instance),
                     CancellationToken.None);
             }
         }
@@ -556,7 +561,8 @@ public sealed partial class Editor : IAsyncDisposable
             projection.WorkspaceId,
             attachment.AttachmentId,
             attachment.Generation,
-            clientIntentId);
+            clientIntentId,
+            AnonymousWorkspaceCaller.Instance);
     }
 
     private WorkspaceQueryContext QueryContext()
@@ -568,7 +574,8 @@ public sealed partial class Editor : IAsyncDisposable
         return new WorkspaceQueryContext(
             projection.WorkspaceId,
             attachment.AttachmentId,
-            attachment.Generation);
+            attachment.Generation,
+            AnonymousWorkspaceCaller.Instance);
     }
 
     private SessionMutationPrecondition SessionPrecondition()

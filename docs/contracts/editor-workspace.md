@@ -89,7 +89,7 @@ DetachAsync(DetachRequest, CancellationToken)
   -> Task<Detached | DetachRejected>
 DispatchAsync(WorkspaceCommand, CancellationToken)
   -> Task<WorkspaceOutcome>
-ReadAsync(WorkspaceQuery, CancellationToken)
+ReadAsync(WorkspaceQueryContext, WorkspaceQuery, CancellationToken)
   -> Task<WorkspaceReadOutcome>
 ```
 
@@ -104,7 +104,8 @@ ImportProject { validated ImportCandidate }
 CopyWorkspace {
   sourceWorkspaceId, sourceAttachmentId, sourceAttachmentGeneration,
   expectedProjectionVersion,
-  saveTarget: Preserve | DetachedSandbox
+  saveTarget: Preserve | DetachedSandbox,
+  caller
 }
 ```
 
@@ -112,9 +113,9 @@ The deep Workspace implementation asks Project Editor for Project Genesis when r
 
 `CopyWorkspace` reauthorizes and fences the source attachment, then starts separate history at its exact current Project Revision, including authorized unsaved edits. Earlier history is not copied and Undo cannot cross the new base. `Preserve` retains Sandbox status or the Durable Project ID and observed Durable Version; `DetachedSandbox` removes the durable association and implements “Keep as copy.” Both preserve authored Project identity and the fork revision, but copy no attachment, Session, Run, Analysis Operation, Proposal, idempotency record, or browser preference. A stale Projection Version returns `projection_version_precondition_failed`; the source remains unchanged.
 
-`AttachRequest` is `InitialAttach { WorkspaceId, buildFingerprint }` or `Reattach { WorkspaceId, priorAttachmentId, priorGeneration, buildFingerprint }`. Success returns `Attached { newAttachmentId, newGeneration, WorkspaceProjectionV1 }`. A `Reattach` whose Workspace is no longer retained, including one reclaimed by an earlier operation, returns `Expired { reason = workspace_expired }`; an unknown `InitialAttach` and every other failure return `AttachRejected { reason, diagnostics, RetryDisposition }`. Reattach reauthorizes and fences the prior generation before returning. Copying a tab calls `OpenAsync(CopyWorkspace)` and creates another Workspace; it does not reuse an attachment.
+`AttachRequest` is `InitialAttach { WorkspaceId, buildFingerprint, caller }` or `Reattach { WorkspaceId, priorAttachmentId, priorGeneration, buildFingerprint, caller }`. Success returns `Attached { newAttachmentId, newGeneration, WorkspaceProjectionV1 }`. A `Reattach` whose Workspace is no longer retained, including one reclaimed by an earlier operation, returns `Expired { reason = workspace_expired }`; an unknown `InitialAttach` and every other failure return `AttachRejected { reason, diagnostics, RetryDisposition }`. Initial attachment and reattachment both reauthorize before inspecting or publishing an attachment fence. Copying a tab calls `OpenAsync(CopyWorkspace)` and creates another Workspace; it does not reuse an attachment.
 
-`DetachRequest` carries the current Workspace ID, Attachment ID, and generation.
+`DetachRequest` carries the current Workspace ID, Attachment ID, generation, and caller.
 Success returns `Detached { WorkspaceId, generation }` without changing Projection Version;
 a stale fence returns `DetachRejected { reason = stale_workspace_attachment }`. Detach is
 idempotent only through the caller's connection-lifecycle coordination: repeating it after
@@ -129,9 +130,12 @@ WorkspaceId
 WorkspaceAttachmentId
 AttachmentGeneration
 ClientIntentId
+Caller
 one command-specific Precondition
 typed command payload
 ```
+
+`Caller` is trusted request context derived by Web from the current authentication state; browser input cannot name an authenticated subject. Commands, reads, attach, detach, and copy all carry it explicitly. Sandbox access admits the anonymous caller, while every access to a Durable Workspace requires an authenticated caller whose subject owns the Durable Project. Authorization runs before attachment lookup, idempotency lookup, payload validation, or projection publication, so a different subject cannot replay an owner's retained outcome.
 
 ### 3.1 Closed command and outcome catalog
 
@@ -213,7 +217,7 @@ No adapter infers retry behavior from localized text or HTTP status alone.
 
 ### 3.2 Closed query catalog and projection
 
-Queries carry authenticated Workspace and attachment context but no Client Intent ID and cause no state transition:
+Queries carry explicit caller, Workspace, and attachment context but no Client Intent ID and cause no state transition:
 
 ```text
 WorkspaceQuery =
@@ -274,7 +278,7 @@ Run projection state is exactly `NotRunning | Running(RunGeneration) | Paused(Ru
 7. execute and publish atomically;
 8. record the terminal idempotency result before acknowledging.
 
-The Workspace mutation and idempotency result share one in-memory commit section. A Durable Save stores its idempotency record and current-revision pointer in one repository transaction. If a retained idempotency record cannot establish whether an old intent executed, return `IdempotencyWindowExpired`; never execute a possible duplicate.
+The Workspace mutation and idempotency result share one in-memory commit section. A Durable Save stores its idempotency receipt and current-revision pointer in one repository transaction. Durable receipts are pruned in that same transaction to the Workspace Policy `idempotency_record_count`, newest first per Durable Project, so persistent recovery metadata cannot grow without bound. If a retained idempotency record cannot establish whether an old intent executed, return `IdempotencyWindowExpired`; never execute a possible duplicate.
 
 Reusing a Client Intent ID for a different typed command returns `IdempotencyKeyConflict`. A new attachment generation starts a new scope and does not replay unacknowledged old commands automatically.
 

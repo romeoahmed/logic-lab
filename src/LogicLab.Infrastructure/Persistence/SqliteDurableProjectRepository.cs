@@ -5,14 +5,24 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LogicLab.Infrastructure.Persistence;
 
-internal sealed class SqliteDurableProjectRepository(
-    IDbContextFactory<LogicLabDbContext> contextFactory)
-    : IDurableProjectRepository
+internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
 {
     private const string ClaimCommand = "claim";
     private const string SaveCommand = "save";
     private const string StoredOutcome = "stored";
     private const string ConflictOutcome = "conflict";
+    private readonly IDbContextFactory<LogicLabDbContext> contextFactory;
+    private readonly int receiptRetentionCount;
+
+    public SqliteDurableProjectRepository(
+        IDbContextFactory<LogicLabDbContext> contextFactory,
+        int receiptRetentionCount)
+    {
+        ArgumentNullException.ThrowIfNull(contextFactory);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(receiptRetentionCount);
+        this.contextFactory = contextFactory;
+        this.receiptRetentionCount = receiptRetentionCount;
+    }
 
     public async Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
         DurableProjectClaimRequest request,
@@ -31,6 +41,15 @@ internal sealed class SqliteDurableProjectRepository(
                 cancellationToken).ConfigureAwait(false);
             if (existingReceipt is not null)
             {
+                if (!await IsOwnedBySubjectAsync(
+                        context,
+                        existingReceipt.DurableProjectId,
+                        request.SubjectId,
+                        cancellationToken).ConfigureAwait(false))
+                {
+                    return new DurableProjectClaimReceiptConflict();
+                }
+
                 return ResolveClaimReceipt(
                     existingReceipt,
                     request.ReceiptKey,
@@ -56,6 +75,10 @@ internal sealed class SqliteDurableProjectRepository(
                 request.InitialDurableVersion,
                 request.ProjectRevision.RevisionId));
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await PruneReceiptsAsync(
+                context,
+                request.DurableProjectId,
+                cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return new DurableProjectClaimStored(
                 request.DurableProjectId,
@@ -127,10 +150,11 @@ internal sealed class SqliteDurableProjectRepository(
             cancellationToken).ConfigureAwait(false);
         if (existingReceipt is not null)
         {
-            return ResolveSaveReceipt(
+            return await ResolveAuthorizedSaveReceiptAsync(
+                context,
                 existingReceipt,
-                request.ReceiptKey,
-                request.ProjectRevision.RevisionId);
+                request,
+                cancellationToken).ConfigureAwait(false);
         }
 
         var project = await context.DurableProjects.SingleOrDefaultAsync(
@@ -155,6 +179,10 @@ internal sealed class SqliteDurableProjectRepository(
                 new DurableVersion(project.DurableVersion));
             context.DurableCommandReceipts.Add(conflict);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await PruneReceiptsAsync(
+                context,
+                request.DurableProjectId,
+                cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return ResolveSaveReceipt(
                 conflict,
@@ -193,6 +221,10 @@ internal sealed class SqliteDurableProjectRepository(
             storedVersion,
             request.ProjectRevision.RevisionId));
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await PruneReceiptsAsync(
+            context,
+            request.DurableProjectId,
+            cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return new DurableProjectSaveStored(
             storedVersion,
@@ -237,12 +269,21 @@ internal sealed class SqliteDurableProjectRepository(
             context,
             request.ReceiptKey,
             cancellationToken).ConfigureAwait(false);
-        return receipt is null
-            ? null
-            : ResolveClaimReceipt(
+        if (receipt is null)
+        {
+            return null;
+        }
+
+        return await IsOwnedBySubjectAsync(
+                context,
+                receipt.DurableProjectId,
+                request.SubjectId,
+                cancellationToken).ConfigureAwait(false)
+            ? ResolveClaimReceipt(
                 receipt,
                 request.ReceiptKey,
-                request.ProjectRevision.RevisionId);
+                request.ProjectRevision.RevisionId)
+            : new DurableProjectClaimReceiptConflict();
     }
 
     private async Task<DurableProjectSaveRepositoryOutcome?> TryResolveSaveReceiptAsync(
@@ -257,10 +298,11 @@ internal sealed class SqliteDurableProjectRepository(
             cancellationToken).ConfigureAwait(false);
         return receipt is null
             ? null
-            : ResolveSaveReceipt(
+            : await ResolveAuthorizedSaveReceiptAsync(
+                context,
                 receipt,
-                request.ReceiptKey,
-                request.ProjectRevision.RevisionId);
+                request,
+                cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<DurableProjectSaveRepositoryOutcome> RecordConflictAfterRaceAsync(
@@ -288,10 +330,11 @@ internal sealed class SqliteDurableProjectRepository(
             cancellationToken).ConfigureAwait(false);
         if (receipt is not null)
         {
-            return ResolveSaveReceipt(
+            return await ResolveAuthorizedSaveReceiptAsync(
+                context,
                 receipt,
-                request.ReceiptKey,
-                request.ProjectRevision.RevisionId);
+                request,
+                cancellationToken).ConfigureAwait(false);
         }
 
         var project = await context.DurableProjects.AsNoTracking().SingleOrDefaultAsync(
@@ -323,6 +366,10 @@ internal sealed class SqliteDurableProjectRepository(
             new DurableVersion(project.DurableVersion));
         context.DurableCommandReceipts.Add(conflict);
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await PruneReceiptsAsync(
+            context,
+            request.DurableProjectId,
+            cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return ResolveSaveReceipt(
             conflict,
@@ -341,6 +388,68 @@ internal sealed class SqliteDurableProjectRepository(
             receipt => receipt.WorkspaceId == key.WorkspaceId.Value
                 && receipt.AttachmentGeneration == attachmentGeneration
                 && receipt.ClientIntentId == key.ClientIntentId.Value,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task PruneReceiptsAsync(
+        LogicLabDbContext context,
+        DurableProjectId durableProjectId,
+        CancellationToken cancellationToken)
+    {
+        var oldestRetainedSequence = await context.DurableCommandReceipts
+            .AsNoTracking()
+            .Where(receipt => receipt.DurableProjectId == durableProjectId.Value)
+            .OrderByDescending(receipt => receipt.ReceiptSequence)
+            .Skip(receiptRetentionCount - 1)
+            .Select(receipt => (long?)receipt.ReceiptSequence)
+            .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        if (oldestRetainedSequence is null)
+        {
+            return;
+        }
+
+        await context.DurableCommandReceipts
+            .Where(receipt => receipt.DurableProjectId == durableProjectId.Value
+                && receipt.ReceiptSequence < oldestRetainedSequence.Value)
+            .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<DurableProjectSaveRepositoryOutcome>
+        ResolveAuthorizedSaveReceiptAsync(
+            LogicLabDbContext context,
+            DurableCommandReceiptRecord receipt,
+            DurableProjectSaveRequest request,
+            CancellationToken cancellationToken)
+    {
+        if (!string.Equals(
+            receipt.DurableProjectId,
+            request.DurableProjectId.Value,
+            StringComparison.Ordinal))
+        {
+            return new DurableProjectSaveReceiptConflict();
+        }
+
+        return await IsOwnedBySubjectAsync(
+                context,
+                receipt.DurableProjectId,
+                request.SubjectId,
+                cancellationToken).ConfigureAwait(false)
+            ? ResolveSaveReceipt(
+                receipt,
+                request.ReceiptKey,
+                request.ProjectRevision.RevisionId)
+            : new DurableProjectSaveForbidden();
+    }
+
+    private static async Task<bool> IsOwnedBySubjectAsync(
+        LogicLabDbContext context,
+        string durableProjectId,
+        AuthenticatedSubjectId subjectId,
+        CancellationToken cancellationToken)
+    {
+        return await context.DurableProjects.AsNoTracking().AnyAsync(
+            project => project.Id == durableProjectId
+                && project.SubjectId == subjectId.Value,
             cancellationToken).ConfigureAwait(false);
     }
 

@@ -70,12 +70,10 @@ internal sealed class LogicLabDbContext : DbContext
 
         var receipts = modelBuilder.Entity<DurableCommandReceiptRecord>();
         receipts.ToTable("durable_command_receipts");
-        receipts.HasKey(receipt => new
-        {
-            receipt.WorkspaceId,
-            receipt.AttachmentGeneration,
-            receipt.ClientIntentId,
-        });
+        receipts.HasKey(receipt => receipt.ReceiptSequence);
+        receipts.Property(receipt => receipt.ReceiptSequence)
+            .HasColumnName("receipt_sequence")
+            .ValueGeneratedOnAdd();
         receipts.Property(receipt => receipt.WorkspaceId)
             .HasColumnName("workspace_id")
             .HasMaxLength(64);
@@ -109,6 +107,15 @@ internal sealed class LogicLabDbContext : DbContext
         receipts.Property(receipt => receipt.ActualDurableVersion)
             .HasColumnName("actual_durable_version")
             .HasMaxLength(64);
+        receipts.HasIndex(
+                receipt => new
+                {
+                    receipt.WorkspaceId,
+                    receipt.AttachmentGeneration,
+                    receipt.ClientIntentId,
+                },
+                "ux_durable_command_receipts_workspace_generation_intent")
+            .IsUnique();
         receipts.HasOne<DurableProjectRecord>()
             .WithMany()
             .HasForeignKey(receipt => receipt.DurableProjectId)

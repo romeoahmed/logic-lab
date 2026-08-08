@@ -47,6 +47,14 @@ internal sealed partial class EditorWorkspace
                     WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
 
+            var authorizationRejection = GetDurableAccessRejection(
+                state,
+                request.Caller);
+            if (authorizationRejection is not null)
+            {
+                return RejectAttach(authorizationRejection);
+            }
+
             if (!string.Equals(
                 request.BuildFingerprint,
                 buildFingerprint,
@@ -141,6 +149,14 @@ internal sealed partial class EditorWorkspace
             if (state.IsRetired)
             {
                 return new DetachRejected(WorkspaceOutcomeReasons.WorkspaceNotFound);
+            }
+
+            var authorizationRejection = GetDurableAccessRejection(
+                state,
+                request.Caller);
+            if (authorizationRejection is not null)
+            {
+                return new DetachRejected(authorizationRejection);
             }
 
             lock (state.ContinuityGate)
@@ -256,6 +272,14 @@ internal sealed partial class EditorWorkspace
             if (source.IsRetired)
             {
                 return RejectOpen(WorkspaceOutcomeReasons.WorkspaceNotFound);
+            }
+
+            var authorizationRejection = GetDurableAccessRejection(
+                source,
+                request.Caller);
+            if (authorizationRejection is not null)
+            {
+                return RejectOpen(authorizationRejection);
             }
 
             lock (source.ContinuityGate)
@@ -427,11 +451,38 @@ internal sealed partial class EditorWorkspace
             && state.AttachmentGeneration == context.AttachmentGeneration;
     }
 
+    private static string? GetDurableAccessRejection(
+        WorkspaceState state,
+        WorkspaceCaller caller)
+    {
+        if (state.Durable is not { } durable)
+        {
+            return null;
+        }
+
+        return caller switch
+        {
+            AnonymousWorkspaceCaller => WorkspaceOutcomeReasons.AuthenticationRequired,
+            AuthenticatedWorkspaceCaller authenticated
+                when authenticated.SubjectId == durable.SubjectId => null,
+            AuthenticatedWorkspaceCaller => WorkspaceOutcomeReasons.Forbidden,
+            _ => WorkspaceOutcomeReasons.Forbidden,
+        };
+    }
+
     private ContextualIntentInspection InspectContextualIntentUnderLock(
         WorkspaceState state,
         WorkspaceCommand command)
     {
         var context = command.Context;
+        var authorizationRejection = GetDurableAccessRejection(
+            state,
+            context.Caller);
+        if (authorizationRejection is not null)
+        {
+            return new ContextualIntentTerminal(Reject(authorizationRejection));
+        }
+
         if (!HasCurrentAttachmentUnderLock(state, context))
         {
             return new ContextualIntentTerminal(

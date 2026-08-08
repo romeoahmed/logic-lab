@@ -1143,7 +1143,8 @@ internal sealed class WorkbenchComponentTests
                 new WorkspaceQueryContext(
                     currentWorkspaceId,
                     currentAttachment.AttachmentId,
-                    currentAttachment.Generation),
+                    currentAttachment.Generation,
+                    AnonymousWorkspaceCaller.Instance),
                 ReadProjection.Instance,
                 CancellationToken.None);
             return ((ProjectionSnapshot)outcome).Projection;

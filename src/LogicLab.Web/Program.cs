@@ -8,11 +8,15 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("LogicLab")
     ?? throw new InvalidOperationException(
         "ConnectionStrings:LogicLab must be configured.");
+var workspacePolicy = WorkspacePolicy.Default;
 
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddLogicLabSqlitePersistence(connectionString);
+builder.Services.AddLogicLabSqlitePersistence(
+    connectionString,
+    workspacePolicy.IdempotencyRecordCount);
 builder.Services.AddSingleton<IEditorWorkspace>(services =>
     EditorWorkspaceFactory.Create(
+        workspacePolicy: workspacePolicy,
         loggerFactory: services.GetRequiredService<ILoggerFactory>(),
         timeProvider: services.GetRequiredService<TimeProvider>(),
         durableProjectRepository:

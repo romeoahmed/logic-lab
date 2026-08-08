@@ -180,7 +180,9 @@ keeps those related dimensions together at the public composition seam; they rej
 and never substitute for the Compiler's
 hierarchy and elaboration limits. History/idempotency limits apply after atomic successful
 publication and produce the contract's explicit truncation or expired-idempotency behavior;
-they never make a valid edit partially commit. Retention uses `TimeProvider`.
+the same idempotency count bounds newest-first Durable Project repository receipts, whose
+pruning shares the command transaction. These limits never make a valid edit or save partially
+commit. Time-based retention uses `TimeProvider`.
 `hot_swap_peak_bytes` is declared owned-buffer accounting, not a promise about total process
 RSS. The accounting uses fixed logical byte units: eight bytes per owned reference or index
 slot, sixteen bytes per packed Logic Vector word (the two 64-bit logic planes), twenty-four

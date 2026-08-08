@@ -21,17 +21,25 @@ namespace LogicLab.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("LogicLab.Infrastructure.Persistence.DurableCommandReceiptRecord", b =>
                 {
+                    b.Property<long>("ReceiptSequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("receipt_sequence");
+
                     b.Property<string>("WorkspaceId")
+                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("TEXT")
                         .HasColumnName("workspace_id");
 
                     b.Property<string>("AttachmentGeneration")
+                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("TEXT")
                         .HasColumnName("attachment_generation");
 
                     b.Property<string>("ClientIntentId")
+                        .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("TEXT")
                         .HasColumnName("client_intent_id");
@@ -81,9 +89,12 @@ namespace LogicLab.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("project_revision_id");
 
-                    b.HasKey("WorkspaceId", "AttachmentGeneration", "ClientIntentId");
+                    b.HasKey("ReceiptSequence");
 
                     b.HasIndex("DurableProjectId");
+
+                    b.HasIndex(new[] { "WorkspaceId", "AttachmentGeneration", "ClientIntentId" }, "ux_durable_command_receipts_workspace_generation_intent")
+                        .IsUnique();
 
                     b.ToTable("durable_command_receipts", (string)null);
                 });
