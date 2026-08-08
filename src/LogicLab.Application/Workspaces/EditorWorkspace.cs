@@ -20,6 +20,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private readonly TimeProvider timeProvider;
     private readonly string buildFingerprint;
     private readonly WorkspaceModuleOperations operations;
+    private readonly IDurableProjectRepository durableProjectRepository;
     private readonly ILogger<EditorWorkspace> logger;
     private int workspaceReservations;
     private bool isDisposed;
@@ -30,6 +31,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         TimeProvider timeProvider,
         string buildFingerprint,
         WorkspaceModuleOperations operations,
+        IDurableProjectRepository durableProjectRepository,
         ILogger<WorkCoordinator> workCoordinatorLogger,
         ILogger<EditorWorkspace> logger)
     {
@@ -38,6 +40,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentException.ThrowIfNullOrEmpty(buildFingerprint);
         ArgumentNullException.ThrowIfNull(operations);
+        ArgumentNullException.ThrowIfNull(durableProjectRepository);
         ArgumentNullException.ThrowIfNull(workCoordinatorLogger);
         ArgumentNullException.ThrowIfNull(logger);
         workCoordinator = new WorkCoordinator(schedulingPolicy, workCoordinatorLogger);
@@ -45,6 +48,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         this.timeProvider = timeProvider;
         this.buildFingerprint = buildFingerprint;
         this.operations = operations;
+        this.durableProjectRepository = durableProjectRepository;
         this.logger = logger;
     }
 
@@ -145,6 +149,12 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
+        if (command is ClaimSandbox or SaveDurable
+            && command.Context.Caller is not AuthenticatedWorkspaceCaller)
+        {
+            return Reject(WorkspaceOutcomeReasons.AuthenticationRequired);
+        }
+
         using var acquisition = AcquireWorkspace(command.WorkspaceId);
         if (acquisition.State is null)
         {
@@ -162,6 +172,10 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         var state = acquisition.State;
         return command switch
         {
+            ClaimSandbox or SaveDurable => await ExecuteDurableCommandAsync(
+                state,
+                command,
+                cancellationToken).ConfigureAwait(false),
             RequestCompilation request => await QueueCompilationAsync(
                 state,
                 request,
@@ -1136,7 +1150,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             new TransactionHistoryAvailability(
                 state.HistoryCursor > 0,
                 state.HistoryCursor < state.History.Count - 1,
-                state.History.Count));
+                state.History.Count),
+            ProjectDurability(state));
     }
 
     private static WorkspaceCommandRejected Reject(

@@ -57,6 +57,25 @@ public sealed record WorkspaceAuthoringLimits
         commandItemCount: 1_000);
 }
 
+public sealed record DurableDisplayNameLimits
+{
+    public DurableDisplayNameLimits(int scalarCount, int utf8Bytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scalarCount);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(utf8Bytes);
+        ScalarCount = scalarCount;
+        Utf8Bytes = utf8Bytes;
+    }
+
+    public int ScalarCount { get; }
+
+    public int Utf8Bytes { get; }
+
+    public static DurableDisplayNameLimits Default { get; } = new(
+        scalarCount: 128,
+        utf8Bytes: 512);
+}
+
 public sealed record WorkspacePolicy
 {
     public WorkspacePolicy(
@@ -69,10 +88,36 @@ public sealed record WorkspacePolicy
         int idempotencyRecordCount,
         TimeSpan detachedRetention,
         ulong hotSwapPeakBytes)
+        : this(
+            policyId,
+            policyRevision,
+            globalWorkspaceLimit,
+            sandboxRetention,
+            authoringLimits,
+            historyRevisionCount,
+            idempotencyRecordCount,
+            detachedRetention,
+            hotSwapPeakBytes,
+            DurableDisplayNameLimits.Default)
+    {
+    }
+
+    public WorkspacePolicy(
+        string policyId,
+        string policyRevision,
+        int globalWorkspaceLimit,
+        TimeSpan sandboxRetention,
+        WorkspaceAuthoringLimits authoringLimits,
+        int historyRevisionCount,
+        int idempotencyRecordCount,
+        TimeSpan detachedRetention,
+        ulong hotSwapPeakBytes,
+        DurableDisplayNameLimits durableDisplayNameLimits)
     {
         ArgumentException.ThrowIfNullOrEmpty(policyId);
         ArgumentException.ThrowIfNullOrEmpty(policyRevision);
         ArgumentNullException.ThrowIfNull(authoringLimits);
+        ArgumentNullException.ThrowIfNull(durableDisplayNameLimits);
         if (!IsStableToken(policyId))
         {
             throw new ArgumentException(
@@ -107,6 +152,7 @@ public sealed record WorkspacePolicy
         IdempotencyRecordCount = idempotencyRecordCount;
         DetachedRetention = detachedRetention;
         HotSwapPeakBytes = hotSwapPeakBytes;
+        DurableDisplayNameLimits = durableDisplayNameLimits;
     }
 
     public string PolicyId { get; }
@@ -127,6 +173,8 @@ public sealed record WorkspacePolicy
 
     public ulong HotSwapPeakBytes { get; }
 
+    public DurableDisplayNameLimits DurableDisplayNameLimits { get; }
+
     public static WorkspacePolicy Default { get; } = new(
         policyId: "workbench-workspace",
         policyRevision: "1",
@@ -136,7 +184,8 @@ public sealed record WorkspacePolicy
         historyRevisionCount: 128,
         idempotencyRecordCount: 1_024,
         detachedRetention: TimeSpan.FromMinutes(30),
-        hotSwapPeakBytes: 512UL * 1024UL * 1024UL);
+        hotSwapPeakBytes: 512UL * 1024UL * 1024UL,
+        durableDisplayNameLimits: DurableDisplayNameLimits.Default);
 
     private static bool IsStableToken(string value)
     {
@@ -180,7 +229,8 @@ public static class EditorWorkspaceFactory
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        IDurableProjectRepository? durableProjectRepository = null)
     {
         return CreateCore(
             workspacePolicy,
@@ -188,7 +238,8 @@ public static class EditorWorkspaceFactory
             timeProvider,
             loggerFactory,
             buildFingerprint,
-            WorkspaceModuleOperations.Production);
+            WorkspaceModuleOperations.Production,
+            durableProjectRepository ?? UnavailableDurableProjectRepository.Instance);
     }
 
     internal static IEditorWorkspace CreateForTesting(
@@ -197,7 +248,8 @@ public static class EditorWorkspaceFactory
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
-        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint)
+        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint,
+        IDurableProjectRepository? durableProjectRepository = null)
     {
         return CreateCore(
             workspacePolicy,
@@ -205,7 +257,8 @@ public static class EditorWorkspaceFactory
             timeProvider,
             loggerFactory,
             buildFingerprint,
-            operations);
+            operations,
+            durableProjectRepository ?? UnavailableDurableProjectRepository.Instance);
     }
 
     private static EditorWorkspace CreateCore(
@@ -214,7 +267,8 @@ public static class EditorWorkspaceFactory
         TimeProvider? timeProvider,
         ILoggerFactory? loggerFactory,
         string buildFingerprint,
-        WorkspaceModuleOperations operations)
+        WorkspaceModuleOperations operations,
+        IDurableProjectRepository durableProjectRepository)
     {
         ArgumentException.ThrowIfNullOrEmpty(buildFingerprint);
         var resolvedLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
@@ -224,9 +278,29 @@ public static class EditorWorkspaceFactory
             timeProvider ?? TimeProvider.System,
             buildFingerprint,
             operations,
+            durableProjectRepository,
             resolvedLoggerFactory.CreateLogger<Work.WorkCoordinator>(),
             resolvedLoggerFactory.CreateLogger<EditorWorkspace>());
     }
+}
+
+internal sealed class UnavailableDurableProjectRepository : IDurableProjectRepository
+{
+    private UnavailableDurableProjectRepository()
+    {
+    }
+
+    public static UnavailableDurableProjectRepository Instance { get; } = new();
+
+    public Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
+        DurableProjectClaimRequest request,
+        CancellationToken cancellationToken)
+        => throw new InvalidOperationException("Durable persistence is not configured.");
+
+    public Task<DurableProjectSaveRepositoryOutcome> SaveAsync(
+        DurableProjectSaveRequest request,
+        CancellationToken cancellationToken)
+        => throw new InvalidOperationException("Durable persistence is not configured.");
 }
 
 internal sealed record WorkspaceModuleOperations(

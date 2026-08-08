@@ -42,15 +42,32 @@ public sealed record WorkspaceCommandContext
         WorkspaceAttachmentId attachmentId,
         ulong attachmentGeneration,
         ClientIntentId clientIntentId)
+        : this(
+            workspaceId,
+            attachmentId,
+            attachmentGeneration,
+            clientIntentId,
+            AnonymousWorkspaceCaller.Instance)
+    {
+    }
+
+    public WorkspaceCommandContext(
+        WorkspaceId workspaceId,
+        WorkspaceAttachmentId attachmentId,
+        ulong attachmentGeneration,
+        ClientIntentId clientIntentId,
+        WorkspaceCaller caller)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(attachmentId);
         ArgumentOutOfRangeException.ThrowIfZero(attachmentGeneration);
         ArgumentNullException.ThrowIfNull(clientIntentId);
+        ArgumentNullException.ThrowIfNull(caller);
         WorkspaceId = workspaceId;
         AttachmentId = attachmentId;
         AttachmentGeneration = attachmentGeneration;
         ClientIntentId = clientIntentId;
+        Caller = caller;
     }
 
     public WorkspaceId WorkspaceId { get; }
@@ -60,6 +77,8 @@ public sealed record WorkspaceCommandContext
     public ulong AttachmentGeneration { get; }
 
     public ClientIntentId ClientIntentId { get; }
+
+    public WorkspaceCaller Caller { get; }
 }
 
 public sealed record WorkspaceQueryContext

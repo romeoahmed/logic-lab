@@ -926,4 +926,24 @@ public sealed record WorkspaceProjection(
     ProjectRevision ProjectRevision,
     CompilationProjection Compilation,
     SimulationProjection? Simulation,
-    TransactionHistoryAvailability History);
+    TransactionHistoryAvailability History,
+    WorkspaceDurabilityProjection Durability)
+{
+    public WorkspaceProjection(
+        WorkspaceId workspaceId,
+        ulong projectionVersion,
+        ProjectRevision projectRevision,
+        CompilationProjection compilation,
+        SimulationProjection? simulation,
+        TransactionHistoryAvailability history)
+        : this(
+            workspaceId,
+            projectionVersion,
+            projectRevision,
+            compilation,
+            simulation,
+            history,
+            SandboxWorkspaceDurabilityProjection.Instance)
+    {
+    }
+}

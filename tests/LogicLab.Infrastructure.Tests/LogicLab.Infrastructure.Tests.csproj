@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LogicLab.Infrastructure\LogicLab.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\LogicLab.Application\LogicLab.Application.csproj" />
+  </ItemGroup>
+</Project>

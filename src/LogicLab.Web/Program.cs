@@ -1,15 +1,22 @@
 using LogicLab.Application.Workspaces;
+using LogicLab.Infrastructure.Persistence;
 using LogicLab.Web;
 using LogicLab.Web.Components;
 using Microsoft.FluentUI.AspNetCore.Components;
 
 var builder = WebApplication.CreateBuilder(args);
+var connectionString = builder.Configuration.GetConnectionString("LogicLab")
+    ?? throw new InvalidOperationException(
+        "ConnectionStrings:LogicLab must be configured.");
 
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddLogicLabSqlitePersistence(connectionString);
 builder.Services.AddSingleton<IEditorWorkspace>(services =>
     EditorWorkspaceFactory.Create(
         loggerFactory: services.GetRequiredService<ILoggerFactory>(),
         timeProvider: services.GetRequiredService<TimeProvider>(),
+        durableProjectRepository:
+            services.GetRequiredService<IDurableProjectRepository>(),
         buildFingerprint: LogicLabWebBuild.Fingerprint));
 builder.Services.AddFluentUIComponents();
 builder.Services.AddRazorComponents()

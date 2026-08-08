@@ -6,6 +6,7 @@
     <Project Path="src/LogicLab.Application/LogicLab.Application.csproj" />
     <Project Path="src/LogicLab.Domain/LogicLab.Domain.csproj" />
     <Project Path="src/LogicLab.Engine/LogicLab.Engine.csproj" />
+    <Project Path="src/LogicLab.Infrastructure/LogicLab.Infrastructure.csproj" />
     <Project Path="src/LogicLab.Presentation/LogicLab.Presentation.csproj" />
     <Project Path="src/LogicLab.Web/LogicLab.Web.csproj" />
   </Folder>
@@ -13,6 +14,7 @@
     <Project Path="tests/LogicLab.Application.Tests/LogicLab.Application.Tests.csproj" />
     <Project Path="tests/LogicLab.Domain.Tests/LogicLab.Domain.Tests.csproj" />
     <Project Path="tests/LogicLab.Engine.Tests/LogicLab.Engine.Tests.csproj" />
+    <Project Path="tests/LogicLab.Infrastructure.Tests/LogicLab.Infrastructure.Tests.csproj" />
     <Project Path="tests/LogicLab.Presentation.Tests/LogicLab.Presentation.Tests.csproj" />
     <Project Path="tests/LogicLab.Web.Tests/LogicLab.Web.Tests.csproj" />
   </Folder>
