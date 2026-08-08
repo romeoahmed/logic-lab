@@ -115,11 +115,6 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.10"
         }
       },
-      "Microsoft.Extensions.DependencyInjection.Abstractions": {
-        "type": "Transitive",
-        "resolved": "10.0.10",
-        "contentHash": "z/2xXlFw2aLGjHyEm6E0tQ+In6VfzQzTrtArbQ2c0TQE16ZbyDCMGPvaUT9I0s8rgy9sRWlU2P9waW37qV04qA=="
-      },
       "Microsoft.Extensions.DependencyModel": {
         "type": "Transitive",
         "resolved": "10.0.10",
@@ -268,6 +263,7 @@
           "LogicLab.Application": "[1.0.0, )",
           "LogicLab.Domain": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.10, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.10, )",
           "SQLitePCLRaw.bundle_e_sqlite3": "[3.0.5, )"
         }
       },
@@ -285,6 +281,12 @@
           "SQLitePCLRaw.bundle_e_sqlite3": "2.1.11",
           "SQLitePCLRaw.core": "2.1.11"
         }
+      },
+      "Microsoft.Extensions.DependencyInjection.Abstractions": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.10, )",
+        "resolved": "10.0.10",
+        "contentHash": "z/2xXlFw2aLGjHyEm6E0tQ+In6VfzQzTrtArbQ2c0TQE16ZbyDCMGPvaUT9I0s8rgy9sRWlU2P9waW37qV04qA=="
       },
       "Microsoft.Extensions.Logging.Abstractions": {
         "type": "CentralTransitive",
