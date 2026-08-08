@@ -87,9 +87,9 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
         }
         catch (DbUpdateException)
         {
-            var replay = await TryResolveClaimReceiptAsync(
+            var replay = await TryReadClaimReceiptAsync(
                 request,
-                cancellationToken).ConfigureAwait(false);
+                CancellationToken.None).ConfigureAwait(false);
             if (replay is not null)
             {
                 return replay;
@@ -116,9 +116,9 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
         }
         catch (DbUpdateException)
         {
-            var replay = await TryResolveSaveReceiptAsync(
+            var replay = await TryReadSaveReceiptAsync(
                 request,
-                cancellationToken).ConfigureAwait(false);
+                CancellationToken.None).ConfigureAwait(false);
             if (replay is not null)
             {
                 return replay;
@@ -259,10 +259,11 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
         }
     }
 
-    private async Task<DurableProjectClaimRepositoryOutcome?> TryResolveClaimReceiptAsync(
+    public async Task<DurableProjectClaimRepositoryOutcome?> TryReadClaimReceiptAsync(
         DurableProjectClaimRequest request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(
             cancellationToken).ConfigureAwait(false);
         var receipt = await FindReceiptAsync(
@@ -286,10 +287,11 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
             : new DurableProjectClaimReceiptConflict();
     }
 
-    private async Task<DurableProjectSaveRepositoryOutcome?> TryResolveSaveReceiptAsync(
+    public async Task<DurableProjectSaveRepositoryOutcome?> TryReadSaveReceiptAsync(
         DurableProjectSaveRequest request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(
             cancellationToken).ConfigureAwait(false);
         var receipt = await FindReceiptAsync(

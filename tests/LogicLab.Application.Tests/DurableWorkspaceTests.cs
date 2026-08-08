@@ -4,7 +4,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Application.Tests;
 
-internal sealed class DurableWorkspaceTests
+internal sealed partial class DurableWorkspaceTests
 {
     private const string BuildFingerprint = "durable-tests";
     private static readonly AuthenticatedWorkspaceCaller AuthenticatedCaller = new(
@@ -194,7 +194,7 @@ internal sealed class DurableWorkspaceTests
     }
 
     [Test]
-    public async Task DispatchAsync_DifferentSubjectSave_RejectsBeforeRepository()
+    public async Task DispatchAsync_DifferentSubjectSave_MatchesMissingWorkspace()
     {
         var repository = new RecordingDurableProjectRepository();
         await using var workspace = CreateWorkspace(repository);
@@ -216,12 +216,28 @@ internal sealed class DurableWorkspaceTests
                     projection.ProjectRevision.RevisionId,
                     durability.ObservedDurableVersion)),
             CancellationToken.None);
+        var missing = await workspace.DispatchAsync(
+            new SaveDurable(
+                new WorkspaceCommandContext(
+                    new WorkspaceId("missing-workspace"),
+                    attached.AttachmentId,
+                    attached.Generation,
+                    new ClientIntentId("missing-subject-save"),
+                    new AuthenticatedWorkspaceCaller(
+                        new AuthenticatedSubjectId("subject-2"))),
+                new DurableSavePrecondition(
+                    projection.ProjectRevision.RevisionId,
+                    durability.ObservedDurableVersion)),
+            CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
             .IsTypeOf<WorkspaceCommandRejected>())!;
+        var missingRejected = (await Assert.That(missing)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Code).IsEqualTo("forbidden");
+            await Assert.That(rejected.Code).IsEqualTo("workspace_not_found");
+            await Assert.That(rejected).IsEqualTo(missingRejected);
             await Assert.That(repository.SaveCallCount).IsEqualTo(0);
         }
     }
@@ -267,7 +283,7 @@ internal sealed class DurableWorkspaceTests
             .IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Code).IsEqualTo("forbidden");
+            await Assert.That(rejected.Code).IsEqualTo("workspace_not_found");
             await Assert.That(repository.SaveCallCount).IsEqualTo(1);
         }
     }
@@ -301,14 +317,56 @@ internal sealed class DurableWorkspaceTests
             .IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Code).IsEqualTo("forbidden");
+            await Assert.That(rejected.Code).IsEqualTo("workspace_not_found");
             await Assert.That(after.ProjectRevision.RevisionId)
                 .IsEqualTo(before.ProjectRevision.RevisionId);
         }
     }
 
     [Test]
-    public async Task ReadAsync_AnonymousDurableAccess_RequiresAuthentication()
+    public async Task DispatchAsync_DifferentSubjectClose_MatchesMissingWithoutClosing()
+    {
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(repository);
+        var (opened, attached) = await OpenAttached(workspace);
+        _ = await Claim(workspace, opened, attached, "Close-owned project");
+        var differentSubject = new AuthenticatedWorkspaceCaller(
+            new AuthenticatedSubjectId("subject-2"));
+
+        var unauthorized = await workspace.DispatchAsync(
+            new CloseWorkspace(new WorkspaceCommandContext(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                new ClientIntentId("different-subject-close"),
+                differentSubject)),
+            CancellationToken.None);
+        var missing = await workspace.DispatchAsync(
+            new CloseWorkspace(new WorkspaceCommandContext(
+                new WorkspaceId("missing-workspace"),
+                attached.AttachmentId,
+                attached.Generation,
+                new ClientIntentId("missing-close"),
+                differentSubject)),
+            CancellationToken.None);
+        var projection = await ReadProjection(workspace, opened.WorkspaceId, attached);
+
+        var unauthorizedClosed = (await Assert.That(unauthorized)
+            .IsTypeOf<WorkspaceClosed>())!;
+        var missingClosed = (await Assert.That(missing)
+            .IsTypeOf<WorkspaceClosed>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(unauthorizedClosed.WorkspaceId)
+                .IsEqualTo(opened.WorkspaceId);
+            await Assert.That(missingClosed.WorkspaceId)
+                .IsEqualTo(new WorkspaceId("missing-workspace"));
+            await Assert.That(projection.WorkspaceId).IsEqualTo(opened.WorkspaceId);
+        }
+    }
+
+    [Test]
+    public async Task ReadAsync_AnonymousDurableAccess_MatchesMissingWorkspace()
     {
         var repository = new RecordingDurableProjectRepository();
         await using var workspace = CreateWorkspace(repository);
@@ -323,14 +381,28 @@ internal sealed class DurableWorkspaceTests
                 AnonymousWorkspaceCaller.Instance),
             LogicLab.Application.Workspaces.ReadProjection.Instance,
             CancellationToken.None);
+        var missing = await workspace.ReadAsync(
+            new WorkspaceQueryContext(
+                new WorkspaceId("missing-workspace"),
+                attached.AttachmentId,
+                attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
+            LogicLab.Application.Workspaces.ReadProjection.Instance,
+            CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
             .IsTypeOf<WorkspaceReadRejected>())!;
-        await Assert.That(rejected.Code).IsEqualTo("authentication_required");
+        var missingRejected = (await Assert.That(missing)
+            .IsTypeOf<WorkspaceReadRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("workspace_not_found");
+            await Assert.That(rejected).IsEqualTo(missingRejected);
+        }
     }
 
     [Test]
-    public async Task OpenAsync_AnonymousDurableCopy_RequiresAuthenticationWithoutAllocation()
+    public async Task OpenAsync_AnonymousDurableCopy_MatchesMissingWorkspaceWithoutAllocation()
     {
         var repository = new RecordingDurableProjectRepository();
         await using var workspace = CreateWorkspace(
@@ -349,8 +421,19 @@ internal sealed class DurableWorkspaceTests
                 WorkspaceCopySaveTarget.Preserve,
                 AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
+        var missing = await workspace.OpenAsync(
+            new CopyWorkspace(
+                new WorkspaceId("missing-workspace"),
+                attached.AttachmentId,
+                attached.Generation,
+                projection.ProjectionVersion,
+                WorkspaceCopySaveTarget.Preserve,
+                AnonymousWorkspaceCaller.Instance),
+            CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        var missingRejected = (await Assert.That(missing)
             .IsTypeOf<WorkspaceOpenRejected>())!;
         var authorized = await workspace.OpenAsync(
             new CopyWorkspace(
@@ -363,13 +446,14 @@ internal sealed class DurableWorkspaceTests
             CancellationToken.None);
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Code).IsEqualTo("authentication_required");
+            await Assert.That(rejected.Code).IsEqualTo("workspace_not_found");
+            await Assert.That(rejected).IsEqualTo(missingRejected);
             await Assert.That(authorized).IsTypeOf<WorkspaceOpened>();
         }
     }
 
     [Test]
-    public async Task AttachAsync_DifferentSubjectDurableCopy_RejectsWithoutAttachment()
+    public async Task AttachAsync_DifferentSubjectDurableCopy_MatchesMissingWorkspace()
     {
         var repository = new RecordingDurableProjectRepository();
         await using var workspace = CreateWorkspace(repository);
@@ -393,6 +477,13 @@ internal sealed class DurableWorkspaceTests
                 new AuthenticatedWorkspaceCaller(
                     new AuthenticatedSubjectId("subject-2"))),
             CancellationToken.None);
+        var missing = await workspace.AttachAsync(
+            new InitialAttach(
+                new WorkspaceId("missing-workspace"),
+                BuildFingerprint,
+                new AuthenticatedWorkspaceCaller(
+                    new AuthenticatedSubjectId("subject-2"))),
+            CancellationToken.None);
         var authorized = await workspace.AttachAsync(
             new InitialAttach(
                 copy.WorkspaceId,
@@ -402,15 +493,38 @@ internal sealed class DurableWorkspaceTests
 
         var rejected = (await Assert.That(unauthorized)
             .IsTypeOf<AttachRejected>())!;
+        var missingRejected = (await Assert.That(missing)
+            .IsTypeOf<AttachRejected>())!;
+        var unauthorizedReattach = await workspace.AttachAsync(
+            new Reattach(
+                copy.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                BuildFingerprint,
+                new AuthenticatedWorkspaceCaller(
+                    new AuthenticatedSubjectId("subject-2"))),
+            CancellationToken.None);
+        var missingReattach = await workspace.AttachAsync(
+            new Reattach(
+                new WorkspaceId("missing-workspace"),
+                attached.AttachmentId,
+                attached.Generation,
+                BuildFingerprint,
+                new AuthenticatedWorkspaceCaller(
+                    new AuthenticatedSubjectId("subject-2"))),
+            CancellationToken.None);
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Code).IsEqualTo("forbidden");
+            await Assert.That(rejected.Code).IsEqualTo("workspace_not_found");
+            await Assert.That(rejected).IsEqualTo(missingRejected);
+            await Assert.That(unauthorizedReattach).IsEqualTo(missingReattach);
+            await Assert.That(unauthorizedReattach).IsTypeOf<Expired>();
             await Assert.That(authorized).IsTypeOf<Attached>();
         }
     }
 
     [Test]
-    public async Task DetachAsync_AnonymousDurableAccess_RequiresAuthenticationWithoutDetaching()
+    public async Task DetachAsync_AnonymousDurableAccess_MatchesMissingWorkspace()
     {
         var repository = new RecordingDurableProjectRepository();
         await using var workspace = CreateWorkspace(repository);
@@ -424,12 +538,21 @@ internal sealed class DurableWorkspaceTests
                 attached.Generation,
                 AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
+        var missing = await workspace.DetachAsync(
+            new DetachRequest(
+                new WorkspaceId("missing-workspace"),
+                attached.AttachmentId,
+                attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
+            CancellationToken.None);
         var projection = await ReadProjection(workspace, opened.WorkspaceId, attached);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<DetachRejected>())!;
+        var missingRejected = (await Assert.That(missing).IsTypeOf<DetachRejected>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Code).IsEqualTo("authentication_required");
+            await Assert.That(rejected.Code).IsEqualTo("workspace_not_found");
+            await Assert.That(rejected).IsEqualTo(missingRejected);
             await Assert.That(projection.WorkspaceId).IsEqualTo(opened.WorkspaceId);
         }
     }
@@ -634,15 +757,35 @@ internal sealed class DurableWorkspaceTests
 
     private sealed class RecordingDurableProjectRepository : IDurableProjectRepository
     {
+        private readonly Dictionary<
+            DurableCommandReceiptKey,
+            DurableProjectClaimRepositoryOutcome> claimReceipts = [];
+        private readonly Dictionary<
+            DurableCommandReceiptKey,
+            DurableProjectSaveRepositoryOutcome> saveReceipts = [];
         private DurableVersion? currentVersion;
 
         public int ClaimCallCount { get; private set; }
 
+        public int ClaimReceiptReadCount { get; private set; }
+
         public int SaveCallCount { get; private set; }
+
+        public int SaveReceiptReadCount { get; private set; }
 
         public DurableProjectClaimRequest? LastClaim { get; private set; }
 
         public ProjectRevisionId? CurrentRevisionId { get; private set; }
+
+        public Func<CancellationToken, Exception>? ClaimPostCommitFailure { get; init; }
+
+        public Func<CancellationToken, Exception>? SavePostCommitFailure { get; init; }
+
+        public Exception? ReceiptReadFailure { get; set; }
+
+        public bool ReceiptReadsReturnMissing { get; set; }
+
+        public bool LastReceiptReadWasCancellationRequested { get; private set; }
 
         public Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
             DurableProjectClaimRequest request,
@@ -651,13 +794,24 @@ internal sealed class DurableWorkspaceTests
             cancellationToken.ThrowIfCancellationRequested();
             ClaimCallCount++;
             LastClaim = request;
+            if (claimReceipts.TryGetValue(request.ReceiptKey, out var replay))
+            {
+                return Task.FromResult(replay);
+            }
+
             currentVersion = request.InitialDurableVersion;
             CurrentRevisionId = request.ProjectRevision.RevisionId;
-            return Task.FromResult<DurableProjectClaimRepositoryOutcome>(
-                new DurableProjectClaimStored(
-                    request.DurableProjectId,
-                    request.InitialDurableVersion,
-                    request.ProjectRevision.RevisionId));
+            var stored = new DurableProjectClaimStored(
+                request.DurableProjectId,
+                request.InitialDurableVersion,
+                request.ProjectRevision.RevisionId);
+            claimReceipts.Add(request.ReceiptKey, stored);
+            if (ClaimPostCommitFailure is { } failure)
+            {
+                throw failure(cancellationToken);
+            }
+
+            return Task.FromResult<DurableProjectClaimRepositoryOutcome>(stored);
         }
 
         public Task<DurableProjectSaveRepositoryOutcome> SaveAsync(
@@ -666,20 +820,72 @@ internal sealed class DurableWorkspaceTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             SaveCallCount++;
+            if (saveReceipts.TryGetValue(request.ReceiptKey, out var replay))
+            {
+                return Task.FromResult(replay);
+            }
+
             if (request.ExpectedDurableVersion != currentVersion)
             {
-                return Task.FromResult<DurableProjectSaveRepositoryOutcome>(
-                    new DurableProjectSaveRepositoryConflict(
-                        request.ExpectedDurableVersion,
-                        currentVersion!));
+                var conflict = new DurableProjectSaveRepositoryConflict(
+                    request.ExpectedDurableVersion,
+                    currentVersion!);
+                saveReceipts.Add(request.ReceiptKey, conflict);
+                return Task.FromResult<DurableProjectSaveRepositoryOutcome>(conflict);
             }
 
             currentVersion = request.NextDurableVersion;
             CurrentRevisionId = request.ProjectRevision.RevisionId;
-            return Task.FromResult<DurableProjectSaveRepositoryOutcome>(
-                new DurableProjectSaveStored(
-                    request.NextDurableVersion,
-                    request.ProjectRevision.RevisionId));
+            var stored = new DurableProjectSaveStored(
+                request.NextDurableVersion,
+                request.ProjectRevision.RevisionId);
+            saveReceipts.Add(request.ReceiptKey, stored);
+            if (SavePostCommitFailure is { } failure)
+            {
+                throw failure(cancellationToken);
+            }
+
+            return Task.FromResult<DurableProjectSaveRepositoryOutcome>(stored);
+        }
+
+        public Task<DurableProjectClaimRepositoryOutcome?> TryReadClaimReceiptAsync(
+            DurableProjectClaimRequest request,
+            CancellationToken cancellationToken)
+        {
+            ClaimReceiptReadCount++;
+            ObserveReceiptRead(cancellationToken);
+            DurableProjectClaimRepositoryOutcome? outcome = null;
+            if (!ReceiptReadsReturnMissing)
+            {
+                claimReceipts.TryGetValue(request.ReceiptKey, out outcome);
+            }
+
+            return Task.FromResult(outcome);
+        }
+
+        public Task<DurableProjectSaveRepositoryOutcome?> TryReadSaveReceiptAsync(
+            DurableProjectSaveRequest request,
+            CancellationToken cancellationToken)
+        {
+            SaveReceiptReadCount++;
+            ObserveReceiptRead(cancellationToken);
+            DurableProjectSaveRepositoryOutcome? outcome = null;
+            if (!ReceiptReadsReturnMissing)
+            {
+                saveReceipts.TryGetValue(request.ReceiptKey, out outcome);
+            }
+
+            return Task.FromResult(outcome);
+        }
+
+        private void ObserveReceiptRead(CancellationToken cancellationToken)
+        {
+            LastReceiptReadWasCancellationRequested =
+                cancellationToken.IsCancellationRequested;
+            if (ReceiptReadFailure is { } failure)
+            {
+                throw failure;
+            }
         }
     }
 }

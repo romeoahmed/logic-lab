@@ -278,7 +278,15 @@ public interface IDurableProjectRepository
         DurableProjectClaimRequest request,
         CancellationToken cancellationToken);
 
+    Task<DurableProjectClaimRepositoryOutcome?> TryReadClaimReceiptAsync(
+        DurableProjectClaimRequest request,
+        CancellationToken cancellationToken);
+
     Task<DurableProjectSaveRepositoryOutcome> SaveAsync(
+        DurableProjectSaveRequest request,
+        CancellationToken cancellationToken);
+
+    Task<DurableProjectSaveRepositoryOutcome?> TryReadSaveReceiptAsync(
         DurableProjectSaveRequest request,
         CancellationToken cancellationToken);
 }

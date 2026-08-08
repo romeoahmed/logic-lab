@@ -193,7 +193,7 @@ The browser and HTTP adapters use these exact reason codes for corresponding clo
 | Project Format | `package_invalid`, `package_limit_exceeded`, `package_cancelled`, `package_infrastructure_failure`, `package_internal_defect` |
 | Presentation | `layout_invalid`, `layout_cancelled`, `layout_internal_defect` |
 
-An adapter maps these reasons to transport status and retry disposition without changing the code. A `forbidden` response may intentionally use the same HTTP status and body shape as `workspace_not_found` to hide unauthorized existence.
+An adapter maps these reasons to transport status and retry disposition without changing the code. `IEditorWorkspace` already gives an unauthorized Durable Workspace the same request-shaped outcome as an absent Workspace; adapters must preserve that indistinguishability. At other seams, a `forbidden` response may intentionally use the same HTTP status and body shape as `workspace_not_found` to hide unauthorized existence.
 
 ## 12. Ordering and deduplication
 

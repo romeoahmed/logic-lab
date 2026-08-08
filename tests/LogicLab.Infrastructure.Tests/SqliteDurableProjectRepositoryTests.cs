@@ -56,6 +56,56 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task TryReadClaimReceiptAsync_StoredReceipt_ReturnsOutcomeWithoutMutation()
+    {
+        var (repository, factory) = await CreateRepositoryAsync();
+        var request = ClaimRequest(CreateRevision(), fingerprintCharacter: 'a');
+        var stored = await repository.ClaimAsync(request, CancellationToken.None);
+
+        var outcome = await repository.TryReadClaimReceiptAsync(
+            request,
+            CancellationToken.None);
+
+        await Assert.That(outcome).IsEqualTo(stored);
+        await using var context = await factory.CreateDbContextAsync();
+        using (Assert.Multiple())
+        {
+            await Assert.That(context.DurableProjects).Count().IsEqualTo(1);
+            await Assert.That(context.ProjectRevisions).Count().IsEqualTo(1);
+            await Assert.That(context.DurableCommandReceipts).Count().IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task TryReadSaveReceiptAsync_MissingReceipt_DoesNotWrite()
+    {
+        var (repository, factory) = await CreateRepositoryAsync();
+        var revision = CreateRevision();
+        var claim = ClaimRequest(revision, fingerprintCharacter: 'a');
+        _ = await repository.ClaimAsync(claim, CancellationToken.None);
+        var request = new DurableProjectSaveRequest(
+            claim.DurableProjectId,
+            claim.SubjectId,
+            claim.InitialDurableVersion,
+            new DurableVersion("uncommitted-version"),
+            RenameEntry(revision, "Uncommitted"),
+            ReceiptKey('b', "missing-save"));
+
+        var outcome = await repository.TryReadSaveReceiptAsync(
+            request,
+            CancellationToken.None);
+
+        await Assert.That(outcome).IsNull();
+        await using var context = await factory.CreateDbContextAsync();
+        using (Assert.Multiple())
+        {
+            await Assert.That(context.DurableProjects).Count().IsEqualTo(1);
+            await Assert.That(context.ProjectRevisions).Count().IsEqualTo(1);
+            await Assert.That(context.DurableCommandReceipts).Count().IsEqualTo(1);
+        }
+    }
+
+    [Test]
     public async Task ClaimAsync_ReusedReceiptWithDifferentFingerprint_ReturnsConflictWithoutMutation()
     {
         var (repository, factory) = await CreateRepositoryAsync();

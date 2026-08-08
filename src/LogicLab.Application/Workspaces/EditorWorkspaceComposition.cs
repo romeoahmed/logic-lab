@@ -284,6 +284,9 @@ public static class EditorWorkspaceFactory
     }
 }
 
+internal sealed class DurableProjectRepositoryUnavailableException()
+    : InvalidOperationException("Durable persistence is not configured.");
+
 internal sealed class UnavailableDurableProjectRepository : IDurableProjectRepository
 {
     private UnavailableDurableProjectRepository()
@@ -295,12 +298,22 @@ internal sealed class UnavailableDurableProjectRepository : IDurableProjectRepos
     public Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
         DurableProjectClaimRequest request,
         CancellationToken cancellationToken)
-        => throw new InvalidOperationException("Durable persistence is not configured.");
+        => throw new DurableProjectRepositoryUnavailableException();
+
+    public Task<DurableProjectClaimRepositoryOutcome?> TryReadClaimReceiptAsync(
+        DurableProjectClaimRequest request,
+        CancellationToken cancellationToken)
+        => throw new DurableProjectRepositoryUnavailableException();
 
     public Task<DurableProjectSaveRepositoryOutcome> SaveAsync(
         DurableProjectSaveRequest request,
         CancellationToken cancellationToken)
-        => throw new InvalidOperationException("Durable persistence is not configured.");
+        => throw new DurableProjectRepositoryUnavailableException();
+
+    public Task<DurableProjectSaveRepositoryOutcome?> TryReadSaveReceiptAsync(
+        DurableProjectSaveRequest request,
+        CancellationToken cancellationToken)
+        => throw new DurableProjectRepositoryUnavailableException();
 }
 
 internal sealed record WorkspaceModuleOperations(
