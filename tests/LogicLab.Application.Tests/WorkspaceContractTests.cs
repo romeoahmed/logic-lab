@@ -51,6 +51,27 @@ internal sealed class WorkspaceContractTests
     }
 
     [Test]
+    [Arguments(0, 1)]
+    [Arguments(1, 0)]
+    public async Task DurableDisplayNameLimits_NonPositiveDimension_Throws(
+        int scalarCount,
+        int utf8Bytes)
+    {
+        await Assert.That(() => new DurableDisplayNameLimits(scalarCount, utf8Bytes))
+            .ThrowsExactly<ArgumentOutOfRangeException>();
+    }
+
+    [Test]
+    [Arguments("Cafe\u0301")]
+    [Arguments("control\u0001")]
+    [Arguments("\uD800")]
+    public async Task DurableDisplayName_InvalidUnicode_Throws(string value)
+    {
+        await Assert.That(() => new DurableDisplayName(value))
+            .ThrowsExactly<ArgumentException>();
+    }
+
+    [Test]
     public async Task CompilationSnapshot_WithoutGeneration_ThrowsArgumentException()
     {
         await Assert.That(() => new CompilationSnapshot(

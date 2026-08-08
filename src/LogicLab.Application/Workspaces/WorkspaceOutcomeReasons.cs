@@ -4,6 +4,8 @@ namespace LogicLab.Application.Workspaces;
 
 internal static class WorkspaceOutcomeReasons
 {
+    public const string AuthenticationRequired = "authentication_required";
+    public const string Forbidden = "forbidden";
     public const string HotSwapIncompatible = "hot_swap_incompatible";
     public const string CompilationGenerationUnavailable =
         "compilation_generation_unavailable";

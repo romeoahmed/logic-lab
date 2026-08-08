@@ -291,6 +291,11 @@ internal sealed partial class EditorWorkspace
                     id,
                     source.Revision,
                     timeProvider.GetTimestamp());
+                if (request.SaveTarget == WorkspaceCopySaveTarget.Preserve
+                    && source.Durable is not null)
+                {
+                    copy.Durable = source.Durable.Copy();
+                }
                 lock (gate)
                 {
                     workspaceReservations--;
@@ -763,6 +768,18 @@ internal sealed partial class EditorWorkspace
                 JsonSerializer.Serialize(
                     hotSwap.TargetCompilationArtifactKey,
                     CanonicalJsonOptions)),
+            ClaimSandbox claim => string.Concat(
+                nameof(ClaimSandbox),
+                '|',
+                claim.Precondition.ProjectRevisionId.Value,
+                '|',
+                claim.RequestedDisplayName),
+            SaveDurable save => string.Concat(
+                nameof(SaveDurable),
+                '|',
+                save.Precondition.ProjectRevisionId.Value,
+                '|',
+                save.Precondition.ExpectedDurableVersion.Value),
             CloseWorkspace => nameof(CloseWorkspace),
             _ => command.GetType().FullName ?? command.GetType().Name,
         };

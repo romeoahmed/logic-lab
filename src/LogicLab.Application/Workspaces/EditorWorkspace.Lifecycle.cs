@@ -288,6 +288,8 @@ internal sealed partial class EditorWorkspace
 
         public bool IsIdempotencyWindowClosed { get; set; }
 
+        public DurableWorkspaceState? Durable { get; set; }
+
         public CompilationArtifact? Artifact { get; set; }
 
         public CompilationProjection Compilation { get; set; } =
@@ -323,6 +325,40 @@ internal sealed partial class EditorWorkspace
     private sealed record PendingIntent(
         string CanonicalIdentity,
         TaskCompletionSource<WorkspaceCommandOutcome> Completion);
+
+    private sealed class DurableWorkspaceState(
+        DurableProjectId durableProjectId,
+        AuthenticatedSubjectId subjectId,
+        DurableDisplayName displayName,
+        DurableVersion observedDurableVersion,
+        ProjectRevisionId savedProjectRevisionId)
+    {
+        public DurableProjectId DurableProjectId { get; } = durableProjectId;
+
+        public AuthenticatedSubjectId SubjectId { get; } = subjectId;
+
+        public DurableDisplayName DisplayName { get; } = displayName;
+
+        public DurableVersion ObservedDurableVersion { get; set; } =
+            observedDurableVersion;
+
+        public ProjectRevisionId SavedProjectRevisionId { get; set; } =
+            savedProjectRevisionId;
+
+        public DurableVersion? ConflictActualDurableVersion { get; set; }
+
+        public DurableWorkspaceState Copy()
+        {
+            var copy = new DurableWorkspaceState(
+                DurableProjectId,
+                SubjectId,
+                DisplayName,
+                ObservedDurableVersion,
+                SavedProjectRevisionId);
+            copy.ConflictActualDurableVersion = ConflictActualDurableVersion;
+            return copy;
+        }
+    }
 
     private sealed record ActiveSessionContext(
         SimulationSessionHandle Handle,
