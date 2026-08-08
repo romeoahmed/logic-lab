@@ -121,7 +121,8 @@ internal sealed class EditorWorkspaceRunTests
                 controlled.WorkspaceId,
                 controlled.Attached.AttachmentId,
                 controlled.Attached.Generation,
-                WorkspaceBuild.DevelopmentFingerprint),
+                WorkspaceBuild.DevelopmentFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         await Assert.That(reattach.IsCompleted).IsFalse();
         var pause = workspace.DispatchAsync(
@@ -645,7 +646,8 @@ internal sealed class EditorWorkspaceRunTests
             new DetachRequest(
                 controlled.WorkspaceId,
                 controlled.Attached.AttachmentId,
-                controlled.Attached.Generation),
+                controlled.Attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         await Assert.That(detach.IsCompleted).IsFalse();
         advanceGate.Release();
@@ -656,7 +658,8 @@ internal sealed class EditorWorkspaceRunTests
                     controlled.WorkspaceId,
                     controlled.Attached.AttachmentId,
                     controlled.Attached.Generation,
-                    WorkspaceBuild.DevelopmentFingerprint),
+                    WorkspaceBuild.DevelopmentFingerprint,
+                    AnonymousWorkspaceCaller.Instance),
                 cancellationToken))
             .IsTypeOf<Attached>())!;
         using (Assert.Multiple())
@@ -738,7 +741,8 @@ internal sealed class EditorWorkspaceRunTests
                 new DetachRequest(
                     running.WorkspaceId,
                     running.Attached.AttachmentId,
-                    running.Attached.Generation),
+                    running.Attached.Generation,
+                    AnonymousWorkspaceCaller.Instance),
                 cancellationToken);
             await Assert.That(detached).IsTypeOf<Detached>();
         }

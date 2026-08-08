@@ -13,6 +13,13 @@ public partial class InitialDurableProjects : Migration
         "durable_project_id",
     ];
 
+    private static readonly string[] ReceiptIdentityColumns =
+    [
+        "workspace_id",
+        "attachment_generation",
+        "client_intent_id",
+    ];
+
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
@@ -36,6 +43,8 @@ public partial class InitialDurableProjects : Migration
             name: "durable_command_receipts",
             columns: table => new
             {
+                receipt_sequence = table.Column<long>(type: "INTEGER", nullable: false)
+                    .Annotation("Sqlite:Autoincrement", true),
                 workspace_id = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
                 attachment_generation = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
                 client_intent_id = table.Column<string>(type: "TEXT", maxLength: 128, nullable: false),
@@ -50,7 +59,7 @@ public partial class InitialDurableProjects : Migration
             },
             constraints: table =>
             {
-                table.PrimaryKey("PK_durable_command_receipts", x => new { x.workspace_id, x.attachment_generation, x.client_intent_id });
+                table.PrimaryKey("PK_durable_command_receipts", x => x.receipt_sequence);
                 table.ForeignKey(
                     name: "FK_durable_command_receipts_durable_projects_durable_project_id",
                     column: x => x.durable_project_id,
@@ -82,6 +91,12 @@ public partial class InitialDurableProjects : Migration
             name: "IX_durable_command_receipts_durable_project_id",
             table: "durable_command_receipts",
             column: "durable_project_id");
+
+        migrationBuilder.CreateIndex(
+            name: "ux_durable_command_receipts_workspace_generation_intent",
+            table: "durable_command_receipts",
+            columns: ReceiptIdentityColumns,
+            unique: true);
 
         migrationBuilder.CreateIndex(
             name: "ix_durable_projects_display_name_sort_key_id",

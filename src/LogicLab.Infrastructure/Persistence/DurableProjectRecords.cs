@@ -26,6 +26,8 @@ internal sealed class ProjectRevisionRecord
 
 internal sealed class DurableCommandReceiptRecord
 {
+    public long ReceiptSequence { get; set; }
+
     public required string WorkspaceId { get; set; }
 
     public required string AttachmentGeneration { get; set; }

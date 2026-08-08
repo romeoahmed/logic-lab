@@ -41,20 +41,6 @@ public sealed record WorkspaceCommandContext
         WorkspaceId workspaceId,
         WorkspaceAttachmentId attachmentId,
         ulong attachmentGeneration,
-        ClientIntentId clientIntentId)
-        : this(
-            workspaceId,
-            attachmentId,
-            attachmentGeneration,
-            clientIntentId,
-            AnonymousWorkspaceCaller.Instance)
-    {
-    }
-
-    public WorkspaceCommandContext(
-        WorkspaceId workspaceId,
-        WorkspaceAttachmentId attachmentId,
-        ulong attachmentGeneration,
         ClientIntentId clientIntentId,
         WorkspaceCaller caller)
     {
@@ -86,14 +72,17 @@ public sealed record WorkspaceQueryContext
     public WorkspaceQueryContext(
         WorkspaceId workspaceId,
         WorkspaceAttachmentId attachmentId,
-        ulong attachmentGeneration)
+        ulong attachmentGeneration,
+        WorkspaceCaller caller)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(attachmentId);
         ArgumentOutOfRangeException.ThrowIfZero(attachmentGeneration);
+        ArgumentNullException.ThrowIfNull(caller);
         WorkspaceId = workspaceId;
         AttachmentId = attachmentId;
         AttachmentGeneration = attachmentGeneration;
+        Caller = caller;
     }
 
     public WorkspaceId WorkspaceId { get; }
@@ -101,6 +90,8 @@ public sealed record WorkspaceQueryContext
     public WorkspaceAttachmentId AttachmentId { get; }
 
     public ulong AttachmentGeneration { get; }
+
+    public WorkspaceCaller Caller { get; }
 }
 
 public sealed record AuthoringPrecondition
@@ -203,23 +194,33 @@ public sealed record TransactionHistoryAvailability(
 
 public abstract record AttachRequest
 {
-    private protected AttachRequest(WorkspaceId workspaceId, string buildFingerprint)
+    private protected AttachRequest(
+        WorkspaceId workspaceId,
+        string buildFingerprint,
+        WorkspaceCaller caller)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentException.ThrowIfNullOrEmpty(buildFingerprint);
+        ArgumentNullException.ThrowIfNull(caller);
         WorkspaceId = workspaceId;
         BuildFingerprint = buildFingerprint;
+        Caller = caller;
     }
 
     public WorkspaceId WorkspaceId { get; }
 
     public string BuildFingerprint { get; }
+
+    public WorkspaceCaller Caller { get; }
 }
 
 public sealed record InitialAttach : AttachRequest
 {
-    public InitialAttach(WorkspaceId workspaceId, string buildFingerprint)
-        : base(workspaceId, buildFingerprint)
+    public InitialAttach(
+        WorkspaceId workspaceId,
+        string buildFingerprint,
+        WorkspaceCaller caller)
+        : base(workspaceId, buildFingerprint, caller)
     {
     }
 }
@@ -230,8 +231,9 @@ public sealed record Reattach : AttachRequest
         WorkspaceId workspaceId,
         WorkspaceAttachmentId priorAttachmentId,
         ulong priorGeneration,
-        string buildFingerprint)
-        : base(workspaceId, buildFingerprint)
+        string buildFingerprint,
+        WorkspaceCaller caller)
+        : base(workspaceId, buildFingerprint, caller)
     {
         ArgumentNullException.ThrowIfNull(priorAttachmentId);
         ArgumentOutOfRangeException.ThrowIfZero(priorGeneration);
@@ -285,14 +287,17 @@ public sealed record DetachRequest
     public DetachRequest(
         WorkspaceId workspaceId,
         WorkspaceAttachmentId attachmentId,
-        ulong attachmentGeneration)
+        ulong attachmentGeneration,
+        WorkspaceCaller caller)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(attachmentId);
         ArgumentOutOfRangeException.ThrowIfZero(attachmentGeneration);
+        ArgumentNullException.ThrowIfNull(caller);
         WorkspaceId = workspaceId;
         AttachmentId = attachmentId;
         AttachmentGeneration = attachmentGeneration;
+        Caller = caller;
     }
 
     public WorkspaceId WorkspaceId { get; }
@@ -300,6 +305,8 @@ public sealed record DetachRequest
     public WorkspaceAttachmentId AttachmentId { get; }
 
     public ulong AttachmentGeneration { get; }
+
+    public WorkspaceCaller Caller { get; }
 }
 
 public abstract record WorkspaceDetachOutcome
@@ -337,11 +344,13 @@ public sealed record CopyWorkspace : OpenWorkspaceRequest
         WorkspaceAttachmentId sourceAttachmentId,
         ulong sourceAttachmentGeneration,
         ulong expectedProjectionVersion,
-        WorkspaceCopySaveTarget saveTarget)
+        WorkspaceCopySaveTarget saveTarget,
+        WorkspaceCaller caller)
     {
         ArgumentNullException.ThrowIfNull(sourceWorkspaceId);
         ArgumentNullException.ThrowIfNull(sourceAttachmentId);
         ArgumentOutOfRangeException.ThrowIfZero(sourceAttachmentGeneration);
+        ArgumentNullException.ThrowIfNull(caller);
         if (!Enum.IsDefined(saveTarget))
         {
             throw new ArgumentOutOfRangeException(nameof(saveTarget));
@@ -352,6 +361,7 @@ public sealed record CopyWorkspace : OpenWorkspaceRequest
         SourceAttachmentGeneration = sourceAttachmentGeneration;
         ExpectedProjectionVersion = expectedProjectionVersion;
         SaveTarget = saveTarget;
+        Caller = caller;
     }
 
     public WorkspaceId SourceWorkspaceId { get; }
@@ -363,6 +373,8 @@ public sealed record CopyWorkspace : OpenWorkspaceRequest
     public ulong ExpectedProjectionVersion { get; }
 
     public WorkspaceCopySaveTarget SaveTarget { get; }
+
+    public WorkspaceCaller Caller { get; }
 }
 
 public sealed record Undo : WorkspaceCommand

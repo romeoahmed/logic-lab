@@ -4,11 +4,19 @@ using LogicLab.Domain.Authoring;
 using LogicLab.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Infrastructure.Tests;
 
 internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
 {
+    private static readonly string[] ExpectedRetainedClientIntentIds =
+    [
+        "save-1",
+        "save-2",
+        "save-3",
+    ];
+
     private readonly string databasePath = Path.Combine(
         Path.GetTempPath(),
         $"logiclab-infrastructure-tests-{Guid.CreateVersion7():N}.db");
@@ -74,6 +82,26 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             await Assert.That(context.ProjectRevisions).Count().IsEqualTo(1);
             await Assert.That(context.DurableCommandReceipts).Count().IsEqualTo(1);
         }
+    }
+
+    [Test]
+    public async Task ClaimAsync_DifferentSubjectReplay_ReturnsReceiptConflictWithoutDisclosure()
+    {
+        var (repository, _) = await CreateRepositoryAsync();
+        var revision = CreateRevision();
+        var ownerRequest = ClaimRequest(revision, fingerprintCharacter: 'a');
+        _ = await repository.ClaimAsync(ownerRequest, CancellationToken.None);
+        var replay = new DurableProjectClaimRequest(
+            ownerRequest.DurableProjectId,
+            ownerRequest.InitialDurableVersion,
+            new AuthenticatedSubjectId("different-subject"),
+            ownerRequest.DisplayName,
+            ownerRequest.ProjectRevision,
+            ownerRequest.ReceiptKey);
+
+        var outcome = await repository.ClaimAsync(replay, CancellationToken.None);
+
+        await Assert.That(outcome).IsTypeOf<DurableProjectClaimReceiptConflict>();
     }
 
     [Test]
@@ -153,6 +181,34 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task SaveAsync_DifferentSubjectReplay_ReturnsForbiddenWithoutDisclosure()
+    {
+        var (repository, _) = await CreateRepositoryAsync();
+        var initialRevision = CreateRevision();
+        var claim = ClaimRequest(initialRevision, fingerprintCharacter: 'a');
+        _ = await repository.ClaimAsync(claim, CancellationToken.None);
+        var ownerRequest = new DurableProjectSaveRequest(
+            claim.DurableProjectId,
+            claim.SubjectId,
+            claim.InitialDurableVersion,
+            claim.InitialDurableVersion,
+            initialRevision,
+            ReceiptKey('b', "save-owner"));
+        _ = await repository.SaveAsync(ownerRequest, CancellationToken.None);
+        var replay = new DurableProjectSaveRequest(
+            ownerRequest.DurableProjectId,
+            new AuthenticatedSubjectId("different-subject"),
+            ownerRequest.ExpectedDurableVersion,
+            ownerRequest.NextDurableVersion,
+            ownerRequest.ProjectRevision,
+            ownerRequest.ReceiptKey);
+
+        var outcome = await repository.SaveAsync(replay, CancellationToken.None);
+
+        await Assert.That(outcome).IsTypeOf<DurableProjectSaveForbidden>();
+    }
+
+    [Test]
     public async Task Model_DurableVersion_IsApplicationManagedConcurrencyToken()
     {
         var (_, factory) = await CreateRepositoryAsync();
@@ -169,6 +225,41 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         }
     }
 
+    [Test]
+    public async Task SaveAsync_ReceiptRetentionLimit_KeepsOnlyNewestReceipts()
+    {
+        const int receiptRetentionCount = 3;
+        var (repository, factory) = await CreateRepositoryAsync(receiptRetentionCount);
+        var revision = CreateRevision();
+        var claim = ClaimRequest(revision, fingerprintCharacter: 'a');
+        _ = await repository.ClaimAsync(claim, CancellationToken.None);
+
+        for (var index = 1; index <= receiptRetentionCount; index++)
+        {
+            _ = await repository.SaveAsync(
+                new DurableProjectSaveRequest(
+                    claim.DurableProjectId,
+                    claim.SubjectId,
+                    claim.InitialDurableVersion,
+                    claim.InitialDurableVersion,
+                    revision,
+                    ReceiptKey(
+                        checked((char)('a' + index)),
+                        $"save-{index}")),
+                CancellationToken.None);
+        }
+
+        await using var context = await factory.CreateDbContextAsync();
+        var retainedClientIntentIds = await context.DurableCommandReceipts
+            .OrderBy(receipt => receipt.ReceiptSequence)
+            .Select(receipt => receipt.ClientIntentId)
+            .ToArrayAsync();
+
+        await Assert.That(retainedClientIntentIds).IsEquivalentTo(
+            ExpectedRetainedClientIntentIds,
+            CollectionOrdering.Matching);
+    }
+
     public ValueTask DisposeAsync()
     {
         SqliteConnection.ClearAllPools();
@@ -179,7 +270,7 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     }
 
     private async Task<(SqliteDurableProjectRepository Repository, TestDbContextFactory Factory)>
-        CreateRepositoryAsync()
+        CreateRepositoryAsync(int receiptRetentionCount = 1_024)
     {
         var options = new DbContextOptionsBuilder<LogicLabDbContext>()
             .UseSqlite(new SqliteConnectionStringBuilder
@@ -192,7 +283,9 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         var factory = new TestDbContextFactory(options);
         await using var context = await factory.CreateDbContextAsync();
         await context.Database.MigrateAsync();
-        return (new SqliteDurableProjectRepository(factory), factory);
+        return (
+            new SqliteDurableProjectRepository(factory, receiptRetentionCount),
+            factory);
     }
 
     private static DurableProjectClaimRequest ClaimRequest(

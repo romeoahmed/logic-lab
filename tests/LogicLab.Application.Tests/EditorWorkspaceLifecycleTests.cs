@@ -241,7 +241,10 @@ internal sealed class EditorWorkspaceLifecycleTests
         WorkspaceId workspaceId)
     {
         return (Attached)await workspace.AttachAsync(
-            new InitialAttach(workspaceId, WorkspaceBuild.DevelopmentFingerprint),
+            new InitialAttach(
+                workspaceId,
+                WorkspaceBuild.DevelopmentFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
     }
 
@@ -254,7 +257,8 @@ internal sealed class EditorWorkspaceLifecycleTests
             workspaceId,
             attached.AttachmentId,
             attached.Generation,
-            new ClientIntentId(intentId));
+            new ClientIntentId(intentId),
+            AnonymousWorkspaceCaller.Instance);
     }
 
     private static WorkspaceQueryContext Query(
@@ -264,7 +268,8 @@ internal sealed class EditorWorkspaceLifecycleTests
         return new WorkspaceQueryContext(
             workspaceId,
             attached.AttachmentId,
-            attached.Generation);
+            attached.Generation,
+            AnonymousWorkspaceCaller.Instance);
     }
 
     private static WorkspacePolicy Policy(

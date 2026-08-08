@@ -38,7 +38,8 @@ internal sealed class EditorWorkspaceContinuityTests
                 opened.WorkspaceId,
                 first.AttachmentId,
                 first.Generation,
-                BuildFingerprint),
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var second = await IsType<Attached>(secondOutcome);
 
@@ -67,10 +68,16 @@ internal sealed class EditorWorkspaceContinuityTests
         var opened = await Open(workspace);
 
         var mismatch = await workspace.AttachAsync(
-            new InitialAttach(opened.WorkspaceId, "other-build"),
+            new InitialAttach(
+                opened.WorkspaceId,
+                "other-build",
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var attached = await workspace.AttachAsync(
-            new InitialAttach(opened.WorkspaceId, BuildFingerprint),
+            new InitialAttach(
+                opened.WorkspaceId,
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var rejection = await IsType<AttachRejected>(mismatch);
@@ -96,7 +103,8 @@ internal sealed class EditorWorkspaceContinuityTests
             new DetachRequest(
                 opened.WorkspaceId,
                 attached.AttachmentId,
-                attached.Generation),
+                attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         timeProvider.Advance(TimeSpan.FromMinutes(5));
 
@@ -105,7 +113,8 @@ internal sealed class EditorWorkspaceContinuityTests
                 opened.WorkspaceId,
                 attached.AttachmentId,
                 attached.Generation,
-                BuildFingerprint),
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         using (Assert.Multiple())
@@ -130,7 +139,8 @@ internal sealed class EditorWorkspaceContinuityTests
             new DetachRequest(
                 opened.WorkspaceId,
                 attached.AttachmentId,
-                attached.Generation),
+                attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None));
         timeProvider.Advance(TimeSpan.FromMinutes(4));
 
@@ -144,7 +154,8 @@ internal sealed class EditorWorkspaceContinuityTests
                 opened.WorkspaceId,
                 attached.AttachmentId,
                 attached.Generation,
-                BuildFingerprint),
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         using (Assert.Multiple())
@@ -165,7 +176,8 @@ internal sealed class EditorWorkspaceContinuityTests
             new DetachRequest(
                 opened.WorkspaceId,
                 attached.AttachmentId,
-                attached.Generation),
+                attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None));
 
         var outcome = await workspace.ReadAsync(
@@ -223,7 +235,8 @@ internal sealed class EditorWorkspaceContinuityTests
                 new DetachRequest(
                     opened.WorkspaceId,
                     attached.AttachmentId,
-                    attached.Generation),
+                    attached.Generation,
+                    AnonymousWorkspaceCaller.Instance),
                 cancellationToken));
             timeProvider.Advance(TimeSpan.FromMinutes(5));
             reattach = await workspace.AttachAsync(
@@ -231,7 +244,8 @@ internal sealed class EditorWorkspaceContinuityTests
                     opened.WorkspaceId,
                     attached.AttachmentId,
                     attached.Generation,
-                    BuildFingerprint),
+                    BuildFingerprint,
+                    AnonymousWorkspaceCaller.Instance),
                 cancellationToken);
         }
         finally
@@ -254,7 +268,8 @@ internal sealed class EditorWorkspaceContinuityTests
             new DetachRequest(
                 opened.WorkspaceId,
                 first.AttachmentId,
-                first.Generation),
+                first.Generation,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None));
 
         var detachedCommand = await workspace.DispatchAsync(
@@ -266,7 +281,8 @@ internal sealed class EditorWorkspaceContinuityTests
                 opened.WorkspaceId,
                 first.AttachmentId,
                 first.Generation,
-                BuildFingerprint),
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None));
         var committed = await workspace.DispatchAsync(
             Rename(opened, second, "reattached", "Committed"),
@@ -398,7 +414,8 @@ internal sealed class EditorWorkspaceContinuityTests
                 sourceAttachment.AttachmentId,
                 sourceAttachment.Generation,
                 sourceProjection.ProjectionVersion,
-                WorkspaceCopySaveTarget.DetachedSandbox),
+                WorkspaceCopySaveTarget.DetachedSandbox,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var copy = await IsType<WorkspaceOpened>(copyOutcome);
         var copyAttachment = await Attach(workspace, copy.WorkspaceId);
@@ -469,7 +486,8 @@ internal sealed class EditorWorkspaceContinuityTests
                 attached.AttachmentId,
                 attached.Generation,
                 source.Projection.ProjectionVersion,
-                WorkspaceCopySaveTarget.Preserve),
+                WorkspaceCopySaveTarget.Preserve,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var rejection = await IsType<WorkspaceOpenRejected>(outcome);
         var sourceAfter = await Read(workspace, source.WorkspaceId, attached);
@@ -497,7 +515,8 @@ internal sealed class EditorWorkspaceContinuityTests
                 new WorkspaceAttachmentId("stale-attachment"),
                 attached.Generation,
                 source.Projection.ProjectionVersion,
-                WorkspaceCopySaveTarget.Preserve),
+                WorkspaceCopySaveTarget.Preserve,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var rejection = await IsType<WorkspaceOpenRejected>(outcome);
         var sourceAfter = await Read(workspace, source.WorkspaceId, attached);
@@ -732,7 +751,8 @@ internal sealed class EditorWorkspaceContinuityTests
                     opened.WorkspaceId,
                     firstAttachment.AttachmentId,
                     firstAttachment.Generation,
-                    BuildFingerprint),
+                    BuildFingerprint,
+                    AnonymousWorkspaceCaller.Instance),
                 CancellationToken.None));
 
         var second = await workspace.DispatchAsync(
@@ -786,7 +806,8 @@ internal sealed class EditorWorkspaceContinuityTests
             workspaceId,
             attached.AttachmentId,
             attached.Generation,
-            new ClientIntentId(intentId));
+            new ClientIntentId(intentId),
+            AnonymousWorkspaceCaller.Instance);
     }
 
     private static async Task<WorkspaceOpened> Open(IEditorWorkspace workspace)
@@ -801,7 +822,10 @@ internal sealed class EditorWorkspaceContinuityTests
         WorkspaceId workspaceId)
     {
         return await IsType<Attached>(await workspace.AttachAsync(
-                new InitialAttach(workspaceId, BuildFingerprint),
+                new InitialAttach(
+                    workspaceId,
+                    BuildFingerprint,
+                    AnonymousWorkspaceCaller.Instance),
                 CancellationToken.None));
     }
 
@@ -831,7 +855,8 @@ internal sealed class EditorWorkspaceContinuityTests
         return new WorkspaceQueryContext(
             workspaceId,
             attached.AttachmentId,
-            attached.Generation);
+            attached.Generation,
+            AnonymousWorkspaceCaller.Instance);
     }
 
     private static WorkspacePolicy Policy(

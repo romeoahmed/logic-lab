@@ -8,16 +8,19 @@ public static class LogicLabPersistenceServiceCollectionExtensions
 {
     public static IServiceCollection AddLogicLabSqlitePersistence(
         this IServiceCollection services,
-        string connectionString)
+        string connectionString,
+        int durableCommandReceiptCount)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrEmpty(connectionString);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(durableCommandReceiptCount);
 
         services.AddDbContextFactory<LogicLabDbContext>(options =>
             options.UseSqlite(connectionString));
         services.AddSingleton<IDurableProjectRepository>(provider =>
             new SqliteDurableProjectRepository(
-                provider.GetRequiredService<IDbContextFactory<LogicLabDbContext>>()));
+                provider.GetRequiredService<IDbContextFactory<LogicLabDbContext>>(),
+                durableCommandReceiptCount));
         return services;
     }
 }

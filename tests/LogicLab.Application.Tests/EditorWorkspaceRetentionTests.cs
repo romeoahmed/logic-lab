@@ -19,11 +19,17 @@ internal sealed class EditorWorkspaceRetentionTests
         timeProvider.Advance(TimeSpan.FromMinutes(4));
 
         var mismatch = await workspace.AttachAsync(
-            new InitialAttach(opened.WorkspaceId, "other-build"),
+            new InitialAttach(
+                opened.WorkspaceId,
+                "other-build",
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         timeProvider.Advance(TimeSpan.FromMinutes(1));
         var current = await workspace.AttachAsync(
-            new InitialAttach(opened.WorkspaceId, BuildFingerprint),
+            new InitialAttach(
+                opened.WorkspaceId,
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var mismatchRejection = await IsType<AttachRejected>(mismatch);
@@ -50,7 +56,8 @@ internal sealed class EditorWorkspaceRetentionTests
             new DetachRequest(
                 opened.WorkspaceId,
                 attached.AttachmentId,
-                attached.Generation),
+                attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None));
         timeProvider.AdjustUtc(TimeSpan.FromDays(1));
 
@@ -59,7 +66,8 @@ internal sealed class EditorWorkspaceRetentionTests
                 opened.WorkspaceId,
                 attached.AttachmentId,
                 attached.Generation,
-                BuildFingerprint),
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         await Assert.That(outcome).IsTypeOf<Attached>();
@@ -80,7 +88,8 @@ internal sealed class EditorWorkspaceRetentionTests
             new DetachRequest(
                 opened.WorkspaceId,
                 attached.AttachmentId,
-                attached.Generation),
+                attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None));
         timeProvider.Advance(TimeSpan.FromMinutes(5));
         timeProvider.AdjustUtc(-TimeSpan.FromDays(1));
@@ -90,7 +99,8 @@ internal sealed class EditorWorkspaceRetentionTests
                 opened.WorkspaceId,
                 attached.AttachmentId,
                 attached.Generation,
-                BuildFingerprint),
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         await Assert.That(outcome).IsTypeOf<Expired>();
@@ -113,7 +123,8 @@ internal sealed class EditorWorkspaceRetentionTests
             new DetachRequest(
                 opened.WorkspaceId,
                 attached.AttachmentId,
-                attached.Generation),
+                attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None));
         timeProvider.Advance(TimeSpan.FromMinutes(5));
 
@@ -125,7 +136,8 @@ internal sealed class EditorWorkspaceRetentionTests
                 opened.WorkspaceId,
                 attached.AttachmentId,
                 attached.Generation,
-                BuildFingerprint),
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var expired = await IsType<Expired>(outcome);
@@ -152,7 +164,8 @@ internal sealed class EditorWorkspaceRetentionTests
                 opened.WorkspaceId,
                 first.AttachmentId,
                 first.Generation,
-                BuildFingerprint),
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None));
         timeProvider.Advance(TimeSpan.FromMinutes(4));
 
@@ -208,7 +221,8 @@ internal sealed class EditorWorkspaceRetentionTests
                 new DetachRequest(
                     opened.WorkspaceId,
                     attached.AttachmentId,
-                    attached.Generation),
+                    attached.Generation,
+                    AnonymousWorkspaceCaller.Instance),
                 cancellationToken));
             timeProvider.Advance(TimeSpan.FromMinutes(5));
             replacement = await workspace.OpenAsync(
@@ -309,7 +323,10 @@ internal sealed class EditorWorkspaceRetentionTests
         WorkspaceId workspaceId)
     {
         return await IsType<Attached>(await workspace.AttachAsync(
-            new InitialAttach(workspaceId, BuildFingerprint),
+            new InitialAttach(
+                workspaceId,
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None));
     }
 
@@ -334,7 +351,8 @@ internal sealed class EditorWorkspaceRetentionTests
             workspaceId,
             attached.AttachmentId,
             attached.Generation,
-            new ClientIntentId(intentId));
+            new ClientIntentId(intentId),
+            AnonymousWorkspaceCaller.Instance);
     }
 
     private static WorkspaceQueryContext Query(
@@ -344,7 +362,8 @@ internal sealed class EditorWorkspaceRetentionTests
         return new WorkspaceQueryContext(
             workspaceId,
             attached.AttachmentId,
-            attached.Generation);
+            attached.Generation,
+            AnonymousWorkspaceCaller.Instance);
     }
 
     private static WorkspacePolicy Policy(

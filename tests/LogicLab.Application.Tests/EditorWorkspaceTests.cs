@@ -284,7 +284,8 @@ internal sealed class EditorWorkspaceTests
                         opened.WorkspaceId,
                         firstAttachment.AttachmentId,
                         firstAttachment.Generation,
-                        WorkspaceBuild.DevelopmentFingerprint),
+                        WorkspaceBuild.DevelopmentFingerprint,
+                        AnonymousWorkspaceCaller.Instance),
                     cancellationToken))
                 .IsTypeOf<Attached>();
             Assert.NotNull(secondAttachment);
@@ -873,7 +874,8 @@ internal sealed class EditorWorkspaceTests
                         opened.WorkspaceId,
                         new WorkspaceAttachmentId("stale-attachment"),
                         attachment.Generation,
-                        new ClientIntentId("stale")),
+                        new ClientIntentId("stale"),
+                        AnonymousWorkspaceCaller.Instance),
                     new SessionCreationPrecondition(artifactKey)),
                 cancellationToken);
         }
@@ -1037,7 +1039,10 @@ internal sealed class EditorWorkspaceTests
         CancellationToken cancellationToken)
     {
         var outcome = await workspace.AttachAsync(
-            new InitialAttach(workspaceId, WorkspaceBuild.DevelopmentFingerprint),
+            new InitialAttach(
+                workspaceId,
+                WorkspaceBuild.DevelopmentFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         var attached = await Assert.That(outcome).IsTypeOf<Attached>();
         return attached!;
@@ -1052,7 +1057,8 @@ internal sealed class EditorWorkspaceTests
             workspaceId,
             attachment.AttachmentId,
             attachment.Generation,
-            new ClientIntentId(clientIntentId));
+            new ClientIntentId(clientIntentId),
+            AnonymousWorkspaceCaller.Instance);
     }
 
     private static RequestCompilation Compilation(

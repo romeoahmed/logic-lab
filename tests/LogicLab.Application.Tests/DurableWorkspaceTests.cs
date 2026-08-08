@@ -23,7 +23,8 @@ internal sealed class DurableWorkspaceTests
                     new WorkspaceId("unknown-workspace"),
                     attached.AttachmentId,
                     attached.Generation,
-                    new ClientIntentId("anonymous-claim")),
+                    new ClientIntentId("anonymous-claim"),
+                    AnonymousWorkspaceCaller.Instance),
                 new ClaimPrecondition(opened.Projection.ProjectRevision.RevisionId),
                 "Private project"),
             CancellationToken.None);
@@ -160,7 +161,8 @@ internal sealed class DurableWorkspaceTests
                 attached.AttachmentId,
                 attached.Generation,
                 durableProjection.ProjectionVersion,
-                WorkspaceCopySaveTarget.Preserve),
+                WorkspaceCopySaveTarget.Preserve,
+                AuthenticatedCaller),
             CancellationToken.None);
         var detached = await workspace.OpenAsync(
             new CopyWorkspace(
@@ -168,7 +170,8 @@ internal sealed class DurableWorkspaceTests
                 attached.AttachmentId,
                 attached.Generation,
                 durableProjection.ProjectionVersion,
-                WorkspaceCopySaveTarget.DetachedSandbox),
+                WorkspaceCopySaveTarget.DetachedSandbox,
+                AuthenticatedCaller),
             CancellationToken.None);
 
         var preservedProjection = (await Assert.That(preserved)
@@ -224,6 +227,214 @@ internal sealed class DurableWorkspaceTests
     }
 
     [Test]
+    public async Task DispatchAsync_DifferentSubjectReplay_DoesNotReturnOwnersStoredOutcome()
+    {
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(repository);
+        var (opened, attached) = await OpenAttached(workspace);
+        _ = await Claim(workspace, opened, attached, "Replay-owned project");
+        var projection = await ReadProjection(workspace, opened.WorkspaceId, attached);
+        var durability = (DurableWorkspaceDurabilityProjection)projection.Durability;
+        var precondition = new DurableSavePrecondition(
+            projection.ProjectRevision.RevisionId,
+            durability.ObservedDurableVersion);
+        var clientIntentId = new ClientIntentId("cross-subject-replay");
+
+        var ownerOutcome = await workspace.DispatchAsync(
+            new SaveDurable(
+                new WorkspaceCommandContext(
+                    opened.WorkspaceId,
+                    attached.AttachmentId,
+                    attached.Generation,
+                    clientIntentId,
+                    AuthenticatedCaller),
+                precondition),
+            CancellationToken.None);
+        var replayOutcome = await workspace.DispatchAsync(
+            new SaveDurable(
+                new WorkspaceCommandContext(
+                    opened.WorkspaceId,
+                    attached.AttachmentId,
+                    attached.Generation,
+                    clientIntentId,
+                    new AuthenticatedWorkspaceCaller(
+                        new AuthenticatedSubjectId("subject-2"))),
+                precondition),
+            CancellationToken.None);
+
+        await Assert.That(ownerOutcome).IsTypeOf<DurableProjectSaved>();
+        var rejected = (await Assert.That(replayOutcome)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("forbidden");
+            await Assert.That(repository.SaveCallCount).IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_DifferentSubjectEdit_RejectsWithoutChangingRevision()
+    {
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(repository);
+        var (opened, attached) = await OpenAttached(workspace);
+        _ = await Claim(workspace, opened, attached, "Edit-owned project");
+        var before = await ReadProjection(workspace, opened.WorkspaceId, attached);
+
+        var outcome = await workspace.DispatchAsync(
+            new ApplyEdit(
+                new WorkspaceCommandContext(
+                    opened.WorkspaceId,
+                    attached.AttachmentId,
+                    attached.Generation,
+                    new ClientIntentId("different-subject-edit"),
+                    new AuthenticatedWorkspaceCaller(
+                        new AuthenticatedSubjectId("subject-2"))),
+                new AuthoringPrecondition(before.ProjectRevision.RevisionId),
+                new RenameCircuitDefinitionIntent(
+                    before.ProjectRevision.Document.EntryCircuitDefinitionId,
+                    "Unauthorized edit")),
+            CancellationToken.None);
+        var after = await ReadProjection(workspace, opened.WorkspaceId, attached);
+
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("forbidden");
+            await Assert.That(after.ProjectRevision.RevisionId)
+                .IsEqualTo(before.ProjectRevision.RevisionId);
+        }
+    }
+
+    [Test]
+    public async Task ReadAsync_AnonymousDurableAccess_RequiresAuthentication()
+    {
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(repository);
+        var (opened, attached) = await OpenAttached(workspace);
+        _ = await Claim(workspace, opened, attached, "Read-owned project");
+
+        var outcome = await workspace.ReadAsync(
+            new WorkspaceQueryContext(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
+            LogicLab.Application.Workspaces.ReadProjection.Instance,
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceReadRejected>())!;
+        await Assert.That(rejected.Code).IsEqualTo("authentication_required");
+    }
+
+    [Test]
+    public async Task OpenAsync_AnonymousDurableCopy_RequiresAuthenticationWithoutAllocation()
+    {
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(
+            repository,
+            globalWorkspaceLimit: 2);
+        var (opened, attached) = await OpenAttached(workspace);
+        _ = await Claim(workspace, opened, attached, "Copy-owned project");
+        var projection = await ReadProjection(workspace, opened.WorkspaceId, attached);
+
+        var outcome = await workspace.OpenAsync(
+            new CopyWorkspace(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                projection.ProjectionVersion,
+                WorkspaceCopySaveTarget.Preserve,
+                AnonymousWorkspaceCaller.Instance),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        var authorized = await workspace.OpenAsync(
+            new CopyWorkspace(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                projection.ProjectionVersion,
+                WorkspaceCopySaveTarget.Preserve,
+                AuthenticatedCaller),
+            CancellationToken.None);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("authentication_required");
+            await Assert.That(authorized).IsTypeOf<WorkspaceOpened>();
+        }
+    }
+
+    [Test]
+    public async Task AttachAsync_DifferentSubjectDurableCopy_RejectsWithoutAttachment()
+    {
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(repository);
+        var (opened, attached) = await OpenAttached(workspace);
+        _ = await Claim(workspace, opened, attached, "Attach-owned project");
+        var projection = await ReadProjection(workspace, opened.WorkspaceId, attached);
+        var copy = (WorkspaceOpened)await workspace.OpenAsync(
+            new CopyWorkspace(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                projection.ProjectionVersion,
+                WorkspaceCopySaveTarget.Preserve,
+                AuthenticatedCaller),
+            CancellationToken.None);
+
+        var unauthorized = await workspace.AttachAsync(
+            new InitialAttach(
+                copy.WorkspaceId,
+                BuildFingerprint,
+                new AuthenticatedWorkspaceCaller(
+                    new AuthenticatedSubjectId("subject-2"))),
+            CancellationToken.None);
+        var authorized = await workspace.AttachAsync(
+            new InitialAttach(
+                copy.WorkspaceId,
+                BuildFingerprint,
+                AuthenticatedCaller),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(unauthorized)
+            .IsTypeOf<AttachRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("forbidden");
+            await Assert.That(authorized).IsTypeOf<Attached>();
+        }
+    }
+
+    [Test]
+    public async Task DetachAsync_AnonymousDurableAccess_RequiresAuthenticationWithoutDetaching()
+    {
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(repository);
+        var (opened, attached) = await OpenAttached(workspace);
+        _ = await Claim(workspace, opened, attached, "Detach-owned project");
+
+        var outcome = await workspace.DetachAsync(
+            new DetachRequest(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
+            CancellationToken.None);
+        var projection = await ReadProjection(workspace, opened.WorkspaceId, attached);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<DetachRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("authentication_required");
+            await Assert.That(projection.WorkspaceId).IsEqualTo(opened.WorkspaceId);
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_TwoPreservedWorkspaces_StaleSaveReturnsRecoveryWithoutOverwrite()
     {
         var repository = new RecordingDurableProjectRepository();
@@ -240,10 +451,14 @@ internal sealed class DurableWorkspaceTests
                 firstAttachment.AttachmentId,
                 firstAttachment.Generation,
                 claimedProjection.ProjectionVersion,
-                WorkspaceCopySaveTarget.Preserve),
+                WorkspaceCopySaveTarget.Preserve,
+                AuthenticatedCaller),
             CancellationToken.None);
         var secondAttachment = (Attached)await workspace.AttachAsync(
-            new InitialAttach(second.WorkspaceId, BuildFingerprint),
+            new InitialAttach(
+                second.WorkspaceId,
+                BuildFingerprint,
+                AuthenticatedCaller),
             CancellationToken.None);
 
         var firstChanged = await Rename(
@@ -299,23 +514,25 @@ internal sealed class DurableWorkspaceTests
 
     private static IEditorWorkspace CreateWorkspace(
         IDurableProjectRepository repository,
-        DurableDisplayNameLimits? displayNameLimits = null)
+        DurableDisplayNameLimits? displayNameLimits = null,
+        int? globalWorkspaceLimit = null)
     {
         return EditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint,
-            workspacePolicy: displayNameLimits is null
+            workspacePolicy: displayNameLimits is null && globalWorkspaceLimit is null
                 ? null
                 : new WorkspacePolicy(
                     policyId: "durable-tests",
                     policyRevision: "1",
-                    globalWorkspaceLimit: 16,
+                    globalWorkspaceLimit: globalWorkspaceLimit ?? 16,
                     sandboxRetention: TimeSpan.FromHours(1),
                     authoringLimits: WorkspaceAuthoringLimits.Default,
                     historyRevisionCount: 16,
                     idempotencyRecordCount: 32,
                     detachedRetention: TimeSpan.FromMinutes(30),
                     hotSwapPeakBytes: ulong.MaxValue,
-                    durableDisplayNameLimits: displayNameLimits),
+                    durableDisplayNameLimits:
+                        displayNameLimits ?? DurableDisplayNameLimits.Default),
             durableProjectRepository: repository);
     }
 
@@ -326,7 +543,10 @@ internal sealed class DurableWorkspaceTests
             new CreateSandbox("Sandbox", "Main"),
             CancellationToken.None);
         var attached = (Attached)await workspace.AttachAsync(
-            new InitialAttach(opened.WorkspaceId, BuildFingerprint),
+            new InitialAttach(
+                opened.WorkspaceId,
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         return (opened, attached);
     }
@@ -406,7 +626,8 @@ internal sealed class DurableWorkspaceTests
             new WorkspaceQueryContext(
                 workspaceId,
                 attached.AttachmentId,
-                attached.Generation),
+                attached.Generation,
+                AuthenticatedCaller),
             LogicLab.Application.Workspaces.ReadProjection.Instance,
             CancellationToken.None)).Projection;
     }

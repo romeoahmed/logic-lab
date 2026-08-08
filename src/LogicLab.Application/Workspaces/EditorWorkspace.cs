@@ -235,6 +235,14 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 return RejectRead(WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
 
+            var authorizationRejection = GetDurableAccessRejection(
+                state,
+                context.Caller);
+            if (authorizationRejection is not null)
+            {
+                return RejectRead(authorizationRejection);
+            }
+
             lock (state.ContinuityGate)
             {
                 if (!HasCurrentAttachmentUnderLock(state, context))

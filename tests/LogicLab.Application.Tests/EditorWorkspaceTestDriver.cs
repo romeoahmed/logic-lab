@@ -10,7 +10,10 @@ internal static class EditorWorkspaceTestDriver
         CancellationToken cancellationToken = default)
     {
         var outcome = await workspace.AttachAsync(
-            new InitialAttach(workspaceId, WorkspaceBuild.DevelopmentFingerprint),
+            new InitialAttach(
+                workspaceId,
+                WorkspaceBuild.DevelopmentFingerprint,
+                AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         return outcome as Attached
             ?? throw new InvalidOperationException("Test workspace attachment failed.");
@@ -25,7 +28,8 @@ internal static class EditorWorkspaceTestDriver
             workspaceId,
             attached.AttachmentId,
             attached.Generation,
-            new ClientIntentId(intentId ?? Guid.CreateVersion7().ToString("N")));
+            new ClientIntentId(intentId ?? Guid.CreateVersion7().ToString("N")),
+            AnonymousWorkspaceCaller.Instance);
     }
 
     public static WorkspaceQueryContext Query(
@@ -35,7 +39,8 @@ internal static class EditorWorkspaceTestDriver
         return new WorkspaceQueryContext(
             workspaceId,
             attached.AttachmentId,
-            attached.Generation);
+            attached.Generation,
+            AnonymousWorkspaceCaller.Instance);
     }
 
     public static CompilationPrecondition Compilation(WorkspaceProjection projection)
