@@ -133,7 +133,7 @@ internal sealed partial class EditorWorkspace
         if (state.Durable is not { } durable
             || durable.SubjectId != caller.SubjectId)
         {
-            return Reject(WorkspaceOutcomeReasons.Forbidden);
+            return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
         }
 
         if (save.Precondition.ProjectRevisionId != state.Revision.RevisionId)
@@ -163,37 +163,21 @@ internal sealed partial class EditorWorkspace
         DurableDisplayName? displayName,
         CancellationToken cancellationToken)
     {
-        try
+        return command switch
         {
-            return command switch
-            {
-                ClaimSandbox => await ClaimRepositoryAsync(
-                    state,
-                    command.Context,
-                    publication.CanonicalIdentity,
-                    displayName!,
-                    cancellationToken).ConfigureAwait(false),
-                SaveDurable save => await SaveRepositoryAsync(
-                    state,
-                    save,
-                    publication.CanonicalIdentity,
-                    cancellationToken).ConfigureAwait(false),
-                _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
-            };
-        }
-        catch (OperationCanceledException exception)
-            when (ExceptionClassifier.IsCooperativeCancellation(
-                exception,
-                cancellationToken))
-        {
-            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
-        }
-        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
-        {
-            var correlation = Guid.CreateVersion7().ToString("N");
-            LogDurableRepositoryFailure(logger, exception, correlation);
-            return Reject(WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure);
-        }
+            ClaimSandbox => await ClaimRepositoryAsync(
+                state,
+                command.Context,
+                publication.CanonicalIdentity,
+                displayName!,
+                cancellationToken).ConfigureAwait(false),
+            SaveDurable save => await SaveRepositoryAsync(
+                state,
+                save,
+                publication.CanonicalIdentity,
+                cancellationToken).ConfigureAwait(false),
+            _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
+        };
     }
 
     private async Task<WorkspaceCommandOutcome> ClaimRepositoryAsync(
@@ -211,9 +195,16 @@ internal sealed partial class EditorWorkspace
             displayName,
             state.Revision,
             ReceiptKey(context, canonicalIdentity));
-        var outcome = await durableProjectRepository.ClaimAsync(
-            request,
+        return await ExecuteDurableRepositoryOperationAsync(
+            token => durableProjectRepository.ClaimAsync(request, token),
+            token => durableProjectRepository.TryReadClaimReceiptAsync(request, token),
+            ProjectClaimRepositoryOutcome,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private static WorkspaceCommandOutcome ProjectClaimRepositoryOutcome(
+        DurableProjectClaimRepositoryOutcome outcome)
+    {
         return outcome switch
         {
             DurableProjectClaimStored stored => new DurableProjectClaimed(
@@ -243,9 +234,16 @@ internal sealed partial class EditorWorkspace
             nextVersion,
             state.Revision,
             ReceiptKey(command.Context, canonicalIdentity));
-        var outcome = await durableProjectRepository.SaveAsync(
-            request,
+        return await ExecuteDurableRepositoryOperationAsync(
+            token => durableProjectRepository.SaveAsync(request, token),
+            token => durableProjectRepository.TryReadSaveReceiptAsync(request, token),
+            ProjectSaveRepositoryOutcome,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private static WorkspaceCommandOutcome ProjectSaveRepositoryOutcome(
+        DurableProjectSaveRepositoryOutcome outcome)
+    {
         return outcome switch
         {
             DurableProjectSaveStored stored => new DurableProjectSaved(
@@ -257,9 +255,73 @@ internal sealed partial class EditorWorkspace
                     conflict.ActualDurableVersion),
             DurableProjectSaveReceiptConflict => Reject(
                 WorkspaceOutcomeReasons.IdempotencyKeyConflict),
-            DurableProjectSaveForbidden => Reject(WorkspaceOutcomeReasons.Forbidden),
+            DurableProjectSaveForbidden => Reject(
+                WorkspaceOutcomeReasons.WorkspaceNotFound),
             _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
         };
+    }
+
+    private async Task<WorkspaceCommandOutcome>
+        ExecuteDurableRepositoryOperationAsync<TRepositoryOutcome>(
+            Func<CancellationToken, Task<TRepositoryOutcome>> execute,
+            Func<CancellationToken, Task<TRepositoryOutcome?>> readReceipt,
+            Func<TRepositoryOutcome, WorkspaceCommandOutcome> projectOutcome,
+            CancellationToken cancellationToken)
+        where TRepositoryOutcome : class
+    {
+        try
+        {
+            var outcome = await execute(cancellationToken).ConfigureAwait(false);
+            return projectOutcome(outcome);
+        }
+        catch (DurableProjectRepositoryUnavailableException exception)
+        {
+            LogDurableRepositoryException(exception);
+            return Reject(WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure);
+        }
+        catch (OperationCanceledException exception)
+            when (ExceptionClassifier.IsCooperativeCancellation(
+                exception,
+                cancellationToken))
+        {
+            return await RecoverDurableRepositoryOutcomeAsync(
+                readReceipt,
+                projectOutcome).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
+        {
+            LogDurableRepositoryException(exception);
+            return await RecoverDurableRepositoryOutcomeAsync(
+                readReceipt,
+                projectOutcome).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<WorkspaceCommandOutcome>
+        RecoverDurableRepositoryOutcomeAsync<TRepositoryOutcome>(
+            Func<CancellationToken, Task<TRepositoryOutcome?>> readReceipt,
+            Func<TRepositoryOutcome, WorkspaceCommandOutcome> projectOutcome)
+        where TRepositoryOutcome : class
+    {
+        try
+        {
+            var receipt = await readReceipt(CancellationToken.None)
+                .ConfigureAwait(false);
+            return receipt is null
+                ? Reject(WorkspaceOutcomeReasons.IdempotencyWindowExpired)
+                : projectOutcome(receipt);
+        }
+        catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
+        {
+            LogDurableRepositoryException(exception);
+            return Reject(WorkspaceOutcomeReasons.IdempotencyWindowExpired);
+        }
+    }
+
+    private void LogDurableRepositoryException(Exception exception)
+    {
+        var correlation = Guid.CreateVersion7().ToString("N");
+        LogDurableRepositoryFailure(logger, exception, correlation);
     }
 
     private static void PublishDurableOutcomeUnderLock(

@@ -52,7 +52,9 @@ internal sealed partial class EditorWorkspace
                 request.Caller);
             if (authorizationRejection is not null)
             {
-                return RejectAttach(authorizationRejection);
+                return CreateUnavailableAttachOutcome(
+                    request,
+                    authorizationRejection);
             }
 
             if (!string.Equals(
@@ -462,11 +464,9 @@ internal sealed partial class EditorWorkspace
 
         return caller switch
         {
-            AnonymousWorkspaceCaller => WorkspaceOutcomeReasons.AuthenticationRequired,
             AuthenticatedWorkspaceCaller authenticated
                 when authenticated.SubjectId == durable.SubjectId => null,
-            AuthenticatedWorkspaceCaller => WorkspaceOutcomeReasons.Forbidden,
-            _ => WorkspaceOutcomeReasons.Forbidden,
+            _ => WorkspaceOutcomeReasons.WorkspaceNotFound,
         };
     }
 
@@ -480,7 +480,9 @@ internal sealed partial class EditorWorkspace
             context.Caller);
         if (authorizationRejection is not null)
         {
-            return new ContextualIntentTerminal(Reject(authorizationRejection));
+            return new ContextualIntentTerminal(command is CloseWorkspace
+                ? new WorkspaceClosed(command.WorkspaceId)
+                : Reject(authorizationRejection));
         }
 
         if (!HasCurrentAttachmentUnderLock(state, context))
