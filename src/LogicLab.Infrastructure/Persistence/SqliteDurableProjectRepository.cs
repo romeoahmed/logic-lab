@@ -567,17 +567,15 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
             project);
     }
 
-    private static async Task<bool> IsOwnedBySubjectAsync(
+    private static Task<bool> IsOwnedBySubjectAsync(
         LogicLabDbContext context,
         string durableProjectId,
         AuthenticatedSubjectId subjectId,
-        CancellationToken cancellationToken)
-    {
-        return await context.DurableProjects.AsNoTracking().AnyAsync(
+        CancellationToken cancellationToken) =>
+        context.DurableProjects.AsNoTracking().AnyAsync(
             project => project.Id == durableProjectId
                 && project.SubjectId == subjectId.Value,
-            cancellationToken).ConfigureAwait(false);
-    }
+            cancellationToken);
 
     private static DurableProjectClaimRepositoryOutcome ResolveClaimReceipt(
         DurableCommandReceiptRecord receipt,
