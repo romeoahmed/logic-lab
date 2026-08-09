@@ -2,6 +2,7 @@ using LogicLab.Domain;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
 using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
@@ -574,20 +575,15 @@ internal sealed class SimulationRuntimeTests
         }
     }
 
-    [Test]
-    public async Task Execute_OutOfOrderStimuli_MatchStablePriorityQueueModel()
+    [Test, FsCheckProperty(
+        MaxTest = 50,
+        Arbitrary = new[] { typeof(SimulationRuntimeArbitraries) })]
+    public async Task Execute_GeneratedStimuli_MatchStablePriorityQueueModel(
+        ScheduledStimuliCase sample)
     {
         var context = SimulationTestContext.Create();
         var opened = OpenOutputProbe(context);
-        (ulong LogicalTime, LogicValue Value)[] stimuli =
-        [
-            (60, LogicValue.Zero),
-            (10, LogicValue.One),
-            (50, LogicValue.One),
-            (20, LogicValue.Zero),
-            (40, LogicValue.Zero),
-            (30, LogicValue.One),
-        ];
+        var stimuli = sample.InsertionOrder;
 
         for (var index = 0; index < stimuli.Length; index++)
         {
@@ -619,9 +615,14 @@ internal sealed class SimulationRuntimeTests
         }
 
         var expectedOrder = stimuli.OrderBy(stimulus => stimulus.LogicalTime).ToArray();
+        var previousProbeValue = LogicValue.One;
         for (var index = 0; index < expectedOrder.Length; index++)
         {
             var (logicalTime, value) = expectedOrder[index];
+            var expectedProbeValue = ScalarLogic.Not(value);
+            LogicValue[] expectedPatch = expectedProbeValue == previousProbeValue
+                ? []
+                : [expectedProbeValue];
             var committed = (AdvanceCommitted)SimulationRuntime.Execute(
                 opened.Handle,
                 new AdvanceToNextQuiescentBoundary(),
@@ -631,9 +632,12 @@ internal sealed class SimulationRuntimeTests
                 await Assert.That(committed.LogicalTime).IsEqualTo(logicalTime);
                 await Assert.That(committed.SessionVersion)
                     .IsEqualTo((ulong)stimuli.Length + (ulong)index + 2UL);
-                await Assert.That(committed.ObservedProbePatch.Single().Value[0])
-                    .IsEqualTo(ScalarLogic.Not(value));
+                await Assert.That(committed.ObservedProbePatch.Select(
+                        static observation => observation.Value[0]))
+                    .IsEquivalentTo(expectedPatch, CollectionOrdering.Matching);
             }
+
+            previousProbeValue = expectedProbeValue;
         }
 
         var exhausted = SimulationRuntime.Execute(
