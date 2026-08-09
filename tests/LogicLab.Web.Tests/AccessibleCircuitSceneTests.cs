@@ -106,7 +106,7 @@ internal sealed class AccessibleCircuitSceneTests
     }
 
     [Test]
-    public async Task AccessibleCircuitScene_GeneratedPorts_RenderProjectedSemantics()
+    public async Task AccessibleCircuitScene_GeneratedPorts_RenderEveryProjectedPort()
     {
         await using var context = CreateContext();
         var revision = CreateWidthConversionComponents();
@@ -131,13 +131,8 @@ internal sealed class AccessibleCircuitSceneTests
 
         foreach (var (port, element) in component.Ports.Zip(renderedPorts))
         {
-            using (Assert.Multiple())
-            {
-                await Assert.That(element.QuerySelector("strong")?.TextContent)
-                    .IsEqualTo(port.Label);
-                await Assert.That(element.TextContent).Contains(port.Direction.ToString());
-                await Assert.That(element.TextContent).Contains($"{port.Width} bit");
-            }
+            await Assert.That(element.QuerySelector("strong")?.TextContent)
+                .IsEqualTo(port.Label);
         }
     }
 

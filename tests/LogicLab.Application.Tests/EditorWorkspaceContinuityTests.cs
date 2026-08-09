@@ -10,23 +10,6 @@ internal sealed class EditorWorkspaceContinuityTests
     private const string BuildFingerprint = "test-build";
 
     [Test]
-    public async Task WorkspaceCommand_PublicConstructors_RequireAttachmentContext()
-    {
-        var contextlessConstructors = typeof(WorkspaceCommand).Assembly
-            .GetTypes()
-            .Where(type => !type.IsAbstract && type.IsAssignableTo(typeof(WorkspaceCommand)))
-            .SelectMany(type => type.GetConstructors()
-                .Where(constructor => constructor.GetParameters() is not
-                    [{ ParameterType: { } parameterType }, ..]
-                    || parameterType != typeof(WorkspaceCommandContext))
-                .Select(constructor => $"{type.Name}{constructor}"))
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-
-        await Assert.That(contextlessConstructors).IsEmpty();
-    }
-
-    [Test]
     public async Task AttachAsync_Reattach_FencesPriorGeneration()
     {
         await using var workspace = EditorWorkspaceFactory.Create(

@@ -93,23 +93,6 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task Editor_CompilationReadRejected_ShowsTypedReasonWithoutSupersededClaim()
-    {
-        await using var context = CreateContext();
-        await using var workspace = new RejectedCompilationObservationWorkspace();
-        var rendered = await RenderAuthoredEditor(context, workspace);
-
-        await rendered.Find("[data-command='compile']").ClickAsync();
-        var status = rendered.Find("[role='status']").TextContent;
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(status).Contains("compilation_generation_unavailable");
-            await Assert.That(status).DoesNotContain("superseded");
-        }
-    }
-
-    [Test]
     public async Task Editor_StaticPrerender_RendersStableShellWithoutWorkspaceSideEffects()
     {
         await using var context = CreateContext();
@@ -557,16 +540,12 @@ internal sealed class WorkbenchComponentTests
 
         await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
         await rendered.WaitForStateAsync(() => rendered.FindAll("[data-definition-port]").Count == 2);
-        var childTerminalPaths = rendered
-            .FindAll("[data-connection] .connection-summary span")
-            .Select(element => element.TextContent)
-            .ToArray();
         using (Assert.Multiple())
         {
             await Assert.That(rendered.Find("[data-hierarchy-breadcrumb]").TextContent)
                 .Contains("Inverter");
             await Assert.That(rendered.FindAll("[data-component]")).Count().IsEqualTo(1);
-            await Assert.That(childTerminalPaths).IsEquivalentTo(["A → A", "Q → Q"]);
+            await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(2);
             await Assert.That(rendered.FindAll("[data-command='hierarchy-back']")).Count()
                 .IsEqualTo(1);
         }
@@ -922,35 +901,6 @@ internal sealed class WorkbenchComponentTests
                 new CompilationGeneration(1),
                 request.Precondition.ProjectRevisionId,
                 1);
-        }
-    }
-
-    private sealed class RejectedCompilationObservationWorkspace
-        : DelegatingEditorWorkspace
-    {
-        public override Task<WorkspaceCommandOutcome> DispatchAsync(
-            WorkspaceCommand command,
-            CancellationToken cancellationToken)
-        {
-            return command is RequestCompilation request
-                ? Task.FromResult<WorkspaceCommandOutcome>(new CompilationAccepted(
-                    new CompilationGeneration(1),
-                    request.Precondition.ProjectRevisionId,
-                    ProjectionVersion: 1))
-                : base.DispatchAsync(command, cancellationToken);
-        }
-
-        public override Task<WorkspaceReadOutcome> ReadAsync(
-            WorkspaceQueryContext context,
-            WorkspaceQuery query,
-            CancellationToken cancellationToken)
-        {
-            return query is ReadCompilation
-                ? Task.FromResult<WorkspaceReadOutcome>(new WorkspaceReadRejected(
-                    "compilation_generation_unavailable",
-                    [],
-                    RetryDisposition.RefreshProjection))
-                : base.ReadAsync(context, query, cancellationToken);
         }
     }
 

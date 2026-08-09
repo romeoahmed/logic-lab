@@ -88,8 +88,10 @@ internal sealed partial class DurableWorkspaceTests
                 .IsEqualTo(AuthenticatedCaller.SubjectId);
             await Assert.That(repository.LastClaim.DisplayName.Value)
                 .IsEqualTo("课件 Alpha");
-            await Assert.That(repository.LastClaim.ProjectRevision)
-                .IsSameReferenceAs(opened.Projection.ProjectRevision);
+            await Assert.That(repository.LastClaim.ProjectRevision.RevisionId)
+                .IsEqualTo(opened.Projection.ProjectRevision.RevisionId);
+            await Assert.That(claimed.ProjectRevisionId)
+                .IsEqualTo(opened.Projection.ProjectRevision.RevisionId);
             await Assert.That(claimed.DurableProjectId)
                 .IsEqualTo(durability.DurableProjectId);
             await Assert.That(claimed.DurableVersion)
