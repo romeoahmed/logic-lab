@@ -5,19 +5,59 @@ using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
+internal sealed record ClockEventCalendarCase(uint[] LogicalTimes)
+{
+    public override string ToString() => $"Calendar(events={LogicalTimes.Length})";
+}
+
+internal static class ClockEventCalendarArbitraries
+{
+    private const int MaximumEventCount = 32;
+    private const int MaximumLogicalTime = 16;
+
+    public static Arbitrary<ClockEventCalendarCase> ClockEventCalendar()
+    {
+        var generator =
+            from eventCount in Gen.Choose(0, MaximumEventCount)
+            from logicalTimes in Gen.Choose(0, MaximumLogicalTime).ArrayOf(eventCount)
+            select new ClockEventCalendarCase(
+                [.. logicalTimes.Select(static logicalTime => checked((uint)logicalTime))]);
+
+        return Arb.From(generator, Shrink);
+    }
+
+    private static IEnumerable<ClockEventCalendarCase> Shrink(
+        ClockEventCalendarCase sample)
+    {
+        for (var index = 0; index < sample.LogicalTimes.Length; index++)
+        {
+            yield return new ClockEventCalendarCase(
+                [.. sample.LogicalTimes.Where((_, candidateIndex) => candidateIndex != index)]);
+
+            var logicalTime = sample.LogicalTimes[index];
+            if (logicalTime == 0)
+            {
+                continue;
+            }
+
+            var logicalTimes = (uint[])sample.LogicalTimes.Clone();
+            logicalTimes[index] = logicalTime / 2;
+            yield return new ClockEventCalendarCase(logicalTimes);
+        }
+    }
+}
+
 internal sealed class ClockEventCalendarTests
 {
-    private const uint LogicalTimeBucketCount = 17;
-
-    [Test, FsCheckProperty]
-    public Property Schedule_ArbitraryBuckets_ReturnsStableSortedSnapshots(
-        int[] logicalTimes)
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(ClockEventCalendarArbitraries) })]
+    public Property Schedule_GeneratedValidBuckets_ReturnsStableSortedSnapshots(
+        ClockEventCalendarCase sample)
     {
         var calendar = new ClockEventCalendar();
-        var events = logicalTimes
+        var events = sample.LogicalTimes
             .Select((logicalTime, evaluatorOrdinal) => Event(
                 evaluatorOrdinal,
-                unchecked((uint)logicalTime) % LogicalTimeBucketCount))
+                logicalTime))
             .ToArray();
         foreach (var scheduledEvent in events.Reverse())
         {
