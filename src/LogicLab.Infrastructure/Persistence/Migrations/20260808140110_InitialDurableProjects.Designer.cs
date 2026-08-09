@@ -112,6 +112,12 @@ namespace LogicLab.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("current_project_revision_id");
 
+                    b.Property<string>("ClaimWorkspaceId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("claim_workspace_id");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -139,6 +145,9 @@ namespace LogicLab.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex(new[] { "DisplayNameSortKey", "Id" }, "ix_durable_projects_display_name_sort_key_id")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "ClaimWorkspaceId" }, "ux_durable_projects_claim_workspace_id")
                         .IsUnique();
 
                     b.ToTable("durable_projects", (string)null);

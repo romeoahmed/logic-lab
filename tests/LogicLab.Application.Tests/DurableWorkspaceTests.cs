@@ -804,7 +804,8 @@ internal sealed partial class DurableWorkspaceTests
             var stored = new DurableProjectClaimStored(
                 request.DurableProjectId,
                 request.InitialDurableVersion,
-                request.ProjectRevision.RevisionId);
+                request.ProjectRevision.RevisionId,
+                request.DisplayName);
             claimReceipts.Add(request.ReceiptKey, stored);
             if (ClaimPostCommitFailure is { } failure)
             {

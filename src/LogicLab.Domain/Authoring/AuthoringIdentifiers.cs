@@ -17,8 +17,9 @@ public sealed record ProjectId
 
 public sealed record ProjectRevisionId
 {
-    internal ProjectRevisionId(string value)
+    public ProjectRevisionId(string value)
     {
+        ArgumentException.ThrowIfNullOrEmpty(value);
         Value = value;
     }
 
