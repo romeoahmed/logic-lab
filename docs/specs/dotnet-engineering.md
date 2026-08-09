@@ -3,7 +3,7 @@
 > Status: normative implementation and build contract
 > Target: .NET 10, C# 14, ASP.NET Core 10
 > SDK: 10.0.302, exact
-> Test stack: TUnit 1.63.0 on Microsoft Testing Platform; TUnit.FsCheck 1.63.0
+> Test stack: TUnit 1.64.0 on Microsoft Testing Platform; TUnit.FsCheck 1.64.0
 
 This specification owns repository-wide .NET build, dependency, language, execution, configuration, serialization, observability, and publication rules. [Architecture](../../ARCHITECTURE.md) continues to own Module seams and dependency direction; focused specifications own behavior; [Policy Catalog](../policies/catalog.md) owns limits. This file does not create a Runtime, Common, or cross-cutting Module.
 
