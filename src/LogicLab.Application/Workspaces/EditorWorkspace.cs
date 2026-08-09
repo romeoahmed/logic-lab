@@ -159,9 +159,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         if (acquisition.State is null)
         {
             if (command is CloseWorkspace
-                && acquisition.RejectionReason is
-                    WorkspaceOutcomeReasons.WorkspaceNotFound
-                    or WorkspaceOutcomeReasons.WorkspaceExpired)
+                && acquisition.RejectionReason is WorkspaceOutcomeReasons.WorkspaceNotFound)
             {
                 return new WorkspaceClosed(command.WorkspaceId);
             }

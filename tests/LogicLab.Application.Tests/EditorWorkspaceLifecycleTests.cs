@@ -67,7 +67,7 @@ internal sealed class EditorWorkspaceLifecycleTests
     }
 
     [Test]
-    public async Task ReadAsync_SandboxRetentionElapsed_ReturnsExpired()
+    public async Task ReadAsync_SandboxRetentionElapsed_ReturnsNotFound()
     {
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 2, 0, 0, 0, TimeSpan.Zero));
@@ -85,7 +85,7 @@ internal sealed class EditorWorkspaceLifecycleTests
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceReadRejected>())!;
-        await Assert.That(rejected.Code).IsEqualTo("workspace_expired");
+        await Assert.That(rejected.Code).IsEqualTo("workspace_not_found");
     }
 
     [Test]

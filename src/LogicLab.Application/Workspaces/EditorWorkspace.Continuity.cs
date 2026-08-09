@@ -112,15 +112,11 @@ internal sealed partial class EditorWorkspace
         AttachRequest request,
         string rejectionReason)
     {
-        var expired = string.Equals(
+        var expired = request is Reattach
+            && string.Equals(
                 rejectionReason,
-                WorkspaceOutcomeReasons.WorkspaceExpired,
-                StringComparison.Ordinal)
-            || (request is Reattach
-                && string.Equals(
-                    rejectionReason,
-                    WorkspaceOutcomeReasons.WorkspaceNotFound,
-                    StringComparison.Ordinal));
+                WorkspaceOutcomeReasons.WorkspaceNotFound,
+                StringComparison.Ordinal);
 
         return expired
             ? new Expired(WorkspaceOutcomeReasons.WorkspaceExpired)
@@ -328,6 +324,12 @@ internal sealed partial class EditorWorkspace
                     WorkspaceOutcomeReasons.ProjectionVersionPreconditionFailed);
             }
 
+            if (request.SaveTarget == WorkspaceCopySaveTarget.Preserve
+                && source.Durability is PendingDurableClaimState)
+            {
+                return RejectOpen(WorkspaceOutcomeReasons.DurableClaimUnresolved);
+            }
+
             var rejectionReason = ReserveWorkspace(out var retired);
             RetireAll(retired);
             if (rejectionReason is not null)
@@ -344,9 +346,9 @@ internal sealed partial class EditorWorkspace
                     source.Revision,
                     timeProvider.GetTimestamp());
                 if (request.SaveTarget == WorkspaceCopySaveTarget.Preserve
-                    && source.Durable is not null)
+                    && source.Durability is DurableWorkspaceState durable)
                 {
-                    copy.Durable = source.Durable.Copy();
+                    copy.Durability = durable.Copy();
                 }
                 lock (gate)
                 {
@@ -493,8 +495,7 @@ internal sealed partial class EditorWorkspace
         WorkspaceState state,
         WorkspaceCaller caller)
     {
-        var subjectId = state.Durable?.SubjectId
-            ?? state.PendingClaimSubjectId;
+        var subjectId = state.Durability.OwnerSubjectId;
         if (subjectId is null)
         {
             return null;

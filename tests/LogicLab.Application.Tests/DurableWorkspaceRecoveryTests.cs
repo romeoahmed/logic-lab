@@ -435,4 +435,231 @@ internal sealed partial class DurableWorkspaceTests
             await Assert.That(repository.ClaimCallCount).IsEqualTo(1);
         }
     }
+
+    [Test]
+    public async Task OpenAsync_UnknownClaimAfterReattach_RejectsPreserveCopy()
+    {
+        var repository = new RecordingDurableProjectRepository
+        {
+            ClaimPostCommitFailure = static _ =>
+                new IOException("Commit acknowledgement failed."),
+            ReceiptReadFailure = new IOException("Receipt verification failed."),
+        };
+        await using var workspace = CreateWorkspace(
+            repository,
+            globalWorkspaceLimit: 2);
+        var (opened, attached) = await OpenAttached(workspace);
+        var claim = await workspace.DispatchAsync(
+            new ClaimSandbox(
+                new WorkspaceCommandContext(
+                    opened.WorkspaceId,
+                    attached.AttachmentId,
+                    attached.Generation,
+                    new ClientIntentId("claim-before-preserve-copy"),
+                    AuthenticatedCaller),
+                new ClaimPrecondition(opened.Projection.ProjectRevision.RevisionId),
+                "Uncertain copy source"),
+            CancellationToken.None);
+        var reattached = (await Assert.That(await workspace.AttachAsync(
+            new Reattach(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                BuildFingerprint,
+                AuthenticatedCaller),
+            CancellationToken.None)).IsTypeOf<Attached>())!;
+
+        var copy = await workspace.OpenAsync(
+            new CopyWorkspace(
+                opened.WorkspaceId,
+                reattached.AttachmentId,
+                reattached.Generation,
+                reattached.Projection.ProjectionVersion,
+                WorkspaceCopySaveTarget.Preserve,
+                AuthenticatedCaller),
+            CancellationToken.None);
+        var replacement = await workspace.OpenAsync(
+            new CreateSandbox("Replacement", "Main"),
+            CancellationToken.None);
+
+        var claimRejected = (await Assert.That(claim)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        var copyRejected = (await Assert.That(copy)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(claimRejected.Code)
+                .IsEqualTo("idempotency_window_expired");
+            await Assert.That(copyRejected.Code)
+                .IsEqualTo("durable_claim_unresolved");
+            await Assert.That(copyRejected.RetryDisposition)
+                .IsTypeOf<DoNotRetryDisposition>();
+            await Assert.That(replacement).IsTypeOf<WorkspaceOpened>();
+            await Assert.That(repository.ClaimCallCount).IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    [Arguments(nameof(ExpiredDurableAccess.Dispatch))]
+    [Arguments(nameof(ExpiredDurableAccess.Read))]
+    [Arguments(nameof(ExpiredDurableAccess.InitialAttach))]
+    [Arguments(nameof(ExpiredDurableAccess.Detach))]
+    [Arguments(nameof(ExpiredDurableAccess.Copy))]
+    public async Task AccessAsync_ExpiredDurableWorkspace_MatchesMissingWorkspace(
+        string accessName)
+    {
+        var access = Enum.Parse<ExpiredDurableAccess>(accessName);
+        var timeProvider = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 9, 0, 0, 0, TimeSpan.Zero));
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(
+            repository,
+            timeProvider: timeProvider,
+            sandboxRetention: TimeSpan.FromMinutes(1));
+        var (opened, attached) = await OpenAttached(workspace);
+        _ = (await Assert.That(await Claim(
+            workspace,
+            opened,
+            attached,
+            "Expiring durable project"))
+            .IsTypeOf<DurableProjectClaimed>())!;
+        var projection = await ReadProjection(
+            workspace,
+            opened.WorkspaceId,
+            attached);
+        timeProvider.Advance(TimeSpan.FromMinutes(1));
+        var differentSubject = new AuthenticatedWorkspaceCaller(
+            new AuthenticatedSubjectId("different-subject"));
+
+        var expired = await ObserveAccess(
+            workspace,
+            access,
+            opened.WorkspaceId,
+            attached,
+            projection,
+            differentSubject);
+        var missing = await ObserveAccess(
+            workspace,
+            access,
+            new WorkspaceId("missing-workspace"),
+            attached,
+            projection,
+            differentSubject);
+
+        await Assert.That(expired).IsEqualTo(missing);
+    }
+
+    private static async Task<WorkspaceAccessObservation> ObserveAccess(
+        IEditorWorkspace workspace,
+        ExpiredDurableAccess access,
+        WorkspaceId workspaceId,
+        Attached attached,
+        WorkspaceProjection projection,
+        WorkspaceCaller caller)
+    {
+        object outcome = access switch
+        {
+            ExpiredDurableAccess.Dispatch => await workspace.DispatchAsync(
+                new ApplyEdit(
+                    new WorkspaceCommandContext(
+                        workspaceId,
+                        attached.AttachmentId,
+                        attached.Generation,
+                        new ClientIntentId("expired-durable-dispatch"),
+                        caller),
+                    new AuthoringPrecondition(projection.ProjectRevision.RevisionId),
+                    new RenameCircuitDefinitionIntent(
+                        projection.ProjectRevision.Document.EntryCircuitDefinitionId,
+                        "Must not commit")),
+                CancellationToken.None),
+            ExpiredDurableAccess.Read => await workspace.ReadAsync(
+                new WorkspaceQueryContext(
+                    workspaceId,
+                    attached.AttachmentId,
+                    attached.Generation,
+                    caller),
+                LogicLab.Application.Workspaces.ReadProjection.Instance,
+                CancellationToken.None),
+            ExpiredDurableAccess.InitialAttach => await workspace.AttachAsync(
+                new InitialAttach(workspaceId, BuildFingerprint, caller),
+                CancellationToken.None),
+            ExpiredDurableAccess.Detach => await workspace.DetachAsync(
+                new DetachRequest(
+                    workspaceId,
+                    attached.AttachmentId,
+                    attached.Generation,
+                    caller),
+                CancellationToken.None),
+            ExpiredDurableAccess.Copy => await workspace.OpenAsync(
+                new CopyWorkspace(
+                    workspaceId,
+                    attached.AttachmentId,
+                    attached.Generation,
+                    projection.ProjectionVersion,
+                    WorkspaceCopySaveTarget.Preserve,
+                    caller),
+                CancellationToken.None),
+            _ => throw new ArgumentOutOfRangeException(nameof(access), access, null),
+        };
+
+        return outcome switch
+        {
+            WorkspaceCommandRejected rejected => WorkspaceAccessObservation.From(
+                rejected,
+                rejected.Code,
+                rejected.DiagnosticCodes,
+                rejected.RetryDisposition),
+            WorkspaceReadRejected rejected => WorkspaceAccessObservation.From(
+                rejected,
+                rejected.Code,
+                rejected.DiagnosticCodes,
+                rejected.RetryDisposition),
+            AttachRejected rejected => WorkspaceAccessObservation.From(
+                rejected,
+                rejected.Code,
+                rejected.DiagnosticCodes,
+                rejected.RetryDisposition),
+            DetachRejected rejected => WorkspaceAccessObservation.From(
+                rejected,
+                rejected.Code,
+                [],
+                retryDisposition: null),
+            WorkspaceOpenRejected rejected => WorkspaceAccessObservation.From(
+                rejected,
+                rejected.Code,
+                rejected.DiagnosticCodes,
+                rejected.RetryDisposition),
+            _ => throw new InvalidOperationException(
+                $"Expected access rejection, received {outcome.GetType().Name}."),
+        };
+    }
+
+    private enum ExpiredDurableAccess
+    {
+        Dispatch,
+        Read,
+        InitialAttach,
+        Detach,
+        Copy,
+    }
+
+    private sealed record WorkspaceAccessObservation(
+        string OutcomeType,
+        string Code,
+        string Diagnostics,
+        string? RetryDisposition)
+    {
+        public static WorkspaceAccessObservation From(
+            object outcome,
+            string code,
+            IReadOnlyList<string> diagnosticCodes,
+            RetryDisposition? retryDisposition)
+        {
+            return new WorkspaceAccessObservation(
+                outcome.GetType().Name,
+                code,
+                string.Join('\n', diagnosticCodes),
+                retryDisposition?.GetType().Name);
+        }
+    }
 }
