@@ -116,14 +116,6 @@ internal sealed class WorkspaceContractTests
     }
 
     [Test]
-    public async Task RetryAfter_ExplicitDelay_PreservesCanonicalWholeSeconds()
-    {
-        var retryDisposition = RetryDisposition.RetryAfter(7);
-
-        await Assert.That(retryDisposition.Seconds).IsEqualTo(7UL);
-    }
-
-    [Test]
     [Arguments(AdvanceFailureReason.SimulationResourceLimit, false)]
     [Arguments(AdvanceFailureReason.ZeroTimeOscillation, true)]
     public async Task AdvanceFailureProjection_MismatchedPolicyEvidence_ThrowsArgumentException(

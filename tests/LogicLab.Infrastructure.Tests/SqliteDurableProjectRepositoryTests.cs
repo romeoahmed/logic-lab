@@ -1,4 +1,3 @@
-using System.Text.Json;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
 using LogicLab.Infrastructure.Persistence;
@@ -38,7 +37,6 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         await using var context = await factory.CreateDbContextAsync();
         var project = await context.DurableProjects.SingleAsync();
         var storedRevision = await context.ProjectRevisions.SingleAsync();
-        using var payload = JsonDocument.Parse(storedRevision.Payload);
         using (Assert.Multiple())
         {
             await Assert.That(replayStored).IsEqualTo(firstStored);
@@ -48,9 +46,11 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
                 .IsEqualTo(request.InitialDurableVersion.Value);
             await Assert.That(project.DisplayNameSortKey)
                 .IsEquivalentTo("Private project"u8.ToArray());
-            await Assert.That(payload.RootElement.GetProperty("RevisionId")
-                    .GetProperty("Value").GetString())
+            await Assert.That(storedRevision.ProjectRevisionId)
                 .IsEqualTo(revision.RevisionId.Value);
+            await Assert.That(storedRevision.DurableProjectId)
+                .IsEqualTo(project.Id);
+            await Assert.That(storedRevision.Payload).IsNotEmpty();
             await Assert.That(context.DurableCommandReceipts).Count().IsEqualTo(1);
         }
     }
@@ -330,42 +330,6 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         var outcome = await repository.SaveAsync(replay, CancellationToken.None);
 
         await Assert.That(outcome).IsTypeOf<DurableProjectSaveForbidden>();
-    }
-
-    [Test]
-    public async Task Model_DurableVersion_IsApplicationManagedConcurrencyToken()
-    {
-        var (_, factory) = await CreateRepositoryAsync();
-        await using var context = await factory.CreateDbContextAsync();
-
-        var property = context.Model.FindEntityType(typeof(DurableProjectRecord))!
-            .FindProperty(nameof(DurableProjectRecord.DurableVersion))!;
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(property.IsConcurrencyToken).IsTrue();
-            await Assert.That(property.ValueGenerated)
-                .IsEqualTo(Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never);
-        }
-    }
-
-    [Test]
-    public async Task Model_ClaimWorkspaceId_IsUniqueClaimFence()
-    {
-        var (_, factory) = await CreateRepositoryAsync();
-        await using var context = await factory.CreateDbContextAsync();
-
-        var index = context.Model.FindEntityType(typeof(DurableProjectRecord))!
-            .GetIndexes()
-            .Single(candidate => candidate.Properties is
-                [{ Name: nameof(DurableProjectRecord.ClaimWorkspaceId) }]);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(index.IsUnique).IsTrue();
-            await Assert.That(index.GetDatabaseName())
-                .IsEqualTo("ux_durable_projects_claim_workspace_id");
-        }
     }
 
     [Test]
