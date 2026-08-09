@@ -161,7 +161,8 @@ internal sealed class EditorWorkspaceAdmissionTests
                 historyRevisionCount: 128,
                 idempotencyRecordCount: 1_024,
                 detachedRetention: TimeSpan.FromMinutes(30),
-                hotSwapPeakBytes: ulong.MaxValue));
+                hotSwapPeakBytes: ulong.MaxValue,
+                durableDisplayNameLimits: DurableDisplayNameLimits.Default));
     }
 
     private static async Task<ControlledWorkspace> OpenWorkspace(

@@ -74,8 +74,7 @@ public sealed record DurableDisplayName
     public DurableDisplayName(string value)
     {
         ArgumentException.ThrowIfNullOrEmpty(value);
-        if (!HasValidScalars(value)
-            || !value.IsNormalized(NormalizationForm.FormC))
+        if (!IsValid(value))
         {
             throw new ArgumentException(
                 "A Durable Display Name must be NFC Unicode without C0 controls or isolated surrogates.",
@@ -86,6 +85,11 @@ public sealed record DurableDisplayName
     }
 
     public string Value { get; }
+
+    internal static bool IsValid(string value)
+        => value.Length > 0
+            && HasValidScalars(value)
+            && value.IsNormalized(NormalizationForm.FormC);
 
     private static bool HasValidScalars(string value)
     {
@@ -378,12 +382,13 @@ public enum DurableConflictRecovery
 
 public sealed record DurableProjectSaveConflict : WorkspaceCommandOutcome
 {
-    private static readonly DurableConflictRecovery[] RecoveryValues =
-    [
-        DurableConflictRecovery.Reload,
-        DurableConflictRecovery.Copy,
-        DurableConflictRecovery.Export,
-    ];
+    private static IReadOnlyList<DurableConflictRecovery> RecoveryValues { get; }
+        = Array.AsReadOnly<DurableConflictRecovery>(
+        [
+            DurableConflictRecovery.Reload,
+            DurableConflictRecovery.Copy,
+            DurableConflictRecovery.Export,
+        ]);
 
     public DurableProjectSaveConflict(
         DurableVersion expectedDurableVersion,
@@ -393,7 +398,7 @@ public sealed record DurableProjectSaveConflict : WorkspaceCommandOutcome
         ArgumentNullException.ThrowIfNull(actualDurableVersion);
         ExpectedDurableVersion = expectedDurableVersion;
         ActualDurableVersion = actualDurableVersion;
-        Recovery = Array.AsReadOnly(RecoveryValues);
+        Recovery = RecoveryValues;
     }
 
     public DurableVersion ExpectedDurableVersion { get; }

@@ -389,13 +389,7 @@ internal sealed partial class EditorWorkspace
         out WorkspaceCommandRejected rejection)
     {
         displayName = null;
-        if (value.Length == 0 || !HasValidDurableDisplayNameScalars(value))
-        {
-            rejection = Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
-            return false;
-        }
-
-        if (!value.IsNormalized(NormalizationForm.FormC))
+        if (!DurableDisplayName.IsValid(value))
         {
             rejection = Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
             return false;
@@ -425,33 +419,6 @@ internal sealed partial class EditorWorkspace
 
         displayName = new DurableDisplayName(value);
         rejection = null!;
-        return true;
-    }
-
-    private static bool HasValidDurableDisplayNameScalars(string value)
-    {
-        for (var index = 0; index < value.Length; index++)
-        {
-            var character = value[index];
-            if (character <= '\u001f' || char.IsLowSurrogate(character))
-            {
-                return false;
-            }
-
-            if (!char.IsHighSurrogate(character))
-            {
-                continue;
-            }
-
-            if (index + 1 >= value.Length
-                || !char.IsLowSurrogate(value[index + 1]))
-            {
-                return false;
-            }
-
-            index++;
-        }
-
         return true;
     }
 

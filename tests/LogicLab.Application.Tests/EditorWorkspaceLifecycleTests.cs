@@ -285,7 +285,8 @@ internal sealed class EditorWorkspaceLifecycleTests
             historyRevisionCount: 128,
             idempotencyRecordCount: 1_024,
             detachedRetention: sandboxRetention,
-            hotSwapPeakBytes: ulong.MaxValue);
+            hotSwapPeakBytes: ulong.MaxValue,
+            durableDisplayNameLimits: DurableDisplayNameLimits.Default);
     }
 
     private static async Task<WorkspaceOpenOutcome[]> OpenSimultaneously(

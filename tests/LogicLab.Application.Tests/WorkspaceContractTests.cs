@@ -46,7 +46,8 @@ internal sealed class WorkspaceContractTests
                 historyRevisionCount: 1,
                 idempotencyRecordCount: 1,
                 detachedRetention: TimeSpan.FromMinutes(1),
-                hotSwapPeakBytes: 1))
+                hotSwapPeakBytes: 1,
+                durableDisplayNameLimits: DurableDisplayNameLimits.Default))
             .ThrowsExactly<ArgumentNullException>();
     }
 
@@ -155,6 +156,7 @@ internal sealed class WorkspaceContractTests
             historyRevisionCount: 1,
             idempotencyRecordCount: 1,
             detachedRetention: TimeSpan.FromMinutes(1),
-            hotSwapPeakBytes: hotSwapPeakBytes);
+            hotSwapPeakBytes: hotSwapPeakBytes,
+            durableDisplayNameLimits: DurableDisplayNameLimits.Default);
     }
 }

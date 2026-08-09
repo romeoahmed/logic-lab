@@ -160,7 +160,8 @@ internal sealed class WorkbenchComponentTests
             historyRevisionCount: 16,
             idempotencyRecordCount: 1,
             detachedRetention: TimeSpan.FromMinutes(30),
-            hotSwapPeakBytes: ulong.MaxValue));
+            hotSwapPeakBytes: ulong.MaxValue,
+            durableDisplayNameLimits: DurableDisplayNameLimits.Default));
         var rendered = RenderEditor(context, workspace);
         _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
 
@@ -812,6 +813,19 @@ internal sealed class WorkbenchComponentTests
         public void AllowCancellationToComplete() => allowCancellationToComplete.Set();
 
         public void ReleaseObservation() => releaseObservation.TrySetResult();
+
+        public override async ValueTask DisposeAsync()
+        {
+            allowCancellationToComplete.Set();
+            try
+            {
+                await base.DisposeAsync();
+            }
+            finally
+            {
+                allowCancellationToComplete.Dispose();
+            }
+        }
 
         public override async Task<WorkspaceCommandOutcome> DispatchAsync(
             WorkspaceCommand command,

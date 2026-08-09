@@ -87,30 +87,6 @@ public sealed record WorkspacePolicy
         int historyRevisionCount,
         int idempotencyRecordCount,
         TimeSpan detachedRetention,
-        ulong hotSwapPeakBytes)
-        : this(
-            policyId,
-            policyRevision,
-            globalWorkspaceLimit,
-            sandboxRetention,
-            authoringLimits,
-            historyRevisionCount,
-            idempotencyRecordCount,
-            detachedRetention,
-            hotSwapPeakBytes,
-            DurableDisplayNameLimits.Default)
-    {
-    }
-
-    public WorkspacePolicy(
-        string policyId,
-        string policyRevision,
-        int globalWorkspaceLimit,
-        TimeSpan sandboxRetention,
-        WorkspaceAuthoringLimits authoringLimits,
-        int historyRevisionCount,
-        int idempotencyRecordCount,
-        TimeSpan detachedRetention,
         ulong hotSwapPeakBytes,
         DurableDisplayNameLimits durableDisplayNameLimits)
     {
