@@ -22,7 +22,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                 return production.Compile(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var controlled = await Open(workspace, "Accepted", cancellationToken);
 
@@ -90,7 +90,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                 return Compiler.Compile(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             schedulingPolicy: new SchedulingPolicy(1, 1),
             operations: operations);
         var firstWorkspace = await Open(workspace, "First", cancellationToken);
@@ -158,7 +158,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                 return Compiler.Compile(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             schedulingPolicy: new SchedulingPolicy(1, 1),
             operations: operations);
         var controlled = await Open(workspace, "Controlled", cancellationToken);
@@ -252,7 +252,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                 return Compiler.Compile(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             schedulingPolicy: new SchedulingPolicy(2, 1),
             operations: operations);
         var opened = await Open(workspace, "Newest wins", cancellationToken);
@@ -317,7 +317,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                 return production.Compile(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             schedulingPolicy: new SchedulingPolicy(1, 1),
             operations: operations);
         var opened = await Open(workspace, "Pending coalescing", cancellationToken);
@@ -390,7 +390,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                 return production.CloseSimulation(handle);
             },
         };
-        var workspace = EditorWorkspaceFactory.CreateForTesting(
+        var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations,
             schedulingPolicy: new SchedulingPolicy(1, 1));
 
@@ -543,7 +543,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                 return production.Compile(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             schedulingPolicy: new SchedulingPolicy(2, 1),
             operations: operations);
         var opened = await Open(workspace, "Observable supersession", cancellationToken);
@@ -601,7 +601,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                 return production.Compile(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             schedulingPolicy: new SchedulingPolicy(1, 1),
             operations: operations);
         var blocking = await Open(workspace, "Blocking", cancellationToken);
@@ -655,7 +655,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                 return Compiler.Compile(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var opened = await Open(workspace, "Close race", cancellationToken);
 

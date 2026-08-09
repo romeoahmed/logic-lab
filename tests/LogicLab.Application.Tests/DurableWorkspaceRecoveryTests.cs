@@ -7,46 +7,6 @@ namespace LogicLab.Application.Tests;
 internal sealed partial class DurableWorkspaceTests
 {
     [Test]
-    public async Task DispatchAsync_DurablePersistenceIsUnavailable_ReturnsInfrastructureFailure()
-    {
-        await using var workspace = EditorWorkspaceFactory.Create(
-            buildFingerprint: BuildFingerprint);
-        var (opened, attached) = await OpenAttached(workspace);
-
-        var outcome = await workspace.DispatchAsync(
-            new ClaimSandbox(
-                new WorkspaceCommandContext(
-                    opened.WorkspaceId,
-                    attached.AttachmentId,
-                    attached.Generation,
-                    new ClientIntentId("unavailable-persistence"),
-                    AuthenticatedCaller),
-                new ClaimPrecondition(opened.Projection.ProjectRevision.RevisionId),
-                "Unavailable persistence"),
-            CancellationToken.None);
-        var projection = await workspace.ReadAsync(
-            new WorkspaceQueryContext(
-                opened.WorkspaceId,
-                attached.AttachmentId,
-                attached.Generation,
-                AnonymousWorkspaceCaller.Instance),
-            LogicLab.Application.Workspaces.ReadProjection.Instance,
-            CancellationToken.None);
-
-        var rejected = (await Assert.That(outcome)
-            .IsTypeOf<WorkspaceCommandRejected>())!;
-        var snapshot = (await Assert.That(projection)
-            .IsTypeOf<ProjectionSnapshot>())!;
-        using (Assert.Multiple())
-        {
-            await Assert.That(rejected.Code)
-                .IsEqualTo("workspace_infrastructure_failure");
-            await Assert.That(snapshot.Projection.Durability)
-                .IsTypeOf<SandboxWorkspaceDurabilityProjection>();
-        }
-    }
-
-    [Test]
     public async Task DispatchAsync_ClaimCommitThrowsAfterReceipt_RecoversStoredOutcome()
     {
         var repository = new RecordingDurableProjectRepository
@@ -475,7 +435,7 @@ internal sealed partial class DurableWorkspaceTests
         repository.ClaimPreCommitFailure = failure switch
         {
             ClaimRecoveryFailure.Infrastructure => static _ =>
-                new DurableProjectRepositoryUnavailableException(),
+                new IOException("Durable persistence failed during recovery."),
             ClaimRecoveryFailure.Cancellation => token =>
                 CancelClaimRecovery(cancellation, token),
             _ => throw new ArgumentOutOfRangeException(

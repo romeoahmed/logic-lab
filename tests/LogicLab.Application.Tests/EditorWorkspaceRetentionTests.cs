@@ -11,7 +11,7 @@ internal sealed class EditorWorkspaceRetentionTests
     {
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             workspacePolicy: Policy(sandboxRetention: TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider,
             buildFingerprint: BuildFingerprint);
@@ -47,7 +47,7 @@ internal sealed class EditorWorkspaceRetentionTests
     {
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             workspacePolicy: Policy(detachedRetention: TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider,
             buildFingerprint: BuildFingerprint);
@@ -79,7 +79,7 @@ internal sealed class EditorWorkspaceRetentionTests
     {
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             workspacePolicy: Policy(detachedRetention: TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider,
             buildFingerprint: BuildFingerprint);
@@ -112,7 +112,7 @@ internal sealed class EditorWorkspaceRetentionTests
     {
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             workspacePolicy: Policy(
                 detachedRetention: TimeSpan.FromMinutes(5),
                 globalWorkspaceLimit: 1),
@@ -154,7 +154,7 @@ internal sealed class EditorWorkspaceRetentionTests
     {
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             workspacePolicy: Policy(sandboxRetention: TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider,
             buildFingerprint: BuildFingerprint);
@@ -197,7 +197,7 @@ internal sealed class EditorWorkspaceRetentionTests
         var compilationGate = new BlockingOperationGate();
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             BlockingCompilationOperations(compilationGate),
             workspacePolicy: Policy(
                 detachedRetention: TimeSpan.FromMinutes(5),
@@ -246,7 +246,7 @@ internal sealed class EditorWorkspaceRetentionTests
         var compilationGate = new BlockingOperationGate();
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             BlockingCompilationOperations(compilationGate),
             workspacePolicy: Policy(sandboxRetention: TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider,

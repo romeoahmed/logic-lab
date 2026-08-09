@@ -14,7 +14,7 @@ internal sealed class EditorWorkspaceRunTests
         CancellationToken cancellationToken)
     {
         var advanceGate = new BlockingOperationGate();
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             BlockAdvances(advanceGate));
         var controlled = await CreateInputWorkspace(workspace, cancellationToken);
         var beforeRun = await Read(workspace, controlled, cancellationToken);
@@ -54,7 +54,7 @@ internal sealed class EditorWorkspaceRunTests
         CancellationToken cancellationToken)
     {
         var advanceGate = new BlockingOperationGate();
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             BlockAdvances(advanceGate));
         var controlled = await CreateClockWorkspace(workspace, cancellationToken);
         var beforeRun = await Read(workspace, controlled, cancellationToken);
@@ -106,7 +106,7 @@ internal sealed class EditorWorkspaceRunTests
     {
         var runningAdvanceGate = new BlockingOperationGate();
         var queuedCommandGate = new BlockingOperationGate();
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             BlockFirstTwoAdvances(runningAdvanceGate, queuedCommandGate),
             schedulingPolicy: new SchedulingPolicy(1, 4),
             durableProjectRepository: new ClaimingDurableProjectRepository());
@@ -197,7 +197,7 @@ internal sealed class EditorWorkspaceRunTests
         CancellationToken cancellationToken)
     {
         var advanceGate = new BlockingOperationGate();
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             BlockAdvances(advanceGate));
         var controlled = await CreateClockWorkspace(workspace, cancellationToken);
         var beforeRun = await Read(workspace, controlled, cancellationToken);
@@ -265,7 +265,7 @@ internal sealed class EditorWorkspaceRunTests
                     operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             schedulingPolicy: new SchedulingPolicy(1, 1),
             operations: operations);
         var runningWorkspace = await CreateClockWorkspace(workspace, cancellationToken);
@@ -358,7 +358,7 @@ internal sealed class EditorWorkspaceRunTests
                     operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(operations);
         var controlled = await CreateClockWorkspace(workspace, cancellationToken);
         var beforeRun = await Read(workspace, controlled, cancellationToken);
 
@@ -415,7 +415,7 @@ internal sealed class EditorWorkspaceRunTests
                     operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(operations);
         var controlled = await CreateClockWorkspace(workspace, cancellationToken);
         var beforeRun = await Read(workspace, controlled, cancellationToken);
         var started = (RunStarted)await workspace.DispatchAsync(
@@ -485,7 +485,7 @@ internal sealed class EditorWorkspaceRunTests
                 }
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(operations);
         var controlled = await CreateClockWorkspace(workspace, cancellationToken);
         var beforeRun = await Read(workspace, controlled, cancellationToken);
 
@@ -544,7 +544,7 @@ internal sealed class EditorWorkspaceRunTests
                     operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(operations);
         var controlled = await CreateClockWorkspace(workspace, cancellationToken);
         var initial = await Read(workspace, controlled, cancellationToken);
         var first = (RunStarted)await workspace.DispatchAsync(
@@ -606,7 +606,7 @@ internal sealed class EditorWorkspaceRunTests
         CancellationToken cancellationToken)
     {
         var advanceGate = new BlockingOperationGate();
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             BlockAdvances(advanceGate));
         var controlled = await CreateClockWorkspace(workspace, cancellationToken);
         var beforeRun = await Read(workspace, controlled, cancellationToken);
@@ -659,7 +659,7 @@ internal sealed class EditorWorkspaceRunTests
         CancellationToken cancellationToken)
     {
         var advanceGate = new BlockingOperationGate();
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             BlockAdvances(advanceGate));
         var controlled = await CreateClockWorkspace(workspace, cancellationToken);
         var beforeRun = await Read(workspace, controlled, cancellationToken);
@@ -724,7 +724,7 @@ internal sealed class EditorWorkspaceRunTests
                     operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(operations);
         var controlled = await CreateClockWorkspace(workspace, cancellationToken);
         var initial = await Read(workspace, controlled, cancellationToken);
         var started = (RunStarted)await workspace.DispatchAsync(
@@ -771,7 +771,7 @@ internal sealed class EditorWorkspaceRunTests
     {
         var runningAdvanceGate = new BlockingOperationGate();
         var queuedCommandGate = new BlockingOperationGate();
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             BlockFirstTwoAdvances(runningAdvanceGate, queuedCommandGate),
             schedulingPolicy: new SchedulingPolicy(1, 4));
         var running = await CreateClockWorkspace(workspace, cancellationToken);
@@ -854,7 +854,7 @@ internal sealed class EditorWorkspaceRunTests
                     operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations,
             workspacePolicy: new WorkspacePolicy(
                 policyId: "test-workspace",
@@ -894,7 +894,7 @@ internal sealed class EditorWorkspaceRunTests
     public async Task DispatchAsync_HotSwapSession_PublishesMigratedArtifactAndProbeEvidence(
         CancellationToken cancellationToken)
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
         var controlled = await CreateInputWorkspace(workspace, cancellationToken);
         var beforeEdit = await Read(workspace, controlled, cancellationToken);
@@ -957,7 +957,7 @@ internal sealed class EditorWorkspaceRunTests
             detachedRetention: TimeSpan.FromMinutes(30),
             hotSwapPeakBytes: 320,
             durableDisplayNameLimits: DurableDisplayNameLimits.Default);
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             policy);
         var controlled = await CreateInputWorkspace(workspace, cancellationToken);
@@ -1054,7 +1054,7 @@ internal sealed class EditorWorkspaceRunTests
                         request.TracePolicy),
                     operationCancellationToken),
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(operations);
         var controlled = await CreateInputWorkspace(workspace, cancellationToken);
         var beforeEdit = await Read(workspace, controlled, cancellationToken);
         await Apply(
