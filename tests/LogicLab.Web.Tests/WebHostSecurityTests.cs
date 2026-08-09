@@ -22,17 +22,19 @@ internal sealed class LogicLabWebFactory : TestWebApplicationFactory<Program>
 [ClassDataSource<LogicLabWebFactory>(Shared = SharedType.PerTestSession)]
 internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
 {
-    private const string ExpectedContentSecurityPolicy =
-        "default-src 'self'; "
-        + "base-uri 'self'; "
-        + "connect-src 'self'; "
-        + "font-src 'self'; "
-        + "form-action 'self'; "
-        + "frame-ancestors 'none'; "
-        + "img-src 'self' data:; "
-        + "object-src 'none'; "
-        + "script-src 'self'; "
-        + "style-src 'self' 'unsafe-inline'";
+    private static readonly string[] ExpectedContentSecurityPolicyDirectives =
+    [
+        "base-uri 'self'",
+        "connect-src 'self'",
+        "default-src 'self'",
+        "font-src 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+        "img-src 'self' data:",
+        "object-src 'none'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+    ];
 
     [Test]
     [Arguments("/editor", HttpStatusCode.OK)]
@@ -46,12 +48,14 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         using var client = factory.CreateClient();
         using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
         var contentSecurityPolicy = Header(response, "Content-Security-Policy");
+        var contentSecurityPolicyDirectives = CanonicalizeContentSecurityPolicy(
+            contentSecurityPolicy);
 
         using (Assert.Multiple())
         {
             await Assert.That(response.StatusCode).IsEqualTo(expectedStatus);
-            await Assert.That(contentSecurityPolicy)
-                .IsEqualTo(ExpectedContentSecurityPolicy);
+            await Assert.That(contentSecurityPolicyDirectives)
+                .IsEquivalentTo(ExpectedContentSecurityPolicyDirectives);
             await Assert.That(Header(response, "Cross-Origin-Opener-Policy"))
                 .IsEqualTo("same-origin");
             await Assert.That(Header(response, "Permissions-Policy"))
@@ -60,7 +64,6 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
             await Assert.That(Header(response, "X-Frame-Options")).IsEqualTo("DENY");
             await Assert.That(Header(response, "Referrer-Policy")).IsEqualTo("no-referrer");
             await Assert.That(contentSecurityPolicy).DoesNotContain("*");
-            await Assert.That(contentSecurityPolicy).Contains("frame-ancestors 'none'");
         }
     }
 
@@ -99,6 +102,22 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     private static string Header(HttpResponseMessage response, string name)
     {
         return string.Join(' ', response.Headers.GetValues(name));
+    }
+
+    private static string[] CanonicalizeContentSecurityPolicy(string policy)
+    {
+        return
+        [
+            .. policy.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(directive =>
+                    directive.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                .ToDictionary(
+                    parts => parts[0],
+                    parts => parts[1..],
+                    StringComparer.Ordinal)
+                .Select(pair =>
+                    $"{pair.Key} {string.Join(' ', pair.Value.Order(StringComparer.Ordinal))}"),
+        ];
     }
 
     private sealed class WebSocketHandshakeCapture
