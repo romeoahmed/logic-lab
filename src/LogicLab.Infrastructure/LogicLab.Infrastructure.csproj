@@ -1,8 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-  </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\LogicLab.Application\LogicLab.Application.csproj" />
     <ProjectReference Include="..\LogicLab.Domain\LogicLab.Domain.csproj" />
