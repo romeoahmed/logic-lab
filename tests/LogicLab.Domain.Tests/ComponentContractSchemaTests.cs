@@ -1,7 +1,10 @@
 using System.Collections.ObjectModel;
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Domain.Tests;
 
@@ -148,6 +151,65 @@ internal sealed class ComponentContractSchemaTests
         }
     }
 
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(ComponentContractArbitraries) })]
+    public Property ResolvePorts_TopologySplit_ValidSlicesMatchOrderedPortModel(
+        SplitPortCase sample)
+    {
+        var contract = RequireCoreContract("topology.split");
+        var resolution = contract.ResolvePorts(
+        [
+            new ComponentParameterBinding(
+                "width",
+                new Unsigned32ParameterValue(sample.Width)),
+            new ComponentParameterBinding(
+                "slices",
+                new SlicesParameterValue(sample.Slices)),
+        ]);
+        var actual = Materialize(resolution)
+            .Select(static port => (port.Id, port.Direction, port.Width));
+        var expected = new[]
+        {
+            ("D", PortDirection.Input, sample.Width),
+        }.Concat(sample.Slices.Select((slice, index) =>
+            ($"Q{index}", PortDirection.Output, slice.Length)));
+
+        return (resolution.TryGetPortCount(out var portCount)
+                && portCount == checked((ulong)sample.Slices.Length + 1)
+                && actual.SequenceEqual(expected))
+            .Label("Split Ports match the ordered slice model")
+            .Collect($"slices={sample.Slices.Length}")
+            .Collect($"width={sample.Width}");
+    }
+
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(ComponentContractArbitraries) })]
+    public Property ResolvePorts_TopologyConcat_ValidWidthsMatchOrderedPortModel(
+        ConcatPortCase sample)
+    {
+        var contract = RequireCoreContract("topology.concat");
+        var resolution = contract.ResolvePorts(
+        [
+            new ComponentParameterBinding(
+                "inputWidths",
+                new WidthsParameterValue(sample.Widths)),
+        ]);
+        var actual = Materialize(resolution)
+            .Select(static port => (port.Id, port.Direction, port.Width));
+        var expected = sample.Widths.Select((width, index) =>
+                ($"D{index}", PortDirection.Input, width))
+            .Append(("Q", PortDirection.Output, sample.Widths.Aggregate(
+                0U,
+                static (sum, width) => checked(sum + width))));
+
+        return (resolution.TryGetPortCount(out var portCount)
+                && portCount == checked((ulong)sample.Widths.Length + 1)
+                && actual.SequenceEqual(expected))
+            .Label("Concat Ports match the ordered width model")
+            .Collect($"inputs={sample.Widths.Length}")
+            .Collect($"width={sample.Widths.Aggregate(
+                0UL,
+                static (sum, width) => checked(sum + width))}");
+    }
+
     [Test]
     public async Task FindContract_DynamicTopologyContracts_ExposeCanonicalTemplatesAndDigests()
     {
@@ -264,6 +326,13 @@ internal sealed class ComponentContractSchemaTests
             new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId));
         var schema = (await Assert.That(contract).IsTypeOf<ComponentContractSchema>())!;
         return schema;
+    }
+
+    private static ComponentContractSchema RequireCoreContract(string contractId)
+    {
+        return CoreLibrarySchema.FindContract(
+            new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId))
+            ?? throw new InvalidOperationException($"Missing contract {contractId}.");
     }
 
     private static ReadOnlyCollection<ResolvedComponentPortSchema> Materialize(
