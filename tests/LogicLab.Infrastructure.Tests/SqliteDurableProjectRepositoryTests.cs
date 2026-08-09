@@ -11,13 +11,6 @@ namespace LogicLab.Infrastructure.Tests;
 
 internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
 {
-    private static readonly string[] ExpectedRetainedClientIntentIds =
-    [
-        "save-1",
-        "save-2",
-        "save-3",
-    ];
-
     private readonly string databasePath = Path.Combine(
         Path.GetTempPath(),
         $"logiclab-infrastructure-tests-{Guid.CreateVersion7():N}.db");
@@ -261,15 +254,13 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         var recovered = (await Assert.That(second)
             .IsTypeOf<DurableProjectClaimed>())!;
         await using var context = await factory.CreateDbContextAsync();
-        var projects = await context.DurableProjects.ToArrayAsync();
-        var persisted = projects[0];
+        var persisted = await context.DurableProjects.SingleAsync();
         using (Assert.Multiple())
         {
             await Assert.That(firstRejected.Code)
                 .IsEqualTo("idempotency_window_expired");
             await Assert.That(secondAttachment.Generation)
                 .IsEqualTo(firstAttachment.Generation + 1);
-            await Assert.That(projects).Count().IsEqualTo(1);
             await Assert.That(recovered.DurableProjectId.Value)
                 .IsEqualTo(persisted.Id);
             await Assert.That(recovered.DisplayName.Value)
@@ -501,7 +492,7 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             .ToArrayAsync();
 
         await Assert.That(retainedClientIntentIds).IsEquivalentTo(
-            ExpectedRetainedClientIntentIds,
+            ["save-1", "save-2", "save-3"],
             CollectionOrdering.Matching);
     }
 
