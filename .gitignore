@@ -68,6 +68,12 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 
+# Local Logic Lab durable SQLite database and sidecars
+logiclab.db
+logiclab.db-journal
+logiclab.db-wal
+logiclab.db-shm
+
 # Tye
 .tye/
 
