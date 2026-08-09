@@ -93,6 +93,8 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
         {
             Id = request.DurableProjectId.Value,
             ClaimWorkspaceId = request.ClaimWorkspaceId.Value,
+            InitialProjectRevisionId = request.ProjectRevision.RevisionId.Value,
+            InitialDurableVersion = request.InitialDurableVersion.Value,
             SubjectId = request.SubjectId.Value,
             DisplayName = request.DisplayName.Value,
             DisplayNameSortKey = Encoding.UTF8.GetBytes(request.DisplayName.Value),
@@ -180,9 +182,9 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
         }
 
         var durableProjectId = new DurableProjectId(project.Id);
-        var durableVersion = new DurableVersion(project.DurableVersion);
+        var durableVersion = new DurableVersion(project.InitialDurableVersion);
         var projectRevisionId = new ProjectRevisionId(
-            project.CurrentProjectRevisionId);
+            project.InitialProjectRevisionId);
         context.DurableCommandReceipts.Add(CreateStoredReceipt(
             request.ReceiptKey,
             ClaimCommand,

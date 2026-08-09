@@ -101,6 +101,98 @@ internal sealed class EditorWorkspaceRunTests
     }
 
     [Test, Timeout(30_000)]
+    public async Task DispatchAsync_ClaimRevokesPendingPauseFromDifferentCaller(
+        CancellationToken cancellationToken)
+    {
+        var runningAdvanceGate = new BlockingOperationGate();
+        var queuedCommandGate = new BlockingOperationGate();
+        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+            BlockFirstTwoAdvances(runningAdvanceGate, queuedCommandGate),
+            schedulingPolicy: new SchedulingPolicy(1, 4),
+            durableProjectRepository: new ClaimingDurableProjectRepository());
+        var running = await CreateClockWorkspace(workspace, cancellationToken);
+        var blocker = await CreateInputWorkspace(workspace, cancellationToken);
+        var beforeRun = await Read(workspace, running, cancellationToken);
+        var started = (RunStarted)await workspace.DispatchAsync(
+            new StartRun(
+                Command(running, "run-before-claim"),
+                EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
+            cancellationToken);
+        await runningAdvanceGate.Started.WaitAsync(cancellationToken);
+        var blockerProjection = await Read(workspace, blocker, cancellationToken);
+        var queuedCommand = workspace.DispatchAsync(
+            new StepSession(
+                Command(blocker, "block-run-continuation"),
+                EditorWorkspaceTestDriver.SessionMutation(blockerProjection)),
+            cancellationToken);
+
+        Task<WorkspaceCommandOutcome>? unauthorizedPause = null;
+        Task<WorkspaceCommandOutcome>? ownerPause = null;
+        WorkspaceCommandOutcome? claim = null;
+        try
+        {
+            runningAdvanceGate.Release();
+            await queuedCommandGate.Started.WaitAsync(cancellationToken);
+
+            unauthorizedPause = workspace.DispatchAsync(
+                new PauseRun(
+                    Command(running, "anonymous-pause-before-claim"),
+                    new RunControlPrecondition(
+                        beforeRun.Simulation!.SessionId,
+                        started.RunGeneration)),
+                cancellationToken);
+            await Assert.That(unauthorizedPause.IsCompleted).IsFalse();
+
+            var owner = new AuthenticatedWorkspaceCaller(
+                new AuthenticatedSubjectId("claim-owner"));
+            claim = await workspace.DispatchAsync(
+                new ClaimSandbox(
+                    new WorkspaceCommandContext(
+                        running.WorkspaceId,
+                        running.Attached.AttachmentId,
+                        running.Attached.Generation,
+                        new ClientIntentId("claim-running-sandbox"),
+                        owner),
+                    new ClaimPrecondition(beforeRun.ProjectRevision.RevisionId),
+                    "Claimed running project"),
+                cancellationToken);
+            ownerPause = workspace.DispatchAsync(
+                new PauseRun(
+                    new WorkspaceCommandContext(
+                        running.WorkspaceId,
+                        running.Attached.AttachmentId,
+                        running.Attached.Generation,
+                        new ClientIntentId("owner-pause-after-claim"),
+                        owner),
+                    new RunControlPrecondition(
+                        beforeRun.Simulation.SessionId,
+                        started.RunGeneration)),
+                cancellationToken);
+        }
+        finally
+        {
+            runningAdvanceGate.Release();
+            queuedCommandGate.Release();
+        }
+
+        _ = await queuedCommand.WaitAsync(cancellationToken);
+        Assert.NotNull(unauthorizedPause);
+        Assert.NotNull(ownerPause);
+        var unauthorized = (await Assert.That(
+                await unauthorizedPause.WaitAsync(cancellationToken))
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        var paused = (await Assert.That(await ownerPause.WaitAsync(cancellationToken))
+            .IsTypeOf<RunPaused>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(claim).IsTypeOf<DurableProjectClaimed>();
+            await Assert.That(unauthorized.Code).IsEqualTo("workspace_not_found");
+            await Assert.That(paused.Reason).IsEqualTo(RunPauseReason.UserRequested);
+            await Assert.That(paused.RunGeneration).IsEqualTo(started.RunGeneration);
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task DispatchAsync_PauseBoundaryPublishesBeforeQueuedReattach(
         CancellationToken cancellationToken)
     {
@@ -679,33 +771,8 @@ internal sealed class EditorWorkspaceRunTests
     {
         var runningAdvanceGate = new BlockingOperationGate();
         var queuedCommandGate = new BlockingOperationGate();
-        var advanceCount = 0;
-        var production = WorkspaceModuleOperations.Production;
-        var operations = production with
-        {
-            ExecuteSimulation = (handle, command, operationCancellationToken) =>
-            {
-                if (command is AdvanceToNextQuiescentBoundary)
-                {
-                    var ordinal = Interlocked.Increment(ref advanceCount);
-                    if (ordinal == 1)
-                    {
-                        runningAdvanceGate.Block(operationCancellationToken);
-                    }
-                    else if (ordinal == 2)
-                    {
-                        queuedCommandGate.Block(operationCancellationToken);
-                    }
-                }
-
-                return production.ExecuteSimulation(
-                    handle,
-                    command,
-                    operationCancellationToken);
-            },
-        };
         await using var workspace = EditorWorkspaceFactory.CreateForTesting(
-            operations,
+            BlockFirstTwoAdvances(runningAdvanceGate, queuedCommandGate),
             schedulingPolicy: new SchedulingPolicy(1, 4));
         var running = await CreateClockWorkspace(workspace, cancellationToken);
         var blocker = await CreateInputWorkspace(workspace, cancellationToken);
@@ -1049,6 +1116,37 @@ internal sealed class EditorWorkspaceRunTests
         };
     }
 
+    private static WorkspaceModuleOperations BlockFirstTwoAdvances(
+        BlockingOperationGate firstAdvanceGate,
+        BlockingOperationGate secondAdvanceGate)
+    {
+        var advanceCount = 0;
+        var production = WorkspaceModuleOperations.Production;
+        return production with
+        {
+            ExecuteSimulation = (handle, command, operationCancellationToken) =>
+            {
+                if (command is AdvanceToNextQuiescentBoundary)
+                {
+                    var ordinal = Interlocked.Increment(ref advanceCount);
+                    if (ordinal == 1)
+                    {
+                        firstAdvanceGate.Block(operationCancellationToken);
+                    }
+                    else if (ordinal == 2)
+                    {
+                        secondAdvanceGate.Block(operationCancellationToken);
+                    }
+                }
+
+                return production.ExecuteSimulation(
+                    handle,
+                    command,
+                    operationCancellationToken);
+            },
+        };
+    }
+
     private static async Task<ControlledWorkspace> CreateClockWorkspace(
         IEditorWorkspace workspace,
         CancellationToken cancellationToken)
@@ -1225,6 +1323,37 @@ internal sealed class EditorWorkspaceRunTests
     }
 
     private sealed record ControlledWorkspace(WorkspaceId WorkspaceId, Attached Attached);
+
+    private sealed class ClaimingDurableProjectRepository : IDurableProjectRepository
+    {
+        public Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
+            DurableProjectClaimRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<DurableProjectClaimRepositoryOutcome>(
+                new DurableProjectClaimStored(
+                    request.DurableProjectId,
+                    request.InitialDurableVersion,
+                    request.ProjectRevision.RevisionId,
+                    request.DisplayName));
+        }
+
+        public Task<DurableProjectClaimRepositoryOutcome?> TryReadClaimReceiptAsync(
+            DurableProjectClaimRequest request,
+            CancellationToken cancellationToken)
+            => Task.FromResult<DurableProjectClaimRepositoryOutcome?>(null);
+
+        public Task<DurableProjectSaveRepositoryOutcome> SaveAsync(
+            DurableProjectSaveRequest request,
+            CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task<DurableProjectSaveRepositoryOutcome?> TryReadSaveReceiptAsync(
+            DurableProjectSaveRequest request,
+            CancellationToken cancellationToken)
+            => Task.FromResult<DurableProjectSaveRepositoryOutcome?>(null);
+    }
 
     private static class SequentialTestParameters
     {

@@ -118,6 +118,18 @@ namespace LogicLab.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("claim_workspace_id");
 
+                    b.Property<string>("InitialDurableVersion")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("initial_durable_version");
+
+                    b.Property<string>("InitialProjectRevisionId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("initial_project_revision_id");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(256)

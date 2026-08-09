@@ -324,6 +324,7 @@ internal sealed partial class EditorWorkspace
         WorkspaceCommandOutcome Outcome);
 
     private sealed record PendingIntent(
+        WorkspaceCaller Caller,
         string CanonicalIdentity,
         TaskCompletionSource<WorkspaceCommandOutcome> Completion);
 

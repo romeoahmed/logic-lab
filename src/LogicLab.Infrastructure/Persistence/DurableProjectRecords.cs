@@ -6,6 +6,10 @@ internal sealed class DurableProjectRecord
 
     public required string ClaimWorkspaceId { get; set; }
 
+    public required string InitialProjectRevisionId { get; set; }
+
+    public required string InitialDurableVersion { get; set; }
+
     public required string SubjectId { get; set; }
 
     public required string DisplayName { get; set; }
