@@ -16,8 +16,8 @@
     <!-- EF Core SQLite 10.0.10 still permits vulnerable 2.1.11. Promote only to
          the compatible 2.x security release; remove when EF raises its floor. -->
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
-    <PackageVersion Include="TUnit" Version="1.63.25" />
-    <PackageVersion Include="TUnit.AspNetCore" Version="1.63.25" />
-    <PackageVersion Include="TUnit.FsCheck" Version="1.63.25" />
+    <PackageVersion Include="TUnit" Version="1.64.0" />
+    <PackageVersion Include="TUnit.AspNetCore" Version="1.64.0" />
+    <PackageVersion Include="TUnit.FsCheck" Version="1.64.0" />
   </ItemGroup>
 </Project>
