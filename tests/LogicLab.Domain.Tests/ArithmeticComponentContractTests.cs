@@ -1,6 +1,10 @@
+using System.Numerics;
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Domain.Tests;
 
@@ -41,31 +45,53 @@ internal sealed class ArithmeticComponentContractTests
             .IsEquivalentTo(expected, CollectionOrdering.Matching);
     }
 
-    [Test]
-    [Arguments(1U, 1U)]
-    [Arguments(2U, 1U)]
-    [Arguments(3U, 2U)]
-    [Arguments(4U, 2U)]
-    [Arguments(5U, 3U)]
-    [Arguments(uint.MaxValue, 32U)]
-    public async Task ResolvePorts_Shift_ComputesCheckedAmountWidth(
-        uint width,
-        uint expectedAmountWidth)
+    [Test, FsCheckProperty]
+    public Property ResolvePorts_Shift_AnyPositiveIntWidth_ComputesMinimumAmountWidth(
+        PositiveInt positiveWidth)
     {
+        var width = (uint)positiveWidth.Get;
+        var expectedAmountWidth = width == 1
+            ? 1U
+            : (uint)BitOperations.Log2(width - 1) + 1;
         var ports = Resolve("logic.shift",
         [
             new ComponentParameterBinding("width", new Unsigned32ParameterValue(width)),
             new ComponentParameterBinding("direction", new ChoiceParameterValue("left")),
         ]);
+        var actualAmountWidth = ports.Single(port => port.Id == "AMOUNT").Width;
 
-        await Assert.That(ports.Select(port => (port.Id, port.Direction, port.Width)))
-            .IsEquivalentTo(
+        return ports.Select(port => (port.Id, port.Direction, port.Width))
+            .SequenceEqual(
                 [
                     ("D", PortDirection.Input, width),
                     ("AMOUNT", PortDirection.Input, expectedAmountWidth),
                     ("Q", PortDirection.Output, width),
-                ],
-                CollectionOrdering.Matching);
+                ])
+            .Label(
+                $"width={width}, expected amount width={expectedAmountWidth}, " +
+                $"actual={actualAmountWidth}")
+            .Collect(width switch
+            {
+                1 => "width=1",
+                <= byte.MaxValue => "width=2..255",
+                <= ushort.MaxValue => "width=256..65535",
+                _ => "width>=65536",
+            });
+    }
+
+    [Test]
+    public async Task ResolvePorts_Shift_UInt32Maximum_UsesThirtyTwoBitAmount()
+    {
+        var ports = Resolve("logic.shift",
+        [
+            new ComponentParameterBinding(
+                "width",
+                new Unsigned32ParameterValue(uint.MaxValue)),
+            new ComponentParameterBinding("direction", new ChoiceParameterValue("right")),
+        ]);
+
+        await Assert.That(ports.Single(port => port.Id == "AMOUNT").Width)
+            .IsEqualTo(32U);
     }
 
     [Test]

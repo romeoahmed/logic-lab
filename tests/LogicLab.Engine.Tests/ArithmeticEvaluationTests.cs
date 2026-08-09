@@ -168,52 +168,34 @@ internal sealed class ArithmeticEvaluationTests
         }
     }
 
-    [Test]
-    [Arguments(true,
-        new[] { LogicValue.Zero, LogicValue.One, LogicValue.One, LogicValue.Zero })]
-    [Arguments(false,
-        new[] { LogicValue.One, LogicValue.Zero, LogicValue.One, LogicValue.Zero })]
-    public async Task LogicalShift_KnownAmount_ZeroFills(
-        bool shiftLeft,
-        LogicValue[] expected)
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property LogicalShift_FourStateAmount_MatchesScalarOracle(
+        LogicVectorCase sample,
+        byte encodedAmount,
+        byte unknownMask,
+        byte amountWidthSeed,
+        bool shiftLeft)
     {
-        var result = ArithmeticEvaluation.LogicalShift(
-            Vector(LogicValue.One, LogicValue.One, LogicValue.Zero, LogicValue.One),
-            Vector(LogicValue.One, LogicValue.Zero),
-            shiftLeft ? LogicalShiftDirection.Left : LogicalShiftDirection.Right,
+        var amountWidth = 1 + amountWidthSeed % 8;
+        var amount = CreateShiftAmount(encodedAmount, unknownMask, amountWidth);
+        var direction = shiftLeft
+            ? LogicalShiftDirection.Left
+            : LogicalShiftDirection.Right;
+        var expected = ScalarShiftOracle(sample.Values, amount, direction);
+        var actual = ArithmeticEvaluation.LogicalShift(
+            Vector(sample.Values),
+            Vector(amount),
+            direction,
             CancellationToken.None);
 
-        await Assert.That(Values(result)).IsEquivalentTo(
-            expected,
-            CollectionOrdering.Matching);
-    }
-
-    [Test]
-    public async Task LogicalShift_KnownAmountAtWidth_ProducesZero()
-    {
-        var result = ArithmeticEvaluation.LogicalShift(
-            Vector(LogicValue.One, LogicValue.One, LogicValue.One),
-            Vector(LogicValue.One, LogicValue.One),
-            LogicalShiftDirection.Left,
-            CancellationToken.None);
-
-        await Assert.That(Values(result)).IsEquivalentTo(
-            [LogicValue.Zero, LogicValue.Zero, LogicValue.Zero],
-            CollectionOrdering.Matching);
-    }
-
-    [Test]
-    public async Task LogicalShift_UnknownAmount_MergesEveryReachableAmount()
-    {
-        var result = ArithmeticEvaluation.LogicalShift(
-            Vector(LogicValue.One, LogicValue.One, LogicValue.Zero),
-            Vector(LogicValue.Z, LogicValue.Zero),
-            LogicalShiftDirection.Left,
-            CancellationToken.None);
-
-        await Assert.That(Values(result)).IsEquivalentTo(
-            [LogicValue.X, LogicValue.One, LogicValue.X],
-            CollectionOrdering.Matching);
+        return LogicVectorTestData.Matches(actual, expected)
+            .Label(LogicVectorTestData.MismatchLabel(actual, expected))
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width))
+            .Collect(shiftLeft ? "left" : "right")
+            .Collect(amount.Any(value => value is LogicValue.X or LogicValue.Z)
+                ? "unknown amount"
+                : "known amount")
+            .Collect($"amount width={amountWidth}");
     }
 
     [Test]
@@ -244,48 +226,6 @@ internal sealed class ArithmeticEvaluationTests
     }
 
     [Test]
-    [Arguments(true)]
-    [Arguments(false)]
-    public async Task LogicalShift_UnknownAmountAcrossPackedWords_MatchesScalarOracle(
-        bool shiftLeft)
-    {
-        var data = Enumerable.Range(0, 130)
-            .Select(index => (index % 4) switch
-            {
-                0 => LogicValue.Zero,
-                1 => LogicValue.One,
-                2 => LogicValue.X,
-                _ => LogicValue.Z,
-            })
-            .ToArray();
-        var amount = new[]
-        {
-            LogicValue.X,
-            LogicValue.Zero,
-            LogicValue.Zero,
-            LogicValue.Zero,
-            LogicValue.Zero,
-            LogicValue.Zero,
-            LogicValue.X,
-            LogicValue.Zero,
-        };
-        var direction = shiftLeft
-            ? LogicalShiftDirection.Left
-            : LogicalShiftDirection.Right;
-
-        var result = ArithmeticEvaluation.LogicalShift(
-            Vector(data),
-            Vector(amount),
-            direction,
-            CancellationToken.None);
-        var expected = ScalarShiftOracle(data, amount, direction);
-
-        await Assert.That(Values(result)).IsEquivalentTo(
-            expected,
-            CollectionOrdering.Matching);
-    }
-
-    [Test]
     public async Task Add_MismatchedWidths_RejectsAtKernelBoundary()
     {
         await Assert.That(() => ArithmeticEvaluation.Add(
@@ -299,6 +239,22 @@ internal sealed class ArithmeticEvaluationTests
     private static LogicValue[] Values(LogicVector vector)
     {
         return [.. Enumerable.Range(0, vector.Width).Select(index => vector[index])];
+    }
+
+    private static LogicValue[] CreateShiftAmount(
+        byte encodedAmount,
+        byte unknownMask,
+        int width)
+    {
+        return [.. Enumerable.Range(0, width).Select(bit => (
+            Unknown: ((unknownMask >> bit) & 1) != 0,
+            One: ((encodedAmount >> bit) & 1) != 0) switch
+        {
+            (false, false) => LogicValue.Zero,
+            (false, true) => LogicValue.One,
+            (true, false) => LogicValue.X,
+            (true, true) => LogicValue.Z,
+        })];
     }
 
     private static LogicValue[] ScalarShiftOracle(
