@@ -1,5 +1,6 @@
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Application.Tests;
 
@@ -546,7 +547,16 @@ internal sealed partial class DurableWorkspaceTests
             projection,
             differentSubject);
 
-        await Assert.That(expired).IsEqualTo(missing);
+        using (Assert.Multiple())
+        {
+            await Assert.That(expired.OutcomeType).IsEqualTo(missing.OutcomeType);
+            await Assert.That(expired.Code).IsEqualTo(missing.Code);
+            await Assert.That(expired.DiagnosticCodes).IsEquivalentTo(
+                missing.DiagnosticCodes,
+                CollectionOrdering.Matching);
+            await Assert.That(expired.RetryDispositionType)
+                .IsEqualTo(missing.RetryDispositionType);
+        }
     }
 
     private static async Task<WorkspaceAccessObservation> ObserveAccess(
@@ -644,10 +654,10 @@ internal sealed partial class DurableWorkspaceTests
     }
 
     private sealed record WorkspaceAccessObservation(
-        string OutcomeType,
+        Type OutcomeType,
         string Code,
-        string Diagnostics,
-        string? RetryDisposition)
+        IReadOnlyList<string> DiagnosticCodes,
+        Type? RetryDispositionType)
     {
         public static WorkspaceAccessObservation From(
             object outcome,
@@ -656,10 +666,10 @@ internal sealed partial class DurableWorkspaceTests
             RetryDisposition? retryDisposition)
         {
             return new WorkspaceAccessObservation(
-                outcome.GetType().Name,
+                outcome.GetType(),
                 code,
-                string.Join('\n', diagnosticCodes),
-                retryDisposition?.GetType().Name);
+                diagnosticCodes,
+                retryDisposition?.GetType());
         }
     }
 }
