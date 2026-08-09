@@ -83,7 +83,7 @@ internal sealed partial class EditorWorkspace
         }
 
         Retire(expired);
-        return WorkspaceAcquisition.Rejected(WorkspaceOutcomeReasons.WorkspaceExpired);
+        return WorkspaceAcquisition.Rejected(WorkspaceOutcomeReasons.WorkspaceNotFound);
     }
 
     private string? ReserveWorkspace(out List<WorkspaceState> retired)
@@ -288,9 +288,8 @@ internal sealed partial class EditorWorkspace
 
         public bool IsIdempotencyWindowClosed { get; set; }
 
-        public AuthenticatedSubjectId? PendingClaimSubjectId { get; set; }
-
-        public DurableWorkspaceState? Durable { get; set; }
+        public WorkspaceDurabilityState Durability { get; set; } =
+            SandboxWorkspaceState.Instance;
 
         public CompilationArtifact? Artifact { get; set; }
 
@@ -328,12 +327,26 @@ internal sealed partial class EditorWorkspace
         string CanonicalIdentity,
         TaskCompletionSource<WorkspaceCommandOutcome> Completion);
 
+    private abstract class WorkspaceDurabilityState(
+        AuthenticatedSubjectId? ownerSubjectId)
+    {
+        public AuthenticatedSubjectId? OwnerSubjectId { get; } = ownerSubjectId;
+    }
+
+    private sealed class SandboxWorkspaceState() : WorkspaceDurabilityState(null)
+    {
+        public static SandboxWorkspaceState Instance { get; } = new();
+    }
+
+    private sealed class PendingDurableClaimState(
+        AuthenticatedSubjectId subjectId) : WorkspaceDurabilityState(subjectId);
+
     private sealed class DurableWorkspaceState(
         DurableProjectId durableProjectId,
         AuthenticatedSubjectId subjectId,
         DurableDisplayName displayName,
         DurableVersion observedDurableVersion,
-        ProjectRevisionId savedProjectRevisionId)
+        ProjectRevisionId savedProjectRevisionId) : WorkspaceDurabilityState(subjectId)
     {
         public DurableProjectId DurableProjectId { get; } = durableProjectId;
 

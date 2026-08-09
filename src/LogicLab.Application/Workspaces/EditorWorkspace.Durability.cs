@@ -52,9 +52,9 @@ internal sealed partial class EditorWorkspace
                         {
                             if (command is ClaimSandbox)
                             {
-                                state.PendingClaimSubjectId =
+                                state.Durability = new PendingDurableClaimState(
                                     ((AuthenticatedWorkspaceCaller)command.Context.Caller)
-                                    .SubjectId;
+                                    .SubjectId);
                             }
 
                             publication = ReserveContextualIntentUnderLock(
@@ -120,7 +120,7 @@ internal sealed partial class EditorWorkspace
 
         if (command is ClaimSandbox claim)
         {
-            if (state.Durable is not null
+            if (state.Durability is DurableWorkspaceState
                 || claim.Precondition.ProjectRevisionId != state.Revision.RevisionId)
             {
                 return Reject(
@@ -136,7 +136,7 @@ internal sealed partial class EditorWorkspace
         }
 
         var save = (SaveDurable)command;
-        if (state.Durable is not { } durable
+        if (state.Durability is not DurableWorkspaceState durable
             || durable.SubjectId != caller.SubjectId)
         {
             return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
@@ -232,7 +232,7 @@ internal sealed partial class EditorWorkspace
         string canonicalIdentity,
         CancellationToken cancellationToken)
     {
-        var durable = state.Durable!;
+        var durable = (DurableWorkspaceState)state.Durability;
         var nextVersion = state.Revision.RevisionId == durable.SavedProjectRevisionId
             ? durable.ObservedDurableVersion
             : DurableVersion.Create();
@@ -351,8 +351,7 @@ internal sealed partial class EditorWorkspace
             && outcome is DurableProjectClaimed claimed)
         {
             var caller = (AuthenticatedWorkspaceCaller)command.Context.Caller;
-            state.PendingClaimSubjectId = null;
-            state.Durable = new DurableWorkspaceState(
+            state.Durability = new DurableWorkspaceState(
                 claimed.DurableProjectId,
                 caller.SubjectId,
                 claimed.DisplayName,
@@ -364,11 +363,12 @@ internal sealed partial class EditorWorkspace
 
         if (command is ClaimSandbox)
         {
-            state.PendingClaimSubjectId = null;
+            state.Durability = SandboxWorkspaceState.Instance;
             return;
         }
 
-        if (command is not SaveDurable || state.Durable is not { } durable)
+        if (command is not SaveDurable
+            || state.Durability is not DurableWorkspaceState durable)
         {
             return;
         }
@@ -477,7 +477,7 @@ internal sealed partial class EditorWorkspace
     private static WorkspaceDurabilityProjection ProjectDurability(
         WorkspaceState state)
     {
-        if (state.Durable is not { } durable)
+        if (state.Durability is not DurableWorkspaceState durable)
         {
             return SandboxWorkspaceDurabilityProjection.Instance;
         }

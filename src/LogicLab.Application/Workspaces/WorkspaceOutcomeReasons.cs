@@ -5,7 +5,6 @@ namespace LogicLab.Application.Workspaces;
 internal static class WorkspaceOutcomeReasons
 {
     public const string AuthenticationRequired = "authentication_required";
-    public const string Forbidden = "forbidden";
     public const string HotSwapIncompatible = "hot_swap_incompatible";
     public const string CompilationGenerationUnavailable =
         "compilation_generation_unavailable";
@@ -20,6 +19,7 @@ internal static class WorkspaceOutcomeReasons
     public const string StaleWorkspaceAttachment = "stale_workspace_attachment";
     public const string IdempotencyKeyConflict = "idempotency_key_conflict";
     public const string IdempotencyWindowExpired = "idempotency_window_expired";
+    public const string DurableClaimUnresolved = "durable_claim_unresolved";
     public const string BuildFingerprintMismatch = "build_fingerprint_mismatch";
     public const string SessionPreconditionFailed = "session_precondition_failed";
     public const string WorkspaceAdmissionRejected = "workspace_admission_rejected";

@@ -33,11 +33,12 @@ internal sealed class EditorWorkspaceRetentionTests
             CancellationToken.None);
 
         var mismatchRejection = await IsType<AttachRejected>(mismatch);
+        var currentRejection = await IsType<AttachRejected>(current);
         using (Assert.Multiple())
         {
             await Assert.That(mismatchRejection.Code)
                 .IsEqualTo("build_fingerprint_mismatch");
-            await Assert.That(current).IsTypeOf<Expired>();
+            await Assert.That(currentRejection.Code).IsEqualTo("workspace_not_found");
         }
     }
 
@@ -180,12 +181,12 @@ internal sealed class EditorWorkspaceRetentionTests
             CancellationToken.None);
 
         var staleRejection = await IsType<WorkspaceReadRejected>(staleRead);
-        var expiredRejection = await IsType<WorkspaceReadRejected>(currentRead);
+        var missingRejection = await IsType<WorkspaceReadRejected>(currentRead);
         using (Assert.Multiple())
         {
             await Assert.That(staleRejection.Code)
                 .IsEqualTo("stale_workspace_attachment");
-            await Assert.That(expiredRejection.Code).IsEqualTo("workspace_expired");
+            await Assert.That(missingRejection.Code).IsEqualTo("workspace_not_found");
         }
     }
 

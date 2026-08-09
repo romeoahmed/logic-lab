@@ -640,17 +640,21 @@ internal sealed partial class DurableWorkspaceTests
     private static IEditorWorkspace CreateWorkspace(
         IDurableProjectRepository repository,
         DurableDisplayNameLimits? displayNameLimits = null,
-        int? globalWorkspaceLimit = null)
+        int? globalWorkspaceLimit = null,
+        TimeProvider? timeProvider = null,
+        TimeSpan? sandboxRetention = null)
     {
         return EditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint,
-            workspacePolicy: displayNameLimits is null && globalWorkspaceLimit is null
+            workspacePolicy: displayNameLimits is null
+                && globalWorkspaceLimit is null
+                && sandboxRetention is null
                 ? null
                 : new WorkspacePolicy(
                     policyId: "durable-tests",
                     policyRevision: "1",
                     globalWorkspaceLimit: globalWorkspaceLimit ?? 16,
-                    sandboxRetention: TimeSpan.FromHours(1),
+                    sandboxRetention: sandboxRetention ?? TimeSpan.FromHours(1),
                     authoringLimits: WorkspaceAuthoringLimits.Default,
                     historyRevisionCount: 16,
                     idempotencyRecordCount: 32,
@@ -658,6 +662,7 @@ internal sealed partial class DurableWorkspaceTests
                     hotSwapPeakBytes: ulong.MaxValue,
                     durableDisplayNameLimits:
                         displayNameLimits ?? DurableDisplayNameLimits.Default),
+            timeProvider: timeProvider,
             durableProjectRepository: repository);
     }
 
