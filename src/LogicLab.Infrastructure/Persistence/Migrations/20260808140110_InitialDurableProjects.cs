@@ -29,6 +29,8 @@ public partial class InitialDurableProjects : Migration
             {
                 durable_project_id = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
                 claim_workspace_id = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
+                initial_project_revision_id = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
+                initial_durable_version = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
                 subject_id = table.Column<string>(type: "TEXT", maxLength: 512, nullable: false),
                 display_name = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
                 display_name_sort_key = table.Column<byte[]>(type: "BLOB", nullable: false),

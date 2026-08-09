@@ -30,6 +30,12 @@ internal sealed class LogicLabDbContext : DbContext
         projects.Property(project => project.ClaimWorkspaceId)
             .HasColumnName("claim_workspace_id")
             .HasMaxLength(64);
+        projects.Property(project => project.InitialProjectRevisionId)
+            .HasColumnName("initial_project_revision_id")
+            .HasMaxLength(64);
+        projects.Property(project => project.InitialDurableVersion)
+            .HasColumnName("initial_durable_version")
+            .HasMaxLength(64);
         projects.Property(project => project.SubjectId)
             .HasColumnName("subject_id")
             .HasMaxLength(512);

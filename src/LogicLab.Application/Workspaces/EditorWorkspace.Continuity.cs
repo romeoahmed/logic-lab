@@ -571,6 +571,7 @@ internal sealed partial class EditorWorkspace
         string canonicalIdentity)
     {
         var pending = new PendingIntent(
+            command.Context.Caller,
             canonicalIdentity,
             new TaskCompletionSource<WorkspaceCommandOutcome>(
                 TaskCreationOptions.RunContinuationsAsynchronously));
@@ -580,6 +581,28 @@ internal sealed partial class EditorWorkspace
             pending);
         state.PendingIntents.Add(command.Context.ClientIntentId, pending);
         return publication;
+    }
+
+    private static void RevokeUnauthorizedPendingIntentsUnderLock(
+        WorkspaceState state)
+    {
+        foreach (var (clientIntentId, pending) in state.PendingIntents.ToArray())
+        {
+            if (GetDurableAccessRejectionUnderLock(state, pending.Caller) is null)
+            {
+                continue;
+            }
+
+            state.PendingIntents.Remove(clientIntentId);
+            if (state.PendingRunPause?.Publication.PendingIntent is { } pauseIntent
+                && ReferenceEquals(pauseIntent, pending))
+            {
+                state.PendingRunPause = null;
+            }
+
+            pending.Completion.TrySetResult(
+                Reject(WorkspaceOutcomeReasons.WorkspaceNotFound));
+        }
     }
 
     private WorkspaceCommandOutcome ApplyWithPrecondition(

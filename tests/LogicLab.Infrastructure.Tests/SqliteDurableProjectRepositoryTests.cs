@@ -208,7 +208,7 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     }
 
     [Test]
-    public async Task ClaimAsync_UnknownCommitThenNewIntentAndGeneration_RecoversWithoutDuplicate()
+    public async Task ClaimAsync_UnknownClaimAdvancedExternally_RecoveryDoesNotOverwriteWinner()
     {
         const string buildFingerprint = "sqlite-claim-recovery";
         var (sqliteRepository, factory) = await CreateRepositoryAsync();
@@ -233,6 +233,28 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
                 "unknown-claim",
                 "Original durable project"),
             CancellationToken.None);
+        DurableProjectId durableProjectId;
+        DurableVersion initialVersion;
+        await using (var initialContext = await factory.CreateDbContextAsync())
+        {
+            var initiallyPersisted = await initialContext.DurableProjects.SingleAsync();
+            durableProjectId = new DurableProjectId(initiallyPersisted.Id);
+            initialVersion = new DurableVersion(initiallyPersisted.DurableVersion);
+        }
+
+        var winnerRevision = RenameEntry(
+            opened.Projection.ProjectRevision,
+            "External winner");
+        var winnerVersion = new DurableVersion("external-winner-version");
+        var externalSave = await sqliteRepository.SaveAsync(
+            new DurableProjectSaveRequest(
+                durableProjectId,
+                new AuthenticatedSubjectId("subject-1"),
+                initialVersion,
+                winnerVersion,
+                winnerRevision,
+                ReceiptKey('b', "external-save")),
+            CancellationToken.None);
         var secondAttachment = (Attached)await workspace.AttachAsync(
             new Reattach(
                 opened.WorkspaceId,
@@ -248,11 +270,26 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
                 "new-claim-intent",
                 "Replacement durable project"),
             CancellationToken.None);
+        var recovered = (await Assert.That(second)
+            .IsTypeOf<DurableProjectClaimed>())!;
+        var localSave = await workspace.DispatchAsync(
+            new SaveDurable(
+                new WorkspaceCommandContext(
+                    opened.WorkspaceId,
+                    secondAttachment.AttachmentId,
+                    secondAttachment.Generation,
+                    new ClientIntentId("local-save-after-recovery"),
+                    AuthenticatedCaller),
+                new DurableSavePrecondition(
+                    opened.Projection.ProjectRevision.RevisionId,
+                    recovered.DurableVersion)),
+            CancellationToken.None);
 
         var firstRejected = (await Assert.That(first)
             .IsTypeOf<WorkspaceCommandRejected>())!;
-        var recovered = (await Assert.That(second)
-            .IsTypeOf<DurableProjectClaimed>())!;
+        _ = await Assert.That(externalSave).IsTypeOf<DurableProjectSaveStored>();
+        var conflict = (await Assert.That(localSave)
+            .IsTypeOf<DurableProjectSaveConflict>())!;
         await using var context = await factory.CreateDbContextAsync();
         var persisted = await context.DurableProjects.SingleAsync();
         using (Assert.Multiple())
@@ -263,13 +300,23 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
                 .IsEqualTo(firstAttachment.Generation + 1);
             await Assert.That(recovered.DurableProjectId.Value)
                 .IsEqualTo(persisted.Id);
+            await Assert.That(recovered.DurableVersion).IsEqualTo(initialVersion);
+            await Assert.That(recovered.ProjectRevisionId)
+                .IsEqualTo(opened.Projection.ProjectRevision.RevisionId);
             await Assert.That(recovered.DisplayName.Value)
                 .IsEqualTo("Original durable project");
+            await Assert.That(conflict.ExpectedDurableVersion)
+                .IsEqualTo(initialVersion);
+            await Assert.That(conflict.ActualDurableVersion)
+                .IsEqualTo(winnerVersion);
             await Assert.That(persisted.ClaimWorkspaceId)
                 .IsEqualTo(opened.WorkspaceId.Value);
             await Assert.That(persisted.DisplayName)
                 .IsEqualTo("Original durable project");
-            await Assert.That(context.DurableCommandReceipts).Count().IsEqualTo(2);
+            await Assert.That(persisted.DurableVersion).IsEqualTo(winnerVersion.Value);
+            await Assert.That(persisted.CurrentProjectRevisionId)
+                .IsEqualTo(winnerRevision.RevisionId.Value);
+            await Assert.That(context.DurableProjects).Count().IsEqualTo(1);
         }
     }
 

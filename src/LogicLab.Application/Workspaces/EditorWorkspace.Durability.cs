@@ -55,6 +55,7 @@ internal sealed partial class EditorWorkspace
                                 state.Durability = new PendingDurableClaimState(
                                     ((AuthenticatedWorkspaceCaller)command.Context.Caller)
                                     .SubjectId);
+                                RevokeUnauthorizedPendingIntentsUnderLock(state);
                             }
 
                             publication = ReserveContextualIntentUnderLock(
