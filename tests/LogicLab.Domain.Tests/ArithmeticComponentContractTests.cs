@@ -8,6 +8,65 @@ using TUnit.FsCheck;
 
 namespace LogicLab.Domain.Tests;
 
+internal readonly record struct PositiveUInt32(uint Value);
+
+internal static class ArithmeticComponentContractArbitraries
+{
+    private static readonly uint[] BoundaryWidths =
+    [
+        1,
+        2,
+        3,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        31,
+        32,
+        33,
+        byte.MaxValue,
+        (uint)byte.MaxValue + 1,
+        ushort.MaxValue,
+        (uint)ushort.MaxValue + 1,
+        int.MaxValue,
+        (uint)int.MaxValue + 1,
+        uint.MaxValue,
+    ];
+
+    public static Arbitrary<PositiveUInt32> PositiveWidth()
+    {
+        var generator = Gen.Frequency(
+                (4, Gen.Elements(BoundaryWidths)),
+                (6, ArbMap.Default.GeneratorFor<uint>().Where(static width => width > 0)))
+            .Select(static width => new PositiveUInt32(width));
+
+        return Arb.From(generator, Shrink);
+    }
+
+    private static IEnumerable<PositiveUInt32> Shrink(PositiveUInt32 sample)
+    {
+        if (sample.Value <= 1)
+        {
+            yield break;
+        }
+
+        yield return new PositiveUInt32(1);
+        var halfWidth = sample.Value / 2;
+        if (halfWidth > 1)
+        {
+            yield return new PositiveUInt32(halfWidth);
+        }
+
+        foreach (var boundary in BoundaryWidths.Where(width =>
+                     width > 1 && width < sample.Value && width != halfWidth))
+        {
+            yield return new PositiveUInt32(boundary);
+        }
+    }
+}
+
 internal sealed class ArithmeticComponentContractTests
 {
     [Test]
@@ -45,11 +104,12 @@ internal sealed class ArithmeticComponentContractTests
             .IsEquivalentTo(expected, CollectionOrdering.Matching);
     }
 
-    [Test, FsCheckProperty]
-    public Property ResolvePorts_Shift_AnyPositiveIntWidth_ComputesMinimumAmountWidth(
-        PositiveInt positiveWidth)
+    [Test, FsCheckProperty(
+        Arbitrary = new[] { typeof(ArithmeticComponentContractArbitraries) })]
+    public Property ResolvePorts_Shift_AnyPositiveUIntWidth_ComputesMinimumAmountWidth(
+        PositiveUInt32 positiveWidth)
     {
-        var width = (uint)positiveWidth.Get;
+        var width = positiveWidth.Value;
         var expectedAmountWidth = width == 1
             ? 1U
             : (uint)BitOperations.Log2(width - 1) + 1;
