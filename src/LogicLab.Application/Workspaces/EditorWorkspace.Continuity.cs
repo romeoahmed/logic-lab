@@ -26,6 +26,16 @@ internal sealed partial class EditorWorkspace
         }
 
         var state = acquisition.State;
+        var preauthorizationRejection = GetDurableAccessRejection(
+            state,
+            request.Caller);
+        if (preauthorizationRejection is not null)
+        {
+            return CreateUnavailableAttachOutcome(
+                request,
+                preauthorizationRejection);
+        }
+
         try
         {
             await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -134,6 +144,14 @@ internal sealed partial class EditorWorkspace
         }
 
         var state = acquisition.State;
+        var preauthorizationRejection = GetDurableAccessRejection(
+            state,
+            request.Caller);
+        if (preauthorizationRejection is not null)
+        {
+            return new DetachRejected(preauthorizationRejection);
+        }
+
         try
         {
             await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -257,6 +275,14 @@ internal sealed partial class EditorWorkspace
         }
 
         var source = acquisition.State;
+        var preauthorizationRejection = GetDurableAccessRejection(
+            source,
+            request.Caller);
+        if (preauthorizationRejection is not null)
+        {
+            return RejectOpen(preauthorizationRejection);
+        }
+
         try
         {
             await source.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -457,7 +483,19 @@ internal sealed partial class EditorWorkspace
         WorkspaceState state,
         WorkspaceCaller caller)
     {
-        if (state.Durable is not { } durable)
+        lock (state.ContinuityGate)
+        {
+            return GetDurableAccessRejectionUnderLock(state, caller);
+        }
+    }
+
+    private static string? GetDurableAccessRejectionUnderLock(
+        WorkspaceState state,
+        WorkspaceCaller caller)
+    {
+        var subjectId = state.Durable?.SubjectId
+            ?? state.PendingClaimSubjectId;
+        if (subjectId is null)
         {
             return null;
         }
@@ -465,7 +503,7 @@ internal sealed partial class EditorWorkspace
         return caller switch
         {
             AuthenticatedWorkspaceCaller authenticated
-                when authenticated.SubjectId == durable.SubjectId => null,
+                when authenticated.SubjectId == subjectId => null,
             _ => WorkspaceOutcomeReasons.WorkspaceNotFound,
         };
     }
@@ -475,7 +513,7 @@ internal sealed partial class EditorWorkspace
         WorkspaceCommand command)
     {
         var context = command.Context;
-        var authorizationRejection = GetDurableAccessRejection(
+        var authorizationRejection = GetDurableAccessRejectionUnderLock(
             state,
             context.Caller);
         if (authorizationRejection is not null)

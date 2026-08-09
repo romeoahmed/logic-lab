@@ -152,9 +152,11 @@ internal sealed partial class EditorWorkspace
             {
                 completed = Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
-            else if (!HasCurrentAttachmentSafely(state, publication.Context))
+            else if (GetReservedSessionAccessRejection(
+                    state,
+                    publication.Context) is { } rejection)
             {
-                completed = Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
+                completed = Reject(rejection);
             }
             else
             {
@@ -170,6 +172,19 @@ internal sealed partial class EditorWorkspace
         finally
         {
             state.CommandGate.Release();
+        }
+    }
+
+    private static string? GetReservedSessionAccessRejection(
+        WorkspaceState state,
+        WorkspaceCommandContext context)
+    {
+        lock (state.ContinuityGate)
+        {
+            return GetDurableAccessRejectionUnderLock(state, context.Caller)
+                ?? (HasCurrentAttachmentUnderLock(state, context)
+                    ? null
+                    : WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
         }
     }
 
