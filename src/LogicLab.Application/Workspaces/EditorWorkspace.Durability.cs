@@ -510,7 +510,7 @@ internal sealed partial class EditorWorkspace
     }
 
     [LoggerMessage(
-        EventId = 1003,
+        EventId = 1005,
         Level = LogLevel.Error,
         Message = "Durable repository operation failed with correlation {Correlation}.")]
     private static partial void LogDurableRepositoryFailure(
