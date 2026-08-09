@@ -32,6 +32,8 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         await using var context = await factory.CreateDbContextAsync();
         var project = await context.DurableProjects.SingleAsync();
         var storedRevision = await context.ProjectRevisions.SingleAsync();
+        var restoredRevision = ProjectRevisionPayloadSerializer.Deserialize(
+            storedRevision.Payload);
         using (Assert.Multiple())
         {
             await Assert.That(replayStored).IsEqualTo(firstStored);
@@ -46,6 +48,10 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             await Assert.That(storedRevision.DurableProjectId)
                 .IsEqualTo(project.Id);
             await Assert.That(storedRevision.Payload).IsNotEmpty();
+            await Assert.That(restoredRevision.RevisionId)
+                .IsEqualTo(revision.RevisionId);
+            await Assert.That(restoredRevision.Document.ProjectId)
+                .IsEqualTo(revision.Document.ProjectId);
             await Assert.That(context.DurableCommandReceipts).Count().IsEqualTo(1);
         }
     }
