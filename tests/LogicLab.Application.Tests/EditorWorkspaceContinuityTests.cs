@@ -12,7 +12,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task AttachAsync_Reattach_FencesPriorGeneration()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
         var first = await Attach(workspace, opened.WorkspaceId);
@@ -46,7 +46,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task AttachAsync_BuildFingerprintMismatch_RejectsWithoutAttachment()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
 
@@ -76,7 +76,7 @@ internal sealed class EditorWorkspaceContinuityTests
     {
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             workspacePolicy: Policy(detachedRetention: TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider,
             buildFingerprint: BuildFingerprint);
@@ -112,7 +112,7 @@ internal sealed class EditorWorkspaceContinuityTests
     {
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero));
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             workspacePolicy: Policy(detachedRetention: TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider,
             buildFingerprint: BuildFingerprint);
@@ -151,7 +151,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task ReadAsync_DetachedAttachment_RejectsStaleController()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
         var attached = await Attach(workspace, opened.WorkspaceId);
@@ -193,7 +193,7 @@ internal sealed class EditorWorkspaceContinuityTests
                 return production.Compile(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations,
             workspacePolicy: Policy(detachedRetention: TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider,
@@ -243,7 +243,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task DispatchAsync_DetachedWorkspace_RejectsCommandsUntilReattached()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
         var first = await Attach(workspace, opened.WorkspaceId);
@@ -284,7 +284,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task DispatchAsync_UndoThenRedo_MovesHistoryCursor()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
         var attached = await Attach(workspace, opened.WorkspaceId);
@@ -320,7 +320,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task DispatchAsync_EditAfterUndo_TruncatesRedoBranch()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
         var attached = await Attach(workspace, opened.WorkspaceId);
@@ -381,7 +381,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task OpenAsync_CopyWorkspace_StartsAtCurrentRevisionWithFreshContinuityState()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var source = await Open(workspace);
         var sourceAttachment = await Attach(workspace, source.WorkspaceId);
@@ -426,7 +426,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task DispatchAsync_StaleProjectRevisionPrecondition_RejectsAtomically()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
         var attached = await Attach(workspace, opened.WorkspaceId);
@@ -457,7 +457,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task OpenAsync_CopyWorkspaceWithStaleProjection_RejectsAtomically()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var source = await Open(workspace);
         var attached = await Attach(workspace, source.WorkspaceId);
@@ -487,7 +487,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task OpenAsync_CopyWorkspaceWithStaleAttachment_RejectsAtomically()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var source = await Open(workspace);
         var attached = await Attach(workspace, source.WorkspaceId);
@@ -517,7 +517,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task DispatchAsync_ReplayedClientIntent_ReturnsRecordedOutcome()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
         var attached = await Attach(workspace, opened.WorkspaceId);
@@ -546,7 +546,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task DispatchAsync_ReusedClientIntentForDifferentCommand_RejectsConflict()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
         var attached = await Attach(workspace, opened.WorkspaceId);
@@ -577,7 +577,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task DispatchAsync_ReusedClientIntentWithDifferentPolymorphicPayload_RejectsConflict()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
         var attached = await Attach(workspace, opened.WorkspaceId);
@@ -629,7 +629,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task DispatchAsync_ReplayedCloseWorkspace_ReturnsSameSuccess()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
         var attached = await Attach(workspace, opened.WorkspaceId);
@@ -651,7 +651,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task DispatchAsync_CompilationPreconditionRejection_RecordsClientIntent()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
         var attached = await Attach(workspace, opened.WorkspaceId);
@@ -687,7 +687,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task DispatchAsync_EvictedClientIntent_RejectsPossibleDuplicate()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             workspacePolicy: Policy(idempotencyRecordCount: 1),
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
@@ -721,7 +721,7 @@ internal sealed class EditorWorkspaceContinuityTests
     [Test]
     public async Task DispatchAsync_NewAttachmentGeneration_AllowsSameClientIntentId()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint);
         var opened = await Open(workspace);
         var firstAttachment = await Attach(workspace, opened.WorkspaceId);

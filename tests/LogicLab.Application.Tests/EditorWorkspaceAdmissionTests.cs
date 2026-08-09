@@ -150,7 +150,7 @@ internal sealed class EditorWorkspaceAdmissionTests
 
     private static IEditorWorkspace CreateWorkspace(WorkspaceAuthoringLimits limits)
     {
-        return EditorWorkspaceFactory.Create(
+        return TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             workspacePolicy: new WorkspacePolicy(
                 policyId: "test-workspace",

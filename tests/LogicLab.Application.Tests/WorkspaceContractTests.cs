@@ -5,6 +5,15 @@ namespace LogicLab.Application.Tests;
 internal sealed class WorkspaceContractTests
 {
     [Test]
+    public async Task EditorWorkspaceFactory_NullDurableRepository_ThrowsArgumentNullException()
+    {
+        await Assert.That(() => EditorWorkspaceFactory.Create(
+                WorkspaceBuild.DevelopmentFingerprint,
+                durableProjectRepository: null!))
+            .ThrowsExactly<ArgumentNullException>();
+    }
+
+    [Test]
     [Arguments(0, 1, 1)]
     [Arguments(1, 0, 1)]
     [Arguments(1, 1, 0)]

@@ -684,7 +684,7 @@ internal sealed partial class DurableWorkspaceTests
         TimeProvider? timeProvider = null,
         TimeSpan? sandboxRetention = null)
     {
-        return EditorWorkspaceFactory.Create(
+        return TestEditorWorkspaceFactory.Create(
             buildFingerprint: BuildFingerprint,
             workspacePolicy: displayNameLimits is null
                 && globalWorkspaceLimit is null

@@ -9,7 +9,7 @@ internal sealed class EditorWorkspaceLifecycleTests
         CancellationToken cancellationToken)
     {
         var timeProvider = new CallbackTimeProvider();
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             timeProvider: timeProvider);
         var opened = (WorkspaceOpened)await Open(workspace);
@@ -47,7 +47,7 @@ internal sealed class EditorWorkspaceLifecycleTests
     [Test]
     public async Task OpenAsync_GlobalLimitReached_RejectsAdditionalWorkspace()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             Policy(globalWorkspaceLimit: 2, TimeSpan.FromHours(1)));
 
@@ -71,7 +71,7 @@ internal sealed class EditorWorkspaceLifecycleTests
     {
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 2, 0, 0, 0, TimeSpan.Zero));
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider);
@@ -91,7 +91,7 @@ internal sealed class EditorWorkspaceLifecycleTests
     [Test]
     public async Task ReadAsync_CurrentProjectionVersion_ReturnsUnchanged()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromHours(1)));
         var opened = (WorkspaceOpened)await Open(workspace);
@@ -112,7 +112,7 @@ internal sealed class EditorWorkspaceLifecycleTests
     {
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 2, 0, 0, 0, TimeSpan.Zero));
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider);
@@ -131,7 +131,7 @@ internal sealed class EditorWorkspaceLifecycleTests
     [Test]
     public async Task OpenAsync_RejectedGenesis_ReleasesReservedCapacity()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromHours(1)));
 
@@ -150,7 +150,7 @@ internal sealed class EditorWorkspaceLifecycleTests
     [Test]
     public async Task DispatchAsync_CloseWorkspace_ReleasesCapacityAndRemovesProjection()
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromHours(1)));
         var opened = (WorkspaceOpened)await Open(workspace);
@@ -179,7 +179,7 @@ internal sealed class EditorWorkspaceLifecycleTests
         CancellationToken cancellationToken)
     {
         const int limit = 4;
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             Policy(limit, TimeSpan.FromHours(1)));
 
@@ -206,7 +206,7 @@ internal sealed class EditorWorkspaceLifecycleTests
         const int limit = 3;
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 2, 0, 0, 0, TimeSpan.Zero));
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             Policy(limit, TimeSpan.FromMinutes(1)),
             timeProvider: timeProvider);

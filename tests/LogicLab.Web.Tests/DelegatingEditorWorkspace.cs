@@ -7,6 +7,7 @@ internal abstract class DelegatingEditorWorkspace(
 {
     private IEditorWorkspace Inner { get; } = EditorWorkspaceFactory.Create(
         buildFingerprint: LogicLabWebBuild.Fingerprint,
+        durableProjectRepository: UnexpectedDurableProjectRepository.Instance,
         workspacePolicy: workspacePolicy);
 
     public virtual Task<WorkspaceOpenOutcome> OpenAsync(
@@ -34,4 +35,32 @@ internal abstract class DelegatingEditorWorkspace(
             cancellationToken);
 
     public virtual ValueTask DisposeAsync() => Inner.DisposeAsync();
+
+    private sealed class UnexpectedDurableProjectRepository : IDurableProjectRepository
+    {
+        private const string Message =
+            "This test must supply a Durable Project repository before using persistence.";
+
+        private UnexpectedDurableProjectRepository()
+        {
+        }
+
+        public static UnexpectedDurableProjectRepository Instance { get; } = new();
+
+        public Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
+            DurableProjectClaimRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public Task<DurableProjectClaimRepositoryOutcome?> TryReadClaimReceiptAsync(
+            DurableProjectClaimRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public Task<DurableProjectSaveRepositoryOutcome> SaveAsync(
+            DurableProjectSaveRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public Task<DurableProjectSaveRepositoryOutcome?> TryReadSaveReceiptAsync(
+            DurableProjectSaveRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+    }
 }

@@ -14,7 +14,7 @@ internal sealed class EditorWorkspaceTests
     public async Task DispatchAsync_EditWithExistingSession_PublishesFreshCompilationAndRetainsSession(
         CancellationToken cancellationToken)
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
         var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
         var before = await Read(workspace, opened);
@@ -78,7 +78,7 @@ internal sealed class EditorWorkspaceTests
     public async Task DispatchAsync_UndoWithExistingSession_RetainsUsableSession(
         CancellationToken cancellationToken)
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
         var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
         var before = await Read(workspace, opened);
@@ -144,7 +144,7 @@ internal sealed class EditorWorkspaceTests
                 return production.Compile(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var (opened, _) = await OpenInputOutputProject(workspace, cancellationToken);
         var attachment = opened.Attachment;
@@ -214,7 +214,7 @@ internal sealed class EditorWorkspaceTests
                 return production.Compile(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(operations);
         var (opened, _) = await OpenInputOutputProject(workspace, cancellationToken);
         var projection = await Read(workspace, opened);
         var command = Compilation(opened.WorkspaceId, opened.Attachment, projection);
@@ -264,7 +264,7 @@ internal sealed class EditorWorkspaceTests
                 return production.Compile(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var (opened, _) = await OpenInputOutputProject(workspace, cancellationToken);
         var firstAttachment = opened.Attachment;
@@ -328,7 +328,7 @@ internal sealed class EditorWorkspaceTests
     public async Task DispatchAsync_ValidNarrowCircuit_ObservesProbeAcrossOneStep(
         CancellationToken cancellationToken)
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
         var opened = await Open(workspace, cancellationToken);
         var revision = opened.Projection.ProjectRevision;
@@ -428,7 +428,7 @@ internal sealed class EditorWorkspaceTests
     public async Task DispatchAsync_IncompleteCircuit_DoesNotPublishArtifactOrCreateSession(
         CancellationToken cancellationToken)
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
         var opened = await Open(workspace, cancellationToken);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
@@ -480,7 +480,7 @@ internal sealed class EditorWorkspaceTests
     public async Task DispatchAsync_CancelledCompilation_DoesNotChangeProjection(
         CancellationToken testCancellationToken)
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
         var opened = await Open(workspace, testCancellationToken);
         var before = await Read(workspace, opened);
@@ -505,7 +505,7 @@ internal sealed class EditorWorkspaceTests
     public async Task DispatchAsync_ExplicitTopologyEdit_PublishesWholeRevision(
         CancellationToken cancellationToken)
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
         var opened = await Open(workspace, cancellationToken);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
@@ -570,7 +570,7 @@ internal sealed class EditorWorkspaceTests
     public async Task DispatchAsync_CancelledTopologyEdit_EmitsNoProjectRevision(
         CancellationToken testCancellationToken)
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
         var (opened, _) = await OpenInputOutputSession(workspace, testCancellationToken);
         var before = await Read(workspace, opened);
@@ -616,7 +616,7 @@ internal sealed class EditorWorkspaceTests
                     operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var opened = await Open(workspace, cancellationToken);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
@@ -680,7 +680,7 @@ internal sealed class EditorWorkspaceTests
     public async Task DispatchAsync_EmptyInputStimulus_ReturnsClosedPreconditionRejection(
         CancellationToken cancellationToken)
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
         var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
 
@@ -701,7 +701,7 @@ internal sealed class EditorWorkspaceTests
     public async Task DispatchAsync_WrongWidthInputStimulus_ReturnsClosedPreconditionRejection(
         CancellationToken cancellationToken)
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
         var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
 
@@ -722,7 +722,7 @@ internal sealed class EditorWorkspaceTests
     public async Task DispatchAsync_StepWithoutScheduledStimulus_ReturnsSimulationReason(
         CancellationToken cancellationToken)
     {
-        await using var workspace = EditorWorkspaceFactory.Create(
+        await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
         var (opened, _) = await OpenInputOutputSession(workspace, cancellationToken);
 
@@ -757,7 +757,7 @@ internal sealed class EditorWorkspaceTests
                     operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
         var scheduled = await workspace.DispatchAsync(
@@ -826,7 +826,7 @@ internal sealed class EditorWorkspaceTests
                 return production.OpenSimulation(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations,
             schedulingPolicy: new SchedulingPolicy(1, 1));
         var (opened, _) = await OpenInputOutputProject(workspace, cancellationToken);
@@ -935,7 +935,7 @@ internal sealed class EditorWorkspaceTests
                 return production.OpenSimulation(request, operationCancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(operations);
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(operations);
         var (opened, _) = await OpenInputOutputProject(workspace, cancellationToken);
         var beforeCompilation = await Read(workspace, opened);
         var compilation = await workspace.DispatchAsync(

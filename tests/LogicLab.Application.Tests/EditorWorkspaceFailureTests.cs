@@ -16,7 +16,7 @@ internal sealed class EditorWorkspaceFailureTests
         {
             Compile = static (_, _) => null!,
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var opened = await OpenControlled(workspace, cancellationToken);
 
@@ -59,7 +59,7 @@ internal sealed class EditorWorkspaceFailureTests
         {
             Compile = (_, _) => throw Failure(infrastructureFailure),
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var opened = await OpenControlled(workspace, cancellationToken);
         var before = opened.Projection;
@@ -102,7 +102,7 @@ internal sealed class EditorWorkspaceFailureTests
         {
             OpenSimulation = (_, _) => throw Failure(infrastructureFailure),
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var opened = await OpenCompiledCircuit(workspace, cancellationToken);
         var before = ((ProjectionSnapshot)await workspace.ReadAsync(
@@ -145,7 +145,7 @@ internal sealed class EditorWorkspaceFailureTests
         var policy = SimulationPolicyLimitedAt(
             SimulationDimension.WorkingLayerSlotCount,
             maximum: 1);
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: OperationsWithSimulationPolicy(policy));
         var opened = await OpenCompiledCircuit(workspace, cancellationToken);
         var before = await Read(workspace, opened);
@@ -178,7 +178,7 @@ internal sealed class EditorWorkspaceFailureTests
         var policy = SimulationPolicyLimitedAt(
             SimulationDimension.ScheduledBatchCount,
             maximum: 1);
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: OperationsWithSimulationPolicy(policy));
         var opened = await OpenCompiledCircuit(workspace, cancellationToken);
         var input = await Find(workspace, opened, "source.input");
@@ -244,7 +244,7 @@ internal sealed class EditorWorkspaceFailureTests
                 throw new OperationCanceledException(unrelatedCancellation.Token);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var opened = await OpenCompiledCircuit(workspace, testCancellationToken);
         var before = await Read(workspace, opened);
@@ -281,7 +281,7 @@ internal sealed class EditorWorkspaceFailureTests
                 return WorkspaceModuleOperations.Production.CloseSimulation(handle);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var opened = await OpenCompiledCircuit(workspace, cancellationToken);
         var before = ((ProjectionSnapshot)await workspace.ReadAsync(
@@ -332,7 +332,7 @@ internal sealed class EditorWorkspaceFailureTests
                 return WorkspaceModuleOperations.Production.CloseSimulation(handle);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var opened = await OpenCompiledCircuit(workspace, testCancellationToken);
         var before = ((ProjectionSnapshot)await workspace.ReadAsync(
@@ -380,7 +380,7 @@ internal sealed class EditorWorkspaceFailureTests
                     cancellationToken);
             },
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var opened = await OpenCompiledCircuit(workspace, cancellationToken);
         var input = await Find(workspace, opened, "source.input");
@@ -437,7 +437,7 @@ internal sealed class EditorWorkspaceFailureTests
         {
             CloseSimulation = _ => throw new IOException("sensitive cleanup detail"),
         };
-        await using var workspace = EditorWorkspaceFactory.CreateForTesting(
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations: operations);
         var opened = await OpenCompiledCircuit(workspace, cancellationToken);
         var beforeSession = await Read(workspace, opened);

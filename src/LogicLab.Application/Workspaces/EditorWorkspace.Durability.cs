@@ -295,11 +295,6 @@ internal sealed partial class EditorWorkspace
                 readReceipt,
                 projectOutcome).ConfigureAwait(false);
         }
-        catch (DurableProjectRepositoryUnavailableException exception)
-        {
-            LogDurableRepositoryException(exception);
-            return Reject(WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure);
-        }
         catch (OperationCanceledException exception)
             when (ExceptionClassifier.IsCooperativeCancellation(
                 exception,

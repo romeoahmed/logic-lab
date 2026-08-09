@@ -202,12 +202,13 @@ public static class EditorWorkspaceFactory
 {
     public static IEditorWorkspace Create(
         string buildFingerprint,
+        IDurableProjectRepository durableProjectRepository,
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
-        ILoggerFactory? loggerFactory = null,
-        IDurableProjectRepository? durableProjectRepository = null)
+        ILoggerFactory? loggerFactory = null)
     {
+        ArgumentNullException.ThrowIfNull(durableProjectRepository);
         return CreateCore(
             workspacePolicy,
             schedulingPolicy,
@@ -215,18 +216,19 @@ public static class EditorWorkspaceFactory
             loggerFactory,
             buildFingerprint,
             WorkspaceModuleOperations.Production,
-            durableProjectRepository ?? UnavailableDurableProjectRepository.Instance);
+            durableProjectRepository);
     }
 
     internal static IEditorWorkspace CreateForTesting(
         WorkspaceModuleOperations operations,
+        IDurableProjectRepository durableProjectRepository,
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
-        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint,
-        IDurableProjectRepository? durableProjectRepository = null)
+        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint)
     {
+        ArgumentNullException.ThrowIfNull(durableProjectRepository);
         return CreateCore(
             workspacePolicy,
             schedulingPolicy,
@@ -234,7 +236,7 @@ public static class EditorWorkspaceFactory
             loggerFactory,
             buildFingerprint,
             operations,
-            durableProjectRepository ?? UnavailableDurableProjectRepository.Instance);
+            durableProjectRepository);
     }
 
     private static EditorWorkspace CreateCore(
@@ -258,38 +260,6 @@ public static class EditorWorkspaceFactory
             resolvedLoggerFactory.CreateLogger<Work.WorkCoordinator>(),
             resolvedLoggerFactory.CreateLogger<EditorWorkspace>());
     }
-}
-
-internal sealed class DurableProjectRepositoryUnavailableException()
-    : InvalidOperationException("Durable persistence is not configured.");
-
-internal sealed class UnavailableDurableProjectRepository : IDurableProjectRepository
-{
-    private UnavailableDurableProjectRepository()
-    {
-    }
-
-    public static UnavailableDurableProjectRepository Instance { get; } = new();
-
-    public Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
-        DurableProjectClaimRequest request,
-        CancellationToken cancellationToken)
-        => throw new DurableProjectRepositoryUnavailableException();
-
-    public Task<DurableProjectClaimRepositoryOutcome?> TryReadClaimReceiptAsync(
-        DurableProjectClaimRequest request,
-        CancellationToken cancellationToken)
-        => throw new DurableProjectRepositoryUnavailableException();
-
-    public Task<DurableProjectSaveRepositoryOutcome> SaveAsync(
-        DurableProjectSaveRequest request,
-        CancellationToken cancellationToken)
-        => throw new DurableProjectRepositoryUnavailableException();
-
-    public Task<DurableProjectSaveRepositoryOutcome?> TryReadSaveReceiptAsync(
-        DurableProjectSaveRequest request,
-        CancellationToken cancellationToken)
-        => throw new DurableProjectRepositoryUnavailableException();
 }
 
 internal sealed record WorkspaceModuleOperations(
