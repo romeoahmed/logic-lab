@@ -798,7 +798,8 @@ internal sealed class EditorWorkspaceRunTests
                 historyRevisionCount: 16,
                 idempotencyRecordCount: 32,
                 detachedRetention: TimeSpan.FromMinutes(30),
-                hotSwapPeakBytes: ulong.MaxValue),
+                hotSwapPeakBytes: ulong.MaxValue,
+                durableDisplayNameLimits: DurableDisplayNameLimits.Default),
             timeProvider: timeProvider);
         var controlled = await CreateClockWorkspace(workspace, cancellationToken);
         var initial = await Read(workspace, controlled, cancellationToken);
@@ -887,7 +888,8 @@ internal sealed class EditorWorkspaceRunTests
             historyRevisionCount: 16,
             idempotencyRecordCount: 32,
             detachedRetention: TimeSpan.FromMinutes(30),
-            hotSwapPeakBytes: 320);
+            hotSwapPeakBytes: 320,
+            durableDisplayNameLimits: DurableDisplayNameLimits.Default);
         await using var workspace = EditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             policy);
