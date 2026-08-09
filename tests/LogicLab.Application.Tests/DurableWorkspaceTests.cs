@@ -826,6 +826,8 @@ internal sealed partial class DurableWorkspaceTests
 
         public Func<CancellationToken, Exception>? ClaimPostCommitFailure { get; init; }
 
+        public Func<CancellationToken, Exception>? ClaimPreCommitFailure { get; set; }
+
         public Func<CancellationToken, Exception>? SavePostCommitFailure { get; init; }
 
         public Exception? ReceiptReadFailure { get; set; }
@@ -850,6 +852,11 @@ internal sealed partial class DurableWorkspaceTests
             if (ClaimRelease is { } claimRelease)
             {
                 await claimRelease.Task.WaitAsync(cancellationToken);
+            }
+
+            if (ClaimPreCommitFailure is { } preCommitFailure)
+            {
+                throw preCommitFailure(cancellationToken);
             }
 
             if (claimReceipts.TryGetValue(request.ReceiptKey, out var replay))

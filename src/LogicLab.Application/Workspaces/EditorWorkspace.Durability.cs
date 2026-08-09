@@ -15,6 +15,7 @@ internal sealed partial class EditorWorkspace
         ContextualCommandPublication? publication = null;
         DurableDisplayName? displayName = null;
         WorkspaceCommandOutcome? completed = null;
+        var isPendingClaimRecovery = false;
         try
         {
             await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -52,6 +53,8 @@ internal sealed partial class EditorWorkspace
                         {
                             if (command is ClaimSandbox)
                             {
+                                isPendingClaimRecovery =
+                                    state.Durability is PendingDurableClaimState;
                                 state.Durability = new PendingDurableClaimState(
                                     ((AuthenticatedWorkspaceCaller)command.Context.Caller)
                                     .SubjectId);
@@ -89,7 +92,8 @@ internal sealed partial class EditorWorkspace
                     PublishDurableOutcomeUnderLock(
                         state,
                         command,
-                        completed);
+                        completed,
+                        isPendingClaimRecovery);
                     CompletePendingIdempotencyUnderLock(
                         state,
                         publication,
@@ -342,7 +346,8 @@ internal sealed partial class EditorWorkspace
     private static void PublishDurableOutcomeUnderLock(
         WorkspaceState state,
         WorkspaceCommand command,
-        WorkspaceCommandOutcome outcome)
+        WorkspaceCommandOutcome outcome,
+        bool isPendingClaimRecovery)
     {
         if (outcome is WorkspaceCommandRejected
             {
@@ -369,7 +374,11 @@ internal sealed partial class EditorWorkspace
 
         if (command is ClaimSandbox)
         {
-            state.Durability = SandboxWorkspaceState.Instance;
+            if (!isPendingClaimRecovery)
+            {
+                state.Durability = SandboxWorkspaceState.Instance;
+            }
+
             return;
         }
 
