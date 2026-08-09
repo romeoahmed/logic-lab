@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -774,107 +775,92 @@ internal sealed partial class EditorWorkspace
     {
         return command switch
         {
-            ApplyEdit apply => string.Concat(
+            ApplyEdit apply => SerializeCanonicalIdentity(
                 nameof(ApplyEdit),
-                '|',
                 apply.Precondition.ProjectRevisionId.Value,
-                '|',
                 JsonSerializer.Serialize<EditIntent>(
                     apply.Intent,
                     CanonicalJsonOptions)),
-            Undo undo => string.Concat(
+            Undo undo => SerializeCanonicalIdentity(
                 nameof(Undo),
-                '|',
                 undo.Precondition.ProjectRevisionId.Value),
-            Redo redo => string.Concat(
+            Redo redo => SerializeCanonicalIdentity(
                 nameof(Redo),
-                '|',
                 redo.Precondition.ProjectRevisionId.Value),
-            RequestCompilation request => string.Concat(
+            RequestCompilation request => SerializeCanonicalIdentity(
                 nameof(RequestCompilation),
-                '|',
                 request.Precondition.ProjectRevisionId.Value,
-                '|',
                 request.Precondition.EntryCircuitDefinitionId.Value,
-                '|',
                 request.Precondition.LibrarySnapshotFingerprint),
-            CreateSession create => string.Concat(
+            CreateSession create => SerializeCanonicalIdentity(
                 nameof(CreateSession),
-                '|',
                 JsonSerializer.Serialize(
                     create.Precondition.CompilationArtifactKey,
                     CanonicalJsonOptions)),
-            ScheduleInputStimulus schedule => string.Concat(
+            ScheduleInputStimulus schedule => SerializeCanonicalIdentity(
                 nameof(ScheduleInputStimulus),
-                '|',
                 schedule.Precondition.SessionId.Value,
-                '|',
-                schedule.Precondition.SessionVersion,
-                '|',
+                schedule.Precondition.SessionVersion.ToString(
+                    CultureInfo.InvariantCulture),
                 JsonSerializer.Serialize(
                     schedule.Precondition.CompilationArtifactKey,
                     CanonicalJsonOptions),
-                '|',
-                schedule.LogicalTime,
-                '|',
+                schedule.LogicalTime.ToString(CultureInfo.InvariantCulture),
                 JsonSerializer.Serialize(
                     schedule.Assignments,
                     CanonicalJsonOptions)),
-            StepSession step => string.Concat(
+            StepSession step => SerializeCanonicalIdentity(
                 nameof(StepSession),
-                '|',
                 step.Precondition.SessionId.Value,
-                '|',
-                step.Precondition.SessionVersion,
-                '|',
+                step.Precondition.SessionVersion.ToString(
+                    CultureInfo.InvariantCulture),
                 JsonSerializer.Serialize(
                     step.Precondition.CompilationArtifactKey,
                     CanonicalJsonOptions)),
-            StartRun start => string.Concat(
+            StartRun start => SerializeCanonicalIdentity(
                 nameof(StartRun),
-                '|',
                 start.Precondition.SessionId.Value,
-                '|',
-                start.Precondition.SessionVersion,
-                '|',
+                start.Precondition.SessionVersion.ToString(
+                    CultureInfo.InvariantCulture),
                 JsonSerializer.Serialize(
                     start.Precondition.CompilationArtifactKey,
                     CanonicalJsonOptions)),
-            PauseRun pause => string.Concat(
+            PauseRun pause => SerializeCanonicalIdentity(
                 nameof(PauseRun),
-                '|',
                 pause.Precondition.SessionId.Value,
-                '|',
-                pause.Precondition.RunGeneration.Value),
-            HotSwapSession hotSwap => string.Concat(
+                pause.Precondition.RunGeneration.Value.ToString(
+                    CultureInfo.InvariantCulture)),
+            HotSwapSession hotSwap => SerializeCanonicalIdentity(
                 nameof(HotSwapSession),
-                '|',
                 hotSwap.Precondition.SessionId.Value,
-                '|',
-                hotSwap.Precondition.SessionVersion,
-                '|',
+                hotSwap.Precondition.SessionVersion.ToString(
+                    CultureInfo.InvariantCulture),
                 JsonSerializer.Serialize(
                     hotSwap.Precondition.CompilationArtifactKey,
                     CanonicalJsonOptions),
-                '|',
                 JsonSerializer.Serialize(
                     hotSwap.TargetCompilationArtifactKey,
                     CanonicalJsonOptions)),
-            ClaimSandbox claim => string.Concat(
+            ClaimSandbox claim => SerializeCanonicalIdentity(
                 nameof(ClaimSandbox),
-                '|',
                 claim.Precondition.ProjectRevisionId.Value,
-                '|',
                 claim.RequestedDisplayName),
-            SaveDurable save => string.Concat(
+            SaveDurable save => SerializeCanonicalIdentity(
                 nameof(SaveDurable),
-                '|',
                 save.Precondition.ProjectRevisionId.Value,
-                '|',
                 save.Precondition.ExpectedDurableVersion.Value),
-            CloseWorkspace => nameof(CloseWorkspace),
-            _ => command.GetType().FullName ?? command.GetType().Name,
+            CloseWorkspace => SerializeCanonicalIdentity(nameof(CloseWorkspace)),
+            _ => SerializeCanonicalIdentity(
+                command.GetType().FullName ?? command.GetType().Name),
         };
+    }
+
+    private static string SerializeCanonicalIdentity(
+        string commandKind,
+        params string[] components)
+    {
+        string[] fields = [commandKind, .. components];
+        return JsonSerializer.Serialize(fields);
     }
 
     private static JsonSerializerOptions CanonicalJsonOptions { get; } = new()

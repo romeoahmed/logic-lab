@@ -101,6 +101,46 @@ internal sealed partial class DurableWorkspaceTests
     }
 
     [Test]
+    public async Task DispatchAsync_ReusedClaimIntentWithDelimiterCollision_RejectsConflict()
+    {
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(repository);
+        var (opened, attached) = await OpenAttached(workspace);
+        var revisionId = opened.Projection.ProjectRevision.RevisionId;
+        var clientIntentId = new ClientIntentId("claim-delimiter-collision");
+        var context = new WorkspaceCommandContext(
+            opened.WorkspaceId,
+            attached.AttachmentId,
+            attached.Generation,
+            clientIntentId,
+            AuthenticatedCaller);
+
+        var first = await workspace.DispatchAsync(
+            new ClaimSandbox(
+                context,
+                new ClaimPrecondition(revisionId),
+                "A|B"),
+            CancellationToken.None);
+        var collision = await workspace.DispatchAsync(
+            new ClaimSandbox(
+                context,
+                new ClaimPrecondition(
+                    new ProjectRevisionId($"{revisionId.Value}|A")),
+                "B"),
+            CancellationToken.None);
+
+        await Assert.That(first).IsTypeOf<DurableProjectClaimed>();
+        var rejection = (await Assert.That(collision)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejection.Code).IsEqualTo("idempotency_key_conflict");
+            await Assert.That(repository.ClaimCallCount).IsEqualTo(1);
+            await Assert.That(repository.LastClaim!.DisplayName.Value).IsEqualTo("A|B");
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_DisplayNameAtScalarAndUtf8Limits_ClaimsProject()
     {
         var repository = new RecordingDurableProjectRepository();
