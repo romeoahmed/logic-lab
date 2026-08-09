@@ -867,7 +867,8 @@ internal sealed partial class DurableWorkspaceTests
             claimReceipts.Add(request.ReceiptKey, stored);
             if (ClaimPostCommitFailure is { } failure)
             {
-                throw failure(cancellationToken);
+                throw new DurableProjectCommitUncertainException(
+                    failure(cancellationToken));
             }
 
             return stored;
@@ -901,7 +902,8 @@ internal sealed partial class DurableWorkspaceTests
             saveReceipts.Add(request.ReceiptKey, stored);
             if (SavePostCommitFailure is { } failure)
             {
-                throw failure(cancellationToken);
+                throw new DurableProjectCommitUncertainException(
+                    failure(cancellationToken));
             }
 
             return Task.FromResult<DurableProjectSaveRepositoryOutcome>(stored);

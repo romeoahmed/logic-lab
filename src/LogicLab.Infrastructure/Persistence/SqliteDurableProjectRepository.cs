@@ -3,6 +3,7 @@ using System.Text;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace LogicLab.Infrastructure.Persistence;
 
@@ -84,7 +85,7 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
             cancellationToken).ConfigureAwait(false);
         if (existing is not null)
         {
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            await CommitAsync(transaction, cancellationToken).ConfigureAwait(false);
             return existing;
         }
 
@@ -112,7 +113,7 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
             context,
             request.DurableProjectId,
             cancellationToken).ConfigureAwait(false);
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        await CommitAsync(transaction, cancellationToken).ConfigureAwait(false);
         return new DurableProjectClaimStored(
             request.DurableProjectId,
             request.InitialDurableVersion,
@@ -138,7 +139,7 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
             return null;
         }
 
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        await CommitAsync(transaction, cancellationToken).ConfigureAwait(false);
         return recovered;
     }
 
@@ -284,7 +285,7 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
                 context,
                 request.DurableProjectId,
                 cancellationToken).ConfigureAwait(false);
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            await CommitAsync(transaction, cancellationToken).ConfigureAwait(false);
             return ResolveSaveReceipt(
                 conflict,
                 request.ReceiptKey,
@@ -326,7 +327,7 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
             context,
             request.DurableProjectId,
             cancellationToken).ConfigureAwait(false);
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        await CommitAsync(transaction, cancellationToken).ConfigureAwait(false);
         return new DurableProjectSaveStored(
             storedVersion,
             request.ProjectRevision.RevisionId);
@@ -468,7 +469,7 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
             context,
             request.DurableProjectId,
             cancellationToken).ConfigureAwait(false);
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        await CommitAsync(transaction, cancellationToken).ConfigureAwait(false);
         return ResolveSaveReceipt(
             conflict,
             request.ReceiptKey,
@@ -716,5 +717,23 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
             ExpectedDurableVersion = expectedDurableVersion,
             ActualDurableVersion = actualDurableVersion,
         };
+    }
+
+    private static async Task CommitAsync(
+        IDbContextTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+            when (exception is not (OutOfMemoryException
+                or StackOverflowException
+                or AccessViolationException))
+        {
+            throw new DurableProjectCommitUncertainException(exception);
+        }
     }
 }

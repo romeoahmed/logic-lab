@@ -1,8 +1,10 @@
+using System.Data.Common;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
 using LogicLab.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using TUnit.Assertions.Enums;
 
 namespace LogicLab.Infrastructure.Tests;
@@ -73,6 +75,142 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             await Assert.That(context.DurableProjects).Count().IsEqualTo(1);
             await Assert.That(context.ProjectRevisions).Count().IsEqualTo(1);
             await Assert.That(context.DurableCommandReceipts).Count().IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_ContextCreationCancelledBeforeCommit_RestoresSandbox()
+    {
+        const string buildFingerprint = "sqlite-pre-commit-cancellation";
+        var innerFactory = CreateDbContextFactory();
+        await using (var context = await innerFactory.CreateDbContextAsync())
+        {
+            await context.Database.MigrateAsync();
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        var repository = new SqliteDurableProjectRepository(
+            new CancelFirstContextFactory(innerFactory, cancellation),
+            receiptRetentionCount: 1_024);
+        await using var workspace = EditorWorkspaceFactory.Create(
+            buildFingerprint,
+            durableProjectRepository: repository);
+        var (opened, attached) = await OpenAttachedAsync(
+            workspace,
+            buildFingerprint);
+
+        var cancelled = await workspace.DispatchAsync(
+            Claim(opened, attached, "cancelled-claim", "Cancelled project"),
+            cancellation.Token);
+        var projection = await workspace.ReadAsync(
+            new WorkspaceQueryContext(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
+            ReadProjection.Instance,
+            CancellationToken.None);
+        var retry = await workspace.DispatchAsync(
+            Claim(opened, attached, "retry-claim", "Recovered project"),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(cancelled)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        var snapshot = (await Assert.That(projection)
+            .IsTypeOf<ProjectionSnapshot>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("workspace_cancelled");
+            await Assert.That(snapshot.Projection.Durability)
+                .IsTypeOf<SandboxWorkspaceDurabilityProjection>();
+            await Assert.That(retry).IsTypeOf<DurableProjectClaimed>();
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_UnmigratedDatabaseFailureBeforeCommit_RestoresSandbox()
+    {
+        const string buildFingerprint = "sqlite-pre-commit-infrastructure";
+        var factory = CreateDbContextFactory();
+        var repository = new SqliteDurableProjectRepository(
+            factory,
+            receiptRetentionCount: 1_024);
+        await using var workspace = EditorWorkspaceFactory.Create(
+            buildFingerprint,
+            durableProjectRepository: repository);
+        var (opened, attached) = await OpenAttachedAsync(
+            workspace,
+            buildFingerprint);
+
+        var outcome = await workspace.DispatchAsync(
+            Claim(opened, attached, "missing-schema", "Unavailable project"),
+            CancellationToken.None);
+        var projection = await workspace.ReadAsync(
+            new WorkspaceQueryContext(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
+            ReadProjection.Instance,
+            CancellationToken.None);
+        await using (var context = await factory.CreateDbContextAsync())
+        {
+            await context.Database.MigrateAsync();
+        }
+
+        var retry = await workspace.DispatchAsync(
+            Claim(opened, attached, "retry-after-schema", "Recovered project"),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        var snapshot = (await Assert.That(projection)
+            .IsTypeOf<ProjectionSnapshot>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code)
+                .IsEqualTo("workspace_infrastructure_failure");
+            await Assert.That(snapshot.Projection.Durability)
+                .IsTypeOf<SandboxWorkspaceDurabilityProjection>();
+            await Assert.That(retry).IsTypeOf<DurableProjectClaimed>();
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_CommitAcknowledgementFailure_RecoversStoredClaim()
+    {
+        const string buildFingerprint = "sqlite-commit-unknown";
+        var migrationFactory = CreateDbContextFactory();
+        await using (var context = await migrationFactory.CreateDbContextAsync())
+        {
+            await context.Database.MigrateAsync();
+        }
+
+        var repository = new SqliteDurableProjectRepository(
+            CreateDbContextFactory(new FailAfterFirstCommitInterceptor()),
+            receiptRetentionCount: 1_024);
+        await using var workspace = EditorWorkspaceFactory.Create(
+            buildFingerprint,
+            durableProjectRepository: repository);
+        var (opened, attached) = await OpenAttachedAsync(
+            workspace,
+            buildFingerprint);
+
+        var outcome = await workspace.DispatchAsync(
+            Claim(opened, attached, "commit-unknown", "Recovered project"),
+            CancellationToken.None);
+
+        var claimed = (await Assert.That(outcome)
+            .IsTypeOf<DurableProjectClaimed>())!;
+        await using var verificationContext =
+            await migrationFactory.CreateDbContextAsync();
+        var project = await verificationContext.DurableProjects.SingleAsync();
+        using (Assert.Multiple())
+        {
+            await Assert.That(claimed.DurableProjectId.Value)
+                .IsEqualTo(project.Id);
+            await Assert.That(verificationContext.DurableCommandReceipts)
+                .Count().IsEqualTo(1);
         }
     }
 
@@ -379,6 +517,17 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     private async Task<(SqliteDurableProjectRepository Repository, TestDbContextFactory Factory)>
         CreateRepositoryAsync(int receiptRetentionCount = 1_024)
     {
+        var factory = CreateDbContextFactory();
+        await using var context = await factory.CreateDbContextAsync();
+        await context.Database.MigrateAsync();
+        return (
+            new SqliteDurableProjectRepository(factory, receiptRetentionCount),
+            factory);
+    }
+
+    private TestDbContextFactory CreateDbContextFactory(
+        params IInterceptor[] interceptors)
+    {
         var options = new DbContextOptionsBuilder<LogicLabDbContext>()
             .UseSqlite(new SqliteConnectionStringBuilder
             {
@@ -386,13 +535,9 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
                 Pooling = false,
                 DefaultTimeout = 30,
             }.ToString())
+            .AddInterceptors(interceptors)
             .Options;
-        var factory = new TestDbContextFactory(options);
-        await using var context = await factory.CreateDbContextAsync();
-        await context.Database.MigrateAsync();
-        return (
-            new SqliteDurableProjectRepository(factory, receiptRetentionCount),
-            factory);
+        return new TestDbContextFactory(options);
     }
 
     private static DurableProjectClaimRequest ClaimRequest(
@@ -436,6 +581,23 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             displayName);
     }
 
+    private static async Task<(WorkspaceOpened Opened, Attached Attached)>
+        OpenAttachedAsync(
+            IEditorWorkspace workspace,
+            string buildFingerprint)
+    {
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("Sandbox", "Main"),
+            CancellationToken.None);
+        var attached = (Attached)await workspace.AttachAsync(
+            new InitialAttach(
+                opened.WorkspaceId,
+                buildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
+            CancellationToken.None);
+        return (opened, attached);
+    }
+
     private static ProjectRevision CreateRevision()
     {
         return ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
@@ -477,6 +639,47 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             => Task.FromResult(CreateDbContext());
     }
 
+    private sealed class CancelFirstContextFactory(
+        IDbContextFactory<LogicLabDbContext> inner,
+        CancellationTokenSource cancellation)
+        : IDbContextFactory<LogicLabDbContext>
+    {
+        private int cancelNextCreation = 1;
+
+        public LogicLabDbContext CreateDbContext()
+            => inner.CreateDbContext();
+
+        public Task<LogicLabDbContext> CreateDbContextAsync(
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Exchange(ref cancelNextCreation, 0) == 1)
+            {
+                cancellation.Cancel();
+                throw new OperationCanceledException(cancellationToken);
+            }
+
+            return inner.CreateDbContextAsync(cancellationToken);
+        }
+    }
+
+    private sealed class FailAfterFirstCommitInterceptor : DbTransactionInterceptor
+    {
+        private int failNextCommit = 1;
+
+        public override Task TransactionCommittedAsync(
+            DbTransaction transaction,
+            TransactionEndEventData eventData,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Exchange(ref failNextCommit, 0) == 1)
+            {
+                throw new IOException("The commit acknowledgement was lost.");
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class FirstClaimCommitUnknownRepository(
         IDurableProjectRepository inner) : IDurableProjectRepository
     {
@@ -491,7 +694,9 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             if (failClaimAcknowledgement)
             {
                 failClaimAcknowledgement = false;
-                throw new IOException("The first claim commit acknowledgement was lost.");
+                throw new DurableProjectCommitUncertainException(
+                    new IOException(
+                        "The first claim commit acknowledgement was lost."));
             }
 
             return outcome;
