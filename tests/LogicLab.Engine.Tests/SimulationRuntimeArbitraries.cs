@@ -37,14 +37,14 @@ internal static class SimulationRuntimeArbitraries
         LogicValue[] values)
     {
         var logicalTime = 0UL;
-        return
-        [
-            .. gaps.Select((gap, index) =>
-            {
-                logicalTime = checked(logicalTime + (ulong)gap);
-                return new GeneratedStimulus(logicalTime, values[index]);
-            }),
-        ];
+        var stimuli = new GeneratedStimulus[gaps.Length];
+        for (var index = 0; index < gaps.Length; index++)
+        {
+            logicalTime = checked(logicalTime + (ulong)gaps[index]);
+            stimuli[index] = new GeneratedStimulus(logicalTime, values[index]);
+        }
+
+        return stimuli;
     }
 
     private static IEnumerable<ScheduledStimuliCase> Shrink(
