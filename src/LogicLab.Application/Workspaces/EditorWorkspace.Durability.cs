@@ -50,6 +50,13 @@ internal sealed partial class EditorWorkspace
                             out displayName);
                         if (completed is null)
                         {
+                            if (command is ClaimSandbox)
+                            {
+                                state.PendingClaimSubjectId =
+                                    ((AuthenticatedWorkspaceCaller)command.Context.Caller)
+                                    .SubjectId;
+                            }
+
                             publication = ReserveContextualIntentUnderLock(
                                 state,
                                 command,
@@ -344,6 +351,7 @@ internal sealed partial class EditorWorkspace
             && outcome is DurableProjectClaimed claimed)
         {
             var caller = (AuthenticatedWorkspaceCaller)command.Context.Caller;
+            state.PendingClaimSubjectId = null;
             state.Durable = new DurableWorkspaceState(
                 claimed.DurableProjectId,
                 caller.SubjectId,
@@ -351,6 +359,12 @@ internal sealed partial class EditorWorkspace
                 claimed.DurableVersion,
                 claimed.ProjectRevisionId);
             state.ProjectionVersion++;
+            return;
+        }
+
+        if (command is ClaimSandbox)
+        {
+            state.PendingClaimSubjectId = null;
             return;
         }
 

@@ -170,6 +170,16 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
 
         var state = acquisition.State;
+        var preauthorizationRejection = GetDurableAccessRejection(
+            state,
+            command.Context.Caller);
+        if (preauthorizationRejection is not null)
+        {
+            return command is CloseWorkspace
+                ? new WorkspaceClosed(command.WorkspaceId)
+                : Reject(preauthorizationRejection);
+        }
+
         return command switch
         {
             ClaimSandbox or SaveDurable => await ExecuteDurableCommandAsync(
@@ -216,6 +226,14 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
 
         var state = acquisition.State;
+        var preauthorizationRejection = GetDurableAccessRejection(
+            state,
+            context.Caller);
+        if (preauthorizationRejection is not null)
+        {
+            return RejectRead(preauthorizationRejection);
+        }
+
         try
         {
             await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -595,16 +613,6 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         Exception exception,
         string correlation,
         string outcomeCode);
-
-    private static bool HasCurrentAttachmentSafely(
-        WorkspaceState state,
-        WorkspaceCommandContext context)
-    {
-        lock (state.ContinuityGate)
-        {
-            return HasCurrentAttachmentUnderLock(state, context);
-        }
-    }
 
     private static void PublishCompilation(
         WorkspaceState state,

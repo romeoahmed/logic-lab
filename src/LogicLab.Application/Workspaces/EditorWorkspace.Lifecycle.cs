@@ -288,6 +288,8 @@ internal sealed partial class EditorWorkspace
 
         public bool IsIdempotencyWindowClosed { get; set; }
 
+        public AuthenticatedSubjectId? PendingClaimSubjectId { get; set; }
+
         public DurableWorkspaceState? Durable { get; set; }
 
         public CompilationArtifact? Artifact { get; set; }

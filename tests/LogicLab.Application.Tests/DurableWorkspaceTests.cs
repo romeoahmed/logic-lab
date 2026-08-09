@@ -789,16 +789,27 @@ internal sealed partial class DurableWorkspaceTests
 
         public bool LastReceiptReadWasCancellationRequested { get; private set; }
 
-        public Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
+        public TaskCompletionSource<bool> ClaimStarted { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool>? ClaimRelease { get; init; }
+
+        public async Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
             DurableProjectClaimRequest request,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ClaimCallCount++;
             LastClaim = request;
+            ClaimStarted.TrySetResult(true);
+            if (ClaimRelease is { } claimRelease)
+            {
+                await claimRelease.Task.WaitAsync(cancellationToken);
+            }
+
             if (claimReceipts.TryGetValue(request.ReceiptKey, out var replay))
             {
-                return Task.FromResult(replay);
+                return replay;
             }
 
             currentVersion = request.InitialDurableVersion;
@@ -814,7 +825,7 @@ internal sealed partial class DurableWorkspaceTests
                 throw failure(cancellationToken);
             }
 
-            return Task.FromResult<DurableProjectClaimRepositoryOutcome>(stored);
+            return stored;
         }
 
         public Task<DurableProjectSaveRepositoryOutcome> SaveAsync(

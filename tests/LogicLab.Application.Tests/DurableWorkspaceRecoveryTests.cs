@@ -1,4 +1,5 @@
 using LogicLab.Application.Workspaces;
+using LogicLab.Domain.Authoring;
 
 namespace LogicLab.Application.Tests;
 
@@ -22,11 +23,26 @@ internal sealed partial class DurableWorkspaceTests
                 new ClaimPrecondition(opened.Projection.ProjectRevision.RevisionId),
                 "Unavailable persistence"),
             CancellationToken.None);
+        var projection = await workspace.ReadAsync(
+            new WorkspaceQueryContext(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                AnonymousWorkspaceCaller.Instance),
+            LogicLab.Application.Workspaces.ReadProjection.Instance,
+            CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
             .IsTypeOf<WorkspaceCommandRejected>())!;
-        await Assert.That(rejected.Code)
-            .IsEqualTo("workspace_infrastructure_failure");
+        var snapshot = (await Assert.That(projection)
+            .IsTypeOf<ProjectionSnapshot>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code)
+                .IsEqualTo("workspace_infrastructure_failure");
+            await Assert.That(snapshot.Projection.Durability)
+                .IsTypeOf<SandboxWorkspaceDurabilityProjection>();
+        }
     }
 
     [Test]
@@ -202,6 +218,221 @@ internal sealed partial class DurableWorkspaceTests
             await Assert.That(replay).IsEqualTo(firstRejected);
             await Assert.That(repository.ClaimCallCount).IsEqualTo(1);
             await Assert.That(repository.ClaimReceiptReadCount).IsEqualTo(1);
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_PendingClaim_DifferentSubjectDoesNotWaitForCommandGate(
+        CancellationToken cancellationToken)
+    {
+        var repository = new RecordingDurableProjectRepository
+        {
+            ClaimRelease = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously),
+        };
+        await using var workspace = CreateWorkspace(repository);
+        var (opened, attached) = await OpenAttached(workspace);
+        var ownerClaim = workspace.DispatchAsync(
+            new ClaimSandbox(
+                new WorkspaceCommandContext(
+                    opened.WorkspaceId,
+                    attached.AttachmentId,
+                    attached.Generation,
+                    new ClientIntentId("blocking-owner-claim"),
+                    AuthenticatedCaller),
+                new ClaimPrecondition(opened.Projection.ProjectRevision.RevisionId),
+                "Pending owner claim"),
+            CancellationToken.None);
+        await repository.ClaimStarted.Task.WaitAsync(cancellationToken);
+
+        var differentSubject = new AuthenticatedWorkspaceCaller(
+            new AuthenticatedSubjectId("subject-2"));
+        var unauthorizedDispatch = workspace.DispatchAsync(
+            new ApplyEdit(
+                new WorkspaceCommandContext(
+                    opened.WorkspaceId,
+                    attached.AttachmentId,
+                    attached.Generation,
+                    new ClientIntentId("queued-unauthorized-edit"),
+                    differentSubject),
+                new AuthoringPrecondition(opened.Projection.ProjectRevision.RevisionId),
+                new RenameCircuitDefinitionIntent(
+                    opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId,
+                    "Unauthorized rename")),
+            CancellationToken.None);
+        var unauthorizedRead = workspace.ReadAsync(
+            new WorkspaceQueryContext(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                differentSubject),
+            LogicLab.Application.Workspaces.ReadProjection.Instance,
+            CancellationToken.None);
+        var unauthorizedAttach = workspace.AttachAsync(
+            new InitialAttach(
+                opened.WorkspaceId,
+                BuildFingerprint,
+                differentSubject),
+            CancellationToken.None);
+        var unauthorizedDetach = workspace.DetachAsync(
+            new DetachRequest(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                differentSubject),
+            CancellationToken.None);
+        var unauthorizedCopy = workspace.OpenAsync(
+            new CopyWorkspace(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                opened.Projection.ProjectionVersion,
+                WorkspaceCopySaveTarget.Preserve,
+                differentSubject),
+            CancellationToken.None);
+
+        try
+        {
+            using (Assert.Multiple())
+            {
+                await Assert.That(unauthorizedDispatch.IsCompletedSuccessfully)
+                    .IsTrue();
+                await Assert.That(unauthorizedRead.IsCompletedSuccessfully).IsTrue();
+                await Assert.That(unauthorizedAttach.IsCompletedSuccessfully).IsTrue();
+                await Assert.That(unauthorizedDetach.IsCompletedSuccessfully).IsTrue();
+                await Assert.That(unauthorizedCopy.IsCompletedSuccessfully).IsTrue();
+            }
+        }
+        finally
+        {
+            repository.ClaimRelease.SetResult(true);
+        }
+
+        await Assert.That(await ownerClaim).IsTypeOf<DurableProjectClaimed>();
+        var dispatchRejected = (await Assert.That(await unauthorizedDispatch)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        var readRejected = (await Assert.That(await unauthorizedRead)
+            .IsTypeOf<WorkspaceReadRejected>())!;
+        var attachRejected = (await Assert.That(await unauthorizedAttach)
+            .IsTypeOf<AttachRejected>())!;
+        var detachRejected = (await Assert.That(await unauthorizedDetach)
+            .IsTypeOf<DetachRejected>())!;
+        var copyRejected = (await Assert.That(await unauthorizedCopy)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(dispatchRejected.Code).IsEqualTo("workspace_not_found");
+            await Assert.That(readRejected.Code).IsEqualTo("workspace_not_found");
+            await Assert.That(attachRejected.Code).IsEqualTo("workspace_not_found");
+            await Assert.That(detachRejected.Code).IsEqualTo("workspace_not_found");
+            await Assert.That(copyRejected.Code).IsEqualTo("workspace_not_found");
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_UnknownClaim_PreservesOwnerFenceAcrossReattach()
+    {
+        var repository = new RecordingDurableProjectRepository
+        {
+            ClaimPostCommitFailure = static _ =>
+                new IOException("Commit acknowledgement failed."),
+            ReceiptReadFailure = new IOException("Receipt verification failed."),
+        };
+        await using var workspace = CreateWorkspace(repository);
+        var (opened, attached) = await OpenAttached(workspace);
+        var differentSubject = new AuthenticatedWorkspaceCaller(
+            new AuthenticatedSubjectId("subject-2"));
+        var command = new ClaimSandbox(
+            new WorkspaceCommandContext(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                new ClientIntentId("claim-owner-fence"),
+                AuthenticatedCaller),
+            new ClaimPrecondition(opened.Projection.ProjectRevision.RevisionId),
+            "Uncertain owned claim");
+
+        var claim = await workspace.DispatchAsync(command, CancellationToken.None);
+        var authorizedProjection = await ReadProjection(
+            workspace,
+            opened.WorkspaceId,
+            attached);
+        var unauthorizedRead = await workspace.ReadAsync(
+            new WorkspaceQueryContext(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                differentSubject),
+            LogicLab.Application.Workspaces.ReadProjection.Instance,
+            CancellationToken.None);
+        var missingRead = await workspace.ReadAsync(
+            new WorkspaceQueryContext(
+                new WorkspaceId("missing-workspace"),
+                attached.AttachmentId,
+                attached.Generation,
+                differentSubject),
+            LogicLab.Application.Workspaces.ReadProjection.Instance,
+            CancellationToken.None);
+        var unauthorizedEdit = await workspace.DispatchAsync(
+            new ApplyEdit(
+                new WorkspaceCommandContext(
+                    opened.WorkspaceId,
+                    attached.AttachmentId,
+                    attached.Generation,
+                    new ClientIntentId("unauthorized-edit-after-unknown-claim"),
+                    differentSubject),
+                new AuthoringPrecondition(
+                    authorizedProjection.ProjectRevision.RevisionId),
+                new RenameCircuitDefinitionIntent(
+                    authorizedProjection.ProjectRevision.Document
+                        .EntryCircuitDefinitionId,
+                    "Unauthorized rename")),
+            CancellationToken.None);
+        var missingEdit = await workspace.DispatchAsync(
+            new ApplyEdit(
+                new WorkspaceCommandContext(
+                    new WorkspaceId("missing-workspace"),
+                    attached.AttachmentId,
+                    attached.Generation,
+                    new ClientIntentId("missing-edit-after-unknown-claim"),
+                    differentSubject),
+                new AuthoringPrecondition(
+                    authorizedProjection.ProjectRevision.RevisionId),
+                new RenameCircuitDefinitionIntent(
+                    authorizedProjection.ProjectRevision.Document
+                        .EntryCircuitDefinitionId,
+                    "Unauthorized rename")),
+            CancellationToken.None);
+        var unauthorizedReattach = await workspace.AttachAsync(
+            new Reattach(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                BuildFingerprint,
+                differentSubject),
+            CancellationToken.None);
+        var missingReattach = await workspace.AttachAsync(
+            new Reattach(
+                new WorkspaceId("missing-workspace"),
+                attached.AttachmentId,
+                attached.Generation,
+                BuildFingerprint,
+                differentSubject),
+            CancellationToken.None);
+
+        var claimRejected = (await Assert.That(claim)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(claimRejected.Code)
+                .IsEqualTo("idempotency_window_expired");
+            await Assert.That(authorizedProjection.WorkspaceId)
+                .IsEqualTo(opened.WorkspaceId);
+            await Assert.That(unauthorizedRead).IsEqualTo(missingRead);
+            await Assert.That(unauthorizedEdit).IsEqualTo(missingEdit);
+            await Assert.That(unauthorizedReattach).IsEqualTo(missingReattach);
+            await Assert.That(unauthorizedReattach).IsTypeOf<Expired>();
+            await Assert.That(repository.ClaimCallCount).IsEqualTo(1);
         }
     }
 }
