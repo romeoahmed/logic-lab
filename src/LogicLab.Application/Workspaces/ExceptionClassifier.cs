@@ -1,3 +1,5 @@
+using System.Data.Common;
+
 namespace LogicLab.Application.Workspaces;
 
 internal static class ExceptionClassifier
@@ -19,6 +21,8 @@ internal static class ExceptionClassifier
 
     public static bool IsInfrastructureFailure(Exception exception)
     {
-        return exception is IOException or TimeoutException;
+        return exception is DbException or IOException or TimeoutException
+            || exception.InnerException is { } innerException
+                && IsInfrastructureFailure(innerException);
     }
 }

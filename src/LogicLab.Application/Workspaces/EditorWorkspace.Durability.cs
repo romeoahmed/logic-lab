@@ -283,6 +283,13 @@ internal sealed partial class EditorWorkspace
             var outcome = await execute(cancellationToken).ConfigureAwait(false);
             return projectOutcome(outcome);
         }
+        catch (DurableProjectCommitUncertainException exception)
+        {
+            LogDurableRepositoryException(exception);
+            return await RecoverDurableRepositoryOutcomeAsync(
+                readReceipt,
+                projectOutcome).ConfigureAwait(false);
+        }
         catch (DurableProjectRepositoryUnavailableException exception)
         {
             LogDurableRepositoryException(exception);
@@ -293,16 +300,14 @@ internal sealed partial class EditorWorkspace
                 exception,
                 cancellationToken))
         {
-            return await RecoverDurableRepositoryOutcomeAsync(
-                readReceipt,
-                projectOutcome).ConfigureAwait(false);
+            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
             LogDurableRepositoryException(exception);
-            return await RecoverDurableRepositoryOutcomeAsync(
-                readReceipt,
-                projectOutcome).ConfigureAwait(false);
+            return Reject(ExceptionClassifier.IsInfrastructureFailure(exception)
+                ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
+                : WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
     }
 

@@ -283,6 +283,17 @@ public sealed record DurableProjectSaveReceiptConflict
 public sealed record DurableProjectSaveForbidden
     : DurableProjectSaveRepositoryOutcome;
 
+public sealed class DurableProjectCommitUncertainException : Exception
+{
+    public DurableProjectCommitUncertainException(Exception innerException)
+        : base(
+            "The Durable Project transaction commit could not be confirmed.",
+            innerException)
+    {
+        ArgumentNullException.ThrowIfNull(innerException);
+    }
+}
+
 public interface IDurableProjectRepository
 {
     Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
