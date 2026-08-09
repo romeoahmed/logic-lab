@@ -27,6 +27,9 @@ internal sealed class LogicLabDbContext : DbContext
         projects.Property(project => project.Id)
             .HasColumnName("durable_project_id")
             .HasMaxLength(64);
+        projects.Property(project => project.ClaimWorkspaceId)
+            .HasColumnName("claim_workspace_id")
+            .HasMaxLength(64);
         projects.Property(project => project.SubjectId)
             .HasColumnName("subject_id")
             .HasMaxLength(512);
@@ -46,6 +49,10 @@ internal sealed class LogicLabDbContext : DbContext
         projects.HasIndex(
                 project => new { project.DisplayNameSortKey, project.Id },
                 "ix_durable_projects_display_name_sort_key_id")
+            .IsUnique();
+        projects.HasIndex(
+                project => project.ClaimWorkspaceId,
+                "ux_durable_projects_claim_workspace_id")
             .IsUnique();
 
         var revisions = modelBuilder.Entity<ProjectRevisionRecord>();

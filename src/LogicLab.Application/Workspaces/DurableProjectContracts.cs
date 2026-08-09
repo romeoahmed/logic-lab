@@ -184,6 +184,7 @@ public sealed record DurableProjectClaimRequest
         DisplayName = displayName;
         ProjectRevision = projectRevision;
         ReceiptKey = receiptKey;
+        ClaimWorkspaceId = receiptKey.WorkspaceId;
     }
 
     public DurableProjectId DurableProjectId { get; }
@@ -197,6 +198,8 @@ public sealed record DurableProjectClaimRequest
     public ProjectRevision ProjectRevision { get; }
 
     public DurableCommandReceiptKey ReceiptKey { get; }
+
+    public WorkspaceId ClaimWorkspaceId { get; }
 }
 
 public sealed record DurableProjectSaveRequest
@@ -246,9 +249,13 @@ public abstract record DurableProjectClaimRepositoryOutcome
 public sealed record DurableProjectClaimStored(
     DurableProjectId DurableProjectId,
     DurableVersion DurableVersion,
-    ProjectRevisionId ProjectRevisionId) : DurableProjectClaimRepositoryOutcome;
+    ProjectRevisionId ProjectRevisionId,
+    DurableDisplayName DisplayName) : DurableProjectClaimRepositoryOutcome;
 
 public sealed record DurableProjectClaimReceiptConflict
+    : DurableProjectClaimRepositoryOutcome;
+
+public sealed record DurableProjectClaimForbidden
     : DurableProjectClaimRepositoryOutcome;
 
 public abstract record DurableProjectSaveRepositoryOutcome
@@ -355,7 +362,8 @@ public sealed record SaveDurable : WorkspaceCommand
 public sealed record DurableProjectClaimed(
     DurableProjectId DurableProjectId,
     DurableVersion DurableVersion,
-    ProjectRevisionId ProjectRevisionId) : WorkspaceCommandOutcome;
+    ProjectRevisionId ProjectRevisionId,
+    DurableDisplayName DisplayName) : WorkspaceCommandOutcome;
 
 public sealed record DurableProjectSaved(
     DurableVersion DurableVersion,

@@ -28,6 +28,7 @@ public partial class InitialDurableProjects : Migration
             columns: table => new
             {
                 durable_project_id = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
+                claim_workspace_id = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
                 subject_id = table.Column<string>(type: "TEXT", maxLength: 512, nullable: false),
                 display_name = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
                 display_name_sort_key = table.Column<byte[]>(type: "BLOB", nullable: false),
@@ -102,6 +103,12 @@ public partial class InitialDurableProjects : Migration
             name: "ix_durable_projects_display_name_sort_key_id",
             table: "durable_projects",
             columns: DisplayNameSortColumns,
+            unique: true);
+
+        migrationBuilder.CreateIndex(
+            name: "ux_durable_projects_claim_workspace_id",
+            table: "durable_projects",
+            column: "claim_workspace_id",
             unique: true);
     }
 

@@ -81,7 +81,6 @@ internal sealed partial class EditorWorkspace
                     PublishDurableOutcomeUnderLock(
                         state,
                         command,
-                        displayName,
                         completed);
                     CompletePendingIdempotencyUnderLock(
                         state,
@@ -210,9 +209,12 @@ internal sealed partial class EditorWorkspace
             DurableProjectClaimStored stored => new DurableProjectClaimed(
                 stored.DurableProjectId,
                 stored.DurableVersion,
-                stored.ProjectRevisionId),
+                stored.ProjectRevisionId,
+                stored.DisplayName),
             DurableProjectClaimReceiptConflict => Reject(
                 WorkspaceOutcomeReasons.IdempotencyKeyConflict),
+            DurableProjectClaimForbidden => Reject(
+                WorkspaceOutcomeReasons.WorkspaceNotFound),
             _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
         };
     }
@@ -327,9 +329,17 @@ internal sealed partial class EditorWorkspace
     private static void PublishDurableOutcomeUnderLock(
         WorkspaceState state,
         WorkspaceCommand command,
-        DurableDisplayName? displayName,
         WorkspaceCommandOutcome outcome)
     {
+        if (outcome is WorkspaceCommandRejected
+            {
+                Code: WorkspaceOutcomeReasons.IdempotencyWindowExpired,
+            })
+        {
+            state.IsIdempotencyWindowClosed = true;
+            return;
+        }
+
         if (command is ClaimSandbox
             && outcome is DurableProjectClaimed claimed)
         {
@@ -337,7 +347,7 @@ internal sealed partial class EditorWorkspace
             state.Durable = new DurableWorkspaceState(
                 claimed.DurableProjectId,
                 caller.SubjectId,
-                displayName!,
+                claimed.DisplayName,
                 claimed.DurableVersion,
                 claimed.ProjectRevisionId);
             state.ProjectionVersion++;

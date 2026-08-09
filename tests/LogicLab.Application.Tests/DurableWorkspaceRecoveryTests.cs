@@ -139,16 +139,30 @@ internal sealed partial class DurableWorkspaceTests
         var first = await workspace.DispatchAsync(command, CancellationToken.None);
         repository.ReceiptReadFailure = null;
         var replay = await workspace.DispatchAsync(command, CancellationToken.None);
+        var newIntent = await workspace.DispatchAsync(
+            new ClaimSandbox(
+                new WorkspaceCommandContext(
+                    opened.WorkspaceId,
+                    attached.AttachmentId,
+                    attached.Generation,
+                    new ClientIntentId("claim-after-unknown"),
+                    AuthenticatedCaller),
+                command.Precondition,
+                command.RequestedDisplayName),
+            CancellationToken.None);
 
         var firstRejected = (await Assert.That(first)
             .IsTypeOf<WorkspaceCommandRejected>())!;
         var replayRejected = (await Assert.That(replay)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        var newIntentRejected = (await Assert.That(newIntent)
             .IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(firstRejected.Code)
                 .IsEqualTo("idempotency_window_expired");
             await Assert.That(replayRejected).IsEqualTo(firstRejected);
+            await Assert.That(newIntentRejected).IsEqualTo(firstRejected);
             await Assert.That(repository.ClaimCallCount).IsEqualTo(1);
             await Assert.That(repository.ClaimReceiptReadCount).IsEqualTo(1);
         }

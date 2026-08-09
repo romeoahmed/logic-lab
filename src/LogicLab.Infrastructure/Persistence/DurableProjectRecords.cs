@@ -4,6 +4,8 @@ internal sealed class DurableProjectRecord
 {
     public required string Id { get; set; }
 
+    public required string ClaimWorkspaceId { get; set; }
+
     public required string SubjectId { get; set; }
 
     public required string DisplayName { get; set; }

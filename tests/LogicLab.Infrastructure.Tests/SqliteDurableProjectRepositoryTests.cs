@@ -77,6 +77,74 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task ClaimAsync_UnknownCommitThenNewIntentAndGeneration_RecoversWithoutDuplicate()
+    {
+        const string buildFingerprint = "sqlite-claim-recovery";
+        var (sqliteRepository, factory) = await CreateRepositoryAsync();
+        var repository = new FirstClaimCommitUnknownRepository(sqliteRepository);
+        await using var workspace = EditorWorkspaceFactory.Create(
+            buildFingerprint,
+            durableProjectRepository: repository);
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("Sandbox", "Main"),
+            CancellationToken.None);
+        var firstAttachment = (Attached)await workspace.AttachAsync(
+            new InitialAttach(
+                opened.WorkspaceId,
+                buildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
+            CancellationToken.None);
+
+        var first = await workspace.DispatchAsync(
+            Claim(
+                opened,
+                firstAttachment,
+                "unknown-claim",
+                "Original durable project"),
+            CancellationToken.None);
+        var secondAttachment = (Attached)await workspace.AttachAsync(
+            new Reattach(
+                opened.WorkspaceId,
+                firstAttachment.AttachmentId,
+                firstAttachment.Generation,
+                buildFingerprint,
+                AuthenticatedCaller),
+            CancellationToken.None);
+        var second = await workspace.DispatchAsync(
+            Claim(
+                opened,
+                secondAttachment,
+                "new-claim-intent",
+                "Replacement durable project"),
+            CancellationToken.None);
+
+        var firstRejected = (await Assert.That(first)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        var recovered = (await Assert.That(second)
+            .IsTypeOf<DurableProjectClaimed>())!;
+        await using var context = await factory.CreateDbContextAsync();
+        var projects = await context.DurableProjects.ToArrayAsync();
+        var persisted = projects[0];
+        using (Assert.Multiple())
+        {
+            await Assert.That(firstRejected.Code)
+                .IsEqualTo("idempotency_window_expired");
+            await Assert.That(secondAttachment.Generation)
+                .IsEqualTo(firstAttachment.Generation + 1);
+            await Assert.That(projects).Count().IsEqualTo(1);
+            await Assert.That(recovered.DurableProjectId.Value)
+                .IsEqualTo(persisted.Id);
+            await Assert.That(recovered.DisplayName.Value)
+                .IsEqualTo("Original durable project");
+            await Assert.That(persisted.ClaimWorkspaceId)
+                .IsEqualTo(opened.WorkspaceId.Value);
+            await Assert.That(persisted.DisplayName)
+                .IsEqualTo("Original durable project");
+            await Assert.That(context.DurableCommandReceipts).Count().IsEqualTo(2);
+        }
+    }
+
+    [Test]
     public async Task TryReadSaveReceiptAsync_MissingReceipt_DoesNotWrite()
     {
         var (repository, factory) = await CreateRepositoryAsync();
@@ -135,23 +203,29 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     }
 
     [Test]
-    public async Task ClaimAsync_DifferentSubjectReplay_ReturnsReceiptConflictWithoutDisclosure()
+    public async Task ClaimAsync_ExistingClaimWorkspaceForDifferentSubject_ReturnsForbiddenWithoutDisclosure()
     {
-        var (repository, _) = await CreateRepositoryAsync();
+        var (repository, factory) = await CreateRepositoryAsync();
         var revision = CreateRevision();
         var ownerRequest = ClaimRequest(revision, fingerprintCharacter: 'a');
         _ = await repository.ClaimAsync(ownerRequest, CancellationToken.None);
         var replay = new DurableProjectClaimRequest(
-            ownerRequest.DurableProjectId,
+            new DurableProjectId("other-project"),
             ownerRequest.InitialDurableVersion,
             new AuthenticatedSubjectId("different-subject"),
             ownerRequest.DisplayName,
             ownerRequest.ProjectRevision,
-            ownerRequest.ReceiptKey);
+            ReceiptKey('b', "foreign-claim"));
 
         var outcome = await repository.ClaimAsync(replay, CancellationToken.None);
 
-        await Assert.That(outcome).IsTypeOf<DurableProjectClaimReceiptConflict>();
+        await Assert.That(outcome).IsTypeOf<DurableProjectClaimForbidden>();
+        await using var context = await factory.CreateDbContextAsync();
+        using (Assert.Multiple())
+        {
+            await Assert.That(context.DurableProjects).Count().IsEqualTo(1);
+            await Assert.That(context.DurableCommandReceipts).Count().IsEqualTo(1);
+        }
     }
 
     [Test]
@@ -276,6 +350,25 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task Model_ClaimWorkspaceId_IsUniqueClaimFence()
+    {
+        var (_, factory) = await CreateRepositoryAsync();
+        await using var context = await factory.CreateDbContextAsync();
+
+        var index = context.Model.FindEntityType(typeof(DurableProjectRecord))!
+            .GetIndexes()
+            .Single(candidate => candidate.Properties is
+                [{ Name: nameof(DurableProjectRecord.ClaimWorkspaceId) }]);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(index.IsUnique).IsTrue();
+            await Assert.That(index.GetDatabaseName())
+                .IsEqualTo("ux_durable_projects_claim_workspace_id");
+        }
+    }
+
+    [Test]
     public async Task SaveAsync_ReceiptRetentionLimit_KeepsOnlyNewestReceipts()
     {
         const int receiptRetentionCount = 3;
@@ -362,6 +455,23 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             new DurableCommandFingerprint(new string(fingerprintCharacter, 64)));
     }
 
+    private static ClaimSandbox Claim(
+        WorkspaceOpened opened,
+        Attached attached,
+        string clientIntentId,
+        string displayName)
+    {
+        return new ClaimSandbox(
+            new WorkspaceCommandContext(
+                opened.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                new ClientIntentId(clientIntentId),
+                AuthenticatedCaller),
+            new ClaimPrecondition(opened.Projection.ProjectRevision.RevisionId),
+            displayName);
+    }
+
     private static ProjectRevision CreateRevision()
     {
         return ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
@@ -402,4 +512,51 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             CancellationToken cancellationToken = default)
             => Task.FromResult(CreateDbContext());
     }
+
+    private sealed class FirstClaimCommitUnknownRepository(
+        IDurableProjectRepository inner) : IDurableProjectRepository
+    {
+        private bool failClaimAcknowledgement = true;
+        private bool hideClaimReceipt = true;
+
+        public async Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
+            DurableProjectClaimRequest request,
+            CancellationToken cancellationToken)
+        {
+            var outcome = await inner.ClaimAsync(request, cancellationToken);
+            if (failClaimAcknowledgement)
+            {
+                failClaimAcknowledgement = false;
+                throw new IOException("The first claim commit acknowledgement was lost.");
+            }
+
+            return outcome;
+        }
+
+        public Task<DurableProjectClaimRepositoryOutcome?> TryReadClaimReceiptAsync(
+            DurableProjectClaimRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (hideClaimReceipt)
+            {
+                hideClaimReceipt = false;
+                return Task.FromResult<DurableProjectClaimRepositoryOutcome?>(null);
+            }
+
+            return inner.TryReadClaimReceiptAsync(request, cancellationToken);
+        }
+
+        public Task<DurableProjectSaveRepositoryOutcome> SaveAsync(
+            DurableProjectSaveRequest request,
+            CancellationToken cancellationToken)
+            => inner.SaveAsync(request, cancellationToken);
+
+        public Task<DurableProjectSaveRepositoryOutcome?> TryReadSaveReceiptAsync(
+            DurableProjectSaveRequest request,
+            CancellationToken cancellationToken)
+            => inner.TryReadSaveReceiptAsync(request, cancellationToken);
+    }
+
+    private static AuthenticatedWorkspaceCaller AuthenticatedCaller { get; } =
+        new(new AuthenticatedSubjectId("subject-1"));
 }
