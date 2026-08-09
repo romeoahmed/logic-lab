@@ -487,11 +487,20 @@ internal sealed partial class EditorWorkspace
             return SandboxWorkspaceDurabilityProjection.Instance;
         }
 
-        var status = durable.ConflictActualDurableVersion is not null
-            ? DurableSaveStatus.Conflict
-            : durable.SavedProjectRevisionId == state.Revision.RevisionId
-                ? DurableSaveStatus.Clean
-                : DurableSaveStatus.Changed;
+        DurableSaveStatus status;
+        if (durable.ConflictActualDurableVersion is not null)
+        {
+            status = DurableSaveStatus.Conflict;
+        }
+        else if (durable.SavedProjectRevisionId == state.Revision.RevisionId)
+        {
+            status = DurableSaveStatus.Clean;
+        }
+        else
+        {
+            status = DurableSaveStatus.Changed;
+        }
+
         return new DurableWorkspaceDurabilityProjection(
             durable.DurableProjectId,
             durable.ObservedDurableVersion,

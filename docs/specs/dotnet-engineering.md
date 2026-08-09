@@ -29,6 +29,7 @@ src/LogicLab.Domain/             Microsoft.NET.Sdk
 src/LogicLab.Engine/             Microsoft.NET.Sdk
 src/LogicLab.Presentation/       Microsoft.NET.Sdk
 src/LogicLab.Application/        Microsoft.NET.Sdk
+src/LogicLab.Infrastructure/     Microsoft.NET.Sdk
 src/LogicLab.Web/                Microsoft.NET.Sdk.Web
 ```
 
@@ -37,14 +38,13 @@ The remaining target production roots are created only with the slice that gives
 ```text
 src/LogicLab.BooleanAnalysis/    Microsoft.NET.Sdk
 src/LogicLab.ProjectFormat/      Microsoft.NET.Sdk
-src/LogicLab.Infrastructure/     Microsoft.NET.Sdk
 ```
 
-Test projects mirror evidence ownership under `tests/`. The executable projects are `LogicLab.Domain.Tests`, `LogicLab.Engine.Tests`, `LogicLab.Presentation.Tests`, `LogicLab.Application.Tests`, and `LogicLab.Web.Tests`. Browser workflow tests use `tests/LogicLab.Web.BrowserTests/` when that suite arrives, and comparative benchmarks use owner-specific projects under `benchmarks/`; the current project is `benchmarks/LogicLab.Engine.Benchmarks/`. Create a test or benchmark project with the slice that gives it executable evidence—never add empty placeholder projects. Production projects do not reference tests or benchmarks. Tests reference the narrowest production projects that own the fact being proved.
+Test projects mirror evidence ownership under `tests/`. The executable projects are `LogicLab.Domain.Tests`, `LogicLab.Engine.Tests`, `LogicLab.Presentation.Tests`, `LogicLab.Application.Tests`, `LogicLab.Infrastructure.Tests`, and `LogicLab.Web.Tests`. Browser workflow tests use `tests/LogicLab.Web.BrowserTests/` when that suite arrives, and comparative benchmarks use owner-specific projects under `benchmarks/`; the current project is `benchmarks/LogicLab.Engine.Benchmarks/`. Create a test or benchmark project with the slice that gives it executable evidence—never add empty placeholder projects. Production projects do not reference tests or benchmarks. Tests reference the narrowest production projects that own the fact being proved.
 
 TUnit is the selected test framework. Its source generator and analyzers provide compile-time discovery and validation on the default path; reflection mode is an explicit compatibility exception confined to a test project that proves why generated discovery cannot cover it. The TUnit meta-package supplies its Microsoft Testing Platform engine, assertions, code coverage, and TRX extensions. Test projects do not reference `Microsoft.NET.Test.Sdk`, a VSTest adapter, xUnit packages, an xUnit runner configuration, or Coverlet. Projects that expose properties through `[FsCheckProperty]` use `TUnit.FsCheck` as their sole FsCheck framework integration; they add a direct `FsCheck` reference only when their source directly consumes advanced FsCheck APIs.
 
-All five test-project lock graphs are committed alongside the Web and benchmark lock graphs, and no project mixes xUnit and TUnit. The selected stack and rationale are grounded in [TUnit Modern Testing Research](../research/tunit-modern-testing.md).
+All six test-project lock graphs are committed alongside the Web and benchmark lock graphs, and no project mixes xUnit and TUnit. The selected stack and rationale are grounded in [TUnit Modern Testing Research](../research/tunit-modern-testing.md).
 
 All projects inherit `TargetFramework`, `LangVersion`, nullable context, implicit usings, checked arithmetic, and safe-code defaults. A project may override a central property only with a comment naming the measured or platform reason and the owning evidence. `AllowUnsafeBlocks` can change only under the gate in [.NET Memory and Unsafe Code Research](../research/dotnet-memory-and-unsafe.md). No project suppresses all warnings, disables nullable analysis, uses `LangVersion=latest`, or weakens a warning only in Release.
 
@@ -61,6 +61,8 @@ NuGet Audit remains enabled at `all` dependencies and reports from `low`; .NET 1
 Application roots—Web, test executables, browser tests, and benchmarks—enable `RestorePackagesWithLockFile` when created and commit their `packages.lock.json`. Common production libraries do not claim that their own lock file controls an executable's resolved closure. CI runs `dotnet restore logic-lab.slnx --locked-mode --nologo`, then build and test with `--no-restore`; dependency updates deliberately regenerate and review lock files. This follows NuGet's distinction between application and common-library lock files ([locking dependencies](https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#locking-dependencies)).
 
 Prefer the shared framework and BCL before a package. A package must remove material implementation complexity from a Module without weakening its seam, be compatible with .NET 10 and the publication profile, have acceptable license/provenance, and earn its transitive graph. Analyzer/build-only packages use `PrivateAssets="all"`. Dependency acquisition occurs only in explicit restore or environment-provisioning steps; build and test execution never download tools or mutable web assets implicitly.
+
+`Microsoft.EntityFrameworkCore.Design` remains a private dependency of the Web startup project. EF Core tools build and run that project to discover the model even though the `DbContext` and migrations live in the Infrastructure target project; the design-time package is not a runtime or transitive dependency. This split is verified through the repository's explicit `--project` and `--startup-project` tooling path ([EF Core CLI tools](https://learn.microsoft.com/en-us/ef/core/cli/dotnet), [design-time services](https://learn.microsoft.com/en-us/ef/core/cli/services#referencing-microsoftentityframeworkcoredesign)).
 
 ## 3. C# surface and ownership
 
