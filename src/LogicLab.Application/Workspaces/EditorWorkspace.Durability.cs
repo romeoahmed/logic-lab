@@ -419,7 +419,7 @@ internal sealed partial class EditorWorkspace
             return false;
         }
 
-        var scalarCount = CountScalars(value);
+        var scalarCount = value.EnumerateRunes().Count();
         if (scalarCount > workspacePolicy.DurableDisplayNameLimits.ScalarCount)
         {
             rejection = Reject(
@@ -446,20 +446,6 @@ internal sealed partial class EditorWorkspace
         return true;
     }
 
-    private static int CountScalars(string value)
-    {
-        var count = 0;
-        for (var index = 0; index < value.Length; index++, count++)
-        {
-            if (char.IsHighSurrogate(value[index]))
-            {
-                index++;
-            }
-        }
-
-        return count;
-    }
-
     private PolicyEvidenceProjection DurableNamePolicyEvidence(
         string dimension,
         ulong observed)
@@ -481,7 +467,7 @@ internal sealed partial class EditorWorkspace
             context.AttachmentGeneration,
             context.ClientIntentId,
             new DurableCommandFingerprint(
-                Convert.ToHexString(digest).ToLowerInvariant()));
+                Convert.ToHexStringLower(digest)));
     }
 
     private static WorkspaceDurabilityProjection ProjectDurability(
