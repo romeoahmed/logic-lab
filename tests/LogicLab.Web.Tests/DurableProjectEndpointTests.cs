@@ -258,6 +258,109 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     }
 
     [Test]
+    public async Task Post_OpenWithoutAntiforgeryToken_ReturnsProblemDetailsWithoutWorkspaceAccess()
+    {
+        await using var workspace = new RecordingOpenWorkspace();
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthentication(services);
+                services.RemoveAll<IEditorWorkspace>();
+                services.AddSingleton<IEditorWorkspace>(workspace);
+            }));
+        using var client = host.CreateHttpsClient();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            new Uri("/projects/open", UriKind.Relative))
+        {
+            Content = new FormUrlEncodedContent(
+                [new("durableProjectId", "project-a")]),
+        };
+        request.Headers.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("text/html"));
+
+        using var response = await client.SendAsync(request);
+
+        await AssertProblemDetails(
+            response,
+            HttpStatusCode.BadRequest,
+            "antiforgery_validation_failed");
+        await Assert.That(workspace.Request).IsNull();
+    }
+
+    [Test]
+    public async Task Post_OpenWithInvalidAntiforgeryToken_ReturnsProblemDetailsWithoutWorkspaceAccess()
+    {
+        await using var workspace = new RecordingOpenWorkspace();
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthentication(services);
+                services.RemoveAll<IDurableProjectCatalog>();
+                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
+                services.RemoveAll<IEditorWorkspace>();
+                services.AddSingleton<IEditorWorkspace>(workspace);
+            }));
+        using var client = host.CreateHttpsClient();
+        var form = await PrepareOpenFormAsync(client);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            new Uri("/projects/open", UriKind.Relative))
+        {
+            Content = new FormUrlEncodedContent(
+            [
+                new("durableProjectId", "project-a"),
+                new("__RequestVerificationToken", "invalid-token"),
+            ]),
+        };
+        request.Headers.Add("Cookie", form.AntiforgeryCookie);
+        request.Headers.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("text/html"));
+
+        using var response = await client.SendAsync(request);
+
+        await AssertProblemDetails(
+            response,
+            HttpStatusCode.BadRequest,
+            "antiforgery_validation_failed");
+        await Assert.That(workspace.Request).IsNull();
+    }
+
+    [Test]
+    public async Task Post_OpenRequestBodyLimit_IsInclusiveAndUsesProblemDetails()
+    {
+        const int maximumBodyBytes = 4096;
+        await using var workspace = new RecordingOpenWorkspace();
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthentication(services);
+                services.RemoveAll<IDurableProjectCatalog>();
+                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
+                services.RemoveAll<IEditorWorkspace>();
+                services.AddSingleton<IEditorWorkspace>(workspace);
+            }));
+        using var client = host.CreateHttpsClient();
+        var form = await PrepareOpenFormAsync(client);
+
+        using var accepted = await PostSizedOpenAsync(
+            client,
+            form,
+            maximumBodyBytes);
+        using var rejected = await PostSizedOpenAsync(
+            client,
+            form,
+            maximumBodyBytes + 1);
+
+        await Assert.That(accepted.StatusCode).IsEqualTo(HttpStatusCode.Redirect);
+        await AssertProblemDetails(
+            rejected,
+            HttpStatusCode.RequestEntityTooLarge,
+            "request_body_too_large");
+        await Assert.That(workspace.CallCount).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task Post_OpenWithoutAuthentication_ReturnsAuthenticationRequiredProblemDetails()
     {
         await using var workspace = new RecordingOpenWorkspace();
@@ -390,6 +493,64 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
             Content = new FormUrlEncodedContent(formValues),
         };
         request.Headers.Add("Cookie", antiforgeryCookie);
+        request.Headers.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("text/html"));
+        return await client.SendAsync(request);
+    }
+
+    private static async Task<PreparedOpenForm> PrepareOpenFormAsync(
+        HttpClient client)
+    {
+        using var pageResponse = await client.GetAsync(
+            new Uri("/projects", UriKind.Relative));
+        pageResponse.EnsureSuccessStatusCode();
+        var html = await pageResponse.Content.ReadAsStringAsync();
+        var requestToken = ExtractAttributeAfter(
+            html,
+            "name=\"__RequestVerificationToken\"",
+            "value");
+        var antiforgeryCookie = pageResponse.Headers.GetValues("Set-Cookie")
+            .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal))
+            .Split(';', 2)[0];
+        return new PreparedOpenForm(requestToken, antiforgeryCookie);
+    }
+
+    private static async Task<HttpResponseMessage> PostSizedOpenAsync(
+        HttpClient client,
+        PreparedOpenForm form,
+        int bodyLength)
+    {
+        var values = new List<KeyValuePair<string, string>>
+        {
+            new("durableProjectId", "project-a"),
+            new("__RequestVerificationToken", form.RequestToken),
+            new("padding", string.Empty),
+        };
+        using var unpadded = new FormUrlEncodedContent(values);
+        var paddingLength = checked(
+            bodyLength - (int)(unpadded.Headers.ContentLength
+                ?? throw new InvalidOperationException(
+                    "The form content did not expose its length.")));
+        if (paddingLength < 0)
+        {
+            throw new InvalidOperationException(
+                "The requested body length is smaller than the form envelope.");
+        }
+
+        values[^1] = new("padding", new string('x', paddingLength));
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            new Uri("/projects/open", UriKind.Relative))
+        {
+            Content = new FormUrlEncodedContent(values),
+        };
+        if (request.Content.Headers.ContentLength != bodyLength)
+        {
+            throw new InvalidOperationException(
+                "The encoded form did not reach the requested byte boundary.");
+        }
+
+        request.Headers.Add("Cookie", form.AntiforgeryCookie);
         request.Headers.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
         return await client.SendAsync(request);
@@ -546,18 +707,25 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
 
     private sealed class RecordingOpenWorkspace : DelegatingEditorWorkspace
     {
+        public int CallCount { get; private set; }
+
         public OpenWorkspaceRequest? Request { get; private set; }
 
         public override Task<WorkspaceOpenOutcome> OpenAsync(
             OpenWorkspaceRequest request,
             CancellationToken cancellationToken)
         {
+            CallCount++;
             Request = request;
             return base.OpenAsync(
                 new CreateSandbox("Reopened project", "Main"),
                 cancellationToken);
         }
     }
+
+    private sealed record PreparedOpenForm(
+        string RequestToken,
+        string AntiforgeryCookie);
 
     private sealed class RejectingOpenWorkspace(string code)
         : DelegatingEditorWorkspace

@@ -161,6 +161,8 @@ app.Use(next =>
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
+app.Use(next =>
+    new AntiforgeryProblemDetailsMiddleware(next).InvokeAsync);
 app.MapStaticAssets();
 app.MapLogicLabAccountEndpoints();
 app.MapDurableProjectEndpoints();

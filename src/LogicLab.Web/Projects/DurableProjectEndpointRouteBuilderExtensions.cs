@@ -8,6 +8,7 @@ namespace LogicLab.Web.Projects;
 public static class DurableProjectEndpointRouteBuilderExtensions
 {
     private const int MaximumDurableProjectIdLength = 64;
+    private const int MaximumOpenRequestBodyBytes = 4096;
 
     public static IEndpointConventionBuilder MapDurableProjectEndpoints(
         this IEndpointRouteBuilder endpoints)
@@ -58,6 +59,8 @@ public static class DurableProjectEndpointRouteBuilderExtensions
                 })
             .RequireAuthorization()
             .DisableCookieRedirect()
+            .WithMetadata(new RequestSizeLimitAttribute(
+                MaximumOpenRequestBodyBytes))
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true));
     }
 }

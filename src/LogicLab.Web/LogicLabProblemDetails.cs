@@ -13,6 +13,8 @@ internal static class LogicLabProblemDetails
         "authentication_required";
     internal const string AuthenticationRateLimitExceededCode =
         "authentication_rate_limit_exceeded";
+    internal const string AntiforgeryValidationFailedCode =
+        "antiforgery_validation_failed";
     internal const string RequestBodyTooLargeCode = "request_body_too_large";
     internal const string ForbiddenCode = "forbidden";
 
@@ -41,6 +43,9 @@ internal static class LogicLabProblemDetails
             ProjectOpenRequestInvalidCode => (
                 StatusCodes.Status400BadRequest,
                 "The project open request is invalid"),
+            AntiforgeryValidationFailedCode => (
+                StatusCodes.Status400BadRequest,
+                "Antiforgery validation failed"),
             RequestBodyTooLargeCode => (
                 StatusCodes.Status413PayloadTooLarge,
                 "The request body is too large"),
