@@ -13,11 +13,6 @@ internal sealed partial class EditorWorkspace
             return RejectOpen(WorkspaceOutcomeReasons.AuthenticationRequired);
         }
 
-        if (durableProjectLoader is null)
-        {
-            return RejectOpen(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
-        }
-
         var rejectionReason = ReserveWorkspace(out var retired);
         RetireAll(retired);
         if (rejectionReason is not null)

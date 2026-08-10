@@ -15,7 +15,7 @@ internal sealed class EditorDurableRouteTests
     [Test]
     [Arguments(null)]
     [Arguments("replacement-subject")]
-    public async Task Editor_DurableRoute_AuthenticationSubjectChanges_ClearsProjectionAndDetachesAsPriorSubject(
+    public async Task Editor_SandboxRoute_AuthenticationSubjectChanges_PreservesAttachmentAndUsesCurrentCaller(
         string? replacementSubject)
     {
         await using var context = new BunitContext();
@@ -31,6 +31,99 @@ internal sealed class EditorDurableRouteTests
         await rendered.WaitForElementAsync(
             "[data-command='author']:not([disabled])");
         var attached = (Attached)workspace.AttachOutcomes.Single();
+        var initialProjection = rendered.FindComponent<WorkbenchStatusStrip>()
+            .Instance.Projection!;
+        var initialScene = rendered.FindComponent<AccessibleCircuitScene>()
+            .Instance.Scene!;
+
+        rendered.Render(parameters => parameters
+            .Add(value => value.Value, AuthenticationStateFor(replacementSubject))
+            .Add(value => value.ChildContent, (RenderFragment)(builder =>
+            {
+                builder.OpenComponent<Editor>(0);
+                builder.AddAttribute(1, nameof(Editor.WorkspaceIdValue), opened.WorkspaceId.Value);
+                builder.CloseComponent();
+            })));
+
+        await rendered.WaitForElementAsync(
+            "[data-command='author']:not([disabled])");
+        var retainedProjection = rendered.FindComponent<WorkbenchStatusStrip>()
+            .Instance.Projection!;
+        var retainedScene = rendered.FindComponent<AccessibleCircuitScene>()
+            .Instance.Scene!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.Find("[data-command='author']")
+                    .HasAttribute("disabled"))
+                .IsFalse();
+            await Assert.That(rendered.Find("[data-command='create']")
+                    .HasAttribute("disabled"))
+                .IsTrue();
+            await Assert.That(workspace.DetachRequest).IsNull();
+            await Assert.That(workspace.AttachRequests).Count().IsEqualTo(1);
+            await Assert.That(retainedProjection.WorkspaceId)
+                .IsEqualTo(initialProjection.WorkspaceId);
+            await Assert.That(retainedProjection.ProjectRevision.RevisionId)
+                .IsEqualTo(initialProjection.ProjectRevision.RevisionId);
+            await Assert.That(retainedScene).IsNotNull();
+            await Assert.That(retainedScene.CircuitDefinitionId)
+                .IsEqualTo(initialScene.CircuitDefinitionId);
+        }
+
+        await rendered.Find("[data-command='author']").ClickAsync();
+        await rendered.WaitForElementAsync(
+            "[data-command='compile']:not([disabled])");
+
+        var command = workspace.LastCommand!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(workspace.DetachRequest).IsNull();
+            await Assert.That(command.Context.AttachmentId)
+                .IsEqualTo(attached.AttachmentId);
+            await Assert.That(command.Context.AttachmentGeneration)
+                .IsEqualTo(attached.Generation);
+            await Assert.That(rendered.FindComponent<AccessibleCircuitScene>()
+                    .Instance.Scene)
+                .IsNotNull();
+        }
+
+        if (replacementSubject is null)
+        {
+            await Assert.That(command.Context.Caller)
+                .IsTypeOf<AnonymousWorkspaceCaller>();
+        }
+        else
+        {
+            var caller = (await Assert.That(command.Context.Caller)
+                .IsTypeOf<AuthenticatedWorkspaceCaller>())!;
+            await Assert.That(caller.SubjectId.Value)
+                .IsEqualTo(replacementSubject);
+        }
+    }
+
+    [Test]
+    [Arguments(null)]
+    [Arguments("replacement-subject")]
+    public async Task Editor_DurableRoute_AuthenticationSubjectChanges_ClearsProjectionAndDetachesAsPriorSubject(
+        string? replacementSubject)
+    {
+        await using var context = new BunitContext();
+        var owner = new AuthenticatedWorkspaceCaller(
+            new AuthenticatedSubjectId("subject-editor"));
+        var projectId = new DurableProjectId("durable-auth-change");
+        await using var workspace = new RecordingAttachWorkspace(
+            durableProjectLoader: DurableLoader(projectId));
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new OpenDurable(projectId, owner),
+            CancellationToken.None);
+        Configure(context, workspace);
+        var rendered = RenderEditor(
+            context,
+            opened.WorkspaceId,
+            AuthenticationStateFor("subject-editor"));
+        await rendered.WaitForElementAsync(
+            "[data-command='session']:not([disabled])");
+        var attached = (Attached)workspace.AttachOutcomes.Single();
 
         rendered.Render(parameters => parameters
             .Add(value => value.Value, AuthenticationStateFor(replacementSubject))
@@ -45,12 +138,6 @@ internal sealed class EditorDurableRouteTests
         var detach = workspace.DetachRequest!;
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.Find("[data-command='author']")
-                    .HasAttribute("disabled"))
-                .IsTrue();
-            await Assert.That(rendered.Find("[data-command='create']")
-                    .HasAttribute("disabled"))
-                .IsTrue();
             await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
             await Assert.That(rendered.FindComponent<WorkbenchStatusStrip>()
                     .Instance.Projection)
@@ -69,9 +156,14 @@ internal sealed class EditorDurableRouteTests
     public async Task Editor_DurableRoute_AuthenticationChangesDuringAttach_DiscardsAndDetachesPriorSubjectOutcome()
     {
         await using var context = new BunitContext();
-        await using var workspace = new RecordingAttachWorkspace(blockFirstAttach: true);
+        var owner = new AuthenticatedWorkspaceCaller(
+            new AuthenticatedSubjectId("subject-editor"));
+        var projectId = new DurableProjectId("durable-auth-attach-race");
+        await using var workspace = new RecordingAttachWorkspace(
+            blockFirstAttach: true,
+            durableProjectLoader: DurableLoader(projectId));
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Reopened project", "Main"),
+            new OpenDurable(projectId, owner),
             CancellationToken.None);
         Configure(context, workspace);
         var rendered = RenderEditor(
@@ -120,9 +212,13 @@ internal sealed class EditorDurableRouteTests
     public async Task Editor_DurableRoute_AuthenticationChangesDuringRead_DiscardsPriorSubjectSnapshot()
     {
         await using var context = new BunitContext();
-        await using var workspace = new RecordingAttachWorkspace();
+        var owner = new AuthenticatedWorkspaceCaller(
+            new AuthenticatedSubjectId("subject-editor"));
+        var projectId = new DurableProjectId("durable-auth-read-race");
+        await using var workspace = new RecordingAttachWorkspace(
+            durableProjectLoader: DurableLoader(projectId));
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Reopened project", "Main"),
+            new OpenDurable(projectId, owner),
             CancellationToken.None);
         Configure(context, workspace);
         var rendered = RenderEditor(
@@ -130,11 +226,11 @@ internal sealed class EditorDurableRouteTests
             opened.WorkspaceId,
             AuthenticationStateFor("subject-editor"));
         await rendered.WaitForElementAsync(
-            "[data-command='author']:not([disabled])");
+            "[data-command='session']:not([disabled])");
         var attached = (Attached)workspace.AttachOutcomes.Single();
         workspace.BlockNextRead();
 
-        var authoring = rendered.Find("[data-command='author']").ClickAsync();
+        var sessionCreation = rendered.Find("[data-command='session']").ClickAsync();
         await workspace.ReadStarted.WaitAsync(TimeSpan.FromSeconds(5));
         rendered.Render(parameters => parameters
             .Add(value => value.Value, AuthenticationStateFor(null))
@@ -145,7 +241,7 @@ internal sealed class EditorDurableRouteTests
                 builder.CloseComponent();
             })));
         workspace.ReleaseRead();
-        await authoring;
+        await sessionCreation;
 
         await Assert.That(workspace.BlockedReadOutcome)
             .IsTypeOf<ProjectionSnapshot>();
@@ -321,6 +417,16 @@ internal sealed class EditorDurableRouteTests
             && commands.All(command => command.HasAttribute("disabled"));
     }
 
+    private static FixedDurableProjectLoader DurableLoader(DurableProjectId projectId)
+    {
+        return new FixedDurableProjectLoader(
+            new DurableProjectOpenFound(
+                projectId,
+                new DurableDisplayName("Reopened project"),
+                new DurableVersion("version-1"),
+                WebTestCircuit.CreateCompleteCircuit()));
+    }
+
     private sealed class RecordingAttachWorkspace(
         bool blockFirstAttach = false,
         IDurableProjectLoader? durableProjectLoader = null)
@@ -365,6 +471,8 @@ internal sealed class EditorDurableRouteTests
         }
 
         public WorkspaceCaller? CommandCaller { get; private set; }
+
+        public WorkspaceCommand? LastCommand { get; private set; }
 
         public WorkspaceCaller? ReadCaller { get; private set; }
 
@@ -411,6 +519,7 @@ internal sealed class EditorDurableRouteTests
             WorkspaceCommand command,
             CancellationToken cancellationToken)
         {
+            LastCommand = command;
             CommandCaller = command.Context.Caller;
             LastCommandOutcome = await base.DispatchAsync(command, cancellationToken);
             return LastCommandOutcome;

@@ -11,6 +11,8 @@ internal static class LogicLabProblemDetails
         "project_open_request_invalid";
     internal const string ProjectOpenMethodNotAllowedCode =
         "project_open_method_not_allowed";
+    internal const string ProjectOpenRateLimitExceededCode =
+        "project_open_rate_limit_exceeded";
     internal const string AuthenticationRequiredCode =
         "authentication_required";
     internal const string AuthenticationRateLimitExceededCode =
@@ -74,6 +76,9 @@ internal static class LogicLabProblemDetails
             "workspace_admission_rejected" => (
                 StatusCodes.Status429TooManyRequests,
                 "Workspace capacity is unavailable"),
+            ProjectOpenRateLimitExceededCode => (
+                StatusCodes.Status429TooManyRequests,
+                "Too many project open requests"),
             AuthenticationRateLimitExceededCode => (
                 StatusCodes.Status429TooManyRequests,
                 "Too many authentication requests"),
@@ -116,4 +121,15 @@ internal static class LogicLabProblemDetails
             ? traceId.ToHexString()
             : Guid.CreateVersion7().ToString("N");
     }
+}
+
+internal sealed record RateLimitProblemDetailsMetadata
+{
+    public RateLimitProblemDetailsMetadata(string code)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(code);
+        Code = code;
+    }
+
+    public string Code { get; }
 }

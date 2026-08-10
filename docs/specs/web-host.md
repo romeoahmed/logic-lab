@@ -118,6 +118,12 @@ validation boundaries. A password is cleared from the bound render model before
 calling Identity and on every invalid submission, so no failure response writes
 the submitted secret back into HTML.
 
+Authorized `/projects/open` requests use a separate fixed-window policy
+partitioned by authenticated subject. The initial policy admits at most twenty
+requests per minute per partition, queues no excess requests, and runs before
+Workspace or SQLite work. Its rejection publishes the endpoint-owned RFC 9457
+`429` response and does not consume either account ingress policy.
+
 Authorized HTTP failures use the exact RFC 9457 shape and status mapping in the [HTTP Transfer Contract](../contracts/http-transfer.md). `IProblemDetailsService` supplies the common adapter; titles and optional details are localized, while `type`, `status`, `code`, and correlation token remain stable. Unhandled exceptions expose only an opaque correlation. ASP.NET Core provides `IProblemDetailsService` for RFC 9457 responses ([error handling](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api?view=aspnetcore-10.0#problem-details-service)).
 
 Client filenames, MIME, lengths, ZIP metadata, logical paths, JSON, Canvas messages, and return URLs are untrusted. Responses set an application-generated attachment filename, `X-Content-Type-Options: nosniff`, and a precise content type. Uploaded or authored HTML, SVG, script, and URLs are never rendered as markup.

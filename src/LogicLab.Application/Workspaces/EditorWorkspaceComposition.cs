@@ -235,13 +235,14 @@ public static class EditorWorkspaceFactory
     public static IEditorWorkspace Create(
         string buildFingerprint,
         IDurableProjectRepository durableProjectRepository,
+        IDurableProjectLoader durableProjectLoader,
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
-        ILoggerFactory? loggerFactory = null,
-        IDurableProjectLoader? durableProjectLoader = null)
+        ILoggerFactory? loggerFactory = null)
     {
         ArgumentNullException.ThrowIfNull(durableProjectRepository);
+        ArgumentNullException.ThrowIfNull(durableProjectLoader);
         return CreateCore(
             workspacePolicy,
             schedulingPolicy,
@@ -256,14 +257,15 @@ public static class EditorWorkspaceFactory
     internal static IEditorWorkspace CreateForTesting(
         WorkspaceModuleOperations operations,
         IDurableProjectRepository durableProjectRepository,
+        IDurableProjectLoader durableProjectLoader,
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
-        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint,
-        IDurableProjectLoader? durableProjectLoader = null)
+        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint)
     {
         ArgumentNullException.ThrowIfNull(durableProjectRepository);
+        ArgumentNullException.ThrowIfNull(durableProjectLoader);
         return CreateCore(
             workspacePolicy,
             schedulingPolicy,
@@ -283,7 +285,7 @@ public static class EditorWorkspaceFactory
         string buildFingerprint,
         WorkspaceModuleOperations operations,
         IDurableProjectRepository durableProjectRepository,
-        IDurableProjectLoader? durableProjectLoader)
+        IDurableProjectLoader durableProjectLoader)
     {
         ArgumentException.ThrowIfNullOrEmpty(buildFingerprint);
         var resolvedLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;

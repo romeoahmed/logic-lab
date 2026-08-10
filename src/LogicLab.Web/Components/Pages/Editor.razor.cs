@@ -72,6 +72,12 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
+        if (attachment.Projection.Durability
+            is SandboxWorkspaceDurabilityProjection)
+        {
+            return;
+        }
+
         ClearWorkspaceState();
         Status = "Authentication changed. Reload the Workspace to continue.";
         _ = await workspace.DetachAsync(

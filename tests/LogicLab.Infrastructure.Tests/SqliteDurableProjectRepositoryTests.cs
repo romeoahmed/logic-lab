@@ -93,7 +93,8 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             receiptRetentionCount: 1_024);
         await using var workspace = EditorWorkspaceFactory.Create(
             buildFingerprint,
-            durableProjectRepository: repository);
+            durableProjectRepository: repository,
+            durableProjectLoader: UnexpectedDurableProjectLoader.Instance);
         var (opened, attached) = await OpenAttachedAsync(
             workspace,
             buildFingerprint);
@@ -136,7 +137,8 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             receiptRetentionCount: 1_024);
         await using var workspace = EditorWorkspaceFactory.Create(
             buildFingerprint,
-            durableProjectRepository: repository);
+            durableProjectRepository: repository,
+            durableProjectLoader: UnexpectedDurableProjectLoader.Instance);
         var (opened, attached) = await OpenAttachedAsync(
             workspace,
             buildFingerprint);
@@ -190,7 +192,8 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             receiptRetentionCount: 1_024);
         await using var workspace = EditorWorkspaceFactory.Create(
             buildFingerprint,
-            durableProjectRepository: repository);
+            durableProjectRepository: repository,
+            durableProjectLoader: UnexpectedDurableProjectLoader.Instance);
         var (opened, attached) = await OpenAttachedAsync(
             workspace,
             buildFingerprint);
@@ -221,7 +224,8 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         var repository = new FirstClaimCommitUnknownRepository(sqliteRepository);
         await using var workspace = EditorWorkspaceFactory.Create(
             buildFingerprint,
-            durableProjectRepository: repository);
+            durableProjectRepository: repository,
+            durableProjectLoader: UnexpectedDurableProjectLoader.Instance);
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Sandbox", "Main"),
             CancellationToken.None);
@@ -969,6 +973,20 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             DurableProjectSaveRequest request,
             CancellationToken cancellationToken)
             => inner.TryReadSaveReceiptAsync(request, cancellationToken);
+    }
+
+    private sealed class UnexpectedDurableProjectLoader : IDurableProjectLoader
+    {
+        private UnexpectedDurableProjectLoader()
+        {
+        }
+
+        public static UnexpectedDurableProjectLoader Instance { get; } = new();
+
+        public Task<DurableProjectOpenRepositoryOutcome> LoadAsync(
+            DurableProjectOpenRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(
+                "This persistence test does not open a Durable Project.");
     }
 
     private static AuthenticatedWorkspaceCaller AuthenticatedCaller { get; } =

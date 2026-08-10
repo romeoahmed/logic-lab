@@ -15,13 +15,15 @@ internal static class TestEditorWorkspaceFactory
         IDurableProjectLoader? durableProjectLoader = null)
     {
         return EditorWorkspaceFactory.Create(
-            buildFingerprint,
-            durableProjectRepository ?? UnexpectedDurableProjectRepository.Instance,
-            workspacePolicy,
-            schedulingPolicy,
-            timeProvider,
-            loggerFactory,
-            durableProjectLoader);
+            buildFingerprint: buildFingerprint,
+            durableProjectRepository:
+                durableProjectRepository ?? UnexpectedDurableProjectRepository.Instance,
+            durableProjectLoader:
+                durableProjectLoader ?? UnexpectedDurableProjectLoader.Instance,
+            workspacePolicy: workspacePolicy,
+            schedulingPolicy: schedulingPolicy,
+            timeProvider: timeProvider,
+            loggerFactory: loggerFactory);
     }
 
     public static IEditorWorkspace CreateForTesting(
@@ -35,14 +37,16 @@ internal static class TestEditorWorkspaceFactory
         IDurableProjectLoader? durableProjectLoader = null)
     {
         return EditorWorkspaceFactory.CreateForTesting(
-            operations,
-            durableProjectRepository ?? UnexpectedDurableProjectRepository.Instance,
-            workspacePolicy,
-            schedulingPolicy,
-            timeProvider,
-            loggerFactory,
-            buildFingerprint,
-            durableProjectLoader);
+            operations: operations,
+            durableProjectRepository:
+                durableProjectRepository ?? UnexpectedDurableProjectRepository.Instance,
+            durableProjectLoader:
+                durableProjectLoader ?? UnexpectedDurableProjectLoader.Instance,
+            workspacePolicy: workspacePolicy,
+            schedulingPolicy: schedulingPolicy,
+            timeProvider: timeProvider,
+            loggerFactory: loggerFactory,
+            buildFingerprint: buildFingerprint);
     }
 
     private sealed class UnexpectedDurableProjectRepository : IDurableProjectRepository
@@ -70,6 +74,22 @@ internal static class TestEditorWorkspaceFactory
 
         public Task<DurableProjectSaveRepositoryOutcome?> TryReadSaveReceiptAsync(
             DurableProjectSaveRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+    }
+
+    private sealed class UnexpectedDurableProjectLoader : IDurableProjectLoader
+    {
+        private const string Message =
+            "This test must supply a Durable Project loader before opening persistence.";
+
+        private UnexpectedDurableProjectLoader()
+        {
+        }
+
+        public static UnexpectedDurableProjectLoader Instance { get; } = new();
+
+        public Task<DurableProjectOpenRepositoryOutcome> LoadAsync(
+            DurableProjectOpenRequest request,
             CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
     }
 }

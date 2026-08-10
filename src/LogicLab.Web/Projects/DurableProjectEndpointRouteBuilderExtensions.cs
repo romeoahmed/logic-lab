@@ -2,6 +2,8 @@ using System.Security.Claims;
 using LogicLab.Application.Workspaces;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Net.Http.Headers;
 
 namespace LogicLab.Web.Projects;
 
@@ -9,6 +11,7 @@ public static class DurableProjectEndpointRouteBuilderExtensions
 {
     internal const string OpenPath = "/projects/open";
 
+    private const string OpenFormMediaType = "application/x-www-form-urlencoded";
     private const int MaximumDurableProjectIdLength = 64;
     private const int MaximumOpenRequestBodyBytes = 4096;
 
@@ -34,15 +37,26 @@ public static class DurableProjectEndpointRouteBuilderExtensions
                             LogicLabProblemDetails.AuthenticationRequiredCode);
                     }
 
-                    if (!httpContext.Request.HasFormContentType)
+                    if (!HasSupportedFormContentType(httpContext.Request))
                     {
                         return LogicLabProblemDetails.Create(
                             httpContext,
                             LogicLabProblemDetails.ProjectOpenRequestInvalidCode);
                     }
 
-                    var form = await httpContext.Request.ReadFormAsync(
-                        cancellationToken);
+                    IFormCollection form;
+                    try
+                    {
+                        form = await httpContext.Request.ReadFormAsync(
+                            cancellationToken);
+                    }
+                    catch (InvalidDataException)
+                    {
+                        return LogicLabProblemDetails.Create(
+                            httpContext,
+                            LogicLabProblemDetails.ProjectOpenRequestInvalidCode);
+                    }
+
                     var durableProjectId = form.TryGetValue(
                             "durableProjectId",
                             out var durableProjectIds)
@@ -77,7 +91,11 @@ public static class DurableProjectEndpointRouteBuilderExtensions
             .DisableCookieRedirect()
             .WithMetadata(new RequestSizeLimitAttribute(
                 MaximumOpenRequestBodyBytes))
-            .WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+            .WithMetadata(new RequireAntiforgeryTokenAttribute(true))
+            .RequireRateLimiting(
+                DurableProjectIngressPolicy.OpenRateLimitPolicyName)
+            .WithMetadata(new RateLimitProblemDetailsMetadata(
+                LogicLabProblemDetails.ProjectOpenRateLimitExceededCode));
 
         endpoints.MapFallback(OpenPath, IResult (HttpContext httpContext) =>
         {
@@ -96,5 +114,13 @@ public static class DurableProjectEndpointRouteBuilderExtensions
         });
 
         return openEndpoint;
+    }
+
+    private static bool HasSupportedFormContentType(HttpRequest request)
+    {
+        return MediaTypeHeaderValue.TryParse(request.ContentType, out var contentType)
+            && contentType.MediaType.Equals(
+                OpenFormMediaType,
+                StringComparison.OrdinalIgnoreCase);
     }
 }
