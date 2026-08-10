@@ -280,7 +280,6 @@ public sealed record AttachRejected : WorkspaceAttachOutcome
     {
         ArgumentException.ThrowIfNullOrEmpty(code);
         ArgumentNullException.ThrowIfNull(diagnosticCodes);
-        ArgumentNullException.ThrowIfNull(retryDisposition);
         Code = code;
         DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
         RetryDisposition = retryDisposition;

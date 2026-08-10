@@ -575,7 +575,7 @@ internal sealed partial class DurableWorkspaceTests
             await Assert.That(copyRejected.Code)
                 .IsEqualTo("durable_claim_unresolved");
             await Assert.That(copyRejected.RetryDisposition)
-                .IsTypeOf<DoNotRetryDisposition>();
+                .IsEqualTo(RetryDisposition.DoNotRetry);
             await Assert.That(replacement).IsTypeOf<WorkspaceOpened>();
             await Assert.That(repository.ClaimCallCount).IsEqualTo(1);
         }

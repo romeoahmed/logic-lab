@@ -84,7 +84,6 @@ public sealed record DurableProjectListRejected : DurableProjectListOutcome
     {
         ArgumentException.ThrowIfNullOrEmpty(reason);
         ArgumentNullException.ThrowIfNull(diagnosticCodes);
-        ArgumentNullException.ThrowIfNull(retryDisposition);
         Reason = reason;
         DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
         RetryDisposition = retryDisposition;

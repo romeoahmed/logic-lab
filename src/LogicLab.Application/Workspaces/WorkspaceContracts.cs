@@ -81,7 +81,6 @@ public sealed record WorkspaceOpenRejected : WorkspaceOpenOutcome
     {
         ArgumentException.ThrowIfNullOrEmpty(code);
         ArgumentNullException.ThrowIfNull(diagnosticCodes);
-        ArgumentNullException.ThrowIfNull(retryDisposition);
         Code = code;
         DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
         RetryDisposition = retryDisposition;
@@ -482,7 +481,6 @@ public sealed record WorkspaceCommandRejected : WorkspaceCommandOutcome
     {
         ArgumentException.ThrowIfNullOrEmpty(code);
         ArgumentNullException.ThrowIfNull(diagnosticCodes);
-        ArgumentNullException.ThrowIfNull(retryDisposition);
         Code = code;
         DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
         RetryDisposition = retryDisposition;
@@ -587,7 +585,6 @@ public sealed record WorkspaceReadRejected : WorkspaceReadOutcome
     {
         ArgumentException.ThrowIfNullOrEmpty(code);
         ArgumentNullException.ThrowIfNull(diagnosticCodes);
-        ArgumentNullException.ThrowIfNull(retryDisposition);
         Code = code;
         DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
         RetryDisposition = retryDisposition;
@@ -716,7 +713,6 @@ public sealed record CompilationRejectedProjection : CompilationProjection
         ArgumentNullException.ThrowIfNull(generation);
         ArgumentNullException.ThrowIfNull(diagnosticCodes);
         ArgumentException.ThrowIfNullOrEmpty(rejectionCode);
-        ArgumentNullException.ThrowIfNull(retryDisposition);
         Generation = generation;
         DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
         RejectionCode = rejectionCode;

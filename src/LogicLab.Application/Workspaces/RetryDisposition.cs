@@ -1,20 +1,8 @@
 namespace LogicLab.Application.Workspaces;
 
-public abstract record RetryDisposition
+public enum RetryDisposition
 {
-    private protected RetryDisposition()
-    {
-    }
-
-    public static DoNotRetryDisposition DoNotRetry { get; } = new();
-
-    public static RefreshProjectionDisposition RefreshProjection { get; } = new();
-
-    public static ReattachDisposition Reattach { get; } = new();
+    DoNotRetry,
+    RefreshProjection,
+    Reattach,
 }
-
-public sealed record DoNotRetryDisposition : RetryDisposition;
-
-public sealed record RefreshProjectionDisposition : RetryDisposition;
-
-public sealed record ReattachDisposition : RetryDisposition;
