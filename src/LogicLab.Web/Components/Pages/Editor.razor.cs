@@ -72,8 +72,7 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
-        if (attachment.Projection.Durability
-            is SandboxWorkspaceDurabilityProjection)
+        if (Projection?.Durability is SandboxWorkspaceDurabilityProjection)
         {
             return;
         }
