@@ -44,6 +44,74 @@ internal sealed class EditorWorkspaceContinuityTests
     }
 
     [Test]
+    public async Task AttachAsync_SandboxRecoverAttachWithoutFence_RejectsAndPreservesCurrentAttachment()
+    {
+        await using var workspace = TestEditorWorkspaceFactory.Create(
+            buildFingerprint: BuildFingerprint);
+        var opened = await Open(workspace);
+        var current = await Attach(workspace, opened.WorkspaceId);
+
+        var outcome = await workspace.AttachAsync(
+            new RecoverAttach(
+                opened.WorkspaceId,
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
+            CancellationToken.None);
+        var after = await workspace.ReadAsync(
+            Query(opened.WorkspaceId, current),
+            ReadProjection.Instance,
+            CancellationToken.None);
+
+        var rejected = await IsType<AttachRejected>(outcome);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code)
+                .IsEqualTo("stale_workspace_attachment");
+            await Assert.That(rejected.RetryDisposition)
+                .IsTypeOf<ReattachDisposition>();
+            await Assert.That(after).IsTypeOf<ProjectionSnapshot>();
+        }
+    }
+
+    [Test]
+    public async Task AttachAsync_SandboxFenceFromDifferentWorkspace_CannotBeReused()
+    {
+        await using var workspace = TestEditorWorkspaceFactory.Create(
+            buildFingerprint: BuildFingerprint);
+        var firstWorkspace = await Open(workspace);
+        var firstAttachment = await Attach(workspace, firstWorkspace.WorkspaceId);
+        var secondWorkspace = await Open(workspace);
+        var secondAttachment = await Attach(workspace, secondWorkspace.WorkspaceId);
+
+        var outcome = await workspace.AttachAsync(
+            new Reattach(
+                secondWorkspace.WorkspaceId,
+                firstAttachment.AttachmentId,
+                firstAttachment.Generation,
+                BuildFingerprint,
+                AnonymousWorkspaceCaller.Instance),
+            CancellationToken.None);
+        var firstAfter = await workspace.ReadAsync(
+            Query(firstWorkspace.WorkspaceId, firstAttachment),
+            ReadProjection.Instance,
+            CancellationToken.None);
+        var secondAfter = await workspace.ReadAsync(
+            Query(secondWorkspace.WorkspaceId, secondAttachment),
+            ReadProjection.Instance,
+            CancellationToken.None);
+
+        var rejected = await IsType<AttachRejected>(outcome);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code)
+                .IsEqualTo("stale_workspace_attachment");
+            await Assert.That(rejected.DiagnosticCodes).IsEmpty();
+            await Assert.That(firstAfter).IsTypeOf<ProjectionSnapshot>();
+            await Assert.That(secondAfter).IsTypeOf<ProjectionSnapshot>();
+        }
+    }
+
+    [Test]
     public async Task AttachAsync_BuildFingerprintMismatch_RejectsWithoutAttachment()
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(

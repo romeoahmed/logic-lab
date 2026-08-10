@@ -1,4 +1,4 @@
-using LogicLab.Engine.Compilation;
+using LogicLab.Application.Work;
 
 namespace LogicLab.Application.Workspaces;
 
@@ -49,22 +49,8 @@ internal sealed partial class EditorWorkspace
             }
 
             var revision = found.ProjectRevision;
-            var compilation = operations.Compile(
-                new CompilationRequest(
-                    revision,
-                    revision.Document.EntryCircuitDefinitionId,
-                    revision.Document.LibrarySnapshot,
-                    DevelopmentProjectScalePolicy),
-                cancellationToken);
-            if (compilation is not CompilationSucceeded succeeded)
-            {
-                var rejected = (CompilationRejected)compilation;
-                return RejectOpen(
-                    rejected.Reason,
-                    rejected.Diagnostics.Select(item => item.Code));
-            }
-
             var id = WorkspaceId.Create();
+            var generation = new CompilationGeneration(1);
             var state = new WorkspaceState(
                 id,
                 revision,
@@ -76,13 +62,47 @@ internal sealed partial class EditorWorkspace
                     found.DisplayName,
                     found.DurableVersion,
                     revision.RevisionId),
-                Artifact = succeeded.Artifact,
-                Compilation = new CompilationPublishedProjection(
-                    new CompilationGeneration(1),
-                    succeeded.Artifact.Key,
-                    [.. succeeded.Diagnostics.Select(item => item.Code)]),
+                Compilation = new CompilationQueuedProjection(generation),
                 NextCompilationGeneration = 1,
             };
+            var compilationCompleted = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            if (!workCoordinator.TryScheduleCompilation(
+                    id,
+                    context => CompileRetainedAsync(
+                        state,
+                        revision,
+                        generation,
+                        context),
+                    () => compilationCompleted.TrySetResult(),
+                    CompilationWorkCancellation.BoundToCaller,
+                    cancellationToken,
+                    out var scheduledCompilation,
+                    out rejectionReason))
+            {
+                DisposeUnpublishedWorkspace(state);
+                return RejectOpen(rejectionReason!);
+            }
+
+            using (cancellationToken.Register(
+                static state => ((WorkCoordinator.ScheduledCompilationWork)state!).Cancel(),
+                scheduledCompilation!))
+            {
+                await compilationCompleted.Task.ConfigureAwait(false);
+            }
+
+            if (state.Compilation is not CompilationPublishedProjection)
+            {
+                var rejected = state.Compilation as CompilationRejectedProjection;
+                DisposeUnpublishedWorkspace(state);
+                return rejected is null
+                    ? RejectOpen(WorkspaceOutcomeReasons.WorkspaceCancelled)
+                    : RejectOpen(rejected.RejectionCode, rejected.DiagnosticCodes);
+            }
+
+            // Bootstrap transitions are not observable until publication. The first visible
+            // snapshot therefore starts at the initial Projection Version.
+            state.ProjectionVersion = 1;
             lock (gate)
             {
                 workspaceReservations--;
@@ -93,14 +113,14 @@ internal sealed partial class EditorWorkspace
                 }
                 else
                 {
+                    state.LastAccessTimestamp = timeProvider.GetTimestamp();
                     workspaces.Add(id, state);
                 }
             }
 
             if (rejectionReason is not null)
             {
-                state.CommandGate.Dispose();
-                state.AuthorizationAdmission.Dispose();
+                DisposeUnpublishedWorkspace(state);
                 return RejectOpen(rejectionReason);
             }
 
@@ -126,5 +146,11 @@ internal sealed partial class EditorWorkspace
                 ReleaseWorkspaceReservation();
             }
         }
+    }
+
+    private static void DisposeUnpublishedWorkspace(WorkspaceState state)
+    {
+        state.CommandGate.Dispose();
+        state.AuthorizationAdmission.Dispose();
     }
 }

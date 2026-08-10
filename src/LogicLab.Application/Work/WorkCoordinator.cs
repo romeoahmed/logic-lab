@@ -1,4 +1,3 @@
-using System.Threading.Channels;
 using LogicLab.Application.Workspaces;
 using Microsoft.Extensions.Logging;
 
@@ -8,7 +7,9 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 {
     private readonly Lock gate = new();
     private readonly CancellationTokenSource stopping = new();
-    private readonly Channel<WorkspaceId> compilationQueue;
+    private readonly LinkedList<WorkspaceId> compilationQueue = [];
+    private readonly SemaphoreSlim compilationQueueSignal = new(0);
+    private readonly int compilationQueueCapacity;
     private readonly LinkedList<SessionWorkItem> sessionQueue = [];
     private readonly SemaphoreSlim sessionQueueSignal = new(0);
     private readonly int sessionQueueCapacity;
@@ -28,8 +29,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(logger);
 
         this.logger = logger;
-        compilationQueue = CreateBoundedQueue<WorkspaceId>(
-            policy.CompilationQueueCapacity);
+        compilationQueueCapacity = policy.CompilationQueueCapacity;
         sessionQueueCapacity = policy.SessionQueueCapacity;
         compilationWorker = ConsumeCompilationsAsync();
         sessionWorker = ConsumeSessionsAsync();
@@ -42,9 +42,37 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         CancellationToken admissionCancellationToken,
         out string? rejectionCode)
     {
+        return TryScheduleCompilation(
+            workspaceId,
+            operation,
+            releaseOwnership,
+            CompilationWorkCancellation.OutlivesCaller,
+            admissionCancellationToken,
+            out _,
+            out rejectionCode);
+    }
+
+    internal bool TryScheduleCompilation(
+        WorkspaceId workspaceId,
+        Func<CompilationWorkContext, ValueTask> operation,
+        Action releaseOwnership,
+        CompilationWorkCancellation cancellationBehavior,
+        CancellationToken admissionCancellationToken,
+        out ScheduledCompilationWork? scheduledWork,
+        out string? rejectionCode)
+    {
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(releaseOwnership);
+        var operationCancellationToken = cancellationBehavior switch
+        {
+            CompilationWorkCancellation.OutlivesCaller => CancellationToken.None,
+            CompilationWorkCancellation.BoundToCaller => admissionCancellationToken,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(cancellationBehavior),
+                cancellationBehavior,
+                null),
+        };
         CompilationWorkItem item;
         CompilationWorkItem? superseded = null;
         var disposeSuperseded = false;
@@ -52,6 +80,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         {
             if (isDisposed || admissionCancellationToken.IsCancellationRequested)
             {
+                scheduledWork = null;
                 rejectionCode = WorkspaceOutcomeReasons.WorkspaceCancelled;
                 return false;
             }
@@ -60,20 +89,25 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 workspaceId,
                 operation,
                 releaseOwnership,
+                operationCancellationToken,
                 stopping.Token);
             if (pendingCompilations.TryGetValue(workspaceId, out superseded))
             {
+                item.MarkQueuedUnderLock(superseded.QueueNode!);
+                superseded.MarkRemovedUnderLock();
                 pendingCompilations[workspaceId] = item;
                 disposeSuperseded = true;
             }
-            else if (!compilationQueue.Writer.TryWrite(workspaceId))
+            else if (compilationQueue.Count >= compilationQueueCapacity)
             {
                 item.Dispose();
+                scheduledWork = null;
                 rejectionCode = WorkspaceOutcomeReasons.WorkspaceAdmissionRejected;
                 return false;
             }
             else
             {
+                EnqueueCompilationUnderLock(item);
                 pendingCompilations.Add(workspaceId, item);
                 _ = latestCompilations.TryGetValue(workspaceId, out superseded);
                 if (superseded is not null && superseded.WasPublishedUnderLock)
@@ -94,8 +128,38 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             superseded?.CancelSuperseded();
         }
 
+        scheduledWork = new ScheduledCompilationWork(() => CancelCompilation(item));
         rejectionCode = null;
         return true;
+    }
+
+    private void CancelCompilation(CompilationWorkItem item)
+    {
+        bool abandoned;
+        lock (gate)
+        {
+            abandoned = pendingCompilations.TryGetValue(item.WorkspaceId, out var pending)
+                && ReferenceEquals(pending, item);
+            if (abandoned)
+            {
+                _ = pendingCompilations.Remove(item.WorkspaceId);
+                RemoveQueuedCompilationUnderLock(item);
+                if (latestCompilations.TryGetValue(item.WorkspaceId, out var latest)
+                    && ReferenceEquals(latest, item))
+                {
+                    _ = latestCompilations.Remove(item.WorkspaceId);
+                }
+            }
+        }
+
+        if (abandoned)
+        {
+            item.Abandon();
+        }
+        else
+        {
+            item.CancelSuperseded();
+        }
     }
 
     internal bool TryScheduleSession(
@@ -246,6 +310,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        CompilationWorkItem[] abandonedCompilations;
         SessionWorkItem[] abandoned;
         lock (gate)
         {
@@ -255,7 +320,19 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             }
 
             isDisposed = true;
-            compilationQueue.Writer.TryComplete();
+            abandonedCompilations = [.. pendingCompilations.Values];
+            pendingCompilations.Clear();
+            compilationQueue.Clear();
+            foreach (var item in abandonedCompilations)
+            {
+                item.MarkRemovedUnderLock();
+            }
+
+            latestCompilations.Clear();
+            while (compilationQueueSignal.Wait(0))
+            {
+            }
+
             abandoned = [.. sessionQueue];
             sessionQueue.Clear();
             foreach (var item in abandoned)
@@ -273,6 +350,11 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             }
         }
 
+        foreach (var item in abandonedCompilations)
+        {
+            item.Abandon();
+        }
+
         foreach (var item in abandoned)
         {
             item.CancelScheduledWork();
@@ -282,8 +364,22 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
         await stopping.CancelAsync().ConfigureAwait(false);
         await Task.WhenAll(compilationWorker, sessionWorker).ConfigureAwait(false);
+        compilationQueueSignal.Dispose();
         sessionQueueSignal.Dispose();
         stopping.Dispose();
+    }
+
+    private void EnqueueCompilationUnderLock(CompilationWorkItem item)
+    {
+        item.MarkQueuedUnderLock(compilationQueue.AddLast(item.WorkspaceId));
+        compilationQueueSignal.Release();
+    }
+
+    private void RemoveQueuedCompilationUnderLock(CompilationWorkItem item)
+    {
+        compilationQueue.Remove(item.QueueNode!);
+        item.MarkRemovedUnderLock();
+        _ = compilationQueueSignal.Wait(0);
     }
 
     private void EnqueueSessionUnderLock(SessionWorkItem item)
@@ -299,27 +395,35 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         _ = sessionQueueSignal.Wait(0);
     }
 
-    private static Channel<T> CreateBoundedQueue<T>(int capacity)
-    {
-        return Channel.CreateBounded<T>(new BoundedChannelOptions(capacity)
-        {
-            AllowSynchronousContinuations = false,
-            FullMode = BoundedChannelFullMode.Wait,
-            SingleReader = true,
-            SingleWriter = false,
-        });
-    }
-
     private async Task ConsumeCompilationsAsync()
     {
-        await foreach (var workspaceId in compilationQueue.Reader.ReadAllAsync()
-            .ConfigureAwait(false))
+        while (true)
         {
+            try
+            {
+                await compilationQueueSignal.WaitAsync(stopping.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException exception)
+                when (ExceptionClassifier.IsCooperativeCancellation(
+                    exception,
+                    stopping.Token))
+            {
+                return;
+            }
+
             CompilationWorkItem item;
             lock (gate)
             {
+                if (compilationQueue.First is null)
+                {
+                    continue;
+                }
+
+                var workspaceId = compilationQueue.First.Value;
+                compilationQueue.RemoveFirst();
                 item = pendingCompilations[workspaceId];
                 _ = pendingCompilations.Remove(workspaceId);
+                item.MarkRemovedUnderLock();
             }
 
             try
@@ -555,17 +659,30 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         WorkspaceId workspaceId,
         Func<CompilationWorkContext, ValueTask> operation,
         Action releaseOwnership,
+        CancellationToken operationCancellationToken,
         CancellationToken stoppingToken)
-        : WorkItem(stoppingToken)
+        : WorkItem(operationCancellationToken, stoppingToken)
     {
         private Action? ownershipRelease = releaseOwnership;
 
         public WorkspaceId WorkspaceId { get; } = workspaceId;
 
+        public LinkedListNode<WorkspaceId>? QueueNode { get; private set; }
+
         public Func<CompilationWorkContext, ValueTask> Operation { get; }
             = operation;
 
         public bool WasPublishedUnderLock { get; private set; }
+
+        public void MarkQueuedUnderLock(LinkedListNode<WorkspaceId> queueNode)
+        {
+            QueueNode = queueNode;
+        }
+
+        public void MarkRemovedUnderLock()
+        {
+            QueueNode = null;
+        }
 
         public void CancelSuperseded()
         {
@@ -683,6 +800,11 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         internal void Cancel() => cancel();
     }
 
+    internal sealed class ScheduledCompilationWork(Action cancel)
+    {
+        internal void Cancel() => cancel();
+    }
+
     internal sealed class SessionContinuation(WorkCoordinator owner)
     {
         private bool isExecuting;
@@ -739,6 +861,12 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             return true;
         }
     }
+}
+
+internal enum CompilationWorkCancellation
+{
+    OutlivesCaller,
+    BoundToCaller,
 }
 
 internal sealed class CompilationWorkContext(

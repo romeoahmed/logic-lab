@@ -3,6 +3,7 @@
 @using System.ComponentModel.DataAnnotations
 @using LogicLab.Web.Data
 @using LogicLab.Web.Identity
+@using Microsoft.AspNetCore.Http
 @using Microsoft.AspNetCore.Identity
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityRedirectManager RedirectManager
@@ -48,13 +49,22 @@
     [SupplyParameterFromQuery(Name = "returnUrl")]
     private string? ReturnUrl { get; set; }
 
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
     protected override void OnInitialized()
     {
         Input ??= new();
+        _ = RedirectIfAuthenticated();
     }
 
     private async Task LogInAsync()
     {
+        if (RedirectIfAuthenticated())
+        {
+            return;
+        }
+
         var result = await SignInManager.PasswordSignInAsync(
             Input.Email,
             Input.Password,
@@ -67,6 +77,17 @@
         }
 
         errorMessage = "The email or password is invalid.";
+    }
+
+    private bool RedirectIfAuthenticated()
+    {
+        if (!SignInManager.IsSignedIn(HttpContext.User))
+        {
+            return false;
+        }
+
+        RedirectManager.RedirectTo(ReturnUrl);
+        return true;
     }
 
     private sealed class LoginInput

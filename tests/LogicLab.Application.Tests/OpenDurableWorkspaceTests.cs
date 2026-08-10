@@ -36,6 +36,7 @@ internal sealed class OpenDurableWorkspaceTests
             await Assert.That(loader.LastRequest?.DurableProjectId).IsEqualTo(ProjectId);
             await Assert.That(loader.LastRequest?.SubjectId).IsEqualTo(Owner.SubjectId);
             await Assert.That(opened.Projection.ProjectRevision).IsEqualTo(revision);
+            await Assert.That(opened.Projection.ProjectionVersion).IsEqualTo(1UL);
             await Assert.That(opened.Projection.Compilation)
                 .IsTypeOf<CompilationPublishedProjection>();
             await Assert.That(durability.DurableProjectId).IsEqualTo(ProjectId);
@@ -107,10 +108,13 @@ internal sealed class OpenDurableWorkspaceTests
         var sandbox = await workspace.OpenAsync(
             new CreateSandbox("Sandbox", "Main"),
             CancellationToken.None);
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
 
         using (Assert.Multiple())
         {
-            await Assert.That(outcome).IsTypeOf<WorkspaceOpenRejected>();
+            await Assert.That(rejected.Code).IsEqualTo("compilation_invalid");
+            await Assert.That(rejected.DiagnosticCodes).IsNotEmpty();
             await Assert.That(sandbox).IsTypeOf<WorkspaceOpened>();
         }
     }
@@ -175,12 +179,323 @@ internal sealed class OpenDurableWorkspaceTests
         }
     }
 
-    private static WorkspacePolicy SingleWorkspacePolicy()
+    [Test]
+    public async Task OpenAsync_DurableBootstrapCancellation_CancelsLaneWorkAndReleasesAdmission()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var revision = CreateCompleteRevision();
+        var loader = new RecordingLoader(new DurableProjectOpenFound(
+            ProjectId,
+            new DurableDisplayName("Cancelled project"),
+            new DurableVersion("cancelled-version"),
+            revision));
+        var operations = WorkspaceModuleOperations.Production with
+        {
+            Compile = (_, operationCancellationToken) =>
+            {
+                cancellation.Cancel();
+                operationCancellationToken.ThrowIfCancellationRequested();
+                throw new InvalidOperationException(
+                    "The Compilation lane did not observe request cancellation.");
+            },
+        };
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
+            operations,
+            workspacePolicy: SingleWorkspacePolicy(),
+            durableProjectLoader: loader);
+
+        var outcome = await workspace.OpenAsync(
+            new OpenDurable(ProjectId, Owner),
+            cancellation.Token);
+        var sandbox = await workspace.OpenAsync(
+            new CreateSandbox("Sandbox", "Main"),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("workspace_cancelled");
+            await Assert.That(sandbox).IsTypeOf<WorkspaceOpened>();
+        }
+    }
+
+    [Test]
+    [Arguments(CompilationFailure.Infrastructure, "workspace_infrastructure_failure")]
+    [Arguments(CompilationFailure.Defect, "workspace_internal_defect")]
+    public async Task OpenAsync_DurableBootstrapFailure_PublishesNothingAndReleasesAdmission(
+        CompilationFailure failure,
+        string expectedCode)
+    {
+        var revision = CreateCompleteRevision();
+        var loader = new RecordingLoader(new DurableProjectOpenFound(
+            ProjectId,
+            new DurableDisplayName("Failed project"),
+            new DurableVersion("failed-version"),
+            revision));
+        var operations = WorkspaceModuleOperations.Production with
+        {
+            Compile = (_, _) => throw failure switch
+            {
+                CompilationFailure.Infrastructure => new IOException(
+                    "Compilation dependency unavailable."),
+                CompilationFailure.Defect => new InvalidOperationException(
+                    "Compilation implementation defect."),
+                _ => new InvalidOperationException("Unknown Compilation failure."),
+            },
+        };
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
+            operations,
+            workspacePolicy: SingleWorkspacePolicy(),
+            durableProjectLoader: loader);
+
+        var outcome = await workspace.OpenAsync(
+            new OpenDurable(ProjectId, Owner),
+            CancellationToken.None);
+        var sandbox = await workspace.OpenAsync(
+            new CreateSandbox("Sandbox", "Main"),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo(expectedCode);
+            await Assert.That(sandbox).IsTypeOf<WorkspaceOpened>();
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task OpenAsync_ConcurrentDurableBootstrap_UsesBoundedCompilationLaneAndReleasesRejectedReservation(
+        CancellationToken cancellationToken)
+    {
+        var queueCapacity = SchedulingPolicy.Default.CompilationQueueCapacity;
+        var openCount = checked(queueCapacity + 2);
+        var revision = CreateCompleteRevision();
+        var loader = new ConcurrentLoader(
+            new DurableProjectOpenFound(
+                ProjectId,
+                new DurableDisplayName("Concurrent project"),
+                new DurableVersion("concurrent-version"),
+                revision),
+            openCount);
+        var compilationGate = new BlockingOperationGate();
+        var compilationInvocationCount = 0;
+        var production = WorkspaceModuleOperations.Production;
+        var operations = WorkspaceModuleOperations.Production with
+        {
+            Compile = (request, operationCancellationToken) =>
+            {
+                Interlocked.Increment(ref compilationInvocationCount);
+                compilationGate.Block(operationCancellationToken);
+                return production.Compile(request, operationCancellationToken);
+            },
+        };
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
+            operations,
+            workspacePolicy: SingleWorkspacePolicy(openCount),
+            schedulingPolicy: SchedulingPolicy.Default,
+            durableProjectLoader: loader);
+        var first = StartOpen(workspace, cancellationToken);
+        await compilationGate.Started.WaitAsync(cancellationToken);
+        var remaining = Enumerable.Range(1, openCount - 1)
+            .Select(_ => StartOpen(workspace, cancellationToken))
+            .ToArray();
+        Task<WorkspaceOpenOutcome>[] opens = [first, .. remaining];
+
+        WorkspaceOpenOutcome[] outcomes;
+        WorkspaceOpenOutcome[] completedBeforeRelease;
+        try
+        {
+            await loader.AllRequestsLoaded.WaitAsync(cancellationToken);
+            await WaitUntilAsync(
+                () => opens.Count(task => task.IsCompleted) == 1,
+                cancellationToken);
+            completedBeforeRelease =
+            [
+                .. opens.Where(task => task.IsCompletedSuccessfully)
+                    .Select(task => task.Result),
+            ];
+        }
+        finally
+        {
+            compilationGate.Release();
+            outcomes = await Task.WhenAll(opens).WaitAsync(cancellationToken);
+        }
+
+        var beforeReleaseRejection = completedBeforeRelease
+            .OfType<WorkspaceOpenRejected>()
+            .SingleOrDefault();
+        var rejections = outcomes.OfType<WorkspaceOpenRejected>().ToArray();
+        var invocationCountBeforeRecovery = Volatile.Read(ref compilationInvocationCount);
+        var recovery = await workspace.OpenAsync(
+            new OpenDurable(ProjectId, Owner),
+            cancellationToken);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(completedBeforeRelease).Count().IsEqualTo(1);
+            await Assert.That(beforeReleaseRejection?.Code)
+                .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(outcomes.OfType<WorkspaceOpened>())
+                .Count()
+                .IsEqualTo(queueCapacity + 1);
+            await Assert.That(rejections).Count().IsEqualTo(1);
+            await Assert.That(rejections.Single().Code)
+                .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(invocationCountBeforeRecovery)
+                .IsEqualTo(queueCapacity + 1);
+            await Assert.That(recovery).IsTypeOf<WorkspaceOpened>();
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task OpenAsync_CancelledQueuedDurableBootstrap_ReleasesCompilationAndWorkspaceAdmissionPromptly(
+        CancellationToken cancellationToken)
+    {
+        var revision = CreateCompleteRevision();
+        var loader = new ConcurrentLoader(
+            new DurableProjectOpenFound(
+                ProjectId,
+                new DurableDisplayName("Queued cancellation project"),
+                new DurableVersion("queued-cancellation-version"),
+                revision),
+            expectedRequestCount: 3);
+        var compilationGate = new BlockingOperationGate();
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            Compile = (request, operationCancellationToken) =>
+            {
+                compilationGate.Block(operationCancellationToken);
+                return production.Compile(request, operationCancellationToken);
+            },
+        };
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
+            operations,
+            workspacePolicy: SingleWorkspacePolicy(globalWorkspaceLimit: 2),
+            schedulingPolicy: new SchedulingPolicy(1, 1),
+            durableProjectLoader: loader);
+        var active = StartOpen(workspace, cancellationToken);
+        await compilationGate.Started.WaitAsync(cancellationToken);
+        using var queuedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken);
+        var cancelled = StartOpen(workspace, queuedCancellation.Token);
+        await WaitUntilAsync(() => loader.CallCount >= 2, cancellationToken);
+        await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
+
+        queuedCancellation.Cancel();
+        var cancellationCompletedBeforeRelease = await CompletesWithinAsync(
+            cancelled,
+            TimeSpan.FromSeconds(1),
+            cancellationToken);
+        var replacement = StartOpen(workspace, cancellationToken);
+        var replacementReachedLoaderBeforeRelease = await WaitUntilOrTimeoutAsync(
+            () => loader.CallCount >= 3,
+            TimeSpan.FromSeconds(1),
+            cancellationToken);
+        var replacementCompletedBeforeRelease = replacement.IsCompleted;
+
+        WorkspaceOpenOutcome activeOutcome;
+        WorkspaceOpenOutcome cancelledOutcome;
+        WorkspaceOpenOutcome replacementOutcome;
+        compilationGate.Release();
+        activeOutcome = await active.WaitAsync(cancellationToken);
+        cancelledOutcome = await cancelled.WaitAsync(cancellationToken);
+        replacementOutcome = await replacement.WaitAsync(cancellationToken);
+
+        var cancellationRejection = (await Assert.That(cancelledOutcome)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(cancellationCompletedBeforeRelease).IsTrue();
+            await Assert.That(replacementReachedLoaderBeforeRelease).IsTrue();
+            await Assert.That(replacementCompletedBeforeRelease).IsFalse();
+            await Assert.That(cancellationRejection.Code)
+                .IsEqualTo("workspace_cancelled");
+            await Assert.That(activeOutcome).IsTypeOf<WorkspaceOpened>();
+            await Assert.That(replacementOutcome).IsTypeOf<WorkspaceOpened>();
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task OpenAsync_QueuedBootstrapElapsedTime_DoesNotConsumePublishedWorkspaceRetention(
+        CancellationToken cancellationToken)
+    {
+        var revision = CreateCompleteRevision();
+        var loader = new ConcurrentLoader(
+            new DurableProjectOpenFound(
+                ProjectId,
+                new DurableDisplayName("Delayed publication project"),
+                new DurableVersion("delayed-publication-version"),
+                revision),
+            expectedRequestCount: 2);
+        var timeProvider = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero));
+        var compilationGate = new BlockingOperationGate();
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            Compile = (request, operationCancellationToken) =>
+            {
+                compilationGate.Block(operationCancellationToken);
+                return production.Compile(request, operationCancellationToken);
+            },
+        };
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
+            operations,
+            workspacePolicy: SingleWorkspacePolicy(globalWorkspaceLimit: 2),
+            schedulingPolicy: new SchedulingPolicy(1, 1),
+            timeProvider: timeProvider,
+            durableProjectLoader: loader);
+        var active = StartOpen(workspace, cancellationToken);
+        await compilationGate.Started.WaitAsync(cancellationToken);
+        var queued = StartOpen(workspace, cancellationToken);
+
+        WorkspaceOpenOutcome activeOutcome;
+        WorkspaceOpenOutcome queuedOutcome;
+        try
+        {
+            await loader.AllRequestsLoaded.WaitAsync(cancellationToken);
+            timeProvider.Advance(TimeSpan.FromMinutes(2));
+        }
+        finally
+        {
+            compilationGate.Release();
+            activeOutcome = await active.WaitAsync(cancellationToken);
+            queuedOutcome = await queued.WaitAsync(cancellationToken);
+        }
+
+        var activeOpened = (await Assert.That(activeOutcome)
+            .IsTypeOf<WorkspaceOpened>())!;
+        var queuedOpened = (await Assert.That(queuedOutcome)
+            .IsTypeOf<WorkspaceOpened>())!;
+        var activeAttachment = await workspace.AttachAsync(
+            new InitialAttach(
+                activeOpened.WorkspaceId,
+                WorkspaceBuild.DevelopmentFingerprint,
+                Owner),
+            cancellationToken);
+        var queuedAttachment = await workspace.AttachAsync(
+            new InitialAttach(
+                queuedOpened.WorkspaceId,
+                WorkspaceBuild.DevelopmentFingerprint,
+                Owner),
+            cancellationToken);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(activeAttachment).IsTypeOf<Attached>();
+            await Assert.That(queuedAttachment).IsTypeOf<Attached>();
+        }
+    }
+
+    private static WorkspacePolicy SingleWorkspacePolicy(int globalWorkspaceLimit = 1)
     {
         return new WorkspacePolicy(
             "open-durable-tests",
             "1",
-            globalWorkspaceLimit: 1,
+            globalWorkspaceLimit,
             sandboxRetention: TimeSpan.FromMinutes(1),
             authoringLimits: WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 4,
@@ -189,6 +504,67 @@ internal sealed class OpenDurableWorkspaceTests
             hotSwapPeakBytes: 1_024,
             durableDisplayNameLimits: DurableDisplayNameLimits.Default,
             durableProjectCatalogLimits: DurableProjectCatalogLimits.Default);
+    }
+
+    private static async Task WaitUntilAsync(
+        Func<bool> predicate,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 500; attempt++)
+        {
+            if (predicate())
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken);
+        }
+
+        throw new TimeoutException("The expected concurrent open state was not observed.");
+    }
+
+    private static async Task<bool> WaitUntilOrTimeoutAsync(
+        Func<bool> predicate,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var deadline = TimeProvider.System.GetTimestamp() +
+            (long)(timeout.TotalSeconds * TimeProvider.System.TimestampFrequency);
+        while (TimeProvider.System.GetTimestamp() < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (predicate())
+            {
+                return true;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken);
+        }
+
+        return predicate();
+    }
+
+    private static async Task<bool> CompletesWithinAsync(
+        Task task,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var timeoutTask = Task.Delay(timeout, cancellationToken);
+        return await Task.WhenAny(task, timeoutTask) == task;
+    }
+
+    private static Task<WorkspaceOpenOutcome> StartOpen(
+        IEditorWorkspace workspace,
+        CancellationToken cancellationToken)
+    {
+        return Task.Factory.StartNew(
+                () => workspace.OpenAsync(
+                    new OpenDurable(ProjectId, Owner),
+                    cancellationToken),
+                cancellationToken,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default)
+            .Unwrap();
     }
 
     private static ProjectRevision CreateCompleteRevision()
@@ -336,9 +712,40 @@ internal sealed class OpenDurableWorkspaceTests
         }
     }
 
+    private sealed class ConcurrentLoader(
+        DurableProjectOpenRepositoryOutcome outcome,
+        int expectedRequestCount) : IDurableProjectLoader
+    {
+        private readonly TaskCompletionSource allRequestsLoaded = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private int callCount;
+
+        public Task AllRequestsLoaded => allRequestsLoaded.Task;
+
+        public int CallCount => Volatile.Read(ref callCount);
+
+        public Task<DurableProjectOpenRepositoryOutcome> LoadAsync(
+            DurableProjectOpenRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref callCount) == expectedRequestCount)
+            {
+                allRequestsLoaded.TrySetResult();
+            }
+
+            return Task.FromResult(outcome);
+        }
+    }
+
     internal enum LoaderFailure
     {
         Cancelled,
+        Infrastructure,
+        Defect,
+    }
+
+    internal enum CompilationFailure
+    {
         Infrastructure,
         Defect,
     }

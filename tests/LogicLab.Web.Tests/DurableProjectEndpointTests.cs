@@ -81,6 +81,32 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     }
 
     [Test]
+    public async Task Get_Projects_WithEmptyCursor_ReturnsCursorInvalidProblemDetailsWithoutCatalogAccess()
+    {
+        var catalog = new RecordingCatalog(
+            new DurableProjectPage([], next: null));
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthentication(services);
+                services.RemoveAll<IDurableProjectCatalog>();
+                services.AddSingleton<IDurableProjectCatalog>(catalog);
+            }));
+        using var client = host.CreateHttpsClient();
+        client.DefaultRequestHeaders.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("text/html"));
+
+        using var response = await client.GetAsync(
+            new Uri("/projects?after=", UriKind.Relative));
+
+        await AssertProblemDetails(
+            response,
+            HttpStatusCode.UnprocessableEntity,
+            "project_catalog_cursor_invalid");
+        await Assert.That(catalog.CallCount).IsEqualTo(0);
+    }
+
+    [Test]
     [Arguments("workspace_not_found", HttpStatusCode.NotFound)]
     [Arguments("workspace_admission_rejected", HttpStatusCode.TooManyRequests)]
     [Arguments("workspace_internal_defect", HttpStatusCode.InternalServerError)]

@@ -189,20 +189,30 @@ internal sealed class EditorDurableRouteTests
     public async Task Editor_DurableRoute_FreshComponentRecoversAttachmentAndFencesPriorComponent()
     {
         await using var context = new BunitContext();
-        await using var workspace = new RecordingAttachWorkspace();
+        var owner = new AuthenticatedWorkspaceCaller(
+            new AuthenticatedSubjectId("subject-editor"));
+        var projectId = new DurableProjectId("durable-editor-route");
+        var revision = WebTestCircuit.CreateCompleteCircuit();
+        await using var workspace = new RecordingAttachWorkspace(
+            durableProjectLoader: new FixedDurableProjectLoader(
+                new DurableProjectOpenFound(
+                    projectId,
+                    new DurableDisplayName("Reopened project"),
+                    new DurableVersion("version-1"),
+                    revision)));
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Reopened project", "Main"),
+            new OpenDurable(projectId, owner),
             CancellationToken.None);
         Configure(context, workspace);
         var authenticationState = AuthenticationStateFor("subject-editor");
         var first = RenderEditor(context, opened.WorkspaceId, authenticationState);
-        await first.WaitForElementAsync("[data-command='author']:not([disabled])");
+        await first.WaitForElementAsync("[data-command='session']:not([disabled])");
 
         var second = RenderEditor(context, opened.WorkspaceId, authenticationState);
-        await second.WaitForElementAsync("[data-command='author']:not([disabled])");
+        await second.WaitForElementAsync("[data-command='session']:not([disabled])");
         await second.WaitForStateAsync(() => workspace.AttachRequests.Length == 3);
 
-        await first.Find("[data-command='author']").ClickAsync();
+        await first.Find("[data-command='session']").ClickAsync();
         await first.WaitForStateAsync(() => workspace.LastCommandOutcome is not null);
 
         var stale = (await Assert.That(workspace.LastCommandOutcome)
@@ -321,8 +331,10 @@ internal sealed class EditorDurableRouteTests
             && commands.All(command => command.HasAttribute("disabled"));
     }
 
-    private sealed class RecordingAttachWorkspace(bool blockFirstAttach = false)
-        : DelegatingEditorWorkspace
+    private sealed class RecordingAttachWorkspace(
+        bool blockFirstAttach = false,
+        IDurableProjectLoader? durableProjectLoader = null)
+        : DelegatingEditorWorkspace(durableProjectLoader: durableProjectLoader)
     {
         private readonly object gate = new();
         private readonly List<AttachRequest> attachRequests = [];
@@ -438,6 +450,17 @@ internal sealed class EditorDurableRouteTests
             DetachCaller = request.Caller;
             DetachRequest = request;
             return base.DetachAsync(request, cancellationToken);
+        }
+    }
+
+    private sealed class FixedDurableProjectLoader(
+        DurableProjectOpenRepositoryOutcome outcome) : IDurableProjectLoader
+    {
+        public Task<DurableProjectOpenRepositoryOutcome> LoadAsync(
+            DurableProjectOpenRequest request,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(outcome);
         }
     }
 }

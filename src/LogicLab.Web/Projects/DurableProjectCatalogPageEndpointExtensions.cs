@@ -54,13 +54,21 @@ public static class DurableProjectCatalogPageEndpointExtensions
             return;
         }
 
+        if (afterValues.Count == 1 && string.IsNullOrEmpty(afterValues[0]))
+        {
+            await LogicLabProblemDetails.Create(
+                httpContext,
+                "project_catalog_cursor_invalid").ExecuteAsync(httpContext);
+            return;
+        }
+
         var services = httpContext.RequestServices;
         var catalog = services.GetRequiredService<IDurableProjectCatalog>();
         var authorization = services
             .GetRequiredService<IDurableProjectCatalogAuthorization>();
         var policy = services.GetRequiredService<WorkspacePolicy>();
         var afterValue = afterValues.Count == 0 ? null : afterValues[0];
-        var cursor = string.IsNullOrEmpty(afterValue)
+        var cursor = afterValue is null
             ? null
             : new ProjectCatalogCursor(afterValue);
         var outcome = await catalog.ListAsync(

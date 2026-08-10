@@ -312,6 +312,155 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         }
     }
 
+    [Test]
+    public async Task Post_LoginWhileAuthenticated_FailsClosedWithoutIdentitySwitch()
+    {
+        const string password = "Circuit-Passw0rd!";
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        var principalSource = new PrincipalSource();
+        using var host = CreateIdentityHost(
+            connection,
+            new FixedTimeProvider(now),
+            principalSource,
+            configureAuthenticatedHttp: true);
+        ApplicationUser currentUser;
+        string currentStamp;
+        IOptions<IdentityOptions> identityOptions;
+        var replacementEmail = $"replacement-{Guid.CreateVersion7():N}@example.test";
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            (currentUser, currentStamp, identityOptions) = await CreateUserAsync(
+                scope.ServiceProvider,
+                password: password);
+            _ = await CreateUserAsync(
+                scope.ServiceProvider,
+                email: replacementEmail,
+                password: password);
+        }
+
+        var currentAuthenticationState = AuthenticationStateFor(
+            currentUser,
+            currentStamp,
+            identityOptions,
+            now.AddMinutes(5).ToString("O"));
+        principalSource.Principal = currentAuthenticationState.User;
+        using var client = host.CreateHttpsClient();
+        var preparedForm = await GetIdentityFormAsync(client, "/projects");
+
+        using var response = await PostIdentityFormAsync(
+            client,
+            "/account/login?returnUrl=%2Fprojects",
+            "login",
+            preparedForm,
+            [
+                new("Input.Email", replacementEmail),
+                new("Input.Password", password),
+                new("Input.RememberMe", "false"),
+            ]);
+
+        await AssertCurrentIdentityPreservedAsync(
+            host.Services,
+            response,
+            currentUser,
+            currentStamp,
+            currentAuthenticationState);
+    }
+
+    [Test]
+    public async Task Post_RegisterWhileAuthenticated_FailsClosedWithoutIdentitySwitch()
+    {
+        const string password = "Circuit-Passw0rd!";
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        var principalSource = new PrincipalSource();
+        using var host = CreateIdentityHost(
+            connection,
+            new FixedTimeProvider(now),
+            principalSource,
+            configureAuthenticatedHttp: true);
+        ApplicationUser currentUser;
+        string currentStamp;
+        IOptions<IdentityOptions> identityOptions;
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            (currentUser, currentStamp, identityOptions) = await CreateUserAsync(
+                scope.ServiceProvider,
+                password: password);
+        }
+
+        var currentAuthenticationState = AuthenticationStateFor(
+            currentUser,
+            currentStamp,
+            identityOptions,
+            now.AddMinutes(5).ToString("O"));
+        principalSource.Principal = currentAuthenticationState.User;
+        var replacementEmail = $"registered-{Guid.CreateVersion7():N}@example.test";
+        using var client = host.CreateHttpsClient();
+        var preparedForm = await GetIdentityFormAsync(client, "/projects");
+
+        using var response = await PostIdentityFormAsync(
+            client,
+            "/account/register?returnUrl=%2Fprojects",
+            "register",
+            preparedForm,
+            [
+                new("Input.Email", replacementEmail),
+                new("Input.Password", password),
+                new("Input.ConfirmPassword", password),
+            ]);
+
+        await AssertCurrentIdentityPreservedAsync(
+            host.Services,
+            response,
+            currentUser,
+            currentStamp,
+            currentAuthenticationState);
+        await using var verificationScope = host.Services.CreateAsyncScope();
+        var userManager = verificationScope.ServiceProvider
+            .GetRequiredService<UserManager<ApplicationUser>>();
+        await Assert.That(await userManager.FindByNameAsync(replacementEmail))
+            .IsNull();
+    }
+
+    [Test]
+    [Arguments("/account/login")]
+    [Arguments("/account/register")]
+    public async Task Get_IdentityEntryWhileAuthenticated_RedirectsWithoutRenderingSwitchForm(
+        string path)
+    {
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        var principalSource = new PrincipalSource();
+        using var host = CreateIdentityHost(
+            connection,
+            new FixedTimeProvider(now),
+            principalSource,
+            configureAuthenticatedHttp: true);
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            var (user, stamp, options) = await CreateUserAsync(scope.ServiceProvider);
+            principalSource.Principal = AuthenticationStateFor(
+                user,
+                stamp,
+                options,
+                now.AddMinutes(5).ToString("O")).User;
+        }
+
+        using var client = host.CreateHttpsClient();
+        using var response = await client.GetAsync(
+            new Uri($"{path}?returnUrl=%2Fprojects", UriKind.Relative));
+        var html = await response.Content.ReadAsStringAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Redirect);
+            await Assert.That(RedirectPath(response))
+                .IsEqualTo("/projects");
+            await Assert.That(html).DoesNotContain("<form");
+        }
+    }
+
     private WebApplicationFactory<Program> CreateIdentityHost(
         SqliteConnection connection,
         TimeProvider timeProvider,
@@ -365,14 +514,20 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         ApplicationUser User,
         string SecurityStamp,
         IOptions<IdentityOptions> Options)> CreateUserAsync(
-        IServiceProvider services)
+        IServiceProvider services,
+        string? email = null,
+        string? password = null)
     {
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        email ??= $"circuit-{Guid.CreateVersion7():N}@example.test";
         var user = new ApplicationUser
         {
-            UserName = $"circuit-{Guid.CreateVersion7():N}@example.test",
+            UserName = email,
+            Email = email,
         };
-        var created = await userManager.CreateAsync(user);
+        var created = password is null
+            ? await userManager.CreateAsync(user)
+            : await userManager.CreateAsync(user, password);
         if (!created.Succeeded)
         {
             throw new InvalidOperationException(string.Join(
@@ -423,6 +578,94 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
                 "The revalidating provider returned an unexpected validation task.");
         return await task;
     }
+
+    private static async Task<PreparedIdentityForm> GetIdentityFormAsync(
+        HttpClient client,
+        string path)
+    {
+        using var pageResponse = await client.GetAsync(
+            new Uri(path, UriKind.Relative));
+        pageResponse.EnsureSuccessStatusCode();
+        var html = await pageResponse.Content.ReadAsStringAsync();
+        var requestToken = ExtractAttributeAfter(
+            html,
+            "name=\"__RequestVerificationToken\"",
+            "value");
+        var antiforgeryCookie = pageResponse.Headers.GetValues("Set-Cookie")
+            .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal))
+            .Split(';', 2)[0];
+        return new PreparedIdentityForm(requestToken, antiforgeryCookie);
+    }
+
+    private static async Task<HttpResponseMessage> PostIdentityFormAsync(
+        HttpClient client,
+        string path,
+        string formName,
+        PreparedIdentityForm preparedForm,
+        IReadOnlyList<KeyValuePair<string, string>> formValues)
+    {
+        var values = new List<KeyValuePair<string, string>>
+        {
+            new("_handler", formName),
+            new("__RequestVerificationToken", preparedForm.RequestToken),
+        };
+        values.AddRange(formValues);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            new Uri(path, UriKind.Relative))
+        {
+            Content = new FormUrlEncodedContent(values),
+        };
+        request.Headers.Add("Cookie", preparedForm.AntiforgeryCookie);
+        return await client.SendAsync(request);
+    }
+
+    private static async Task AssertCurrentIdentityPreservedAsync(
+        IServiceProvider services,
+        HttpResponseMessage response,
+        ApplicationUser currentUser,
+        string currentStamp,
+        AuthenticationState currentAuthenticationState)
+    {
+        await using var verificationScope = services.CreateAsyncScope();
+        var userManager = verificationScope.ServiceProvider
+            .GetRequiredService<UserManager<ApplicationUser>>();
+        var storedCurrentUser = await userManager.FindByIdAsync(currentUser.Id)
+            ?? throw new InvalidOperationException("The current user disappeared.");
+        var storedStamp = await userManager.GetSecurityStampAsync(storedCurrentUser);
+        var provider = verificationScope.ServiceProvider
+            .GetRequiredService<AuthenticationStateProvider>();
+        var currentCircuitIsValid = await ValidateAsync(
+            provider,
+            currentAuthenticationState);
+        var replacementCookieIssued = response.Headers.TryGetValues(
+                "Set-Cookie",
+                out var cookieHeaders)
+            && cookieHeaders.Any(value => value.Contains(
+                ".AspNetCore.Identity.Application=",
+                StringComparison.Ordinal));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+            await Assert.That(RedirectPath(response)).IsEqualTo("/projects");
+            await Assert.That(storedStamp).IsEqualTo(currentStamp);
+            await Assert.That(currentCircuitIsValid).IsTrue();
+            await Assert.That(replacementCookieIssued).IsFalse();
+        }
+    }
+
+    private static string? RedirectPath(HttpResponseMessage response)
+    {
+        var location = response.Headers.Location;
+        return location?.IsAbsoluteUri is true
+            ? location.PathAndQuery
+            : location?.OriginalString;
+    }
+
+    private sealed record PreparedIdentityForm(
+        string RequestToken,
+        string AntiforgeryCookie);
 
     private static string ExtractAttributeAfter(
         string html,
