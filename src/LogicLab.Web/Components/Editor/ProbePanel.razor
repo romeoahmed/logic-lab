@@ -1,6 +1,11 @@
 <aside class="probe-panel" aria-labelledby="probe-panel-heading">
-    <p class="eyebrow">Simulation</p>
-    <h2 id="probe-panel-heading">Probe</h2>
+    <header class="probe-heading">
+        <div>
+            <p class="eyebrow">Instrument Bay</p>
+            <h2 id="probe-panel-heading">Probe</h2>
+        </div>
+        <span>Live readout</span>
+    </header>
     @if (Simulation is null)
     {
         <div class="probe-empty" role="status">

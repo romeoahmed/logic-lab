@@ -32,77 +32,94 @@
     else
     {
         <header class="workbench-heading">
-            <div>
+            <div class="workbench-identity">
                 <p class="eyebrow">@WorkbenchEyebrow</p>
                 <h1>@WorkbenchTitle</h1>
                 <div class="workbench-metadata" aria-label="Workbench capabilities">
                     <FluentBadge Appearance="BadgeAppearance.Tint"
-                                 Color="BadgeColor.Informative"
+                                 Color="BadgeColor.Brand"
+                                 Shape="BadgeShape.Rounded"
+                                 Size="BadgeSize.Small"
                                  Content="Interactive server" />
                     <span>Semantic scene</span>
                     <span>Fenced commands</span>
                 </div>
             </div>
-            <p>@WorkbenchDescription</p>
+            <div class="workbench-brief">
+                <span>Workbench brief</span>
+                <p>@WorkbenchDescription</p>
+            </div>
         </header>
 
-        <WorkbenchCommandBar CanCreate="CanCreate"
-                         CanAuthor="CanAuthor"
-                         CanAuthorSteering="CanAuthorSteering"
-                         CanAuthorArithmetic="CanAuthorArithmetic"
-                         CanAuthorHierarchy="CanAuthorHierarchy"
-                         CanCompile="CanCompile"
-                         CanCreateSession="CanCreateSession"
-                         CanScheduleStimulus="CanScheduleStimulus"
-                         CanStep="CanStep"
-                         ActiveCommand="@WorkbenchActiveCommand"
-                         OnCreate="@(() => RunCommandAsync("create", () => CanCreate, CreateProject))"
-                         OnAuthor="@(() => RunCommandAsync("author", () => CanAuthor, AuthorCircuit))"
-                         OnAuthorSteering="@(() => RunCommandAsync("author-steering", () => CanAuthorSteering, AuthorSteeringGallery))"
-                         OnAuthorArithmetic="@(() => RunCommandAsync("author-arithmetic", () => CanAuthorArithmetic, AuthorArithmeticGallery))"
-                         OnAuthorHierarchy="@(() => RunCommandAsync("author-hierarchy", () => CanAuthorHierarchy, AuthorHierarchy))"
-                         OnCompile="@(() => RunCommandAsync("compile", () => CanCompile, Compile))"
-                         OnCreateSession="@(() => RunCommandAsync("session", () => CanCreateSession, CreateSimulationSession))"
-                         OnScheduleStimulus="@(() => RunCommandAsync("stimulus", () => CanScheduleStimulus, ScheduleStimulus))"
-                         OnStep="@(() => RunCommandAsync("step", () => CanStep, Step))" />
+        <section class="workbench-deck" aria-label="Circuit workbench">
+            <div class="workbench-command-region">
+                <WorkbenchCommandBar CanCreate="CanCreate"
+                                     CanAuthor="CanAuthor"
+                                     CanAuthorSteering="CanAuthorSteering"
+                                     CanAuthorArithmetic="CanAuthorArithmetic"
+                                     CanAuthorHierarchy="CanAuthorHierarchy"
+                                     CanCompile="CanCompile"
+                                     CanCreateSession="CanCreateSession"
+                                     CanScheduleStimulus="CanScheduleStimulus"
+                                     CanStep="CanStep"
+                                     ActiveCommand="@WorkbenchActiveCommand"
+                                     OnCreate="@(() => RunCommandAsync("create", () => CanCreate, CreateProject))"
+                                     OnAuthor="@(() => RunCommandAsync("author", () => CanAuthor, AuthorCircuit))"
+                                     OnAuthorSteering="@(() => RunCommandAsync("author-steering", () => CanAuthorSteering, AuthorSteeringGallery))"
+                                     OnAuthorArithmetic="@(() => RunCommandAsync("author-arithmetic", () => CanAuthorArithmetic, AuthorArithmeticGallery))"
+                                     OnAuthorHierarchy="@(() => RunCommandAsync("author-hierarchy", () => CanAuthorHierarchy, AuthorHierarchy))"
+                                     OnCompile="@(() => RunCommandAsync("compile", () => CanCompile, Compile))"
+                                     OnCreateSession="@(() => RunCommandAsync("session", () => CanCreateSession, CreateSimulationSession))"
+                                     OnScheduleStimulus="@(() => RunCommandAsync("stimulus", () => CanScheduleStimulus, ScheduleStimulus))"
+                                     OnStep="@(() => RunCommandAsync("step", () => CanStep, Step))" />
+            </div>
 
-        <DefinitionNavigator Document="Projection?.ProjectRevision.Document"
-                         SelectedDefinitionId="SelectedDefinitionId"
-                         Breadcrumbs="Breadcrumbs"
-                         IsOccurrence="@(HierarchyNavigation.Count != 0)"
-                         CanSetEntry="CanSetEntryDefinition"
-                         CanEnterOccurrences="CanEnterDefinitionInstances"
-                         OnSelect="SelectDefinition"
-                         OnSetEntry="SetEntryDefinition"
-                         OnEnter="EnterDefinitionInstance"
-                         OnBack="LeaveDefinitionInstance" />
+            <div class="workbench-definition-region">
+                <DefinitionNavigator Document="Projection?.ProjectRevision.Document"
+                                     SelectedDefinitionId="SelectedDefinitionId"
+                                     Breadcrumbs="Breadcrumbs"
+                                     IsOccurrence="@(HierarchyNavigation.Count != 0)"
+                                     CanSetEntry="CanSetEntryDefinition"
+                                     CanEnterOccurrences="CanEnterDefinitionInstances"
+                                     OnSelect="SelectDefinition"
+                                     OnSetEntry="SetEntryDefinition"
+                                     OnEnter="EnterDefinitionInstance"
+                                     OnBack="LeaveDefinitionInstance" />
+            </div>
 
-        <TopologyCommandBar CanMerge="CanMergeTopology"
-                        CanSplit="CanSplitTopology"
-                        CanAddJunction="CanAddJunction"
-                        CanRemoveJunction="CanRemoveJunction"
-                        CanPrepareRoute="CanPrepareRoute"
-                        CanRoute="CanRoute"
-                        CanUnroute="CanUnroute"
-                        RouteDraftActive="RouteDraftActive"
-                        ActiveCommand="@ActiveCommand"
-                        OnMerge="@(() => RunCommandAsync("topology-merge", () => CanMergeTopology, MergeTopology))"
-                        OnSplit="@(() => RunCommandAsync("topology-split", () => CanSplitTopology, SplitTopology))"
-                        OnAddJunction="@(() => RunCommandAsync("topology-add-junction", () => CanAddJunction, AddJunction))"
-                        OnRemoveJunction="@(() => RunCommandAsync("topology-remove-junction", () => CanRemoveJunction, RemoveJunction))"
-                        OnPrepareRoute="PrepareRoute"
-                        OnCommitRoute="@(() => RunCommandAsync("topology-commit-route", () => RouteDraftActive && CanEditTopology, CommitRoute))"
-                        OnCancelRoute="CancelRoute"
-                        OnRoute="@(() => RunCommandAsync("topology-route", () => CanRoute, RouteGeometry))"
-                        OnUnroute="@(() => RunCommandAsync("topology-unroute", () => CanUnroute, UnrouteGeometry))" />
+            <div class="workbench-body">
+                <div class="workbench-topology-rail">
+                    <TopologyCommandBar CanMerge="CanMergeTopology"
+                                        CanSplit="CanSplitTopology"
+                                        CanAddJunction="CanAddJunction"
+                                        CanRemoveJunction="CanRemoveJunction"
+                                        CanPrepareRoute="CanPrepareRoute"
+                                        CanRoute="CanRoute"
+                                        CanUnroute="CanUnroute"
+                                        RouteDraftActive="RouteDraftActive"
+                                        ActiveCommand="@ActiveCommand"
+                                        OnMerge="@(() => RunCommandAsync("topology-merge", () => CanMergeTopology, MergeTopology))"
+                                        OnSplit="@(() => RunCommandAsync("topology-split", () => CanSplitTopology, SplitTopology))"
+                                        OnAddJunction="@(() => RunCommandAsync("topology-add-junction", () => CanAddJunction, AddJunction))"
+                                        OnRemoveJunction="@(() => RunCommandAsync("topology-remove-junction", () => CanRemoveJunction, RemoveJunction))"
+                                        OnPrepareRoute="PrepareRoute"
+                                        OnCommitRoute="@(() => RunCommandAsync("topology-commit-route", () => RouteDraftActive && CanEditTopology, CommitRoute))"
+                                        OnCancelRoute="CancelRoute"
+                                        OnRoute="@(() => RunCommandAsync("topology-route", () => CanRoute, RouteGeometry))"
+                                        OnUnroute="@(() => RunCommandAsync("topology-unroute", () => CanUnroute, UnrouteGeometry))" />
+                </div>
 
-        <div class="workbench-grid">
-            <AccessibleCircuitScene Scene="Scene" />
-            <ProbePanel Simulation="Projection?.Simulation" />
-        </div>
+                <div class="workbench-grid">
+                    <AccessibleCircuitScene Scene="Scene" />
+                    <ProbePanel Simulation="Projection?.Simulation" />
+                </div>
+            </div>
 
-        <WorkbenchStatusStrip Projection="Projection"
-                              IsConnected="IsInteractive"
-                              Message="@Status" />
+            <div class="workbench-status-region">
+                <WorkbenchStatusStrip Projection="Projection"
+                                      IsConnected="IsInteractive"
+                                      Message="@Status" />
+            </div>
+        </section>
     }
 </div>

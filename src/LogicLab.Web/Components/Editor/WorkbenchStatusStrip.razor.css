@@ -1,11 +1,11 @@
 .status-strip {
   display: grid;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border: 1px solid var(--ll-border);
-  border-radius: var(--ll-radius-medium);
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 22rem);
+  gap: 1rem;
+  align-items: center;
+  padding: 0.7rem 1rem;
   color: var(--ll-muted);
-  background: color-mix(in oklab, var(--ll-panel) 96%, var(--ll-signal-soft));
+  background: color-mix(in oklab, var(--ll-bench-deep) 78%, var(--ll-panel));
   font-size: 0.875rem;
 }
 
@@ -43,8 +43,9 @@
 
 .status-message {
   margin: 0;
-  padding: 0.65rem 0.75rem 0;
-  border-top: 1px solid var(--ll-border);
+  padding: 0.35rem 0 0.35rem 1rem;
+  border-inline-start: 1px solid var(--ll-border-strong);
+  line-height: 1.45;
 }
 
 .status-dot {
@@ -66,6 +67,16 @@
 }
 
 @media (max-width: 850px) {
+  .status-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .status-message {
+    padding: 0.65rem 0 0;
+    border-block-start: 1px solid var(--ll-border);
+    border-inline-start: 0;
+  }
+
   .status-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     row-gap: 0.75rem;

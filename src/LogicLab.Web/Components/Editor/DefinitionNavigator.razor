@@ -1,81 +1,87 @@
 <section class="definition-navigator" aria-label="Circuit Definition navigation">
-    @if (Document is null || SelectedDefinitionId is null)
-    {
-        <div class="navigator-empty" role="status">
-            <span aria-hidden="true"><i></i><i></i><i></i></span>
-            <p>No Circuit Definitions are open.</p>
-        </div>
-    }
-    else
-    {
-        <nav class="definition-tabs" aria-label="Open Circuit Definitions">
-            @foreach (var definition in Document.CircuitDefinitions
-                .OrderBy(item => item.DisplayName, StringComparer.Ordinal)
-                .ThenBy(item => item.Id.Value, StringComparer.Ordinal))
-            {
-                <button @key="definition.Id"
-                        type="button"
-                        data-definition="@definition.Id.Value"
-                        aria-current="@(definition.Id == SelectedDefinitionId ? "page" : null)"
-                        @onclick="@(() => OnSelect.InvokeAsync(definition.Id))">
-                    @definition.DisplayName
-                    @if (definition.Id == Document.EntryCircuitDefinitionId)
-                    {
-                        <span data-entry-marker title="Entry Circuit Definition">Entry</span>
-                    }
-                </button>
-            }
-        </nav>
-
-        <div class="hierarchy-row">
-            <nav aria-label="Hierarchy path">
-                <ol data-hierarchy-breadcrumb>
-                    @foreach (var breadcrumb in Breadcrumbs)
-                    {
-                        <li @key="breadcrumb.Key">@breadcrumb.Label</li>
-                    }
-                </ol>
-            </nav>
-            <span class="view-kind">@(IsOccurrence ? "Elaborated occurrence" : "Definition view")</span>
-            @if (IsOccurrence)
-            {
-                <button type="button"
-                        data-command="hierarchy-back"
-                        @onclick="OnBack">Back</button>
-            }
-            @if (SelectedDefinitionId != Document.EntryCircuitDefinitionId)
-            {
-                <button type="button"
-                        data-command="set-entry"
-                        disabled="@(!CanSetEntry)"
-                        @onclick="@(() => OnSetEntry.InvokeAsync(SelectedDefinitionId))">
-                    Set as entry
-                </button>
-            }
-        </div>
-
-        @if (CanEnterOccurrences && SelectedDefinition is { } selected)
+    <header class="definition-navigator-heading">
+        <p>Definition context</p>
+        <span>Tabs · hierarchy · entry</span>
+    </header>
+    <div class="definition-navigator-content">
+        @if (Document is null || SelectedDefinitionId is null)
         {
-            var calls = selected.ComponentInstances
-                .Where(instance => instance.Target is CircuitDefinitionComponentTarget)
-                .OrderBy(instance => instance.Id.Value, StringComparer.Ordinal)
-                .ToArray();
-            @if (calls.Length != 0)
+            <div class="navigator-empty" role="status">
+                <span aria-hidden="true"><i></i><i></i><i></i></span>
+                <p>No Circuit Definitions are open.</p>
+            </div>
+        }
+        else
+        {
+            <nav class="definition-tabs" aria-label="Open Circuit Definitions">
+                @foreach (var definition in Document.CircuitDefinitions
+                    .OrderBy(item => item.DisplayName, StringComparer.Ordinal)
+                    .ThenBy(item => item.Id.Value, StringComparer.Ordinal))
+                {
+                    <button @key="definition.Id"
+                            type="button"
+                            data-definition="@definition.Id.Value"
+                            aria-current="@(definition.Id == SelectedDefinitionId ? "page" : null)"
+                            @onclick="@(() => OnSelect.InvokeAsync(definition.Id))">
+                        @definition.DisplayName
+                        @if (definition.Id == Document.EntryCircuitDefinitionId)
+                        {
+                            <span data-entry-marker title="Entry Circuit Definition">Entry</span>
+                        }
+                    </button>
+                }
+            </nav>
+
+            <div class="hierarchy-row">
+                <nav aria-label="Hierarchy path">
+                    <ol data-hierarchy-breadcrumb>
+                        @foreach (var breadcrumb in Breadcrumbs)
+                        {
+                            <li @key="breadcrumb.Key">@breadcrumb.Label</li>
+                        }
+                    </ol>
+                </nav>
+                <span class="view-kind">@(IsOccurrence ? "Elaborated occurrence" : "Definition view")</span>
+                @if (IsOccurrence)
+                {
+                    <button type="button"
+                            data-command="hierarchy-back"
+                            @onclick="OnBack">Back</button>
+                }
+                @if (SelectedDefinitionId != Document.EntryCircuitDefinitionId)
+                {
+                    <button type="button"
+                            data-command="set-entry"
+                            disabled="@(!CanSetEntry)"
+                            @onclick="@(() => OnSetEntry.InvokeAsync(SelectedDefinitionId))">
+                        Set as entry
+                    </button>
+                }
+            </div>
+
+            @if (CanEnterOccurrences && SelectedDefinition is { } selected)
             {
-                <div class="occurrence-links" role="group" aria-label="Child occurrences">
-                    @foreach (var call in calls)
-                    {
-                        <button @key="call.Id"
-                                type="button"
-                                data-enter-instance="@call.Id.Value"
-                                @onclick="@(() => OnEnter.InvokeAsync(call.Id))">
-                            Enter @(call.DisplayName ?? "Circuit Definition instance")
-                        </button>
-                    }
-                </div>
+                var calls = selected.ComponentInstances
+                    .Where(instance => instance.Target is CircuitDefinitionComponentTarget)
+                    .OrderBy(instance => instance.Id.Value, StringComparer.Ordinal)
+                    .ToArray();
+                @if (calls.Length != 0)
+                {
+                    <div class="occurrence-links" role="group" aria-label="Child occurrences">
+                        @foreach (var call in calls)
+                        {
+                            <button @key="call.Id"
+                                    type="button"
+                                    data-enter-instance="@call.Id.Value"
+                                    @onclick="@(() => OnEnter.InvokeAsync(call.Id))">
+                                Enter @(call.DisplayName ?? "Circuit Definition instance")
+                            </button>
+                        }
+                    </div>
+                }
             }
         }
-    }
+    </div>
 </section>
 
 @code {

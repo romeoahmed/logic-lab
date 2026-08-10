@@ -1,8 +1,8 @@
 .probe-panel {
+  min-block-size: 100%;
   padding: 1rem;
-  border: 1px solid var(--ll-border);
-  border-radius: var(--ll-radius-medium);
-  background: color-mix(in oklab, var(--ll-panel) 97%, var(--ll-signal-soft));
+  border-inline-start: 1px solid var(--ll-border);
+  background: var(--ll-panel);
 }
 
 .probe-panel h2,
@@ -13,6 +13,24 @@
 .probe-panel h2 {
   font-size: clamp(1.6rem, 3vw, 2rem);
   letter-spacing: -0.04em;
+}
+
+.probe-heading {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.probe-heading > span {
+  padding-block-end: 0.2rem;
+  border-block-end: 2px solid var(--ll-signal);
+  color: var(--ll-subtle);
+  font-family: "IBM Plex Mono", "Noto Sans Mono CJK", ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .probe-empty {
@@ -74,4 +92,11 @@
   border: 1px solid var(--ll-border);
   border-radius: var(--ll-radius-small);
   background: var(--ll-signal-soft);
+}
+
+@media (max-width: 850px) {
+  .probe-panel {
+    border-block-start: 1px solid var(--ll-border);
+    border-inline-start: 0;
+  }
 }
