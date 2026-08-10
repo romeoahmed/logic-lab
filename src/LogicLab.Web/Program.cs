@@ -37,6 +37,12 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 });
 builder.Services.AddAuthorization();
+builder.Services.AddSingleton<IProblemDetailsWriter>(services =>
+    new LogicLabProblemDetailsWriter(
+        services.GetRequiredService<
+            Microsoft.Extensions.Options.IOptions<
+                Microsoft.AspNetCore.Http.Json.JsonOptions>>()));
+builder.Services.AddProblemDetails();
 builder.Services.AddDbContext<ApplicationIdentityDbContext>(options =>
     options.UseSqlite(connectionString));
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
@@ -60,6 +66,7 @@ builder.Services.AddSingleton<IDurableProjectCatalog>(services =>
         workspacePolicy,
         services.GetRequiredService<IDurableProjectCatalogRepository>(),
         services.GetRequiredService<IProjectCatalogCursorProtector>()));
+builder.Services.AddScoped(static _ => new DurableProjectCatalogPageState());
 builder.Services.AddSingleton<IEditorWorkspace>(services =>
     EditorWorkspaceFactory.Create(
         workspacePolicy: workspacePolicy,
@@ -94,6 +101,7 @@ app.MapLogicLabAccountEndpoints();
 app.MapDurableProjectEndpoints();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode(options =>
-        options.DisableWebSocketCompression = true);
+        options.DisableWebSocketCompression = true)
+    .AddDurableProjectCatalogPageAdapter();
 
 app.Run();

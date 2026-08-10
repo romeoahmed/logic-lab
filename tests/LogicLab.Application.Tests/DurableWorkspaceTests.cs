@@ -592,6 +592,106 @@ internal sealed partial class DurableWorkspaceTests
     }
 
     [Test]
+    public async Task AttachAsync_RecoverAttach_ValidOwnerAndBuild_FencesPriorGeneration()
+    {
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(repository);
+        var (opened, attached) = await OpenAttached(workspace);
+        _ = (DurableProjectClaimed)await Claim(
+            workspace,
+            opened,
+            attached,
+            "Recovery-owned project");
+
+        var buildMismatch = await workspace.AttachAsync(
+            new RecoverAttach(
+                opened.WorkspaceId,
+                "different-build",
+                AuthenticatedCaller),
+            CancellationToken.None);
+        var stillCurrent = await ReadProjection(
+            workspace,
+            opened.WorkspaceId,
+            attached);
+        var recovered = (Attached)await workspace.AttachAsync(
+            new RecoverAttach(
+                opened.WorkspaceId,
+                BuildFingerprint,
+                AuthenticatedCaller),
+            CancellationToken.None);
+        var staleCommand = await workspace.DispatchAsync(
+            new ApplyEdit(
+                Command(opened, attached, AuthenticatedCaller),
+                new AuthoringPrecondition(
+                    stillCurrent.ProjectRevision.RevisionId),
+                new RenameCircuitDefinitionIntent(
+                    stillCurrent.ProjectRevision.Document.EntryCircuitDefinitionId,
+                    "Stale owner")),
+            CancellationToken.None);
+        var recoveredProjection = await ReadProjection(
+            workspace,
+            opened.WorkspaceId,
+            recovered);
+
+        var mismatch = (await Assert.That(buildMismatch)
+            .IsTypeOf<AttachRejected>())!;
+        var stale = (await Assert.That(staleCommand)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(mismatch.Code).IsEqualTo("build_fingerprint_mismatch");
+            await Assert.That(recovered.Generation).IsEqualTo(attached.Generation + 1);
+            await Assert.That(recovered.AttachmentId).IsNotEqualTo(attached.AttachmentId);
+            await Assert.That(stale.Code).IsEqualTo("stale_workspace_attachment");
+            await Assert.That(recoveredProjection.Durability)
+                .IsTypeOf<DurableWorkspaceDurabilityProjection>();
+        }
+    }
+
+    [Test]
+    public async Task AttachAsync_RecoverAttach_DifferentDurableSubject_MatchesMissingWorkspace()
+    {
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(repository);
+        var (opened, attached) = await OpenAttached(workspace);
+        _ = (DurableProjectClaimed)await Claim(
+            workspace,
+            opened,
+            attached,
+            "Private recovery project");
+        var otherCaller = new AuthenticatedWorkspaceCaller(
+            new AuthenticatedSubjectId("subject-2"));
+
+        var unauthorized = await workspace.AttachAsync(
+            new RecoverAttach(
+                opened.WorkspaceId,
+                BuildFingerprint,
+                otherCaller),
+            CancellationToken.None);
+        var missing = await workspace.AttachAsync(
+            new RecoverAttach(
+                new WorkspaceId("missing-workspace"),
+                BuildFingerprint,
+                otherCaller),
+            CancellationToken.None);
+        var authorized = await workspace.AttachAsync(
+            new RecoverAttach(
+                opened.WorkspaceId,
+                BuildFingerprint,
+                AuthenticatedCaller),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(unauthorized)
+            .IsTypeOf<AttachRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("workspace_not_found");
+            await Assert.That(unauthorized).IsEqualTo(missing);
+            await Assert.That(authorized).IsTypeOf<Attached>();
+        }
+    }
+
+    [Test]
     public async Task DetachAsync_AnonymousDurableAccess_MatchesMissingWorkspace()
     {
         var repository = new RecordingDurableProjectRepository();

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Bunit;
 using LogicLab.Application.Workspaces;
+using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Components.Pages;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -11,6 +12,226 @@ namespace LogicLab.Web.Tests;
 
 internal sealed class EditorDurableRouteTests
 {
+    [Test]
+    [Arguments(null)]
+    [Arguments("replacement-subject")]
+    public async Task Editor_DurableRoute_AuthenticationSubjectChanges_ClearsProjectionAndDetachesAsPriorSubject(
+        string? replacementSubject)
+    {
+        await using var context = new BunitContext();
+        await using var workspace = new RecordingAttachWorkspace();
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("Reopened project", "Main"),
+            CancellationToken.None);
+        Configure(context, workspace);
+        var rendered = RenderEditor(
+            context,
+            opened.WorkspaceId,
+            AuthenticationStateFor("subject-editor"));
+        await rendered.WaitForElementAsync(
+            "[data-command='author']:not([disabled])");
+        var attached = (Attached)workspace.AttachOutcomes.Single();
+
+        rendered.Render(parameters => parameters
+            .Add(value => value.Value, AuthenticationStateFor(replacementSubject))
+            .Add(value => value.ChildContent, (RenderFragment)(builder =>
+            {
+                builder.OpenComponent<Editor>(0);
+                builder.AddAttribute(1, nameof(Editor.WorkspaceIdValue), opened.WorkspaceId.Value);
+                builder.CloseComponent();
+            })));
+
+        await rendered.WaitForStateAsync(() => workspace.DetachRequest is not null);
+        var detach = workspace.DetachRequest!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.Find("[data-command='author']")
+                    .HasAttribute("disabled"))
+                .IsTrue();
+            await Assert.That(rendered.Find("[data-command='create']")
+                    .HasAttribute("disabled"))
+                .IsTrue();
+            await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
+            await Assert.That(rendered.Markup).DoesNotContain("Durable Project reopened.");
+            await Assert.That(rendered.FindComponent<WorkbenchStatusStrip>()
+                    .Instance.Projection)
+                .IsNull();
+            await Assert.That(((AuthenticatedWorkspaceCaller)detach.Caller)
+                    .SubjectId.Value)
+                .IsEqualTo("subject-editor");
+            await Assert.That(detach.WorkspaceId).IsEqualTo(opened.WorkspaceId);
+            await Assert.That(detach.AttachmentId).IsEqualTo(attached.AttachmentId);
+            await Assert.That(detach.AttachmentGeneration)
+                .IsEqualTo(attached.Generation);
+        }
+    }
+
+    [Test]
+    public async Task Editor_DurableRoute_AuthenticationChangesDuringAttach_DiscardsAndDetachesPriorSubjectOutcome()
+    {
+        await using var context = new BunitContext();
+        await using var workspace = new RecordingAttachWorkspace(blockFirstAttach: true);
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("Reopened project", "Main"),
+            CancellationToken.None);
+        Configure(context, workspace);
+        var rendered = RenderEditor(
+            context,
+            opened.WorkspaceId,
+            AuthenticationStateFor("subject-editor"));
+        await workspace.AttachStarted.WaitAsync(TimeSpan.FromSeconds(5));
+
+        rendered.Render(parameters => parameters
+            .Add(value => value.Value, AuthenticationStateFor("replacement-subject"))
+            .Add(value => value.ChildContent, (RenderFragment)(builder =>
+            {
+                builder.OpenComponent<Editor>(0);
+                builder.AddAttribute(1, nameof(Editor.WorkspaceIdValue), opened.WorkspaceId.Value);
+                builder.CloseComponent();
+            })));
+        workspace.ReleaseAttach();
+
+        await rendered.WaitForStateAsync(() => workspace.DetachRequest is not null
+            || rendered.Markup.Contains(
+                "Durable Project reopened.",
+                StringComparison.Ordinal));
+        var attached = (Attached)workspace.AttachOutcomes.Single();
+        await Assert.That(rendered.FindComponent<WorkbenchStatusStrip>()
+                .Instance.Projection)
+            .IsNull();
+        await Assert.That(rendered.Find("[data-command='author']")
+                .HasAttribute("disabled"))
+            .IsTrue();
+        await Assert.That(rendered.Find("[data-command='create']")
+                .HasAttribute("disabled"))
+            .IsTrue();
+        await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
+        await Assert.That(rendered.Markup).DoesNotContain("Durable Project reopened.");
+        await Assert.That(workspace.DetachRequest).IsNotNull();
+        var detach = workspace.DetachRequest!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(((AuthenticatedWorkspaceCaller)detach.Caller)
+                    .SubjectId.Value)
+                .IsEqualTo("subject-editor");
+            await Assert.That(detach.WorkspaceId).IsEqualTo(opened.WorkspaceId);
+            await Assert.That(detach.AttachmentId).IsEqualTo(attached.AttachmentId);
+            await Assert.That(detach.AttachmentGeneration)
+                .IsEqualTo(attached.Generation);
+        }
+    }
+
+    [Test]
+    public async Task Editor_DurableRoute_AuthenticationChangesDuringRead_DiscardsPriorSubjectSnapshot()
+    {
+        await using var context = new BunitContext();
+        await using var workspace = new RecordingAttachWorkspace();
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("Reopened project", "Main"),
+            CancellationToken.None);
+        Configure(context, workspace);
+        var rendered = RenderEditor(
+            context,
+            opened.WorkspaceId,
+            AuthenticationStateFor("subject-editor"));
+        await rendered.WaitForElementAsync(
+            "[data-command='author']:not([disabled])");
+        var attached = (Attached)workspace.AttachOutcomes.Single();
+        workspace.BlockNextRead();
+
+        var authoring = rendered.Find("[data-command='author']").ClickAsync();
+        await workspace.ReadStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        rendered.Render(parameters => parameters
+            .Add(value => value.Value, AuthenticationStateFor(null))
+            .Add(value => value.ChildContent, (RenderFragment)(builder =>
+            {
+                builder.OpenComponent<Editor>(0);
+                builder.AddAttribute(1, nameof(Editor.WorkspaceIdValue), opened.WorkspaceId.Value);
+                builder.CloseComponent();
+            })));
+        workspace.ReleaseRead();
+        await authoring;
+
+        await Assert.That(workspace.BlockedReadOutcome)
+            .IsTypeOf<ProjectionSnapshot>();
+        await Assert.That(rendered.FindComponent<WorkbenchStatusStrip>()
+                .Instance.Projection)
+            .IsNull();
+        await Assert.That(rendered.FindComponent<AccessibleCircuitScene>()
+                .Instance.Scene)
+            .IsNull();
+        await Assert.That(rendered.Find("[data-command='author']")
+                .HasAttribute("disabled"))
+            .IsTrue();
+        await Assert.That(rendered.Find("[data-command='create']")
+                .HasAttribute("disabled"))
+            .IsTrue();
+        await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.Markup).DoesNotContain("Durable Project reopened.");
+            await Assert.That(rendered.Markup)
+                .Contains("Authentication changed. Reload the Workspace to continue.");
+            await Assert.That(((AuthenticatedWorkspaceCaller)workspace.ReadCaller!)
+                    .SubjectId.Value)
+                .IsEqualTo("subject-editor");
+            await Assert.That(((AuthenticatedWorkspaceCaller)workspace.DetachCaller!)
+                    .SubjectId.Value)
+                .IsEqualTo("subject-editor");
+            await Assert.That(workspace.DetachRequest?.AttachmentId)
+                .IsEqualTo(attached.AttachmentId);
+            await Assert.That(workspace.DetachRequest?.AttachmentGeneration)
+                .IsEqualTo(attached.Generation);
+        }
+    }
+
+    [Test]
+    public async Task Editor_DurableRoute_FreshComponentRecoversAttachmentAndFencesPriorComponent()
+    {
+        await using var context = new BunitContext();
+        await using var workspace = new RecordingAttachWorkspace();
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("Reopened project", "Main"),
+            CancellationToken.None);
+        Configure(context, workspace);
+        var authenticationState = AuthenticationStateFor("subject-editor");
+        var first = RenderEditor(context, opened.WorkspaceId, authenticationState);
+        await first.WaitForElementAsync("[data-command='author']:not([disabled])");
+
+        var second = RenderEditor(context, opened.WorkspaceId, authenticationState);
+        await second.WaitForElementAsync("[data-command='author']:not([disabled])");
+        await second.WaitForStateAsync(() => workspace.AttachRequests.Length == 3);
+
+        await first.Find("[data-command='author']").ClickAsync();
+        await first.WaitForStateAsync(() => workspace.LastCommandOutcome is not null);
+
+        var stale = (await Assert.That(workspace.LastCommandOutcome)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        var recover = (RecoverAttach)workspace.AttachRequests[2];
+        using (Assert.Multiple())
+        {
+            await Assert.That(workspace.AttachRequests[0]).IsTypeOf<InitialAttach>();
+            await Assert.That(workspace.AttachRequests[1]).IsTypeOf<InitialAttach>();
+            await Assert.That(workspace.AttachRequests[2]).IsTypeOf<RecoverAttach>();
+            await Assert.That(workspace.AttachOutcomes[1])
+                .IsTypeOf<AttachRejected>();
+            await Assert.That(((AttachRejected)workspace.AttachOutcomes[1]).Code)
+                .IsEqualTo("stale_workspace_attachment");
+            await Assert.That(((AttachRejected)workspace.AttachOutcomes[1])
+                    .RetryDisposition)
+                .IsTypeOf<ReattachDisposition>();
+            await Assert.That(((Attached)workspace.AttachOutcomes[2]).Generation)
+                .IsEqualTo(((Attached)workspace.AttachOutcomes[0]).Generation + 1);
+            await Assert.That(((Attached)workspace.AttachOutcomes[2]).AttachmentId)
+                .IsNotEqualTo(((Attached)workspace.AttachOutcomes[0]).AttachmentId);
+            await Assert.That(((AuthenticatedWorkspaceCaller)recover.Caller)
+                    .SubjectId.Value)
+                .IsEqualTo("subject-editor");
+            await Assert.That(stale.Code).IsEqualTo("stale_workspace_attachment");
+            await Assert.That(second.Markup).Contains("Durable Project reopened.");
+        }
+    }
+
     [Test]
     public async Task Editor_DurableRoute_UsesCurrentSubjectForAttachmentLifetime()
     {
@@ -59,9 +280,87 @@ internal sealed class EditorDurableRouteTests
         }
     }
 
-    private sealed class RecordingAttachWorkspace : DelegatingEditorWorkspace
+    private static void Configure(
+        BunitContext context,
+        IEditorWorkspace workspace)
     {
+        context.Services.AddFluentUIComponents();
+        context.Services.AddSingleton(TimeProvider.System);
+        context.Services.AddSingleton(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+    }
+
+    private static IRenderedComponent<CascadingValue<Task<AuthenticationState>>> RenderEditor(
+        BunitContext context,
+        WorkspaceId workspaceId,
+        Task<AuthenticationState> authenticationState)
+    {
+        return context.Render<CascadingValue<Task<AuthenticationState>>>(
+            parameters => parameters
+                .Add(value => value.Value, authenticationState)
+                .AddChildContent<Editor>(editor => editor
+                    .Add(component => component.WorkspaceIdValue, workspaceId.Value)));
+    }
+
+    private static Task<AuthenticationState> AuthenticationStateFor(string? subjectId)
+    {
+        var claims = subjectId is null
+            ? Array.Empty<Claim>()
+            : [new Claim(ClaimTypes.NameIdentifier, subjectId)];
+        return Task.FromResult(new AuthenticationState(
+            new ClaimsPrincipal(new ClaimsIdentity(
+                claims,
+                subjectId is null ? null : "Tests"))));
+    }
+
+    private static bool AreAllCommandsDisabled(
+        IRenderedComponent<CascadingValue<Task<AuthenticationState>>> rendered)
+    {
+        var commands = rendered.FindAll("[data-command]");
+        return commands.Count > 0
+            && commands.All(command => command.HasAttribute("disabled"));
+    }
+
+    private sealed class RecordingAttachWorkspace(bool blockFirstAttach = false)
+        : DelegatingEditorWorkspace
+    {
+        private readonly object gate = new();
+        private readonly List<AttachRequest> attachRequests = [];
+        private readonly List<WorkspaceAttachOutcome> attachOutcomes = [];
+        private readonly TaskCompletionSource attachStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource releaseAttach = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource readStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource releaseRead = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private int shouldBlockAttach = blockFirstAttach ? 1 : 0;
+        private int shouldBlockRead;
+
         public AttachRequest? Request { get; private set; }
+
+        public AttachRequest[] AttachRequests
+        {
+            get
+            {
+                lock (gate)
+                {
+                    return [.. attachRequests];
+                }
+            }
+        }
+
+        public WorkspaceAttachOutcome[] AttachOutcomes
+        {
+            get
+            {
+                lock (gate)
+                {
+                    return [.. attachOutcomes];
+                }
+            }
+        }
 
         public WorkspaceCaller? CommandCaller { get; private set; }
 
@@ -69,29 +368,67 @@ internal sealed class EditorDurableRouteTests
 
         public WorkspaceCaller? DetachCaller { get; private set; }
 
-        public override Task<WorkspaceAttachOutcome> AttachAsync(
+        public DetachRequest? DetachRequest { get; private set; }
+
+        public WorkspaceCommandOutcome? LastCommandOutcome { get; private set; }
+
+        public WorkspaceReadOutcome? BlockedReadOutcome { get; private set; }
+
+        public Task AttachStarted => attachStarted.Task;
+
+        public Task ReadStarted => readStarted.Task;
+
+        public void ReleaseAttach() => releaseAttach.TrySetResult();
+
+        public void BlockNextRead() => Volatile.Write(ref shouldBlockRead, 1);
+
+        public void ReleaseRead() => releaseRead.TrySetResult();
+
+        public override async Task<WorkspaceAttachOutcome> AttachAsync(
             AttachRequest request,
             CancellationToken cancellationToken)
         {
             Request = request;
-            return base.AttachAsync(request, cancellationToken);
+            if (Interlocked.Exchange(ref shouldBlockAttach, 0) != 0)
+            {
+                attachStarted.TrySetResult();
+                await releaseAttach.Task.WaitAsync(cancellationToken);
+            }
+
+            var outcome = await base.AttachAsync(request, cancellationToken);
+            lock (gate)
+            {
+                attachRequests.Add(request);
+                attachOutcomes.Add(outcome);
+            }
+
+            return outcome;
         }
 
-        public override Task<WorkspaceCommandOutcome> DispatchAsync(
+        public override async Task<WorkspaceCommandOutcome> DispatchAsync(
             WorkspaceCommand command,
             CancellationToken cancellationToken)
         {
             CommandCaller = command.Context.Caller;
-            return base.DispatchAsync(command, cancellationToken);
+            LastCommandOutcome = await base.DispatchAsync(command, cancellationToken);
+            return LastCommandOutcome;
         }
 
-        public override Task<WorkspaceReadOutcome> ReadAsync(
+        public override async Task<WorkspaceReadOutcome> ReadAsync(
             WorkspaceQueryContext context,
             WorkspaceQuery query,
             CancellationToken cancellationToken)
         {
             ReadCaller = context.Caller;
-            return base.ReadAsync(context, query, cancellationToken);
+            var outcome = await base.ReadAsync(context, query, cancellationToken);
+            if (Interlocked.Exchange(ref shouldBlockRead, 0) != 0)
+            {
+                BlockedReadOutcome = outcome;
+                readStarted.TrySetResult();
+                await releaseRead.Task.WaitAsync(cancellationToken);
+            }
+
+            return outcome;
         }
 
         public override Task<WorkspaceDetachOutcome> DetachAsync(
@@ -99,6 +436,7 @@ internal sealed class EditorDurableRouteTests
             CancellationToken cancellationToken)
         {
             DetachCaller = request.Caller;
+            DetachRequest = request;
             return base.DetachAsync(request, cancellationToken);
         }
     }

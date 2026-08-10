@@ -113,7 +113,17 @@ The deep Workspace implementation asks Project Editor for Project Genesis when r
 
 `CopyWorkspace` reauthorizes and fences the source attachment, then starts separate history at its exact current Project Revision, including authorized unsaved edits. Earlier history is not copied and Undo cannot cross the new base. `Preserve` retains Sandbox status or the Durable Project ID and observed Durable Version; while a Claim outcome is unresolved, `Preserve` returns `durable_claim_unresolved` and allocates no Workspace. `DetachedSandbox` removes the durable association and implements “Keep as copy.” Both successful copy targets preserve authored Project identity and the fork revision, but copy no attachment, Session, Run, Analysis Operation, Proposal, idempotency record, or browser preference. A stale Projection Version returns `projection_version_precondition_failed`; the source remains unchanged.
 
-`AttachRequest` is `InitialAttach { WorkspaceId, buildFingerprint, caller }` or `Reattach { WorkspaceId, priorAttachmentId, priorGeneration, buildFingerprint, caller }`. Success returns `Attached { newAttachmentId, newGeneration, WorkspaceProjectionV1 }`. A `Reattach` whose Workspace is no longer retained, including one reclaimed by an earlier operation, returns `Expired { reason = workspace_expired }`; an unknown `InitialAttach` and every other failure return `AttachRejected { reason, diagnostics, RetryDisposition }`. Initial attachment and reattachment both reauthorize before inspecting or publishing an attachment fence. Copying a tab calls `OpenAsync(CopyWorkspace)` and creates another Workspace; it does not reuse an attachment.
+`AttachRequest` is exactly one of:
+
+```text
+InitialAttach { WorkspaceId, buildFingerprint, caller }
+Reattach { WorkspaceId, priorAttachmentId, priorGeneration, buildFingerprint, caller }
+RecoverAttach { WorkspaceId, buildFingerprint, caller }
+```
+
+Success returns `Attached { newAttachmentId, newGeneration, WorkspaceProjectionV1 }`. `InitialAttach` succeeds only when no attachment is current. `Reattach` proves the prior attachment fence and replaces that exact generation. `RecoverAttach` is the authorized full-document/circuit-replacement path used only after `InitialAttach` reports `stale_workspace_attachment`: it does not accept a browser-supplied prior fence, so Application reauthorizes the caller, validates the build fingerprint, then replaces the current attachment with a fresh ID and incremented generation. Commands and reads from the displaced attachment consequently fail as stale; no unacknowledged command is replayed.
+
+A `Reattach` whose Workspace is no longer retained, including one reclaimed by an earlier operation, returns `Expired { reason = workspace_expired }`; an unknown `InitialAttach` or `RecoverAttach` and every other failure return `AttachRejected { reason, diagnostics, RetryDisposition }`. Every attachment variant reauthorizes before inspecting or publishing an attachment fence. A separate editing copy calls `OpenAsync(CopyWorkspace)` and creates another Workspace; it does not reuse or recover an attachment.
 
 `DetachRequest` carries the current Workspace ID, Attachment ID, generation, and caller.
 Success returns `Detached { WorkspaceId, generation }` without changing Projection Version;
@@ -278,7 +288,7 @@ Run projection state is exactly `NotRunning | Running(RunGeneration) | Paused(Ru
 7. execute and publish atomically;
 8. record the terminal idempotency result before acknowledging.
 
-At the `IEditorWorkspace` boundary, an unauthorized Durable Workspace has the same outcome as an absent Workspace for the same request shape: ordinarily `workspace_not_found`, `Expired` for Reattach, and idempotent `WorkspaceClosed` for Close. Expiration is normalized to those same absence outcomes; only Reattach projects absence as `Expired { reason = workspace_expired }`. A command kind that independently requires authentication, such as Claim or Durable Save, still returns `authentication_required` before Workspace lookup when its caller is anonymous. Once that command-level check succeeds, ownership mismatch never returns a distinguishable `forbidden` result.
+At the `IEditorWorkspace` boundary, an unauthorized Durable Workspace has the same outcome as an absent Workspace for the same request shape: ordinarily `workspace_not_found`, `Expired` for Reattach, and idempotent `WorkspaceClosed` for Close. Expiration is normalized to those same absence outcomes; only Reattach projects absence as `Expired { reason = workspace_expired }`, while RecoverAttach remains indistinguishable from an unknown initial locator. A command kind that independently requires authentication, such as Claim or Durable Save, still returns `authentication_required` before Workspace lookup when its caller is anonymous. Once that command-level check succeeds, ownership mismatch never returns a distinguishable `forbidden` result.
 
 Authorization is checked from a stable ownership snapshot before a caller can wait on a Workspace-specific execution gate, then checked again after gate acquisition to cover a concurrent Claim. From Claim acceptance until its outcome is resolved, the Workspace is fenced to the initiating Authenticated Subject. An unknown Claim outcome retains that fence across Reattach until the initiating subject recovers a stored Claim or receives a definitive failure; other subjects continue to observe the Workspace as absent.
 

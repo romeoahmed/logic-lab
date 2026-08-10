@@ -38,6 +38,8 @@ HTTP status mapping is consistent across transfer and any later measured large-w
 
 `Retry-After` appears only when the server has an honest value for `429` or `503`. Core Module cancellation remains a typed outcome and is not assigned a nonstandard HTTP status. Every non-success body uses the same Problem Details extension fields and exact outcome reason code from Diagnostics V1.
 
+The Durable Project Web adapter applies this table directly: an absent or concealed `OpenDurable` target is `404`, Workspace admission rejection is `429`, catalog request/cursor validation is `422`, infrastructure or cancellation is `503`, and an internal defect is `500`. Static SSR performs the catalog call before rendering `/projects`, while `/projects/open` adapts `WorkspaceOpenRejected` directly; neither failure path redirects to an unconsumed query parameter or renders an HTTP `200` error page.
+
 ## 2. Security
 
 - Authenticate and authorize every transfer action; a URL, Workspace ID, Durable Project ID, or download token is only a locator.

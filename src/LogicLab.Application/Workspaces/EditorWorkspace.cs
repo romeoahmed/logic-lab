@@ -1218,7 +1218,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
     private static AttachRejected RejectAttach(string code)
     {
-        return new AttachRejected(code, [], RetryDisposition.DoNotRetry);
+        return new AttachRejected(code, [], WorkspaceOutcomeReasons.RetryFor(code));
     }
 
     private static ProjectScalePolicy DevelopmentProjectScalePolicy { get; } = new(
