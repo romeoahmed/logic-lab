@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 
 namespace LogicLab.Web;
 
@@ -22,75 +21,82 @@ internal static class LogicLabProblemDetails
         ArgumentNullException.ThrowIfNull(httpContext);
         ArgumentException.ThrowIfNullOrEmpty(code);
 
-        var status = StatusFor(code);
+        var (status, title) = Describe(code);
         var problem = new ProblemDetails
         {
             Type = $"{ProblemTypeBase}{code}",
-            Title = TitleFor(code),
+            Title = title,
             Status = status,
             Instance = httpContext.Request.Path,
         };
         problem.Extensions["code"] = code;
         problem.Extensions["traceId"] = CorrelationToken();
-        return new LogicLabProblemResult(problem);
+        return Results.Problem(problem);
     }
 
-    private static int StatusFor(string code)
+    private static (int Status, string Title) Describe(string code)
     {
         return code switch
         {
-            ProjectOpenRequestInvalidCode => StatusCodes.Status400BadRequest,
-            RequestBodyTooLargeCode => StatusCodes.Status413PayloadTooLarge,
-            AuthenticationRequiredCode => StatusCodes.Status401Unauthorized,
-            "workspace_not_found" or ForbiddenCode => StatusCodes.Status404NotFound,
-            "project_catalog_request_invalid" or "project_catalog_cursor_invalid" =>
-                StatusCodes.Status422UnprocessableEntity,
-            "compilation_invalid" or "compilation_policy_exhausted" =>
-                StatusCodes.Status422UnprocessableEntity,
-            "workspace_admission_rejected" or AuthenticationRateLimitExceededCode =>
-                StatusCodes.Status429TooManyRequests,
-            "workspace_cancelled" or "workspace_infrastructure_failure"
-                or "compilation_cancelled" or "compilation_infrastructure_failure"
-                or "project_catalog_cancelled"
-                or "project_catalog_infrastructure_failure" =>
-                StatusCodes.Status503ServiceUnavailable,
-            "workspace_internal_defect" or "compilation_internal_defect"
-                or "project_catalog_internal_defect" =>
-                StatusCodes.Status500InternalServerError,
-            _ => StatusCodes.Status500InternalServerError,
-        };
-    }
-
-    private static string TitleFor(string code)
-    {
-        return code switch
-        {
-            ProjectOpenRequestInvalidCode => "The project open request is invalid",
-            RequestBodyTooLargeCode => "The request body is too large",
-            AuthenticationRequiredCode => "Authentication is required",
+            ProjectOpenRequestInvalidCode => (
+                StatusCodes.Status400BadRequest,
+                "The project open request is invalid"),
+            RequestBodyTooLargeCode => (
+                StatusCodes.Status413PayloadTooLarge,
+                "The request body is too large"),
+            AuthenticationRequiredCode => (
+                StatusCodes.Status401Unauthorized,
+                "Authentication is required"),
             "workspace_not_found" or ForbiddenCode =>
-                "The requested resource was not found",
-            "project_catalog_request_invalid" => "The project catalog request is invalid",
-            "project_catalog_cursor_invalid" => "The project catalog cursor is invalid",
-            "compilation_invalid" => "The project revision is invalid",
-            "compilation_policy_exhausted" =>
-                "The project exceeds compilation policy",
-            "workspace_admission_rejected" => "Workspace capacity is unavailable",
-            AuthenticationRateLimitExceededCode =>
-                "Too many authentication requests",
-            "workspace_cancelled" => "Workspace opening was cancelled",
-            "workspace_infrastructure_failure" => "The Workspace service is unavailable",
-            "compilation_cancelled" => "Project compilation was cancelled",
-            "compilation_infrastructure_failure" =>
-                "The Compiler service is unavailable",
-            "project_catalog_cancelled" => "Project catalog loading was cancelled",
-            "project_catalog_infrastructure_failure" =>
-                "The project catalog is unavailable",
-            "workspace_internal_defect" => "The Workspace could not be opened",
-            "compilation_internal_defect" => "The project could not be compiled",
-            "project_catalog_internal_defect" =>
-                "The project catalog could not be loaded",
-            _ => "The request could not be completed",
+                (StatusCodes.Status404NotFound, "The requested resource was not found"),
+            "project_catalog_request_invalid" => (
+                StatusCodes.Status422UnprocessableEntity,
+                "The project catalog request is invalid"),
+            "project_catalog_cursor_invalid" => (
+                StatusCodes.Status422UnprocessableEntity,
+                "The project catalog cursor is invalid"),
+            "compilation_invalid" => (
+                StatusCodes.Status422UnprocessableEntity,
+                "The project revision is invalid"),
+            "compilation_policy_exhausted" => (
+                StatusCodes.Status422UnprocessableEntity,
+                "The project exceeds compilation policy"),
+            "workspace_admission_rejected" => (
+                StatusCodes.Status429TooManyRequests,
+                "Workspace capacity is unavailable"),
+            AuthenticationRateLimitExceededCode => (
+                StatusCodes.Status429TooManyRequests,
+                "Too many authentication requests"),
+            "workspace_cancelled" => (
+                StatusCodes.Status503ServiceUnavailable,
+                "Workspace opening was cancelled"),
+            "workspace_infrastructure_failure" => (
+                StatusCodes.Status503ServiceUnavailable,
+                "The Workspace service is unavailable"),
+            "compilation_cancelled" => (
+                StatusCodes.Status503ServiceUnavailable,
+                "Project compilation was cancelled"),
+            "compilation_infrastructure_failure" => (
+                StatusCodes.Status503ServiceUnavailable,
+                "The Compiler service is unavailable"),
+            "project_catalog_cancelled" => (
+                StatusCodes.Status503ServiceUnavailable,
+                "Project catalog loading was cancelled"),
+            "project_catalog_infrastructure_failure" => (
+                StatusCodes.Status503ServiceUnavailable,
+                "The project catalog is unavailable"),
+            "workspace_internal_defect" => (
+                StatusCodes.Status500InternalServerError,
+                "The Workspace could not be opened"),
+            "compilation_internal_defect" => (
+                StatusCodes.Status500InternalServerError,
+                "The project could not be compiled"),
+            "project_catalog_internal_defect" => (
+                StatusCodes.Status500InternalServerError,
+                "The project catalog could not be loaded"),
+            _ => (
+                StatusCodes.Status500InternalServerError,
+                "The request could not be completed"),
         };
     }
 
@@ -99,45 +105,5 @@ internal static class LogicLabProblemDetails
         return Activity.Current is { TraceId: var traceId } && traceId != default
             ? traceId.ToHexString()
             : Guid.CreateVersion7().ToString("N");
-    }
-
-    private sealed class LogicLabProblemResult(ProblemDetails problem) : IResult
-    {
-        public Task ExecuteAsync(HttpContext httpContext)
-        {
-            httpContext.Response.StatusCode = problem.Status
-                ?? StatusCodes.Status500InternalServerError;
-            var service = httpContext.RequestServices
-                .GetRequiredService<IProblemDetailsService>();
-            return service.WriteAsync(new ProblemDetailsContext
-            {
-                HttpContext = httpContext,
-                ProblemDetails = problem,
-            }).AsTask();
-        }
-    }
-}
-
-internal sealed class LogicLabProblemDetailsWriter(
-    IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions> jsonOptions)
-    : IProblemDetailsWriter
-{
-    public bool CanWrite(ProblemDetailsContext context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        return context.ProblemDetails.Extensions.ContainsKey("code");
-    }
-
-    public ValueTask WriteAsync(ProblemDetailsContext context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        var response = context.HttpContext.Response;
-        response.StatusCode = context.ProblemDetails.Status
-            ?? StatusCodes.Status500InternalServerError;
-        return new ValueTask(response.WriteAsJsonAsync(
-            context.ProblemDetails,
-            jsonOptions.Value.SerializerOptions,
-            "application/problem+json",
-            context.HttpContext.RequestAborted));
     }
 }

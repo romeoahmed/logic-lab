@@ -78,11 +78,6 @@ builder.Services.AddAntiforgery(options =>
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 });
 builder.Services.AddAuthorization();
-builder.Services.AddSingleton<IProblemDetailsWriter>(services =>
-    new LogicLabProblemDetailsWriter(
-        services.GetRequiredService<
-            Microsoft.Extensions.Options.IOptions<
-                Microsoft.AspNetCore.Http.Json.JsonOptions>>()));
 builder.Services.AddProblemDetails();
 builder.Services.AddRateLimiter(options =>
 {
