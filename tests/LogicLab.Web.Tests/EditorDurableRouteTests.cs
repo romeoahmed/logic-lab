@@ -102,6 +102,66 @@ internal sealed class EditorDurableRouteTests
     }
 
     [Test]
+    public async Task Editor_SandboxRoute_AuthenticationChangesDuringReattach_PublishesNewFenceAndContinues()
+    {
+        await using var context = new BunitContext();
+        await using var workspace = new RecordingAttachWorkspace(
+            blockFirstReattach: true,
+            rejectFirstDispatchWithReattach: true);
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("Reopened project", "Main"),
+            CancellationToken.None);
+        Configure(context, workspace);
+        var rendered = RenderEditor(
+            context,
+            opened.WorkspaceId,
+            AuthenticationStateFor("subject-editor"));
+        await rendered.WaitForElementAsync(
+            "[data-command='author']:not([disabled])");
+        var initialAttachment = (Attached)workspace.AttachOutcomes.Single();
+
+        var authoring = rendered.Find("[data-command='author']").ClickAsync();
+        await workspace.ReattachStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        rendered.Render(parameters => parameters
+            .Add(value => value.Value, AuthenticationStateFor(null))
+            .Add(value => value.ChildContent, (RenderFragment)(builder =>
+            {
+                builder.OpenComponent<Editor>(0);
+                builder.AddAttribute(1, nameof(Editor.WorkspaceIdValue), opened.WorkspaceId.Value);
+                builder.CloseComponent();
+            })));
+        workspace.ReleaseReattach();
+        await authoring;
+        await rendered.WaitForElementAsync(
+            "[data-command='compile']:not([disabled])");
+
+        var reattached = (Attached)workspace.AttachOutcomes.Last();
+        var command = workspace.LastCommand!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(workspace.DetachRequest).IsNull();
+            await Assert.That(workspace.AttachRequests).Count().IsEqualTo(2);
+            await Assert.That(workspace.AttachRequests[1]).IsTypeOf<Reattach>();
+            await Assert.That(reattached.AttachmentId)
+                .IsNotEqualTo(initialAttachment.AttachmentId);
+            await Assert.That(reattached.Generation)
+                .IsEqualTo(initialAttachment.Generation + 1);
+            await Assert.That(command.Context.AttachmentId)
+                .IsEqualTo(reattached.AttachmentId);
+            await Assert.That(command.Context.AttachmentGeneration)
+                .IsEqualTo(reattached.Generation);
+            await Assert.That(command.Context.Caller)
+                .IsTypeOf<AnonymousWorkspaceCaller>();
+            await Assert.That(rendered.FindComponent<WorkbenchStatusStrip>()
+                    .Instance.Projection)
+                .IsNotNull();
+            await Assert.That(rendered.FindComponent<AccessibleCircuitScene>()
+                    .Instance.Scene)
+                .IsNotNull();
+        }
+    }
+
+    [Test]
     [Arguments(null)]
     [Arguments("replacement-subject")]
     public async Task Editor_DurableRoute_AuthenticationSubjectChanges_ClearsProjectionAndDetachesAsPriorSubject(
@@ -429,6 +489,8 @@ internal sealed class EditorDurableRouteTests
 
     private sealed class RecordingAttachWorkspace(
         bool blockFirstAttach = false,
+        bool blockFirstReattach = false,
+        bool rejectFirstDispatchWithReattach = false,
         IDurableProjectLoader? durableProjectLoader = null)
         : DelegatingEditorWorkspace(durableProjectLoader: durableProjectLoader)
     {
@@ -439,11 +501,17 @@ internal sealed class EditorDurableRouteTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource releaseAttach = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource reattachStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource releaseReattach = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource readStarted = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource releaseRead = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
         private int shouldBlockAttach = blockFirstAttach ? 1 : 0;
+        private int shouldBlockReattach = blockFirstReattach ? 1 : 0;
+        private int shouldRejectDispatch = rejectFirstDispatchWithReattach ? 1 : 0;
         private int shouldBlockRead;
 
         public AttachRequest? Request { get; private set; }
@@ -486,9 +554,13 @@ internal sealed class EditorDurableRouteTests
 
         public Task AttachStarted => attachStarted.Task;
 
+        public Task ReattachStarted => reattachStarted.Task;
+
         public Task ReadStarted => readStarted.Task;
 
         public void ReleaseAttach() => releaseAttach.TrySetResult();
+
+        public void ReleaseReattach() => releaseReattach.TrySetResult();
 
         public void BlockNextRead() => Volatile.Write(ref shouldBlockRead, 1);
 
@@ -506,6 +578,13 @@ internal sealed class EditorDurableRouteTests
             }
 
             var outcome = await base.AttachAsync(request, cancellationToken);
+            if (request is Reattach
+                && Interlocked.Exchange(ref shouldBlockReattach, 0) != 0)
+            {
+                reattachStarted.TrySetResult();
+                await releaseReattach.Task.WaitAsync(cancellationToken);
+            }
+
             lock (gate)
             {
                 attachRequests.Add(request);
@@ -521,7 +600,12 @@ internal sealed class EditorDurableRouteTests
         {
             LastCommand = command;
             CommandCaller = command.Context.Caller;
-            LastCommandOutcome = await base.DispatchAsync(command, cancellationToken);
+            LastCommandOutcome = Interlocked.Exchange(ref shouldRejectDispatch, 0) != 0
+                ? new WorkspaceCommandRejected(
+                    "idempotency_window_closed",
+                    [],
+                    RetryDisposition.Reattach)
+                : await base.DispatchAsync(command, cancellationToken);
             return LastCommandOutcome;
         }
 
