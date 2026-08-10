@@ -575,6 +575,32 @@ internal sealed class EditorWorkspaceContinuityTests
     }
 
     [Test]
+    public async Task DispatchAsync_ReusedEditIntentWithReplacementAndSurrogate_RejectsConflict()
+    {
+        await using var workspace = TestEditorWorkspaceFactory.Create(
+            buildFingerprint: BuildFingerprint);
+        var opened = await Open(workspace);
+        var attached = await Attach(workspace, opened.WorkspaceId);
+
+        var first = await workspace.DispatchAsync(
+            Rename(opened, attached, "same-utf16", "\uFFFD"),
+            CancellationToken.None);
+        var conflict = await workspace.DispatchAsync(
+            Rename(opened, attached, "same-utf16", "\uD800"),
+            CancellationToken.None);
+
+        await Assert.That(first).IsTypeOf<AuthoringCommitted>();
+        var rejection = await IsType<WorkspaceCommandRejected>(conflict);
+        var after = await Read(workspace, opened.WorkspaceId, attached);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejection.Code).IsEqualTo("idempotency_key_conflict");
+            await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.DisplayName)
+                .IsEqualTo("\uFFFD");
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_ReusedClientIntentWithDifferentPolymorphicPayload_RejectsConflict()
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(

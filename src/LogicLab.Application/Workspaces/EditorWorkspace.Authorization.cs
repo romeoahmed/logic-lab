@@ -125,6 +125,7 @@ internal sealed partial class EditorWorkspace
                     state,
                     pending.Context.Caller) is null)
             {
+                RevokeUnauthorizedReplayWaitersUnderLock(state, pending);
                 continue;
             }
 
@@ -135,7 +136,9 @@ internal sealed partial class EditorWorkspace
                 state.PendingRunPause = null;
             }
 
-            pending.Completion.TrySetResult(
+            CompletePendingWaitersUnderLock(
+                state,
+                pending,
                 Reject(WorkspaceOutcomeReasons.WorkspaceNotFound));
             if (pending.ScheduledSessionWork is { } revoked)
             {
@@ -144,5 +147,25 @@ internal sealed partial class EditorWorkspace
         }
 
         return scheduledWork;
+    }
+
+    private static void RevokeUnauthorizedReplayWaitersUnderLock(
+        WorkspaceState state,
+        PendingIntent pending)
+    {
+        for (var index = pending.ReplayWaiters.Count - 1; index >= 0; index--)
+        {
+            var waiter = pending.ReplayWaiters[index];
+            if (GetDurableAccessRejectionUnderLock(
+                    state,
+                    waiter.Context.Caller) is null)
+            {
+                continue;
+            }
+
+            pending.ReplayWaiters.RemoveAt(index);
+            waiter.Completion.TrySetResult(
+                Reject(WorkspaceOutcomeReasons.WorkspaceNotFound));
+        }
     }
 }

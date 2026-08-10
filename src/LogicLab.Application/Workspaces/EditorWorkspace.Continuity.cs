@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -220,7 +221,9 @@ internal sealed partial class EditorWorkspace
 
             foreach (var pending in state.PendingIntents.Values)
             {
-                pending.Completion.TrySetResult(
+                CompletePendingWaitersUnderLock(
+                    state,
+                    pending,
                     Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment));
             }
 
@@ -359,7 +362,7 @@ internal sealed partial class EditorWorkspace
         WorkspaceCommand command,
         CancellationToken cancellationToken)
     {
-        Task<WorkspaceCommandOutcome>? pendingCompletion = null;
+        ContextualIntentReplay? replayIntent = null;
         WorkspaceCommandOutcome? completed = null;
         var admissionRejection = await EnterAuthorizedCommandGateAsync(
             state,
@@ -389,7 +392,7 @@ internal sealed partial class EditorWorkspace
                     case ContextualIntentTerminal terminal:
                         return terminal.Outcome;
                     case ContextualIntentReplay replay:
-                        pendingCompletion = replay.Completion;
+                        replayIntent = replay;
                         break;
                     case ContextualIntentAccepted accepted:
                         completed = RejectIfRunRequiresPause(state, command)
@@ -424,9 +427,9 @@ internal sealed partial class EditorWorkspace
             state.CommandGate.Release();
         }
 
-        return pendingCompletion is null
+        return replayIntent is null
             ? completed!
-            : await AwaitReplayAsync(pendingCompletion, cancellationToken)
+            : await AwaitReplayAsync(state, replayIntent, cancellationToken)
                 .ConfigureAwait(false);
     }
 
@@ -488,13 +491,18 @@ internal sealed partial class EditorWorkspace
             context.ClientIntentId,
             out var pending))
         {
-            return string.Equals(
-                pending.CanonicalIdentity,
-                identity,
-                StringComparison.Ordinal)
-                ? new ContextualIntentReplay(pending.Completion.Task)
-                : new ContextualIntentTerminal(
+            if (!string.Equals(
+                    pending.CanonicalIdentity,
+                    identity,
+                    StringComparison.Ordinal))
+            {
+                return new ContextualIntentTerminal(
                     Reject(WorkspaceOutcomeReasons.IdempotencyKeyConflict));
+            }
+
+            var waiter = new PendingReplayWaiter(context);
+            pending.ReplayWaiters.Add(waiter);
+            return new ContextualIntentReplay(pending, waiter);
         }
 
         return state.IsIdempotencyWindowClosed
@@ -606,19 +614,39 @@ internal sealed partial class EditorWorkspace
     }
 
     private static async Task<WorkspaceCommandOutcome> AwaitReplayAsync(
-        Task<WorkspaceCommandOutcome> completion,
+        WorkspaceState state,
+        ContextualIntentReplay replay,
         CancellationToken cancellationToken)
     {
         try
         {
-            return await completion.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return await replay.Waiter.Completion.Task
+                .WaitAsync(cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException exception)
             when (ExceptionClassifier.IsCooperativeCancellation(
                 exception,
                 cancellationToken))
         {
-            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            lock (state.ContinuityGate)
+            {
+                var rejection = GetDurableAccessRejectionUnderLock(
+                        state,
+                        replay.Waiter.Context.Caller)
+                    ?? (HasCurrentAttachmentUnderLock(state, replay.Waiter.Context)
+                        ? null
+                        : WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
+                return Reject(
+                    rejection ?? WorkspaceOutcomeReasons.WorkspaceCancelled);
+            }
+        }
+        finally
+        {
+            lock (state.ContinuityGate)
+            {
+                replay.PendingIntent.ReplayWaiters.Remove(replay.Waiter);
+            }
         }
     }
 
@@ -703,7 +731,28 @@ internal sealed partial class EditorWorkspace
                 outcome);
         }
 
+        CompletePendingWaitersUnderLock(state, pending, outcome);
+    }
+
+    private static void CompletePendingWaitersUnderLock(
+        WorkspaceState state,
+        PendingIntent pending,
+        WorkspaceCommandOutcome outcome)
+    {
         pending.Completion.TrySetResult(outcome);
+        foreach (var waiter in pending.ReplayWaiters)
+        {
+            var rejection = GetDurableAccessRejectionUnderLock(
+                    state,
+                    waiter.Context.Caller)
+                ?? (HasCurrentAttachmentUnderLock(state, waiter.Context)
+                    ? null
+                    : WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
+            waiter.Completion.TrySetResult(
+                rejection is null ? outcome : Reject(rejection));
+        }
+
+        pending.ReplayWaiters.Clear();
     }
 
     private static string CanonicalIdentity(WorkspaceCommand command)
@@ -795,13 +844,67 @@ internal sealed partial class EditorWorkspace
         params string[] components)
     {
         string[] fields = [commandKind, .. components];
-        return JsonSerializer.Serialize(fields);
+        var identity = new StringBuilder();
+        identity.Append(fields.Length.ToString(CultureInfo.InvariantCulture));
+        identity.Append(';');
+        foreach (var field in fields)
+        {
+            identity.Append(field.Length.ToString(CultureInfo.InvariantCulture));
+            identity.Append(':');
+            identity.Append(field);
+        }
+
+        return identity.ToString();
     }
 
     private static JsonSerializerOptions CanonicalJsonOptions { get; } = new()
     {
         TypeInfoResolver = new DomainPolymorphicTypeResolver(),
+        Converters = { new Utf16CodeUnitStringJsonConverter() },
     };
+
+    private sealed class Utf16CodeUnitStringJsonConverter : JsonConverter<string>
+    {
+        private const string HexDigits = "0123456789abcdef";
+
+        public override string? Read(
+            ref Utf8JsonReader reader,
+            Type typeToConvert,
+            JsonSerializerOptions options) => throw new NotSupportedException();
+
+        public override void Write(
+            Utf8JsonWriter writer,
+            string value,
+            JsonSerializerOptions options) => writer.WriteStringValue(Encode(value));
+
+        public override string ReadAsPropertyName(
+            ref Utf8JsonReader reader,
+            Type typeToConvert,
+            JsonSerializerOptions options) => throw new NotSupportedException();
+
+        public override void WriteAsPropertyName(
+            Utf8JsonWriter writer,
+            string value,
+            JsonSerializerOptions options) => writer.WritePropertyName(Encode(value));
+
+        private static string Encode(string value)
+        {
+            return string.Create(
+                checked(value.Length * 4),
+                value,
+                static (destination, source) =>
+                {
+                    var offset = 0;
+                    foreach (var codeUnit in source)
+                    {
+                        destination[offset++] = HexDigits[codeUnit >> 12];
+                        destination[offset++] = HexDigits[(codeUnit >> 8) & 0x0f];
+                        destination[offset++] = HexDigits[(codeUnit >> 4) & 0x0f];
+                        destination[offset++] = HexDigits[codeUnit & 0x0f];
+                    }
+                });
+        }
+    }
 
     private sealed class DomainPolymorphicTypeResolver : DefaultJsonTypeInfoResolver
     {
@@ -855,7 +958,9 @@ internal sealed partial class EditorWorkspace
     private sealed record ContextualIntentTerminal(WorkspaceCommandOutcome Outcome)
         : ContextualIntentInspection;
 
-    private sealed record ContextualIntentReplay(Task<WorkspaceCommandOutcome> Completion)
+    private sealed record ContextualIntentReplay(
+        PendingIntent PendingIntent,
+        PendingReplayWaiter Waiter)
         : ContextualIntentInspection;
 
     private sealed record ContextualIntentAccepted(string CanonicalIdentity)

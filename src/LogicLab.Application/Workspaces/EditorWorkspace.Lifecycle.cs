@@ -339,7 +339,17 @@ internal sealed partial class EditorWorkspace
         public TaskCompletionSource<WorkspaceCommandOutcome> Completion { get; } =
             completion;
 
+        public List<PendingReplayWaiter> ReplayWaiters { get; } = [];
+
         public WorkCoordinator.ScheduledSessionWork? ScheduledSessionWork { get; set; }
+    }
+
+    private sealed class PendingReplayWaiter(WorkspaceCommandContext context)
+    {
+        public WorkspaceCommandContext Context { get; } = context;
+
+        public TaskCompletionSource<WorkspaceCommandOutcome> Completion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private sealed class AuthorizationAdmissionEpoch : IDisposable

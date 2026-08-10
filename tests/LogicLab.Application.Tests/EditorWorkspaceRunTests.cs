@@ -7,7 +7,7 @@ using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Application.Tests;
 
-internal sealed class EditorWorkspaceRunTests
+internal sealed partial class EditorWorkspaceRunTests
 {
     [Test, Timeout(30_000)]
     public async Task DispatchAsync_PauseDuringNoStimulusAdvance_PausesForUserRequest(
