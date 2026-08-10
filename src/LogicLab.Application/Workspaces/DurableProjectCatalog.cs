@@ -296,7 +296,7 @@ internal sealed class DurableProjectCatalog(
                 cancellationToken).ConfigureAwait(false);
             ArgumentNullException.ThrowIfNull(repositoryItems);
             if (repositoryItems.Count > request.PageSize + 1
-                || !HasStrictInvariantOrder(repositoryItems))
+                || !HasStrictInvariantOrder(repositoryItems, after))
             {
                 return Reject(DurableProjectCatalogReasons.InternalDefect);
             }
@@ -364,34 +364,36 @@ internal sealed class DurableProjectCatalog(
     }
 
     private static bool HasStrictInvariantOrder(
-        IReadOnlyList<DurableProjectCatalogRepositoryItem> items)
+        IReadOnlyList<DurableProjectCatalogRepositoryItem> items,
+        ProjectCatalogCursorState? after)
     {
-        for (var index = 0; index < items.Count; index++)
+        ReadOnlyCollection<byte>? priorSortKey = after?.LastDisplayNameSortKey;
+        DurableProjectId? priorProjectId = after?.LastDurableProjectId;
+        foreach (var current in items)
         {
-            var current = items[index];
             if (!current.DisplayNameSortKey.SequenceEqual(
                     Encoding.UTF8.GetBytes(current.DisplayName.Value)))
             {
                 return false;
             }
 
-            if (index == 0)
+            if (priorSortKey is not null)
             {
-                continue;
+                var keyComparison = CompareSortKeys(
+                    priorSortKey,
+                    current.DisplayNameSortKey);
+                if (keyComparison > 0
+                    || keyComparison == 0
+                        && string.CompareOrdinal(
+                            priorProjectId!.Value,
+                            current.DurableProjectId.Value) >= 0)
+                {
+                    return false;
+                }
             }
 
-            var prior = items[index - 1];
-            var keyComparison = CompareSortKeys(
-                prior.DisplayNameSortKey,
-                current.DisplayNameSortKey);
-            if (keyComparison > 0
-                || keyComparison == 0
-                    && string.CompareOrdinal(
-                        prior.DurableProjectId.Value,
-                        current.DurableProjectId.Value) >= 0)
-            {
-                return false;
-            }
+            priorSortKey = current.DisplayNameSortKey;
+            priorProjectId = current.DurableProjectId;
         }
 
         return true;

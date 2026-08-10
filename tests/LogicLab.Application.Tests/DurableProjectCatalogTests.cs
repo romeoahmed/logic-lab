@@ -159,8 +159,8 @@ internal sealed class DurableProjectCatalogTests
             "1",
             "catalog-policy",
             "7",
-            "Before"u8.ToArray(),
-            new DurableProjectId("project-before"));
+            "Alpha"u8.ToArray(),
+            new DurableProjectId("project-0"));
         var protector = new RecordingCursorProtector(after);
         var repository = new RecordingCatalogRepository(items);
         var catalog = CreateCatalog(repository, protector);
@@ -181,9 +181,9 @@ internal sealed class DurableProjectCatalogTests
             await Assert.That(request.SubjectId).IsEqualTo(Subject);
             await Assert.That(request.MaximumItemCount).IsEqualTo(3);
             await Assert.That(request.AfterDisplayNameSortKey)
-                .IsEquivalentTo("Before"u8.ToArray());
+                .IsEquivalentTo("Alpha"u8.ToArray());
             await Assert.That(request.AfterDurableProjectId?.Value)
-                .IsEqualTo("project-before");
+                .IsEqualTo("project-0");
             await Assert.That(protectedState.SubjectId).IsEqualTo(Subject);
             await Assert.That(protectedState.OrderingContractVersion).IsEqualTo("1");
             await Assert.That(protectedState.PolicyId).IsEqualTo("catalog-policy");
@@ -193,6 +193,36 @@ internal sealed class DurableProjectCatalogTests
             await Assert.That(protectedState.LastDurableProjectId.Value)
                 .IsEqualTo("project-b");
         }
+    }
+
+    [Test]
+    [Arguments("Alpha", "project-a")]
+    [Arguments("Alpha", "project-z")]
+    [Arguments("Beta", "project-before")]
+    public async Task ListAsync_RepositoryPageDoesNotAdvancePastCursor_ReturnsInternalDefect(
+        string cursorName,
+        string cursorProjectId)
+    {
+        var after = new ProjectCatalogCursorState(
+            Subject,
+            "1",
+            "catalog-policy",
+            "7",
+            System.Text.Encoding.UTF8.GetBytes(cursorName),
+            new DurableProjectId(cursorProjectId));
+        var catalog = CreateCatalog(
+            new RecordingCatalogRepository([Item("project-a", "Alpha")]),
+            new RecordingCursorProtector(after));
+
+        var outcome = await catalog.ListAsync(
+            Subject,
+            new DurableProjectPageRequest(2, new ProjectCatalogCursor("incoming")),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<DurableProjectListRejected>())!;
+        await Assert.That(rejected.Reason)
+            .IsEqualTo("project_catalog_internal_defect");
     }
 
     [Test]

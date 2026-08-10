@@ -22,7 +22,6 @@ public static class DurableProjectEndpointRouteBuilderExtensions
                 async Task<IResult> (
                     HttpContext httpContext,
                     ClaimsPrincipal principal,
-                    [FromForm] string? durableProjectId,
                     IEditorWorkspace workspace,
                     CancellationToken cancellationToken) =>
                 {
@@ -35,6 +34,21 @@ public static class DurableProjectEndpointRouteBuilderExtensions
                             LogicLabProblemDetails.AuthenticationRequiredCode);
                     }
 
+                    if (!httpContext.Request.HasFormContentType)
+                    {
+                        return LogicLabProblemDetails.Create(
+                            httpContext,
+                            LogicLabProblemDetails.ProjectOpenRequestInvalidCode);
+                    }
+
+                    var form = await httpContext.Request.ReadFormAsync(
+                        cancellationToken);
+                    var durableProjectId = form.TryGetValue(
+                            "durableProjectId",
+                            out var durableProjectIds)
+                        && durableProjectIds.Count == 1
+                            ? durableProjectIds[0]
+                            : null;
                     if (string.IsNullOrEmpty(durableProjectId)
                         || durableProjectId.Length > MaximumDurableProjectIdLength)
                     {
