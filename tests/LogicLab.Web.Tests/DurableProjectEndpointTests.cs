@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
-using System.Text.Json;
 using LogicLab.Application.Workspaces;
 using LogicLab.Web.Projects;
 using Microsoft.AspNetCore.Authentication;
@@ -29,7 +28,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         using var response = await client.GetAsync(
             new Uri("/projects/open", UriKind.Relative));
 
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             response,
             HttpStatusCode.MethodNotAllowed,
             "project_open_method_not_allowed");
@@ -65,7 +64,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     [Test]
     [Arguments(false)]
     [Arguments(true)]
-    public async Task Get_Projects_AlwaysDisablesSharedCaching(bool hasProjects)
+    public async Task Get_Projects_SuccessDisablesSharedCaching(bool hasProjects)
     {
         DurableProjectSummaryV1[] items = hasProjects
             ?
@@ -158,7 +157,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         using var response = await client.GetAsync(
             new Uri("/projects?after=first&after=second", UriKind.Relative));
 
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             response,
             HttpStatusCode.UnprocessableEntity,
             "project_catalog_request_invalid");
@@ -184,7 +183,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         using var response = await client.GetAsync(
             new Uri("/projects?after=", UriKind.Relative));
 
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             response,
             HttpStatusCode.UnprocessableEntity,
             "project_catalog_cursor_invalid");
@@ -196,6 +195,11 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     [Arguments("workspace_admission_rejected", HttpStatusCode.TooManyRequests)]
     [Arguments("workspace_internal_defect", HttpStatusCode.InternalServerError)]
     [Arguments("workspace_infrastructure_failure", HttpStatusCode.ServiceUnavailable)]
+    [Arguments("compilation_invalid", HttpStatusCode.UnprocessableEntity)]
+    [Arguments("compilation_policy_exhausted", HttpStatusCode.UnprocessableEntity)]
+    [Arguments("compilation_cancelled", HttpStatusCode.ServiceUnavailable)]
+    [Arguments("compilation_infrastructure_failure", HttpStatusCode.ServiceUnavailable)]
+    [Arguments("compilation_internal_defect", HttpStatusCode.InternalServerError)]
     public async Task Post_OpenRejected_ReturnsMappedProblemDetails(
         string code,
         HttpStatusCode expectedStatus)
@@ -214,49 +218,23 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
 
         using var response = await PostOpenAsync(client, "project-a");
 
-        await AssertProblemDetails(response, expectedStatus, code);
+        await WebTestHttp.AssertProblemDetailsAsync(response, expectedStatus, code);
         await Assert.That(response.Headers.Location).IsNull();
     }
 
     [Test]
-    [Arguments("compilation_invalid", HttpStatusCode.UnprocessableEntity)]
-    [Arguments("compilation_policy_exhausted", HttpStatusCode.UnprocessableEntity)]
-    [Arguments("compilation_cancelled", HttpStatusCode.ServiceUnavailable)]
-    [Arguments("compilation_infrastructure_failure", HttpStatusCode.ServiceUnavailable)]
-    [Arguments("compilation_internal_defect", HttpStatusCode.InternalServerError)]
-    public async Task Post_OpenRejected_CompilerReason_ReturnsMappedProblemDetails(
-        string code,
-        HttpStatusCode expectedStatus)
-    {
-        await using var workspace = new RejectingOpenWorkspace(code);
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
-                services.RemoveAll<IEditorWorkspace>();
-                services.AddSingleton<IEditorWorkspace>(workspace);
-            }));
-        using var client = host.CreateHttpsClient();
-
-        using var response = await PostOpenAsync(client, "project-a");
-
-        await AssertProblemDetails(response, expectedStatus, code);
-        await Assert.That(response.Headers.Location).IsNull();
-    }
-
-    [Test]
-    public Task Post_OpenWithoutProjectId_ReturnsRequestInvalidProblemDetails()
-        => AssertMalformedOpenRequest(null);
-
-    [Test]
-    public Task Post_OpenWithEmptyProjectId_ReturnsRequestInvalidProblemDetails()
-        => AssertMalformedOpenRequest(string.Empty);
-
-    [Test]
-    public Task Post_OpenWithOversizedProjectId_ReturnsRequestInvalidProblemDetails()
-        => AssertMalformedOpenRequest(new string('a', 65));
+    [Arguments(InvalidProjectId.Missing)]
+    [Arguments(InvalidProjectId.Empty)]
+    [Arguments(InvalidProjectId.Oversized)]
+    public Task Post_OpenWithInvalidProjectId_ReturnsRequestInvalidProblemDetails(
+        InvalidProjectId invalidProjectId)
+        => AssertMalformedOpenRequest(invalidProjectId switch
+        {
+            InvalidProjectId.Missing => null,
+            InvalidProjectId.Empty => string.Empty,
+            InvalidProjectId.Oversized => new string('a', 65),
+            _ => throw new ArgumentOutOfRangeException(nameof(invalidProjectId)),
+        });
 
     [Test]
     public async Task Post_OpenWithNonFormContentType_ReturnsRequestInvalidProblemDetails()
@@ -272,19 +250,19 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.AddSingleton<IEditorWorkspace>(workspace);
             }));
         using var client = host.CreateHttpsClient();
-        var form = await PrepareOpenFormAsync(client);
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             new Uri("/projects/open", UriKind.Relative))
         {
             Content = new StringContent("{}", Encoding.UTF8, "application/json"),
         };
-        request.Headers.Add("Cookie", form.AntiforgeryCookie);
+        request.Headers.Add("Cookie", form.Cookie);
         request.Headers.Add("RequestVerificationToken", form.RequestToken);
 
         using var response = await client.SendAsync(request);
 
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             response,
             HttpStatusCode.BadRequest,
             "project_open_request_invalid");
@@ -306,7 +284,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.AddSingleton<IEditorWorkspace>(workspace);
             }));
         using var client = host.CreateHttpsClient();
-        var form = await PrepareOpenFormAsync(client);
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             new Uri("/projects/open", UriKind.Relative))
@@ -315,14 +293,14 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         };
         request.Content.Headers.ContentType =
             new MediaTypeHeaderValue("multipart/form-data");
-        request.Headers.Add("Cookie", form.AntiforgeryCookie);
+        request.Headers.Add("Cookie", form.Cookie);
         request.Headers.Add("RequestVerificationToken", form.RequestToken);
         request.Headers.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
 
         using var response = await client.SendAsync(request);
 
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             response,
             HttpStatusCode.BadRequest,
             "project_open_request_invalid");
@@ -336,7 +314,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     [Test]
     [Arguments("project_catalog_infrastructure_failure", HttpStatusCode.ServiceUnavailable)]
     [Arguments("project_catalog_internal_defect", HttpStatusCode.InternalServerError)]
-    public async Task Get_Projects_CatalogFailure_ReturnsMappedProblemDetails(
+    public async Task Get_Projects_CatalogFailure_ReturnsUncacheableProblemDetails(
         string reason,
         HttpStatusCode expectedStatus)
     {
@@ -355,7 +333,12 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         using var response = await client.GetAsync(
             new Uri("/projects", UriKind.Relative));
 
-        await AssertProblemDetails(response, expectedStatus, reason);
+        await WebTestHttp.AssertProblemDetailsAsync(response, expectedStatus, reason);
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.Headers.CacheControl?.Private).IsTrue();
+            await Assert.That(response.Headers.CacheControl?.NoStore).IsTrue();
+        }
     }
 
     [Test]
@@ -372,17 +355,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.AddSingleton<IEditorWorkspace>(workspace);
             }));
         using var client = host.CreateHttpsClient();
-        using var pageResponse = await client.GetAsync(
-            new Uri("/projects", UriKind.Relative));
-        pageResponse.EnsureSuccessStatusCode();
-        var html = await pageResponse.Content.ReadAsStringAsync();
-        var requestToken = ExtractAttributeAfter(
-            html,
-            "name=\"__RequestVerificationToken\"",
-            "value");
-        var antiforgeryCookie = pageResponse.Headers.GetValues("Set-Cookie")
-            .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal))
-            .Split(';', 2)[0];
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             new Uri("/projects/open", UriKind.Relative))
@@ -390,10 +363,10 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
             Content = new FormUrlEncodedContent(
             [
                 new("durableProjectId", "project-a"),
-                new("__RequestVerificationToken", requestToken),
+                new("__RequestVerificationToken", form.RequestToken),
             ]),
         };
-        request.Headers.Add("Cookie", antiforgeryCookie);
+        request.Headers.Add("Cookie", form.Cookie);
 
         using var response = await client.SendAsync(request);
 
@@ -435,7 +408,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
 
         using var response = await client.SendAsync(request);
 
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             response,
             HttpStatusCode.BadRequest,
             "antiforgery_validation_failed");
@@ -456,7 +429,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.AddSingleton<IEditorWorkspace>(workspace);
             }));
         using var client = host.CreateHttpsClient();
-        var form = await PrepareOpenFormAsync(client);
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             new Uri("/projects/open", UriKind.Relative))
@@ -467,13 +440,13 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 new("__RequestVerificationToken", "invalid-token"),
             ]),
         };
-        request.Headers.Add("Cookie", form.AntiforgeryCookie);
+        request.Headers.Add("Cookie", form.Cookie);
         request.Headers.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
 
         using var response = await client.SendAsync(request);
 
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             response,
             HttpStatusCode.BadRequest,
             "antiforgery_validation_failed");
@@ -495,7 +468,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.AddSingleton<IEditorWorkspace>(workspace);
             }));
         using var client = host.CreateHttpsClient();
-        var form = await PrepareOpenFormAsync(client);
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
 
         using var accepted = await PostSizedOpenAsync(
             client,
@@ -507,7 +480,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
             maximumBodyBytes + 1);
 
         await Assert.That(accepted.StatusCode).IsEqualTo(HttpStatusCode.Redirect);
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             rejected,
             HttpStatusCode.RequestEntityTooLarge,
             "request_body_too_large");
@@ -530,7 +503,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.AddSingleton<IEditorWorkspace>(workspace);
             }));
         using var client = host.CreateHttpsClient();
-        var form = await PrepareOpenFormAsync(client);
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         for (var attempt = 0; attempt < permitLimit; attempt++)
         {
             using var admitted = await PostProtectedOpenAsync(
@@ -546,7 +519,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
             client,
             form,
             "project-a");
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             rejected,
             HttpStatusCode.TooManyRequests,
             "project_open_rate_limit_exceeded");
@@ -564,7 +537,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 .IsGreaterThan(TimeSpan.Zero);
         }
 
-        var accountForm = await PrepareAntiforgeryFormAsync(
+        var accountForm = await WebTestHttp.GetAntiforgeryFormAsync(
             client,
             "/account/login");
         using var accountResponse = await PostInvalidLoginAsync(
@@ -598,8 +571,12 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         clientB.DefaultRequestHeaders.Add(
             TestAuthenticationHandler.SubjectHeaderName,
             subjectB);
-        var openFormA = await PrepareOpenFormAsync(clientA);
-        var openFormB = await PrepareOpenFormAsync(clientB);
+        var openFormA = await WebTestHttp.GetAntiforgeryFormAsync(
+            clientA,
+            "/projects");
+        var openFormB = await WebTestHttp.GetAntiforgeryFormAsync(
+            clientB,
+            "/projects");
 
         for (var attempt = 0; attempt < permitLimit; attempt++)
         {
@@ -614,7 +591,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
             clientA,
             openFormA,
             "project-a");
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             rejectedA,
             HttpStatusCode.TooManyRequests,
             "project_open_rate_limit_exceeded");
@@ -655,7 +632,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
 
         using var response = await PostOpenFromAnonymousFormAsync(client);
 
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             response,
             HttpStatusCode.Unauthorized,
             "authentication_required");
@@ -684,7 +661,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         for (var attempt = 0; attempt < attemptCount; attempt++)
         {
             using var response = await PostOpenFromAnonymousFormAsync(client);
-            await AssertProblemDetails(
+            await WebTestHttp.AssertProblemDetailsAsync(
                 response,
                 HttpStatusCode.Unauthorized,
                 "authentication_required");
@@ -758,7 +735,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
 
         using var response = await PostOpenAsync(client, durableProjectId);
 
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             response,
             HttpStatusCode.BadRequest,
             "project_open_request_invalid");
@@ -769,20 +746,10 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         HttpClient client,
         string? durableProjectId)
     {
-        using var pageResponse = await client.GetAsync(
-            new Uri("/projects", UriKind.Relative));
-        pageResponse.EnsureSuccessStatusCode();
-        var html = await pageResponse.Content.ReadAsStringAsync();
-        var requestToken = ExtractAttributeAfter(
-            html,
-            "name=\"__RequestVerificationToken\"",
-            "value");
-        var antiforgeryCookie = pageResponse.Headers.GetValues("Set-Cookie")
-            .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal))
-            .Split(';', 2)[0];
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         var formValues = new List<KeyValuePair<string, string>>
         {
-            new("__RequestVerificationToken", requestToken),
+            new("__RequestVerificationToken", form.RequestToken),
         };
         if (durableProjectId is not null)
         {
@@ -795,37 +762,15 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         {
             Content = new FormUrlEncodedContent(formValues),
         };
-        request.Headers.Add("Cookie", antiforgeryCookie);
+        request.Headers.Add("Cookie", form.Cookie);
         request.Headers.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
         return await client.SendAsync(request);
     }
 
-    private static Task<PreparedOpenForm> PrepareOpenFormAsync(
-        HttpClient client)
-        => PrepareAntiforgeryFormAsync(client, "/projects");
-
-    private static async Task<PreparedOpenForm> PrepareAntiforgeryFormAsync(
-        HttpClient client,
-        string path)
-    {
-        using var pageResponse = await client.GetAsync(
-            new Uri(path, UriKind.Relative));
-        pageResponse.EnsureSuccessStatusCode();
-        var html = await pageResponse.Content.ReadAsStringAsync();
-        var requestToken = ExtractAttributeAfter(
-            html,
-            "name=\"__RequestVerificationToken\"",
-            "value");
-        var antiforgeryCookie = pageResponse.Headers.GetValues("Set-Cookie")
-            .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal))
-            .Split(';', 2)[0];
-        return new PreparedOpenForm(requestToken, antiforgeryCookie);
-    }
-
     private static async Task<HttpResponseMessage> PostProtectedOpenAsync(
         HttpClient client,
-        PreparedOpenForm form,
+        AntiforgeryForm form,
         string durableProjectId)
     {
         using var request = new HttpRequestMessage(
@@ -835,7 +780,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
             Content = new FormUrlEncodedContent(
                 [new("durableProjectId", durableProjectId)]),
         };
-        request.Headers.Add("Cookie", form.AntiforgeryCookie);
+        request.Headers.Add("Cookie", form.Cookie);
         request.Headers.Add("RequestVerificationToken", form.RequestToken);
         request.Headers.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
@@ -844,7 +789,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
 
     private static async Task<HttpResponseMessage> PostInvalidLoginAsync(
         HttpClient client,
-        PreparedOpenForm form)
+        AntiforgeryForm form)
     {
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -858,7 +803,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 new("__RequestVerificationToken", form.RequestToken),
             ]),
         };
-        request.Headers.Add("Cookie", form.AntiforgeryCookie);
+        request.Headers.Add("Cookie", form.Cookie);
         request.Headers.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
         return await client.SendAsync(request);
@@ -866,7 +811,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
 
     private static async Task<HttpResponseMessage> PostSizedOpenAsync(
         HttpClient client,
-        PreparedOpenForm form,
+        AntiforgeryForm form,
         int bodyLength)
     {
         var values = new List<KeyValuePair<string, string>>
@@ -899,7 +844,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 "The encoded form did not reach the requested byte boundary.");
         }
 
-        request.Headers.Add("Cookie", form.AntiforgeryCookie);
+        request.Headers.Add("Cookie", form.Cookie);
         request.Headers.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
         return await client.SendAsync(request);
@@ -908,17 +853,9 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     private static async Task<HttpResponseMessage> PostOpenFromAnonymousFormAsync(
         HttpClient client)
     {
-        using var pageResponse = await client.GetAsync(
-            new Uri("/account/login", UriKind.Relative));
-        pageResponse.EnsureSuccessStatusCode();
-        var html = await pageResponse.Content.ReadAsStringAsync();
-        var requestToken = ExtractAttributeAfter(
-            html,
-            "name=\"__RequestVerificationToken\"",
-            "value");
-        var antiforgeryCookie = pageResponse.Headers.GetValues("Set-Cookie")
-            .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal))
-            .Split(';', 2)[0];
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(
+            client,
+            "/account/login");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             new Uri("/projects/open", UriKind.Relative))
@@ -926,78 +863,13 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
             Content = new FormUrlEncodedContent(
             [
                 new("durableProjectId", "project-a"),
-                new("__RequestVerificationToken", requestToken),
+                new("__RequestVerificationToken", form.RequestToken),
             ]),
         };
-        request.Headers.Add("Cookie", antiforgeryCookie);
+        request.Headers.Add("Cookie", form.Cookie);
         request.Headers.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
         return await client.SendAsync(request);
-    }
-
-    private static async Task AssertProblemDetails(
-        HttpResponseMessage response,
-        HttpStatusCode expectedStatus,
-        string expectedCode)
-    {
-        await Assert.That(response.StatusCode).IsEqualTo(expectedStatus);
-        await Assert.That(response.Content.Headers.ContentType?.MediaType)
-            .IsEqualTo("application/problem+json");
-        using var payload = await JsonDocument.ParseAsync(
-            await response.Content.ReadAsStreamAsync());
-        var root = payload.RootElement;
-        var traceId = root.GetProperty("traceId").GetString();
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(root.GetProperty("status").GetInt32())
-                .IsEqualTo((int)expectedStatus);
-            await Assert.That(root.GetProperty("code").GetString())
-                .IsEqualTo(expectedCode);
-            await Assert.That(root.GetProperty("type").GetString())
-                .IsEqualTo($"https://logiclab.example/problems/{expectedCode}");
-            await Assert.That(string.IsNullOrWhiteSpace(
-                    root.GetProperty("title").GetString()))
-                .IsFalse();
-            await Assert.That(IsCorrelationToken(traceId)).IsTrue();
-        }
-    }
-
-    private static bool IsCorrelationToken(string? value)
-    {
-        return value is { Length: >= 16 and <= 64 }
-            && IsLowercaseLetterOrDigit(value[0])
-            && value.All(character => IsLowercaseLetterOrDigit(character)
-                || character is '_' or '-');
-    }
-
-    private static bool IsLowercaseLetterOrDigit(char value)
-    {
-        return value is >= 'a' and <= 'z' or >= '0' and <= '9';
-    }
-
-    private static string ExtractAttributeAfter(
-        string html,
-        string marker,
-        string attributeName)
-    {
-        var markerIndex = html.IndexOf(marker, StringComparison.Ordinal);
-        if (markerIndex < 0)
-        {
-            throw new InvalidOperationException($"Markup did not contain {marker}.");
-        }
-
-        var prefix = $"{attributeName}=\"";
-        var valueStart = html.IndexOf(prefix, markerIndex, StringComparison.Ordinal);
-        if (valueStart < 0)
-        {
-            throw new InvalidOperationException(
-                $"Markup did not contain {attributeName} after {marker}.");
-        }
-
-        valueStart += prefix.Length;
-        var valueEnd = html.IndexOf('"', valueStart);
-        return html[valueStart..valueEnd];
     }
 
     private sealed class SingleProjectCatalog : IDurableProjectCatalog
@@ -1119,9 +991,12 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         }
     }
 
-    private sealed record PreparedOpenForm(
-        string RequestToken,
-        string AntiforgeryCookie);
+    internal enum InvalidProjectId
+    {
+        Missing,
+        Empty,
+        Oversized,
+    }
 
     private sealed class RejectingOpenWorkspace(string code)
         : DelegatingEditorWorkspace
