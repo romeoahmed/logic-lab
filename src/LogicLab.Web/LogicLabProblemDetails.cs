@@ -38,12 +38,16 @@ internal static class LogicLabProblemDetails
             "workspace_not_found" or "forbidden" => StatusCodes.Status404NotFound,
             "project_catalog_request_invalid" or "project_catalog_cursor_invalid" =>
                 StatusCodes.Status422UnprocessableEntity,
+            "compilation_invalid" or "compilation_policy_exhausted" =>
+                StatusCodes.Status422UnprocessableEntity,
             "workspace_admission_rejected" => StatusCodes.Status429TooManyRequests,
             "workspace_cancelled" or "workspace_infrastructure_failure"
+                or "compilation_cancelled" or "compilation_infrastructure_failure"
                 or "project_catalog_cancelled"
                 or "project_catalog_infrastructure_failure" =>
                 StatusCodes.Status503ServiceUnavailable,
-            "workspace_internal_defect" or "project_catalog_internal_defect" =>
+            "workspace_internal_defect" or "compilation_internal_defect"
+                or "project_catalog_internal_defect" =>
                 StatusCodes.Status500InternalServerError,
             _ => StatusCodes.Status500InternalServerError,
         };
@@ -58,13 +62,20 @@ internal static class LogicLabProblemDetails
             "workspace_not_found" or "forbidden" => "The requested resource was not found",
             "project_catalog_request_invalid" => "The project catalog request is invalid",
             "project_catalog_cursor_invalid" => "The project catalog cursor is invalid",
+            "compilation_invalid" => "The project revision is invalid",
+            "compilation_policy_exhausted" =>
+                "The project exceeds compilation policy",
             "workspace_admission_rejected" => "Workspace capacity is unavailable",
             "workspace_cancelled" => "Workspace opening was cancelled",
             "workspace_infrastructure_failure" => "The Workspace service is unavailable",
+            "compilation_cancelled" => "Project compilation was cancelled",
+            "compilation_infrastructure_failure" =>
+                "The Compiler service is unavailable",
             "project_catalog_cancelled" => "Project catalog loading was cancelled",
             "project_catalog_infrastructure_failure" =>
                 "The project catalog is unavailable",
             "workspace_internal_defect" => "The Workspace could not be opened",
+            "compilation_internal_defect" => "The project could not be compiled",
             "project_catalog_internal_defect" =>
                 "The project catalog could not be loaded",
             _ => "The request could not be completed",

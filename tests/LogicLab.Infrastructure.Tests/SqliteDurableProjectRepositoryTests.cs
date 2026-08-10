@@ -669,6 +669,44 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task LoadAsync_PayloadRevisionIdentityDiffersFromRowKey_ReturnsInternalDefect()
+    {
+        const string buildFingerprint = "sqlite-revision-identity-integrity";
+        var (repository, factory) = await CreateRepositoryAsync();
+        var initialRevision = CreateRevision();
+        var claim = ClaimRequest(initialRevision, fingerprintCharacter: 'a');
+        _ = await repository.ClaimAsync(claim, CancellationToken.None);
+        var mismatchedRevision = RenameEntry(initialRevision, "Mismatched identity");
+        await using (var context = await factory.CreateDbContextAsync())
+        {
+            var storedRevision = await context.ProjectRevisions.SingleAsync();
+            storedRevision.Payload = ProjectRevisionPayloadSerializer.Serialize(
+                mismatchedRevision);
+            await context.SaveChangesAsync();
+        }
+
+        await using var workspace = EditorWorkspaceFactory.Create(
+            buildFingerprint,
+            durableProjectRepository: repository,
+            durableProjectLoader: repository);
+        var outcome = await workspace.OpenAsync(
+            new OpenDurable(claim.DurableProjectId, AuthenticatedCaller),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code)
+                .IsEqualTo("workspace_internal_defect");
+            await Assert.That(rejected.RetryDisposition)
+                .IsEqualTo(RetryDisposition.DoNotRetry);
+            await Assert.That(mismatchedRevision.RevisionId)
+                .IsNotEqualTo(initialRevision.RevisionId);
+        }
+    }
+
+    [Test]
     public async Task LoadAsync_AbsentAndDifferentSubject_ReturnSameConcealedOutcome()
     {
         var (repository, _) = await CreateRepositoryAsync();

@@ -4,11 +4,14 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using TUnit.AspNetCore;
 
 namespace LogicLab.Web.Tests;
@@ -19,6 +22,19 @@ internal sealed class LogicLabWebFactory : TestWebApplicationFactory<Program>
     {
         base.ConfigureWebHost(builder);
         builder.UseEnvironment(Environments.Production);
+    }
+}
+
+internal static class LogicLabWebFactoryClient
+{
+    private static readonly Uri HttpsBaseAddress = new("https://localhost/");
+
+    public static HttpClient CreateHttpsClient(
+        this WebApplicationFactory<Program> factory)
+    {
+        var client = factory.Server.CreateClient();
+        client.BaseAddress = HttpsBaseAddress;
+        return client;
     }
 }
 
@@ -105,7 +121,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     [Test]
     public async Task Get_ProjectsWithoutAuthentication_ChallengesToLocalLogin()
     {
-        using var client = factory.Server.CreateClient();
+        using var client = factory.CreateHttpsClient();
 
         using var response = await client.GetAsync(
             new Uri("/projects", UriKind.Relative));
@@ -134,6 +150,28 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
             await Assert.That(endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>()?
                     .RequiresValidation)
                 .IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task AntiforgeryCookie_ProductionConfiguration_IsAlwaysSecure()
+    {
+        var options = factory.Services
+            .GetRequiredService<IOptions<AntiforgeryOptions>>()
+            .Value;
+        using var client = factory.CreateHttpsClient();
+        using var response = await client.GetAsync(
+            new Uri("https://localhost/account/login"));
+        response.EnsureSuccessStatusCode();
+        var antiforgeryCookie = response.Headers.GetValues("Set-Cookie")
+            .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(options.Cookie.SecurePolicy)
+                .IsEqualTo(CookieSecurePolicy.Always);
+            await Assert.That(antiforgeryCookie.Split(';', StringSplitOptions.TrimEntries))
+                .Contains("secure", StringComparer.OrdinalIgnoreCase);
         }
     }
 
