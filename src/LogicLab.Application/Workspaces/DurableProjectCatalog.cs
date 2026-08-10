@@ -97,30 +97,6 @@ public sealed record DurableProjectListRejected : DurableProjectListOutcome
     public RetryDisposition RetryDisposition { get; }
 }
 
-public sealed record DurableProjectCatalogCallContext
-{
-    public DurableProjectCatalogCallContext(
-        WorkspaceCaller caller,
-        IDurableProjectCatalogAuthorization authorization)
-    {
-        ArgumentNullException.ThrowIfNull(caller);
-        ArgumentNullException.ThrowIfNull(authorization);
-        Caller = caller;
-        Authorization = authorization;
-    }
-
-    public WorkspaceCaller Caller { get; }
-
-    public IDurableProjectCatalogAuthorization Authorization { get; }
-}
-
-public interface IDurableProjectCatalogAuthorization
-{
-    ValueTask<bool> AuthorizeListAsync(
-        AuthenticatedSubjectId subjectId,
-        CancellationToken cancellationToken);
-}
-
 public sealed record ProjectCatalogCursorState
 {
     public ProjectCatalogCursorState(
@@ -253,7 +229,7 @@ public interface IDurableProjectCatalogRepository
 public interface IDurableProjectCatalog
 {
     Task<DurableProjectListOutcome> ListAsync(
-        DurableProjectCatalogCallContext context,
+        AuthenticatedSubjectId subjectId,
         DurableProjectPageRequest request,
         CancellationToken cancellationToken);
 }
@@ -280,17 +256,12 @@ internal sealed class DurableProjectCatalog(
     private const string OrderingContractVersion = "1";
 
     public async Task<DurableProjectListOutcome> ListAsync(
-        DurableProjectCatalogCallContext context,
+        AuthenticatedSubjectId subjectId,
         DurableProjectPageRequest request,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(subjectId);
         ArgumentNullException.ThrowIfNull(request);
-        if (context.Caller is not AuthenticatedWorkspaceCaller authenticated)
-        {
-            return Reject(DurableProjectCatalogReasons.AuthenticationRequired);
-        }
-
         if (cancellationToken.IsCancellationRequested)
         {
             return Reject(DurableProjectCatalogReasons.Cancelled);
@@ -298,13 +269,6 @@ internal sealed class DurableProjectCatalog(
 
         try
         {
-            if (!await context.Authorization.AuthorizeListAsync(
-                    authenticated.SubjectId,
-                    cancellationToken).ConfigureAwait(false))
-            {
-                return Reject(DurableProjectCatalogReasons.Forbidden);
-            }
-
             if (request.PageSize <= 0
                 || request.PageSize > workspacePolicy.DurableProjectCatalogLimits.PageItems)
             {
@@ -317,7 +281,7 @@ internal sealed class DurableProjectCatalog(
                 if (Encoding.UTF8.GetByteCount(request.After.Value)
                         > workspacePolicy.DurableProjectCatalogLimits.CursorBytes
                     || !cursorProtector.TryUnprotect(request.After, out after)
-                    || !MatchesCursor(after, authenticated.SubjectId))
+                    || !MatchesCursor(after, subjectId))
                 {
                     return Reject(DurableProjectCatalogReasons.CursorInvalid);
                 }
@@ -325,7 +289,7 @@ internal sealed class DurableProjectCatalog(
 
             var repositoryItems = await repository.ListAuthorizedAsync(
                 new DurableProjectCatalogRepositoryRequest(
-                    authenticated.SubjectId,
+                    subjectId,
                     checked(request.PageSize + 1),
                     after?.LastDisplayNameSortKey,
                     after?.LastDurableProjectId),
@@ -345,7 +309,7 @@ internal sealed class DurableProjectCatalog(
             {
                 var last = emitted[^1];
                 next = cursorProtector.Protect(new ProjectCatalogCursorState(
-                    authenticated.SubjectId,
+                    subjectId,
                     OrderingContractVersion,
                     workspacePolicy.PolicyId,
                     workspacePolicy.PolicyRevision,
@@ -456,8 +420,6 @@ internal sealed class DurableProjectCatalog(
 
 internal static class DurableProjectCatalogReasons
 {
-    public const string AuthenticationRequired = "authentication_required";
-    public const string Forbidden = "forbidden";
     public const string RequestInvalid = "project_catalog_request_invalid";
     public const string CursorInvalid = "project_catalog_cursor_invalid";
     public const string Cancelled = "project_catalog_cancelled";

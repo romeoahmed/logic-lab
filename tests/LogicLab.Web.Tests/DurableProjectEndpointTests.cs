@@ -44,8 +44,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 .IsEqualTo("text/html");
             await Assert.That(html).Contains("Durable Projects");
             await Assert.That(catalog.CallCount).IsEqualTo(1);
-            await Assert.That(((AuthenticatedWorkspaceCaller)catalog.Context!.Caller)
-                    .SubjectId.Value)
+            await Assert.That(catalog.SubjectId?.Value)
                 .IsEqualTo("subject-http");
             await Assert.That(catalog.Request?.After?.Value)
                 .IsEqualTo("protected+/cursor=");
@@ -487,7 +486,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     private sealed class SingleProjectCatalog : IDurableProjectCatalog
     {
         public Task<DurableProjectListOutcome> ListAsync(
-            DurableProjectCatalogCallContext context,
+            AuthenticatedSubjectId subjectId,
             DurableProjectPageRequest request,
             CancellationToken cancellationToken)
         {
@@ -507,17 +506,17 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     {
         public int CallCount { get; private set; }
 
-        public DurableProjectCatalogCallContext? Context { get; private set; }
+        public AuthenticatedSubjectId? SubjectId { get; private set; }
 
         public DurableProjectPageRequest? Request { get; private set; }
 
         public Task<DurableProjectListOutcome> ListAsync(
-            DurableProjectCatalogCallContext context,
+            AuthenticatedSubjectId subjectId,
             DurableProjectPageRequest request,
             CancellationToken cancellationToken)
         {
             CallCount++;
-            Context = context;
+            SubjectId = subjectId;
             Request = request;
             return Task.FromResult(outcome);
         }
@@ -526,7 +525,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     private sealed class RejectedCatalog(string reason) : IDurableProjectCatalog
     {
         public Task<DurableProjectListOutcome> ListAsync(
-            DurableProjectCatalogCallContext context,
+            AuthenticatedSubjectId subjectId,
             DurableProjectPageRequest request,
             CancellationToken cancellationToken)
         {
