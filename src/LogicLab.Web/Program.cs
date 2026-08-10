@@ -20,10 +20,12 @@ var connectionString = builder.Configuration.GetConnectionString("LogicLab")
         "ConnectionStrings:LogicLab must be configured.");
 var workspacePolicy = WorkspacePolicy.Default;
 var accountIngressPolicy = AccountIngressPolicy.Default;
+var durableProjectIngressPolicy = DurableProjectIngressPolicy.Default;
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(workspacePolicy);
 builder.Services.AddSingleton(accountIngressPolicy);
+builder.Services.AddSingleton(durableProjectIngressPolicy);
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider,
@@ -88,6 +90,9 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy<string>(
         AccountIngressPolicy.RegistrationRateLimitPolicyName,
         accountIngressPolicy.RegistrationPartition);
+    options.AddPolicy<string>(
+        DurableProjectIngressPolicy.OpenRateLimitPolicyName,
+        durableProjectIngressPolicy.OpenPartition);
     options.OnRejected = async (context, _) =>
     {
         if (context.Lease.TryGetMetadata(
@@ -100,9 +105,10 @@ builder.Services.AddRateLimiter(options =>
                     .ToString(CultureInfo.InvariantCulture);
         }
 
-        await LogicLabProblemDetails.Create(
-                context.HttpContext,
-                LogicLabProblemDetails.AuthenticationRateLimitExceededCode)
+        var code = context.HttpContext.GetEndpoint()?.Metadata
+            .GetMetadata<RateLimitProblemDetailsMetadata>()?.Code
+            ?? LogicLabProblemDetails.AuthenticationRateLimitExceededCode;
+        await LogicLabProblemDetails.Create(context.HttpContext, code)
             .ExecuteAsync(context.HttpContext);
     };
 });
@@ -155,11 +161,11 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 app.UseRouting();
-app.UseRateLimiter();
 app.Use(next =>
     new RequestBodyLimitProblemDetailsMiddleware(next).InvokeAsync);
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.UseAntiforgery();
 app.Use(next =>
     new AntiforgeryProblemDetailsMiddleware(next).InvokeAsync);

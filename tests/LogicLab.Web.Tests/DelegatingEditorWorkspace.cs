@@ -10,7 +10,8 @@ internal abstract class DelegatingEditorWorkspace(
         buildFingerprint: LogicLabWebBuild.Fingerprint,
         durableProjectRepository: UnexpectedDurableProjectRepository.Instance,
         workspacePolicy: workspacePolicy,
-        durableProjectLoader: durableProjectLoader);
+        durableProjectLoader:
+            durableProjectLoader ?? UnexpectedDurableProjectLoader.Instance);
 
     public virtual Task<WorkspaceOpenOutcome> OpenAsync(
         OpenWorkspaceRequest request,
@@ -63,6 +64,22 @@ internal abstract class DelegatingEditorWorkspace(
 
         public Task<DurableProjectSaveRepositoryOutcome?> TryReadSaveReceiptAsync(
             DurableProjectSaveRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+    }
+
+    private sealed class UnexpectedDurableProjectLoader : IDurableProjectLoader
+    {
+        private const string Message =
+            "This test must supply a Durable Project loader before opening persistence.";
+
+        private UnexpectedDurableProjectLoader()
+        {
+        }
+
+        public static UnexpectedDurableProjectLoader Instance { get; } = new();
+
+        public Task<DurableProjectOpenRepositoryOutcome> LoadAsync(
+            DurableProjectOpenRequest request,
             CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
     }
 }

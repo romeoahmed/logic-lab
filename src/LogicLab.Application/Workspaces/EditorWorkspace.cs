@@ -21,7 +21,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private readonly string buildFingerprint;
     private readonly WorkspaceModuleOperations operations;
     private readonly IDurableProjectRepository durableProjectRepository;
-    private readonly IDurableProjectLoader? durableProjectLoader;
+    private readonly IDurableProjectLoader durableProjectLoader;
     private readonly ILogger<EditorWorkspace> logger;
     private int workspaceReservations;
     private bool isDisposed;
@@ -33,7 +33,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         string buildFingerprint,
         WorkspaceModuleOperations operations,
         IDurableProjectRepository durableProjectRepository,
-        IDurableProjectLoader? durableProjectLoader,
+        IDurableProjectLoader durableProjectLoader,
         ILogger<WorkCoordinator> workCoordinatorLogger,
         ILogger<EditorWorkspace> logger)
     {
@@ -43,6 +43,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         ArgumentException.ThrowIfNullOrEmpty(buildFingerprint);
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(durableProjectRepository);
+        ArgumentNullException.ThrowIfNull(durableProjectLoader);
         ArgumentNullException.ThrowIfNull(workCoordinatorLogger);
         ArgumentNullException.ThrowIfNull(logger);
         workCoordinator = new WorkCoordinator(schedulingPolicy, workCoordinatorLogger);

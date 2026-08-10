@@ -9,7 +9,18 @@ internal sealed class WorkspaceContractTests
     {
         await Assert.That(() => EditorWorkspaceFactory.Create(
                 WorkspaceBuild.DevelopmentFingerprint,
-                durableProjectRepository: null!))
+                durableProjectRepository: null!,
+                durableProjectLoader: UnexpectedDurableStore.Instance))
+            .ThrowsExactly<ArgumentNullException>();
+    }
+
+    [Test]
+    public async Task EditorWorkspaceFactory_NullDurableProjectLoader_ThrowsArgumentNullException()
+    {
+        await Assert.That(() => EditorWorkspaceFactory.Create(
+                WorkspaceBuild.DevelopmentFingerprint,
+                durableProjectRepository: UnexpectedDurableStore.Instance,
+                durableProjectLoader: null!))
             .ThrowsExactly<ArgumentNullException>();
     }
 
@@ -175,5 +186,39 @@ internal sealed class WorkspaceContractTests
             hotSwapPeakBytes: hotSwapPeakBytes,
             durableDisplayNameLimits: DurableDisplayNameLimits.Default,
             durableProjectCatalogLimits: DurableProjectCatalogLimits.Default);
+    }
+
+    private sealed class UnexpectedDurableStore :
+        IDurableProjectRepository,
+        IDurableProjectLoader
+    {
+        private const string Message =
+            "The null-dependency contract must not invoke the Durable store.";
+
+        private UnexpectedDurableStore()
+        {
+        }
+
+        public static UnexpectedDurableStore Instance { get; } = new();
+
+        public Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
+            DurableProjectClaimRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public Task<DurableProjectClaimRepositoryOutcome?> TryReadClaimReceiptAsync(
+            DurableProjectClaimRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public Task<DurableProjectSaveRepositoryOutcome> SaveAsync(
+            DurableProjectSaveRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public Task<DurableProjectSaveRepositoryOutcome?> TryReadSaveReceiptAsync(
+            DurableProjectSaveRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public Task<DurableProjectOpenRepositoryOutcome> LoadAsync(
+            DurableProjectOpenRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
     }
 }

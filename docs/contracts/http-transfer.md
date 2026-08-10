@@ -45,7 +45,10 @@ The malformed `/projects/open` form code is exactly:
 project_open_request_invalid
 ```
 
-It maps to `400` when `durableProjectId` is absent, empty, or exceeds the bounded HTTP shape. This validation occurs before constructing `OpenDurable` and never calls the Workspace.
+The endpoint accepts only `application/x-www-form-urlencoded`. It maps to `400`
+when the form media type or encoding is malformed, or `durableProjectId` is
+absent, empty, or exceeds the bounded HTTP shape. This validation occurs before
+constructing `OpenDurable` and never calls the Workspace.
 
 An unauthenticated `/projects/open` request, including a cookie challenge or an
 authenticated principal without a stable subject, uses the exact code
@@ -59,6 +62,12 @@ most 4096 request-body bytes, inclusive, before antiforgery validation or form
 binding. A protected form request whose antiforgery verdict is invalid uses the
 exact code `antiforgery_validation_failed`, maps to `400`, and never enters form
 binding or application work.
+
+Durable Project open ingress rejection uses the exact code
+`project_open_rate_limit_exceeded`, maps to `429`, and never enters Workspace or
+repository work. It includes `Retry-After` only when the limiter supplies an
+honest duration. This request-rate policy is independent of Workspace admission
+and the account ingress policies.
 
 An unsupported request method for `/projects/open` uses the exact code
 `project_open_method_not_allowed`, maps to `405`, and publishes `Allow: POST`.
