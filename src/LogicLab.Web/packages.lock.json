@@ -27,9 +27,9 @@
       },
       "Microsoft.FluentUI.AspNetCore.Components": {
         "type": "Direct",
-        "requested": "[5.0.0-rc.4-26180.1, )",
-        "resolved": "5.0.0-rc.4-26180.1",
-        "contentHash": "HG84fci4muweIzVZgyffa8leBli4TP9mW0lFrAYN1rI79oJm364UKabPnAAV7I+80yMp4oPiFiAYMng2qIATwg=="
+        "requested": "[5.0.0-rc.5-26219.1, )",
+        "resolved": "5.0.0-rc.5-26219.1",
+        "contentHash": "bVvvbP9cZXf1pwAZnvwptC5sheW9EP20NsVl3AJsaTZzBx4qqLa5Xu9QqJMHMR3bJdQIwLQ4DCO3zbmKVMJUsw=="
       },
       "Humanizer.Core": {
         "type": "Transitive",
