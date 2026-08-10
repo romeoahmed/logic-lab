@@ -101,36 +101,29 @@ internal sealed partial class DurableWorkspaceTests
     }
 
     [Test]
-    public async Task DispatchAsync_ReusedClaimIntentWithDelimiterCollision_RejectsConflict()
+    public async Task DispatchAsync_ReusedClaimIntentWithDifferentName_RejectsConflict()
     {
         var repository = new RecordingDurableProjectRepository();
         await using var workspace = CreateWorkspace(repository);
         var (opened, attached) = await OpenAttached(workspace);
-        var revisionId = opened.Projection.ProjectRevision.RevisionId;
-        var clientIntentId = new ClientIntentId("claim-delimiter-collision");
         var context = new WorkspaceCommandContext(
             opened.WorkspaceId,
             attached.AttachmentId,
             attached.Generation,
-            clientIntentId,
+            new ClientIntentId("claim-name-conflict"),
             AuthenticatedCaller);
+        var precondition = new ClaimPrecondition(
+            opened.Projection.ProjectRevision.RevisionId);
 
         var first = await workspace.DispatchAsync(
-            new ClaimSandbox(
-                context,
-                new ClaimPrecondition(revisionId),
-                "A|B"),
+            new ClaimSandbox(context, precondition, "A|B"),
             CancellationToken.None);
-        var collision = await workspace.DispatchAsync(
-            new ClaimSandbox(
-                context,
-                new ClaimPrecondition(
-                    new ProjectRevisionId($"{revisionId.Value}|A")),
-                "B"),
+        var conflict = await workspace.DispatchAsync(
+            new ClaimSandbox(context, precondition, "B"),
             CancellationToken.None);
 
         await Assert.That(first).IsTypeOf<DurableProjectClaimed>();
-        var rejection = (await Assert.That(collision)
+        var rejection = (await Assert.That(conflict)
             .IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {

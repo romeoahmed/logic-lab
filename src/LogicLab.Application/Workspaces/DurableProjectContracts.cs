@@ -188,7 +188,6 @@ public sealed record DurableProjectClaimRequest
         DisplayName = displayName;
         ProjectRevision = projectRevision;
         ReceiptKey = receiptKey;
-        ClaimWorkspaceId = receiptKey.WorkspaceId;
     }
 
     public DurableProjectId DurableProjectId { get; }
@@ -202,8 +201,6 @@ public sealed record DurableProjectClaimRequest
     public ProjectRevision ProjectRevision { get; }
 
     public DurableCommandReceiptKey ReceiptKey { get; }
-
-    public WorkspaceId ClaimWorkspaceId { get; }
 }
 
 public sealed record DurableProjectSaveRequest
