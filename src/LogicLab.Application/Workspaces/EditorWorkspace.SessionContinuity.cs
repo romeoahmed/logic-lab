@@ -1,3 +1,5 @@
+using LogicLab.Application.Work;
+
 namespace LogicLab.Application.Workspaces;
 
 internal sealed partial class EditorWorkspace
@@ -9,6 +11,7 @@ internal sealed partial class EditorWorkspace
     {
         Task<WorkspaceCommandOutcome>? replayCompletion = null;
         ContextualCommandPublication? publication = null;
+        WorkCoordinator.ScheduledSessionWork? scheduledWork = null;
         if (cancellationToken.IsCancellationRequested)
         {
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
@@ -28,6 +31,26 @@ internal sealed partial class EditorWorkspace
                         state,
                         command,
                         accepted.CanonicalIdentity);
+                    if (workCoordinator.TryScheduleSession(
+                            token => ExecuteReservedSessionCommandAsync(
+                                state,
+                                command,
+                                publication,
+                                token),
+                            cancellationToken,
+                            out scheduledWork,
+                            out var schedulingRejection))
+                    {
+                        publication.PendingIntent.ScheduledSessionWork = scheduledWork;
+                    }
+                    else
+                    {
+                        CompletePendingIdempotencyUnderLock(
+                            state,
+                            publication,
+                            Reject(schedulingRejection!));
+                    }
+
                     break;
             }
         }
@@ -38,15 +61,24 @@ internal sealed partial class EditorWorkspace
                 .ConfigureAwait(false);
         }
 
-        var completed = await workCoordinator.RunSessionAsync(
-            token => ExecuteReservedSessionCommandAsync(
-                state,
-                command,
-                publication!,
-                token),
-            cancellationToken).ConfigureAwait(false);
-        CompletePendingIdempotency(state, publication!, completed);
-        return await publication!.PendingIntent.Completion.Task.ConfigureAwait(false);
+        var pendingCompletion = publication!.PendingIntent.Completion.Task;
+        if (scheduledWork is null)
+        {
+            return await pendingCompletion.ConfigureAwait(false);
+        }
+
+        using var cancellationRegistration = cancellationToken.UnsafeRegister(
+            static work => ((WorkCoordinator.ScheduledSessionWork)work!).Cancel(),
+            scheduledWork);
+        if (await Task.WhenAny(scheduledWork.Completion, pendingCompletion)
+                .ConfigureAwait(false)
+            == scheduledWork.Completion)
+        {
+            var completed = await scheduledWork.Completion.ConfigureAwait(false);
+            CompletePendingIdempotency(state, publication, completed);
+        }
+
+        return await pendingCompletion.ConfigureAwait(false);
     }
 
     private async Task<WorkspaceCommandOutcome> QueueRunPauseAsync(

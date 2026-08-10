@@ -168,15 +168,6 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
 
         var state = acquisition.State;
-        var preauthorizationRejection = GetDurableAccessRejection(
-            state,
-            command.Context.Caller);
-        if (preauthorizationRejection is not null)
-        {
-            return command is CloseWorkspace
-                ? new WorkspaceClosed(command.WorkspaceId)
-                : Reject(preauthorizationRejection);
-        }
 
         return command switch
         {
@@ -224,24 +215,13 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
 
         var state = acquisition.State;
-        var preauthorizationRejection = GetDurableAccessRejection(
+        var admissionRejection = await EnterAuthorizedCommandGateAsync(
             state,
-            context.Caller);
-        if (preauthorizationRejection is not null)
+            context.Caller,
+            cancellationToken).ConfigureAwait(false);
+        if (admissionRejection is not null)
         {
-            return RejectRead(preauthorizationRejection);
-        }
-
-        try
-        {
-            await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException exception)
-            when (ExceptionClassifier.IsCooperativeCancellation(
-                exception,
-                cancellationToken))
-        {
-            return RejectRead(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            return RejectRead(admissionRejection);
         }
 
         try
@@ -330,16 +310,13 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         RequestCompilation command,
         CancellationToken cancellationToken)
     {
-        try
+        var admissionRejection = await EnterAuthorizedCommandGateAsync(
+            state,
+            command.Context.Caller,
+            cancellationToken).ConfigureAwait(false);
+        if (admissionRejection is not null)
         {
-            await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException exception)
-            when (ExceptionClassifier.IsCooperativeCancellation(
-                exception,
-                cancellationToken))
-        {
-            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            return Reject(admissionRejection);
         }
 
         try

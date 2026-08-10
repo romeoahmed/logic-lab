@@ -1,3 +1,4 @@
+using LogicLab.Application.Work;
 using LogicLab.Domain.Authoring;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
@@ -233,6 +234,7 @@ internal sealed partial class EditorWorkspace
         }
 
         state.CommandGate.Dispose();
+        state.AuthorizationAdmission.Dispose();
     }
 
     private void CloseSimulationForCleanup(SimulationSessionHandle handle)
@@ -317,16 +319,76 @@ internal sealed partial class EditorWorkspace
         public Lock ContinuityGate { get; } = new();
 
         public SemaphoreSlim CommandGate { get; } = new(1, 1);
+
+        public AuthorizationAdmissionEpoch AuthorizationAdmission { get; set; } = new();
     }
 
     private sealed record IdempotencyRecord(
         string CanonicalIdentity,
         WorkspaceCommandOutcome Outcome);
 
-    private sealed record PendingIntent(
-        WorkspaceCaller Caller,
-        string CanonicalIdentity,
-        TaskCompletionSource<WorkspaceCommandOutcome> Completion);
+    private sealed class PendingIntent(
+        WorkspaceCaller caller,
+        string canonicalIdentity,
+        TaskCompletionSource<WorkspaceCommandOutcome> completion)
+    {
+        public WorkspaceCaller Caller { get; } = caller;
+
+        public string CanonicalIdentity { get; } = canonicalIdentity;
+
+        public TaskCompletionSource<WorkspaceCommandOutcome> Completion { get; } =
+            completion;
+
+        public WorkCoordinator.ScheduledSessionWork? ScheduledSessionWork { get; set; }
+    }
+
+    private sealed class AuthorizationAdmissionEpoch : IDisposable
+    {
+        private readonly CancellationTokenSource cancellation = new();
+        private int referenceCount = 1;
+
+        public AuthorizationAdmissionLease Acquire()
+        {
+            _ = Interlocked.Increment(ref referenceCount);
+            return new AuthorizationAdmissionLease(Release, cancellation.Token);
+        }
+
+        public void Revoke()
+        {
+            try
+            {
+                cancellation.Cancel();
+            }
+            finally
+            {
+                Release();
+            }
+        }
+
+        public void Dispose() => Release();
+
+        private void Release()
+        {
+            if (Interlocked.Decrement(ref referenceCount) == 0)
+            {
+                cancellation.Dispose();
+            }
+        }
+
+        public sealed class AuthorizationAdmissionLease(
+            Action release,
+            CancellationToken cancellationToken) : IDisposable
+        {
+            private Action? releaseReference = release;
+
+            public CancellationToken CancellationToken { get; } = cancellationToken;
+
+            public void Dispose()
+            {
+                Interlocked.Exchange(ref releaseReference, null)?.Invoke();
+            }
+        }
+    }
 
     private abstract class WorkspaceDurabilityState(
         AuthenticatedSubjectId? ownerSubjectId)

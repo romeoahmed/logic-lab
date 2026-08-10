@@ -27,26 +27,15 @@ internal sealed partial class EditorWorkspace
         }
 
         var state = acquisition.State;
-        var preauthorizationRejection = GetDurableAccessRejection(
+        var admissionRejection = await EnterAuthorizedCommandGateAsync(
             state,
-            request.Caller);
-        if (preauthorizationRejection is not null)
+            request.Caller,
+            cancellationToken).ConfigureAwait(false);
+        if (admissionRejection is not null)
         {
             return CreateUnavailableAttachOutcome(
                 request,
-                preauthorizationRejection);
-        }
-
-        try
-        {
-            await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException exception)
-            when (ExceptionClassifier.IsCooperativeCancellation(
-                exception,
-                cancellationToken))
-        {
-            return RejectAttach(WorkspaceOutcomeReasons.WorkspaceCancelled);
+                admissionRejection);
         }
 
         try
@@ -141,24 +130,13 @@ internal sealed partial class EditorWorkspace
         }
 
         var state = acquisition.State;
-        var preauthorizationRejection = GetDurableAccessRejection(
+        var admissionRejection = await EnterAuthorizedCommandGateAsync(
             state,
-            request.Caller);
-        if (preauthorizationRejection is not null)
+            request.Caller,
+            cancellationToken).ConfigureAwait(false);
+        if (admissionRejection is not null)
         {
-            return new DetachRejected(preauthorizationRejection);
-        }
-
-        try
-        {
-            await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException exception)
-            when (ExceptionClassifier.IsCooperativeCancellation(
-                exception,
-                cancellationToken))
-        {
-            return new DetachRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            return new DetachRejected(admissionRejection);
         }
 
         try
@@ -272,24 +250,13 @@ internal sealed partial class EditorWorkspace
         }
 
         var source = acquisition.State;
-        var preauthorizationRejection = GetDurableAccessRejection(
+        var admissionRejection = await EnterAuthorizedCommandGateAsync(
             source,
-            request.Caller);
-        if (preauthorizationRejection is not null)
+            request.Caller,
+            cancellationToken).ConfigureAwait(false);
+        if (admissionRejection is not null)
         {
-            return RejectOpen(preauthorizationRejection);
-        }
-
-        try
-        {
-            await source.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException exception)
-            when (ExceptionClassifier.IsCooperativeCancellation(
-                exception,
-                cancellationToken))
-        {
-            return RejectOpen(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            return RejectOpen(admissionRejection);
         }
 
         try
@@ -394,16 +361,15 @@ internal sealed partial class EditorWorkspace
     {
         Task<WorkspaceCommandOutcome>? pendingCompletion = null;
         WorkspaceCommandOutcome? completed = null;
-        try
+        var admissionRejection = await EnterAuthorizedCommandGateAsync(
+            state,
+            command.Context.Caller,
+            cancellationToken).ConfigureAwait(false);
+        if (admissionRejection is not null)
         {
-            await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException exception)
-            when (ExceptionClassifier.IsCooperativeCancellation(
-                exception,
-                cancellationToken))
-        {
-            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            return command is CloseWorkspace
+                ? new WorkspaceClosed(command.WorkspaceId)
+                : Reject(admissionRejection);
         }
 
         try
@@ -482,34 +448,6 @@ internal sealed partial class EditorWorkspace
             && state.AttachmentGeneration == context.AttachmentGeneration;
     }
 
-    private static string? GetDurableAccessRejection(
-        WorkspaceState state,
-        WorkspaceCaller caller)
-    {
-        lock (state.ContinuityGate)
-        {
-            return GetDurableAccessRejectionUnderLock(state, caller);
-        }
-    }
-
-    private static string? GetDurableAccessRejectionUnderLock(
-        WorkspaceState state,
-        WorkspaceCaller caller)
-    {
-        var subjectId = state.Durability.OwnerSubjectId;
-        if (subjectId is null)
-        {
-            return null;
-        }
-
-        return caller switch
-        {
-            AuthenticatedWorkspaceCaller authenticated
-                when authenticated.SubjectId == subjectId => null,
-            _ => WorkspaceOutcomeReasons.WorkspaceNotFound,
-        };
-    }
-
     private ContextualIntentInspection InspectContextualIntentUnderLock(
         WorkspaceState state,
         WorkspaceCommand command)
@@ -581,28 +519,6 @@ internal sealed partial class EditorWorkspace
             pending);
         state.PendingIntents.Add(command.Context.ClientIntentId, pending);
         return publication;
-    }
-
-    private static void RevokeUnauthorizedPendingIntentsUnderLock(
-        WorkspaceState state)
-    {
-        foreach (var (clientIntentId, pending) in state.PendingIntents.ToArray())
-        {
-            if (GetDurableAccessRejectionUnderLock(state, pending.Caller) is null)
-            {
-                continue;
-            }
-
-            state.PendingIntents.Remove(clientIntentId);
-            if (state.PendingRunPause?.Publication.PendingIntent is { } pauseIntent
-                && ReferenceEquals(pauseIntent, pending))
-            {
-                state.PendingRunPause = null;
-            }
-
-            pending.Completion.TrySetResult(
-                Reject(WorkspaceOutcomeReasons.WorkspaceNotFound));
-        }
     }
 
     private WorkspaceCommandOutcome ApplyWithPrecondition(
