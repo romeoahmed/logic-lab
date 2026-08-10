@@ -1,8 +1,6 @@
 .scene {
-  min-block-size: 28rem;
+  min-block-size: 38rem;
   padding: clamp(1rem, 2vw, 1.5rem);
-  border: 1px solid var(--ll-border);
-  border-radius: var(--ll-radius-medium);
   background:
     linear-gradient(var(--ll-grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--ll-grid) 1px, transparent 1px),
@@ -11,7 +9,6 @@
     var(--ll-canvas);
   background-position: -1px -1px;
   background-size: 1.5rem 1.5rem, 1.5rem 1.5rem, 6rem 6rem, 6rem 6rem;
-  box-shadow: inset 0 1px rgb(255 255 255 / 70%);
 }
 
 .scene-heading {
@@ -101,7 +98,6 @@
   border: 1px solid var(--ll-border-strong);
   border-radius: var(--ll-radius-small);
   background: color-mix(in oklab, var(--ll-panel) 94%, var(--ll-signal-soft));
-  box-shadow: 0 0.35rem 1rem rgb(16 42 51 / 6%);
 }
 
 .component-card h3,
@@ -146,6 +142,10 @@
 }
 
 @media (max-width: 720px) {
+  .scene {
+    min-block-size: 28rem;
+  }
+
   .scene-heading {
     align-items: start;
     flex-direction: column;

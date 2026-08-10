@@ -3,11 +3,11 @@
   grid-template-columns: repeat(4, auto);
   gap: 0;
   align-items: stretch;
+  inline-size: 100%;
+  min-inline-size: 0;
   overflow-x: auto;
-  padding: 0.35rem;
-  border: 1px solid var(--ll-border);
-  border-radius: var(--ll-radius-medium);
-  background: color-mix(in oklab, var(--ll-panel) 96%, var(--ll-signal-soft));
+  padding: 0.3rem 0.5rem;
+  background: var(--ll-panel);
   scrollbar-width: thin;
 }
 
@@ -16,7 +16,7 @@
   align-content: start;
   gap: 0.45rem;
   min-inline-size: max-content;
-  padding: 0.55rem 0.75rem 0.7rem;
+  padding: 0.5rem 0.75rem 0.65rem;
   border-inline-start: 1px solid var(--ll-border);
 }
 

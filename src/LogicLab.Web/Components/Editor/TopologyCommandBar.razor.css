@@ -1,17 +1,16 @@
 .topology-command-panel {
   display: grid;
+  align-content: start;
   gap: 0.75rem;
+  min-block-size: 100%;
+  min-inline-size: 0;
   padding: 1rem;
-  border: 1px solid var(--ll-border);
-  border-radius: var(--ll-radius-medium);
-  background: color-mix(in oklab, var(--ll-panel) 97%, var(--ll-signal-soft));
+  background: var(--ll-panel);
 }
 
 .topology-command-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 1rem;
+  display: grid;
+  gap: 0.35rem;
 }
 
 .topology-command-heading h2,
@@ -34,26 +33,24 @@
 
 .topology-command-bar {
   display: grid;
-  grid-template-columns: repeat(4, auto);
-  gap: 0;
-  overflow-x: auto;
+  grid-template-columns: 1fr;
+  min-inline-size: 0;
   padding-block-start: 0.75rem;
   border-top: 1px solid var(--ll-border);
-  scrollbar-width: thin;
 }
 
 .topology-command-group {
   display: grid;
   align-content: start;
   gap: 0.4rem;
-  min-inline-size: max-content;
-  padding-inline: 0.75rem;
-  border-inline-start: 1px solid var(--ll-border);
+  min-inline-size: 0;
+  padding-block: 0.75rem;
+  border-block-start: 1px solid var(--ll-border);
 }
 
 .topology-command-group:first-child {
-  padding-inline-start: 0;
-  border-inline-start: 0;
+  padding-block-start: 0;
+  border-block-start: 0;
 }
 
 .topology-command-group > span {
@@ -66,6 +63,7 @@
 
 .topology-command-group > div {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
 }
 
@@ -74,6 +72,38 @@
   padding: 0.65rem 0.8rem;
   border-inline-start: 3px solid var(--ll-signal);
   background: var(--ll-canvas);
+}
+
+@media (max-width: 1180px) {
+  .topology-command-panel {
+    min-block-size: auto;
+  }
+
+  .topology-command-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .topology-command-bar {
+    grid-template-columns: repeat(4, max-content);
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .topology-command-group {
+    min-inline-size: max-content;
+    padding-block: 0;
+    padding-inline: 0.75rem;
+    border-block-start: 0;
+    border-inline-start: 1px solid var(--ll-border);
+  }
+
+  .topology-command-group:first-child {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+  }
 }
 
 @media (max-width: 720px) {
