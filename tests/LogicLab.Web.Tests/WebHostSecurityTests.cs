@@ -35,7 +35,7 @@ internal static class LogicLabWebFactoryClient
     }
 }
 
-[ClassDataSource<LogicLabWebFactory>(Shared = SharedType.PerTestSession)]
+[ClassDataSource<LogicLabWebFactory>]
 internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
 {
     private static readonly string[] ExpectedContentSecurityPolicyDirectives =

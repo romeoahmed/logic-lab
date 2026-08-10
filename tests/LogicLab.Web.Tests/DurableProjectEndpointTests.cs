@@ -15,7 +15,7 @@ using Microsoft.Extensions.Options;
 
 namespace LogicLab.Web.Tests;
 
-[ClassDataSource<LogicLabWebFactory>(Shared = SharedType.PerTestSession)]
+[ClassDataSource<LogicLabWebFactory>]
 internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
 {
     [Test]
