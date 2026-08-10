@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace LogicLab.Web.Identity;
 
-public static class AccountEndpointRouteBuilderExtensions
+internal static class AccountEndpointRouteBuilderExtensions
 {
     public static IEndpointConventionBuilder MapLogicLabAccountEndpoints(
         this IEndpointRouteBuilder endpoints)

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace LogicLab.Web.Identity;
 
-public sealed class IdentityRevalidatingAuthenticationStateProvider(
+internal sealed class IdentityRevalidatingAuthenticationStateProvider(
     ILoggerFactory loggerFactory,
     IServiceScopeFactory scopeFactory,
     IOptions<IdentityOptions> options,

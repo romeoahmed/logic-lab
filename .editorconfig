@@ -31,8 +31,8 @@ dotnet_diagnostic.CA2213.severity = warning
 dotnet_code_quality.CA1812.ignore_internalsvisibleto = true
 dotnet_code_quality.CA1852.ignore_internalsvisibleto = true
 
-# Activated by ASP.NET Core UseMiddleware<T>, which CA1812 cannot observe.
-[src/LogicLab.Web/SecurityHeadersMiddleware.cs]
+# Activated by ASP.NET Core DI, EF Core, or UseMiddleware<T>, which CA1812 cannot observe.
+[src/LogicLab.Web/{SecurityHeadersMiddleware.cs,Data/ApplicationIdentityDbContext.cs,Identity/IdentityRedirectManager.cs,Identity/IdentityRevalidatingAuthenticationStateProvider.cs,Projects/DataProtectionProjectCatalogCursorProtector.cs}]
 dotnet_diagnostic.CA1812.severity = none
 
 # Test executables expose no reusable API; keep their implementation types internal.

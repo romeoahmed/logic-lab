@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Components.Endpoints;
 
 namespace LogicLab.Web.Projects;
 
-public static class DurableProjectCatalogPageEndpointExtensions
+internal static class DurableProjectCatalogPageEndpointExtensions
 {
     private const string PrivateNoStore = "private, no-store";
 
