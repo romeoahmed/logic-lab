@@ -310,6 +310,68 @@ public interface IDurableProjectRepository
         CancellationToken cancellationToken);
 }
 
+public sealed record DurableProjectOpenRequest
+{
+    public DurableProjectOpenRequest(
+        DurableProjectId durableProjectId,
+        AuthenticatedSubjectId subjectId)
+    {
+        ArgumentNullException.ThrowIfNull(durableProjectId);
+        ArgumentNullException.ThrowIfNull(subjectId);
+        DurableProjectId = durableProjectId;
+        SubjectId = subjectId;
+    }
+
+    public DurableProjectId DurableProjectId { get; }
+
+    public AuthenticatedSubjectId SubjectId { get; }
+}
+
+public abstract record DurableProjectOpenRepositoryOutcome
+{
+    private protected DurableProjectOpenRepositoryOutcome()
+    {
+    }
+}
+
+public sealed record DurableProjectOpenFound
+    : DurableProjectOpenRepositoryOutcome
+{
+    public DurableProjectOpenFound(
+        DurableProjectId durableProjectId,
+        DurableDisplayName displayName,
+        DurableVersion durableVersion,
+        ProjectRevision projectRevision)
+    {
+        ArgumentNullException.ThrowIfNull(durableProjectId);
+        ArgumentNullException.ThrowIfNull(displayName);
+        ArgumentNullException.ThrowIfNull(durableVersion);
+        ArgumentNullException.ThrowIfNull(projectRevision);
+        DurableProjectId = durableProjectId;
+        DisplayName = displayName;
+        DurableVersion = durableVersion;
+        ProjectRevision = projectRevision;
+    }
+
+    public DurableProjectId DurableProjectId { get; }
+
+    public DurableDisplayName DisplayName { get; }
+
+    public DurableVersion DurableVersion { get; }
+
+    public ProjectRevision ProjectRevision { get; }
+}
+
+public sealed record DurableProjectOpenNotFound
+    : DurableProjectOpenRepositoryOutcome;
+
+public interface IDurableProjectLoader
+{
+    Task<DurableProjectOpenRepositoryOutcome> LoadAsync(
+        DurableProjectOpenRequest request,
+        CancellationToken cancellationToken);
+}
+
 public sealed record ClaimPrecondition
 {
     public ClaimPrecondition(ProjectRevisionId projectRevisionId)

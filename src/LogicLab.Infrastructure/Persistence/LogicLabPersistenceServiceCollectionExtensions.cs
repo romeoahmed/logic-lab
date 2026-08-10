@@ -17,10 +17,16 @@ public static class LogicLabPersistenceServiceCollectionExtensions
 
         services.AddDbContextFactory<LogicLabDbContext>(options =>
             options.UseSqlite(connectionString));
-        services.AddSingleton<IDurableProjectRepository>(provider =>
+        services.AddSingleton(provider =>
             new SqliteDurableProjectRepository(
                 provider.GetRequiredService<IDbContextFactory<LogicLabDbContext>>(),
                 durableCommandReceiptCount));
+        services.AddSingleton<IDurableProjectRepository>(provider =>
+            provider.GetRequiredService<SqliteDurableProjectRepository>());
+        services.AddSingleton<IDurableProjectCatalogRepository>(provider =>
+            provider.GetRequiredService<SqliteDurableProjectRepository>());
+        services.AddSingleton<IDurableProjectLoader>(provider =>
+            provider.GetRequiredService<SqliteDurableProjectRepository>());
         return services;
     }
 }

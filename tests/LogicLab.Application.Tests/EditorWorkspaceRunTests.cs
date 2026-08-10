@@ -958,7 +958,8 @@ internal sealed partial class EditorWorkspaceRunTests
                 idempotencyRecordCount: 32,
                 detachedRetention: TimeSpan.FromMinutes(30),
                 hotSwapPeakBytes: ulong.MaxValue,
-                durableDisplayNameLimits: DurableDisplayNameLimits.Default),
+                durableDisplayNameLimits: DurableDisplayNameLimits.Default,
+                durableProjectCatalogLimits: DurableProjectCatalogLimits.Default),
             timeProvider: timeProvider);
         var controlled = await CreateClockWorkspace(workspace, cancellationToken);
         var initial = await Read(workspace, controlled, cancellationToken);
@@ -1048,7 +1049,8 @@ internal sealed partial class EditorWorkspaceRunTests
             idempotencyRecordCount: 32,
             detachedRetention: TimeSpan.FromMinutes(30),
             hotSwapPeakBytes: 320,
-            durableDisplayNameLimits: DurableDisplayNameLimits.Default);
+            durableDisplayNameLimits: DurableDisplayNameLimits.Default,
+            durableProjectCatalogLimits: DurableProjectCatalogLimits.Default);
         await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint,
             policy);

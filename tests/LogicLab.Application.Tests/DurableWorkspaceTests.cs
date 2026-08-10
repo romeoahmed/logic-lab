@@ -727,7 +727,8 @@ internal sealed partial class DurableWorkspaceTests
                     detachedRetention: TimeSpan.FromMinutes(30),
                     hotSwapPeakBytes: ulong.MaxValue,
                     durableDisplayNameLimits:
-                        displayNameLimits ?? DurableDisplayNameLimits.Default),
+                        displayNameLimits ?? DurableDisplayNameLimits.Default,
+                    durableProjectCatalogLimits: DurableProjectCatalogLimits.Default),
             timeProvider: timeProvider,
             durableProjectRepository: repository);
     }

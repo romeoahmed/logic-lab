@@ -21,6 +21,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private readonly string buildFingerprint;
     private readonly WorkspaceModuleOperations operations;
     private readonly IDurableProjectRepository durableProjectRepository;
+    private readonly IDurableProjectLoader? durableProjectLoader;
     private readonly ILogger<EditorWorkspace> logger;
     private int workspaceReservations;
     private bool isDisposed;
@@ -32,6 +33,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         string buildFingerprint,
         WorkspaceModuleOperations operations,
         IDurableProjectRepository durableProjectRepository,
+        IDurableProjectLoader? durableProjectLoader,
         ILogger<WorkCoordinator> workCoordinatorLogger,
         ILogger<EditorWorkspace> logger)
     {
@@ -49,6 +51,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         this.buildFingerprint = buildFingerprint;
         this.operations = operations;
         this.durableProjectRepository = durableProjectRepository;
+        this.durableProjectLoader = durableProjectLoader;
         this.logger = logger;
     }
 
@@ -66,6 +69,11 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         if (request is CopyWorkspace copy)
         {
             return CopyAsync(copy, cancellationToken);
+        }
+
+        if (request is OpenDurable openDurable)
+        {
+            return OpenDurableAsync(openDurable, cancellationToken);
         }
 
         if (request is not CreateSandbox create)

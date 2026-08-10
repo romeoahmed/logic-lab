@@ -53,8 +53,13 @@ internal sealed class LogicLabDbContext : DbContext
             .ValueGeneratedNever()
             .IsConcurrencyToken();
         projects.HasIndex(
-                project => new { project.DisplayNameSortKey, project.Id },
-                "ix_durable_projects_display_name_sort_key_id")
+                project => new
+                {
+                    project.SubjectId,
+                    project.DisplayNameSortKey,
+                    project.Id,
+                },
+                "ix_durable_projects_subject_sort_key_id")
             .IsUnique();
         projects.HasIndex(
                 project => project.ClaimWorkspaceId,

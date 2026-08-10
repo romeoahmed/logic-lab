@@ -5,6 +5,8 @@ using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Scene;
 using LogicLab.Web.Components.Editor;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace LogicLab.Web.Components.Pages;
 
@@ -43,6 +45,23 @@ public sealed partial class Editor : IAsyncDisposable
     private string Status { get; set; } = "Connecting to the interactive workbench…";
 
     private string? ActiveCommand { get; set; }
+
+    private WorkspaceCaller CurrentCaller { get; set; } =
+        AnonymousWorkspaceCaller.Instance;
+
+    [Parameter]
+    public string? WorkspaceIdValue { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AuthenticationStateTask is not null)
+        {
+            CurrentCaller = CallerFrom(await AuthenticationStateTask);
+        }
+    }
 
     private bool CommandsAvailable => IsInteractive;
 
@@ -92,14 +111,52 @@ public sealed partial class Editor : IAsyncDisposable
         && Projection?.Simulation is not null
         && StimulusIsScheduled;
 
-    protected override void OnAfterRender(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender && RendererInfo.IsInteractive)
         {
             IsInteractive = true;
-            Status = "Ready to create a Sandbox Project.";
+            if (WorkspaceIdValue is null)
+            {
+                Status = "Ready to create a Sandbox Project.";
+            }
+            else
+            {
+                await AttachOpenedWorkspaceAsync();
+            }
+
             StateHasChanged();
         }
+    }
+
+    private async Task AttachOpenedWorkspaceAsync()
+    {
+        var attachOutcome = await workspace.AttachAsync(
+            new InitialAttach(
+                new LogicLab.Application.Workspaces.WorkspaceId(WorkspaceIdValue!),
+                LogicLabWebBuild.Fingerprint,
+                CurrentCaller),
+            componentLifetime.Token);
+        if (attachOutcome is not Attached attached)
+        {
+            Status = attachOutcome switch
+            {
+                AttachRejected rejected =>
+                    $"Workspace attachment rejected: {rejected.Code}.",
+                Expired expired =>
+                    $"Workspace attachment rejected: {expired.Code}.",
+                _ => throw new UnreachableException(),
+            };
+            return;
+        }
+
+        Attachment = attached;
+        Projection = attached.Projection;
+        SelectedDefinitionId = attached.Projection.ProjectRevision.Document
+            .EntryCircuitDefinitionId;
+        HierarchyNavigation.Clear();
+        ProjectScene();
+        Status = "Durable Project reopened.";
     }
 
     private async Task RunCommandAsync(
@@ -141,7 +198,7 @@ public sealed partial class Editor : IAsyncDisposable
             new InitialAttach(
                 opened.WorkspaceId,
                 LogicLabWebBuild.Fingerprint,
-                AnonymousWorkspaceCaller.Instance),
+                CurrentCaller),
             CancellationToken.None);
         if (attachOutcome is not Attached attached)
         {
@@ -467,7 +524,7 @@ public sealed partial class Editor : IAsyncDisposable
                 attachment.AttachmentId,
                 attachment.Generation,
                 LogicLabWebBuild.Fingerprint,
-                AnonymousWorkspaceCaller.Instance),
+                CurrentCaller),
             cancellationToken);
         if (outcome is not Attached reattached)
         {
@@ -535,7 +592,7 @@ public sealed partial class Editor : IAsyncDisposable
                         attachment.Projection.WorkspaceId,
                         attachment.AttachmentId,
                         attachment.Generation,
-                        AnonymousWorkspaceCaller.Instance),
+                        CurrentCaller),
                     CancellationToken.None);
             }
         }
@@ -562,7 +619,7 @@ public sealed partial class Editor : IAsyncDisposable
             attachment.AttachmentId,
             attachment.Generation,
             clientIntentId,
-            AnonymousWorkspaceCaller.Instance);
+            CurrentCaller);
     }
 
     private WorkspaceQueryContext QueryContext()
@@ -575,7 +632,17 @@ public sealed partial class Editor : IAsyncDisposable
             projection.WorkspaceId,
             attachment.AttachmentId,
             attachment.Generation,
-            AnonymousWorkspaceCaller.Instance);
+            CurrentCaller);
+    }
+
+    private static WorkspaceCaller CallerFrom(AuthenticationState authenticationState)
+    {
+        var subjectValue = authenticationState.User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return string.IsNullOrEmpty(subjectValue)
+            ? AnonymousWorkspaceCaller.Instance
+            : new AuthenticatedWorkspaceCaller(
+                new AuthenticatedSubjectId(subjectValue));
     }
 
     private SessionMutationPrecondition SessionPrecondition()

@@ -56,7 +56,8 @@ internal sealed class WorkspaceContractTests
                 idempotencyRecordCount: 1,
                 detachedRetention: TimeSpan.FromMinutes(1),
                 hotSwapPeakBytes: 1,
-                durableDisplayNameLimits: DurableDisplayNameLimits.Default))
+                durableDisplayNameLimits: DurableDisplayNameLimits.Default,
+                durableProjectCatalogLimits: DurableProjectCatalogLimits.Default))
             .ThrowsExactly<ArgumentNullException>();
     }
 
@@ -68,6 +69,20 @@ internal sealed class WorkspaceContractTests
         int utf8Bytes)
     {
         await Assert.That(() => new DurableDisplayNameLimits(scalarCount, utf8Bytes))
+            .ThrowsExactly<ArgumentOutOfRangeException>();
+    }
+
+    [Test]
+    [Arguments(0, 1)]
+    [Arguments(1, 0)]
+    [Arguments(int.MaxValue, 1)]
+    public async Task DurableProjectCatalogLimits_InvalidDimension_Throws(
+        int pageItems,
+        int cursorBytes)
+    {
+        await Assert.That(() => new DurableProjectCatalogLimits(
+                pageItems,
+                cursorBytes))
             .ThrowsExactly<ArgumentOutOfRangeException>();
     }
 
@@ -158,6 +173,7 @@ internal sealed class WorkspaceContractTests
             idempotencyRecordCount: 1,
             detachedRetention: TimeSpan.FromMinutes(1),
             hotSwapPeakBytes: hotSwapPeakBytes,
-            durableDisplayNameLimits: DurableDisplayNameLimits.Default);
+            durableDisplayNameLimits: DurableDisplayNameLimits.Default,
+            durableProjectCatalogLimits: DurableProjectCatalogLimits.Default);
     }
 }

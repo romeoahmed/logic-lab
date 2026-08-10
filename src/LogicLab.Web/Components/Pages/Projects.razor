@@ -1,0 +1,90 @@
+@page "/projects"
+@attribute [Authorize]
+@attribute [ExcludeFromInteractiveRouting]
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IDurableProjectCatalog Catalog
+@inject IDurableProjectCatalogAuthorization CatalogAuthorization
+@inject WorkspacePolicy WorkspacePolicy
+
+<PageTitle>Durable Projects</PageTitle>
+
+<h1>Durable Projects</h1>
+
+@if (outcome is null)
+{
+    <p>Loading projects…</p>
+}
+else if (outcome is DurableProjectPage page)
+{
+    if (page.Items.Count == 0)
+    {
+        <p>No Durable Projects are available.</p>
+    }
+    else
+    {
+        <ul class="project-catalog">
+            @foreach (var item in page.Items)
+            {
+                <li data-project-id="@item.DurableProjectId.Value">
+                    <span>@item.DisplayName.Value</span><form action="/projects/open" method="post">
+                        <AntiforgeryToken />
+                        <input type="hidden"
+                               name="durableProjectId"
+                               value="@item.DurableProjectId.Value" />
+                        <button type="submit">Open</button>
+                    </form>
+                </li>
+            }
+        </ul>
+    }
+
+    if (page.Next is not null)
+    {
+        <a data-projects-next
+           href="@NextPage(page.Next)">Next</a>
+    }
+}
+else if (outcome is DurableProjectListRejected rejected)
+{
+    <p role="alert">Unable to list Durable Projects: @rejected.Reason.</p>
+    if (rejected.Reason == "project_catalog_cursor_invalid")
+    {
+        <a href="/projects">Return to the first page</a>
+    }
+}
+
+@code {
+    private DurableProjectListOutcome? outcome;
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    [SupplyParameterFromQuery(Name = "after")]
+    public string? After { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var authenticationState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var subjectValue = authenticationState.User.FindFirst(
+            ClaimTypes.NameIdentifier)?.Value;
+        WorkspaceCaller caller = string.IsNullOrEmpty(subjectValue)
+            ? AnonymousWorkspaceCaller.Instance
+            : new AuthenticatedWorkspaceCaller(
+                new AuthenticatedSubjectId(subjectValue));
+        var cursor = string.IsNullOrEmpty(After)
+            ? null
+            : new ProjectCatalogCursor(After);
+        outcome = await Catalog.ListAsync(
+            new DurableProjectCatalogCallContext(caller, CatalogAuthorization),
+            new DurableProjectPageRequest(
+                WorkspacePolicy.DurableProjectCatalogLimits.PageItems,
+                cursor),
+            HttpContext?.RequestAborted ?? CancellationToken.None);
+    }
+
+    private static string NextPage(ProjectCatalogCursor cursor)
+    {
+        return $"/projects?after={Uri.EscapeDataString(cursor.Value)}";
+    }
+}

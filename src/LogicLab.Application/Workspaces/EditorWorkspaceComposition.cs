@@ -76,6 +76,32 @@ public sealed record DurableDisplayNameLimits
         utf8Bytes: 512);
 }
 
+public sealed record DurableProjectCatalogLimits
+{
+    public DurableProjectCatalogLimits(int pageItems, int cursorBytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageItems);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cursorBytes);
+        if (pageItems == int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(pageItems),
+                "The catalog must reserve one look-ahead item.");
+        }
+
+        PageItems = pageItems;
+        CursorBytes = cursorBytes;
+    }
+
+    public int PageItems { get; }
+
+    public int CursorBytes { get; }
+
+    public static DurableProjectCatalogLimits Default { get; } = new(
+        pageItems: 50,
+        cursorBytes: 2_048);
+}
+
 public sealed record WorkspacePolicy
 {
     public WorkspacePolicy(
@@ -88,12 +114,14 @@ public sealed record WorkspacePolicy
         int idempotencyRecordCount,
         TimeSpan detachedRetention,
         ulong hotSwapPeakBytes,
-        DurableDisplayNameLimits durableDisplayNameLimits)
+        DurableDisplayNameLimits durableDisplayNameLimits,
+        DurableProjectCatalogLimits durableProjectCatalogLimits)
     {
         ArgumentException.ThrowIfNullOrEmpty(policyId);
         ArgumentException.ThrowIfNullOrEmpty(policyRevision);
         ArgumentNullException.ThrowIfNull(authoringLimits);
         ArgumentNullException.ThrowIfNull(durableDisplayNameLimits);
+        ArgumentNullException.ThrowIfNull(durableProjectCatalogLimits);
         if (!IsStableToken(policyId))
         {
             throw new ArgumentException(
@@ -129,6 +157,7 @@ public sealed record WorkspacePolicy
         DetachedRetention = detachedRetention;
         HotSwapPeakBytes = hotSwapPeakBytes;
         DurableDisplayNameLimits = durableDisplayNameLimits;
+        DurableProjectCatalogLimits = durableProjectCatalogLimits;
     }
 
     public string PolicyId { get; }
@@ -151,6 +180,8 @@ public sealed record WorkspacePolicy
 
     public DurableDisplayNameLimits DurableDisplayNameLimits { get; }
 
+    public DurableProjectCatalogLimits DurableProjectCatalogLimits { get; }
+
     public static WorkspacePolicy Default { get; } = new(
         policyId: "workbench-workspace",
         policyRevision: "1",
@@ -161,7 +192,8 @@ public sealed record WorkspacePolicy
         idempotencyRecordCount: 1_024,
         detachedRetention: TimeSpan.FromMinutes(30),
         hotSwapPeakBytes: 512UL * 1024UL * 1024UL,
-        durableDisplayNameLimits: DurableDisplayNameLimits.Default);
+        durableDisplayNameLimits: DurableDisplayNameLimits.Default,
+        durableProjectCatalogLimits: DurableProjectCatalogLimits.Default);
 
     private static bool IsStableToken(string value)
     {
@@ -206,7 +238,8 @@ public static class EditorWorkspaceFactory
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        IDurableProjectLoader? durableProjectLoader = null)
     {
         ArgumentNullException.ThrowIfNull(durableProjectRepository);
         return CreateCore(
@@ -216,7 +249,8 @@ public static class EditorWorkspaceFactory
             loggerFactory,
             buildFingerprint,
             WorkspaceModuleOperations.Production,
-            durableProjectRepository);
+            durableProjectRepository,
+            durableProjectLoader);
     }
 
     internal static IEditorWorkspace CreateForTesting(
@@ -226,7 +260,8 @@ public static class EditorWorkspaceFactory
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
-        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint)
+        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint,
+        IDurableProjectLoader? durableProjectLoader = null)
     {
         ArgumentNullException.ThrowIfNull(durableProjectRepository);
         return CreateCore(
@@ -236,7 +271,8 @@ public static class EditorWorkspaceFactory
             loggerFactory,
             buildFingerprint,
             operations,
-            durableProjectRepository);
+            durableProjectRepository,
+            durableProjectLoader);
     }
 
     private static EditorWorkspace CreateCore(
@@ -246,7 +282,8 @@ public static class EditorWorkspaceFactory
         ILoggerFactory? loggerFactory,
         string buildFingerprint,
         WorkspaceModuleOperations operations,
-        IDurableProjectRepository durableProjectRepository)
+        IDurableProjectRepository durableProjectRepository,
+        IDurableProjectLoader? durableProjectLoader)
     {
         ArgumentException.ThrowIfNullOrEmpty(buildFingerprint);
         var resolvedLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
@@ -257,6 +294,7 @@ public static class EditorWorkspaceFactory
             buildFingerprint,
             operations,
             durableProjectRepository,
+            durableProjectLoader,
             resolvedLoggerFactory.CreateLogger<Work.WorkCoordinator>(),
             resolvedLoggerFactory.CreateLogger<EditorWorkspace>());
     }
