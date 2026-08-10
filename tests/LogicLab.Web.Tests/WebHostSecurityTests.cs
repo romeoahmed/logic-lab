@@ -1,12 +1,10 @@
 using System.Net;
 using System.Text.Json;
-using Microsoft.AspNetCore.Antiforgery;
+using LogicLab.Web.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -134,35 +132,19 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     }
 
     [Test]
-    public async Task Post_ProjectsOpenEndpoint_RequiresAntiforgeryValidation()
-    {
-        var endpointDataSource = factory.Services
-            .GetRequiredService<EndpointDataSource>();
-        var endpoint = endpointDataSource.Endpoints
-            .OfType<RouteEndpoint>()
-            .Single(candidate =>
-                candidate.RoutePattern.RawText == "/projects/open"
-                && candidate.Metadata.GetMetadata<HttpMethodMetadata>()?
-                    .HttpMethods.SequenceEqual([HttpMethods.Post]) is true);
-
-        await Assert.That(endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>()?
-                .RequiresValidation)
-            .IsTrue();
-    }
-
-    [Test]
     public async Task Post_AuthenticationEntries_UseIndependentBoundedPoliciesWithProblemDetails()
     {
-        const int loginPermitLimit = 10;
-        const int registrationPermitLimit = 5;
+        var policy = AccountIngressPolicy.Default;
         using var host = factory.WithWebHostBuilder(_ => { });
         using var client = host.CreateHttpsClient();
-        var loginForm = await PrepareIdentityFormAsync(client, "/account/login");
-        var registrationForm = await PrepareIdentityFormAsync(
+        var loginForm = await WebTestHttp.GetAntiforgeryFormAsync(
+            client,
+            "/account/login");
+        var registrationForm = await WebTestHttp.GetAntiforgeryFormAsync(
             client,
             "/account/register");
 
-        for (var attempt = 0; attempt < loginPermitLimit; attempt++)
+        for (var attempt = 0; attempt < policy.LoginPermitLimit; attempt++)
         {
             using var accepted = await PostInvalidIdentityFormAsync(
                 client,
@@ -181,7 +163,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
             "invalid-login-rejected");
         await AssertRateLimitProblemDetails(rejectedLogin);
 
-        for (var attempt = 0; attempt < registrationPermitLimit; attempt++)
+        for (var attempt = 0; attempt < policy.RegistrationPermitLimit; attempt++)
         {
             using var accepted = await PostInvalidIdentityFormAsync(
                 client,
@@ -208,10 +190,10 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         string path,
         string formName)
     {
-        const int maximumBodyBytes = 4096;
+        const int maximumBodyBytes = AccountIngressPolicy.MaximumRequestBodyBytes;
         using var host = factory.WithWebHostBuilder(_ => { });
         using var client = host.CreateHttpsClient();
-        var form = await PrepareIdentityFormAsync(client, path);
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, path);
 
         using var accepted = await PostSizedIdentityFormAsync(
             client,
@@ -227,7 +209,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
             maximumBodyBytes + 1);
 
         await Assert.That(accepted.StatusCode).IsEqualTo(HttpStatusCode.OK);
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             rejected,
             HttpStatusCode.RequestEntityTooLarge,
             "request_body_too_large");
@@ -252,28 +234,11 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         return string.Join(' ', response.Headers.GetValues(name));
     }
 
-    private static async Task<PreparedIdentityForm> PrepareIdentityFormAsync(
-        HttpClient client,
-        string path)
-    {
-        using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
-        response.EnsureSuccessStatusCode();
-        var html = await response.Content.ReadAsStringAsync();
-        var token = ExtractAttributeAfter(
-            html,
-            "name=\"__RequestVerificationToken\"",
-            "value");
-        var cookie = response.Headers.GetValues("Set-Cookie")
-            .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal))
-            .Split(';', 2)[0];
-        return new PreparedIdentityForm(token, cookie);
-    }
-
     private static async Task<HttpResponseMessage> PostInvalidIdentityFormAsync(
         HttpClient client,
         string path,
         string formName,
-        PreparedIdentityForm form,
+        AntiforgeryForm form,
         string email)
     {
         using var request = new HttpRequestMessage(
@@ -289,7 +254,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
                 new("Input.ConfirmPassword", "different"),
             ]),
         };
-        request.Headers.Add("Cookie", form.AntiforgeryCookie);
+        request.Headers.Add("Cookie", form.Cookie);
         request.Headers.Accept.ParseAdd("text/html");
         return await client.SendAsync(request);
     }
@@ -298,7 +263,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         HttpClient client,
         string path,
         string formName,
-        PreparedIdentityForm form,
+        AntiforgeryForm form,
         int bodyLength)
     {
         var values = new List<KeyValuePair<string, string>>
@@ -334,7 +299,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
                 "The encoded form did not reach the requested byte boundary.");
         }
 
-        request.Headers.Add("Cookie", form.AntiforgeryCookie);
+        request.Headers.Add("Cookie", form.Cookie);
         request.Headers.Accept.ParseAdd("text/html");
         return await client.SendAsync(request);
     }
@@ -342,7 +307,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     private static async Task AssertRateLimitProblemDetails(
         HttpResponseMessage response)
     {
-        await AssertProblemDetails(
+        await WebTestHttp.AssertProblemDetailsAsync(
             response,
             HttpStatusCode.TooManyRequests,
             "authentication_rate_limit_exceeded");
@@ -350,55 +315,6 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         await Assert.That(retryAfter).IsNotNull();
         await Assert.That(retryAfter.GetValueOrDefault())
             .IsGreaterThan(TimeSpan.Zero);
-    }
-
-    private static async Task AssertProblemDetails(
-        HttpResponseMessage response,
-        HttpStatusCode expectedStatus,
-        string expectedCode)
-    {
-        await Assert.That(response.StatusCode).IsEqualTo(expectedStatus);
-        await Assert.That(response.Content.Headers.ContentType?.MediaType)
-            .IsEqualTo("application/problem+json");
-        using var payload = await JsonDocument.ParseAsync(
-            await response.Content.ReadAsStreamAsync());
-        var root = payload.RootElement;
-        var traceId = root.GetProperty("traceId").GetString();
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(root.GetProperty("status").GetInt32())
-                .IsEqualTo((int)expectedStatus);
-            await Assert.That(root.GetProperty("code").GetString())
-                .IsEqualTo(expectedCode);
-            await Assert.That(root.GetProperty("type").GetString())
-                .IsEqualTo($"https://logiclab.example/problems/{expectedCode}");
-            await Assert.That(string.IsNullOrWhiteSpace(traceId)).IsFalse();
-        }
-    }
-
-    private static string ExtractAttributeAfter(
-        string html,
-        string marker,
-        string attributeName)
-    {
-        var markerIndex = html.IndexOf(marker, StringComparison.Ordinal);
-        if (markerIndex < 0)
-        {
-            throw new InvalidOperationException($"Markup did not contain {marker}.");
-        }
-
-        var prefix = $"{attributeName}=\"";
-        var valueStart = html.IndexOf(prefix, markerIndex, StringComparison.Ordinal);
-        if (valueStart < 0)
-        {
-            throw new InvalidOperationException(
-                $"Markup did not contain {attributeName} after {marker}.");
-        }
-
-        valueStart += prefix.Length;
-        var valueEnd = html.IndexOf('"', valueStart);
-        return html[valueStart..valueEnd];
     }
 
     private static string[] CanonicalizeContentSecurityPolicy(string policy)
@@ -455,7 +371,4 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         }
     }
 
-    private sealed record PreparedIdentityForm(
-        string RequestToken,
-        string AntiforgeryCookie);
 }

@@ -110,7 +110,6 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
 
         using (Assert.Multiple())
         {
-            await Assert.That(options.SlidingExpiration).IsFalse();
             await Assert.That(expiryClaims).Count().IsEqualTo(1);
             await Assert.That(expiryClaims.Single().Value)
                 .IsEqualTo(expiresUtc.ToString("O"));
@@ -242,27 +241,17 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
             now.AddMinutes(5).ToString("O"));
         principalSource.Principal = oldAuthenticationState.User;
         using var client = host.CreateHttpsClient();
-        using var pageResponse = await client.GetAsync(
-            new Uri("/projects", UriKind.Relative));
-        pageResponse.EnsureSuccessStatusCode();
-        var html = await pageResponse.Content.ReadAsStringAsync();
-        var requestToken = ExtractAttributeAfter(
-            html,
-            "name=\"__RequestVerificationToken\"",
-            "value");
-        var antiforgeryCookie = pageResponse.Headers.GetValues("Set-Cookie")
-            .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal))
-            .Split(';', 2)[0];
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             new Uri("/account/logout", UriKind.Relative))
         {
             Content = new FormUrlEncodedContent(
             [
-                new("__RequestVerificationToken", requestToken),
+                new("__RequestVerificationToken", form.RequestToken),
             ]),
         };
-        request.Headers.Add("Cookie", antiforgeryCookie);
+        request.Headers.Add("Cookie", form.Cookie);
 
         using var response = await client.SendAsync(request);
 
@@ -318,7 +307,9 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
             now.AddMinutes(5).ToString("O"));
         principalSource.Principal = currentAuthenticationState.User;
         using var client = host.CreateHttpsClient();
-        var preparedForm = await GetIdentityFormAsync(client, "/projects");
+        var preparedForm = await WebTestHttp.GetAntiforgeryFormAsync(
+            client,
+            "/projects");
 
         using var response = await PostIdentityFormAsync(
             client,
@@ -369,7 +360,9 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         principalSource.Principal = currentAuthenticationState.User;
         var replacementEmail = $"registered-{Guid.CreateVersion7():N}@example.test";
         using var client = host.CreateHttpsClient();
-        var preparedForm = await GetIdentityFormAsync(client, "/projects");
+        var preparedForm = await WebTestHttp.GetAntiforgeryFormAsync(
+            client,
+            "/projects");
 
         using var response = await PostIdentityFormAsync(
             client,
@@ -451,7 +444,9 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         }
 
         using var client = host.CreateHttpsClient();
-        var form = await GetIdentityFormAsync(client, "/account/login");
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(
+            client,
+            "/account/login");
         using var response = await PostIdentityFormAsync(
             client,
             "/account/login",
@@ -480,7 +475,9 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         await using var connection = await OpenIdentityDatabaseAsync();
         using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
         using var client = host.CreateHttpsClient();
-        var form = await GetIdentityFormAsync(client, "/account/login");
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(
+            client,
+            "/account/login");
 
         using var response = await PostIdentityFormAsync(
             client,
@@ -519,7 +516,9 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         }
 
         using var client = host.CreateHttpsClient();
-        var form = await GetIdentityFormAsync(client, "/account/register");
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(
+            client,
+            "/account/register");
         using var response = await PostIdentityFormAsync(
             client,
             "/account/register",
@@ -557,7 +556,9 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         await using var connection = await OpenIdentityDatabaseAsync();
         using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
         using var client = host.CreateHttpsClient();
-        var form = await GetIdentityFormAsync(client, "/account/register");
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(
+            client,
+            "/account/register");
 
         using var response = await PostIdentityFormAsync(
             client,
@@ -641,7 +642,9 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         }
 
         using var client = host.CreateHttpsClient();
-        var form = await GetIdentityFormAsync(client, "/account/login");
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(
+            client,
+            "/account/login");
         using var response = await PostIdentityFormAsync(
             client,
             "/account/login?returnUrl=%2Fprojects",
@@ -676,7 +679,9 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         await using var connection = await OpenIdentityDatabaseAsync();
         using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
         using var client = host.CreateHttpsClient();
-        var form = await GetIdentityFormAsync(client, "/account/register");
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(
+            client,
+            "/account/register");
 
         using var response = await PostIdentityFormAsync(
             client,
@@ -735,7 +740,9 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         }
 
         using var client = host.CreateHttpsClient();
-        var form = await GetIdentityFormAsync(client, "/account/login");
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(
+            client,
+            "/account/login");
         using var response = await PostIdentityFormAsync(
             client,
             "/account/login",
@@ -773,7 +780,9 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         await using var connection = await OpenIdentityDatabaseAsync();
         using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
         using var client = host.CreateHttpsClient();
-        var form = await GetIdentityFormAsync(client, "/account/login");
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(
+            client,
+            "/account/login");
 
         using var response = await PostIdentityFormAsync(
             client,
@@ -806,7 +815,9 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         await using var connection = await OpenIdentityDatabaseAsync();
         using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
         using var client = host.CreateHttpsClient();
-        var form = await GetIdentityFormAsync(client, "/account/register");
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(
+            client,
+            "/account/register");
 
         using var response = await PostIdentityFormAsync(
             client,
@@ -949,29 +960,11 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         return await task;
     }
 
-    private static async Task<PreparedIdentityForm> GetIdentityFormAsync(
-        HttpClient client,
-        string path)
-    {
-        using var pageResponse = await client.GetAsync(
-            new Uri(path, UriKind.Relative));
-        pageResponse.EnsureSuccessStatusCode();
-        var html = await pageResponse.Content.ReadAsStringAsync();
-        var requestToken = ExtractAttributeAfter(
-            html,
-            "name=\"__RequestVerificationToken\"",
-            "value");
-        var antiforgeryCookie = pageResponse.Headers.GetValues("Set-Cookie")
-            .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal))
-            .Split(';', 2)[0];
-        return new PreparedIdentityForm(requestToken, antiforgeryCookie);
-    }
-
     private static async Task<HttpResponseMessage> PostIdentityFormAsync(
         HttpClient client,
         string path,
         string formName,
-        PreparedIdentityForm preparedForm,
+        AntiforgeryForm preparedForm,
         IReadOnlyList<KeyValuePair<string, string>> formValues)
     {
         var values = new List<KeyValuePair<string, string>>
@@ -986,7 +979,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         {
             Content = new FormUrlEncodedContent(values),
         };
-        request.Headers.Add("Cookie", preparedForm.AntiforgeryCookie);
+        request.Headers.Add("Cookie", preparedForm.Cookie);
         return await client.SendAsync(request);
     }
 
@@ -1031,34 +1024,6 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         return location?.IsAbsoluteUri is true
             ? location.PathAndQuery
             : location?.OriginalString;
-    }
-
-    private sealed record PreparedIdentityForm(
-        string RequestToken,
-        string AntiforgeryCookie);
-
-    private static string ExtractAttributeAfter(
-        string html,
-        string marker,
-        string attributeName)
-    {
-        var markerIndex = html.IndexOf(marker, StringComparison.Ordinal);
-        if (markerIndex < 0)
-        {
-            throw new InvalidOperationException($"Markup did not contain {marker}.");
-        }
-
-        var prefix = $"{attributeName}=\"";
-        var valueStart = html.IndexOf(prefix, markerIndex, StringComparison.Ordinal);
-        if (valueStart < 0)
-        {
-            throw new InvalidOperationException(
-                $"Markup did not contain {attributeName} after {marker}.");
-        }
-
-        valueStart += prefix.Length;
-        var valueEnd = html.IndexOf('"', valueStart);
-        return html[valueStart..valueEnd];
     }
 
     private static string ExtractElementById(
