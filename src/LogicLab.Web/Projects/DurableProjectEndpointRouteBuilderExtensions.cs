@@ -7,6 +7,8 @@ namespace LogicLab.Web.Projects;
 
 public static class DurableProjectEndpointRouteBuilderExtensions
 {
+    internal const string OpenPath = "/projects/open";
+
     private const int MaximumDurableProjectIdLength = 64;
     private const int MaximumOpenRequestBodyBytes = 4096;
 
@@ -15,8 +17,8 @@ public static class DurableProjectEndpointRouteBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
-        return endpoints.MapPost(
-                "/projects/open",
+        var openEndpoint = endpoints.MapPost(
+                OpenPath,
                 async Task<IResult> (
                     HttpContext httpContext,
                     ClaimsPrincipal principal,
@@ -62,5 +64,23 @@ public static class DurableProjectEndpointRouteBuilderExtensions
             .WithMetadata(new RequestSizeLimitAttribute(
                 MaximumOpenRequestBodyBytes))
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+
+        endpoints.MapFallback(OpenPath, IResult (HttpContext httpContext) =>
+        {
+            httpContext.Response.Headers.Allow = HttpMethods.Post;
+            if (HttpMethods.IsHead(httpContext.Request.Method))
+            {
+                httpContext.Response.StatusCode =
+                    StatusCodes.Status405MethodNotAllowed;
+                httpContext.Response.ContentType = "application/problem+json";
+                return Results.Empty;
+            }
+
+            return LogicLabProblemDetails.Create(
+                httpContext,
+                LogicLabProblemDetails.ProjectOpenMethodNotAllowedCode);
+        });
+
+        return openEndpoint;
     }
 }

@@ -140,7 +140,10 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
             .GetRequiredService<EndpointDataSource>();
         var endpoint = endpointDataSource.Endpoints
             .OfType<RouteEndpoint>()
-            .Single(candidate => candidate.RoutePattern.RawText == "/projects/open");
+            .Single(candidate =>
+                candidate.RoutePattern.RawText == "/projects/open"
+                && candidate.Metadata.GetMetadata<HttpMethodMetadata>()?
+                    .HttpMethods.SequenceEqual([HttpMethods.Post]) is true);
 
         await Assert.That(endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>()?
                 .RequiresValidation)

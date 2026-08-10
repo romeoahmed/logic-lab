@@ -18,6 +18,83 @@ namespace LogicLab.Web.Tests;
 internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
 {
     [Test]
+    public async Task Get_Open_ReturnsMethodNotAllowedProblemDetails()
+    {
+        using var client = factory.CreateHttpsClient();
+        client.DefaultRequestHeaders.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("text/html"));
+
+        using var response = await client.GetAsync(
+            new Uri("/projects/open", UriKind.Relative));
+
+        await AssertProblemDetails(
+            response,
+            HttpStatusCode.MethodNotAllowed,
+            "project_open_method_not_allowed");
+        await Assert.That(response.Content.Headers.Allow)
+            .IsEquivalentTo([HttpMethod.Post.Method]);
+    }
+
+    [Test]
+    public async Task Head_Open_ReturnsMethodNotAllowedProblemMetadata()
+    {
+        using var client = factory.CreateHttpsClient();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Head,
+            new Uri("/projects/open", UriKind.Relative));
+        request.Headers.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("text/html"));
+
+        using var response = await client.SendAsync(request);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.StatusCode)
+                .IsEqualTo(HttpStatusCode.MethodNotAllowed);
+            await Assert.That(response.Content.Headers.ContentType?.MediaType)
+                .IsEqualTo("application/problem+json");
+            await Assert.That(response.Content.Headers.Allow)
+                .IsEquivalentTo([HttpMethod.Post.Method]);
+            await Assert.That(await response.Content.ReadAsByteArrayAsync())
+                .IsEmpty();
+        }
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Get_Projects_AlwaysDisablesSharedCaching(bool hasProjects)
+    {
+        DurableProjectSummaryV1[] items = hasProjects
+            ?
+            [
+                new DurableProjectSummaryV1(
+                    new DurableProjectId("project-cache"),
+                    new DurableDisplayName("Cache boundary")),
+            ]
+            : [];
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthentication(services);
+                services.RemoveAll<IDurableProjectCatalog>();
+                services.AddSingleton<IDurableProjectCatalog>(
+                    new RecordingCatalog(new DurableProjectPage(items, next: null)));
+            }));
+        using var client = host.CreateHttpsClient();
+
+        using var response = await client.GetAsync(
+            new Uri("/projects", UriKind.Relative));
+
+        response.EnsureSuccessStatusCode();
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.Headers.CacheControl?.Private).IsTrue();
+            await Assert.That(response.Headers.CacheControl?.NoStore).IsTrue();
+        }
+    }
+
+    [Test]
     public async Task Get_Projects_WithOpaqueCursor_PassesTrustedContextAndRendersHtml()
     {
         const string projectedDisplayName = "Projected 项目";

@@ -9,6 +9,8 @@ internal static class LogicLabProblemDetails
 
     internal const string ProjectOpenRequestInvalidCode =
         "project_open_request_invalid";
+    internal const string ProjectOpenMethodNotAllowedCode =
+        "project_open_method_not_allowed";
     internal const string AuthenticationRequiredCode =
         "authentication_required";
     internal const string AuthenticationRateLimitExceededCode =
@@ -43,6 +45,9 @@ internal static class LogicLabProblemDetails
             ProjectOpenRequestInvalidCode => (
                 StatusCodes.Status400BadRequest,
                 "The project open request is invalid"),
+            ProjectOpenMethodNotAllowedCode => (
+                StatusCodes.Status405MethodNotAllowed,
+                "The request method is not supported for project opening"),
             AntiforgeryValidationFailedCode => (
                 StatusCodes.Status400BadRequest,
                 "Antiforgery validation failed"),

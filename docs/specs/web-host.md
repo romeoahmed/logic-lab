@@ -100,6 +100,10 @@ Localized resources are strongly keyed by owning feature. English and Simplified
 
 All cookie-authenticated mutations retain antiforgery validation. Import, export preparation, download, account, and Durable Project actions authenticate and authorize independently. The culture action is available before authentication but remains same-origin, antiforgery-protected, allowlisted, and unable to name a protected resource. A route, Workspace ID, Durable Project ID, attachment, or download token is a locator, never sufficient authority.
 
+Every authenticated `/projects` response sets `Cache-Control: private, no-store`
+before rendering, including an empty catalog and catalog failures. Caching policy
+never depends on whether the page happens to render an antiforgery token.
+
 The host applies separate bounded policies to request rate, request body bytes, concurrent transfers, expanded package work, Workspace admission, and background work. ASP.NET Core rate limiting is an ingress control, not a complete DDoS defense or a replacement for Module policy; official guidance requires load testing configured policies ([rate limiting](https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit?view=aspnetcore-10.0)).
 
 Static SSR login and registration POSTs use independent fixed-window ingress
