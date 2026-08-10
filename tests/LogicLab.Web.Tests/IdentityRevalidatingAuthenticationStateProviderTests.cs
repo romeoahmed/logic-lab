@@ -1119,7 +1119,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     private sealed class EmptyCatalog : IDurableProjectCatalog
     {
         public Task<DurableProjectListOutcome> ListAsync(
-            DurableProjectCatalogCallContext context,
+            AuthenticatedSubjectId subjectId,
             DurableProjectPageRequest request,
             CancellationToken cancellationToken)
         {

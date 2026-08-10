@@ -122,8 +122,6 @@ builder.Services.AddLogicLabSqlitePersistence(
 builder.Services.AddDataProtection();
 builder.Services.AddSingleton<IProjectCatalogCursorProtector,
     DataProtectionProjectCatalogCursorProtector>();
-builder.Services.AddSingleton<IDurableProjectCatalogAuthorization,
-    AuthenticatedDurableProjectCatalogAuthorization>();
 builder.Services.AddSingleton<IDurableProjectCatalog>(services =>
     DurableProjectCatalogFactory.Create(
         workspacePolicy,

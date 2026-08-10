@@ -64,18 +64,13 @@ public static class DurableProjectCatalogPageEndpointExtensions
 
         var services = httpContext.RequestServices;
         var catalog = services.GetRequiredService<IDurableProjectCatalog>();
-        var authorization = services
-            .GetRequiredService<IDurableProjectCatalogAuthorization>();
         var policy = services.GetRequiredService<WorkspacePolicy>();
         var afterValue = afterValues.Count == 0 ? null : afterValues[0];
         var cursor = afterValue is null
             ? null
             : new ProjectCatalogCursor(afterValue);
         var outcome = await catalog.ListAsync(
-            new DurableProjectCatalogCallContext(
-                new AuthenticatedWorkspaceCaller(
-                    new AuthenticatedSubjectId(subjectValue)),
-                authorization),
+            new AuthenticatedSubjectId(subjectValue),
             new DurableProjectPageRequest(
                 policy.DurableProjectCatalogLimits.PageItems,
                 cursor),

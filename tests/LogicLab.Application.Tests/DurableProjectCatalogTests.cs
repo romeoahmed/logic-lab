@@ -7,56 +7,6 @@ internal sealed class DurableProjectCatalogTests
     private static readonly AuthenticatedSubjectId Subject = new("subject-1");
 
     [Test]
-    public async Task ListAsync_Unauthenticated_DoesNotAuthorizeInspectCursorOrQuery()
-    {
-        var authorization = new RecordingAuthorization(allowed: true);
-        var protector = new RecordingCursorProtector();
-        var repository = new RecordingCatalogRepository([]);
-        var catalog = CreateCatalog(repository, protector);
-
-        var outcome = await catalog.ListAsync(
-            new DurableProjectCatalogCallContext(
-                AnonymousWorkspaceCaller.Instance,
-                authorization),
-            new DurableProjectPageRequest(2, new ProjectCatalogCursor("opaque")),
-            CancellationToken.None);
-
-        var rejected = (await Assert.That(outcome)
-            .IsTypeOf<DurableProjectListRejected>())!;
-        using (Assert.Multiple())
-        {
-            await Assert.That(rejected.Reason).IsEqualTo("authentication_required");
-            await Assert.That(authorization.CallCount).IsEqualTo(0);
-            await Assert.That(protector.UnprotectCallCount).IsEqualTo(0);
-            await Assert.That(repository.CallCount).IsEqualTo(0);
-        }
-    }
-
-    [Test]
-    public async Task ListAsync_Forbidden_DoesNotInspectCursorOrQuery()
-    {
-        var authorization = new RecordingAuthorization(allowed: false);
-        var protector = new RecordingCursorProtector();
-        var repository = new RecordingCatalogRepository([]);
-        var catalog = CreateCatalog(repository, protector);
-
-        var outcome = await catalog.ListAsync(
-            Context(authorization),
-            new DurableProjectPageRequest(2, new ProjectCatalogCursor("opaque")),
-            CancellationToken.None);
-
-        var rejected = (await Assert.That(outcome)
-            .IsTypeOf<DurableProjectListRejected>())!;
-        using (Assert.Multiple())
-        {
-            await Assert.That(rejected.Reason).IsEqualTo("forbidden");
-            await Assert.That(authorization.CallCount).IsEqualTo(1);
-            await Assert.That(protector.UnprotectCallCount).IsEqualTo(0);
-            await Assert.That(repository.CallCount).IsEqualTo(0);
-        }
-    }
-
-    [Test]
     [Arguments(0)]
     [Arguments(3)]
     public async Task ListAsync_PageSizeOutsidePolicy_DoesNotQuery(int pageSize)
@@ -66,7 +16,7 @@ internal sealed class DurableProjectCatalogTests
         var catalog = CreateCatalog(repository, protector);
 
         var outcome = await catalog.ListAsync(
-            Context(),
+            Subject,
             new DurableProjectPageRequest(pageSize, null),
             CancellationToken.None);
 
@@ -89,7 +39,7 @@ internal sealed class DurableProjectCatalogTests
         var catalog = CreateCatalog(repository, protector);
 
         var outcome = await catalog.ListAsync(
-            Context(),
+            Subject,
             new DurableProjectPageRequest(2, new ProjectCatalogCursor(new string('x', 65))),
             CancellationToken.None);
 
@@ -119,7 +69,7 @@ internal sealed class DurableProjectCatalogTests
         var catalog = CreateCatalog(repository, protector);
 
         var outcome = await catalog.ListAsync(
-            Context(),
+            Subject,
             new DurableProjectPageRequest(
                 2,
                 new ProjectCatalogCursor(new string('x', 64))),
@@ -156,7 +106,7 @@ internal sealed class DurableProjectCatalogTests
         var catalog = CreateCatalog(repository, protector);
 
         var outcome = await catalog.ListAsync(
-            Context(),
+            Subject,
             new DurableProjectPageRequest(2, new ProjectCatalogCursor("opaque")),
             CancellationToken.None);
 
@@ -178,7 +128,7 @@ internal sealed class DurableProjectCatalogTests
         var catalog = CreateCatalog(repository, protector);
 
         var outcome = await catalog.ListAsync(
-            Context(),
+            Subject,
             new DurableProjectPageRequest(
                 2,
                 new ProjectCatalogCursor("malformed")),
@@ -192,34 +142,6 @@ internal sealed class DurableProjectCatalogTests
                 .IsEqualTo("project_catalog_cursor_invalid");
             await Assert.That(protector.UnprotectCallCount).IsEqualTo(1);
             await Assert.That(repository.CallCount).IsEqualTo(0);
-        }
-    }
-
-    [Test]
-    public async Task ListAsync_AuthorizationRevokedBetweenPages_RejectsBeforeCursorOrQuery()
-    {
-        var authorization = new RecordingAuthorization(allowed: true);
-        var protector = new RecordingCursorProtector();
-        var repository = new RecordingCatalogRepository([]);
-        var catalog = CreateCatalog(repository, protector);
-        _ = await catalog.ListAsync(
-            Context(authorization),
-            new DurableProjectPageRequest(2, null),
-            CancellationToken.None);
-        authorization.Allowed = false;
-
-        var outcome = await catalog.ListAsync(
-            Context(authorization),
-            new DurableProjectPageRequest(2, new ProjectCatalogCursor("opaque")),
-            CancellationToken.None);
-
-        var rejected = (await Assert.That(outcome)
-            .IsTypeOf<DurableProjectListRejected>())!;
-        using (Assert.Multiple())
-        {
-            await Assert.That(rejected.Reason).IsEqualTo("forbidden");
-            await Assert.That(repository.CallCount).IsEqualTo(1);
-            await Assert.That(protector.UnprotectCallCount).IsEqualTo(0);
         }
     }
 
@@ -244,7 +166,7 @@ internal sealed class DurableProjectCatalogTests
         var catalog = CreateCatalog(repository, protector);
 
         var outcome = await catalog.ListAsync(
-            Context(),
+            Subject,
             new DurableProjectPageRequest(2, new ProjectCatalogCursor("incoming")),
             CancellationToken.None);
 
@@ -286,7 +208,7 @@ internal sealed class DurableProjectCatalogTests
         var catalog = CreateCatalog(repository, protector);
 
         var outcome = await catalog.ListAsync(
-            Context(),
+            Subject,
             new DurableProjectPageRequest(2, null),
             CancellationToken.None);
 
@@ -312,7 +234,7 @@ internal sealed class DurableProjectCatalogTests
         var catalog = CreateCatalog(repository, new RecordingCursorProtector());
 
         var outcome = await catalog.ListAsync(
-            Context(),
+            Subject,
             new DurableProjectPageRequest(2, null),
             CancellationToken.None);
 
@@ -333,7 +255,7 @@ internal sealed class DurableProjectCatalogTests
         var catalog = CreateCatalog(repository, new RecordingCursorProtector());
 
         var outcome = await catalog.ListAsync(
-            Context(),
+            Subject,
             new DurableProjectPageRequest(2, null),
             CancellationToken.None);
 
@@ -356,7 +278,7 @@ internal sealed class DurableProjectCatalogTests
         var catalog = CreateCatalog(repository, new RecordingCursorProtector());
 
         var outcome = await catalog.ListAsync(
-            Context(),
+            Subject,
             new DurableProjectPageRequest(2, null),
             cancellation.Token);
 
@@ -370,14 +292,6 @@ internal sealed class DurableProjectCatalogTests
         IProjectCatalogCursorProtector protector)
     {
         return DurableProjectCatalogFactory.Create(Policy(), repository, protector);
-    }
-
-    private static DurableProjectCatalogCallContext Context(
-        IDurableProjectCatalogAuthorization? authorization = null)
-    {
-        return new DurableProjectCatalogCallContext(
-            new AuthenticatedWorkspaceCaller(Subject),
-            authorization ?? new RecordingAuthorization(allowed: true));
     }
 
     private static WorkspacePolicy Policy()
@@ -404,22 +318,6 @@ internal sealed class DurableProjectCatalogTests
             new DurableProjectId(id),
             new DurableDisplayName(name),
             System.Text.Encoding.UTF8.GetBytes(name));
-    }
-
-    private sealed class RecordingAuthorization(bool allowed)
-        : IDurableProjectCatalogAuthorization
-    {
-        public bool Allowed { get; set; } = allowed;
-
-        public int CallCount { get; private set; }
-
-        public ValueTask<bool> AuthorizeListAsync(
-            AuthenticatedSubjectId subjectId,
-            CancellationToken cancellationToken)
-        {
-            CallCount++;
-            return ValueTask.FromResult(Allowed);
-        }
     }
 
     private sealed class RecordingCursorProtector(
