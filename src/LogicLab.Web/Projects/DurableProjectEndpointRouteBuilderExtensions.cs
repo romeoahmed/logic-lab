@@ -121,6 +121,7 @@ internal static class DurableProjectEndpointRouteBuilderExtensions
         return MediaTypeHeaderValue.TryParse(request.ContentType, out var contentType)
             && contentType.MediaType.Equals(
                 OpenFormMediaType,
-                StringComparison.OrdinalIgnoreCase);
+                StringComparison.OrdinalIgnoreCase)
+            && (!contentType.Charset.HasValue || contentType.Encoding is not null);
     }
 }

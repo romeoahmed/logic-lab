@@ -270,6 +270,44 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     }
 
     [Test]
+    public async Task Post_OpenWithUnknownFormCharset_ReturnsRequestInvalidProblemDetailsWithoutWorkspaceAccess()
+    {
+        await using var workspace = new RecordingOpenWorkspace();
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthentication(services);
+                services.RemoveAll<IDurableProjectCatalog>();
+                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
+                services.RemoveAll<IEditorWorkspace>();
+                services.AddSingleton<IEditorWorkspace>(workspace);
+            }));
+        using var client = host.CreateHttpsClient();
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            new Uri("/projects/open", UriKind.Relative))
+        {
+            Content = new StringContent("durableProjectId=project-a"),
+        };
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue(
+            "application/x-www-form-urlencoded")
+        {
+            CharSet = "no-such-charset",
+        };
+        request.Headers.Add("Cookie", form.Cookie);
+        request.Headers.Add("RequestVerificationToken", form.RequestToken);
+
+        using var response = await client.SendAsync(request);
+
+        await WebTestHttp.AssertProblemDetailsAsync(
+            response,
+            HttpStatusCode.BadRequest,
+            "project_open_request_invalid");
+        await Assert.That(workspace.Request).IsNull();
+    }
+
+    [Test]
     public async Task Post_OpenWithMalformedMultipartBoundary_ReturnsRequestInvalidProblemDetailsWithoutWorkspaceAccess()
     {
         var loader = new FailOnCallDurableProjectLoader();

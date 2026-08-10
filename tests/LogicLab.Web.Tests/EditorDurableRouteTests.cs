@@ -102,6 +102,58 @@ internal sealed class EditorDurableRouteTests
     }
 
     [Test]
+    public async Task Editor_ClaimedSandbox_AuthenticationExpires_ClearsProjectionAndDetaches()
+    {
+        await using var context = new BunitContext();
+        await using var workspace = new RecordingAttachWorkspace();
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("Claimed project", "Main"),
+            CancellationToken.None);
+        Configure(context, workspace);
+        var rendered = RenderEditor(
+            context,
+            opened.WorkspaceId,
+            AuthenticationStateFor("subject-editor"));
+        await rendered.WaitForElementAsync(
+            "[data-command='author']:not([disabled])");
+        var attached = (Attached)workspace.AttachOutcomes.Single();
+
+        workspace.ProjectReadsAsDurable();
+        await rendered.Find("[data-command='author']").ClickAsync();
+        await rendered.WaitForStateAsync(() => rendered
+            .FindComponent<WorkbenchStatusStrip>()
+            .Instance.Projection?.Durability
+            is DurableWorkspaceDurabilityProjection);
+
+        rendered.Render(parameters => parameters
+            .Add(value => value.Value, AuthenticationStateFor(null))
+            .Add(value => value.ChildContent, (RenderFragment)(builder =>
+            {
+                builder.OpenComponent<Editor>(0);
+                builder.AddAttribute(1, nameof(Editor.WorkspaceIdValue), opened.WorkspaceId.Value);
+                builder.CloseComponent();
+            })));
+
+        var detach = (await Assert.That(workspace.DetachRequest)
+            .IsNotNull())!;
+        var detachCaller = (await Assert.That(detach.Caller)
+            .IsTypeOf<AuthenticatedWorkspaceCaller>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
+            await Assert.That(rendered.FindComponent<WorkbenchStatusStrip>()
+                    .Instance.Projection)
+                .IsNull();
+            await Assert.That(detach.WorkspaceId).IsEqualTo(opened.WorkspaceId);
+            await Assert.That(detach.AttachmentId).IsEqualTo(attached.AttachmentId);
+            await Assert.That(detach.AttachmentGeneration)
+                .IsEqualTo(attached.Generation);
+            await Assert.That(detachCaller.SubjectId.Value)
+                .IsEqualTo("subject-editor");
+        }
+    }
+
+    [Test]
     public async Task Editor_SandboxRoute_AuthenticationChangesDuringReattach_PublishesNewFenceAndContinues()
     {
         await using var context = new BunitContext();
@@ -513,6 +565,7 @@ internal sealed class EditorDurableRouteTests
         private int shouldBlockReattach = blockFirstReattach ? 1 : 0;
         private int shouldRejectDispatch = rejectFirstDispatchWithReattach ? 1 : 0;
         private int shouldBlockRead;
+        private int projectReadsAsDurable;
 
         public AttachRequest? Request { get; private set; }
 
@@ -563,6 +616,9 @@ internal sealed class EditorDurableRouteTests
         public void ReleaseReattach() => releaseReattach.TrySetResult();
 
         public void BlockNextRead() => Volatile.Write(ref shouldBlockRead, 1);
+
+        public void ProjectReadsAsDurable()
+            => Volatile.Write(ref projectReadsAsDurable, 1);
 
         public void ReleaseRead() => releaseRead.TrySetResult();
 
@@ -616,6 +672,20 @@ internal sealed class EditorDurableRouteTests
         {
             ReadCaller = context.Caller;
             var outcome = await base.ReadAsync(context, query, cancellationToken);
+            if (outcome is ProjectionSnapshot snapshot
+                && Volatile.Read(ref projectReadsAsDurable) != 0)
+            {
+                outcome = new ProjectionSnapshot(snapshot.Projection with
+                {
+                    Durability = new DurableWorkspaceDurabilityProjection(
+                        new DurableProjectId("claimed-project"),
+                        new DurableVersion("claimed-version"),
+                        snapshot.Projection.ProjectRevision.RevisionId,
+                        DurableSaveStatus.Clean,
+                        conflictActualDurableVersion: null),
+                });
+            }
+
             if (Interlocked.Exchange(ref shouldBlockRead, 0) != 0)
             {
                 BlockedReadOutcome = outcome;
