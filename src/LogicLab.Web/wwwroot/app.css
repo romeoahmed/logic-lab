@@ -6,10 +6,18 @@
   --ll-ink: #172a33;
   --ll-muted: #536871;
   --ll-signal: #08788c;
+  --ll-signal-strong: #056173;
   --ll-grid: rgb(23 42 51 / 8%);
   --ll-border: #b8c7ce;
   --ll-border-strong: #8299a3;
   --ll-signal-soft: rgb(8 120 140 / 10%);
+  --ll-danger: #b42318;
+  --ll-danger-strong: #7a271a;
+  --ll-danger-soft: rgb(180 35 24 / 9%);
+  --ll-radius-small: 0.55rem;
+  --ll-radius-medium: 0.85rem;
+  --ll-radius-large: 1.2rem;
+  --ll-shadow-panel: 0 1.25rem 3.5rem rgb(23 42 51 / 12%);
   font-family: "Atkinson Hyperlegible Next", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
 }
 

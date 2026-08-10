@@ -15,44 +15,55 @@
 
 <PageTitle>Register</PageTitle>
 
-<h1>Register</h1>
+<AccountShell Eyebrow="Durable workspace"
+              Title="Save the work worth keeping."
+              Description="Create an account to own Durable Projects and reopen them across authenticated sessions.">
+    @if (errors is not null)
+    {
+        <div class="account-alert" role="alert">
+            @foreach (var error in errors)
+            {
+                <p>@error.Description</p>
+            }
+        </div>
+    }
 
-@if (errors is not null)
-{
-    <div role="alert">
-        @foreach (var error in errors)
-        {
-            <p>@error.Description</p>
-        }
-    </div>
-}
+    <EditForm class="account-form"
+              Model="Input"
+              method="post"
+              FormName="register"
+              OnValidSubmit="RegisterAsync"
+              OnInvalidSubmit="ClearPasswords">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="validation-summary" />
+        <div class="form-field">
+            <label for="register-email">Email</label>
+            <InputText id="register-email"
+                       autocomplete="username"
+                       maxlength="@AccountInputLimits.MaximumEmailLength"
+                       @bind-Value="Input.Email" />
+        </div>
+        <div class="form-field">
+            <label for="register-password">Password</label>
+            <InputText id="register-password"
+                       type="password"
+                       autocomplete="new-password"
+                       maxlength="@AccountInputLimits.MaximumPasswordLength"
+                       @bind-Value="Input.Password" />
+        </div>
+        <div class="form-field">
+            <label for="register-confirm-password">Confirm password</label>
+            <InputText id="register-confirm-password"
+                       type="password"
+                       autocomplete="new-password"
+                       maxlength="@AccountInputLimits.MaximumPasswordLength"
+                       @bind-Value="Input.ConfirmPassword" />
+        </div>
+        <button class="primary-action" type="submit">Create account</button>
+    </EditForm>
 
-<EditForm Model="Input"
-          method="post"
-          FormName="register"
-          OnValidSubmit="RegisterAsync"
-          OnInvalidSubmit="ClearPasswords">
-    <DataAnnotationsValidator />
-    <ValidationSummary />
-    <label for="register-email">Email</label>
-    <InputText id="register-email"
-               autocomplete="username"
-               maxlength="@AccountInputLimits.MaximumEmailLength"
-               @bind-Value="Input.Email" />
-    <label for="register-password">Password</label>
-    <InputText id="register-password"
-               type="password"
-               autocomplete="new-password"
-               maxlength="@AccountInputLimits.MaximumPasswordLength"
-               @bind-Value="Input.Password" />
-    <label for="register-confirm-password">Confirm password</label>
-    <InputText id="register-confirm-password"
-               type="password"
-               autocomplete="new-password"
-               maxlength="@AccountInputLimits.MaximumPasswordLength"
-               @bind-Value="Input.ConfirmPassword" />
-    <button type="submit">Register</button>
-</EditForm>
+    <p class="account-switch">Already registered? <a href="/account/login">Log in</a></p>
+</AccountShell>
 
 @code {
     private IEnumerable<IdentityError>? errors;

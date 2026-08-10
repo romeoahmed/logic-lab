@@ -13,6 +13,35 @@ namespace LogicLab.Web.Tests;
 internal sealed class EditorDurableRouteTests
 {
     [Test]
+    public async Task Editor_MissingWorkspace_RendersRecoveryStateInsteadOfSandboxWorkbench()
+    {
+        await using var context = new BunitContext();
+        await using var workspace = new RecordingAttachWorkspace();
+        Configure(context, workspace);
+
+        var rendered = RenderEditor(
+            context,
+            new WorkspaceId("missing-workspace"),
+            AuthenticationStateFor(null));
+
+        var recovery = await rendered.WaitForElementAsync(
+            "[data-workspace-attachment-error]");
+        using (Assert.Multiple())
+        {
+            await Assert.That(recovery.GetAttribute("data-error-code"))
+                .IsEqualTo("workspace_not_found");
+            await Assert.That(rendered.FindAll("[data-command]")).IsEmpty();
+            await Assert.That(rendered.FindAll(".workbench-heading")).IsEmpty();
+            await Assert.That(rendered.Find("[data-recovery='projects']")
+                    .GetAttribute("href"))
+                .IsEqualTo("/projects");
+            await Assert.That(rendered.Find("[data-recovery='sandbox']")
+                    .GetAttribute("href"))
+                .IsEqualTo("/editor");
+        }
+    }
+
+    [Test]
     [Arguments(null)]
     [Arguments("replacement-subject")]
     public async Task Editor_SandboxRoute_AuthenticationSubjectChanges_PreservesAttachmentAndUsesCurrentCaller(
@@ -140,10 +169,7 @@ internal sealed class EditorDurableRouteTests
             .IsTypeOf<AuthenticatedWorkspaceCaller>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
-            await Assert.That(rendered.FindComponent<WorkbenchStatusStrip>()
-                    .Instance.Projection)
-                .IsNull();
+            await Assert.That(ShowsWorkspaceRecoveryWithoutEditor(rendered)).IsTrue();
             await Assert.That(detach.WorkspaceId).IsEqualTo(opened.WorkspaceId);
             await Assert.That(detach.AttachmentId).IsEqualTo(attached.AttachmentId);
             await Assert.That(detach.AttachmentGeneration)
@@ -250,10 +276,7 @@ internal sealed class EditorDurableRouteTests
         var detach = workspace.DetachRequest!;
         using (Assert.Multiple())
         {
-            await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
-            await Assert.That(rendered.FindComponent<WorkbenchStatusStrip>()
-                    .Instance.Projection)
-                .IsNull();
+            await Assert.That(ShowsWorkspaceRecoveryWithoutEditor(rendered)).IsTrue();
             await Assert.That(((AuthenticatedWorkspaceCaller)detach.Caller)
                     .SubjectId.Value)
                 .IsEqualTo("subject-editor");
@@ -296,16 +319,7 @@ internal sealed class EditorDurableRouteTests
 
         await rendered.WaitForStateAsync(() => workspace.DetachRequest is not null);
         var attached = (Attached)workspace.AttachOutcomes.Single();
-        await Assert.That(rendered.FindComponent<WorkbenchStatusStrip>()
-                .Instance.Projection)
-            .IsNull();
-        await Assert.That(rendered.Find("[data-command='author']")
-                .HasAttribute("disabled"))
-            .IsTrue();
-        await Assert.That(rendered.Find("[data-command='create']")
-                .HasAttribute("disabled"))
-            .IsTrue();
-        await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
+        await Assert.That(ShowsWorkspaceRecoveryWithoutEditor(rendered)).IsTrue();
         await Assert.That(workspace.DetachRequest).IsNotNull();
         var detach = workspace.DetachRequest!;
         using (Assert.Multiple())
@@ -357,19 +371,7 @@ internal sealed class EditorDurableRouteTests
 
         await Assert.That(workspace.BlockedReadOutcome)
             .IsTypeOf<ProjectionSnapshot>();
-        await Assert.That(rendered.FindComponent<WorkbenchStatusStrip>()
-                .Instance.Projection)
-            .IsNull();
-        await Assert.That(rendered.FindComponent<AccessibleCircuitScene>()
-                .Instance.Scene)
-            .IsNull();
-        await Assert.That(rendered.Find("[data-command='author']")
-                .HasAttribute("disabled"))
-            .IsTrue();
-        await Assert.That(rendered.Find("[data-command='create']")
-                .HasAttribute("disabled"))
-            .IsTrue();
-        await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
+        await Assert.That(ShowsWorkspaceRecoveryWithoutEditor(rendered)).IsTrue();
         using (Assert.Multiple())
         {
             await Assert.That(((AuthenticatedWorkspaceCaller)workspace.ReadCaller!)
@@ -521,12 +523,13 @@ internal sealed class EditorDurableRouteTests
                 subjectId is null ? null : "Tests"))));
     }
 
-    private static bool AreAllCommandsDisabled(
+    private static bool ShowsWorkspaceRecoveryWithoutEditor(
         IRenderedComponent<CascadingValue<Task<AuthenticationState>>> rendered)
     {
-        var commands = rendered.FindAll("[data-command]");
-        return commands.Count > 0
-            && commands.All(command => command.HasAttribute("disabled"));
+        return rendered.FindAll("[data-workspace-attachment-error]").Count == 1
+            && rendered.FindAll("[data-command]").Count == 0
+            && rendered.FindComponents<WorkbenchStatusStrip>().Count == 0
+            && rendered.FindComponents<AccessibleCircuitScene>().Count == 0;
     }
 
     private static FixedDurableProjectLoader DurableLoader(DurableProjectId projectId)

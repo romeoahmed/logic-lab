@@ -47,6 +47,98 @@
   gap: 1rem;
 }
 
+.workspace-recovery {
+  display: grid;
+  min-block-size: calc(100dvh - 10rem);
+  place-items: center;
+}
+
+.workbench-shell ::deep .workspace-recovery-card {
+  display: grid;
+  max-inline-size: 46rem;
+  justify-items: start;
+  padding: clamp(1.75rem, 5vw, 3.5rem);
+  border-radius: var(--ll-radius-large);
+  color: var(--ll-ink);
+  background: color-mix(in oklab, var(--ll-canvas) 96%, var(--ll-danger-soft));
+  box-shadow: var(--ll-shadow-panel);
+}
+
+.workspace-recovery-mark {
+  display: grid;
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+  margin-block-end: 1.5rem;
+  place-items: center;
+  border: 1px solid color-mix(in oklab, var(--ll-danger) 45%, var(--ll-border));
+  border-radius: 50%;
+  color: var(--ll-danger-strong);
+  background: var(--ll-danger-soft);
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.workspace-recovery h1 {
+  max-inline-size: 15ch;
+  margin: 0;
+  font-size: clamp(2.3rem, 6vw, 4.5rem);
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.workspace-recovery-description {
+  max-inline-size: 38rem;
+  margin: 1.25rem 0 1.75rem;
+  color: var(--ll-muted);
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.7;
+}
+
+.workspace-recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.workspace-recovery-actions a {
+  display: inline-flex;
+  min-block-size: 2.75rem;
+  align-items: center;
+  padding-inline: 1rem;
+  border: 1px solid var(--ll-signal);
+  border-radius: var(--ll-radius-small);
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.recovery-primary {
+  color: white;
+  background: var(--ll-signal);
+}
+
+.recovery-primary:hover {
+  background: var(--ll-signal-strong);
+}
+
+.recovery-secondary {
+  color: var(--ll-signal-strong);
+  background: transparent;
+}
+
+.recovery-secondary:hover {
+  background: var(--ll-signal-soft);
+}
+
+.workspace-error-code {
+  margin: 1.75rem 0 0;
+  color: var(--ll-muted);
+  font-size: 0.82rem;
+}
+
+.workspace-error-code code {
+  color: var(--ll-ink);
+}
+
 @media (max-width: 850px) {
   .workbench-heading,
   .workbench-grid {

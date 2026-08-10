@@ -1,0 +1,29 @@
+@using Microsoft.FluentUI.AspNetCore.Components
+
+<section class="account-shell" aria-labelledby="account-title">
+    <div class="account-introduction">
+        <p class="account-eyebrow">@Eyebrow</p>
+        <h1 id="account-title">@Title</h1>
+        <p>@Description</p>
+    </div>
+
+    <FluentCard class="account-card"
+                Appearance="CardAppearance.Outline"
+                Width="100%">
+        @ChildContent
+    </FluentCard>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Eyebrow { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Description { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public RenderFragment? ChildContent { get; set; }
+}

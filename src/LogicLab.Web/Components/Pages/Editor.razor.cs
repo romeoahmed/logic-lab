@@ -32,6 +32,8 @@ public sealed partial class Editor : IAsyncDisposable
 
     private Attached? Attachment { get; set; }
 
+    private WorkspaceAttachmentFailure? AttachmentFailure { get; set; }
+
     private AccessibleSceneProjection? Scene { get; set; }
 
     private CircuitDefinitionId? SelectedDefinitionId { get; set; }
@@ -48,6 +50,33 @@ public sealed partial class Editor : IAsyncDisposable
 
     private WorkspaceCaller CurrentCaller { get; set; } =
         AnonymousWorkspaceCaller.Instance;
+
+    private string EditorPageTitle => AttachmentFailure?.Title ?? WorkbenchTitle;
+
+    private string WorkbenchEyebrow => Projection?.Durability switch
+    {
+        DurableWorkspaceDurabilityProjection => "Durable circuit workspace",
+        SandboxWorkspaceDurabilityProjection => "Interactive circuit sandbox",
+        _ when WorkspaceIdValue is not null => "Opening circuit workspace",
+        _ => "Interactive circuit sandbox",
+    };
+
+    private string WorkbenchTitle => Projection?.Durability switch
+    {
+        DurableWorkspaceDurabilityProjection => "Durable Project Workbench",
+        _ when WorkspaceIdValue is not null && Projection is null => "Workspace Workbench",
+        _ => "Sandbox Workbench",
+    };
+
+    private string WorkbenchDescription => Projection?.Durability switch
+    {
+        DurableWorkspaceDurabilityProjection =>
+            "Inspect the saved revision, compile it, and continue in an authorized workspace.",
+        _ when WorkspaceIdValue is not null && Projection is null =>
+            "Re-establishing the attachment fence before any project data or commands are shown.",
+        _ =>
+            "Create Circuit Definitions, navigate occurrences, choose an entry, compile, and simulate.",
+    };
 
     [Parameter]
     public string? WorkspaceIdValue { get; set; }
@@ -77,7 +106,7 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
-        ClearWorkspaceState();
+        ShowAttachmentFailure("workspace_authorization_changed");
         Status = "Authentication changed. Reload the Workspace to continue.";
         _ = await workspace.DetachAsync(
             new DetachRequest(
@@ -190,29 +219,34 @@ public sealed partial class Editor : IAsyncDisposable
             }
 
             Attachment = attached;
+            AttachmentFailure = null;
             Projection = attached.Projection;
             SelectedDefinitionId = attached.Projection.ProjectRevision.Document
                 .EntryCircuitDefinitionId;
             HierarchyNavigation.Clear();
             ProjectScene();
-            Status = "Durable Project reopened.";
+            Status = attached.Projection.Durability
+                is DurableWorkspaceDurabilityProjection
+                    ? "Durable Project reopened."
+                    : "Sandbox Workspace reopened.";
             return;
         }
 
         if (caller != CurrentCaller)
         {
+            ShowAttachmentFailure("workspace_authorization_changed");
             Status = "Authentication changed. Reload the Workspace to continue.";
             return;
         }
 
-        Status = attachOutcome switch
+        var rejectionCode = attachOutcome switch
         {
-            AttachRejected rejected =>
-                $"Workspace attachment rejected: {rejected.Code}.",
-            Expired expired =>
-                $"Workspace attachment rejected: {expired.Code}.",
+            AttachRejected rejected => rejected.Code,
+            Expired expired => expired.Code,
             _ => throw new UnreachableException(),
         };
+        ShowAttachmentFailure(rejectionCode);
+        Status = $"Workspace attachment rejected: {rejectionCode}.";
     }
 
     private async Task RunCommandAsync(
@@ -275,6 +309,7 @@ public sealed partial class Editor : IAsyncDisposable
         }
 
         Attachment = attached;
+        AttachmentFailure = null;
         Projection = attached.Projection;
         SelectedDefinitionId = attached.Projection.ProjectRevision.Document
             .EntryCircuitDefinitionId;
@@ -631,7 +666,7 @@ public sealed partial class Editor : IAsyncDisposable
 
         if (authorizationChanged)
         {
-            ClearWorkspaceState();
+            ShowAttachmentFailure("workspace_authorization_changed");
             Status = "Authentication changed. Reload the Workspace to continue.";
         }
 
@@ -679,7 +714,16 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
+        var rejectionCode = ((WorkspaceReadRejected)read).Code;
+        if (WorkspaceIdValue is not null
+            || Projection.Durability is not SandboxWorkspaceDurabilityProjection)
+        {
+            ShowAttachmentFailure(rejectionCode);
+            return;
+        }
+
         ClearWorkspaceState();
+        Status = $"Sandbox Workspace closed: {rejectionCode}. Create a new Sandbox Project.";
     }
 
     private void ClearWorkspaceState()
@@ -691,6 +735,12 @@ public sealed partial class Editor : IAsyncDisposable
         HierarchyNavigation.Clear();
         StimulusIsScheduled = false;
         RouteDraftActive = false;
+    }
+
+    private void ShowAttachmentFailure(string code)
+    {
+        ClearWorkspaceState();
+        AttachmentFailure = WorkspaceAttachmentFailure.From(code);
     }
 
     private void UpdateProjection(WorkspaceProjection projection)
@@ -863,5 +913,39 @@ public sealed partial class Editor : IAsyncDisposable
         string portId)
     {
         return new InstanceTerminalReference(definitionId, componentId, portId);
+    }
+
+    private sealed record WorkspaceAttachmentFailure(
+        string Code,
+        string Title,
+        string Description)
+    {
+        public static WorkspaceAttachmentFailure From(string code)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(code);
+            return code switch
+            {
+                "workspace_not_found" or "workspace_expired" => new(
+                    code,
+                    "This workspace is no longer available.",
+                    "It may have expired or been closed. Return to your Durable Projects, or start a new Sandbox."),
+                "workspace_authorization_failed" or "workspace_authorization_changed" => new(
+                    code,
+                    "Your access to this workspace changed.",
+                    "Sign in with the project owner account and reopen it from Durable Projects."),
+                "stale_workspace_attachment" => new(
+                    code,
+                    "This workspace is attached elsewhere.",
+                    "Continue in the tab that owns the active attachment, or reopen an authorized Durable Project."),
+                "client_build_incompatible" => new(
+                    code,
+                    "Logic Lab was updated.",
+                    "Reload the application before reopening this workspace."),
+                _ => new(
+                    code,
+                    "We couldn't open this workspace.",
+                    "Return to your Durable Projects and try reopening it, or start a new Sandbox."),
+            };
+        }
     }
 }
