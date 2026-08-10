@@ -64,17 +64,10 @@ internal sealed class DataProtectionProjectCatalogCursorProtector
                 new DurableProjectId(payload.LastDurableProjectId));
             return true;
         }
-        catch (CryptographicException)
-        {
-            state = null;
-            return false;
-        }
-        catch (JsonException)
-        {
-            state = null;
-            return false;
-        }
-        catch (ArgumentException)
+        catch (Exception exception)
+            when (exception is CryptographicException
+                or JsonException
+                or ArgumentException)
         {
             state = null;
             return false;

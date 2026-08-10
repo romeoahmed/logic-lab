@@ -24,8 +24,6 @@ var durableProjectIngressPolicy = DurableProjectIngressPolicy.Default;
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(workspacePolicy);
-builder.Services.AddSingleton(accountIngressPolicy);
-builder.Services.AddSingleton(durableProjectIngressPolicy);
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider,
