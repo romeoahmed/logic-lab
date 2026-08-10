@@ -308,6 +308,49 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     }
 
     [Test]
+    public async Task Post_OpenWithInvalidUtf8FormBytes_ReturnsRequestInvalidProblemDetailsWithoutWorkspaceAccess()
+    {
+        await using var workspace = new RecordingOpenWorkspace();
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthentication(services);
+                services.RemoveAll<IDurableProjectCatalog>();
+                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
+                services.RemoveAll<IEditorWorkspace>();
+                services.AddSingleton<IEditorWorkspace>(workspace);
+            }));
+        using var client = host.CreateHttpsClient();
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
+        using var antiforgeryContent = new FormUrlEncodedContent(
+            [new("__RequestVerificationToken", form.RequestToken)]);
+        var antiforgeryBytes = await antiforgeryContent.ReadAsByteArrayAsync();
+        var prefix = "durableProjectId="u8;
+        var body = new byte[prefix.Length + 2 + antiforgeryBytes.Length];
+        prefix.CopyTo(body);
+        body[prefix.Length] = 0xff;
+        body[prefix.Length + 1] = (byte)'&';
+        antiforgeryBytes.CopyTo(body, prefix.Length + 2);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            new Uri("/projects/open", UriKind.Relative))
+        {
+            Content = new ByteArrayContent(body),
+        };
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue(
+            "application/x-www-form-urlencoded");
+        request.Headers.Add("Cookie", form.Cookie);
+
+        using var response = await client.SendAsync(request);
+
+        await WebTestHttp.AssertProblemDetailsAsync(
+            response,
+            HttpStatusCode.BadRequest,
+            "project_open_request_invalid");
+        await Assert.That(workspace.Request).IsNull();
+    }
+
+    [Test]
     public async Task Post_OpenWithMalformedMultipartBoundary_ReturnsRequestInvalidProblemDetailsWithoutWorkspaceAccess()
     {
         var loader = new FailOnCallDurableProjectLoader();

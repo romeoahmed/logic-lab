@@ -1,4 +1,7 @@
+using System.Buffers;
 using System.Security.Claims;
+using System.Text;
+using System.Text.Unicode;
 using LogicLab.Application.Workspaces;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
@@ -38,6 +41,15 @@ internal static class DurableProjectEndpointRouteBuilderExtensions
                     }
 
                     if (!HasSupportedFormContentType(httpContext.Request))
+                    {
+                        return LogicLabProblemDetails.Create(
+                            httpContext,
+                            LogicLabProblemDetails.ProjectOpenRequestInvalidCode);
+                    }
+
+                    if (!await HasWellFormedBodyAsync(
+                            httpContext.Request,
+                            cancellationToken))
                     {
                         return LogicLabProblemDetails.Create(
                             httpContext,
@@ -91,6 +103,8 @@ internal static class DurableProjectEndpointRouteBuilderExtensions
             .DisableCookieRedirect()
             .WithMetadata(new RequestSizeLimitAttribute(
                 MaximumOpenRequestBodyBytes))
+            .WithMetadata(new RequestBodyBufferingMetadata(
+                MaximumOpenRequestBodyBytes))
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true))
             .RequireRateLimiting(
                 DurableProjectIngressPolicy.OpenRateLimitPolicyName)
@@ -122,6 +136,90 @@ internal static class DurableProjectEndpointRouteBuilderExtensions
             && contentType.MediaType.Equals(
                 OpenFormMediaType,
                 StringComparison.OrdinalIgnoreCase)
-            && (!contentType.Charset.HasValue || contentType.Encoding is not null);
+            && (!contentType.Charset.HasValue
+                || contentType.Encoding?.CodePage == Encoding.UTF8.CodePage);
+    }
+
+    private static async Task<bool> HasWellFormedBodyAsync(
+        HttpRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!request.Body.CanSeek)
+        {
+            throw new InvalidOperationException(
+                "The Durable Project open request body was not buffered.");
+        }
+
+        const int readCapacity = MaximumOpenRequestBodyBytes + 1;
+        var buffer = ArrayPool<byte>.Shared.Rent(readCapacity);
+        try
+        {
+            request.Body.Position = 0;
+            var length = 0;
+            while (length < readCapacity)
+            {
+                var read = await request.Body.ReadAsync(
+                    buffer.AsMemory(length, readCapacity - length),
+                    cancellationToken);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                length += read;
+            }
+
+            if (length > MaximumOpenRequestBodyBytes)
+            {
+                throw new BadHttpRequestException(
+                    "The request body is too large.",
+                    StatusCodes.Status413PayloadTooLarge);
+            }
+
+            return IsWellFormedUrlEncodedUtf8(buffer.AsSpan(0, length));
+        }
+        finally
+        {
+            request.Body.Position = 0;
+            ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+        }
+    }
+
+    private static bool IsWellFormedUrlEncodedUtf8(Span<byte> body)
+    {
+        var decodedLength = 0;
+        for (var index = 0; index < body.Length; index++)
+        {
+            var value = body[index];
+            if (value == '%')
+            {
+                if (index + 2 >= body.Length
+                    || !TryDecodeHex(body[index + 1], out var high)
+                    || !TryDecodeHex(body[index + 2], out var low))
+                {
+                    return false;
+                }
+
+                body[decodedLength++] = (byte)((high << 4) | low);
+                index += 2;
+                continue;
+            }
+
+            body[decodedLength++] = value == '+' ? (byte)' ' : value;
+        }
+
+        return Utf8.IsValid(body[..decodedLength]);
+    }
+
+    private static bool TryDecodeHex(byte value, out byte decoded)
+    {
+        decoded = value switch
+        {
+            >= (byte)'0' and <= (byte)'9' => (byte)(value - '0'),
+            >= (byte)'A' and <= (byte)'F' => (byte)(value - 'A' + 10),
+            >= (byte)'a' and <= (byte)'f' => (byte)(value - 'a' + 10),
+            _ => byte.MaxValue,
+        };
+        return decoded != byte.MaxValue;
     }
 }

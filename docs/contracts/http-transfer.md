@@ -45,10 +45,11 @@ The malformed `/projects/open` form code is exactly:
 project_open_request_invalid
 ```
 
-The endpoint accepts only `application/x-www-form-urlencoded`. It maps to `400`
-when the form media type or encoding is malformed, or `durableProjectId` is
-absent, empty, or exceeds the bounded HTTP shape. This validation occurs before
-constructing `OpenDurable` and never calls the Workspace.
+The endpoint accepts only UTF-8 `application/x-www-form-urlencoded`; an explicit
+charset parameter must also name UTF-8. It maps to `400` when the form media type
+or encoding is unsupported or malformed, or `durableProjectId` is absent, empty,
+or exceeds the bounded HTTP shape. This validation occurs before constructing
+`OpenDurable` and never calls the Workspace.
 
 An unauthenticated `/projects/open` request, including a cookie challenge or an
 authenticated principal without a stable subject, uses the exact code
