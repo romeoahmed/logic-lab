@@ -7,19 +7,19 @@ namespace LogicLab.Domain.Tests;
 
 internal sealed class ProjectValueTests
 {
-    [Test]
-    public async Task OrthogonalWireRoute_InputMutation_DoesNotChangeOwnedPoints()
+    [Test, FsCheckProperty]
+    public Property OrthogonalWireRoute_NonemptyInputMutation_DoesNotChangeOwnedPoints(
+        NonEmptyArray<GridPoint> generatedPoints)
     {
-        var points = new[]
-        {
-            new GridPoint(0, 0),
-            new GridPoint(4, 0),
-        };
+        var points = generatedPoints.Get.ToArray();
         var route = new OrthogonalWireRoute(points);
+        var expected = route.Points.ToArray();
 
-        points[1] = new GridPoint(9, 9);
+        points[0] = new GridPoint(points[0].X ^ 1, points[0].Y ^ 1);
 
-        await Assert.That(route.Points[1]).IsEqualTo(new GridPoint(4, 0));
+        return route.Points.SequenceEqual(expected)
+            .Label("route owns its point sequence")
+            .Collect($"points={points.Length}");
     }
 
     [Test, FsCheckProperty]
@@ -46,28 +46,35 @@ internal sealed class ProjectValueTests
             "vector parameter");
     }
 
-    [Test]
-    public async Task CollectionParameterValues_InputMutation_DoesNotChangeOwnedValues()
+    [Test, FsCheckProperty]
+    public Property SlicesParameterValue_NonemptyInputMutation_DoesNotChangeOwnedValues(
+        NonEmptyArray<uint> generatedOffsets,
+        NonEmptyArray<uint> generatedLengths)
     {
-        var slices = new[] { new BitSlice(0, 1), new BitSlice(1, 2) };
-        var widths = new uint[] { 1, 2 };
+        var slices = ToSlices(generatedOffsets.Get, generatedLengths.Get);
         var sliceValue = new SlicesParameterValue(slices);
+        var expected = sliceValue.Values.ToArray();
+
+        slices[0] = new BitSlice(slices[0].Offset ^ 1U, slices[0].Length ^ 1U);
+
+        return sliceValue.Values.SequenceEqual(expected)
+            .Label("slices parameter owns its value sequence")
+            .Collect($"slices={slices.Length}");
+    }
+
+    [Test, FsCheckProperty]
+    public Property WidthsParameterValue_NonemptyInputMutation_DoesNotChangeOwnedValues(
+        NonEmptyArray<uint> generatedWidths)
+    {
+        var widths = generatedWidths.Get.ToArray();
         var widthValue = new WidthsParameterValue(widths);
+        var expected = widthValue.Values.ToArray();
 
-        slices[0] = new BitSlice(99, 99);
-        widths[0] = 99;
+        widths[0] ^= 1U;
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(sliceValue.Values)
-                .IsEquivalentTo(
-                    [new BitSlice(0, 1), new BitSlice(1, 2)],
-                    TUnit.Assertions.Enums.CollectionOrdering.Matching);
-            await Assert.That(widthValue.Values)
-                .IsEquivalentTo(
-                    [1U, 2U],
-                    TUnit.Assertions.Enums.CollectionOrdering.Matching);
-        }
+        return widthValue.Values.SequenceEqual(expected)
+            .Label("widths parameter owns its value sequence")
+            .Collect($"widths={widths.Length}");
     }
 
     [Test, FsCheckProperty]
