@@ -3,7 +3,11 @@
     <h2 id="probe-panel-heading">Probe</h2>
     @if (Simulation is null)
     {
-        <p>No active session.</p>
+        <div class="probe-empty" role="status">
+            <span aria-hidden="true"></span>
+            <p>No active session.</p>
+            <small>Compile the circuit, then create a simulation session.</small>
+        </div>
     }
     else
     {

@@ -1,0 +1,93 @@
+.error-page {
+  display: grid;
+  max-inline-size: 54rem;
+  min-block-size: calc(100dvh - 4.5rem);
+  place-items: center;
+  margin-inline: auto;
+  padding: clamp(2rem, 7vw, 6rem) clamp(1rem, 5vw, 4rem);
+}
+
+.error-page ::deep .error-card {
+  display: grid;
+  justify-items: start;
+  padding: clamp(1.75rem, 6vw, 4rem);
+  border-radius: var(--ll-radius-large);
+  color: var(--ll-ink);
+  background: color-mix(in oklab, var(--ll-canvas) 95%, var(--ll-danger-soft));
+  box-shadow: var(--ll-shadow-panel);
+}
+
+.error-mark {
+  display: grid;
+  inline-size: 3.25rem;
+  block-size: 3.25rem;
+  margin-block-end: 1.25rem;
+  place-items: center;
+  border: 1px solid color-mix(in oklab, var(--ll-danger) 45%, var(--ll-border));
+  border-radius: 50%;
+  color: var(--ll-danger-strong);
+  background: var(--ll-danger-soft);
+  font-size: 1.4rem;
+  font-weight: 850;
+}
+
+.eyebrow {
+  margin: 0 0 0.65rem;
+  color: var(--ll-danger-strong);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.error-page h1 {
+  max-inline-size: 14ch;
+  margin: 0;
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  letter-spacing: -0.06em;
+  line-height: 0.98;
+}
+
+.error-description {
+  max-inline-size: 38rem;
+  margin: 1.4rem 0 1.75rem;
+  color: var(--ll-muted);
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.65;
+}
+
+.request-id {
+  display: grid;
+  gap: 0.35rem;
+  inline-size: 100%;
+  margin: 0 0 1.75rem;
+  padding: 0.8rem 1rem;
+  border-inline-start: 3px solid var(--ll-border-strong);
+  color: var(--ll-muted);
+  background: var(--ll-panel);
+}
+
+.request-id code {
+  overflow-wrap: anywhere;
+}
+
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+}
+
+.error-actions a {
+  color: var(--ll-signal-strong);
+  font-weight: 750;
+}
+
+.error-actions .error-primary {
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--ll-signal);
+  border-radius: var(--ll-radius-small);
+  color: white;
+  background: var(--ll-signal);
+  text-decoration: none;
+}

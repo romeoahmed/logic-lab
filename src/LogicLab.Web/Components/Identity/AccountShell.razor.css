@@ -1,9 +1,9 @@
 .account-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(20rem, 29rem);
+  grid-template-columns: minmax(0, 1fr) minmax(21rem, 30rem);
   gap: clamp(2.5rem, 7vw, 7rem);
   align-items: center;
-  max-inline-size: 72rem;
+  max-inline-size: 80rem;
   min-block-size: calc(100dvh - 4.5rem);
   margin-inline: auto;
   padding: clamp(2rem, 7vw, 6rem) clamp(1rem, 5vw, 4rem);
@@ -12,17 +12,41 @@
 .account-introduction h1 {
   max-inline-size: 10ch;
   margin: 0;
-  font-size: clamp(3rem, 7vw, 6rem);
+  font-size: clamp(3rem, 6.5vw, 6rem);
   letter-spacing: -0.06em;
   line-height: 0.96;
 }
 
-.account-introduction > p:last-child {
+.account-introduction > p:not(.account-eyebrow) {
   max-inline-size: 38rem;
   margin-block: 1.5rem 0;
   color: var(--ll-muted);
   font-size: clamp(1rem, 2vw, 1.2rem);
   line-height: 1.7;
+}
+
+.account-assurances {
+  display: grid;
+  gap: 0.65rem;
+  margin: 2rem 0 0;
+  padding: 0;
+  color: var(--ll-muted);
+  font-size: 0.9rem;
+  list-style: none;
+}
+
+.account-assurances li {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.account-assurances span {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border: 1px solid var(--ll-signal);
+  background: var(--ll-signal-soft);
+  transform: rotate(45deg);
 }
 
 .account-eyebrow {
@@ -36,16 +60,33 @@
 
 .account-shell ::deep .account-card {
   display: block;
-  padding: clamp(1.4rem, 4vw, 2.25rem);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
   border-radius: var(--ll-radius-large);
   color: var(--ll-ink);
-  background: color-mix(in oklab, var(--ll-canvas) 96%, var(--ll-signal-soft));
+  background: color-mix(in oklab, var(--ll-canvas) 97%, var(--ll-signal-soft));
   box-shadow: var(--ll-shadow-panel);
+}
+
+.account-card-context {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-block-end: 1rem;
+}
+
+.account-card-context > span {
+  color: var(--ll-subtle);
+  font-size: 0.76rem;
+}
+
+.account-card-content {
+  padding-block-start: 1.35rem;
 }
 
 .account-shell ::deep .account-form {
   display: grid;
-  gap: 1.1rem;
+  gap: 1rem;
 }
 
 .account-shell ::deep .form-field {
@@ -61,8 +102,8 @@
 
 .account-shell ::deep .form-field input {
   inline-size: 100%;
-  min-block-size: 2.8rem;
-  padding-inline: 0.8rem;
+  min-block-size: 3rem;
+  padding-inline: 0.85rem;
   color: var(--ll-ink);
   border: 1px solid var(--ll-border-strong);
   border-radius: var(--ll-radius-small);
@@ -71,6 +112,12 @@
 
 .account-shell ::deep .form-field input:hover {
   border-color: var(--ll-signal);
+}
+
+.account-shell ::deep .form-field input:focus {
+  border-color: var(--ll-signal);
+  box-shadow: 0 0 0 0.2rem var(--ll-signal-soft);
+  outline: none;
 }
 
 .account-shell ::deep .form-field input.invalid {
@@ -85,7 +132,7 @@
 }
 
 .account-shell ::deep .primary-action {
-  min-block-size: 2.85rem;
+  min-block-size: 3rem;
   padding-inline: 1rem;
   border: 1px solid var(--ll-signal);
   border-radius: var(--ll-radius-small);
@@ -97,6 +144,7 @@
 
 .account-shell ::deep .primary-action:hover {
   background: var(--ll-signal-strong);
+  transform: translateY(-1px);
 }
 
 .account-shell ::deep .validation-summary:empty {
@@ -139,5 +187,11 @@
   .account-introduction h1 {
     max-inline-size: 14ch;
     font-size: clamp(2.5rem, 13vw, 4.5rem);
+  }
+}
+
+@media (max-width: 420px) {
+  .account-card-context {
+    display: grid;
   }
 }

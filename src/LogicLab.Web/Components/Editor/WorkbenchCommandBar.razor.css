@@ -1,8 +1,45 @@
 .command-bar {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 0;
+  align-items: stretch;
+  overflow-x: auto;
+  padding: 0.35rem;
+  border: 1px solid var(--ll-border);
+  border-radius: var(--ll-radius-medium);
+  background: color-mix(in oklab, var(--ll-panel) 96%, var(--ll-signal-soft));
+  scrollbar-width: thin;
+}
+
+.command-cluster {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  min-inline-size: max-content;
+  padding: 0.55rem 0.75rem 0.7rem;
+  border-inline-start: 1px solid var(--ll-border);
+}
+
+.command-cluster:first-child {
+  border-inline-start: 0;
+}
+
+.command-cluster > div {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.65rem;
-  padding: 0.85rem;
-  border: 1px solid var(--ll-border);
-  background: var(--ll-panel);
+  gap: 0.4rem;
+}
+
+.command-cluster-label {
+  color: var(--ll-subtle);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 980px) {
+  .command-bar {
+    grid-template-columns: repeat(4, max-content);
+  }
 }

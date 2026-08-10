@@ -1,7 +1,11 @@
 <script type="module" src="@Assets["Components/Layout/ReconnectModal.razor.js"]"></script>
 
-<dialog id="components-reconnect-modal" data-nosnippet>
+<dialog id="components-reconnect-modal"
+        aria-labelledby="components-reconnect-title"
+        data-nosnippet>
     <div class="components-reconnect-container">
+        <p class="components-reconnect-eyebrow">Connection state</p>
+        <h2 id="components-reconnect-title">Reconnecting the workbench</h2>
         <div class="components-rejoining-animation" aria-hidden="true">
             <div></div>
             <div></div>

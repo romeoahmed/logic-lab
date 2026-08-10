@@ -2,12 +2,51 @@
 
 <PageTitle>Logic Lab</PageTitle>
 
-<section class="home-hero">
-    <p class="eyebrow">Digital logic, made inspectable</p>
-    <h1>Build it. Compile it. Watch the signal move.</h1>
-    <p class="lede">
-        Logic Lab is an evidence-first circuit workbench connecting authoring,
-        compilation, synchronous simulation, and an accessible probe view.
-    </p>
-    <a class="primary-link" href="/editor">Open the Sandbox Workbench <span aria-hidden="true">→</span></a>
+<section class="home-shell" aria-labelledby="home-title">
+    <div class="home-hero">
+        <FluentBadge Appearance="BadgeAppearance.Tint"
+                     Color="BadgeColor.Informative"
+                     Content="Evidence-first circuit design" />
+        <h1 id="home-title">Build it. Compile it. Watch the signal move.</h1>
+        <p class="lede">
+            Logic Lab connects circuit authoring, deterministic compilation,
+            synchronous simulation, and an accessible semantic probe in one workbench.
+        </p>
+        <div class="hero-actions">
+            <a class="primary-link" href="/editor">Open the Sandbox Workbench <span aria-hidden="true">→</span></a>
+            <a class="secondary-link" href="#signal-path">Explore the signal path</a>
+        </div>
+    </div>
+
+    <FluentCard class="signal-path-card"
+                Appearance="CardAppearance.Outline"
+                Shadow="CardShadow.None"
+                Width="100%">
+        <div class="signal-path-heading" id="signal-path">
+            <div>
+                <p class="eyebrow">Workbench sequence</p>
+                <h2>One circuit, four inspectable stages.</h2>
+            </div>
+            <span class="signal-indicator"><i aria-hidden="true"></i> Ready</span>
+        </div>
+        <FluentDivider Appearance="DividerAppearance.Subtle" />
+        <ol class="signal-path-list">
+            <li>
+                <span class="stage-index">01</span>
+                <div><h3>Author</h3><p>Shape definitions, ports, instances, and explicit electrical topology.</p></div>
+            </li>
+            <li>
+                <span class="stage-index">02</span>
+                <div><h3>Compile</h3><p>Resolve the document into a deterministic executable circuit.</p></div>
+            </li>
+            <li>
+                <span class="stage-index">03</span>
+                <div><h3>Simulate</h3><p>Advance logical time with fenced, synchronous commands.</p></div>
+            </li>
+            <li>
+                <span class="stage-index">04</span>
+                <div><h3>Inspect</h3><p>Read signal values and topology through a semantic scene.</p></div>
+            </li>
+        </ol>
+    </FluentCard>
 </section>

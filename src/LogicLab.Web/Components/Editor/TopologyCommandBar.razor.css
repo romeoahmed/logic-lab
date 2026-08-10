@@ -1,9 +1,10 @@
 .topology-command-panel {
   display: grid;
   gap: 0.75rem;
-  padding: 0.85rem;
+  padding: 1rem;
   border: 1px solid var(--ll-border);
-  background: var(--ll-panel);
+  border-radius: var(--ll-radius-medium);
+  background: color-mix(in oklab, var(--ll-panel) 97%, var(--ll-signal-soft));
 }
 
 .topology-command-heading {
@@ -32,9 +33,40 @@
 }
 
 .topology-command-bar {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 0;
+  overflow-x: auto;
+  padding-block-start: 0.75rem;
+  border-top: 1px solid var(--ll-border);
+  scrollbar-width: thin;
+}
+
+.topology-command-group {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  min-inline-size: max-content;
+  padding-inline: 0.75rem;
+  border-inline-start: 1px solid var(--ll-border);
+}
+
+.topology-command-group:first-child {
+  padding-inline-start: 0;
+  border-inline-start: 0;
+}
+
+.topology-command-group > span {
+  color: var(--ll-subtle);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.topology-command-group > div {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem;
+  gap: 0.4rem;
 }
 
 .route-draft {

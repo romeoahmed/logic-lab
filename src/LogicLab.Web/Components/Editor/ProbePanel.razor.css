@@ -1,12 +1,45 @@
 .probe-panel {
   padding: 1rem;
   border: 1px solid var(--ll-border);
-  background: var(--ll-panel);
+  border-radius: var(--ll-radius-medium);
+  background: color-mix(in oklab, var(--ll-panel) 97%, var(--ll-signal-soft));
 }
 
 .probe-panel h2,
 .probe-panel p {
   margin-block-start: 0;
+}
+
+.probe-panel h2 {
+  font-size: clamp(1.6rem, 3vw, 2rem);
+  letter-spacing: -0.04em;
+}
+
+.probe-empty {
+  display: grid;
+  justify-items: start;
+  margin-block-start: 2rem;
+  padding-block-start: 1rem;
+  border-top: 1px solid var(--ll-border);
+}
+
+.probe-empty > span {
+  inline-size: 2.5rem;
+  block-size: 1rem;
+  margin-block-end: 1rem;
+  border-bottom: 2px solid var(--ll-signal);
+  background: linear-gradient(135deg, transparent 42%, var(--ll-signal) 43% 48%, transparent 49%) 0 0 / 0.75rem 100%;
+}
+
+.probe-empty p {
+  margin-block-end: 0.25rem;
+  color: var(--ll-ink);
+  font-weight: 750;
+}
+
+.probe-empty small {
+  color: var(--ll-muted);
+  line-height: 1.5;
 }
 
 .eyebrow {
@@ -38,5 +71,7 @@
 .probe-panel li {
   margin-block-start: 1rem;
   padding: 0.8rem;
+  border: 1px solid var(--ll-border);
+  border-radius: var(--ll-radius-small);
   background: var(--ll-signal-soft);
 }

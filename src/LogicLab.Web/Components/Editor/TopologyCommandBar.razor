@@ -1,5 +1,3 @@
-@using Microsoft.FluentUI.AspNetCore.Components
-
 <section class="topology-command-panel" aria-labelledby="topology-command-heading">
     <div class="topology-command-heading">
         <div>
@@ -9,41 +7,62 @@
         <small>Geometry never creates electrical membership.</small>
     </div>
     <div class="topology-command-bar" role="group" aria-label="Topology commands">
-        <FluentButton data-command="topology-merge"
-                      Disabled="@(!CanMerge || BlocksCommittedCommands)"
-                      Loading="@(ActiveCommand is "topology-merge")"
-                      OnClick="OnMerge">Merge Nets</FluentButton>
-        <FluentButton data-command="topology-split"
-                      Disabled="@(!CanSplit || BlocksCommittedCommands)"
-                      Loading="@(ActiveCommand is "topology-split")"
-                      OnClick="OnSplit">Split Net</FluentButton>
-        <FluentButton data-command="topology-add-junction"
-                      Disabled="@(!CanAddJunction || BlocksCommittedCommands)"
-                      Loading="@(ActiveCommand is "topology-add-junction")"
-                      OnClick="OnAddJunction">Add Junction</FluentButton>
-        <FluentButton data-command="topology-remove-junction"
-                      Disabled="@(!CanRemoveJunction || BlocksCommittedCommands)"
-                      Loading="@(ActiveCommand is "topology-remove-junction")"
-                      OnClick="OnRemoveJunction">Remove Junction</FluentButton>
-        <FluentButton data-command="topology-prepare-route"
-                      Disabled="@(!CanPrepareRoute || BlocksCommittedCommands)"
-                      OnClick="OnPrepareRoute">Prepare route</FluentButton>
-        <FluentButton data-command="topology-commit-route"
-                      Appearance="ButtonAppearance.Primary"
-                      Disabled="@(!RouteDraftActive || IsBusy)"
-                      Loading="@(ActiveCommand is "topology-commit-route")"
-                      OnClick="OnCommitRoute">Commit route</FluentButton>
-        <FluentButton data-command="topology-cancel-route"
-                      Disabled="@(!RouteDraftActive || IsBusy)"
-                      OnClick="OnCancelRoute">Cancel route</FluentButton>
-        <FluentButton data-command="topology-unroute"
-                      Disabled="@(!CanUnroute || BlocksCommittedCommands)"
-                      Loading="@(ActiveCommand is "topology-unroute")"
-                      OnClick="OnUnroute">Unroute</FluentButton>
-        <FluentButton data-command="topology-route"
-                      Disabled="@(!CanRoute || BlocksCommittedCommands)"
-                      Loading="@(ActiveCommand is "topology-route")"
-                      OnClick="OnRoute">Route</FluentButton>
+        <div class="topology-command-group" role="group" aria-label="Electrical membership">
+            <span>Membership</span>
+            <div>
+                <FluentButton data-command="topology-merge"
+                              Disabled="@(!CanMerge || BlocksCommittedCommands)"
+                              Loading="@(ActiveCommand is "topology-merge")"
+                              OnClick="OnMerge">Merge Nets</FluentButton>
+                <FluentButton data-command="topology-split"
+                              Disabled="@(!CanSplit || BlocksCommittedCommands)"
+                              Loading="@(ActiveCommand is "topology-split")"
+                              OnClick="OnSplit">Split Net</FluentButton>
+            </div>
+        </div>
+        <div class="topology-command-group" role="group" aria-label="Junction editing">
+            <span>Junctions</span>
+            <div>
+                <FluentButton data-command="topology-add-junction"
+                              Disabled="@(!CanAddJunction || BlocksCommittedCommands)"
+                              Loading="@(ActiveCommand is "topology-add-junction")"
+                              OnClick="OnAddJunction">Add</FluentButton>
+                <FluentButton data-command="topology-remove-junction"
+                              Disabled="@(!CanRemoveJunction || BlocksCommittedCommands)"
+                              Loading="@(ActiveCommand is "topology-remove-junction")"
+                              OnClick="OnRemoveJunction">Remove</FluentButton>
+            </div>
+        </div>
+        <div class="topology-command-group" role="group" aria-label="Route geometry">
+            <span>Geometry</span>
+            <div>
+                <FluentButton data-command="topology-prepare-route"
+                              Disabled="@(!CanPrepareRoute || BlocksCommittedCommands)"
+                              OnClick="OnPrepareRoute">Prepare</FluentButton>
+                <FluentButton data-command="topology-unroute"
+                              Disabled="@(!CanUnroute || BlocksCommittedCommands)"
+                              Loading="@(ActiveCommand is "topology-unroute")"
+                              OnClick="OnUnroute">Unroute</FluentButton>
+                <FluentButton data-command="topology-route"
+                              Disabled="@(!CanRoute || BlocksCommittedCommands)"
+                              Loading="@(ActiveCommand is "topology-route")"
+                              OnClick="OnRoute">Route</FluentButton>
+            </div>
+        </div>
+        <div class="topology-command-group" role="group" aria-label="Route draft">
+            <span>Draft</span>
+            <div>
+                <FluentButton data-command="topology-commit-route"
+                              Appearance="ButtonAppearance.Primary"
+                              Disabled="@(!RouteDraftActive || IsBusy)"
+                              Loading="@(ActiveCommand is "topology-commit-route")"
+                              OnClick="OnCommitRoute">Commit</FluentButton>
+                <FluentButton data-command="topology-cancel-route"
+                              Appearance="ButtonAppearance.Subtle"
+                              Disabled="@(!RouteDraftActive || IsBusy)"
+                              OnClick="OnCancelRoute">Cancel</FluentButton>
+            </div>
+        </div>
     </div>
     @if (RouteDraftActive)
     {

@@ -1,7 +1,7 @@
 .projects-shell {
   display: grid;
   gap: 1.5rem;
-  max-inline-size: 76rem;
+  max-inline-size: 80rem;
   margin-inline: auto;
   padding: clamp(2rem, 6vw, 5rem) clamp(1rem, 5vw, 4rem);
 }
@@ -14,7 +14,7 @@
 }
 
 .projects-heading h1 {
-  margin: 0;
+  margin: 0.85rem 0 0;
   font-size: clamp(2.7rem, 6vw, 5.4rem);
   letter-spacing: -0.06em;
   line-height: 0.98;
@@ -28,7 +28,7 @@
 }
 
 .projects-eyebrow {
-  margin: 0 0 0.8rem;
+  margin: 0 0 0.3rem;
   color: var(--ll-signal);
   font-size: 0.76rem;
   font-weight: 750;
@@ -38,35 +38,54 @@
 
 .projects-shell ::deep .catalog-card {
   display: block;
-  padding: clamp(0.75rem, 2vw, 1.25rem);
+  padding: clamp(1rem, 2vw, 1.5rem);
   border-radius: var(--ll-radius-large);
   color: var(--ll-ink);
   background: color-mix(in oklab, var(--ll-canvas) 96%, var(--ll-signal-soft));
   box-shadow: var(--ll-shadow-panel);
 }
 
+.catalog-card-heading {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+  justify-content: space-between;
+  padding: 0.25rem 0.25rem 1.15rem;
+}
+
+.catalog-card-heading h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 3vw, 1.8rem);
+  letter-spacing: -0.035em;
+}
+
 .project-catalog {
   display: grid;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0;
+  margin: 1rem 0 0;
+  padding: 0.25rem;
   list-style: none;
 }
 
 .project-catalog li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
   gap: 0.9rem;
   align-items: center;
   min-block-size: 4.2rem;
   padding: 0.7rem 0.8rem;
-  border: 1px solid transparent;
-  border-radius: var(--ll-radius-medium);
-  background: var(--ll-canvas);
+  border-bottom: 1px solid var(--ll-border);
+  background: transparent;
 }
 
-.project-catalog li:hover {
-  border-color: var(--ll-border);
+.project-catalog li:last-child {
+  border-bottom: 0;
+}
+
+.project-catalog li:hover,
+.project-catalog li:focus-within {
   background: var(--ll-signal-soft);
 }
 
@@ -110,12 +129,13 @@
 .project-catalog button:hover,
 .catalog-action:hover {
   background: var(--ll-signal-strong);
+  transform: translateY(-1px);
 }
 
 .catalog-empty {
   display: grid;
   justify-items: center;
-  padding: clamp(2.5rem, 8vw, 6rem) 1rem;
+  padding: clamp(2.5rem, 8vw, 5.25rem) 1rem 1rem;
   text-align: center;
 }
 
@@ -162,7 +182,7 @@
   }
 
   .project-catalog li {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: subgrid;
   }
 
   .project-catalog form {
