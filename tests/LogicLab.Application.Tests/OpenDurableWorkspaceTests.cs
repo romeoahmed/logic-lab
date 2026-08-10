@@ -350,7 +350,7 @@ internal sealed class OpenDurableWorkspaceTests
     }
 
     [Test, Timeout(30_000)]
-    public async Task OpenAsync_CancelledQueuedDurableBootstrap_ReleasesCompilationAndWorkspaceAdmissionPromptly(
+    public async Task OpenAsync_CancelledQueuedDurableBootstrap_ReleasesAdmissionBeforeActiveCompilationCompletes(
         CancellationToken cancellationToken)
     {
         var revision = CreateCompleteRevision();
@@ -380,36 +380,37 @@ internal sealed class OpenDurableWorkspaceTests
         await compilationGate.Started.WaitAsync(cancellationToken);
         using var queuedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken);
-        var cancelled = StartOpen(workspace, queuedCancellation.Token);
-        await WaitUntilAsync(() => loader.CallCount >= 2, cancellationToken);
-        await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
+        var cancelled = workspace.OpenAsync(
+            new OpenDurable(ProjectId, Owner),
+            queuedCancellation.Token);
+        await loader.WaitForRequestAsync(2, cancellationToken);
+        await Assert.That(cancelled.IsCompleted).IsFalse();
 
-        queuedCancellation.Cancel();
-        var cancellationCompletedBeforeRelease = await CompletesWithinAsync(
-            cancelled,
-            TimeSpan.FromSeconds(1),
-            cancellationToken);
-        var replacement = StartOpen(workspace, cancellationToken);
-        var replacementReachedLoaderBeforeRelease = await WaitUntilOrTimeoutAsync(
-            () => loader.CallCount >= 3,
-            TimeSpan.FromSeconds(1),
-            cancellationToken);
-        var replacementCompletedBeforeRelease = replacement.IsCompleted;
-
-        WorkspaceOpenOutcome activeOutcome;
         WorkspaceOpenOutcome cancelledOutcome;
-        WorkspaceOpenOutcome replacementOutcome;
-        compilationGate.Release();
-        activeOutcome = await active.WaitAsync(cancellationToken);
-        cancelledOutcome = await cancelled.WaitAsync(cancellationToken);
-        replacementOutcome = await replacement.WaitAsync(cancellationToken);
+        Task<WorkspaceOpenOutcome> replacement;
+        bool replacementCompletedBeforeRelease;
+        try
+        {
+            queuedCancellation.Cancel();
+            cancelledOutcome = await cancelled.WaitAsync(cancellationToken);
+            replacement = workspace.OpenAsync(
+                new OpenDurable(ProjectId, Owner),
+                cancellationToken);
+            await loader.WaitForRequestAsync(3, cancellationToken);
+            replacementCompletedBeforeRelease = replacement.IsCompleted;
+        }
+        finally
+        {
+            compilationGate.Release();
+        }
+
+        var activeOutcome = await active.WaitAsync(cancellationToken);
+        var replacementOutcome = await replacement.WaitAsync(cancellationToken);
 
         var cancellationRejection = (await Assert.That(cancelledOutcome)
             .IsTypeOf<WorkspaceOpenRejected>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(cancellationCompletedBeforeRelease).IsTrue();
-            await Assert.That(replacementReachedLoaderBeforeRelease).IsTrue();
             await Assert.That(replacementCompletedBeforeRelease).IsFalse();
             await Assert.That(cancellationRejection.Code)
                 .IsEqualTo("workspace_cancelled");
@@ -521,36 +522,6 @@ internal sealed class OpenDurableWorkspaceTests
         }
 
         throw new TimeoutException("The expected concurrent open state was not observed.");
-    }
-
-    private static async Task<bool> WaitUntilOrTimeoutAsync(
-        Func<bool> predicate,
-        TimeSpan timeout,
-        CancellationToken cancellationToken)
-    {
-        var deadline = TimeProvider.System.GetTimestamp() +
-            (long)(timeout.TotalSeconds * TimeProvider.System.TimestampFrequency);
-        while (TimeProvider.System.GetTimestamp() < deadline)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (predicate())
-            {
-                return true;
-            }
-
-            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken);
-        }
-
-        return predicate();
-    }
-
-    private static async Task<bool> CompletesWithinAsync(
-        Task task,
-        TimeSpan timeout,
-        CancellationToken cancellationToken)
-    {
-        var timeoutTask = Task.Delay(timeout, cancellationToken);
-        return await Task.WhenAny(task, timeoutTask) == task;
     }
 
     private static Task<WorkspaceOpenOutcome> StartOpen(
@@ -716,21 +687,35 @@ internal sealed class OpenDurableWorkspaceTests
         DurableProjectOpenRepositoryOutcome outcome,
         int expectedRequestCount) : IDurableProjectLoader
     {
-        private readonly TaskCompletionSource allRequestsLoaded = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource[] requestsLoaded =
+        [
+            .. Enumerable.Range(0, expectedRequestCount)
+                .Select(_ => new TaskCompletionSource(
+                    TaskCreationOptions.RunContinuationsAsynchronously)),
+        ];
         private int callCount;
 
-        public Task AllRequestsLoaded => allRequestsLoaded.Task;
+        public Task AllRequestsLoaded => requestsLoaded[^1].Task;
 
-        public int CallCount => Volatile.Read(ref callCount);
+        public Task WaitForRequestAsync(
+            int requestNumber,
+            CancellationToken cancellationToken)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(requestNumber, 1);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(
+                requestNumber,
+                requestsLoaded.Length);
+            return requestsLoaded[requestNumber - 1].Task.WaitAsync(cancellationToken);
+        }
 
         public Task<DurableProjectOpenRepositoryOutcome> LoadAsync(
             DurableProjectOpenRequest request,
             CancellationToken cancellationToken)
         {
-            if (Interlocked.Increment(ref callCount) == expectedRequestCount)
+            var requestNumber = Interlocked.Increment(ref callCount);
+            if (requestNumber <= requestsLoaded.Length)
             {
-                allRequestsLoaded.TrySetResult();
+                requestsLoaded[requestNumber - 1].TrySetResult();
             }
 
             return Task.FromResult(outcome);
