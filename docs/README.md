@@ -20,6 +20,19 @@ Logic Lab has a closed V1 design baseline. Read each document according to its a
 
 There is no generic “narrower file wins” rule. A specification defines current behavior, Architecture defines ownership and seams, Workbench defines experience, a contract defines values at one real seam, a glossary defines terminology, an ADR explains a choice, and research supplies evidence. A conflict is a documentation defect and must be repaired in the owning artifact.
 
+## Live repository facts
+
+Dynamic repository facts belong to executable configuration rather than prose:
+
+| Fact | Source of truth |
+|---|---|
+| exact SDK and test runner | [`global.json`](../global.json) |
+| exact direct package versions | [`Directory.Packages.props`](../Directory.Packages.props) |
+| current executable project graph | [`logic-lab.slnx`](../logic-lab.slnx) |
+| resolved dependency closures | application-root `packages.lock.json` files |
+
+Normative documents define the rules governing those files. Dated research may preserve an observed version or graph as historical evidence, but maintained prose does not copy a live inventory.
+
 ## Behavior and policy
 
 - [Circuit Authoring](./specs/circuit-authoring.md)
@@ -52,7 +65,7 @@ The [Implementation Plan](./implementation-plan.md#delivery-status) is the only 
 | Circuit Authoring, Compiler, and Simulation Runtime | immutable lineage and the closed V1 Edit Intent/Component Contract catalogs; explicit topology and hierarchy; deterministic flat, hierarchical, cyclic, sequential, and memory execution; structured diagnostics, bounded failure, rollback, scalar-oracle, packed differential, and property evidence | Boolean Analysis, Project Format, TeachingMixed Geometry Plans, and the cross-module conformance manifest |
 | Editor Workspace | Sandbox create/author/compile/session/stimulus/step/close workflow; attachment generation fencing, reattachment and expiry; bounded history with Undo/Redo and Redo truncation; Copy Workspace; stale preconditions and fail-closed Client Intent idempotency; bounded admission; accepted/running/published Compilation Generations with newest-wins coalescing; serialized Session work; Run Generation-fenced Run/Pause; compatible-state and Probe-aware Hot Swap; authenticated Claim and Save with explicit Durable conflict recovery | Analysis lane, Durable Project catalog/open, and package transfer |
 | Presentation and Web | accessible explicit-topology projection; selected-definition and Hierarchy Path navigation; generated-Port widths and arithmetic facts; bounded steering/arithmetic galleries; per-page Interactive Server host and security-header integration | TeachingMixed geometry, Canvas/waveform adapters, complete browser workflows, localization/accessibility matrix, and load/security qualification |
-| .NET engineering and performance | six production projects, six executable test projects, one BenchmarkDotNet project, application-root locks, locked restore, analyzers-as-errors, format, build, and whole-solution test gates | later slice projects and locks, CI publication, architecture automation, frozen corpus, calibrated thresholds, and provider qualification |
+| .NET engineering and performance | executable production, test, and BenchmarkDotNet projects; application-root locks; locked restore; analyzers-as-errors; format, build, and whole-solution test gates | later slice projects and locks, CI publication, architecture automation, frozen corpus, calibrated thresholds, and provider qualification |
 | Production operations | development-host lifecycle and security-header evidence; SQLite Durable Project repository integration and reviewed initial migration | concrete TLS/proxy, secrets, migration deployment, backup/restore, telemetry, alerting, and runbook evidence |
 
 The repository gates in the [.NET Engineering Baseline](./specs/dotnet-engineering.md#9-verification-and-completion-gate) reproduce build and test evidence. Routine verification snapshots belong in the change or CI record, not this maintained map. Passing those gates does not qualify the application for release while any remaining-evidence row is open.
@@ -77,5 +90,6 @@ Research notes identify optional untracked standards copies by filename. When av
 - Classify every number as semantic, format, provisional policy, or measured threshold.
 - Cite primary sources at the claim; qualify secondary tutorials and Wikipedia as navigation only.
 - Keep delivery status only in the Implementation Plan, reproducible commands in the .NET Engineering Baseline, and routine verification snapshots in change or CI records.
+- Read exact SDK/package versions and the current project graph from root configuration; repeat them only in an explicitly dated research checkpoint.
 - Frame time-sensitive implementation observations in research as dated checkpoint evidence, never as maintained current state.
 - Update links and supersession notes in the same change that moves authority.

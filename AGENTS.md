@@ -2,9 +2,9 @@
 
 ## Project Structure & Module Organization
 
-`logic-lab.slnx` contains `LogicLab.Domain`, `LogicLab.Engine`, `LogicLab.Application`, `LogicLab.Presentation`, `LogicLab.Web`, and their test projects. The [implementation plan](docs/implementation-plan.md#delivery-status) owns completion status. Start with `README.md`, then consult `ARCHITECTURE.md` for ownership, `WORKBENCH.md` for product behavior, `CONTEXT-MAP.md` for domain language, and `docs/specs/dotnet-engineering.md` for build/runtime rules. Detailed material lives under `docs/`: `specs/` defines observable behavior, `contracts/` defines application/browser/HTTP seams, `adr/` records decisions, `domain/` holds bounded-context glossaries, `policies/` owns limits, and `research/` preserves evidence. Optional untracked root PDFs are standards references, not source assets.
+`logic-lab.slnx` is the executable source of truth for the current project graph; the [implementation plan](docs/implementation-plan.md#delivery-status) owns completion status. Start with `README.md`, then consult `ARCHITECTURE.md` for ownership, `WORKBENCH.md` for product behavior, `CONTEXT-MAP.md` for domain language, and `docs/specs/dotnet-engineering.md` for build/runtime rules. Detailed material lives under `docs/`: `specs/` defines observable behavior, `contracts/` defines application/browser/HTTP seams, `adr/` records decisions, `domain/` holds bounded-context glossaries, `policies/` owns limits, and `research/` preserves evidence. Optional untracked root PDFs are standards references, not source assets.
 
-As implementation expands, preserve the project seams named in `ARCHITECTURE.md`: `LogicLab.Domain`, `LogicLab.Engine`, `LogicLab.BooleanAnalysis`, `LogicLab.Presentation`, `LogicLab.ProjectFormat`, `LogicLab.Application`, `LogicLab.Infrastructure`, and `LogicLab.Web`. Keep test and benchmark projects separate from production projects.
+As implementation expands, preserve the project seams named in `ARCHITECTURE.md`. Keep test and benchmark projects separate from production projects.
 
 ## Build, Test, and Development Commands
 
@@ -14,7 +14,7 @@ As implementation expands, preserve the project seams named in `ARCHITECTURE.md`
 - `dotnet format logic-lab.slnx --verify-no-changes` is the formatting gate.
 - `git diff --check` catches whitespace errors.
 
-Use the `global.json`-selected .NET 10 SDK feature band and C# 14. Do not introduce package versions outside `Directory.Packages.props`; application-root lock files are added with the projects that consume packages.
+Use the `global.json`-selected SDK and the repository language version. Do not introduce package versions outside `Directory.Packages.props`; application-root lock files are added with the projects that consume packages.
 
 ## Coding Style & Naming Conventions
 
