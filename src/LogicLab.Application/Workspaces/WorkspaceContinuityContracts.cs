@@ -246,6 +246,17 @@ public sealed record Reattach : AttachRequest
     public ulong PriorGeneration { get; }
 }
 
+public sealed record RecoverAttach : AttachRequest
+{
+    public RecoverAttach(
+        WorkspaceId workspaceId,
+        string buildFingerprint,
+        WorkspaceCaller caller)
+        : base(workspaceId, buildFingerprint, caller)
+    {
+    }
+}
+
 public abstract record WorkspaceAttachOutcome
 {
     private protected WorkspaceAttachOutcome()

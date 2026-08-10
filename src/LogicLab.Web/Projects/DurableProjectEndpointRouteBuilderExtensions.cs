@@ -15,6 +15,7 @@ public static class DurableProjectEndpointRouteBuilderExtensions
         return endpoints.MapPost(
                 "/projects/open",
                 async Task<IResult> (
+                    HttpContext httpContext,
                     ClaimsPrincipal principal,
                     [FromForm] string durableProjectId,
                     IEditorWorkspace workspace,
@@ -43,8 +44,8 @@ public static class DurableProjectEndpointRouteBuilderExtensions
                     {
                         WorkspaceOpened opened => Results.LocalRedirect(
                             $"~/editor/{Uri.EscapeDataString(opened.WorkspaceId.Value)}"),
-                        WorkspaceOpenRejected rejected => Results.LocalRedirect(
-                            $"~/projects?error={Uri.EscapeDataString(rejected.Code)}"),
+                        WorkspaceOpenRejected rejected =>
+                            LogicLabProblemDetails.Create(httpContext, rejected.Code),
                         _ => throw new InvalidOperationException(
                             "The Workspace open outcome hierarchy is closed."),
                     };

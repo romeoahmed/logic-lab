@@ -54,7 +54,7 @@ project_catalog_infrastructure_failure
 project_catalog_internal_defect
 ```
 
-Authentication and authorization occur before cursor decoding or repository access. Unauthorized existence is never disclosed. Cancellation before publication returns `project_catalog_cancelled`; cancellation after the immutable page is published does not revoke it. Infrastructure and defect outcomes expose only an opaque correlation through the normal HTTP Problem Details adapter.
+Authentication and authorization occur before cursor decoding or repository access. Unauthorized existence is never disclosed. Cancellation before publication returns `project_catalog_cancelled`; cancellation after the immutable page is published does not revoke it. The Static SSR endpoint invokes the catalog before starting component rendering; every rejected outcome short-circuits through the normal HTTP Problem Details adapter, so infrastructure and defect failures cannot publish a successful HTML response. Infrastructure and defect outcomes expose only an opaque correlation.
 
 V1 catalog capability is intentionally closed to list and open. It has no rename, delete, archive, restore, search, filter, user-selectable sort, bulk action, folder, tag, sharing, ownership transfer, public link, or cross-user discovery operation. Claim creates the Durable Display Name; changing that capability requires a new typed Application intention and corresponding Workbench behavior rather than a generic update endpoint.
 

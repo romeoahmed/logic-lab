@@ -57,15 +57,38 @@ public sealed partial class Editor : IAsyncDisposable
 
     protected override async Task OnParametersSetAsync()
     {
-        if (AuthenticationStateTask is not null)
+        var caller = AuthenticationStateTask is null
+            ? AnonymousWorkspaceCaller.Instance
+            : CallerFrom(await AuthenticationStateTask);
+        if (caller == CurrentCaller)
         {
-            CurrentCaller = CallerFrom(await AuthenticationStateTask);
+            return;
         }
+
+        var priorCaller = CurrentCaller;
+        CurrentCaller = caller;
+        if (Attachment is not { } attachment)
+        {
+            return;
+        }
+
+        ClearWorkspaceState();
+        Status = "Authentication changed. Reload the Workspace to continue.";
+        _ = await workspace.DetachAsync(
+            new DetachRequest(
+                attachment.Projection.WorkspaceId,
+                attachment.AttachmentId,
+                attachment.Generation,
+                priorCaller),
+            CancellationToken.None);
     }
 
-    private bool CommandsAvailable => IsInteractive;
+    private bool CommandsAvailable => IsInteractive
+        && (WorkspaceIdValue is null || Attachment is not null);
 
-    private bool CanCreate => CommandsAvailable && Projection is null;
+    private bool CanCreate => CommandsAvailable
+        && WorkspaceIdValue is null
+        && Projection is null;
 
     private bool CanAuthor => CommandsAvailable
         && Projection is not null
@@ -131,32 +154,59 @@ public sealed partial class Editor : IAsyncDisposable
 
     private async Task AttachOpenedWorkspaceAsync()
     {
+        var caller = CurrentCaller;
         var attachOutcome = await workspace.AttachAsync(
             new InitialAttach(
                 new LogicLab.Application.Workspaces.WorkspaceId(WorkspaceIdValue!),
                 LogicLabWebBuild.Fingerprint,
-                CurrentCaller),
+                caller),
             componentLifetime.Token);
-        if (attachOutcome is not Attached attached)
-        {
-            Status = attachOutcome switch
+        if (attachOutcome is AttachRejected
             {
-                AttachRejected rejected =>
-                    $"Workspace attachment rejected: {rejected.Code}.",
-                Expired expired =>
-                    $"Workspace attachment rejected: {expired.Code}.",
-                _ => throw new UnreachableException(),
-            };
+                Code: "stale_workspace_attachment",
+                RetryDisposition: ReattachDisposition,
+            }
+            && caller == CurrentCaller)
+        {
+            attachOutcome = await workspace.AttachAsync(
+                new RecoverAttach(
+                    new LogicLab.Application.Workspaces.WorkspaceId(WorkspaceIdValue!),
+                    LogicLabWebBuild.Fingerprint,
+                    caller),
+                componentLifetime.Token);
+        }
+
+        if (attachOutcome is Attached attached)
+        {
+            if (!await CanPublishAttachmentAsync(attached, caller))
+            {
+                return;
+            }
+
+            Attachment = attached;
+            Projection = attached.Projection;
+            SelectedDefinitionId = attached.Projection.ProjectRevision.Document
+                .EntryCircuitDefinitionId;
+            HierarchyNavigation.Clear();
+            ProjectScene();
+            Status = "Durable Project reopened.";
             return;
         }
 
-        Attachment = attached;
-        Projection = attached.Projection;
-        SelectedDefinitionId = attached.Projection.ProjectRevision.Document
-            .EntryCircuitDefinitionId;
-        HierarchyNavigation.Clear();
-        ProjectScene();
-        Status = "Durable Project reopened.";
+        if (caller != CurrentCaller)
+        {
+            Status = "Authentication changed. Reload the Workspace to continue.";
+            return;
+        }
+
+        Status = attachOutcome switch
+        {
+            AttachRejected rejected =>
+                $"Workspace attachment rejected: {rejected.Code}.",
+            Expired expired =>
+                $"Workspace attachment rejected: {expired.Code}.",
+            _ => throw new UnreachableException(),
+        };
     }
 
     private async Task RunCommandAsync(
@@ -194,11 +244,12 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
+        var caller = CurrentCaller;
         var attachOutcome = await workspace.AttachAsync(
             new InitialAttach(
                 opened.WorkspaceId,
                 LogicLabWebBuild.Fingerprint,
-                CurrentCaller),
+                caller),
             CancellationToken.None);
         if (attachOutcome is not Attached attached)
         {
@@ -209,6 +260,11 @@ public sealed partial class Editor : IAsyncDisposable
                 _ => throw new UnreachableException(),
             };
             Status = $"Workspace attachment rejected: {code}.";
+            return;
+        }
+
+        if (!await CanPublishAttachmentAsync(attached, caller))
+        {
             return;
         }
 
@@ -480,7 +536,12 @@ public sealed partial class Editor : IAsyncDisposable
             intent));
         if (outcome is AuthoringCommitted)
         {
-            return true;
+            return Projection is not null;
+        }
+
+        if (Projection is null)
+        {
+            return false;
         }
 
         Status = $"Authoring rejected: {((WorkspaceCommandRejected)outcome).Code}.";
@@ -518,15 +579,21 @@ public sealed partial class Editor : IAsyncDisposable
             return false;
         }
 
+        var caller = CurrentCaller;
         var outcome = await workspace.AttachAsync(
             new Reattach(
                 projection.WorkspaceId,
                 attachment.AttachmentId,
                 attachment.Generation,
                 LogicLabWebBuild.Fingerprint,
-                CurrentCaller),
+                caller),
             cancellationToken);
         if (outcome is not Attached reattached)
+        {
+            return false;
+        }
+
+        if (!await CanPublishAttachmentAsync(reattached, caller))
         {
             return false;
         }
@@ -536,23 +603,58 @@ public sealed partial class Editor : IAsyncDisposable
         return true;
     }
 
+    private async Task<bool> CanPublishAttachmentAsync(
+        Attached attached,
+        WorkspaceCaller caller)
+    {
+        if (caller == CurrentCaller && Volatile.Read(ref isDisposed) == 0)
+        {
+            return true;
+        }
+
+        ClearWorkspaceState();
+        Status = "Authentication changed. Reload the Workspace to continue.";
+        _ = await workspace.DetachAsync(
+            new DetachRequest(
+                attached.Projection.WorkspaceId,
+                attached.AttachmentId,
+                attached.Generation,
+                caller),
+            CancellationToken.None);
+        return false;
+    }
+
     private async Task Refresh(CancellationToken cancellationToken)
     {
-        if (Projection is null)
+        if (Projection is null || Attachment is not { } attachment)
         {
             return;
         }
 
+        var caller = CurrentCaller;
         var read = await workspace.ReadAsync(
             QueryContext(),
             ReadProjection.Instance,
             cancellationToken);
+        if (caller != CurrentCaller
+            || Attachment is not { } currentAttachment
+            || currentAttachment.AttachmentId != attachment.AttachmentId
+            || currentAttachment.Generation != attachment.Generation)
+        {
+            return;
+        }
+
         if (read is ProjectionSnapshot snapshot)
         {
             UpdateProjection(snapshot.Projection);
             return;
         }
 
+        ClearWorkspaceState();
+    }
+
+    private void ClearWorkspaceState()
+    {
         Projection = null;
         Attachment = null;
         Scene = null;

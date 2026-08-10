@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -68,29 +69,43 @@ internal sealed partial class EditorWorkspace
 
             lock (state.ContinuityGate)
             {
-                if (request is InitialAttach)
+                switch (request)
                 {
-                    if (state.AttachmentId is not null)
-                    {
+                    case InitialAttach when state.AttachmentId is not null:
                         return RejectAttach(
                             WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
-                    }
 
-                    return PublishAttachmentUnderLock(state, request, generation: 1);
+                    case InitialAttach:
+                        return PublishAttachmentUnderLock(
+                            state,
+                            request,
+                            generation: 1);
+
+                    case Reattach reattach
+                        when state.AttachmentId != reattach.PriorAttachmentId
+                            || state.AttachmentGeneration != reattach.PriorGeneration:
+                        return RejectAttach(
+                            WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
+
+                    case Reattach:
+                        return PublishAttachmentUnderLock(
+                            state,
+                            request,
+                            checked(state.AttachmentGeneration + 1));
+
+                    case RecoverAttach when state.AttachmentId is null:
+                        return RejectAttach(
+                            WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
+
+                    case RecoverAttach:
+                        return PublishAttachmentUnderLock(
+                            state,
+                            request,
+                            checked(state.AttachmentGeneration + 1));
+
+                    default:
+                        throw new UnreachableException();
                 }
-
-                var reattach = (Reattach)request;
-                if (state.AttachmentId != reattach.PriorAttachmentId
-                    || state.AttachmentGeneration != reattach.PriorGeneration)
-                {
-                    return RejectAttach(
-                        WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
-                }
-
-                return PublishAttachmentUnderLock(
-                    state,
-                    request,
-                    checked(state.AttachmentGeneration + 1));
             }
         }
         finally
