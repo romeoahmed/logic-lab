@@ -17,7 +17,7 @@ else
         @foreach (var item in Page.Items)
         {
             <li data-project-id="@item.DurableProjectId.Value">
-                <span>@item.DisplayName.Value</span><form action="/projects/open" method="post">
+                <bdi dir="auto">@item.DisplayName.Value</bdi><form action="/projects/open" method="post">
                     <AntiforgeryToken />
                     <input type="hidden"
                            name="durableProjectId"

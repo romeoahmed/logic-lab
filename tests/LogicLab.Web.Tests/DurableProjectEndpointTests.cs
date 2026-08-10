@@ -108,6 +108,18 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     }
 
     [Test]
+    public Task Post_OpenWithoutProjectId_ReturnsRequestInvalidProblemDetails()
+        => AssertMalformedOpenRequest(null);
+
+    [Test]
+    public Task Post_OpenWithEmptyProjectId_ReturnsRequestInvalidProblemDetails()
+        => AssertMalformedOpenRequest(string.Empty);
+
+    [Test]
+    public Task Post_OpenWithOversizedProjectId_ReturnsRequestInvalidProblemDetails()
+        => AssertMalformedOpenRequest(new string('a', 65));
+
+    [Test]
     [Arguments("project_catalog_infrastructure_failure", HttpStatusCode.ServiceUnavailable)]
     [Arguments("project_catalog_internal_defect", HttpStatusCode.InternalServerError)]
     public async Task Get_Projects_CatalogFailure_ReturnsMappedProblemDetails(
@@ -197,9 +209,32 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 configureOptions: null);
     }
 
+    private async Task AssertMalformedOpenRequest(string? durableProjectId)
+    {
+        await using var workspace = new RecordingOpenWorkspace();
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthentication(services);
+                services.RemoveAll<IDurableProjectCatalog>();
+                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
+                services.RemoveAll<IEditorWorkspace>();
+                services.AddSingleton<IEditorWorkspace>(workspace);
+            }));
+        using var client = host.Server.CreateClient();
+
+        using var response = await PostOpenAsync(client, durableProjectId);
+
+        await AssertProblemDetails(
+            response,
+            HttpStatusCode.BadRequest,
+            "project_open_request_invalid");
+        await Assert.That(workspace.Request).IsNull();
+    }
+
     private static async Task<HttpResponseMessage> PostOpenAsync(
         HttpClient client,
-        string durableProjectId)
+        string? durableProjectId)
     {
         using var pageResponse = await client.GetAsync(
             new Uri("/projects", UriKind.Relative));
@@ -212,15 +247,20 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         var antiforgeryCookie = pageResponse.Headers.GetValues("Set-Cookie")
             .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal))
             .Split(';', 2)[0];
+        var formValues = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", requestToken),
+        };
+        if (durableProjectId is not null)
+        {
+            formValues.Add(new("durableProjectId", durableProjectId));
+        }
+
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             new Uri("/projects/open", UriKind.Relative))
         {
-            Content = new FormUrlEncodedContent(
-            [
-                new("durableProjectId", durableProjectId),
-                new("__RequestVerificationToken", requestToken),
-            ]),
+            Content = new FormUrlEncodedContent(formValues),
         };
         request.Headers.Add("Cookie", antiforgeryCookie);
         request.Headers.Accept.Add(

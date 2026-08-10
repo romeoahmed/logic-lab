@@ -7,6 +7,8 @@ namespace LogicLab.Web.Projects;
 
 public static class DurableProjectEndpointRouteBuilderExtensions
 {
+    private const int MaximumDurableProjectIdLength = 64;
+
     public static IEndpointConventionBuilder MapDurableProjectEndpoints(
         this IEndpointRouteBuilder endpoints)
     {
@@ -17,7 +19,7 @@ public static class DurableProjectEndpointRouteBuilderExtensions
                 async Task<IResult> (
                     HttpContext httpContext,
                     ClaimsPrincipal principal,
-                    [FromForm] string durableProjectId,
+                    [FromForm] string? durableProjectId,
                     IEditorWorkspace workspace,
                     CancellationToken cancellationToken) =>
                 {
@@ -29,9 +31,11 @@ public static class DurableProjectEndpointRouteBuilderExtensions
                     }
 
                     if (string.IsNullOrEmpty(durableProjectId)
-                        || durableProjectId.Length > 64)
+                        || durableProjectId.Length > MaximumDurableProjectIdLength)
                     {
-                        return Results.BadRequest();
+                        return LogicLabProblemDetails.Create(
+                            httpContext,
+                            LogicLabProblemDetails.ProjectOpenRequestInvalidCode);
                     }
 
                     var outcome = await workspace.OpenAsync(
