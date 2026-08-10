@@ -328,11 +328,11 @@ internal sealed partial class EditorWorkspace
         WorkspaceCommandOutcome Outcome);
 
     private sealed class PendingIntent(
-        WorkspaceCaller caller,
+        WorkspaceCommandContext context,
         string canonicalIdentity,
         TaskCompletionSource<WorkspaceCommandOutcome> completion)
     {
-        public WorkspaceCaller Caller { get; } = caller;
+        public WorkspaceCommandContext Context { get; } = context;
 
         public string CanonicalIdentity { get; } = canonicalIdentity;
 
@@ -390,30 +390,34 @@ internal sealed partial class EditorWorkspace
         }
     }
 
-    private abstract class WorkspaceDurabilityState(
-        AuthenticatedSubjectId? ownerSubjectId)
+    private abstract class WorkspaceDurabilityState
     {
-        public AuthenticatedSubjectId? OwnerSubjectId { get; } = ownerSubjectId;
+        public abstract AuthenticatedSubjectId? OwnerSubjectId { get; }
     }
 
-    private sealed class SandboxWorkspaceState() : WorkspaceDurabilityState(null)
+    private sealed class SandboxWorkspaceState : WorkspaceDurabilityState
     {
         public static SandboxWorkspaceState Instance { get; } = new();
+
+        public override AuthenticatedSubjectId? OwnerSubjectId => null;
     }
 
     private sealed class PendingDurableClaimState(
-        AuthenticatedSubjectId subjectId) : WorkspaceDurabilityState(subjectId);
+        AuthenticatedSubjectId subjectId) : WorkspaceDurabilityState
+    {
+        public override AuthenticatedSubjectId OwnerSubjectId { get; } = subjectId;
+    }
 
     private sealed class DurableWorkspaceState(
         DurableProjectId durableProjectId,
         AuthenticatedSubjectId subjectId,
         DurableDisplayName displayName,
         DurableVersion observedDurableVersion,
-        ProjectRevisionId savedProjectRevisionId) : WorkspaceDurabilityState(subjectId)
+        ProjectRevisionId savedProjectRevisionId) : WorkspaceDurabilityState
     {
         public DurableProjectId DurableProjectId { get; } = durableProjectId;
 
-        public AuthenticatedSubjectId SubjectId { get; } = subjectId;
+        public override AuthenticatedSubjectId OwnerSubjectId { get; } = subjectId;
 
         public DurableDisplayName DisplayName { get; } = displayName;
 
@@ -427,14 +431,15 @@ internal sealed partial class EditorWorkspace
 
         public DurableWorkspaceState Copy()
         {
-            var copy = new DurableWorkspaceState(
+            return new DurableWorkspaceState(
                 DurableProjectId,
-                SubjectId,
+                OwnerSubjectId,
                 DisplayName,
                 ObservedDurableVersion,
-                SavedProjectRevisionId);
-            copy.ConflictActualDurableVersion = ConflictActualDurableVersion;
-            return copy;
+                SavedProjectRevisionId)
+            {
+                ConflictActualDurableVersion = ConflictActualDurableVersion,
+            };
         }
     }
 

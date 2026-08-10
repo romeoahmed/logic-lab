@@ -13,7 +13,7 @@ internal sealed partial class EditorWorkspace
         CancellationToken cancellationToken)
     {
         Task<WorkspaceCommandOutcome>? pendingCompletion = null;
-        ContextualCommandPublication? publication = null;
+        PendingIntent? pendingIntent = null;
         DurableDisplayName? displayName = null;
         WorkspaceCommandOutcome? completed = null;
         var isPendingClaimRecovery = false;
@@ -69,7 +69,7 @@ internal sealed partial class EditorWorkspace
                                     RevokeUnauthorizedPendingIntentsUnderLock(state);
                             }
 
-                            publication = ReserveContextualIntentUnderLock(
+                            pendingIntent = ReserveContextualIntentUnderLock(
                                 state,
                                 command,
                                 accepted.CanonicalIdentity);
@@ -96,12 +96,12 @@ internal sealed partial class EditorWorkspace
                 }
             }
 
-            if (publication is not null)
+            if (pendingIntent is not null)
             {
                 completed = await ExecuteDurableRepositoryCommandAsync(
                     state,
                     command,
-                    publication,
+                    pendingIntent,
                     displayName,
                     cancellationToken).ConfigureAwait(false);
                 AuthorizationAdmissionEpoch? changedAuthorization;
@@ -114,7 +114,7 @@ internal sealed partial class EditorWorkspace
                         isPendingClaimRecovery);
                     CompletePendingIdempotencyUnderLock(
                         state,
-                        publication,
+                        pendingIntent,
                         completed);
                 }
 
@@ -162,7 +162,7 @@ internal sealed partial class EditorWorkspace
 
         var save = (SaveDurable)command;
         if (state.Durability is not DurableWorkspaceState durable
-            || durable.SubjectId != caller.SubjectId)
+            || durable.OwnerSubjectId != caller.SubjectId)
         {
             return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
         }
@@ -190,7 +190,7 @@ internal sealed partial class EditorWorkspace
     private async Task<WorkspaceCommandOutcome> ExecuteDurableRepositoryCommandAsync(
         WorkspaceState state,
         WorkspaceCommand command,
-        ContextualCommandPublication publication,
+        PendingIntent pendingIntent,
         DurableDisplayName? displayName,
         CancellationToken cancellationToken)
     {
@@ -199,13 +199,13 @@ internal sealed partial class EditorWorkspace
             ClaimSandbox => await ClaimRepositoryAsync(
                 state,
                 command.Context,
-                publication.CanonicalIdentity,
+                pendingIntent.CanonicalIdentity,
                 displayName!,
                 cancellationToken).ConfigureAwait(false),
             SaveDurable save => await SaveRepositoryAsync(
                 state,
                 save,
-                publication.CanonicalIdentity,
+                pendingIntent.CanonicalIdentity,
                 cancellationToken).ConfigureAwait(false),
             _ => Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
         };
@@ -263,7 +263,7 @@ internal sealed partial class EditorWorkspace
             : DurableVersion.Create();
         var request = new DurableProjectSaveRequest(
             durable.DurableProjectId,
-            durable.SubjectId,
+            durable.OwnerSubjectId,
             command.Precondition.ExpectedDurableVersion,
             nextVersion,
             state.Revision,

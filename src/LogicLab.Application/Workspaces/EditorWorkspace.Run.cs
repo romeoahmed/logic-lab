@@ -441,14 +441,14 @@ internal sealed partial class EditorWorkspace
         if (state.PendingRunPause is not
             {
                 RunGeneration: var requestedGeneration,
-                Publication: var publication,
+                PendingIntent: var pendingIntent,
             }
             || requestedGeneration != generation)
         {
             return;
         }
 
-        CompletePendingIdempotencyUnderLock(state, publication, outcome);
+        CompletePendingIdempotencyUnderLock(state, pendingIntent, outcome);
         state.PendingRunPause = null;
     }
 
@@ -471,7 +471,7 @@ internal sealed partial class EditorWorkspace
         return state.PendingRunPause is
         {
             RunGeneration: var requestedGeneration,
-            Publication.Context: var context,
+            PendingIntent.Context: var context,
         }
             && requestedGeneration == generation
             && state.AttachmentId == context.AttachmentId

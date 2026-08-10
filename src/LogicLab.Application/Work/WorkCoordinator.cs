@@ -156,7 +156,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         bool abandoned;
         lock (gate)
         {
-            abandoned = item.TryAbandonQueuedUnderLock();
+            abandoned = item.IsQueuedUnderLock();
             if (abandoned)
             {
                 RemoveQueuedSessionUnderLock(item);
@@ -260,7 +260,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             sessionQueue.Clear();
             foreach (var item in abandoned)
             {
-                _ = item.TryAbandonQueuedUnderLock();
                 item.MarkRemovedUnderLock();
                 _ = sessionQueueSignal.Wait(0);
                 if (item.Continuation is null)
@@ -397,7 +396,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 item.MarkRemovedUnderLock();
                 if (item.Continuation is null)
                 {
-                    item.MarkExecutingUnderLock();
                     reservedSessionItems--;
                 }
                 else
@@ -427,7 +425,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             {
                 lock (gate)
                 {
-                    item.MarkCompletedUnderLock();
                     if (item.Continuation is { } continuation
                         && continuation.CompleteExecutionUnderLock())
                     {
@@ -610,8 +607,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         CancellationToken stoppingToken)
         : WorkItem(callerCancellationToken, stoppingToken)
     {
-        private SessionWorkItemStatus status;
-
         public LinkedListNode<SessionWorkItem>? QueueNode { get; private set; }
 
         public Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> Operation { get; }
@@ -629,7 +624,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         public void MarkQueuedUnderLock(LinkedListNode<SessionWorkItem> queueNode)
         {
             QueueNode = queueNode;
-            status = SessionWorkItemStatus.Queued;
         }
 
         public void MarkRemovedUnderLock()
@@ -637,26 +631,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             QueueNode = null;
         }
 
-        public void MarkExecutingUnderLock()
-        {
-            status = SessionWorkItemStatus.Executing;
-        }
-
-        public bool TryAbandonQueuedUnderLock()
-        {
-            if (status != SessionWorkItemStatus.Queued)
-            {
-                return false;
-            }
-
-            status = SessionWorkItemStatus.Abandoned;
-            return true;
-        }
-
-        public void MarkCompletedUnderLock()
-        {
-            status = SessionWorkItemStatus.Completed;
-        }
+        public bool IsQueuedUnderLock() => QueueNode is not null;
 
         public void CancelScheduledWork()
         {
@@ -689,15 +664,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 CancellationToken.None,
                 stoppingToken);
         }
-    }
-
-    private enum SessionWorkItemStatus
-    {
-        Created,
-        Queued,
-        Executing,
-        Abandoned,
-        Completed,
     }
 
     internal sealed class ScheduledSessionWork

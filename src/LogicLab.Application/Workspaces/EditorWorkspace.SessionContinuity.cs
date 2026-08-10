@@ -10,7 +10,7 @@ internal sealed partial class EditorWorkspace
         CancellationToken cancellationToken)
     {
         Task<WorkspaceCommandOutcome>? replayCompletion = null;
-        ContextualCommandPublication? publication = null;
+        PendingIntent? pendingIntent = null;
         WorkCoordinator.ScheduledSessionWork? scheduledWork = null;
         if (cancellationToken.IsCancellationRequested)
         {
@@ -27,7 +27,7 @@ internal sealed partial class EditorWorkspace
                     replayCompletion = replay.Completion;
                     break;
                 case ContextualIntentAccepted accepted:
-                    publication = ReserveContextualIntentUnderLock(
+                    pendingIntent = ReserveContextualIntentUnderLock(
                         state,
                         command,
                         accepted.CanonicalIdentity);
@@ -35,19 +35,19 @@ internal sealed partial class EditorWorkspace
                             token => ExecuteReservedSessionCommandAsync(
                                 state,
                                 command,
-                                publication,
+                                pendingIntent,
                                 token),
                             cancellationToken,
                             out scheduledWork,
                             out var schedulingRejection))
                     {
-                        publication.PendingIntent.ScheduledSessionWork = scheduledWork;
+                        pendingIntent.ScheduledSessionWork = scheduledWork;
                     }
                     else
                     {
                         CompletePendingIdempotencyUnderLock(
                             state,
-                            publication,
+                            pendingIntent,
                             Reject(schedulingRejection!));
                     }
 
@@ -61,7 +61,7 @@ internal sealed partial class EditorWorkspace
                 .ConfigureAwait(false);
         }
 
-        var pendingCompletion = publication!.PendingIntent.Completion.Task;
+        var pendingCompletion = pendingIntent!.Completion.Task;
         if (scheduledWork is null)
         {
             return await pendingCompletion.ConfigureAwait(false);
@@ -75,7 +75,7 @@ internal sealed partial class EditorWorkspace
             == scheduledWork.Completion)
         {
             var completed = await scheduledWork.Completion.ConfigureAwait(false);
-            CompletePendingIdempotency(state, publication, completed);
+            CompletePendingIdempotency(state, pendingIntent, completed);
         }
 
         return await pendingCompletion.ConfigureAwait(false);
@@ -87,7 +87,7 @@ internal sealed partial class EditorWorkspace
         CancellationToken cancellationToken)
     {
         Task<WorkspaceCommandOutcome>? replayCompletion = null;
-        ContextualCommandPublication? publication = null;
+        PendingIntent? pendingIntent = null;
         if (cancellationToken.IsCancellationRequested)
         {
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
@@ -139,12 +139,12 @@ internal sealed partial class EditorWorkspace
                         return rejected;
                     }
 
-                    publication = ReserveContextualIntentUnderLock(
+                    pendingIntent = ReserveContextualIntentUnderLock(
                         state,
                         command,
                         accepted.CanonicalIdentity);
                     state.PendingRunPause = new RunPauseRequest(
-                        publication,
+                        pendingIntent,
                         command.Precondition.RunGeneration);
                     break;
             }
@@ -156,13 +156,13 @@ internal sealed partial class EditorWorkspace
                 .ConfigureAwait(false);
         }
 
-        return await publication!.PendingIntent.Completion.Task.ConfigureAwait(false);
+        return await pendingIntent!.Completion.Task.ConfigureAwait(false);
     }
 
     private async ValueTask<WorkspaceCommandOutcome> ExecuteReservedSessionCommandAsync(
         WorkspaceState state,
         WorkspaceCommand command,
-        ContextualCommandPublication publication,
+        PendingIntent pendingIntent,
         CancellationToken cancellationToken)
     {
         WorkspaceCommandOutcome completed;
@@ -186,7 +186,7 @@ internal sealed partial class EditorWorkspace
             }
             else if (GetReservedSessionAccessRejection(
                     state,
-                    publication.Context) is { } rejection)
+                    pendingIntent.Context) is { } rejection)
             {
                 completed = Reject(rejection);
             }
@@ -198,7 +198,7 @@ internal sealed partial class EditorWorkspace
                     cancellationToken);
             }
 
-            CompletePendingIdempotency(state, publication, completed);
+            CompletePendingIdempotency(state, pendingIntent, completed);
             return completed;
         }
         finally
