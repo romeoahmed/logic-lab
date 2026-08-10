@@ -218,10 +218,8 @@ Hot Swap migration evidence contains canonical ordered source identities of migr
 | Value | Caller action |
 |---|---|
 | `DoNotRetry` | change input or choose another action |
-| `ReplaySameIntent` | resend the byte-identical command with the same Client Intent ID after an uncertain acknowledgment |
 | `RefreshProjection` | read the current projection, obtain a new Client Intent ID, and reconsider the action |
 | `Reattach` | establish a new attachment generation before issuing a new intent |
-| `RetryAfter(seconds)` | wait for the supplied canonical nonnegative whole-second duration, then issue a new intent |
 
 No adapter infers retry behavior from localized text or HTTP status alone.
 
