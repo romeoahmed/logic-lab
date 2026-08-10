@@ -134,6 +134,39 @@ internal sealed partial class DurableWorkspaceTests
     }
 
     [Test]
+    public async Task DispatchAsync_ReusedClaimIntentWithReplacementAndSurrogate_RejectsConflict()
+    {
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(repository);
+        var (opened, attached) = await OpenAttached(workspace);
+        var context = new WorkspaceCommandContext(
+            opened.WorkspaceId,
+            attached.AttachmentId,
+            attached.Generation,
+            new ClientIntentId("claim-utf16-conflict"),
+            AuthenticatedCaller);
+        var precondition = new ClaimPrecondition(
+            opened.Projection.ProjectRevision.RevisionId);
+
+        var first = await workspace.DispatchAsync(
+            new ClaimSandbox(context, precondition, "\uFFFD"),
+            CancellationToken.None);
+        var conflict = await workspace.DispatchAsync(
+            new ClaimSandbox(context, precondition, "\uD800"),
+            CancellationToken.None);
+
+        await Assert.That(first).IsTypeOf<DurableProjectClaimed>();
+        var rejection = (await Assert.That(conflict)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejection.Code).IsEqualTo("idempotency_key_conflict");
+            await Assert.That(repository.ClaimCallCount).IsEqualTo(1);
+            await Assert.That(repository.LastClaim!.DisplayName.Value).IsEqualTo("\uFFFD");
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_DisplayNameAtScalarAndUtf8Limits_ClaimsProject()
     {
         var repository = new RecordingDurableProjectRepository();

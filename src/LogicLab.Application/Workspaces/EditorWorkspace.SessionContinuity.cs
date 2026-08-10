@@ -9,7 +9,7 @@ internal sealed partial class EditorWorkspace
         WorkspaceCommand command,
         CancellationToken cancellationToken)
     {
-        Task<WorkspaceCommandOutcome>? replayCompletion = null;
+        ContextualIntentReplay? replayIntent = null;
         PendingIntent? pendingIntent = null;
         WorkCoordinator.ScheduledSessionWork? scheduledWork = null;
         if (cancellationToken.IsCancellationRequested)
@@ -24,7 +24,7 @@ internal sealed partial class EditorWorkspace
                 case ContextualIntentTerminal terminal:
                     return terminal.Outcome;
                 case ContextualIntentReplay replay:
-                    replayCompletion = replay.Completion;
+                    replayIntent = replay;
                     break;
                 case ContextualIntentAccepted accepted:
                     pendingIntent = ReserveContextualIntentUnderLock(
@@ -55,9 +55,9 @@ internal sealed partial class EditorWorkspace
             }
         }
 
-        if (replayCompletion is not null)
+        if (replayIntent is not null)
         {
-            return await AwaitReplayAsync(replayCompletion, cancellationToken)
+            return await AwaitReplayAsync(state, replayIntent, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -86,7 +86,7 @@ internal sealed partial class EditorWorkspace
         PauseRun command,
         CancellationToken cancellationToken)
     {
-        Task<WorkspaceCommandOutcome>? replayCompletion = null;
+        ContextualIntentReplay? replayIntent = null;
         PendingIntent? pendingIntent = null;
         if (cancellationToken.IsCancellationRequested)
         {
@@ -100,7 +100,7 @@ internal sealed partial class EditorWorkspace
                 case ContextualIntentTerminal terminal:
                     return terminal.Outcome;
                 case ContextualIntentReplay replay:
-                    replayCompletion = replay.Completion;
+                    replayIntent = replay;
                     break;
                 case ContextualIntentAccepted accepted:
                     if (cancellationToken.IsCancellationRequested)
@@ -150,9 +150,9 @@ internal sealed partial class EditorWorkspace
             }
         }
 
-        if (replayCompletion is not null)
+        if (replayIntent is not null)
         {
-            return await AwaitReplayAsync(replayCompletion, cancellationToken)
+            return await AwaitReplayAsync(state, replayIntent, cancellationToken)
                 .ConfigureAwait(false);
         }
 

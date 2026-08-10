@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using LogicLab.Application.Work;
@@ -12,7 +13,7 @@ internal sealed partial class EditorWorkspace
         WorkspaceCommand command,
         CancellationToken cancellationToken)
     {
-        Task<WorkspaceCommandOutcome>? pendingCompletion = null;
+        ContextualIntentReplay? replayIntent = null;
         PendingIntent? pendingIntent = null;
         DurableDisplayName? displayName = null;
         WorkspaceCommandOutcome? completed = null;
@@ -42,7 +43,7 @@ internal sealed partial class EditorWorkspace
                     case ContextualIntentTerminal terminal:
                         return terminal.Outcome;
                     case ContextualIntentReplay replay:
-                        pendingCompletion = replay.Completion;
+                        replayIntent = replay;
                         break;
                     case ContextualIntentAccepted accepted:
                         completed = ValidateDurableCommandUnderLock(
@@ -126,9 +127,9 @@ internal sealed partial class EditorWorkspace
             state.CommandGate.Release();
         }
 
-        return pendingCompletion is null
+        return replayIntent is null
             ? completed!
-            : await AwaitReplayAsync(pendingCompletion, cancellationToken)
+            : await AwaitReplayAsync(state, replayIntent, cancellationToken)
                 .ConfigureAwait(false);
     }
 
@@ -484,7 +485,16 @@ internal sealed partial class EditorWorkspace
         WorkspaceCommandContext context,
         string canonicalIdentity)
     {
-        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(canonicalIdentity));
+        var identityBytes = GC.AllocateUninitializedArray<byte>(
+            checked(canonicalIdentity.Length * sizeof(char)));
+        for (var index = 0; index < canonicalIdentity.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt16BigEndian(
+                identityBytes.AsSpan(index * sizeof(char), sizeof(char)),
+                canonicalIdentity[index]);
+        }
+
+        var digest = SHA256.HashData(identityBytes);
         return new DurableCommandReceiptKey(
             context.WorkspaceId,
             context.AttachmentGeneration,
