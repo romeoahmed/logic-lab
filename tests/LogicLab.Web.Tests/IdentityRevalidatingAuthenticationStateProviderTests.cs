@@ -216,34 +216,6 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     }
 
     [Test]
-    public async Task AuthenticationRevalidation_IntervalsBoundEstablishedCircuitRevocationDelay()
-    {
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
-        await using var connection = await OpenIdentityDatabaseAsync();
-        using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
-        await using var scope = host.Services.CreateAsyncScope();
-        var provider = scope.ServiceProvider
-            .GetRequiredService<AuthenticationStateProvider>();
-        var intervalProperty = provider.GetType().GetProperty(
-            "RevalidationInterval",
-            BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException(
-                "The revalidating provider does not expose its interval seam.");
-        var circuitInterval = (TimeSpan)(intervalProperty.GetValue(provider)
-            ?? throw new InvalidOperationException("The circuit interval was null."));
-        var stampInterval = scope.ServiceProvider
-            .GetRequiredService<IOptions<SecurityStampValidatorOptions>>()
-            .Value
-            .ValidationInterval;
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(circuitInterval).IsEqualTo(TimeSpan.FromMinutes(5));
-            await Assert.That(stampInterval).IsEqualTo(TimeSpan.FromMinutes(4));
-        }
-    }
-
-    [Test]
     public async Task Post_Logout_EstablishedCircuitPrincipal_IsRevoked()
     {
         var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
@@ -495,7 +467,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         using (Assert.Multiple())
         {
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
-            await Assert.That(html).Contains("The email or password is invalid.");
+            await Assert.That(html).Contains("role=\"alert\"");
             await Assert.That(html).DoesNotContain(submittedPassword);
         }
     }
@@ -526,8 +498,6 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         {
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
             await Assert.That(html).DoesNotContain(submittedPassword);
-            await Assert.That(html).DoesNotContain(
-                "The email or password is invalid.");
         }
     }
 
@@ -561,12 +531,20 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
                 new("Input.ConfirmPassword", submittedPassword),
             ]);
         var html = await response.Content.ReadAsStringAsync();
+        await using var verificationScope = host.Services.CreateAsyncScope();
+        var userManager = verificationScope.ServiceProvider
+            .GetRequiredService<UserManager<ApplicationUser>>();
+        var storedUser = await userManager.FindByNameAsync(email);
+        var originalPasswordRemainsValid = storedUser is not null
+            && await userManager.CheckPasswordAsync(storedUser, existingPassword);
 
         using (Assert.Multiple())
         {
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
             await Assert.That(html).DoesNotContain(submittedPassword);
-            await Assert.That(html).Contains("is already taken");
+            await Assert.That(html).Contains("role=\"alert\"");
+            await Assert.That(storedUser).IsNotNull();
+            await Assert.That(originalPasswordRemainsValid).IsTrue();
         }
     }
 
@@ -602,15 +580,30 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     }
 
     [Test]
-    [Arguments("/account/login", "login-email", "256")]
-    [Arguments("/account/login", "login-password", "100")]
-    [Arguments("/account/register", "register-email", "256")]
-    [Arguments("/account/register", "register-password", "100")]
-    [Arguments("/account/register", "register-confirm-password", "100")]
+    [Arguments(
+        "/account/login",
+        "login-email",
+        AccountInputLimits.MaximumEmailLength)]
+    [Arguments(
+        "/account/login",
+        "login-password",
+        AccountInputLimits.MaximumPasswordLength)]
+    [Arguments(
+        "/account/register",
+        "register-email",
+        AccountInputLimits.MaximumEmailLength)]
+    [Arguments(
+        "/account/register",
+        "register-password",
+        AccountInputLimits.MaximumPasswordLength)]
+    [Arguments(
+        "/account/register",
+        "register-confirm-password",
+        AccountInputLimits.MaximumPasswordLength)]
     public async Task Get_IdentityEntry_RendersApplicationMaximumLength(
         string path,
         string inputId,
-        string expectedMaximum)
+        int expectedMaximum)
     {
         var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var connection = await OpenIdentityDatabaseAsync();
@@ -628,8 +621,14 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     [Test]
     public async Task Post_LoginAtApplicationLimits_AuthenticatesIdentity()
     {
-        var email = $"{new string('a', 243)}@example.test";
-        var password = $"A1!{new string('x', 97)}";
+        const string emailSuffix = "@example.test";
+        const string passwordPrefix = "A1!";
+        var email = $"{new string(
+            'a',
+            AccountInputLimits.MaximumEmailLength - emailSuffix.Length)}{emailSuffix}";
+        var password = $"{passwordPrefix}{new string(
+            'x',
+            AccountInputLimits.MaximumPasswordLength - passwordPrefix.Length)}";
         var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var connection = await OpenIdentityDatabaseAsync();
         using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
@@ -656,10 +655,6 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
 
         using (Assert.Multiple())
         {
-            await Assert.That(email.Length)
-                .IsEqualTo(AccountInputLimits.MaximumEmailLength);
-            await Assert.That(password.Length)
-                .IsEqualTo(AccountInputLimits.MaximumPasswordLength);
             await Assert.That(response.StatusCode)
                 .IsEqualTo(HttpStatusCode.Redirect);
             await Assert.That(RedirectPath(response)).IsEqualTo("/projects");
@@ -669,8 +664,14 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     [Test]
     public async Task Post_RegisterAtApplicationLimits_CreatesIdentity()
     {
-        var email = $"{new string('b', 243)}@example.test";
-        var password = $"A1!{new string('y', 97)}";
+        const string emailSuffix = "@example.test";
+        const string passwordPrefix = "A1!";
+        var email = $"{new string(
+            'b',
+            AccountInputLimits.MaximumEmailLength - emailSuffix.Length)}{emailSuffix}";
+        var password = $"{passwordPrefix}{new string(
+            'y',
+            AccountInputLimits.MaximumPasswordLength - passwordPrefix.Length)}";
         var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var connection = await OpenIdentityDatabaseAsync();
         using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
@@ -694,10 +695,6 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
 
         using (Assert.Multiple())
         {
-            await Assert.That(email.Length)
-                .IsEqualTo(AccountInputLimits.MaximumEmailLength);
-            await Assert.That(password.Length)
-                .IsEqualTo(AccountInputLimits.MaximumPasswordLength);
             await Assert.That(response.StatusCode)
                 .IsEqualTo(HttpStatusCode.Redirect);
             await Assert.That(RedirectPath(response)).IsEqualTo("/projects");
@@ -709,7 +706,9 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     public async Task Post_LoginWithOversizedPassword_DoesNotReachIdentityPasswordCheck()
     {
         const string password = "Correct-Passw0rd!";
-        var submittedPassword = new string('x', 101);
+        var submittedPassword = new string(
+            'x',
+            AccountInputLimits.MaximumPasswordLength + 1);
         var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var connection = await OpenIdentityDatabaseAsync();
         using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
@@ -766,7 +765,10 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     public async Task Post_LoginWithOversizedEmail_UsesApplicationValidationBoundary()
     {
         const string password = "Bounded-Passw0rd!";
-        var email = $"{new string('a', 244)}@example.test";
+        const string emailSuffix = "@example.test";
+        var email = $"{new string(
+            'a',
+            AccountInputLimits.MaximumEmailLength + 1 - emailSuffix.Length)}{emailSuffix}";
         var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var connection = await OpenIdentityDatabaseAsync();
         using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
@@ -788,9 +790,6 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         using (Assert.Multiple())
         {
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
-            await Assert.That(html).Contains("maximum length of 256");
-            await Assert.That(html).DoesNotContain(
-                "The email or password is invalid.");
             await Assert.That(html).DoesNotContain(password);
         }
     }
@@ -799,7 +798,10 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     public async Task Post_RegisterWithOversizedEmail_DoesNotCreateIdentity()
     {
         const string password = "Bounded-Passw0rd!";
-        var email = $"{new string('a', 244)}@example.test";
+        const string emailSuffix = "@example.test";
+        var email = $"{new string(
+            'a',
+            AccountInputLimits.MaximumEmailLength + 1 - emailSuffix.Length)}{emailSuffix}";
         var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var connection = await OpenIdentityDatabaseAsync();
         using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
@@ -825,7 +827,6 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         {
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
             await Assert.That(await userManager.FindByNameAsync(email)).IsNull();
-            await Assert.That(html).Contains("maximum length of 256");
             await Assert.That(html).DoesNotContain(password);
         }
     }

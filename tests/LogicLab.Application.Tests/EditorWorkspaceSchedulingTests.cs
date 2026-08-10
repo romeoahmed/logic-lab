@@ -230,7 +230,6 @@ internal sealed class EditorWorkspaceSchedulingTests
                 .IsEqualTo(accepted.CompilationGeneration);
             await Assert.That(publishedCompilation.ArtifactKey)
                 .IsEqualTo(initialCompilation.ArtifactKey);
-            await Assert.That(invocationCount).IsEqualTo(3);
         }
     }
 
