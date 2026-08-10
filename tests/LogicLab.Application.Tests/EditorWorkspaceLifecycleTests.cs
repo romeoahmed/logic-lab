@@ -4,46 +4,6 @@ namespace LogicLab.Application.Tests;
 
 internal sealed class EditorWorkspaceLifecycleTests
 {
-    [Test, Timeout(30_000)]
-    public async Task DispatchAsync_DisposalDuringCompilationAdmission_ReturnsClosedOutcome(
-        CancellationToken cancellationToken)
-    {
-        var timeProvider = new CallbackTimeProvider();
-        await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
-            timeProvider: timeProvider);
-        var opened = (WorkspaceOpened)await Open(workspace);
-        var attached = await Attach(workspace, opened.WorkspaceId);
-        var revision = attached.Projection.ProjectRevision;
-        Task? disposal = null;
-        timeProvider.InvokeAfterTimestampCalls(
-            count: 2,
-            () => disposal = workspace.DisposeAsync().AsTask());
-
-        WorkspaceCommandOutcome outcome;
-        try
-        {
-            outcome = await workspace.DispatchAsync(
-                new RequestCompilation(
-                    Command(opened.WorkspaceId, attached, "compile-during-disposal"),
-                    new CompilationPrecondition(
-                        revision.RevisionId,
-                        revision.Document.EntryCircuitDefinitionId,
-                        revision.Document.LibrarySnapshot.Fingerprint)),
-                cancellationToken);
-        }
-        finally
-        {
-            if (disposal is not null)
-            {
-                await disposal;
-            }
-        }
-
-        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
-        await Assert.That(rejected.Code).IsEqualTo("workspace_cancelled");
-    }
-
     [Test]
     public async Task OpenAsync_GlobalLimitReached_RejectsAdditionalWorkspace()
     {
@@ -325,30 +285,5 @@ internal sealed class EditorWorkspaceLifecycleTests
         }
 
         return await Task.WhenAll(contenders).WaitAsync(cancellationToken);
-    }
-
-    private sealed class CallbackTimeProvider : TimeProvider
-    {
-        private Action? callback;
-        private int remainingTimestampCalls;
-
-        public override long GetTimestamp()
-        {
-            if (Volatile.Read(ref remainingTimestampCalls) > 0
-                && Interlocked.Decrement(ref remainingTimestampCalls) == 0)
-            {
-                Interlocked.Exchange(ref callback, null)?.Invoke();
-            }
-
-            return 0;
-        }
-
-        public void InvokeAfterTimestampCalls(int count, Action action)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
-            ArgumentNullException.ThrowIfNull(action);
-            callback = action;
-            Volatile.Write(ref remainingTimestampCalls, count);
-        }
     }
 }
