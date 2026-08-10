@@ -36,9 +36,17 @@ HTTP status mapping is consistent across transfer and any later measured large-w
 | `500` | internal invariant defect with opaque correlation only |
 | `503` | temporary infrastructure or host-capacity failure |
 
-`Retry-After` appears only when the server has an honest value for `429` or `503`. Core Module cancellation remains a typed outcome and is not assigned a nonstandard HTTP status. Every non-success body uses the same Problem Details extension fields and exact outcome reason code from Diagnostics V1.
+`Retry-After` appears only when the server has an honest value for `429` or `503`. Core Module cancellation remains a typed outcome and is not assigned a nonstandard HTTP status. Every non-success body uses the same Problem Details extension fields and an exact closed code from its owning contract. Typed outcome codes come from Diagnostics V1; transport validation before a typed request exists is owned here.
 
-The Durable Project Web adapter applies this table directly: an absent or concealed `OpenDurable` target is `404`, Workspace admission rejection is `429`, catalog request/cursor validation is `422`, infrastructure or cancellation is `503`, and an internal defect is `500`. Static SSR performs the catalog call before rendering `/projects`, while `/projects/open` adapts `WorkspaceOpenRejected` directly; neither failure path redirects to an unconsumed query parameter or renders an HTTP `200` error page.
+The malformed `/projects/open` form code is exactly:
+
+```text
+project_open_request_invalid
+```
+
+It maps to `400` when `durableProjectId` is absent, empty, or exceeds the bounded HTTP shape. This validation occurs before constructing `OpenDurable` and never calls the Workspace.
+
+The Durable Project Web adapter applies this table directly: a malformed open form is `400`, an absent or concealed `OpenDurable` target is `404`, Workspace admission rejection is `429`, catalog request/cursor validation is `422`, infrastructure or cancellation is `503`, and an internal defect is `500`. Static SSR performs the catalog call before rendering `/projects`, while `/projects/open` validates its form before constructing `OpenDurable` and then adapts `WorkspaceOpenRejected` directly; neither failure path redirects to an unconsumed query parameter or renders an HTTP `200` error page.
 
 ## 2. Security
 

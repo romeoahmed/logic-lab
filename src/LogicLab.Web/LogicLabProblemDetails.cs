@@ -8,6 +8,9 @@ internal static class LogicLabProblemDetails
 {
     private const string ProblemTypeBase = "https://logiclab.example/problems/";
 
+    internal const string ProjectOpenRequestInvalidCode =
+        "project_open_request_invalid";
+
     public static IResult Create(HttpContext httpContext, string code)
     {
         ArgumentNullException.ThrowIfNull(httpContext);
@@ -30,6 +33,7 @@ internal static class LogicLabProblemDetails
     {
         return code switch
         {
+            ProjectOpenRequestInvalidCode => StatusCodes.Status400BadRequest,
             "authentication_required" => StatusCodes.Status401Unauthorized,
             "workspace_not_found" or "forbidden" => StatusCodes.Status404NotFound,
             "project_catalog_request_invalid" or "project_catalog_cursor_invalid" =>
@@ -49,6 +53,7 @@ internal static class LogicLabProblemDetails
     {
         return code switch
         {
+            ProjectOpenRequestInvalidCode => "The project open request is invalid",
             "authentication_required" => "Authentication is required",
             "workspace_not_found" or "forbidden" => "The requested resource was not found",
             "project_catalog_request_invalid" => "The project catalog request is invalid",
