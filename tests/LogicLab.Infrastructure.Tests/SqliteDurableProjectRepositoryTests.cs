@@ -411,6 +411,39 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task ClaimAsync_NonUniqueUpdateFailure_DoesNotAttemptRecoveryWrite()
+    {
+        var (repository, factory) = await CreateRepositoryAsync();
+        var revision = CreateRevision();
+        var initialRequest = ClaimRequest(revision, fingerprintCharacter: 'a');
+        _ = await repository.ClaimAsync(initialRequest, CancellationToken.None);
+        var interceptor = new NonUniqueUpdateFailureInterceptor();
+        var failingRepository = new SqliteDurableProjectRepository(
+            CreateDbContextFactory(interceptor),
+            receiptRetentionCount: 1_024);
+        var retry = new DurableProjectClaimRequest(
+            new DurableProjectId("replacement-project"),
+            new DurableVersion("replacement-version"),
+            initialRequest.SubjectId,
+            new DurableDisplayName("Replacement name"),
+            revision,
+            ReceiptKey('b', "claim-non-unique-failure"));
+
+        await Assert.That(async () => await failingRepository.ClaimAsync(
+                retry,
+                CancellationToken.None))
+            .ThrowsExactly<DbUpdateException>();
+
+        await using var context = await factory.CreateDbContextAsync();
+        using (Assert.Multiple())
+        {
+            await Assert.That(interceptor.SaveAttemptCount).IsEqualTo(1);
+            await Assert.That(context.DurableProjects).Count().IsEqualTo(1);
+            await Assert.That(context.DurableCommandReceipts).Count().IsEqualTo(1);
+        }
+    }
+
+    [Test]
     public async Task SaveAsync_StaleVersion_ReturnsActualVersionWithoutOverwritingWinner()
     {
         var (repository, factory) = await CreateRepositoryAsync();
@@ -457,6 +490,51 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
                 .IsEqualTo(winnerRevision.RevisionId.Value);
             await Assert.That(context.ProjectRevisions).Count().IsEqualTo(2);
             await Assert.That(context.DurableCommandReceipts).Count().IsEqualTo(3);
+        }
+    }
+
+    [Test]
+    public async Task SaveAsync_NonUniqueUpdateFailure_DoesNotAttemptConflictWrite()
+    {
+        var (repository, factory) = await CreateRepositoryAsync();
+        var initialRevision = CreateRevision();
+        var claim = ClaimRequest(initialRevision, fingerprintCharacter: 'a');
+        _ = await repository.ClaimAsync(claim, CancellationToken.None);
+        var winnerRevision = RenameEntry(initialRevision, "Winner");
+        var winnerVersion = new DurableVersion("winner-version");
+        _ = await repository.SaveAsync(
+            new DurableProjectSaveRequest(
+                claim.DurableProjectId,
+                claim.SubjectId,
+                claim.InitialDurableVersion,
+                winnerVersion,
+                winnerRevision,
+                ReceiptKey('b', "save-winner-before-failure")),
+            CancellationToken.None);
+        var interceptor = new NonUniqueUpdateFailureInterceptor();
+        var failingRepository = new SqliteDurableProjectRepository(
+            CreateDbContextFactory(interceptor),
+            receiptRetentionCount: 1_024);
+        var staleRequest = new DurableProjectSaveRequest(
+            claim.DurableProjectId,
+            claim.SubjectId,
+            claim.InitialDurableVersion,
+            new DurableVersion("loser-version"),
+            RenameEntry(initialRevision, "Loser"),
+            ReceiptKey('c', "save-non-unique-failure"));
+
+        await Assert.That(async () => await failingRepository.SaveAsync(
+                staleRequest,
+                CancellationToken.None))
+            .ThrowsExactly<DbUpdateException>();
+
+        await using var context = await factory.CreateDbContextAsync();
+        var project = await context.DurableProjects.SingleAsync();
+        using (Assert.Multiple())
+        {
+            await Assert.That(interceptor.SaveAttemptCount).IsEqualTo(1);
+            await Assert.That(project.DurableVersion).IsEqualTo(winnerVersion.Value);
+            await Assert.That(context.DurableCommandReceipts).Count().IsEqualTo(2);
         }
     }
 
@@ -721,6 +799,25 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             }
 
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class NonUniqueUpdateFailureInterceptor : SaveChangesInterceptor
+    {
+        public int SaveAttemptCount { get; private set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            SaveAttemptCount++;
+            throw new DbUpdateException(
+                "A non-unique database update failure was injected.",
+                new SqliteException(
+                    "A foreign-key constraint failed.",
+                    SQLitePCL.raw.SQLITE_CONSTRAINT,
+                    SQLitePCL.raw.SQLITE_CONSTRAINT_FOREIGNKEY));
         }
     }
 

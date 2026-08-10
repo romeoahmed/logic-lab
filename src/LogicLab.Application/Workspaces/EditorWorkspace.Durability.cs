@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using LogicLab.Application.Work;
 using Microsoft.Extensions.Logging;
 
 namespace LogicLab.Application.Workspaces;
@@ -16,16 +17,15 @@ internal sealed partial class EditorWorkspace
         DurableDisplayName? displayName = null;
         WorkspaceCommandOutcome? completed = null;
         var isPendingClaimRecovery = false;
-        try
+        List<WorkCoordinator.ScheduledSessionWork>? revokedSessionWork = null;
+        AuthorizationAdmissionEpoch? revokedAuthorization = null;
+        var admissionRejection = await EnterAuthorizedCommandGateAsync(
+            state,
+            command.Context.Caller,
+            cancellationToken).ConfigureAwait(false);
+        if (admissionRejection is not null)
         {
-            await state.CommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException exception)
-            when (ExceptionClassifier.IsCooperativeCancellation(
-                exception,
-                cancellationToken))
-        {
-            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+            return Reject(admissionRejection);
         }
 
         try
@@ -55,10 +55,18 @@ internal sealed partial class EditorWorkspace
                             {
                                 isPendingClaimRecovery =
                                     state.Durability is PendingDurableClaimState;
+                                var subjectId = ((AuthenticatedWorkspaceCaller)
+                                    command.Context.Caller).SubjectId;
+                                if (state.Durability.OwnerSubjectId != subjectId)
+                                {
+                                    revokedAuthorization =
+                                        RotateAuthorizationAdmissionUnderLock(state);
+                                }
+
                                 state.Durability = new PendingDurableClaimState(
-                                    ((AuthenticatedWorkspaceCaller)command.Context.Caller)
-                                    .SubjectId);
-                                RevokeUnauthorizedPendingIntentsUnderLock(state);
+                                    subjectId);
+                                revokedSessionWork =
+                                    RevokeUnauthorizedPendingIntentsUnderLock(state);
                             }
 
                             publication = ReserveContextualIntentUnderLock(
@@ -79,6 +87,15 @@ internal sealed partial class EditorWorkspace
                 }
             }
 
+            revokedAuthorization?.Revoke();
+            if (revokedSessionWork is not null)
+            {
+                foreach (var scheduledWork in revokedSessionWork)
+                {
+                    scheduledWork.Cancel();
+                }
+            }
+
             if (publication is not null)
             {
                 completed = await ExecuteDurableRepositoryCommandAsync(
@@ -87,9 +104,10 @@ internal sealed partial class EditorWorkspace
                     publication,
                     displayName,
                     cancellationToken).ConfigureAwait(false);
+                AuthorizationAdmissionEpoch? changedAuthorization;
                 lock (state.ContinuityGate)
                 {
-                    PublishDurableOutcomeUnderLock(
+                    changedAuthorization = PublishDurableOutcomeUnderLock(
                         state,
                         command,
                         completed,
@@ -99,6 +117,8 @@ internal sealed partial class EditorWorkspace
                         publication,
                         completed);
                 }
+
+                changedAuthorization?.Revoke();
             }
         }
         finally
@@ -338,7 +358,7 @@ internal sealed partial class EditorWorkspace
         LogDurableRepositoryFailure(logger, exception, correlation);
     }
 
-    private static void PublishDurableOutcomeUnderLock(
+    private static AuthorizationAdmissionEpoch? PublishDurableOutcomeUnderLock(
         WorkspaceState state,
         WorkspaceCommand command,
         WorkspaceCommandOutcome outcome,
@@ -350,7 +370,7 @@ internal sealed partial class EditorWorkspace
             })
         {
             state.IsIdempotencyWindowClosed = true;
-            return;
+            return null;
         }
 
         if (command is ClaimSandbox
@@ -364,7 +384,7 @@ internal sealed partial class EditorWorkspace
                 claimed.DurableVersion,
                 claimed.ProjectRevisionId);
             state.ProjectionVersion++;
-            return;
+            return null;
         }
 
         if (command is ClaimSandbox)
@@ -372,15 +392,16 @@ internal sealed partial class EditorWorkspace
             if (!isPendingClaimRecovery)
             {
                 state.Durability = SandboxWorkspaceState.Instance;
+                return RotateAuthorizationAdmissionUnderLock(state);
             }
 
-            return;
+            return null;
         }
 
         if (command is not SaveDurable
             || state.Durability is not DurableWorkspaceState durable)
         {
-            return;
+            return null;
         }
 
         switch (outcome)
@@ -405,6 +426,8 @@ internal sealed partial class EditorWorkspace
                 state.ProjectionVersion++;
                 break;
         }
+
+        return null;
     }
 
     private bool TryCreateDurableDisplayName(

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -13,6 +14,15 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
     private const string SaveCommand = "save";
     private const string StoredOutcome = "stored";
     private const string ConflictOutcome = "conflict";
+    private const string ClaimWorkspaceUniqueColumns =
+        "durable_projects.claim_workspace_id";
+    private const string ReceiptUniqueColumns =
+        "durable_command_receipts.workspace_id, "
+        + "durable_command_receipts.attachment_generation, "
+        + "durable_command_receipts.client_intent_id";
+    private const string RevisionUniqueColumns =
+        "project_revisions.durable_project_id, "
+        + "project_revisions.project_revision_id";
     private readonly IDbContextFactory<LogicLabDbContext> contextFactory;
     private readonly int receiptRetentionCount;
 
@@ -36,11 +46,11 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
             return await ClaimTransactionAsync(request, cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (IsClaimRace(exception))
         {
             var replay = await TryReadClaimReceiptAsync(
                 request,
-                CancellationToken.None).ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(false);
             if (replay is not null)
             {
                 return replay;
@@ -50,17 +60,18 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
             {
                 var recovered = await TryRecoverExistingClaimAsync(
                     request,
-                    CancellationToken.None).ConfigureAwait(false);
+                    cancellationToken).ConfigureAwait(false);
                 if (recovered is not null)
                 {
                     return recovered;
                 }
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException recoveryException)
+                when (IsClaimRace(recoveryException))
             {
                 replay = await TryReadClaimReceiptAsync(
                     request,
-                    CancellationToken.None).ConfigureAwait(false);
+                    cancellationToken).ConfigureAwait(false);
                 if (replay is not null)
                 {
                     return replay;
@@ -218,11 +229,11 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
             return await RecordConflictAfterRaceAsync(request, cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (IsSaveRace(exception))
         {
             var replay = await TryReadSaveReceiptAsync(
                 request,
-                CancellationToken.None).ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(false);
             if (replay is not null)
             {
                 return replay;
@@ -238,6 +249,31 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
 
             throw;
         }
+    }
+
+    private static bool IsClaimRace(DbUpdateException exception)
+    {
+        return IsUniqueConstraintOn(exception, ClaimWorkspaceUniqueColumns)
+            || IsUniqueConstraintOn(exception, ReceiptUniqueColumns);
+    }
+
+    private static bool IsSaveRace(DbUpdateException exception)
+    {
+        return IsUniqueConstraintOn(exception, ReceiptUniqueColumns)
+            || IsUniqueConstraintOn(exception, RevisionUniqueColumns);
+    }
+
+    private static bool IsUniqueConstraintOn(
+        DbUpdateException exception,
+        string columns)
+    {
+        return exception.InnerException is SqliteException sqlite
+            && sqlite.SqliteExtendedErrorCode is
+                SQLitePCL.raw.SQLITE_CONSTRAINT_PRIMARYKEY
+                or SQLitePCL.raw.SQLITE_CONSTRAINT_UNIQUE
+            && sqlite.Message.Contains(
+                $"UNIQUE constraint failed: {columns}",
+                StringComparison.Ordinal);
     }
 
     private async Task<DurableProjectSaveRepositoryOutcome> SaveTransactionAsync(

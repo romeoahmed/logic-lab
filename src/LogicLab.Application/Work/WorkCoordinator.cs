@@ -9,7 +9,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     private readonly Lock gate = new();
     private readonly CancellationTokenSource stopping = new();
     private readonly Channel<WorkspaceId> compilationQueue;
-    private readonly Channel<SessionWorkItem> sessionQueue;
+    private readonly LinkedList<SessionWorkItem> sessionQueue = [];
+    private readonly SemaphoreSlim sessionQueueSignal = new(0);
     private readonly int sessionQueueCapacity;
     private readonly ILogger<WorkCoordinator> logger;
     private readonly Dictionary<WorkspaceId, CompilationWorkItem> latestCompilations = [];
@@ -29,7 +30,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         this.logger = logger;
         compilationQueue = CreateBoundedQueue<WorkspaceId>(
             policy.CompilationQueueCapacity);
-        sessionQueue = CreateBoundedQueue<SessionWorkItem>(policy.SessionQueueCapacity);
         sessionQueueCapacity = policy.SessionQueueCapacity;
         compilationWorker = ConsumeCompilationsAsync();
         sessionWorker = ConsumeSessionsAsync();
@@ -98,30 +98,34 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         return true;
     }
 
-    internal Task<WorkspaceCommandOutcome> RunSessionAsync(
+    internal bool TryScheduleSession(
         Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        out ScheduledSessionWork? scheduledWork,
+        out string? rejectionCode)
     {
         ArgumentNullException.ThrowIfNull(operation);
         if (cancellationToken.IsCancellationRequested)
         {
-            return Task.FromResult<WorkspaceCommandOutcome>(
-                Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
+            scheduledWork = null;
+            rejectionCode = WorkspaceOutcomeReasons.WorkspaceCancelled;
+            return false;
         }
 
-        Task<WorkspaceCommandOutcome> completion;
         lock (gate)
         {
             if (isDisposed)
             {
-                return Task.FromResult<WorkspaceCommandOutcome>(
-                    Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
+                scheduledWork = null;
+                rejectionCode = WorkspaceOutcomeReasons.WorkspaceCancelled;
+                return false;
             }
 
             if (reservedSessionItems >= sessionQueueCapacity)
             {
-                return Task.FromResult<WorkspaceCommandOutcome>(
-                    Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected));
+                scheduledWork = null;
+                rejectionCode = WorkspaceOutcomeReasons.WorkspaceAdmissionRejected;
+                return false;
             }
 
             SessionWorkItem? item = SessionWorkItem.CreateCommand(
@@ -130,23 +134,42 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 stopping.Token);
             try
             {
-                completion = item.Completion!.Task;
-                if (!sessionQueue.Writer.TryWrite(item))
-                {
-                    return Task.FromResult<WorkspaceCommandOutcome>(
-                        Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
-                }
-
+                EnqueueSessionUnderLock(item);
+                var scheduledItem = item;
+                scheduledWork = new ScheduledSessionWork(
+                    scheduledItem.Completion!.Task,
+                    () => CancelSession(scheduledItem));
                 item = null;
                 reservedSessionItems++;
+                rejectionCode = null;
+                return true;
             }
             finally
             {
                 item?.Dispose();
             }
         }
+    }
 
-        return completion;
+    private void CancelSession(SessionWorkItem item)
+    {
+        bool abandoned;
+        lock (gate)
+        {
+            abandoned = item.TryAbandonQueuedUnderLock();
+            if (abandoned)
+            {
+                RemoveQueuedSessionUnderLock(item);
+                reservedSessionItems--;
+            }
+        }
+
+        item.CancelScheduledWork();
+        if (abandoned)
+        {
+            item.Complete(Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
+            item.Dispose();
+        }
     }
 
     internal bool TryStartSessionContinuation(
@@ -176,12 +199,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 stopping.Token);
             try
             {
-                if (!sessionQueue.Writer.TryWrite(item))
-                {
-                    rejectionCode = WorkspaceOutcomeReasons.WorkspaceCancelled;
-                    return false;
-                }
-
+                EnqueueSessionUnderLock(item);
                 item = null;
                 continuation.MarkQueuedUnderLock();
                 reservedSessionItems++;
@@ -214,11 +232,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 stopping.Token);
             try
             {
-                if (!sessionQueue.Writer.TryWrite(item))
-                {
-                    return false;
-                }
-
+                EnqueueSessionUnderLock(item);
                 item = null;
                 continuation.MarkQueuedUnderLock();
                 return true;
@@ -232,6 +246,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        SessionWorkItem[] abandoned;
         lock (gate)
         {
             if (isDisposed)
@@ -241,12 +256,48 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
             isDisposed = true;
             compilationQueue.Writer.TryComplete();
-            sessionQueue.Writer.TryComplete();
+            abandoned = [.. sessionQueue];
+            sessionQueue.Clear();
+            foreach (var item in abandoned)
+            {
+                _ = item.TryAbandonQueuedUnderLock();
+                item.MarkRemovedUnderLock();
+                _ = sessionQueueSignal.Wait(0);
+                if (item.Continuation is null)
+                {
+                    reservedSessionItems--;
+                }
+                else if (item.Continuation.AbandonUnderLock())
+                {
+                    reservedSessionItems--;
+                }
+            }
+        }
+
+        foreach (var item in abandoned)
+        {
+            item.CancelScheduledWork();
+            item.Complete(Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
+            item.Dispose();
         }
 
         await stopping.CancelAsync().ConfigureAwait(false);
         await Task.WhenAll(compilationWorker, sessionWorker).ConfigureAwait(false);
+        sessionQueueSignal.Dispose();
         stopping.Dispose();
+    }
+
+    private void EnqueueSessionUnderLock(SessionWorkItem item)
+    {
+        item.MarkQueuedUnderLock(sessionQueue.AddLast(item));
+        sessionQueueSignal.Release();
+    }
+
+    private void RemoveQueuedSessionUnderLock(SessionWorkItem item)
+    {
+        sessionQueue.Remove(item.QueueNode!);
+        item.MarkRemovedUnderLock();
+        _ = sessionQueueSignal.Wait(0);
     }
 
     private static Channel<T> CreateBoundedQueue<T>(int capacity)
@@ -319,12 +370,34 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
     private async Task ConsumeSessionsAsync()
     {
-        await foreach (var item in sessionQueue.Reader.ReadAllAsync().ConfigureAwait(false))
+        while (true)
         {
+            try
+            {
+                await sessionQueueSignal.WaitAsync(stopping.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException exception)
+                when (ExceptionClassifier.IsCooperativeCancellation(
+                    exception,
+                    stopping.Token))
+            {
+                return;
+            }
+
+            SessionWorkItem? item;
             lock (gate)
             {
+                if (sessionQueue.First is null)
+                {
+                    continue;
+                }
+
+                item = sessionQueue.First.Value;
+                sessionQueue.RemoveFirst();
+                item.MarkRemovedUnderLock();
                 if (item.Continuation is null)
                 {
+                    item.MarkExecutingUnderLock();
                     reservedSessionItems--;
                 }
                 else
@@ -352,14 +425,13 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             }
             finally
             {
-                if (item.Continuation is { } continuation)
+                lock (gate)
                 {
-                    lock (gate)
+                    item.MarkCompletedUnderLock();
+                    if (item.Continuation is { } continuation
+                        && continuation.CompleteExecutionUnderLock())
                     {
-                        if (continuation.CompleteExecutionUnderLock())
-                        {
-                            reservedSessionItems--;
-                        }
+                        reservedSessionItems--;
                     }
                 }
 
@@ -538,6 +610,10 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         CancellationToken stoppingToken)
         : WorkItem(callerCancellationToken, stoppingToken)
     {
+        private SessionWorkItemStatus status;
+
+        public LinkedListNode<SessionWorkItem>? QueueNode { get; private set; }
+
         public Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> Operation { get; }
             = operation;
 
@@ -548,6 +624,43 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         public void Complete(WorkspaceCommandOutcome outcome)
         {
             Completion?.TrySetResult(outcome);
+        }
+
+        public void MarkQueuedUnderLock(LinkedListNode<SessionWorkItem> queueNode)
+        {
+            QueueNode = queueNode;
+            status = SessionWorkItemStatus.Queued;
+        }
+
+        public void MarkRemovedUnderLock()
+        {
+            QueueNode = null;
+        }
+
+        public void MarkExecutingUnderLock()
+        {
+            status = SessionWorkItemStatus.Executing;
+        }
+
+        public bool TryAbandonQueuedUnderLock()
+        {
+            if (status != SessionWorkItemStatus.Queued)
+            {
+                return false;
+            }
+
+            status = SessionWorkItemStatus.Abandoned;
+            return true;
+        }
+
+        public void MarkCompletedUnderLock()
+        {
+            status = SessionWorkItemStatus.Completed;
+        }
+
+        public void CancelScheduledWork()
+        {
+            Cancel();
         }
 
         public static SessionWorkItem CreateCommand(
@@ -576,6 +689,32 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 CancellationToken.None,
                 stoppingToken);
         }
+    }
+
+    private enum SessionWorkItemStatus
+    {
+        Created,
+        Queued,
+        Executing,
+        Abandoned,
+        Completed,
+    }
+
+    internal sealed class ScheduledSessionWork
+    {
+        private readonly Action cancel;
+
+        internal ScheduledSessionWork(
+            Task<WorkspaceCommandOutcome> completion,
+            Action cancel)
+        {
+            Completion = completion;
+            this.cancel = cancel;
+        }
+
+        internal Task<WorkspaceCommandOutcome> Completion { get; }
+
+        internal void Cancel() => cancel();
     }
 
     internal sealed class SessionContinuation(WorkCoordinator owner)
@@ -613,6 +752,19 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         {
             isExecuting = false;
             if (isQueued)
+            {
+                return false;
+            }
+
+            isReserved = false;
+            return true;
+        }
+
+        internal bool AbandonUnderLock()
+        {
+            isExecuting = false;
+            isQueued = false;
+            if (!isReserved)
             {
                 return false;
             }
