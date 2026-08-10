@@ -4,8 +4,14 @@
 <PageTitle>Not Found</PageTitle>
 
 <section class="not-found" aria-labelledby="not-found-title">
-    <p class="eyebrow">404 · Page not found</p>
-    <h1 id="not-found-title">This page isn’t here.</h1>
-    <p>The address does not match a Logic Lab page. Return home to continue.</p>
-    <a class="recovery-link" href="/">Return to home</a>
+    <FluentCard class="not-found-card" Appearance="CardAppearance.Outline" Width="100%">
+        <span class="error-coordinate" aria-hidden="true">404</span>
+        <p class="eyebrow">Page not found</p>
+        <h1 id="not-found-title">This path ends here.</h1>
+        <p>The address does not match a Logic Lab surface. Return to the workbench or start from home.</p>
+        <div class="recovery-actions">
+            <a class="recovery-link" href="/editor">Open Workbench</a>
+            <a class="recovery-secondary" href="/">Return home</a>
+        </div>
+    </FluentCard>
 </section>

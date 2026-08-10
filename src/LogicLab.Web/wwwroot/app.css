@@ -1,23 +1,30 @@
 :root {
   color-scheme: light;
-  --ll-bench: #e7eef1;
-  --ll-panel: #f7fafb;
+  --ll-bench: #e8eef0;
+  --ll-bench-deep: #dce6e9;
+  --ll-panel: #f5f8f8;
   --ll-canvas: #ffffff;
-  --ll-ink: #172a33;
-  --ll-muted: #536871;
-  --ll-signal: #08788c;
-  --ll-signal-strong: #056173;
-  --ll-grid: rgb(23 42 51 / 8%);
-  --ll-border: #b8c7ce;
-  --ll-border-strong: #8299a3;
-  --ll-signal-soft: rgb(8 120 140 / 10%);
+  --ll-ink: #102a33;
+  --ll-muted: #536970;
+  --ll-subtle: #71838a;
+  --ll-signal: #087b86;
+  --ll-signal-strong: #055f69;
+  --ll-signal-bright: #25a6a8;
+  --ll-grid: rgb(16 42 51 / 7%);
+  --ll-grid-strong: rgb(8 123 134 / 13%);
+  --ll-border: #b7c7cc;
+  --ll-border-strong: #7f979f;
+  --ll-signal-soft: rgb(8 123 134 / 10%);
+  --ll-signal-softer: rgb(8 123 134 / 5%);
   --ll-danger: #b42318;
   --ll-danger-strong: #7a271a;
   --ll-danger-soft: rgb(180 35 24 / 9%);
-  --ll-radius-small: 0.55rem;
-  --ll-radius-medium: 0.85rem;
-  --ll-radius-large: 1.2rem;
-  --ll-shadow-panel: 0 1.25rem 3.5rem rgb(23 42 51 / 12%);
+  --ll-radius-small: 0.35rem;
+  --ll-radius-medium: 0.65rem;
+  --ll-radius-large: 0.95rem;
+  --ll-shadow-panel: 0 1rem 2.5rem rgb(16 42 51 / 9%);
+  --ll-shadow-float: 0 1.5rem 4rem rgb(16 42 51 / 14%);
+  --ll-page-width: 96rem;
   font-family: "Atkinson Hyperlegible Next", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -28,6 +35,7 @@
 html {
   min-inline-size: 320px;
   background: var(--ll-bench);
+  scroll-behavior: smooth;
 }
 
 body.logic-lab-root {
@@ -37,6 +45,10 @@ body.logic-lab-root {
   overflow-y: auto;
   color: var(--ll-ink);
   background-color: var(--ll-bench);
+  background-image:
+    linear-gradient(90deg, transparent 0 49.95%, rgb(255 255 255 / 22%) 50% 50.05%, transparent 50.1%);
+  background-size: 12rem 100%;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -51,6 +63,48 @@ textarea {
   outline-offset: 3px;
 }
 
+::selection {
+  color: var(--ll-ink);
+  background: color-mix(in oklab, var(--ll-signal-bright) 35%, white);
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p,
+li {
+  text-wrap: pretty;
+}
+
+a {
+  text-underline-offset: 0.18em;
+}
+
+code {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 0.9em;
+}
+
 h1:focus {
   outline: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a,
+  button {
+    transition:
+      color 120ms ease,
+      background-color 120ms ease,
+      border-color 120ms ease,
+      transform 120ms ease;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }

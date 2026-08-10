@@ -1,9 +1,44 @@
 .definition-navigator {
   display: grid;
   gap: 0.6rem;
-  padding: 0.75rem;
+  padding: 0.8rem;
   border: 1px solid var(--ll-border);
-  background: var(--ll-panel);
+  border-radius: var(--ll-radius-medium);
+  background: color-mix(in oklab, var(--ll-panel) 97%, var(--ll-signal-soft));
+}
+
+.navigator-empty {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  min-block-size: 2.8rem;
+  color: var(--ll-muted);
+}
+
+.navigator-empty p {
+  margin: 0;
+}
+
+.navigator-empty > span {
+  display: flex;
+  gap: 0.2rem;
+  align-items: center;
+}
+
+.navigator-empty i {
+  inline-size: 0.42rem;
+  block-size: 0.42rem;
+  border: 1px solid var(--ll-signal);
+  background: var(--ll-signal-soft);
+  transform: rotate(45deg);
+}
+
+.navigator-empty i:nth-child(2) {
+  inline-size: 1rem;
+  block-size: 1px;
+  border: 0;
+  background: var(--ll-border-strong);
+  transform: none;
 }
 
 .definition-tabs,
@@ -23,11 +58,14 @@
   border: 1px solid var(--ll-border-strong);
   background: var(--ll-canvas);
   color: inherit;
+  border-radius: var(--ll-radius-small);
+  cursor: pointer;
 }
 
 .definition-tabs button[aria-current="page"] {
   border-color: var(--ll-signal);
   box-shadow: inset 0 -2px 0 var(--ll-signal);
+  background: var(--ll-signal-soft);
 }
 
 [data-entry-marker] {

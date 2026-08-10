@@ -1,16 +1,28 @@
-@using Microsoft.FluentUI.AspNetCore.Components
-
 <section class="account-shell" aria-labelledby="account-title">
     <div class="account-introduction">
         <p class="account-eyebrow">@Eyebrow</p>
         <h1 id="account-title">@Title</h1>
         <p>@Description</p>
+        <ul class="account-assurances" aria-label="Account protections">
+            <li><span aria-hidden="true"></span>Private Durable Project catalog</li>
+            <li><span aria-hidden="true"></span>Fenced editor attachments</li>
+            <li><span aria-hidden="true"></span>Secure, non-sliding sessions</li>
+        </ul>
     </div>
 
     <FluentCard class="account-card"
                 Appearance="CardAppearance.Outline"
                 Width="100%">
-        @ChildContent
+        <div class="account-card-context">
+            <FluentBadge Appearance="BadgeAppearance.Tint"
+                         Color="BadgeColor.Informative"
+                         Content="Secure account access" />
+            <span>Protected server-rendered form</span>
+        </div>
+        <FluentDivider Appearance="DividerAppearance.Subtle" />
+        <div class="account-card-content">
+            @ChildContent
+        </div>
     </FluentCard>
 </section>
 

@@ -3,15 +3,22 @@
 
 <PageTitle>Error</PageTitle>
 
-<h1>Error.</h1>
-<h2>An error occurred while processing your request.</h2>
-
-@if (ShowRequestId)
-{
-    <p>
-        <strong>Request ID:</strong> <code>@RequestId</code>
-    </p>
-}
+<section class="error-page" aria-labelledby="error-title">
+    <FluentCard class="error-card" Appearance="CardAppearance.Outline" Width="100%">
+        <span class="error-mark" aria-hidden="true">!</span>
+        <p class="eyebrow">Request interrupted</p>
+        <h1 id="error-title">The workbench hit an unexpected fault.</h1>
+        <p class="error-description">No recovery action was applied automatically. Return home and retry the operation when you are ready.</p>
+        @if (ShowRequestId)
+        {
+            <p class="request-id"><strong>Request ID</strong><code>@RequestId</code></p>
+        }
+        <div class="error-actions">
+            <a class="error-primary" href="/">Return home</a>
+            <a href="/editor">Open a new Sandbox</a>
+        </div>
+    </FluentCard>
+</section>
 
 @code {
     [CascadingParameter]

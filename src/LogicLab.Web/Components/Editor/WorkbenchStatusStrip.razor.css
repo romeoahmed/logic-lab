@@ -1,9 +1,11 @@
 .status-strip {
   display: grid;
   gap: 0.5rem;
-  padding-block: 0.75rem;
-  border-top: 1px solid var(--ll-border);
+  padding: 0.75rem;
+  border: 1px solid var(--ll-border);
+  border-radius: var(--ll-radius-medium);
   color: var(--ll-muted);
+  background: color-mix(in oklab, var(--ll-panel) 96%, var(--ll-signal-soft));
   font-size: 0.875rem;
 }
 
@@ -41,7 +43,7 @@
 
 .status-message {
   margin: 0;
-  padding-block-start: 0.5rem;
+  padding: 0.65rem 0.75rem 0;
   border-top: 1px solid var(--ll-border);
 }
 
@@ -54,7 +56,8 @@
 }
 
 .status-dot.is-connected {
-  background: var(--ll-signal);
+  background: #2f9d60;
+  box-shadow: 0 0 0 0.18rem rgb(47 157 96 / 12%);
 }
 
 .status-dot.is-connecting {
@@ -71,5 +74,18 @@
   .status-facts > div:nth-child(odd) {
     border-inline-start: 0;
     padding-inline-start: 0;
+  }
+}
+
+@media (max-width: 440px) {
+  .status-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .status-facts > div,
+  .status-facts > div:nth-child(odd) {
+    padding: 0.55rem 0;
+    border-inline-start: 0;
+    border-bottom: 1px solid var(--ll-border);
   }
 }

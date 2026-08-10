@@ -1,8 +1,6 @@
 @page "/editor"
 @page "/editor/{WorkspaceIdValue}"
 @rendermode InteractiveServer
-@using Microsoft.FluentUI.AspNetCore.Components
-
 <PageTitle>@EditorPageTitle</PageTitle>
 
 <div class="workbench-shell">
@@ -37,6 +35,13 @@
             <div>
                 <p class="eyebrow">@WorkbenchEyebrow</p>
                 <h1>@WorkbenchTitle</h1>
+                <div class="workbench-metadata" aria-label="Workbench capabilities">
+                    <FluentBadge Appearance="BadgeAppearance.Tint"
+                                 Color="BadgeColor.Informative"
+                                 Content="Interactive server" />
+                    <span>Semantic scene</span>
+                    <span>Fenced commands</span>
+                </div>
             </div>
             <p>@WorkbenchDescription</p>
         </header>

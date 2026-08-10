@@ -2,14 +2,14 @@
 @attribute [Authorize]
 @attribute [ExcludeFromInteractiveRouting]
 @inject LogicLab.Web.Projects.DurableProjectCatalogPageState PageState
-@using Microsoft.FluentUI.AspNetCore.Components
-
 <PageTitle>Durable Projects</PageTitle>
 
 <section class="projects-shell" aria-labelledby="projects-title">
     <header class="projects-heading">
         <div>
-            <p class="projects-eyebrow">Authenticated workspace catalog</p>
+            <FluentBadge Appearance="BadgeAppearance.Tint"
+                         Color="BadgeColor.Informative"
+                         Content="Private workspace catalog" />
             <h1 id="projects-title">Durable Projects</h1>
         </div>
         <p>Reopen saved circuit revisions in a fenced editor workspace.</p>
@@ -18,6 +18,16 @@
     <FluentCard class="catalog-card"
                 Appearance="CardAppearance.Outline"
                 Width="100%">
+        <div class="catalog-card-heading">
+            <div>
+                <p class="projects-eyebrow">Saved revisions</p>
+                <h2>Your project index</h2>
+            </div>
+            <FluentBadge Appearance="BadgeAppearance.Outline"
+                         Color="BadgeColor.Subtle"
+                         Content="@VisibleProjectCount" />
+        </div>
+        <FluentDivider Appearance="DividerAppearance.Subtle" />
         @if (Page.Items.Count == 0)
         {
             <div class="catalog-empty">
@@ -61,6 +71,10 @@
     private DurableProjectPage Page => PageState.Page
         ?? throw new InvalidOperationException(
             "The Durable Project Catalog page was not loaded before rendering.");
+
+    private string VisibleProjectCount => Page.Items.Count == 1
+        ? "1 project"
+        : $"{Page.Items.Count} projects";
 
     private static string NextPage(ProjectCatalogCursor cursor)
     {

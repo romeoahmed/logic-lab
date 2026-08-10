@@ -1,7 +1,10 @@
 <section class="definition-navigator" aria-label="Circuit Definition navigation">
     @if (Document is null || SelectedDefinitionId is null)
     {
-        <p>No Circuit Definitions are open.</p>
+        <div class="navigator-empty" role="status">
+            <span aria-hidden="true"><i></i><i></i><i></i></span>
+            <p>No Circuit Definitions are open.</p>
+        </div>
     }
     else
     {
