@@ -76,43 +76,30 @@ internal sealed partial class EditorWorkspace
 
             lock (state.ContinuityGate)
             {
-                switch (request)
+                return request switch
                 {
-                    case InitialAttach when state.AttachmentId is not null:
-                        return RejectAttach(
-                            WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
-
-                    case InitialAttach:
-                        return PublishAttachmentUnderLock(
+                    InitialAttach when state.AttachmentId is not null =>
+                        RejectAttach(WorkspaceOutcomeReasons.StaleWorkspaceAttachment),
+                    InitialAttach => PublishAttachmentUnderLock(
                             state,
                             request,
-                            generation: 1);
-
-                    case Reattach reattach
+                            generation: 1),
+                    Reattach reattach
                         when state.AttachmentId != reattach.PriorAttachmentId
-                            || state.AttachmentGeneration != reattach.PriorGeneration:
-                        return RejectAttach(
-                            WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
-
-                    case Reattach:
-                        return PublishAttachmentUnderLock(
+                            || state.AttachmentGeneration != reattach.PriorGeneration =>
+                        RejectAttach(WorkspaceOutcomeReasons.StaleWorkspaceAttachment),
+                    Reattach => PublishAttachmentUnderLock(
                             state,
                             request,
-                            checked(state.AttachmentGeneration + 1));
-
-                    case RecoverAttach when state.AttachmentId is null:
-                        return RejectAttach(
-                            WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
-
-                    case RecoverAttach:
-                        return PublishAttachmentUnderLock(
+                            checked(state.AttachmentGeneration + 1)),
+                    RecoverAttach when state.AttachmentId is null =>
+                        RejectAttach(WorkspaceOutcomeReasons.StaleWorkspaceAttachment),
+                    RecoverAttach => PublishAttachmentUnderLock(
                             state,
                             request,
-                            checked(state.AttachmentGeneration + 1));
-
-                    default:
-                        throw new UnreachableException();
-                }
+                            checked(state.AttachmentGeneration + 1)),
+                    _ => throw new UnreachableException(),
+                };
             }
         }
         finally

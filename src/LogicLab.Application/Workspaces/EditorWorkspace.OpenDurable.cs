@@ -86,13 +86,13 @@ internal sealed partial class EditorWorkspace
                 await compilationCompleted.Task.ConfigureAwait(false);
             }
 
-            if (state.Compilation is not CompilationPublishedProjection)
+            var compilation = state.Compilation;
+            if (compilation is not CompilationPublishedProjection)
             {
-                var rejected = state.Compilation as CompilationRejectedProjection;
                 DisposeUnpublishedWorkspace(state);
-                return rejected is null
-                    ? RejectOpen(WorkspaceOutcomeReasons.WorkspaceCancelled)
-                    : RejectOpen(rejected.RejectionCode, rejected.DiagnosticCodes);
+                return compilation is CompilationRejectedProjection rejected
+                    ? RejectOpen(rejected.RejectionCode, rejected.DiagnosticCodes)
+                    : RejectOpen(WorkspaceOutcomeReasons.WorkspaceCancelled);
             }
 
             // Bootstrap transitions are not observable until publication. The first visible

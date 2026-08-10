@@ -3,13 +3,9 @@ using Microsoft.EntityFrameworkCore;
 namespace LogicLab.Infrastructure.Persistence;
 
 #pragma warning disable CA1812 // EF Core's registered factory constructs this type by reflection.
-internal sealed class LogicLabDbContext : DbContext
+internal sealed class LogicLabDbContext(DbContextOptions<LogicLabDbContext> options)
+    : DbContext(options)
 {
-    public LogicLabDbContext(DbContextOptions<LogicLabDbContext> options)
-        : base(options)
-    {
-    }
-
     internal DbSet<DurableProjectRecord> DurableProjects => Set<DurableProjectRecord>();
 
     internal DbSet<ProjectRevisionRecord> ProjectRevisions => Set<ProjectRevisionRecord>();
