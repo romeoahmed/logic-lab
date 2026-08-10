@@ -5,14 +5,14 @@
         <span class="brand-mark" aria-hidden="true">LL</span>
         <span>Logic Lab</span>
     </a>
-    <nav aria-label="Primary navigation">
+    <nav class="primary-navigation" aria-label="Primary navigation">
         <a href="/editor">Workbench</a>
         <AuthorizeView>
             <Authorized>
                 <a href="/projects">Projects</a>
-                <form action="/account/logout" method="post">
+                <form class="logout-form" action="/account/logout" method="post">
                     <AntiforgeryToken />
-                    <button type="submit">Log out</button>
+                    <button class="navigation-button" type="submit">Log out</button>
                 </form>
             </Authorized>
             <NotAuthorized>

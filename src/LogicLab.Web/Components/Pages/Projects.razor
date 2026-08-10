@@ -2,38 +2,60 @@
 @attribute [Authorize]
 @attribute [ExcludeFromInteractiveRouting]
 @inject LogicLab.Web.Projects.DurableProjectCatalogPageState PageState
+@using Microsoft.FluentUI.AspNetCore.Components
 
 <PageTitle>Durable Projects</PageTitle>
 
-<h1>Durable Projects</h1>
+<section class="projects-shell" aria-labelledby="projects-title">
+    <header class="projects-heading">
+        <div>
+            <p class="projects-eyebrow">Authenticated workspace catalog</p>
+            <h1 id="projects-title">Durable Projects</h1>
+        </div>
+        <p>Reopen saved circuit revisions in a fenced editor workspace.</p>
+    </header>
 
-@if (Page.Items.Count == 0)
-{
-    <p>No Durable Projects are available.</p>
-}
-else
-{
-    <ul class="project-catalog">
-        @foreach (var item in Page.Items)
+    <FluentCard class="catalog-card"
+                Appearance="CardAppearance.Outline"
+                Width="100%">
+        @if (Page.Items.Count == 0)
         {
-            <li data-project-id="@item.DurableProjectId.Value">
-                <bdi dir="auto">@item.DisplayName.Value</bdi><form action="/projects/open" method="post">
-                    <AntiforgeryToken />
-                    <input type="hidden"
-                           name="durableProjectId"
-                           value="@item.DurableProjectId.Value" />
-                    <button type="submit">Open</button>
-                </form>
-            </li>
+            <div class="catalog-empty">
+                <span class="catalog-empty-mark" aria-hidden="true">◇</span>
+                <h2>No Durable Projects yet</h2>
+                <p>Start in the Sandbox, then keep the work that deserves a durable home.</p>
+                <a class="catalog-action" href="/editor">Open the Sandbox Workbench</a>
+            </div>
         }
-    </ul>
-}
+        else
+        {
+            <ul class="project-catalog">
+                @foreach (var item in Page.Items)
+                {
+                    <li data-project-id="@item.DurableProjectId.Value">
+                        <span class="project-mark" aria-hidden="true">◆</span>
+                        <bdi dir="auto">@item.DisplayName.Value</bdi>
+                        <form action="/projects/open" method="post">
+                            <AntiforgeryToken />
+                            <input type="hidden"
+                                   name="durableProjectId"
+                                   value="@item.DurableProjectId.Value" />
+                            <button type="submit">Open</button>
+                        </form>
+                    </li>
+                }
+            </ul>
+        }
+    </FluentCard>
 
-@if (Page.Next is not null)
-{
-    <a data-projects-next
-       href="@NextPage(Page.Next)">Next</a>
-}
+    @if (Page.Next is not null)
+    {
+        <nav class="catalog-pagination" aria-label="Project catalog pages">
+            <a data-projects-next
+               href="@NextPage(Page.Next)">Next page <span aria-hidden="true">→</span></a>
+        </nav>
+    }
+</section>
 
 @code {
     private DurableProjectPage Page => PageState.Page
