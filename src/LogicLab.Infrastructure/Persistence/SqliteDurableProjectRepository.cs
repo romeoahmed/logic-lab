@@ -103,7 +103,7 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
         context.DurableProjects.Add(new DurableProjectRecord
         {
             Id = request.DurableProjectId.Value,
-            ClaimWorkspaceId = request.ClaimWorkspaceId.Value,
+            ClaimWorkspaceId = request.ReceiptKey.WorkspaceId.Value,
             InitialProjectRevisionId = request.ProjectRevision.RevisionId.Value,
             InitialDurableVersion = request.InitialDurableVersion.Value,
             SubjectId = request.SubjectId.Value,
@@ -177,7 +177,7 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
 
         var project = await context.DurableProjects.SingleOrDefaultAsync(
             candidate => candidate.ClaimWorkspaceId
-                == request.ClaimWorkspaceId.Value,
+                == request.ReceiptKey.WorkspaceId.Value,
             cancellationToken).ConfigureAwait(false);
         if (project is null)
         {
