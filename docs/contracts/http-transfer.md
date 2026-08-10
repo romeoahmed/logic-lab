@@ -53,7 +53,11 @@ redirects to an account page. Login and registration ingress rejection uses
 the exact code `authentication_rate_limit_exceeded`, maps to `429`, and includes
 `Retry-After` only when the limiter supplies an honest duration. An endpoint
 request body that exceeds its declared byte limit uses the exact code
-`request_body_too_large` and maps to `413`.
+`request_body_too_large` and maps to `413`. The `/projects/open` form admits at
+most 4096 request-body bytes, inclusive, before antiforgery validation or form
+binding. A protected form request whose antiforgery verdict is invalid uses the
+exact code `antiforgery_validation_failed`, maps to `400`, and never enters form
+binding or application work.
 
 The Durable Project Web adapter applies this table directly: a malformed open form is `400`, an absent or concealed `OpenDurable` target is `404`, Workspace admission rejection is `429`, catalog request/cursor validation is `422`, infrastructure or cancellation is `503`, and an internal defect is `500`. Static SSR performs the catalog call before rendering `/projects`, while `/projects/open` validates its form before constructing `OpenDurable` and then adapts `WorkspaceOpenRejected` directly; neither failure path redirects to an unconsumed query parameter or renders an HTTP `200` error page.
 
