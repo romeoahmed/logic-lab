@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.DataProtection;
 
 namespace LogicLab.Web.Projects;
 
-public sealed class DataProtectionProjectCatalogCursorProtector
+internal sealed class DataProtectionProjectCatalogCursorProtector
     : IProjectCatalogCursorProtector
 {
     private const string Purpose =

@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LogicLab.Web.Data;
 
-public sealed class ApplicationIdentityDbContext(
+internal sealed class ApplicationIdentityDbContext(
     DbContextOptions<ApplicationIdentityDbContext> options)
     : IdentityDbContext<ApplicationUser>(options)
 {

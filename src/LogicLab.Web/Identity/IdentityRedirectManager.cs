@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace LogicLab.Web.Identity;
 
-public sealed class IdentityRedirectManager(NavigationManager navigationManager)
+internal sealed class IdentityRedirectManager(NavigationManager navigationManager)
 {
     public void RedirectTo(string? returnUrl)
     {

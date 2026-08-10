@@ -7,7 +7,7 @@ using Microsoft.Net.Http.Headers;
 
 namespace LogicLab.Web.Projects;
 
-public static class DurableProjectEndpointRouteBuilderExtensions
+internal static class DurableProjectEndpointRouteBuilderExtensions
 {
     internal const string OpenPath = "/projects/open";
 
