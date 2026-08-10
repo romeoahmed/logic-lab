@@ -8,16 +8,19 @@ public sealed class ComponentContractSchema
     internal ComponentContractSchema(
         ComponentContractKey key,
         ComponentParameterSchema[] parameters,
-        ComponentPortSchema[] ports)
+        ComponentPortSchema[] ports,
+        string stateShapeId,
+        string semanticRuleVersion)
     {
-        var metadata = ComponentContractMetadataCatalog.Get(key);
+        ArgumentException.ThrowIfNullOrEmpty(stateShapeId);
+        ArgumentException.ThrowIfNullOrEmpty(semanticRuleVersion);
         Key = key;
         Parameters = Array.AsReadOnly(
             (ComponentParameterSchema[])parameters.Clone());
         Ports = Array.AsReadOnly(
             (ComponentPortSchema[])ports.Clone());
-        StateShapeId = metadata.StateShapeId;
-        SemanticRuleVersion = metadata.SemanticRuleVersion;
+        StateShapeId = stateShapeId;
+        SemanticRuleVersion = semanticRuleVersion;
         SchemaDigest = ComponentContractSchemaDigest.Compute(
             Key,
             Parameters,
