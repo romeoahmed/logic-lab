@@ -198,7 +198,7 @@ public sealed partial class Editor : IAsyncDisposable
         if (attachOutcome is AttachRejected
             {
                 Code: "stale_workspace_attachment",
-                RetryDisposition: ReattachDisposition,
+                RetryDisposition: RetryDisposition.Reattach,
             }
             && caller is AuthenticatedWorkspaceCaller authenticatedCaller
             && caller == CurrentCaller)
@@ -458,7 +458,7 @@ public sealed partial class Editor : IAsyncDisposable
                 cancellationToken);
             if (read is WorkspaceReadRejected
                 {
-                    RetryDisposition: ReattachDisposition,
+                    RetryDisposition: RetryDisposition.Reattach,
                 }
                 && !reattachAttempted
                 && await TryReattachAsync(cancellationToken))
@@ -600,7 +600,7 @@ public sealed partial class Editor : IAsyncDisposable
             commandCancellationToken);
         if (outcome is WorkspaceCommandRejected
             {
-                RetryDisposition: ReattachDisposition,
+                RetryDisposition: RetryDisposition.Reattach,
             }
             && await TryReattachAsync(observationCancellationToken))
         {

@@ -68,7 +68,7 @@ internal sealed class EditorWorkspaceContinuityTests
             await Assert.That(rejected.Code)
                 .IsEqualTo("stale_workspace_attachment");
             await Assert.That(rejected.RetryDisposition)
-                .IsTypeOf<ReattachDisposition>();
+                .IsEqualTo(RetryDisposition.Reattach);
             await Assert.That(after).IsTypeOf<ProjectionSnapshot>();
         }
     }
@@ -241,7 +241,7 @@ internal sealed class EditorWorkspaceContinuityTests
         {
             await Assert.That(rejection.Code).IsEqualTo("stale_workspace_attachment");
             await Assert.That(rejection.RetryDisposition)
-                .IsTypeOf<ReattachDisposition>();
+                .IsEqualTo(RetryDisposition.Reattach);
         }
     }
 
@@ -441,7 +441,7 @@ internal sealed class EditorWorkspaceContinuityTests
             await Assert.That(undoCommit.ProjectRevisionId).IsEqualTo(first.ProjectRevisionId);
             await Assert.That(rejection.Code).IsEqualTo("project_revision_precondition_failed");
             await Assert.That(rejection.RetryDisposition)
-                .IsTypeOf<RefreshProjectionDisposition>();
+                .IsEqualTo(RetryDisposition.RefreshProjection);
             await Assert.That(projection.History.CanRedo).IsFalse();
         }
     }
@@ -806,7 +806,7 @@ internal sealed class EditorWorkspaceContinuityTests
         {
             await Assert.That(rejection.Code).IsEqualTo("idempotency_window_expired");
             await Assert.That(rejection.RetryDisposition)
-                .IsTypeOf<ReattachDisposition>();
+                .IsEqualTo(RetryDisposition.Reattach);
             await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.DisplayName)
                 .IsEqualTo("Second");
         }

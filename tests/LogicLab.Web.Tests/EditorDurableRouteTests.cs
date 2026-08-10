@@ -431,7 +431,7 @@ internal sealed class EditorDurableRouteTests
                 .IsEqualTo("stale_workspace_attachment");
             await Assert.That(((AttachRejected)workspace.AttachOutcomes[1])
                     .RetryDisposition)
-                .IsTypeOf<ReattachDisposition>();
+                .IsEqualTo(RetryDisposition.Reattach);
             await Assert.That(((Attached)workspace.AttachOutcomes[2]).Generation)
                 .IsEqualTo(((Attached)workspace.AttachOutcomes[0]).Generation + 1);
             await Assert.That(((Attached)workspace.AttachOutcomes[2]).AttachmentId)
