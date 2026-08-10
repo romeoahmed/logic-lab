@@ -398,7 +398,7 @@ public static class CoreLibrarySchema
     ];
 
     public static ReadOnlyCollection<ComponentContractSchema> Contracts { get; } =
-        Array.AsReadOnly((ComponentContractSchema[])ContractSchemas.Clone());
+        Array.AsReadOnly(ContractSchemas);
 
     public static string ContentDigest { get; } = ComputeContentDigest();
 
