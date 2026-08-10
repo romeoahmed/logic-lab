@@ -8,7 +8,10 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace LogicLab.Infrastructure.Persistence;
 
-internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
+internal sealed class SqliteDurableProjectRepository :
+    IDurableProjectRepository,
+    IDurableProjectCatalogRepository,
+    IDurableProjectLoader
 {
     private const string ClaimCommand = "claim";
     private const string SaveCommand = "save";
@@ -249,6 +252,103 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
 
             throw;
         }
+    }
+
+    public async Task<IReadOnlyList<DurableProjectCatalogRepositoryItem>>
+        ListAuthorizedAsync(
+            DurableProjectCatalogRepositoryRequest request,
+            CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await using var context = await contextFactory.CreateDbContextAsync(
+            cancellationToken).ConfigureAwait(false);
+        IQueryable<DurableProjectCatalogQueryRow> query;
+        if (request.AfterDisplayNameSortKey is null)
+        {
+            query = context.Database.SqlQuery<DurableProjectCatalogQueryRow>($"""
+                SELECT durable_project_id AS "DurableProjectId",
+                       display_name AS "DisplayName",
+                       display_name_sort_key AS "DisplayNameSortKey"
+                FROM durable_projects
+                WHERE subject_id = {request.SubjectId.Value}
+                ORDER BY display_name_sort_key, durable_project_id
+                LIMIT {request.MaximumItemCount}
+                """);
+        }
+        else
+        {
+            var afterSortKey = request.AfterDisplayNameSortKey.ToArray();
+            query = context.Database.SqlQuery<DurableProjectCatalogQueryRow>($"""
+                SELECT durable_project_id AS "DurableProjectId",
+                       display_name AS "DisplayName",
+                       display_name_sort_key AS "DisplayNameSortKey"
+                FROM durable_projects
+                WHERE subject_id = {request.SubjectId.Value}
+                  AND (display_name_sort_key > {afterSortKey}
+                    OR (display_name_sort_key = {afterSortKey}
+                      AND durable_project_id > {request.AfterDurableProjectId!.Value}))
+                ORDER BY display_name_sort_key, durable_project_id
+                LIMIT {request.MaximumItemCount}
+                """);
+        }
+
+        var rows = await query.ToArrayAsync(cancellationToken).ConfigureAwait(false);
+        return
+        [
+            .. rows.Select(row => new DurableProjectCatalogRepositoryItem(
+                new DurableProjectId(row.DurableProjectId),
+                new DurableDisplayName(row.DisplayName),
+                row.DisplayNameSortKey)),
+        ];
+    }
+
+    public async Task<DurableProjectOpenRepositoryOutcome> LoadAsync(
+        DurableProjectOpenRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await using var context = await contextFactory.CreateDbContextAsync(
+            cancellationToken).ConfigureAwait(false);
+        var stored = await (
+            from project in context.DurableProjects.AsNoTracking()
+            where project.Id == request.DurableProjectId.Value
+                && project.SubjectId == request.SubjectId.Value
+            join revision in context.ProjectRevisions.AsNoTracking()
+                on new
+                {
+                    DurableProjectId = project.Id,
+                    ProjectRevisionId = project.CurrentProjectRevisionId,
+                }
+                equals new
+                {
+                    revision.DurableProjectId,
+                    revision.ProjectRevisionId,
+                }
+                into revisions
+            from revision in revisions.DefaultIfEmpty()
+            select new
+            {
+                project.Id,
+                project.DisplayName,
+                project.DurableVersion,
+                Payload = revision == null ? null : revision.Payload,
+            }).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        if (stored is null)
+        {
+            return new DurableProjectOpenNotFound();
+        }
+
+        if (stored.Payload is null)
+        {
+            throw new InvalidOperationException(
+                "A Durable Project current pointer must reference an immutable revision.");
+        }
+
+        return new DurableProjectOpenFound(
+            new DurableProjectId(stored.Id),
+            new DurableDisplayName(stored.DisplayName),
+            new DurableVersion(stored.DurableVersion),
+            ProjectRevisionPayloadSerializer.Deserialize(stored.Payload));
     }
 
     private static bool IsClaimRace(DbUpdateException exception)
@@ -772,4 +872,15 @@ internal sealed class SqliteDurableProjectRepository : IDurableProjectRepository
             throw new DurableProjectCommitUncertainException(exception);
         }
     }
+
+#pragma warning disable CA1812 // EF Core constructs this unmapped SQL projection.
+    private sealed class DurableProjectCatalogQueryRow
+    {
+        public required string DurableProjectId { get; set; }
+
+        public required string DisplayName { get; set; }
+
+        public required byte[] DisplayNameSortKey { get; set; }
+    }
+#pragma warning restore CA1812
 }

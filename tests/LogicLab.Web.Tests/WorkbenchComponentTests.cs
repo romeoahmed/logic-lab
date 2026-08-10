@@ -144,7 +144,8 @@ internal sealed class WorkbenchComponentTests
             idempotencyRecordCount: 1,
             detachedRetention: TimeSpan.FromMinutes(30),
             hotSwapPeakBytes: ulong.MaxValue,
-            durableDisplayNameLimits: DurableDisplayNameLimits.Default));
+            durableDisplayNameLimits: DurableDisplayNameLimits.Default,
+            durableProjectCatalogLimits: DurableProjectCatalogLimits.Default));
         var rendered = RenderEditor(context, workspace);
         _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
 

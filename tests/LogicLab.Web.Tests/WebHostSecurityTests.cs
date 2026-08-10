@@ -1,7 +1,10 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -97,6 +100,41 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         var negotiatedExtensions = await capture.Extensions.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(negotiatedExtensions).IsNullOrEmpty();
+    }
+
+    [Test]
+    public async Task Get_ProjectsWithoutAuthentication_ChallengesToLocalLogin()
+    {
+        using var client = factory.Server.CreateClient();
+
+        using var response = await client.GetAsync(
+            new Uri("/projects", UriKind.Relative));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Redirect);
+            await Assert.That(response.Headers.Location?.PathAndQuery)
+                .IsEqualTo("/account/login?ReturnUrl=%2Fprojects");
+        }
+    }
+
+    [Test]
+    public async Task Post_ProjectsOpenEndpoint_RequiresAuthorizationAndAntiforgery()
+    {
+        var endpointDataSource = factory.Services
+            .GetRequiredService<EndpointDataSource>();
+        var endpoint = endpointDataSource.Endpoints
+            .OfType<RouteEndpoint>()
+            .Single(candidate => candidate.RoutePattern.RawText == "/projects/open");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(endpoint.Metadata.GetMetadata<IAuthorizeData>())
+                .IsNotNull();
+            await Assert.That(endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>()?
+                    .RequiresValidation)
+                .IsTrue();
+        }
     }
 
     private static string Header(HttpResponseMessage response, string name)

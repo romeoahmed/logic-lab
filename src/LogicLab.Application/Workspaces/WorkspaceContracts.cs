@@ -44,6 +44,23 @@ public sealed record CreateSandbox : OpenWorkspaceRequest
     public string EntryCircuitDefinitionDisplayName { get; }
 }
 
+public sealed record OpenDurable : OpenWorkspaceRequest
+{
+    public OpenDurable(
+        DurableProjectId durableProjectId,
+        WorkspaceCaller caller)
+    {
+        ArgumentNullException.ThrowIfNull(durableProjectId);
+        ArgumentNullException.ThrowIfNull(caller);
+        DurableProjectId = durableProjectId;
+        Caller = caller;
+    }
+
+    public DurableProjectId DurableProjectId { get; }
+
+    public WorkspaceCaller Caller { get; }
+}
+
 public abstract record WorkspaceOpenOutcome
 {
     private protected WorkspaceOpenOutcome()

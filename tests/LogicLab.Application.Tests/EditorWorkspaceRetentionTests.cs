@@ -382,7 +382,8 @@ internal sealed class EditorWorkspaceRetentionTests
             idempotencyRecordCount: 32,
             detachedRetention ?? TimeSpan.FromMinutes(30),
             hotSwapPeakBytes: ulong.MaxValue,
-            durableDisplayNameLimits: DurableDisplayNameLimits.Default);
+            durableDisplayNameLimits: DurableDisplayNameLimits.Default,
+            durableProjectCatalogLimits: DurableProjectCatalogLimits.Default);
     }
 
     private static async Task<T> IsType<T>(object actual)

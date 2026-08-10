@@ -11,7 +11,8 @@ internal static class TestEditorWorkspaceFactory
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
-        IDurableProjectRepository? durableProjectRepository = null)
+        IDurableProjectRepository? durableProjectRepository = null,
+        IDurableProjectLoader? durableProjectLoader = null)
     {
         return EditorWorkspaceFactory.Create(
             buildFingerprint,
@@ -19,7 +20,8 @@ internal static class TestEditorWorkspaceFactory
             workspacePolicy,
             schedulingPolicy,
             timeProvider,
-            loggerFactory);
+            loggerFactory,
+            durableProjectLoader);
     }
 
     public static IEditorWorkspace CreateForTesting(
@@ -29,7 +31,8 @@ internal static class TestEditorWorkspaceFactory
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
         string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint,
-        IDurableProjectRepository? durableProjectRepository = null)
+        IDurableProjectRepository? durableProjectRepository = null,
+        IDurableProjectLoader? durableProjectLoader = null)
     {
         return EditorWorkspaceFactory.CreateForTesting(
             operations,
@@ -38,7 +41,8 @@ internal static class TestEditorWorkspaceFactory
             schedulingPolicy,
             timeProvider,
             loggerFactory,
-            buildFingerprint);
+            buildFingerprint,
+            durableProjectLoader);
     }
 
     private sealed class UnexpectedDurableProjectRepository : IDurableProjectRepository

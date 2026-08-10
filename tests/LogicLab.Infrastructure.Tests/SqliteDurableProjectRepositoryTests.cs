@@ -627,6 +627,72 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             CollectionOrdering.Matching);
     }
 
+    [Test]
+    public async Task LoadAsync_OwnerAfterSave_ReturnsCurrentImmutableRevision()
+    {
+        var (repository, _) = await CreateRepositoryAsync();
+        var initialRevision = CreateRevision();
+        var claim = ClaimRequest(initialRevision, fingerprintCharacter: 'a');
+        _ = await repository.ClaimAsync(claim, CancellationToken.None);
+        var currentRevision = RenameEntry(initialRevision, "Current entry");
+        var currentVersion = new DurableVersion("current-version");
+        _ = await repository.SaveAsync(
+            new DurableProjectSaveRequest(
+                claim.DurableProjectId,
+                claim.SubjectId,
+                claim.InitialDurableVersion,
+                currentVersion,
+                currentRevision,
+                ReceiptKey('b', "save-current")),
+            CancellationToken.None);
+
+        var outcome = await repository.LoadAsync(
+            new DurableProjectOpenRequest(
+                claim.DurableProjectId,
+                claim.SubjectId),
+            CancellationToken.None);
+
+        var found = (await Assert.That(outcome)
+            .IsTypeOf<DurableProjectOpenFound>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(found.DurableProjectId)
+                .IsEqualTo(claim.DurableProjectId);
+            await Assert.That(found.DisplayName.Value)
+                .IsEqualTo("Private project");
+            await Assert.That(found.DurableVersion).IsEqualTo(currentVersion);
+            await Assert.That(found.ProjectRevision.RevisionId)
+                .IsEqualTo(currentRevision.RevisionId);
+            await Assert.That(found.ProjectRevision.Document.EntryCircuitDefinition.DisplayName)
+                .IsEqualTo("Current entry");
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_AbsentAndDifferentSubject_ReturnSameConcealedOutcome()
+    {
+        var (repository, _) = await CreateRepositoryAsync();
+        var claim = ClaimRequest(CreateRevision(), fingerprintCharacter: 'a');
+        _ = await repository.ClaimAsync(claim, CancellationToken.None);
+
+        var absent = await repository.LoadAsync(
+            new DurableProjectOpenRequest(
+                new DurableProjectId("absent-project"),
+                claim.SubjectId),
+            CancellationToken.None);
+        var unauthorized = await repository.LoadAsync(
+            new DurableProjectOpenRequest(
+                claim.DurableProjectId,
+                new AuthenticatedSubjectId("different-subject")),
+            CancellationToken.None);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(absent).IsTypeOf<DurableProjectOpenNotFound>();
+            await Assert.That(unauthorized).IsTypeOf<DurableProjectOpenNotFound>();
+        }
+    }
+
     public ValueTask DisposeAsync()
     {
         SqliteConnection.ClearAllPools();
