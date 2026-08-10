@@ -7,6 +7,8 @@ namespace LogicLab.Web.Projects;
 
 public static class DurableProjectCatalogPageEndpointExtensions
 {
+    private const string PrivateNoStore = "private, no-store";
+
     public static RazorComponentsEndpointConventionBuilder
         AddDurableProjectCatalogPageAdapter(
             this RazorComponentsEndpointConventionBuilder endpoints)
@@ -35,6 +37,14 @@ public static class DurableProjectCatalogPageEndpointExtensions
         HttpContext httpContext,
         RequestDelegate next)
     {
+        httpContext.Response.OnStarting(
+            static state =>
+            {
+                ((HttpResponse)state).Headers.CacheControl = PrivateNoStore;
+                return Task.CompletedTask;
+            },
+            httpContext.Response);
+
         var subjectValue = httpContext.User.FindFirst(
             ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(subjectValue))

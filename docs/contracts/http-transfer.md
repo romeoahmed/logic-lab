@@ -29,6 +29,7 @@ HTTP status mapping is consistent across transfer and any later measured large-w
 | `400` | malformed HTTP shape before a typed request exists |
 | `401` | authentication required |
 | `404` | resource absent or deliberately concealed as unauthorized |
+| `405` | request method is not supported by the target resource |
 | `409` | attachment, idempotency, Durable Version, build, or proposal precondition conflict |
 | `413` | request bytes exceed the HTTP ingress limit |
 | `422` | authenticated bounded content fails package, Domain, or semantic validation |
@@ -58,6 +59,10 @@ most 4096 request-body bytes, inclusive, before antiforgery validation or form
 binding. A protected form request whose antiforgery verdict is invalid uses the
 exact code `antiforgery_validation_failed`, maps to `400`, and never enters form
 binding or application work.
+
+An unsupported request method for `/projects/open` uses the exact code
+`project_open_method_not_allowed`, maps to `405`, and publishes `Allow: POST`.
+This API-style route never falls through to an HTML not-found page.
 
 The Durable Project Web adapter applies this table directly: a malformed open form is `400`, an absent or concealed `OpenDurable` target is `404`, Workspace admission rejection is `429`, catalog request/cursor validation is `422`, infrastructure or cancellation is `503`, and an internal defect is `500`. Static SSR performs the catalog call before rendering `/projects`, while `/projects/open` validates its form before constructing `OpenDurable` and then adapts `WorkspaceOpenRejected` directly; neither failure path redirects to an unconsumed query parameter or renders an HTTP `200` error page.
 
