@@ -72,30 +72,24 @@ internal sealed class SqliteDurableProjectCatalogRepositoryTests : IAsyncDisposa
                 new DurableProjectId("project-a")),
             CancellationToken.None);
 
-        var sql = capture.Commands.Single(command =>
-            command.Contains(
+        var query = capture.Commands.Single(command =>
+            command.Text.Contains(
                 "AS \"DisplayNameSortKey\"",
                 StringComparison.OrdinalIgnoreCase)
-            && command.Contains("LIMIT", StringComparison.OrdinalIgnoreCase));
+            && command.Text.Contains("LIMIT", StringComparison.OrdinalIgnoreCase));
         await using var context = await factory.CreateDbContextAsync();
         var connection = context.Database.GetDbConnection();
         await connection.OpenAsync();
         await using var planCommand = connection.CreateCommand();
-        planCommand.CommandText = """
-            EXPLAIN QUERY PLAN
-            SELECT durable_project_id, display_name, display_name_sort_key
-            FROM durable_projects
-            WHERE subject_id = $subject
-              AND (display_name_sort_key > $sort_key
-                OR (display_name_sort_key = $sort_key
-                  AND durable_project_id > $project_id))
-            ORDER BY display_name_sort_key, durable_project_id
-            LIMIT $limit
-            """;
-        planCommand.Parameters.Add(new SqliteParameter("$subject", "subject-1"));
-        planCommand.Parameters.Add(new SqliteParameter("$sort_key", "Alpha"u8.ToArray()));
-        planCommand.Parameters.Add(new SqliteParameter("$project_id", "project-a"));
-        planCommand.Parameters.Add(new SqliteParameter("$limit", 2));
+        planCommand.CommandText = $"EXPLAIN QUERY PLAN\n{query.Text}";
+        foreach (var captured in query.Parameters)
+        {
+            var parameter = planCommand.CreateParameter();
+            parameter.ParameterName = captured.Name;
+            parameter.Value = captured.Value;
+            planCommand.Parameters.Add(parameter);
+        }
+
         var plan = new List<string>();
         await using (var reader = await planCommand.ExecuteReaderAsync())
         {
@@ -107,17 +101,17 @@ internal sealed class SqliteDurableProjectCatalogRepositoryTests : IAsyncDisposa
 
         using (Assert.Multiple())
         {
-            await Assert.That(sql).Contains("durable_project_id");
-            await Assert.That(sql).Contains("display_name");
-            await Assert.That(sql).Contains("display_name_sort_key");
-            await Assert.That(sql).Contains("subject_id");
-            await Assert.That(sql).Contains("LIMIT");
-            await Assert.That(sql).Contains(
+            await Assert.That(query.Text).Contains("durable_project_id");
+            await Assert.That(query.Text).Contains("display_name");
+            await Assert.That(query.Text).Contains("display_name_sort_key");
+            await Assert.That(query.Text).Contains("subject_id");
+            await Assert.That(query.Text).Contains("LIMIT");
+            await Assert.That(query.Text).Contains(
                 "ORDER BY display_name_sort_key, durable_project_id");
-            await Assert.That(sql).DoesNotContain("OFFSET");
-            await Assert.That(sql).DoesNotContain("current_project_revision_id");
-            await Assert.That(sql).DoesNotContain("durable_version");
-            await Assert.That(sql).DoesNotContain("payload");
+            await Assert.That(query.Text).DoesNotContain("OFFSET");
+            await Assert.That(query.Text).DoesNotContain("current_project_revision_id");
+            await Assert.That(query.Text).DoesNotContain("durable_version");
+            await Assert.That(query.Text).DoesNotContain("payload");
             await Assert.That(plan.Any(line => line.Contains(
                     "ix_durable_projects_subject_sort_key_id",
                     StringComparison.Ordinal)))
@@ -260,16 +254,22 @@ internal sealed class SqliteDurableProjectCatalogRepositoryTests : IAsyncDisposa
             => Task.FromResult(CreateDbContext());
     }
 
+    private sealed record CapturedCommand(
+        string Text,
+        IReadOnlyList<CapturedParameter> Parameters);
+
+    private sealed record CapturedParameter(string Name, object Value);
+
     private sealed class CommandCaptureInterceptor : DbCommandInterceptor
     {
-        public ConcurrentQueue<string> Commands { get; } = new();
+        public ConcurrentQueue<CapturedCommand> Commands { get; } = new();
 
         public override InterceptionResult<DbDataReader> ReaderExecuting(
             DbCommand command,
             CommandEventData eventData,
             InterceptionResult<DbDataReader> result)
         {
-            Commands.Enqueue(command.CommandText);
+            Commands.Enqueue(Capture(command));
             return result;
         }
 
@@ -279,8 +279,21 @@ internal sealed class SqliteDurableProjectCatalogRepositoryTests : IAsyncDisposa
             InterceptionResult<DbDataReader> result,
             CancellationToken cancellationToken = default)
         {
-            Commands.Enqueue(command.CommandText);
+            Commands.Enqueue(Capture(command));
             return ValueTask.FromResult(result);
+        }
+
+        private static CapturedCommand Capture(DbCommand command)
+        {
+            var parameters = command.Parameters
+                .Cast<DbParameter>()
+                .Select(parameter => new CapturedParameter(
+                    parameter.ParameterName,
+                    parameter.Value is byte[] bytes
+                        ? (byte[])bytes.Clone()
+                        : parameter.Value ?? DBNull.Value))
+                .ToArray();
+            return new CapturedCommand(command.CommandText, parameters);
         }
     }
 }

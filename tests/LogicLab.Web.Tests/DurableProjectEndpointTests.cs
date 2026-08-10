@@ -20,8 +20,15 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     [Test]
     public async Task Get_Projects_WithOpaqueCursor_PassesTrustedContextAndRendersHtml()
     {
+        const string projectedDisplayName = "Projected 项目";
         var catalog = new RecordingCatalog(
-            new DurableProjectPage([], next: null));
+            new DurableProjectPage(
+                [
+                    new DurableProjectSummaryV1(
+                        new DurableProjectId("project-rendered"),
+                        new DurableDisplayName(projectedDisplayName)),
+                ],
+                next: null));
         using var host = factory.WithWebHostBuilder(builder =>
             builder.ConfigureTestServices(services =>
             {
@@ -42,7 +49,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
             await Assert.That(response.Content.Headers.ContentType?.MediaType)
                 .IsEqualTo("text/html");
-            await Assert.That(html).Contains("Durable Projects");
+            await Assert.That(html).Contains(HtmlEncoder.Default.Encode(projectedDisplayName));
             await Assert.That(catalog.CallCount).IsEqualTo(1);
             await Assert.That(catalog.SubjectId?.Value)
                 .IsEqualTo("subject-http");

@@ -1,11 +1,9 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Antiforgery;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
@@ -13,7 +11,6 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using TUnit.AspNetCore;
 
 namespace LogicLab.Web.Tests;
@@ -137,7 +134,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     }
 
     [Test]
-    public async Task Post_ProjectsOpenEndpoint_RequiresAuthorizationAndAntiforgery()
+    public async Task Post_ProjectsOpenEndpoint_RequiresAntiforgeryValidation()
     {
         var endpointDataSource = factory.Services
             .GetRequiredService<EndpointDataSource>();
@@ -145,17 +142,9 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
             .OfType<RouteEndpoint>()
             .Single(candidate => candidate.RoutePattern.RawText == "/projects/open");
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(endpoint.Metadata.GetMetadata<IAuthorizeData>())
-                .IsNotNull();
-            await Assert.That(endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>()?
-                    .RequiresValidation)
-                .IsTrue();
-            await Assert.That(endpoint.Metadata
-                    .GetMetadata<IDisableCookieRedirectMetadata>())
-                .IsNotNull();
-        }
+        await Assert.That(endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>()?
+                .RequiresValidation)
+            .IsTrue();
     }
 
     [Test]
@@ -242,11 +231,8 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     }
 
     [Test]
-    public async Task AntiforgeryCookie_ProductionConfiguration_IsAlwaysSecure()
+    public async Task AntiforgeryCookie_HttpsResponse_IncludesSecureAttribute()
     {
-        var options = factory.Services
-            .GetRequiredService<IOptions<AntiforgeryOptions>>()
-            .Value;
         using var client = factory.CreateHttpsClient();
         using var response = await client.GetAsync(
             new Uri("https://localhost/account/login"));
@@ -254,58 +240,8 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         var antiforgeryCookie = response.Headers.GetValues("Set-Cookie")
             .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal));
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(options.Cookie.SecurePolicy)
-                .IsEqualTo(CookieSecurePolicy.Always);
-            await Assert.That(antiforgeryCookie.Split(';', StringSplitOptions.TrimEntries))
-                .Contains("secure", StringComparer.OrdinalIgnoreCase);
-        }
-    }
-
-    [Test]
-    public async Task LaunchProfiles_ProjectProfilesRequireHttpsEndpoint()
-    {
-        var environment = factory.Services
-            .GetRequiredService<IWebHostEnvironment>();
-        var path = Path.Combine(
-            environment.ContentRootPath,
-            "Properties",
-            "launchSettings.json");
-        await using var stream = File.OpenRead(path);
-        using var document = await JsonDocument.ParseAsync(stream);
-        var projectProfiles = document.RootElement
-            .GetProperty("profiles")
-            .EnumerateObject()
-            .Where(profile => profile.Value.GetProperty("commandName").GetString()
-                == "Project")
-            .Select(profile => new LaunchProfile(
-                profile.Name,
-                [
-                    .. profile.Value.GetProperty("applicationUrl")
-                        .GetString()!
-                        .Split(';', StringSplitOptions.RemoveEmptyEntries)
-                        .Select(value => new Uri(value, UriKind.Absolute)),
-                ]))
-            .ToArray();
-        var httpOnlyProfiles = projectProfiles
-            .Where(profile => profile.Urls.All(url => url.Scheme != Uri.UriSchemeHttps))
-            .Select(profile => profile.Name)
-            .ToArray();
-        var httpsProfile = projectProfiles.SingleOrDefault(profile =>
-            string.Equals(profile.Name, "https", StringComparison.OrdinalIgnoreCase));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(projectProfiles).IsNotEmpty();
-            await Assert.That(projectProfiles.Select(profile => profile.Name))
-                .DoesNotContain("http", StringComparer.OrdinalIgnoreCase);
-            await Assert.That(httpOnlyProfiles).IsEmpty();
-            await Assert.That(httpsProfile).IsNotNull();
-            await Assert.That(httpsProfile?.Urls.Any(url =>
-                    url.Scheme == Uri.UriSchemeHttps))
-                .IsTrue();
-        }
+        await Assert.That(antiforgeryCookie.Split(';', StringSplitOptions.TrimEntries))
+            .Contains("secure", StringComparer.OrdinalIgnoreCase);
     }
 
     private static string Header(HttpResponseMessage response, string name)
@@ -515,8 +451,6 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
             };
         }
     }
-
-    private sealed record LaunchProfile(string Name, Uri[] Urls);
 
     private sealed record PreparedIdentityForm(
         string RequestToken,

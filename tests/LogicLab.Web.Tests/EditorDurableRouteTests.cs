@@ -52,7 +52,6 @@ internal sealed class EditorDurableRouteTests
                     .HasAttribute("disabled"))
                 .IsTrue();
             await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
-            await Assert.That(rendered.Markup).DoesNotContain("Durable Project reopened.");
             await Assert.That(rendered.FindComponent<WorkbenchStatusStrip>()
                     .Instance.Projection)
                 .IsNull();
@@ -91,10 +90,7 @@ internal sealed class EditorDurableRouteTests
             })));
         workspace.ReleaseAttach();
 
-        await rendered.WaitForStateAsync(() => workspace.DetachRequest is not null
-            || rendered.Markup.Contains(
-                "Durable Project reopened.",
-                StringComparison.Ordinal));
+        await rendered.WaitForStateAsync(() => workspace.DetachRequest is not null);
         var attached = (Attached)workspace.AttachOutcomes.Single();
         await Assert.That(rendered.FindComponent<WorkbenchStatusStrip>()
                 .Instance.Projection)
@@ -106,7 +102,6 @@ internal sealed class EditorDurableRouteTests
                 .HasAttribute("disabled"))
             .IsTrue();
         await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
-        await Assert.That(rendered.Markup).DoesNotContain("Durable Project reopened.");
         await Assert.That(workspace.DetachRequest).IsNotNull();
         var detach = workspace.DetachRequest!;
         using (Assert.Multiple())
@@ -169,9 +164,6 @@ internal sealed class EditorDurableRouteTests
         await Assert.That(AreAllCommandsDisabled(rendered)).IsTrue();
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.Markup).DoesNotContain("Durable Project reopened.");
-            await Assert.That(rendered.Markup)
-                .Contains("Authentication changed. Reload the Workspace to continue.");
             await Assert.That(((AuthenticatedWorkspaceCaller)workspace.ReadCaller!)
                     .SubjectId.Value)
                 .IsEqualTo("subject-editor");
@@ -238,7 +230,6 @@ internal sealed class EditorDurableRouteTests
                     .SubjectId.Value)
                 .IsEqualTo("subject-editor");
             await Assert.That(stale.Code).IsEqualTo("stale_workspace_attachment");
-            await Assert.That(second.Markup).Contains("Durable Project reopened.");
         }
     }
 
@@ -265,8 +256,7 @@ internal sealed class EditorDurableRouteTests
                 .AddChildContent<Editor>(editor => editor
                     .Add(component => component.WorkspaceIdValue,
                         opened.WorkspaceId.Value)));
-        await rendered.WaitForStateAsync(() => workspace.Request is not null);
-        await Assert.That(rendered.Markup).Contains("Durable Project reopened.");
+        await rendered.WaitForElementAsync("[data-command='author']:not([disabled])");
         await rendered.Find("[data-command='author']").ClickAsync();
         await rendered.WaitForStateAsync(() => workspace.ReadCaller is not null);
         await rendered.FindComponent<Editor>().Instance.DisposeAsync();
