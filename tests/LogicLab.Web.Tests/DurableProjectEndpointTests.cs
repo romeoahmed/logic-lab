@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using LogicLab.Application.Workspaces;
@@ -255,6 +256,39 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     [Test]
     public Task Post_OpenWithOversizedProjectId_ReturnsRequestInvalidProblemDetails()
         => AssertMalformedOpenRequest(new string('a', 65));
+
+    [Test]
+    public async Task Post_OpenWithNonFormContentType_ReturnsRequestInvalidProblemDetails()
+    {
+        await using var workspace = new RecordingOpenWorkspace();
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthentication(services);
+                services.RemoveAll<IDurableProjectCatalog>();
+                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
+                services.RemoveAll<IEditorWorkspace>();
+                services.AddSingleton<IEditorWorkspace>(workspace);
+            }));
+        using var client = host.CreateHttpsClient();
+        var form = await PrepareOpenFormAsync(client);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            new Uri("/projects/open", UriKind.Relative))
+        {
+            Content = new StringContent("{}", Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Add("Cookie", form.AntiforgeryCookie);
+        request.Headers.Add("RequestVerificationToken", form.RequestToken);
+
+        using var response = await client.SendAsync(request);
+
+        await AssertProblemDetails(
+            response,
+            HttpStatusCode.BadRequest,
+            "project_open_request_invalid");
+        await Assert.That(workspace.Request).IsNull();
+    }
 
     [Test]
     [Arguments("project_catalog_infrastructure_failure", HttpStatusCode.ServiceUnavailable)]
