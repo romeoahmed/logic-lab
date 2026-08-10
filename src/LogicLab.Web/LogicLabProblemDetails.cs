@@ -10,6 +10,12 @@ internal static class LogicLabProblemDetails
 
     internal const string ProjectOpenRequestInvalidCode =
         "project_open_request_invalid";
+    internal const string AuthenticationRequiredCode =
+        "authentication_required";
+    internal const string AuthenticationRateLimitExceededCode =
+        "authentication_rate_limit_exceeded";
+    internal const string RequestBodyTooLargeCode = "request_body_too_large";
+    internal const string ForbiddenCode = "forbidden";
 
     public static IResult Create(HttpContext httpContext, string code)
     {
@@ -34,13 +40,15 @@ internal static class LogicLabProblemDetails
         return code switch
         {
             ProjectOpenRequestInvalidCode => StatusCodes.Status400BadRequest,
-            "authentication_required" => StatusCodes.Status401Unauthorized,
-            "workspace_not_found" or "forbidden" => StatusCodes.Status404NotFound,
+            RequestBodyTooLargeCode => StatusCodes.Status413PayloadTooLarge,
+            AuthenticationRequiredCode => StatusCodes.Status401Unauthorized,
+            "workspace_not_found" or ForbiddenCode => StatusCodes.Status404NotFound,
             "project_catalog_request_invalid" or "project_catalog_cursor_invalid" =>
                 StatusCodes.Status422UnprocessableEntity,
             "compilation_invalid" or "compilation_policy_exhausted" =>
                 StatusCodes.Status422UnprocessableEntity,
-            "workspace_admission_rejected" => StatusCodes.Status429TooManyRequests,
+            "workspace_admission_rejected" or AuthenticationRateLimitExceededCode =>
+                StatusCodes.Status429TooManyRequests,
             "workspace_cancelled" or "workspace_infrastructure_failure"
                 or "compilation_cancelled" or "compilation_infrastructure_failure"
                 or "project_catalog_cancelled"
@@ -58,14 +66,18 @@ internal static class LogicLabProblemDetails
         return code switch
         {
             ProjectOpenRequestInvalidCode => "The project open request is invalid",
-            "authentication_required" => "Authentication is required",
-            "workspace_not_found" or "forbidden" => "The requested resource was not found",
+            RequestBodyTooLargeCode => "The request body is too large",
+            AuthenticationRequiredCode => "Authentication is required",
+            "workspace_not_found" or ForbiddenCode =>
+                "The requested resource was not found",
             "project_catalog_request_invalid" => "The project catalog request is invalid",
             "project_catalog_cursor_invalid" => "The project catalog cursor is invalid",
             "compilation_invalid" => "The project revision is invalid",
             "compilation_policy_exhausted" =>
                 "The project exceeds compilation policy",
             "workspace_admission_rejected" => "Workspace capacity is unavailable",
+            AuthenticationRateLimitExceededCode =>
+                "Too many authentication requests",
             "workspace_cancelled" => "Workspace opening was cancelled",
             "workspace_infrastructure_failure" => "The Workspace service is unavailable",
             "compilation_cancelled" => "Project compilation was cancelled",

@@ -27,7 +27,9 @@ public static class DurableProjectEndpointRouteBuilderExtensions
                         ClaimTypes.NameIdentifier)?.Value;
                     if (string.IsNullOrEmpty(subjectValue))
                     {
-                        return Results.Unauthorized();
+                        return LogicLabProblemDetails.Create(
+                            httpContext,
+                            LogicLabProblemDetails.AuthenticationRequiredCode);
                     }
 
                     if (string.IsNullOrEmpty(durableProjectId)
@@ -55,6 +57,7 @@ public static class DurableProjectEndpointRouteBuilderExtensions
                     };
                 })
             .RequireAuthorization()
+            .DisableCookieRedirect()
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true));
     }
 }

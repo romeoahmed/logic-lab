@@ -102,6 +102,18 @@ All cookie-authenticated mutations retain antiforgery validation. Import, export
 
 The host applies separate bounded policies to request rate, request body bytes, concurrent transfers, expanded package work, Workspace admission, and background work. ASP.NET Core rate limiting is an ingress control, not a complete DDoS defense or a replacement for Module policy; official guidance requires load testing configured policies ([rate limiting](https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit?view=aspnetcore-10.0)).
 
+Static SSR login and registration POSTs use independent fixed-window ingress
+policies partitioned by client address; reads do not consume their permits.
+The initial policy admits at most ten login attempts and five registration
+attempts per minute per partition, queues no excess requests, and publishes an
+RFC 9457 `429` rejection. Each account form request body is independently
+bounded to 4096 bytes before form binding and publishes an RFC 9457 `413`
+rejection. Account email input is bounded to 256 characters and
+password and confirmation input to 100 characters at both HTML and application
+validation boundaries. A password is cleared from the bound render model before
+calling Identity and on every invalid submission, so no failure response writes
+the submitted secret back into HTML.
+
 Authorized HTTP failures use the exact RFC 9457 shape and status mapping in the [HTTP Transfer Contract](../contracts/http-transfer.md). `IProblemDetailsService` supplies the common adapter; titles and optional details are localized, while `type`, `status`, `code`, and correlation token remain stable. Unhandled exceptions expose only an opaque correlation. ASP.NET Core provides `IProblemDetailsService` for RFC 9457 responses ([error handling](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api?view=aspnetcore-10.0#problem-details-service)).
 
 Client filenames, MIME, lengths, ZIP metadata, logical paths, JSON, Canvas messages, and return URLs are untrusted. Responses set an application-generated attachment filename, `X-Content-Type-Options: nosniff`, and a precise content type. Uploaded or authored HTML, SVG, script, and URLs are never rendered as markup.

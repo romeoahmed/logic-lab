@@ -5,6 +5,10 @@
 @using LogicLab.Web.Identity
 @using Microsoft.AspNetCore.Http
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Mvc
+@using Microsoft.AspNetCore.RateLimiting
+@attribute [EnableRateLimiting(AccountIngressPolicy.LoginRateLimitPolicyName)]
+@attribute [RequestSizeLimit(AccountIngressPolicy.MaximumRequestBodyBytes)]
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityRedirectManager RedirectManager
 
@@ -20,17 +24,20 @@
 <EditForm Model="Input"
           method="post"
           FormName="login"
-          OnValidSubmit="LogInAsync">
+          OnValidSubmit="LogInAsync"
+          OnInvalidSubmit="ClearPassword">
     <DataAnnotationsValidator />
     <ValidationSummary />
     <label for="login-email">Email</label>
     <InputText id="login-email"
                autocomplete="username"
+               maxlength="@AccountInputLimits.MaximumEmailLength"
                @bind-Value="Input.Email" />
     <label for="login-password">Password</label>
     <InputText id="login-password"
                type="password"
                autocomplete="current-password"
+               maxlength="@AccountInputLimits.MaximumPasswordLength"
                @bind-Value="Input.Password" />
     <label>
         <InputCheckbox @bind-Value="Input.RememberMe" /> Remember me
@@ -65,9 +72,11 @@
             return;
         }
 
+        var password = Input.Password;
+        Input.Password = string.Empty;
         var result = await SignInManager.PasswordSignInAsync(
             Input.Email,
-            Input.Password,
+            password,
             Input.RememberMe,
             lockoutOnFailure: true);
         if (result.Succeeded)
@@ -78,6 +87,8 @@
 
         errorMessage = "The email or password is invalid.";
     }
+
+    private void ClearPassword() => Input.Password = string.Empty;
 
     private bool RedirectIfAuthenticated()
     {
@@ -94,9 +105,11 @@
     {
         [Required]
         [EmailAddress]
+        [StringLength(AccountInputLimits.MaximumEmailLength)]
         public string Email { get; set; } = string.Empty;
 
         [Required]
+        [StringLength(AccountInputLimits.MaximumPasswordLength)]
         [DataType(DataType.Password)]
         public string Password { get; set; } = string.Empty;
 
