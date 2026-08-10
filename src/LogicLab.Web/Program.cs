@@ -166,6 +166,8 @@ app.Use(next =>
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
+app.Use(next =>
+    new RequestBodyBufferingMiddleware(next).InvokeAsync);
 app.UseAntiforgery();
 app.Use(next =>
     new AntiforgeryProblemDetailsMiddleware(next).InvokeAsync);
