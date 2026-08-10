@@ -461,6 +461,375 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         }
     }
 
+    [Test]
+    public async Task Post_LoginWithInvalidCredentials_DoesNotEchoSubmittedPassword()
+    {
+        const string password = "Correct-Passw0rd!";
+        const string submittedPassword = "Wrong-Passw0rd!";
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
+        string email;
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            var created = await CreateUserAsync(
+                scope.ServiceProvider,
+                password: password);
+            email = created.User.Email!;
+        }
+
+        using var client = host.CreateHttpsClient();
+        var form = await GetIdentityFormAsync(client, "/account/login");
+        using var response = await PostIdentityFormAsync(
+            client,
+            "/account/login",
+            "login",
+            form,
+            [
+                new("Input.Email", email),
+                new("Input.Password", submittedPassword),
+                new("Input.RememberMe", "false"),
+            ]);
+        var html = await response.Content.ReadAsStringAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(html).Contains("The email or password is invalid.");
+            await Assert.That(html).DoesNotContain(submittedPassword);
+        }
+    }
+
+    [Test]
+    public async Task Post_LoginWithInvalidModel_DoesNotEchoSubmittedPassword()
+    {
+        const string submittedPassword = "Invalid-Model-Passw0rd!";
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
+        using var client = host.CreateHttpsClient();
+        var form = await GetIdentityFormAsync(client, "/account/login");
+
+        using var response = await PostIdentityFormAsync(
+            client,
+            "/account/login",
+            "login",
+            form,
+            [
+                new("Input.Email", "not-an-email"),
+                new("Input.Password", submittedPassword),
+                new("Input.RememberMe", "false"),
+            ]);
+        var html = await response.Content.ReadAsStringAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(html).DoesNotContain(submittedPassword);
+            await Assert.That(html).DoesNotContain(
+                "The email or password is invalid.");
+        }
+    }
+
+    [Test]
+    public async Task Post_RegisterWithDuplicateEmail_DoesNotEchoSubmittedPasswords()
+    {
+        const string existingPassword = "Existing-Passw0rd!";
+        const string submittedPassword = "Replacement-Passw0rd!";
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
+        string email;
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            var created = await CreateUserAsync(
+                scope.ServiceProvider,
+                password: existingPassword);
+            email = created.User.Email!;
+        }
+
+        using var client = host.CreateHttpsClient();
+        var form = await GetIdentityFormAsync(client, "/account/register");
+        using var response = await PostIdentityFormAsync(
+            client,
+            "/account/register",
+            "register",
+            form,
+            [
+                new("Input.Email", email),
+                new("Input.Password", submittedPassword),
+                new("Input.ConfirmPassword", submittedPassword),
+            ]);
+        var html = await response.Content.ReadAsStringAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(html).DoesNotContain(submittedPassword);
+            await Assert.That(html).Contains("is already taken");
+        }
+    }
+
+    [Test]
+    public async Task Post_RegisterWithInvalidModel_DoesNotEchoSubmittedPasswords()
+    {
+        const string password = "Valid-Passw0rd!";
+        const string confirmation = "Different-Passw0rd!";
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
+        using var client = host.CreateHttpsClient();
+        var form = await GetIdentityFormAsync(client, "/account/register");
+
+        using var response = await PostIdentityFormAsync(
+            client,
+            "/account/register",
+            "register",
+            form,
+            [
+                new("Input.Email", "new-user@example.test"),
+                new("Input.Password", password),
+                new("Input.ConfirmPassword", confirmation),
+            ]);
+        var html = await response.Content.ReadAsStringAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(html).DoesNotContain(password);
+            await Assert.That(html).DoesNotContain(confirmation);
+        }
+    }
+
+    [Test]
+    [Arguments("/account/login", "login-email", "256")]
+    [Arguments("/account/login", "login-password", "100")]
+    [Arguments("/account/register", "register-email", "256")]
+    [Arguments("/account/register", "register-password", "100")]
+    [Arguments("/account/register", "register-confirm-password", "100")]
+    public async Task Get_IdentityEntry_RendersApplicationMaximumLength(
+        string path,
+        string inputId,
+        string expectedMaximum)
+    {
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
+        using var client = host.CreateHttpsClient();
+
+        using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+        var input = ExtractElementById(html, "input", inputId);
+
+        await Assert.That(input).Contains($"maxlength=\"{expectedMaximum}\"");
+    }
+
+    [Test]
+    public async Task Post_LoginAtApplicationLimits_AuthenticatesIdentity()
+    {
+        var email = $"{new string('a', 243)}@example.test";
+        var password = $"A1!{new string('x', 97)}";
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            _ = await CreateUserAsync(
+                scope.ServiceProvider,
+                email,
+                password);
+        }
+
+        using var client = host.CreateHttpsClient();
+        var form = await GetIdentityFormAsync(client, "/account/login");
+        using var response = await PostIdentityFormAsync(
+            client,
+            "/account/login?returnUrl=%2Fprojects",
+            "login",
+            form,
+            [
+                new("Input.Email", email),
+                new("Input.Password", password),
+                new("Input.RememberMe", "false"),
+            ]);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(email.Length)
+                .IsEqualTo(AccountInputLimits.MaximumEmailLength);
+            await Assert.That(password.Length)
+                .IsEqualTo(AccountInputLimits.MaximumPasswordLength);
+            await Assert.That(response.StatusCode)
+                .IsEqualTo(HttpStatusCode.Redirect);
+            await Assert.That(RedirectPath(response)).IsEqualTo("/projects");
+        }
+    }
+
+    [Test]
+    public async Task Post_RegisterAtApplicationLimits_CreatesIdentity()
+    {
+        var email = $"{new string('b', 243)}@example.test";
+        var password = $"A1!{new string('y', 97)}";
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
+        using var client = host.CreateHttpsClient();
+        var form = await GetIdentityFormAsync(client, "/account/register");
+
+        using var response = await PostIdentityFormAsync(
+            client,
+            "/account/register?returnUrl=%2Fprojects",
+            "register",
+            form,
+            [
+                new("Input.Email", email),
+                new("Input.Password", password),
+                new("Input.ConfirmPassword", password),
+            ]);
+        await using var verificationScope = host.Services.CreateAsyncScope();
+        var userManager = verificationScope.ServiceProvider
+            .GetRequiredService<UserManager<ApplicationUser>>();
+        var storedUser = await userManager.FindByNameAsync(email);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(email.Length)
+                .IsEqualTo(AccountInputLimits.MaximumEmailLength);
+            await Assert.That(password.Length)
+                .IsEqualTo(AccountInputLimits.MaximumPasswordLength);
+            await Assert.That(response.StatusCode)
+                .IsEqualTo(HttpStatusCode.Redirect);
+            await Assert.That(RedirectPath(response)).IsEqualTo("/projects");
+            await Assert.That(storedUser).IsNotNull();
+        }
+    }
+
+    [Test]
+    public async Task Post_LoginWithOversizedPassword_DoesNotReachIdentityPasswordCheck()
+    {
+        const string password = "Correct-Passw0rd!";
+        var submittedPassword = new string('x', 101);
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
+        string userId;
+        string email;
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            var created = await CreateUserAsync(
+                scope.ServiceProvider,
+                password: password);
+            created.User.LockoutEnabled = true;
+            var userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<ApplicationUser>>();
+            var updated = await userManager.UpdateAsync(created.User);
+            if (!updated.Succeeded)
+            {
+                throw new InvalidOperationException(string.Join(
+                    ", ",
+                    updated.Errors.Select(error => error.Code)));
+            }
+
+            userId = created.User.Id;
+            email = created.User.Email!;
+        }
+
+        using var client = host.CreateHttpsClient();
+        var form = await GetIdentityFormAsync(client, "/account/login");
+        using var response = await PostIdentityFormAsync(
+            client,
+            "/account/login",
+            "login",
+            form,
+            [
+                new("Input.Email", email),
+                new("Input.Password", submittedPassword),
+                new("Input.RememberMe", "false"),
+            ]);
+        var html = await response.Content.ReadAsStringAsync();
+        await using var verificationScope = host.Services.CreateAsyncScope();
+        var verificationManager = verificationScope.ServiceProvider
+            .GetRequiredService<UserManager<ApplicationUser>>();
+        var storedUser = await verificationManager.FindByIdAsync(userId)
+            ?? throw new InvalidOperationException("The test user disappeared.");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(storedUser.AccessFailedCount).IsEqualTo(0);
+            await Assert.That(html).DoesNotContain(submittedPassword);
+        }
+    }
+
+    [Test]
+    public async Task Post_LoginWithOversizedEmail_UsesApplicationValidationBoundary()
+    {
+        const string password = "Bounded-Passw0rd!";
+        var email = $"{new string('a', 244)}@example.test";
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
+        using var client = host.CreateHttpsClient();
+        var form = await GetIdentityFormAsync(client, "/account/login");
+
+        using var response = await PostIdentityFormAsync(
+            client,
+            "/account/login",
+            "login",
+            form,
+            [
+                new("Input.Email", email),
+                new("Input.Password", password),
+                new("Input.RememberMe", "false"),
+            ]);
+        var html = await response.Content.ReadAsStringAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(html).Contains("maximum length of 256");
+            await Assert.That(html).DoesNotContain(
+                "The email or password is invalid.");
+            await Assert.That(html).DoesNotContain(password);
+        }
+    }
+
+    [Test]
+    public async Task Post_RegisterWithOversizedEmail_DoesNotCreateIdentity()
+    {
+        const string password = "Bounded-Passw0rd!";
+        var email = $"{new string('a', 244)}@example.test";
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        using var host = CreateIdentityHost(connection, new FixedTimeProvider(now));
+        using var client = host.CreateHttpsClient();
+        var form = await GetIdentityFormAsync(client, "/account/register");
+
+        using var response = await PostIdentityFormAsync(
+            client,
+            "/account/register",
+            "register",
+            form,
+            [
+                new("Input.Email", email),
+                new("Input.Password", password),
+                new("Input.ConfirmPassword", password),
+            ]);
+        var html = await response.Content.ReadAsStringAsync();
+        await using var verificationScope = host.Services.CreateAsyncScope();
+        var userManager = verificationScope.ServiceProvider
+            .GetRequiredService<UserManager<ApplicationUser>>();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(await userManager.FindByNameAsync(email)).IsNull();
+            await Assert.That(html).Contains("maximum length of 256");
+            await Assert.That(html).DoesNotContain(password);
+        }
+    }
+
     private WebApplicationFactory<Program> CreateIdentityHost(
         SqliteConnection connection,
         TimeProvider timeProvider,
@@ -689,6 +1058,31 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         valueStart += prefix.Length;
         var valueEnd = html.IndexOf('"', valueStart);
         return html[valueStart..valueEnd];
+    }
+
+    private static string ExtractElementById(
+        string html,
+        string elementName,
+        string id)
+    {
+        var idIndex = html.IndexOf($"id=\"{id}\"", StringComparison.Ordinal);
+        if (idIndex < 0)
+        {
+            throw new InvalidOperationException($"Markup did not contain id {id}.");
+        }
+
+        var start = html.LastIndexOf(
+            $"<{elementName}",
+            idIndex,
+            StringComparison.Ordinal);
+        var end = html.IndexOf('>', idIndex);
+        if (start < 0 || end < 0)
+        {
+            throw new InvalidOperationException(
+                $"Markup did not contain a complete {elementName} for id {id}.");
+        }
+
+        return html[start..(end + 1)];
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

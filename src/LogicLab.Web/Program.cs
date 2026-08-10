@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Threading.RateLimiting;
 using LogicLab.Application.Workspaces;
 using LogicLab.Infrastructure.Persistence;
 using LogicLab.Web;
@@ -6,7 +8,9 @@ using LogicLab.Web.Data;
 using LogicLab.Web.Identity;
 using LogicLab.Web.Projects;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.FluentUI.AspNetCore.Components;
 
@@ -15,9 +19,11 @@ var connectionString = builder.Configuration.GetConnectionString("LogicLab")
     ?? throw new InvalidOperationException(
         "ConnectionStrings:LogicLab must be configured.");
 var workspacePolicy = WorkspacePolicy.Default;
+var accountIngressPolicy = AccountIngressPolicy.Default;
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(workspacePolicy);
+builder.Services.AddSingleton(accountIngressPolicy);
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider,
@@ -42,6 +48,24 @@ builder.Services.ConfigureApplicationCookie(options =>
         AuthenticationTicketExpiry.ValidateAndPreserveAsync(
             context,
             validatePrincipal);
+    var redirectToLogin = options.Events.OnRedirectToLogin;
+    options.Events.OnRedirectToLogin = context =>
+        context.HttpContext.GetEndpoint()?.Metadata
+            .GetMetadata<IDisableCookieRedirectMetadata>() is not null
+            ? LogicLabProblemDetails.Create(
+                context.HttpContext,
+                LogicLabProblemDetails.AuthenticationRequiredCode).ExecuteAsync(
+                    context.HttpContext)
+            : redirectToLogin(context);
+    var redirectToAccessDenied = options.Events.OnRedirectToAccessDenied;
+    options.Events.OnRedirectToAccessDenied = context =>
+        context.HttpContext.GetEndpoint()?.Metadata
+            .GetMetadata<IDisableCookieRedirectMetadata>() is not null
+            ? LogicLabProblemDetails.Create(
+                context.HttpContext,
+                LogicLabProblemDetails.ForbiddenCode).ExecuteAsync(
+                    context.HttpContext)
+            : redirectToAccessDenied(context);
 });
 builder.Services.Configure<SecurityStampValidatorOptions>(options =>
 {
@@ -60,6 +84,33 @@ builder.Services.AddSingleton<IProblemDetailsWriter>(services =>
             Microsoft.Extensions.Options.IOptions<
                 Microsoft.AspNetCore.Http.Json.JsonOptions>>()));
 builder.Services.AddProblemDetails();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy<string>(
+        AccountIngressPolicy.LoginRateLimitPolicyName,
+        accountIngressPolicy.LoginPartition);
+    options.AddPolicy<string>(
+        AccountIngressPolicy.RegistrationRateLimitPolicyName,
+        accountIngressPolicy.RegistrationPartition);
+    options.OnRejected = async (context, _) =>
+    {
+        if (context.Lease.TryGetMetadata(
+                MetadataName.RetryAfter,
+                out var retryAfter))
+        {
+            context.HttpContext.Response.Headers[
+                Microsoft.Net.Http.Headers.HeaderNames.RetryAfter] = Math
+                    .Ceiling(retryAfter.TotalSeconds)
+                    .ToString(CultureInfo.InvariantCulture);
+        }
+
+        await LogicLabProblemDetails.Create(
+                context.HttpContext,
+                LogicLabProblemDetails.AuthenticationRateLimitExceededCode)
+            .ExecuteAsync(context.HttpContext);
+    };
+});
 builder.Services.AddDbContext<ApplicationIdentityDbContext>(options =>
     options.UseSqlite(connectionString));
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
@@ -110,6 +161,10 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
+app.UseRouting();
+app.UseRateLimiter();
+app.Use(next =>
+    new RequestBodyLimitProblemDetailsMiddleware(next).InvokeAsync);
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();

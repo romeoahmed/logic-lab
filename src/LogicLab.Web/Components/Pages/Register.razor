@@ -5,6 +5,10 @@
 @using LogicLab.Web.Identity
 @using Microsoft.AspNetCore.Http
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Mvc
+@using Microsoft.AspNetCore.RateLimiting
+@attribute [EnableRateLimiting(AccountIngressPolicy.RegistrationRateLimitPolicyName)]
+@attribute [RequestSizeLimit(AccountIngressPolicy.MaximumRequestBodyBytes)]
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityRedirectManager RedirectManager
@@ -26,22 +30,26 @@
 <EditForm Model="Input"
           method="post"
           FormName="register"
-          OnValidSubmit="RegisterAsync">
+          OnValidSubmit="RegisterAsync"
+          OnInvalidSubmit="ClearPasswords">
     <DataAnnotationsValidator />
     <ValidationSummary />
     <label for="register-email">Email</label>
     <InputText id="register-email"
                autocomplete="username"
+               maxlength="@AccountInputLimits.MaximumEmailLength"
                @bind-Value="Input.Email" />
     <label for="register-password">Password</label>
     <InputText id="register-password"
                type="password"
                autocomplete="new-password"
+               maxlength="@AccountInputLimits.MaximumPasswordLength"
                @bind-Value="Input.Password" />
     <label for="register-confirm-password">Confirm password</label>
     <InputText id="register-confirm-password"
                type="password"
                autocomplete="new-password"
+               maxlength="@AccountInputLimits.MaximumPasswordLength"
                @bind-Value="Input.ConfirmPassword" />
     <button type="submit">Register</button>
 </EditForm>
@@ -71,12 +79,14 @@
             return;
         }
 
+        var password = Input.Password;
+        ClearPasswords();
         var user = new ApplicationUser
         {
             UserName = Input.Email,
             Email = Input.Email,
         };
-        var result = await UserManager.CreateAsync(user, Input.Password);
+        var result = await UserManager.CreateAsync(user, password);
         if (!result.Succeeded)
         {
             errors = result.Errors;
@@ -85,6 +95,12 @@
 
         await SignInManager.SignInAsync(user, isPersistent: false);
         RedirectManager.RedirectTo(ReturnUrl);
+    }
+
+    private void ClearPasswords()
+    {
+        Input.Password = string.Empty;
+        Input.ConfirmPassword = string.Empty;
     }
 
     private bool RedirectIfAuthenticated()
@@ -102,13 +118,18 @@
     {
         [Required]
         [EmailAddress]
+        [StringLength(AccountInputLimits.MaximumEmailLength)]
         public string Email { get; set; } = string.Empty;
 
         [Required]
-        [StringLength(100, MinimumLength = 8)]
+        [StringLength(
+            AccountInputLimits.MaximumPasswordLength,
+            MinimumLength = 8)]
         [DataType(DataType.Password)]
         public string Password { get; set; } = string.Empty;
 
+        [Required]
+        [StringLength(AccountInputLimits.MaximumPasswordLength)]
         [Compare(nameof(Password))]
         [DataType(DataType.Password)]
         public string ConfirmPassword { get; set; } = string.Empty;

@@ -46,6 +46,15 @@ project_open_request_invalid
 
 It maps to `400` when `durableProjectId` is absent, empty, or exceeds the bounded HTTP shape. This validation occurs before constructing `OpenDurable` and never calls the Workspace.
 
+An unauthenticated `/projects/open` request, including a cookie challenge or an
+authenticated principal without a stable subject, uses the exact code
+`authentication_required` and maps to `401`; this API-style endpoint never
+redirects to an account page. Login and registration ingress rejection uses
+the exact code `authentication_rate_limit_exceeded`, maps to `429`, and includes
+`Retry-After` only when the limiter supplies an honest duration. An endpoint
+request body that exceeds its declared byte limit uses the exact code
+`request_body_too_large` and maps to `413`.
+
 The Durable Project Web adapter applies this table directly: a malformed open form is `400`, an absent or concealed `OpenDurable` target is `404`, Workspace admission rejection is `429`, catalog request/cursor validation is `422`, infrastructure or cancellation is `503`, and an internal defect is `500`. Static SSR performs the catalog call before rendering `/projects`, while `/projects/open` validates its form before constructing `OpenDurable` and then adapts `WorkspaceOpenRejected` directly; neither failure path redirects to an unconsumed query parameter or renders an HTTP `200` error page.
 
 ## 2. Security

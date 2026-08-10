@@ -251,6 +251,57 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         }
     }
 
+    [Test]
+    public async Task Post_OpenWithoutAuthentication_ReturnsAuthenticationRequiredProblemDetails()
+    {
+        await using var workspace = new RecordingOpenWorkspace();
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IEditorWorkspace>();
+                services.AddSingleton<IEditorWorkspace>(workspace);
+            }));
+        using var client = host.CreateHttpsClient();
+
+        using var response = await PostOpenFromAnonymousFormAsync(client);
+
+        await AssertProblemDetails(
+            response,
+            HttpStatusCode.Unauthorized,
+            "authentication_required");
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.Headers.Location).IsNull();
+            await Assert.That(workspace.Request).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task Post_OpenWithAuthenticatedPrincipalMissingSubject_ReturnsAuthenticationRequiredProblemDetails()
+    {
+        await using var workspace = new RecordingOpenWorkspace();
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthenticationWithoutSubject(services);
+                services.RemoveAll<IEditorWorkspace>();
+                services.AddSingleton<IEditorWorkspace>(workspace);
+            }));
+        using var client = host.CreateHttpsClient();
+
+        using var response = await PostOpenFromAnonymousFormAsync(client);
+
+        await AssertProblemDetails(
+            response,
+            HttpStatusCode.Unauthorized,
+            "authentication_required");
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.Headers.Location).IsNull();
+            await Assert.That(workspace.Request).IsNull();
+        }
+    }
+
     private static void ConfigureAuthentication(IServiceCollection services)
     {
         services.AddAuthentication(options =>
@@ -260,6 +311,22 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
             })
             .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
                 TestAuthenticationHandler.SchemeName,
+                configureOptions: null);
+    }
+
+    private static void ConfigureAuthenticationWithoutSubject(
+        IServiceCollection services)
+    {
+        services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme =
+                    MissingSubjectAuthenticationHandler.SchemeName;
+                options.DefaultChallengeScheme =
+                    MissingSubjectAuthenticationHandler.SchemeName;
+            })
+            .AddScheme<AuthenticationSchemeOptions,
+                MissingSubjectAuthenticationHandler>(
+                MissingSubjectAuthenticationHandler.SchemeName,
                 configureOptions: null);
     }
 
@@ -315,6 +382,36 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
             new Uri("/projects/open", UriKind.Relative))
         {
             Content = new FormUrlEncodedContent(formValues),
+        };
+        request.Headers.Add("Cookie", antiforgeryCookie);
+        request.Headers.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("text/html"));
+        return await client.SendAsync(request);
+    }
+
+    private static async Task<HttpResponseMessage> PostOpenFromAnonymousFormAsync(
+        HttpClient client)
+    {
+        using var pageResponse = await client.GetAsync(
+            new Uri("/account/login", UriKind.Relative));
+        pageResponse.EnsureSuccessStatusCode();
+        var html = await pageResponse.Content.ReadAsStringAsync();
+        var requestToken = ExtractAttributeAfter(
+            html,
+            "name=\"__RequestVerificationToken\"",
+            "value");
+        var antiforgeryCookie = pageResponse.Headers.GetValues("Set-Cookie")
+            .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal))
+            .Split(';', 2)[0];
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            new Uri("/projects/open", UriKind.Relative))
+        {
+            Content = new FormUrlEncodedContent(
+            [
+                new("durableProjectId", "project-a"),
+                new("__RequestVerificationToken", requestToken),
+            ]),
         };
         request.Headers.Add("Cookie", antiforgeryCookie);
         request.Headers.Accept.Add(
@@ -489,6 +586,29 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                     new Claim(ClaimTypes.NameIdentifier, "subject-http"),
                     new Claim(ClaimTypes.Name, "endpoint user"),
                 ],
+                SchemeName);
+            var ticket = new AuthenticationTicket(
+                new ClaimsPrincipal(identity),
+                SchemeName);
+            return Task.FromResult(AuthenticateResult.Success(ticket));
+        }
+    }
+
+    private sealed class MissingSubjectAuthenticationHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory loggerFactory,
+        UrlEncoder encoder)
+        : AuthenticationHandler<AuthenticationSchemeOptions>(
+            options,
+            loggerFactory,
+            encoder)
+    {
+        public const string SchemeName = "MissingSubjectEndpointTests";
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            var identity = new ClaimsIdentity(
+                [new Claim(ClaimTypes.Name, "subjectless user")],
                 SchemeName);
             var ticket = new AuthenticationTicket(
                 new ClaimsPrincipal(identity),
