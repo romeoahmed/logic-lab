@@ -600,7 +600,10 @@ public sealed partial class Editor : IAsyncDisposable
             return false;
         }
 
-        if (!await CanPublishAttachmentAsync(reattached, caller))
+        if (!await CanPublishAttachmentAsync(
+                reattached,
+                caller,
+                expectedCurrentAttachment: attachment))
         {
             return false;
         }
@@ -612,15 +615,27 @@ public sealed partial class Editor : IAsyncDisposable
 
     private async Task<bool> CanPublishAttachmentAsync(
         Attached attached,
-        WorkspaceCaller caller)
+        WorkspaceCaller caller,
+        Attached? expectedCurrentAttachment = null)
     {
-        if (caller == CurrentCaller && Volatile.Read(ref isDisposed) == 0)
+        var attachmentWasSuperseded = expectedCurrentAttachment is not null
+            && !HasCurrentFence(expectedCurrentAttachment);
+        var authorizationChanged = attached.Projection.Durability
+                is not SandboxWorkspaceDurabilityProjection
+            && caller != CurrentCaller;
+        if (Volatile.Read(ref isDisposed) == 0
+            && !attachmentWasSuperseded
+            && !authorizationChanged)
         {
             return true;
         }
 
-        ClearWorkspaceState();
-        Status = "Authentication changed. Reload the Workspace to continue.";
+        if (authorizationChanged)
+        {
+            ClearWorkspaceState();
+            Status = "Authentication changed. Reload the Workspace to continue.";
+        }
+
         _ = await workspace.DetachAsync(
             new DetachRequest(
                 attached.Projection.WorkspaceId,
@@ -629,6 +644,14 @@ public sealed partial class Editor : IAsyncDisposable
                 caller),
             CancellationToken.None);
         return false;
+    }
+
+    private bool HasCurrentFence(Attached expected)
+    {
+        return Attachment is { } current
+            && current.Projection.WorkspaceId == expected.Projection.WorkspaceId
+            && current.AttachmentId == expected.AttachmentId
+            && current.Generation == expected.Generation;
     }
 
     private async Task Refresh(CancellationToken cancellationToken)
