@@ -331,6 +331,10 @@ internal sealed class SqliteDurableProjectRepository :
                 project.Id,
                 project.DisplayName,
                 project.DurableVersion,
+                project.CurrentProjectRevisionId,
+                ProjectRevisionId = revision == null
+                    ? null
+                    : revision.ProjectRevisionId,
                 Payload = revision == null ? null : revision.Payload,
             }).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
         if (stored is null)
@@ -344,11 +348,30 @@ internal sealed class SqliteDurableProjectRepository :
                 "A Durable Project current pointer must reference an immutable revision.");
         }
 
+        if (!string.Equals(
+                stored.CurrentProjectRevisionId,
+                stored.ProjectRevisionId,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "A Durable Project current pointer must match its revision row.");
+        }
+
+        var projectRevision = ProjectRevisionPayloadSerializer.Deserialize(stored.Payload);
+        if (!string.Equals(
+                stored.CurrentProjectRevisionId,
+                projectRevision.RevisionId.Value,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "A Durable Project revision payload must match its current pointer.");
+        }
+
         return new DurableProjectOpenFound(
             new DurableProjectId(stored.Id),
             new DurableDisplayName(stored.DisplayName),
             new DurableVersion(stored.DurableVersion),
-            ProjectRevisionPayloadSerializer.Deserialize(stored.Payload));
+            projectRevision);
     }
 
     private static bool IsClaimRace(DbUpdateException exception)

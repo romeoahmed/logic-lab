@@ -29,7 +29,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.RemoveAll<IDurableProjectCatalog>();
                 services.AddSingleton<IDurableProjectCatalog>(catalog);
             }));
-        using var client = host.Server.CreateClient();
+        using var client = host.CreateHttpsClient();
 
         using var response = await client.GetAsync(
             new Uri(
@@ -66,7 +66,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.RemoveAll<IDurableProjectCatalog>();
                 services.AddSingleton<IDurableProjectCatalog>(catalog);
             }));
-        using var client = host.Server.CreateClient();
+        using var client = host.CreateHttpsClient();
         client.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
 
@@ -99,7 +99,35 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.RemoveAll<IEditorWorkspace>();
                 services.AddSingleton<IEditorWorkspace>(workspace);
             }));
-        using var client = host.Server.CreateClient();
+        using var client = host.CreateHttpsClient();
+
+        using var response = await PostOpenAsync(client, "project-a");
+
+        await AssertProblemDetails(response, expectedStatus, code);
+        await Assert.That(response.Headers.Location).IsNull();
+    }
+
+    [Test]
+    [Arguments("compilation_invalid", HttpStatusCode.UnprocessableEntity)]
+    [Arguments("compilation_policy_exhausted", HttpStatusCode.UnprocessableEntity)]
+    [Arguments("compilation_cancelled", HttpStatusCode.ServiceUnavailable)]
+    [Arguments("compilation_infrastructure_failure", HttpStatusCode.ServiceUnavailable)]
+    [Arguments("compilation_internal_defect", HttpStatusCode.InternalServerError)]
+    public async Task Post_OpenRejected_CompilerReason_ReturnsMappedProblemDetails(
+        string code,
+        HttpStatusCode expectedStatus)
+    {
+        await using var workspace = new RejectingOpenWorkspace(code);
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthentication(services);
+                services.RemoveAll<IDurableProjectCatalog>();
+                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
+                services.RemoveAll<IEditorWorkspace>();
+                services.AddSingleton<IEditorWorkspace>(workspace);
+            }));
+        using var client = host.CreateHttpsClient();
 
         using var response = await PostOpenAsync(client, "project-a");
 
@@ -134,7 +162,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.AddSingleton<IDurableProjectCatalog>(
                     new RejectedCatalog(reason));
             }));
-        using var client = host.Server.CreateClient();
+        using var client = host.CreateHttpsClient();
         client.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
 
@@ -157,7 +185,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.RemoveAll<IEditorWorkspace>();
                 services.AddSingleton<IEditorWorkspace>(workspace);
             }));
-        using var client = host.Server.CreateClient();
+        using var client = host.CreateHttpsClient();
         using var pageResponse = await client.GetAsync(
             new Uri("/projects", UriKind.Relative));
         pageResponse.EnsureSuccessStatusCode();
@@ -221,7 +249,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.RemoveAll<IEditorWorkspace>();
                 services.AddSingleton<IEditorWorkspace>(workspace);
             }));
-        using var client = host.Server.CreateClient();
+        using var client = host.CreateHttpsClient();
 
         using var response = await PostOpenAsync(client, durableProjectId);
 

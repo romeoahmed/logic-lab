@@ -32,8 +32,25 @@ builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/account/login";
     options.AccessDeniedPath = "/account/login";
+    options.SlidingExpiration = false;
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Events.OnSigningIn = AuthenticationTicketExpiry.StampAsync;
+    var validatePrincipal = options.Events.OnValidatePrincipal;
+    options.Events.OnValidatePrincipal = context =>
+        AuthenticationTicketExpiry.ValidateAndPreserveAsync(
+            context,
+            validatePrincipal);
+});
+builder.Services.Configure<SecurityStampValidatorOptions>(options =>
+{
+    options.ValidationInterval = TimeSpan.FromMinutes(4);
+});
+builder.Services.AddAntiforgery(options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Strict;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 });
 builder.Services.AddAuthorization();

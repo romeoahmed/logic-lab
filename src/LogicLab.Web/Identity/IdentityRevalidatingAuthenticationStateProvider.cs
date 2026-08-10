@@ -10,15 +10,23 @@ namespace LogicLab.Web.Identity;
 public sealed class IdentityRevalidatingAuthenticationStateProvider(
     ILoggerFactory loggerFactory,
     IServiceScopeFactory scopeFactory,
-    IOptions<IdentityOptions> options)
+    IOptions<IdentityOptions> options,
+    TimeProvider timeProvider)
     : RevalidatingServerAuthenticationStateProvider(loggerFactory)
 {
-    protected override TimeSpan RevalidationInterval => TimeSpan.FromMinutes(30);
+    protected override TimeSpan RevalidationInterval => TimeSpan.FromMinutes(5);
 
     protected override async Task<bool> ValidateAuthenticationStateAsync(
         AuthenticationState authenticationState,
         CancellationToken cancellationToken)
     {
+        if (!AuthenticationTicketExpiry.IsCurrent(
+                authenticationState.User,
+                timeProvider))
+        {
+            return false;
+        }
+
         await using var scope = scopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider
             .GetRequiredService<UserManager<ApplicationUser>>();
