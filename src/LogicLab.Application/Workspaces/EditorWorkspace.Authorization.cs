@@ -121,13 +121,15 @@ internal sealed partial class EditorWorkspace
         List<WorkCoordinator.ScheduledSessionWork> scheduledWork = [];
         foreach (var (clientIntentId, pending) in state.PendingIntents.ToArray())
         {
-            if (GetDurableAccessRejectionUnderLock(state, pending.Caller) is null)
+            if (GetDurableAccessRejectionUnderLock(
+                    state,
+                    pending.Context.Caller) is null)
             {
                 continue;
             }
 
             state.PendingIntents.Remove(clientIntentId);
-            if (state.PendingRunPause?.Publication.PendingIntent is { } pauseIntent
+            if (state.PendingRunPause?.PendingIntent is { } pauseIntent
                 && ReferenceEquals(pauseIntent, pending))
             {
                 state.PendingRunPause = null;

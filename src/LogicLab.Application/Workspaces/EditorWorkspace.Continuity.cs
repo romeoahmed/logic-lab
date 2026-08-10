@@ -503,22 +503,18 @@ internal sealed partial class EditorWorkspace
             : new ContextualIntentAccepted(identity);
     }
 
-    private static ContextualCommandPublication ReserveContextualIntentUnderLock(
+    private static PendingIntent ReserveContextualIntentUnderLock(
         WorkspaceState state,
         WorkspaceCommand command,
         string canonicalIdentity)
     {
         var pending = new PendingIntent(
-            command.Context.Caller,
+            command.Context,
             canonicalIdentity,
             new TaskCompletionSource<WorkspaceCommandOutcome>(
                 TaskCreationOptions.RunContinuationsAsynchronously));
-        var publication = new ContextualCommandPublication(
-            command.Context,
-            canonicalIdentity,
-            pending);
         state.PendingIntents.Add(command.Context.ClientIntentId, pending);
-        return publication;
+        return pending;
     }
 
     private WorkspaceCommandOutcome ApplyWithPrecondition(
@@ -675,35 +671,35 @@ internal sealed partial class EditorWorkspace
 
     private void CompletePendingIdempotency(
         WorkspaceState state,
-        ContextualCommandPublication publication,
+        PendingIntent pendingIntent,
         WorkspaceCommandOutcome outcome)
     {
         lock (state.ContinuityGate)
         {
-            CompletePendingIdempotencyUnderLock(state, publication, outcome);
+            CompletePendingIdempotencyUnderLock(state, pendingIntent, outcome);
         }
     }
 
     private void CompletePendingIdempotencyUnderLock(
         WorkspaceState state,
-        ContextualCommandPublication publication,
+        PendingIntent pendingIntent,
         WorkspaceCommandOutcome outcome)
     {
-        var clientIntentId = publication.Context.ClientIntentId;
+        var clientIntentId = pendingIntent.Context.ClientIntentId;
         if (!state.PendingIntents.TryGetValue(clientIntentId, out var pending)
-            || !ReferenceEquals(pending, publication.PendingIntent))
+            || !ReferenceEquals(pending, pendingIntent))
         {
             return;
         }
 
         state.PendingIntents.Remove(clientIntentId);
 
-        if (HasCurrentAttachmentUnderLock(state, publication.Context))
+        if (HasCurrentAttachmentUnderLock(state, pendingIntent.Context))
         {
             RecordIdempotencyUnderLock(
                 state,
                 clientIntentId,
-                publication.CanonicalIdentity,
+                pendingIntent.CanonicalIdentity,
                 outcome);
         }
 
@@ -850,13 +846,8 @@ internal sealed partial class EditorWorkspace
         }
     }
 
-    private sealed record ContextualCommandPublication(
-        WorkspaceCommandContext Context,
-        string CanonicalIdentity,
-        PendingIntent PendingIntent);
-
     private sealed record RunPauseRequest(
-        ContextualCommandPublication Publication,
+        PendingIntent PendingIntent,
         RunGeneration RunGeneration);
 
     private abstract record ContextualIntentInspection;
