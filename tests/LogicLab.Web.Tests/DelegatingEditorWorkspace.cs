@@ -3,12 +3,14 @@ using LogicLab.Application.Workspaces;
 namespace LogicLab.Web.Tests;
 
 internal abstract class DelegatingEditorWorkspace(
-    WorkspacePolicy? workspacePolicy = null) : IEditorWorkspace
+    WorkspacePolicy? workspacePolicy = null,
+    IDurableProjectLoader? durableProjectLoader = null) : IEditorWorkspace
 {
     private IEditorWorkspace Inner { get; } = EditorWorkspaceFactory.Create(
         buildFingerprint: LogicLabWebBuild.Fingerprint,
         durableProjectRepository: UnexpectedDurableProjectRepository.Instance,
-        workspacePolicy: workspacePolicy);
+        workspacePolicy: workspacePolicy,
+        durableProjectLoader: durableProjectLoader);
 
     public virtual Task<WorkspaceOpenOutcome> OpenAsync(
         OpenWorkspaceRequest request,

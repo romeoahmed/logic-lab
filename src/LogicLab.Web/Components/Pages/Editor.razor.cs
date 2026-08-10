@@ -166,13 +166,14 @@ public sealed partial class Editor : IAsyncDisposable
                 Code: "stale_workspace_attachment",
                 RetryDisposition: ReattachDisposition,
             }
+            && caller is AuthenticatedWorkspaceCaller authenticatedCaller
             && caller == CurrentCaller)
         {
             attachOutcome = await workspace.AttachAsync(
                 new RecoverAttach(
                     new LogicLab.Application.Workspaces.WorkspaceId(WorkspaceIdValue!),
                     LogicLabWebBuild.Fingerprint,
-                    caller),
+                    authenticatedCaller),
                 componentLifetime.Token);
         }
 

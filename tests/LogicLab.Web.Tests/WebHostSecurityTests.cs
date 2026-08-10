@@ -175,6 +175,51 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         }
     }
 
+    [Test]
+    public async Task LaunchProfiles_ProjectProfilesRequireHttpsEndpoint()
+    {
+        var environment = factory.Services
+            .GetRequiredService<IWebHostEnvironment>();
+        var path = Path.Combine(
+            environment.ContentRootPath,
+            "Properties",
+            "launchSettings.json");
+        await using var stream = File.OpenRead(path);
+        using var document = await JsonDocument.ParseAsync(stream);
+        var projectProfiles = document.RootElement
+            .GetProperty("profiles")
+            .EnumerateObject()
+            .Where(profile => profile.Value.GetProperty("commandName").GetString()
+                == "Project")
+            .Select(profile => new LaunchProfile(
+                profile.Name,
+                [
+                    .. profile.Value.GetProperty("applicationUrl")
+                        .GetString()!
+                        .Split(';', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(value => new Uri(value, UriKind.Absolute)),
+                ]))
+            .ToArray();
+        var httpOnlyProfiles = projectProfiles
+            .Where(profile => profile.Urls.All(url => url.Scheme != Uri.UriSchemeHttps))
+            .Select(profile => profile.Name)
+            .ToArray();
+        var httpsProfile = projectProfiles.SingleOrDefault(profile =>
+            string.Equals(profile.Name, "https", StringComparison.OrdinalIgnoreCase));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(projectProfiles).IsNotEmpty();
+            await Assert.That(projectProfiles.Select(profile => profile.Name))
+                .DoesNotContain("http", StringComparer.OrdinalIgnoreCase);
+            await Assert.That(httpOnlyProfiles).IsEmpty();
+            await Assert.That(httpsProfile).IsNotNull();
+            await Assert.That(httpsProfile?.Urls.Any(url =>
+                    url.Scheme == Uri.UriSchemeHttps))
+                .IsTrue();
+        }
+    }
+
     private static string Header(HttpResponseMessage response, string name)
     {
         return string.Join(' ', response.Headers.GetValues(name));
@@ -233,4 +278,6 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
             };
         }
     }
+
+    private sealed record LaunchProfile(string Name, Uri[] Urls);
 }

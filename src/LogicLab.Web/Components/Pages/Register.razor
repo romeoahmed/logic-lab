@@ -3,6 +3,7 @@
 @using System.ComponentModel.DataAnnotations
 @using LogicLab.Web.Data
 @using LogicLab.Web.Identity
+@using Microsoft.AspNetCore.Http
 @using Microsoft.AspNetCore.Identity
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
@@ -54,13 +55,22 @@
     [SupplyParameterFromQuery(Name = "returnUrl")]
     private string? ReturnUrl { get; set; }
 
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
     protected override void OnInitialized()
     {
         Input ??= new();
+        _ = RedirectIfAuthenticated();
     }
 
     private async Task RegisterAsync()
     {
+        if (RedirectIfAuthenticated())
+        {
+            return;
+        }
+
         var user = new ApplicationUser
         {
             UserName = Input.Email,
@@ -75,6 +85,17 @@
 
         await SignInManager.SignInAsync(user, isPersistent: false);
         RedirectManager.RedirectTo(ReturnUrl);
+    }
+
+    private bool RedirectIfAuthenticated()
+    {
+        if (!SignInManager.IsSignedIn(HttpContext.User))
+        {
+            return false;
+        }
+
+        RedirectManager.RedirectTo(ReturnUrl);
+        return true;
     }
 
     private sealed class RegistrationInput

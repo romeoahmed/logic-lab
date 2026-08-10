@@ -59,6 +59,13 @@ internal sealed partial class EditorWorkspace
                     authorizationRejection);
             }
 
+            if (request is RecoverAttach
+                && state.Durability is not DurableWorkspaceState)
+            {
+                return RejectAttach(
+                    WorkspaceOutcomeReasons.StaleWorkspaceAttachment);
+            }
+
             if (!string.Equals(
                 request.BuildFingerprint,
                 buildFingerprint,
