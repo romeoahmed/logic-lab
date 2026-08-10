@@ -2,8 +2,7 @@
 
 > Status: normative implementation and build contract
 > Target: .NET 10, C# 14, ASP.NET Core 10
-> SDK: 10.0.302, exact
-> Test stack: TUnit 1.64.0 on Microsoft Testing Platform; TUnit.FsCheck 1.64.0
+> Toolchain pins: `global.json` and `Directory.Packages.props`
 
 This specification owns repository-wide .NET build, dependency, language, execution, configuration, serialization, observability, and publication rules. [Architecture](../../ARCHITECTURE.md) continues to own Module seams and dependency direction; focused specifications own behavior; [Policy Catalog](../policies/catalog.md) owns limits. This file does not create a Runtime, Common, or cross-cutting Module.
 
@@ -13,38 +12,22 @@ The checked-in root files are executable policy:
 
 | File | Owned decision |
 |---|---|
-| `global.json` | exact SDK `10.0.302`, no roll-forward/prerelease SDK, Microsoft Testing Platform runner |
+| `global.json` | exact SDK pin, no roll-forward/prerelease SDK, Microsoft Testing Platform runner |
 | `Directory.Build.props` | `net10.0`, C# 14, nullable, analyzers, checked arithmetic, safe code, deterministic warning-clean builds |
-| `Directory.Packages.props` | Central Package Management; no project-local package versions |
+| `Directory.Packages.props` | exact Central Package Management versions; no project-local package versions |
 | `NuGet.Config` | one cleared package source and one explicit vulnerability-audit source |
 | `.editorconfig` | repository text and C# style that `dotnet format` can enforce |
 | `logic-lab.slnx` | the complete build/test graph as projects are added |
 
 The SDK version is full and `rollForward=disable`, so local and CI restore/build use the same SDK patch as the reviewed package lock graph. Moving to another patch or feature band is one deliberate change that regenerates and reviews application-root lock files. `allowPrerelease` is explicit because its platform default differs between CLI and Visual Studio. See the [.NET SDK selection contract](https://learn.microsoft.com/en-us/dotnet/core/tools/global-json#globaljson-schema).
 
-The current production roots are executable:
+`logic-lab.slnx` is the executable source of truth for the current project graph. [Architecture](../../ARCHITECTURE.md#5-solution-seams) owns the target production seams, and the [Implementation Plan](../implementation-plan.md#delivery-status) owns when each seam arrives; this specification does not duplicate either inventory.
 
-```text
-src/LogicLab.Domain/             Microsoft.NET.Sdk
-src/LogicLab.Engine/             Microsoft.NET.Sdk
-src/LogicLab.Presentation/       Microsoft.NET.Sdk
-src/LogicLab.Application/        Microsoft.NET.Sdk
-src/LogicLab.Infrastructure/     Microsoft.NET.Sdk
-src/LogicLab.Web/                Microsoft.NET.Sdk.Web
-```
-
-The remaining target production roots are created only with the slice that gives them executable behavior:
-
-```text
-src/LogicLab.BooleanAnalysis/    Microsoft.NET.Sdk
-src/LogicLab.ProjectFormat/      Microsoft.NET.Sdk
-```
-
-Test projects mirror evidence ownership under `tests/`. The executable projects are `LogicLab.Domain.Tests`, `LogicLab.Engine.Tests`, `LogicLab.Presentation.Tests`, `LogicLab.Application.Tests`, `LogicLab.Infrastructure.Tests`, and `LogicLab.Web.Tests`. Browser workflow tests use `tests/LogicLab.Web.BrowserTests/` when that suite arrives, and comparative benchmarks use owner-specific projects under `benchmarks/`; the current project is `benchmarks/LogicLab.Engine.Benchmarks/`. Create a test or benchmark project with the slice that gives it executable evidence—never add empty placeholder projects. Production projects do not reference tests or benchmarks. Tests reference the narrowest production projects that own the fact being proved.
+Test projects mirror evidence ownership under `tests/`; browser workflow tests belong under `tests/LogicLab.Web.BrowserTests/`, and comparative benchmarks belong in owner-specific projects under `benchmarks/`. Create a test or benchmark project only with the slice that gives it executable evidence—never add an empty placeholder. Production projects do not reference tests or benchmarks. Tests reference the narrowest production projects that own the fact being proved.
 
 TUnit is the selected test framework. Its source generator and analyzers provide compile-time discovery and validation on the default path; reflection mode is an explicit compatibility exception confined to a test project that proves why generated discovery cannot cover it. The TUnit meta-package supplies its Microsoft Testing Platform engine, assertions, code coverage, and TRX extensions. Test projects do not reference `Microsoft.NET.Test.Sdk`, a VSTest adapter, xUnit packages, an xUnit runner configuration, or Coverlet. Projects that expose properties through `[FsCheckProperty]` use `TUnit.FsCheck` as their sole FsCheck framework integration; they add a direct `FsCheck` reference only when their source directly consumes advanced FsCheck APIs.
 
-All six test-project lock graphs are committed alongside the Web and benchmark lock graphs, and no project mixes xUnit and TUnit. The selected stack and rationale are grounded in [TUnit Modern Testing Research](../research/tunit-modern-testing.md).
+Every executable test project uses an application-root lock graph, and no project mixes xUnit and TUnit. The selected stack and rationale are grounded in [TUnit Modern Testing Research](../research/tunit-modern-testing.md); exact current versions live only in `Directory.Packages.props` and the resolved lock files.
 
 All projects inherit `TargetFramework`, `LangVersion`, nullable context, implicit usings, checked arithmetic, and safe-code defaults. A project may override a central property only with a comment naming the measured or platform reason and the owning evidence. `AllowUnsafeBlocks` can change only under the gate in [.NET Memory and Unsafe Code Research](../research/dotnet-memory-and-unsafe.md). No project suppresses all warnings, disables nullable analysis, uses `LangVersion=latest`, or weakens a warning only in Release.
 

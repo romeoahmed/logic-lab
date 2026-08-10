@@ -30,6 +30,8 @@ Each policy has a stable ID and revision. A policy failure reports the policy re
 
 Unless a shape below says otherwise, fields and arrays are present and non-null, dimensions appear exactly once in shown order, maximums are positive, and tokens/unsigned decimals use [Diagnostics V1](../specs/diagnostics-v1.md#2-diagnostic-record) lexical forms.
 
+### Package Policy
+
 `PackagePolicy` has this closed shape and applies to both read and write:
 
 ```text
@@ -47,6 +49,8 @@ PackageLimitV1
 ```
 
 The reader counts actual bytes/tokens/items rather than trusting ZIP or HTTP declarations. The writer applies the same dimensions before publication, so a carrier emitted under one Package Policy is readable by the same Project Format build and policy. A deployment may accept an older, larger package only by selecting and recording a policy that admits it; it never bypasses checks ad hoc.
+
+### Project Scale Policy
 
 `ProjectScalePolicy` has this closed shape; it defines no uncalibrated default:
 
@@ -68,6 +72,8 @@ counts each reachable occurrence and each scoped Net before boundary unions.
 The Compiler measures generated Port cardinality and admits this complete count
 before it allocates generated Port identities or topology storage.
 
+### Shared policy shape
+
 The remaining Module and Application policies use the same local schema notation without creating a shared CLR `Common` type:
 
 ```text
@@ -82,6 +88,8 @@ The remaining Module and Application policies use the same local schema notation
 ```
 
 A Module owns its concrete policy type; the notation only makes identity, revision, ordering, and integer encoding consistent.
+
+### Simulation Policy
 
 `SimulationPolicy` dimensions are:
 
@@ -99,6 +107,8 @@ zero_time_state_word_count
 The first two bound retained future input; the next four bound one discardable Logical-time Advance. `zero_time_state_count` bounds the number of distinct exact repetition witnesses. `zero_time_state_word_count` bounds their cumulative canonical 64-bit-word representation, including shape markers and both packed Logic planes, so circuit size and witness count cannot multiply into unbounded retained evidence. Neither dimension is a heuristic proof. Work counters increment before the corresponding item is admitted, use checked arithmetic, and roll the advance back when the maximum would be exceeded.
 Each reachable amount admitted by logical shift's explicit possible-case set consumes one `advance_work_item_count` item before case evaluation begins. The evaluator may stream the Conservative Merge without retaining every reachable result; symbolic logic that does not enumerate a case set is charged for its ordinary evaluator and Net work only.
 
+### Trace Policy
+
 `TracePolicy` dimensions are:
 
 ```text
@@ -110,6 +120,8 @@ delta_debug_record_count
 ```
 
 `probe_count` bounds Session admission and replacement. The storage dimensions control retention and eviction and never roll back a successful Logical-time Advance. `retained_bytes` counts owned Trace payload and index storage by the Runtime's declared accounting method; it is not a CLR heap measurement. Delta-debug capture is zero when that explicit mode is absent and is never required to reconstruct committed semantics.
+
+### Analysis Policy
 
 `AnalysisPolicy` dimensions are:
 
@@ -131,6 +143,8 @@ analysis_depth
 
 These dimensions bound all V1 explanation, exact-cover, graph, mapping, and proof paths without exposing an algorithm control to callers. `analysis_depth` is the maximum explicit or prevalidated logical depth and never licenses recursion over untrusted depth. Exhaustion returns Inconclusive and no best-so-far replacement.
 
+### Scheduling Policy
+
 `SchedulingPolicy` dimensions are:
 
 ```text
@@ -147,6 +161,8 @@ analysis_result_retention_seconds
 ```
 
 The admission pair defines one fixed per-subject window. Queues reject rather than drop when full. Compilation remains newest-wins per Workspace, Session work remains FIFO and single-consumer per Session, and Analysis is FIFO within one subject plus round-robin across nonempty subject queues. An active Run retains one admitted Session scheduling item across its repeated Advances; continuations reuse that item and never bypass `session_queue_items`. Pause is bounded Run control and becomes effective at an atomic boundary without allocating another Session queue item. Worker counts bound concurrent executing calls, not the number of hidden ThreadPool threads. Retention expiry uses `TimeProvider` and never extends authorization.
+
+### Workspace Policy
 
 `WorkspacePolicy` dimensions are:
 
@@ -237,6 +253,8 @@ reports Workspace Policy ID/revision,
 `hot_swap_peak_bytes`, and the observed value while retaining the old Session unchanged. Both
 Durable Display Name dimensions must pass, and catalog requests cannot exceed the page/cursor
 maxima.
+
+### Browser Policy
 
 `BrowserPolicy` needs lower as well as upper bounds, so it owns this separate record:
 

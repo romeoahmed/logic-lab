@@ -115,7 +115,7 @@ Only item `43` authorizes describing the selected deployment profile as producti
 
 With items `01` through `19` complete, the current frontier is `20`, `21`, `23`, and `28`:
 
-- persistence and transfer (`19`–`22`);
+- Durable Project catalog and transfer (`20`–`22`);
 - TeachingMixed presentation (`23`–`25`); and
 - Boolean explanation and proof-gated simplification (`28`–`32`).
 
