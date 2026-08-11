@@ -348,10 +348,10 @@ internal sealed class UnavailableProjectExportStore : IProjectExportStore
         ValueTask.FromException<IProjectExportStaging>(
             new IOException("Project export staging is not configured."));
 
-    public ValueTask PublishAsync(
+    public ValueTask<ProjectExportPublished> PublishAsync(
         ProjectExportPublication publication,
         CancellationToken cancellationToken) =>
-        ValueTask.FromException(
+        ValueTask.FromException<ProjectExportPublished>(
             new IOException("Project export staging is not configured."));
 
     public ValueTask RevokeAsync(

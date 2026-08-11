@@ -10,9 +10,13 @@ internal sealed class ProjectExportTests
     public async Task DispatchAsync_PrepareExportCurrentRevision_PublishesOnlyAfterWriterSuccess(
         CancellationToken cancellationToken)
     {
-        var store = new RecordingExportStore();
         var now = new DateTimeOffset(2026, 8, 11, 0, 0, 0, TimeSpan.Zero);
         var timeProvider = new ManualTimeProvider(now);
+        var store = new RecordingExportStore
+        {
+            BeforePublish = () => timeProvider.Advance(TimeSpan.FromSeconds(30)),
+            TimeProvider = timeProvider,
+        };
         var writeCount = 0;
         var production = WorkspaceModuleOperations.Production;
         var operations = production with
@@ -62,8 +66,10 @@ internal sealed class ProjectExportTests
                 .IsEqualTo(AnonymousWorkspaceCaller.Instance);
             await Assert.That(store.Publications[0].Staging.Content.Length)
                 .IsGreaterThan(0L);
-            await Assert.That(store.Publications[0].ExpiresAtUtc)
-                .IsEqualTo(now.AddSeconds(300));
+            await Assert.That(store.Publications[0].ExpiresAfterSeconds)
+                .IsEqualTo(300UL);
+            await Assert.That(store.PublishedExpiresAtUtc)
+                .IsEqualTo(now.AddSeconds(330));
             await Assert.That(prepared.ExpiresAfterSeconds).IsEqualTo(300UL);
             await Assert.That(after.Projection).IsEqualTo(before);
         }
@@ -169,6 +175,12 @@ internal sealed class ProjectExportTests
 
         public List<ProjectExportPublication> Publications { get; } = [];
 
+        public Action? BeforePublish { get; init; }
+
+        public TimeProvider TimeProvider { get; init; } = TimeProvider.System;
+
+        public DateTimeOffset? PublishedExpiresAtUtc { get; private set; }
+
         public ValueTask<IProjectExportStaging> CreateStagingAsync(
             CancellationToken cancellationToken)
         {
@@ -178,13 +190,19 @@ internal sealed class ProjectExportTests
             return ValueTask.FromResult<IProjectExportStaging>(staging);
         }
 
-        public ValueTask PublishAsync(
+        public ValueTask<ProjectExportPublished> PublishAsync(
             ProjectExportPublication publication,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            BeforePublish?.Invoke();
             Publications.Add(publication);
-            return ValueTask.CompletedTask;
+            PublishedExpiresAtUtc = TimeProvider.GetUtcNow().Add(
+                TimeSpan.FromTicks(checked(
+                    checked((long)publication.ExpiresAfterSeconds)
+                    * TimeSpan.TicksPerSecond)));
+            return ValueTask.FromResult(
+                new ProjectExportPublished(PublishedExpiresAtUtc.Value));
         }
 
         public ValueTask RevokeAsync(

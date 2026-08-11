@@ -18,6 +18,7 @@ public sealed class TemporaryProjectExportStore :
         new(StringComparer.Ordinal);
     private readonly Dictionary<WorkspaceId, string> ticketsByWorkspace = [];
     private readonly TimeProvider timeProvider;
+    private readonly SemaphoreSlim publicationMutationGate = new(1, 1);
     private readonly string stagingDirectory;
     private readonly bool ownsStagingDirectory;
     private readonly ITimer expirationTimer;
@@ -82,7 +83,7 @@ public sealed class TemporaryProjectExportStore :
     }
 #pragma warning restore CA2000
 
-    public async ValueTask PublishAsync(
+    public async ValueTask<ProjectExportPublished> PublishAsync(
         ProjectExportPublication publication,
         CancellationToken cancellationToken)
     {
@@ -95,43 +96,59 @@ public sealed class TemporaryProjectExportStore :
         }
 
         await staging.Content.FlushAsync(cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        var now = timeProvider.GetUtcNow();
-        if (publication.ExpiresAtUtc <= now)
+        await publicationMutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(publication),
-                "An export publication must expire in the future.");
-        }
-
-        staging.Register();
-        List<PublishedExport> retired;
-        lock (gate)
-        {
-            ObjectDisposedException.ThrowIf(isDisposed, this);
-            retired = RemoveExpiredUnderLock(now);
-            if (ticketsByWorkspace.TryGetValue(
-                    publication.WorkspaceId,
-                    out var previousTicket)
-                && RemoveUnderLock(previousTicket) is { } previous)
+            List<PublishedExport> retired;
+            lock (gate)
             {
-                retired.Add(previous);
+                ObjectDisposedException.ThrowIf(isDisposed, this);
+                var now = timeProvider.GetUtcNow();
+                retired = RemoveExpiredUnderLock(now);
+                if (ticketsByWorkspace.TryGetValue(
+                        publication.WorkspaceId,
+                        out var previousTicket)
+                    && RemoveUnderLock(previousTicket) is { } previous)
+                {
+                    retired.Add(previous);
+                }
+
+                if (exportsByTicket.ContainsKey(publication.ExportTicket.Value))
+                {
+                    throw new InvalidOperationException(
+                        "The Export Ticket is already published.");
+                }
+
+                ScheduleNextExpiryUnderLock(now);
             }
 
-            if (exportsByTicket.ContainsKey(publication.ExportTicket.Value))
+            await DisposeAllSilentlyAsync(retired).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            staging.Register();
+
+            DateTimeOffset expiresAtUtc;
+            lock (gate)
             {
-                throw new InvalidOperationException(
-                    "The Export Ticket is already published.");
+                ObjectDisposedException.ThrowIf(isDisposed, this);
+                var publishedAtUtc = timeProvider.GetUtcNow();
+                expiresAtUtc = publishedAtUtc.Add(
+                    Lifetime(publication.ExpiresAfterSeconds));
+                var published = new PublishedExport(
+                    publication,
+                    staging,
+                    expiresAtUtc);
+                exportsByTicket.Add(publication.ExportTicket.Value, published);
+                ticketsByWorkspace[publication.WorkspaceId] =
+                    publication.ExportTicket.Value;
+                ScheduleNextExpiryUnderLock(publishedAtUtc);
             }
 
-            var published = new PublishedExport(publication, staging);
-            exportsByTicket.Add(publication.ExportTicket.Value, published);
-            ticketsByWorkspace[publication.WorkspaceId] =
-                publication.ExportTicket.Value;
-            ScheduleNextExpiryUnderLock(now);
+            return new ProjectExportPublished(expiresAtUtc);
         }
-
-        await DisposeAllSilentlyAsync(retired).ConfigureAwait(false);
+        finally
+        {
+            publicationMutationGate.Release();
+        }
     }
 
     public async ValueTask RevokeAsync(
@@ -139,23 +156,30 @@ public sealed class TemporaryProjectExportStore :
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
-        cancellationToken.ThrowIfCancellationRequested();
-        List<PublishedExport> retired;
-        var now = timeProvider.GetUtcNow();
-        lock (gate)
+        await publicationMutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            ObjectDisposedException.ThrowIf(isDisposed, this);
-            retired = RemoveExpiredUnderLock(now);
-            if (ticketsByWorkspace.TryGetValue(workspaceId, out var ticket)
-                && RemoveUnderLock(ticket) is { } revoked)
+            List<PublishedExport> retired;
+            var now = timeProvider.GetUtcNow();
+            lock (gate)
             {
-                retired.Add(revoked);
+                ObjectDisposedException.ThrowIf(isDisposed, this);
+                retired = RemoveExpiredUnderLock(now);
+                if (ticketsByWorkspace.TryGetValue(workspaceId, out var ticket)
+                    && RemoveUnderLock(ticket) is { } revoked)
+                {
+                    retired.Add(revoked);
+                }
+
+                ScheduleNextExpiryUnderLock(now);
             }
 
-            ScheduleNextExpiryUnderLock(now);
+            await DisposeAllSilentlyAsync(retired).ConfigureAwait(false);
         }
-
-        await DisposeAllSilentlyAsync(retired).ConfigureAwait(false);
+        finally
+        {
+            publicationMutationGate.Release();
+        }
     }
 
     public async ValueTask<ProjectExportDownloadOutcome> RedeemAsync(
@@ -216,6 +240,7 @@ public sealed class TemporaryProjectExportStore :
         }
 
         await expirationTimer.DisposeAsync().ConfigureAwait(false);
+        publicationMutationGate.Dispose();
         await DisposeAllSilentlyAsync(retired).ConfigureAwait(false);
         DeleteOwnedStagingDirectorySilently(
             stagingDirectory,
@@ -245,7 +270,7 @@ public sealed class TemporaryProjectExportStore :
         var nextExpiry = exportsByTicket.Count == 0
             ? (DateTimeOffset?)null
             : exportsByTicket.Values.Min(
-                static export => export.Publication.ExpiresAtUtc);
+                static export => export.ExpiresAtUtc);
         var dueTime = nextExpiry is null
             ? Timeout.InfiniteTimeSpan
             : nextExpiry <= now
@@ -258,7 +283,7 @@ public sealed class TemporaryProjectExportStore :
     {
         List<PublishedExport> retired = [];
         foreach (var ticket in exportsByTicket
-                     .Where(pair => pair.Value.Publication.ExpiresAtUtc <= now)
+                     .Where(pair => pair.Value.ExpiresAtUtc <= now)
                      .Select(pair => pair.Key)
                      .ToArray())
         {
@@ -377,9 +402,14 @@ public sealed class TemporaryProjectExportStore :
         }
     }
 
+    private static TimeSpan Lifetime(ulong expiresAfterSeconds) =>
+        TimeSpan.FromTicks(checked(
+            checked((long)expiresAfterSeconds) * TimeSpan.TicksPerSecond));
+
     private sealed record PublishedExport(
         ProjectExportPublication Publication,
-        TemporaryProjectExportStaging Staging);
+        TemporaryProjectExportStaging Staging,
+        DateTimeOffset ExpiresAtUtc);
 
     private sealed class TemporaryProjectExportStaging(FileStream content) :
         IProjectExportStaging
