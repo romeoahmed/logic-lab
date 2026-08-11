@@ -1,5 +1,4 @@
 using LogicLab.Application.Workspaces;
-using LogicLab.Domain.Authoring;
 using LogicLab.Infrastructure.Transfers;
 
 namespace LogicLab.Infrastructure.Tests;
@@ -234,15 +233,6 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
         ulong expiresAfterSeconds) =>
         new(
             workspaceId,
-            ((ProjectGenesisCommitted)ProjectEditor.Begin(
-                new NewProjectSeed(
-                    "Export",
-                    LibrarySnapshot.Core,
-                    new SymbolProfileReference(
-                        "TeachingMixed",
-                        "1.0.0",
-                        IndicationConvention.Negation),
-                    "Main"))).Revision.RevisionId,
             ticket,
             caller,
             staging,

@@ -21,11 +21,12 @@ internal static class TestEditorWorkspaceFactory
                 durableProjectRepository ?? UnexpectedDurableProjectRepository.Instance,
             durableProjectLoader:
                 durableProjectLoader ?? UnexpectedDurableProjectLoader.Instance,
+            projectExportStore:
+                projectExportStore ?? UnexpectedProjectExportStore.Instance,
             workspacePolicy: workspacePolicy,
             schedulingPolicy: schedulingPolicy,
             timeProvider: timeProvider,
-            loggerFactory: loggerFactory,
-            projectExportStore: projectExportStore);
+            loggerFactory: loggerFactory);
     }
 
     public static IEditorWorkspace CreateForTesting(
@@ -45,12 +46,13 @@ internal static class TestEditorWorkspaceFactory
                 durableProjectRepository ?? UnexpectedDurableProjectRepository.Instance,
             durableProjectLoader:
                 durableProjectLoader ?? UnexpectedDurableProjectLoader.Instance,
+            projectExportStore:
+                projectExportStore ?? UnexpectedProjectExportStore.Instance,
             workspacePolicy: workspacePolicy,
             schedulingPolicy: schedulingPolicy,
             timeProvider: timeProvider,
             loggerFactory: loggerFactory,
-            buildFingerprint: buildFingerprint,
-            projectExportStore: projectExportStore);
+            buildFingerprint: buildFingerprint);
     }
 
     private sealed class UnexpectedDurableProjectRepository : IDurableProjectRepository
@@ -94,6 +96,29 @@ internal static class TestEditorWorkspaceFactory
 
         public Task<DurableProjectOpenRepositoryOutcome> LoadAsync(
             DurableProjectOpenRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+    }
+
+    private sealed class UnexpectedProjectExportStore : IProjectExportStore
+    {
+        private const string Message =
+            "This test must supply a Project Export store before preparing an export.";
+
+        private UnexpectedProjectExportStore()
+        {
+        }
+
+        public static UnexpectedProjectExportStore Instance { get; } = new();
+
+        public ValueTask<IProjectExportStaging> CreateStagingAsync(
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public ValueTask<ProjectExportPublished> PublishAsync(
+            ProjectExportPublication publication,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public ValueTask RevokeAsync(
+            WorkspaceId workspaceId,
             CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
     }
 }

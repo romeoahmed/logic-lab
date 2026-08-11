@@ -122,7 +122,6 @@ internal sealed partial class EditorWorkspace
             var ticket = ExportTicket.Create();
             var publication = new ProjectExportPublication(
                 workspaceId,
-                revision.RevisionId,
                 ticket,
                 caller,
                 staging,

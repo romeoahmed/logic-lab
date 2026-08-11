@@ -10,7 +10,8 @@ internal sealed class WorkspaceContractTests
         await Assert.That(() => EditorWorkspaceFactory.Create(
                 WorkspaceBuild.DevelopmentFingerprint,
                 durableProjectRepository: null!,
-                durableProjectLoader: UnexpectedDurableStore.Instance))
+                durableProjectLoader: UnexpectedDurableStore.Instance,
+                projectExportStore: UnexpectedProjectExportStore.Instance))
             .ThrowsExactly<ArgumentNullException>();
     }
 
@@ -20,7 +21,19 @@ internal sealed class WorkspaceContractTests
         await Assert.That(() => EditorWorkspaceFactory.Create(
                 WorkspaceBuild.DevelopmentFingerprint,
                 durableProjectRepository: UnexpectedDurableStore.Instance,
-                durableProjectLoader: null!))
+                durableProjectLoader: null!,
+                projectExportStore: UnexpectedProjectExportStore.Instance))
+            .ThrowsExactly<ArgumentNullException>();
+    }
+
+    [Test]
+    public async Task EditorWorkspaceFactory_NullProjectExportStore_ThrowsArgumentNullException()
+    {
+        await Assert.That(() => EditorWorkspaceFactory.Create(
+                WorkspaceBuild.DevelopmentFingerprint,
+                durableProjectRepository: UnexpectedDurableStore.Instance,
+                durableProjectLoader: UnexpectedDurableStore.Instance,
+                projectExportStore: null!))
             .ThrowsExactly<ArgumentNullException>();
     }
 
@@ -219,6 +232,29 @@ internal sealed class WorkspaceContractTests
 
         public Task<DurableProjectOpenRepositoryOutcome> LoadAsync(
             DurableProjectOpenRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+    }
+
+    private sealed class UnexpectedProjectExportStore : IProjectExportStore
+    {
+        private const string Message =
+            "The null-dependency contract must not invoke the Project Export store.";
+
+        private UnexpectedProjectExportStore()
+        {
+        }
+
+        public static UnexpectedProjectExportStore Instance { get; } = new();
+
+        public ValueTask<IProjectExportStaging> CreateStagingAsync(
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public ValueTask<ProjectExportPublished> PublishAsync(
+            ProjectExportPublication publication,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public ValueTask RevokeAsync(
+            WorkspaceId workspaceId,
             CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
     }
 }

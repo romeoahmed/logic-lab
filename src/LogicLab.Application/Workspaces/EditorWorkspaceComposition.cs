@@ -237,15 +237,16 @@ public static class EditorWorkspaceFactory
         string buildFingerprint,
         IDurableProjectRepository durableProjectRepository,
         IDurableProjectLoader durableProjectLoader,
+        IProjectExportStore projectExportStore,
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
-        PackagePolicy? packagePolicy = null,
-        IProjectExportStore? projectExportStore = null)
+        PackagePolicy? packagePolicy = null)
     {
         ArgumentNullException.ThrowIfNull(durableProjectRepository);
         ArgumentNullException.ThrowIfNull(durableProjectLoader);
+        ArgumentNullException.ThrowIfNull(projectExportStore);
         return CreateCore(
             workspacePolicy,
             schedulingPolicy,
@@ -263,16 +264,17 @@ public static class EditorWorkspaceFactory
         WorkspaceModuleOperations operations,
         IDurableProjectRepository durableProjectRepository,
         IDurableProjectLoader durableProjectLoader,
+        IProjectExportStore projectExportStore,
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
         string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint,
-        PackagePolicy? packagePolicy = null,
-        IProjectExportStore? projectExportStore = null)
+        PackagePolicy? packagePolicy = null)
     {
         ArgumentNullException.ThrowIfNull(durableProjectRepository);
         ArgumentNullException.ThrowIfNull(durableProjectLoader);
+        ArgumentNullException.ThrowIfNull(projectExportStore);
         return CreateCore(
             workspacePolicy,
             schedulingPolicy,
@@ -296,7 +298,7 @@ public static class EditorWorkspaceFactory
         IDurableProjectRepository durableProjectRepository,
         IDurableProjectLoader durableProjectLoader,
         PackagePolicy? packagePolicy,
-        IProjectExportStore? projectExportStore)
+        IProjectExportStore projectExportStore)
     {
         ArgumentException.ThrowIfNullOrEmpty(buildFingerprint);
         var resolvedLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
@@ -309,7 +311,7 @@ public static class EditorWorkspaceFactory
             durableProjectRepository,
             durableProjectLoader,
             packagePolicy ?? PackagePolicy.Development,
-            projectExportStore ?? UnavailableProjectExportStore.Instance,
+            projectExportStore,
             resolvedLoggerFactory.CreateLogger<Work.WorkCoordinator>(),
             resolvedLoggerFactory.CreateLogger<EditorWorkspace>());
     }
@@ -333,28 +335,4 @@ internal sealed record WorkspaceModuleOperations(
         SimulationRuntime.Read,
         SimulationRuntime.Close,
         ProjectPackage.WriteAsync);
-}
-
-internal sealed class UnavailableProjectExportStore : IProjectExportStore
-{
-    private UnavailableProjectExportStore()
-    {
-    }
-
-    public static UnavailableProjectExportStore Instance { get; } = new();
-
-    public ValueTask<IProjectExportStaging> CreateStagingAsync(
-        CancellationToken cancellationToken) =>
-        ValueTask.FromException<IProjectExportStaging>(
-            new IOException("Project export staging is not configured."));
-
-    public ValueTask<ProjectExportPublished> PublishAsync(
-        ProjectExportPublication publication,
-        CancellationToken cancellationToken) =>
-        ValueTask.FromException<ProjectExportPublished>(
-            new IOException("Project export staging is not configured."));
-
-    public ValueTask RevokeAsync(
-        WorkspaceId workspaceId,
-        CancellationToken cancellationToken) => ValueTask.CompletedTask;
 }
