@@ -51,6 +51,21 @@ public sealed record ExportPrepared(
     ExportTicket ExportTicket,
     ulong ExpiresAfterSeconds) : WorkspaceCommandOutcome;
 
+public sealed record ProjectExportPreparationPolicy
+{
+    public ProjectExportPreparationPolicy(int maximumConcurrentPreparations)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(
+            maximumConcurrentPreparations);
+        MaximumConcurrentPreparations = maximumConcurrentPreparations;
+    }
+
+    public int MaximumConcurrentPreparations { get; }
+
+    public static ProjectExportPreparationPolicy Default { get; } = new(
+        maximumConcurrentPreparations: 4);
+}
+
 public interface IProjectExportStaging : IAsyncDisposable
 {
     Stream Content { get; }

@@ -102,9 +102,17 @@ internal sealed partial class EditorWorkspace
         CancellationToken cancellationToken)
     {
         IProjectExportStaging? staging = null;
+        var preparationAdmitted = false;
         var published = false;
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!TryEnterProjectExportPreparation())
+            {
+                return Reject(WorkspaceOutcomeReasons.ExportCapacityUnavailable);
+            }
+
+            preparationAdmitted = true;
             staging = await projectExportStore.CreateStagingAsync(cancellationToken)
                 .ConfigureAwait(false);
             var packageOutcome = await operations.WritePackage(
@@ -162,18 +170,52 @@ internal sealed partial class EditorWorkspace
         }
         finally
         {
-            if (!published && staging is not null)
+            try
             {
-                try
+                if (!published && staging is not null)
                 {
-                    await staging.DisposeAsync().ConfigureAwait(false);
-                }
-                catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
-                {
-                    var correlation = ApplicationCorrelation.CurrentOrCreate();
-                    LogExportCleanupFailure(logger, exception, correlation);
+                    try
+                    {
+                        await staging.DisposeAsync().ConfigureAwait(false);
+                    }
+                    catch (Exception exception)
+                        when (!ExceptionClassifier.IsFatal(exception))
+                    {
+                        var correlation = ApplicationCorrelation.CurrentOrCreate();
+                        LogExportCleanupFailure(logger, exception, correlation);
+                    }
                 }
             }
+            finally
+            {
+                if (preparationAdmitted)
+                {
+                    ExitProjectExportPreparation();
+                }
+            }
+        }
+    }
+
+    private bool TryEnterProjectExportPreparation()
+    {
+        lock (projectExportPreparationAdmissionGate)
+        {
+            if (activeProjectExportPreparations
+                >= maximumConcurrentProjectExportPreparations)
+            {
+                return false;
+            }
+
+            activeProjectExportPreparations++;
+            return true;
+        }
+    }
+
+    private void ExitProjectExportPreparation()
+    {
+        lock (projectExportPreparationAdmissionGate)
+        {
+            activeProjectExportPreparations--;
         }
     }
 

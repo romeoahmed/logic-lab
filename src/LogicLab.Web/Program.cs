@@ -33,11 +33,17 @@ var projectExportStoragePolicy = new ProjectExportStoragePolicy(
     builder.Configuration.GetValue<ulong?>(
         $"{ProjectExportTransferPolicy.ConfigurationSectionName}:MaximumPublishedCarrierBytes")
         ?? projectExportStorageDefaults.MaximumPublishedCarrierBytes);
+var projectExportPreparationDefaults = ProjectExportPreparationPolicy.Default;
+var projectExportPreparationPolicy = new ProjectExportPreparationPolicy(
+    builder.Configuration.GetValue<int?>(
+        $"{ProjectExportTransferPolicy.ConfigurationSectionName}:MaximumConcurrentPreparations")
+        ?? projectExportPreparationDefaults.MaximumConcurrentPreparations);
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(workspacePolicy);
 builder.Services.AddSingleton(projectExportTransferPolicy);
 builder.Services.AddSingleton(projectExportStoragePolicy);
+builder.Services.AddSingleton(projectExportPreparationPolicy);
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider,
@@ -178,6 +184,8 @@ builder.Services.AddSingleton<IEditorWorkspace>(services =>
             services.GetRequiredService<IDurableProjectLoader>(),
         projectExportStore:
             services.GetRequiredService<IProjectExportStore>(),
+        projectExportPreparationPolicy:
+            services.GetRequiredService<ProjectExportPreparationPolicy>(),
         buildFingerprint: LogicLabWebBuild.Fingerprint));
 builder.Services.AddFluentUIComponents();
 builder.Services.AddRazorComponents()

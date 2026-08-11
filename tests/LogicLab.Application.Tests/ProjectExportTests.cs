@@ -7,6 +7,93 @@ namespace LogicLab.Application.Tests;
 internal sealed class ProjectExportTests
 {
     [Test]
+    public async Task DispatchAsync_GlobalExportPreparationLimitExceeded_RejectsBeforeStagingAndReusesPermit(
+        CancellationToken cancellationToken)
+    {
+        var firstWriterEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstWriter = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var writeCount = 0;
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            WritePackage = async (request, token) =>
+            {
+                if (Interlocked.Increment(ref writeCount) == 1)
+                {
+                    firstWriterEntered.TrySetResult();
+                    await releaseFirstWriter.Task.WaitAsync(token);
+                }
+
+                return await production.WritePackage(request, token);
+            },
+        };
+        var store = new RecordingExportStore();
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
+            operations,
+            projectExportPreparationPolicy: new ProjectExportPreparationPolicy(1),
+            projectExportStore: store);
+        var firstOpened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("First export", "Main"),
+            cancellationToken);
+        var secondOpened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("Second export", "Main"),
+            cancellationToken);
+        var firstAttached = await EditorWorkspaceTestDriver.AttachAsync(
+            workspace,
+            firstOpened.WorkspaceId,
+            cancellationToken);
+        var secondAttached = await EditorWorkspaceTestDriver.AttachAsync(
+            workspace,
+            secondOpened.WorkspaceId,
+            cancellationToken);
+        var firstPreparation = workspace.DispatchAsync(
+            Prepare(firstOpened, firstAttached, "export-first"),
+            cancellationToken);
+        await firstWriterEntered.Task.WaitAsync(cancellationToken);
+
+        Task<WorkspaceCommandOutcome> secondPreparation;
+        bool secondCompletedWithoutWaiting;
+        int writesAfterRejection;
+        int stagingAfterRejection;
+        try
+        {
+            secondPreparation = workspace.DispatchAsync(
+                Prepare(secondOpened, secondAttached, "export-second-rejected"),
+                cancellationToken);
+            secondCompletedWithoutWaiting = secondPreparation.IsCompleted;
+            writesAfterRejection = Volatile.Read(ref writeCount);
+            stagingAfterRejection = store.Created.Count;
+        }
+        finally
+        {
+            releaseFirstWriter.TrySetResult();
+        }
+
+        var firstOutcome = await firstPreparation;
+        var secondOutcome = await secondPreparation;
+        var reusedOutcome = await workspace.DispatchAsync(
+            Prepare(secondOpened, secondAttached, "export-second-reused"),
+            cancellationToken);
+        var rejected = (await Assert.That(secondOutcome)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(secondCompletedWithoutWaiting).IsTrue();
+            await Assert.That(rejected.Code)
+                .IsEqualTo(WorkspaceOutcomeReasons.ExportCapacityUnavailable);
+            await Assert.That(writesAfterRejection).IsEqualTo(1);
+            await Assert.That(stagingAfterRejection).IsEqualTo(1);
+            await Assert.That(firstOutcome).IsTypeOf<ExportPrepared>();
+            await Assert.That(reusedOutcome).IsTypeOf<ExportPrepared>();
+            await Assert.That(writeCount).IsEqualTo(2);
+            await Assert.That(store.Created.Count).IsEqualTo(2);
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_PrepareExportCurrentRevision_PublishesOnlyAfterWriterSuccess(
         CancellationToken cancellationToken)
     {
@@ -202,6 +289,21 @@ internal sealed class ProjectExportTests
             return ValueTask.FromResult<ProjectExportPublicationOutcome>(
                 new ProjectExportPublished(PublishedExpiresAtUtc.Value));
         }
+    }
+
+    private static PrepareExport Prepare(
+        WorkspaceOpened opened,
+        Attached attached,
+        string intentId)
+    {
+        var revisionId = opened.Projection.ProjectRevision.RevisionId;
+        return new PrepareExport(
+            EditorWorkspaceTestDriver.Command(
+                opened.WorkspaceId,
+                attached,
+                intentId),
+            new AuthoringPrecondition(revisionId),
+            revisionId);
     }
 
     private sealed class RecordingStaging : IProjectExportStaging
