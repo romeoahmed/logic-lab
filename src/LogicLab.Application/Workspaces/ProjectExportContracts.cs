@@ -60,7 +60,6 @@ public sealed record ProjectExportPublication
 {
     public ProjectExportPublication(
         WorkspaceId workspaceId,
-        ProjectRevisionId projectRevisionId,
         ExportTicket exportTicket,
         WorkspaceCaller authorizedCaller,
         IProjectExportStaging staging,
@@ -68,7 +67,6 @@ public sealed record ProjectExportPublication
         ulong carrierByteCount)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
-        ArgumentNullException.ThrowIfNull(projectRevisionId);
         ArgumentNullException.ThrowIfNull(exportTicket);
         ArgumentNullException.ThrowIfNull(authorizedCaller);
         ArgumentNullException.ThrowIfNull(staging);
@@ -81,7 +79,6 @@ public sealed record ProjectExportPublication
         }
 
         WorkspaceId = workspaceId;
-        ProjectRevisionId = projectRevisionId;
         ExportTicket = exportTicket;
         AuthorizedCaller = authorizedCaller;
         Staging = staging;
@@ -90,8 +87,6 @@ public sealed record ProjectExportPublication
     }
 
     public WorkspaceId WorkspaceId { get; }
-
-    public ProjectRevisionId ProjectRevisionId { get; }
 
     public ExportTicket ExportTicket { get; }
 

@@ -10,6 +10,7 @@ internal abstract class DelegatingEditorWorkspace(
     private IEditorWorkspace Inner { get; } = EditorWorkspaceFactory.Create(
         buildFingerprint: buildFingerprint ?? LogicLabWebBuild.Fingerprint,
         durableProjectRepository: UnexpectedDurableProjectRepository.Instance,
+        projectExportStore: UnexpectedProjectExportStore.Instance,
         workspacePolicy: workspacePolicy,
         durableProjectLoader:
             durableProjectLoader ?? UnexpectedDurableProjectLoader.Instance);
@@ -81,6 +82,29 @@ internal abstract class DelegatingEditorWorkspace(
 
         public Task<DurableProjectOpenRepositoryOutcome> LoadAsync(
             DurableProjectOpenRequest request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+    }
+
+    private sealed class UnexpectedProjectExportStore : IProjectExportStore
+    {
+        private const string Message =
+            "This test must supply a Project Export store before preparing an export.";
+
+        private UnexpectedProjectExportStore()
+        {
+        }
+
+        public static UnexpectedProjectExportStore Instance { get; } = new();
+
+        public ValueTask<IProjectExportStaging> CreateStagingAsync(
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public ValueTask<ProjectExportPublished> PublishAsync(
+            ProjectExportPublication publication,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public ValueTask RevokeAsync(
+            WorkspaceId workspaceId,
             CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
     }
 }

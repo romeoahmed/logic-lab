@@ -94,7 +94,8 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         await using var workspace = EditorWorkspaceFactory.Create(
             buildFingerprint,
             durableProjectRepository: repository,
-            durableProjectLoader: UnexpectedDurableProjectLoader.Instance);
+            durableProjectLoader: UnexpectedDurableProjectLoader.Instance,
+            projectExportStore: UnexpectedProjectExportStore.Instance);
         var (opened, attached) = await OpenAttachedAsync(
             workspace,
             buildFingerprint);
@@ -138,7 +139,8 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         await using var workspace = EditorWorkspaceFactory.Create(
             buildFingerprint,
             durableProjectRepository: repository,
-            durableProjectLoader: UnexpectedDurableProjectLoader.Instance);
+            durableProjectLoader: UnexpectedDurableProjectLoader.Instance,
+            projectExportStore: UnexpectedProjectExportStore.Instance);
         var (opened, attached) = await OpenAttachedAsync(
             workspace,
             buildFingerprint);
@@ -193,7 +195,8 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         await using var workspace = EditorWorkspaceFactory.Create(
             buildFingerprint,
             durableProjectRepository: repository,
-            durableProjectLoader: UnexpectedDurableProjectLoader.Instance);
+            durableProjectLoader: UnexpectedDurableProjectLoader.Instance,
+            projectExportStore: UnexpectedProjectExportStore.Instance);
         var (opened, attached) = await OpenAttachedAsync(
             workspace,
             buildFingerprint);
@@ -225,7 +228,8 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         await using var workspace = EditorWorkspaceFactory.Create(
             buildFingerprint,
             durableProjectRepository: repository,
-            durableProjectLoader: UnexpectedDurableProjectLoader.Instance);
+            durableProjectLoader: UnexpectedDurableProjectLoader.Instance,
+            projectExportStore: UnexpectedProjectExportStore.Instance);
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Sandbox", "Main"),
             CancellationToken.None);
@@ -692,7 +696,8 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         await using var workspace = EditorWorkspaceFactory.Create(
             buildFingerprint,
             durableProjectRepository: repository,
-            durableProjectLoader: repository);
+            durableProjectLoader: repository,
+            projectExportStore: UnexpectedProjectExportStore.Instance);
         var outcome = await workspace.OpenAsync(
             new OpenDurable(claim.DurableProjectId, AuthenticatedCaller),
             CancellationToken.None);
@@ -987,6 +992,29 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             DurableProjectOpenRequest request,
             CancellationToken cancellationToken) => throw new InvalidOperationException(
                 "This persistence test does not open a Durable Project.");
+    }
+
+    private sealed class UnexpectedProjectExportStore : IProjectExportStore
+    {
+        private const string Message =
+            "This persistence test does not prepare a Project Export.";
+
+        private UnexpectedProjectExportStore()
+        {
+        }
+
+        public static UnexpectedProjectExportStore Instance { get; } = new();
+
+        public ValueTask<IProjectExportStaging> CreateStagingAsync(
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public ValueTask<ProjectExportPublished> PublishAsync(
+            ProjectExportPublication publication,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
+
+        public ValueTask RevokeAsync(
+            WorkspaceId workspaceId,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
     }
 
     private static AuthenticatedWorkspaceCaller AuthenticatedCaller { get; } =

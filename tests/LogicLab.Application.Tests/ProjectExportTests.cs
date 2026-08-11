@@ -60,8 +60,6 @@ internal sealed class ProjectExportTests
             await Assert.That(store.Publications).HasSingleItem();
             await Assert.That(store.Publications[0].ExportTicket)
                 .IsEqualTo(prepared.ExportTicket);
-            await Assert.That(store.Publications[0].ProjectRevisionId)
-                .IsEqualTo(before.ProjectRevision.RevisionId);
             await Assert.That(store.Publications[0].AuthorizedCaller)
                 .IsEqualTo(AnonymousWorkspaceCaller.Instance);
             await Assert.That(store.Publications[0].Staging.Content.Length)
