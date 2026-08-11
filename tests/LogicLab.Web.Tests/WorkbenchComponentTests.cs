@@ -1,10 +1,13 @@
+using System.Security.Claims;
 using Bunit;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
 using LogicLab.Engine.Compilation;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Components.Pages;
+using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
@@ -18,7 +21,19 @@ internal sealed class WorkbenchComponentTests
     {
         await using var context = CreateContext();
         await using var workspace = new PreparedExportWorkspace();
-        var rendered = RenderEditor(context, workspace);
+        var browserId = new AnonymousBrowserId(new string('a', 64));
+        context.Services.AddSingleton<IEditorWorkspace>(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var authenticationState = Task.FromResult(new AuthenticationState(
+            new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(
+                    WorkspaceCallerAdapter.AnonymousBrowserClaimType,
+                    browserId.Value)]))));
+        var host = context.Render<CascadingValue<Task<AuthenticationState>>>(
+            parameters => parameters
+                .Add(value => value.Value, authenticationState)
+                .AddChildContent<Editor>());
+        var rendered = host.FindComponent<Editor>();
         _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
         await ClickAndWaitForState(
             rendered,
@@ -36,6 +51,8 @@ internal sealed class WorkbenchComponentTests
         {
             await Assert.That(command.ProjectRevisionId)
                 .IsEqualTo(command.Precondition.ProjectRevisionId);
+            await Assert.That(command.Context.Caller)
+                .IsEqualTo(new AnonymousBrowserWorkspaceCaller(browserId));
             await Assert.That(link.GetAttribute("href"))
                 .IsEqualTo("/downloads/export-ticket-component-0001");
             await Assert.That(link.GetAttribute("download"))

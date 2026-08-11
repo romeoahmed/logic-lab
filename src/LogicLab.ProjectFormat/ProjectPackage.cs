@@ -278,11 +278,12 @@ public static class ProjectPackage
         CancellationToken cancellationToken)
     {
         var counting = new CountingWriteStream(destination);
-        using (var archive = new ZipArchive(
-                   counting,
-                   ZipArchiveMode.Create,
-                   leaveOpen: true,
-                   entryNameEncoding: Encoding.UTF8))
+        await using (var archive = await ZipArchive.CreateAsync(
+                         counting,
+                         ZipArchiveMode.Create,
+                         leaveOpen: true,
+                         entryNameEncoding: Encoding.UTF8,
+                         cancellationToken).ConfigureAwait(false))
         {
             await WriteEntryAsync(
                 archive,
@@ -299,7 +300,7 @@ public static class ProjectPackage
             }
         }
 
-        await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+        await counting.FlushAsync(cancellationToken).ConfigureAwait(false);
         return counting.BytesWritten;
     }
 
@@ -554,6 +555,8 @@ public static class ProjectPackage
 
     private sealed class CountingWriteStream(Stream destination) : Stream
     {
+        private readonly ArrayBufferWriter<byte> deferredSynchronousWrites = new();
+
         public ulong BytesWritten { get; private set; }
 
         public override bool CanRead => false;
@@ -570,10 +573,15 @@ public static class ProjectPackage
             set => throw new NotSupportedException();
         }
 
-        public override void Flush() => destination.Flush();
+        public override void Flush()
+        {
+        }
 
-        public override Task FlushAsync(CancellationToken cancellationToken) =>
-            destination.FlushAsync(cancellationToken);
+        public override async Task FlushAsync(CancellationToken cancellationToken)
+        {
+            await FlushDeferredWritesAsync(cancellationToken).ConfigureAwait(false);
+            await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
 
         public override int Read(byte[] buffer, int offset, int count) =>
             throw new NotSupportedException();
@@ -586,13 +594,13 @@ public static class ProjectPackage
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            destination.Write(buffer, offset, count);
+            deferredSynchronousWrites.Write(buffer.AsSpan(offset, count));
             BytesWritten = SaturatingAdd(BytesWritten, checked((ulong)count));
         }
 
         public override void Write(ReadOnlySpan<byte> buffer)
         {
-            destination.Write(buffer);
+            deferredSynchronousWrites.Write(buffer);
             BytesWritten = SaturatingAdd(
                 BytesWritten,
                 checked((ulong)buffer.Length));
@@ -602,10 +610,42 @@ public static class ProjectPackage
             ReadOnlyMemory<byte> buffer,
             CancellationToken cancellationToken = default)
         {
+            await FlushDeferredWritesAsync(cancellationToken).ConfigureAwait(false);
             await destination.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
             BytesWritten = SaturatingAdd(
                 BytesWritten,
                 checked((ulong)buffer.Length));
+        }
+
+        public override async Task WriteAsync(
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken)
+        {
+            await FlushDeferredWritesAsync(cancellationToken).ConfigureAwait(false);
+            await destination.WriteAsync(
+                    buffer.AsMemory(offset, count),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            BytesWritten = SaturatingAdd(
+                BytesWritten,
+                checked((ulong)count));
+        }
+
+        private async Task FlushDeferredWritesAsync(
+            CancellationToken cancellationToken)
+        {
+            if (deferredSynchronousWrites.WrittenCount == 0)
+            {
+                return;
+            }
+
+            await destination.WriteAsync(
+                    deferredSynchronousWrites.WrittenMemory,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            deferredSynchronousWrites.Clear();
         }
     }
 }

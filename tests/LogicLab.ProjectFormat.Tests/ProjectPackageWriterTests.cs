@@ -327,6 +327,29 @@ internal sealed class ProjectPackageWriterTests
         }
     }
 
+    [Test]
+    public async Task WriteAsync_AsyncOnlyDestination_NeverUsesSynchronousIo()
+    {
+        var revision = BeginProject("Async project", "Main");
+        await using var destination = new AsyncOnlyWriteStream();
+
+        var outcome = await ProjectPackage.WriteAsync(
+            new ProjectPackageWriteRequest(
+                revision,
+                destination,
+                PackagePolicy.Development),
+            CancellationToken.None);
+
+        await Assert.That(outcome).IsTypeOf<PackageWriteSucceeded>();
+        using (Assert.Multiple())
+        {
+            await Assert.That(destination.Length).IsGreaterThan(0L);
+            await Assert.That(destination.SynchronousFlushCount).IsEqualTo(0);
+            await Assert.That(destination.SynchronousArrayWriteCount).IsEqualTo(0);
+            await Assert.That(destination.SynchronousSpanWriteCount).IsEqualTo(0);
+        }
+    }
+
     private static ProjectRevision BeginProject(string displayName, string entryName)
     {
         return ((ProjectGenesisCommitted)ProjectEditor.Begin(
@@ -589,5 +612,82 @@ internal sealed class ProjectPackageWriterTests
         }
 
         return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+
+    private sealed class AsyncOnlyWriteStream : Stream
+    {
+        private readonly MemoryStream inner = new();
+
+        public int SynchronousFlushCount { get; private set; }
+
+        public int SynchronousArrayWriteCount { get; private set; }
+
+        public int SynchronousSpanWriteCount { get; private set; }
+
+        public override bool CanRead => false;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => true;
+
+        public override long Length => inner.Length;
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+            SynchronousFlushCount++;
+            inner.Flush();
+        }
+
+        public override Task FlushAsync(CancellationToken cancellationToken) =>
+            inner.FlushAsync(cancellationToken);
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            throw new NotSupportedException();
+
+        public override void SetLength(long value) =>
+            throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            SynchronousArrayWriteCount++;
+            inner.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            SynchronousSpanWriteCount++;
+            inner.Write(buffer);
+        }
+
+        public override ValueTask WriteAsync(
+            ReadOnlyMemory<byte> buffer,
+            CancellationToken cancellationToken = default) =>
+            inner.WriteAsync(buffer, cancellationToken);
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            await inner.DisposeAsync();
+            await base.DisposeAsync();
+            GC.SuppressFinalize(this);
+        }
     }
 }

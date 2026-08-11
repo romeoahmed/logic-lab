@@ -61,6 +61,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
         using var first = await client.GetAsync(
             new Uri("/downloads/export-ticket-web-0001", UriKind.Relative));
         var firstBytes = await first.Content.ReadAsByteArrayAsync();
+        client.DefaultRequestHeaders.Add("Cookie", AnonymousCookie(first));
         using var second = await client.GetAsync(
             new Uri("/downloads/export-ticket-web-0001", UriKind.Relative));
 
@@ -78,13 +79,47 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
             await Assert.That(first.Headers.CacheControl?.NoStore).IsTrue();
             await Assert.That(downloads.Requests.Count).IsEqualTo(2);
             await Assert.That(downloads.Requests[0].Caller)
-                .IsEqualTo(AnonymousWorkspaceCaller.Instance);
+                .IsTypeOf<AnonymousBrowserWorkspaceCaller>();
+            await Assert.That(downloads.Requests[1].Caller)
+                .IsEqualTo(downloads.Requests[0].Caller);
         }
 
         await WebTestHttp.AssertProblemDetailsAsync(
             second,
             HttpStatusCode.NotFound,
             "export_expired");
+    }
+
+    [Test]
+    public async Task GetExport_DifferentAnonymousBrowsers_PassDistinctProtectedCallers()
+    {
+        var downloads = new AlwaysDownloads("package-bytes"u8.ToArray());
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IProjectExportDownloads>();
+                services.AddSingleton<IProjectExportDownloads>(downloads);
+            }));
+        using var clientA = host.CreateHttpsClient();
+        using var clientB = host.CreateHttpsClient();
+
+        using var responseA = await clientA.GetAsync(
+            new Uri("/downloads/export-ticket-browser-a", UriKind.Relative));
+        using var responseB = await clientB.GetAsync(
+            new Uri("/downloads/export-ticket-browser-b", UriKind.Relative));
+
+        var callerA = (await Assert.That(downloads.Requests[0].Caller)
+            .IsTypeOf<AnonymousBrowserWorkspaceCaller>())!;
+        var callerB = (await Assert.That(downloads.Requests[1].Caller)
+            .IsTypeOf<AnonymousBrowserWorkspaceCaller>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(callerA).IsNotEqualTo(callerB);
+            await Assert.That(AnonymousCookie(responseA))
+                .StartsWith("__Host-LogicLab.AnonymousCaller=");
+            await Assert.That(responseA.Headers.GetValues("Set-Cookie").Single())
+                .Contains("secure; samesite=lax; httponly", StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Test]
@@ -128,8 +163,51 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
             response,
             HttpStatusCode.NotFound,
             "export_expired");
-        await Assert.That(downloads.Requests).IsEmpty();
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.Headers.CacheControl?.Private).IsTrue();
+            await Assert.That(response.Headers.CacheControl?.NoStore).IsTrue();
+            await Assert.That(downloads.Requests).IsEmpty();
+        }
     }
+
+    [Test]
+    [Arguments("POST")]
+    [Arguments("PUT")]
+    [Arguments("DELETE")]
+    public async Task UnsupportedMethod_ReturnsContractProblemWithoutRedemption(
+        string method)
+    {
+        var downloads = new OneTimeDownloads("unused"u8.ToArray());
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IProjectExportDownloads>();
+                services.AddSingleton<IProjectExportDownloads>(downloads);
+            }));
+        using var client = host.CreateHttpsClient();
+        using var request = new HttpRequestMessage(
+            new HttpMethod(method),
+            new Uri("/downloads/export-ticket-method-0001", UriKind.Relative));
+
+        using var response = await client.SendAsync(request);
+
+        await WebTestHttp.AssertProblemDetailsAsync(
+            response,
+            HttpStatusCode.MethodNotAllowed,
+            "export_download_method_not_allowed");
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.Content.Headers.Allow)
+                .IsEquivalentTo([HttpMethod.Get.Method]);
+            await Assert.That(response.Headers.CacheControl?.Private).IsTrue();
+            await Assert.That(response.Headers.CacheControl?.NoStore).IsTrue();
+            await Assert.That(downloads.Requests).IsEmpty();
+        }
+    }
+
+    private static string AnonymousCookie(HttpResponseMessage response) =>
+        response.Headers.GetValues("Set-Cookie").Single().Split(';', 2)[0];
 
     private static void ConfigureAuthentication(IServiceCollection services)
     {
@@ -163,6 +241,23 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
                         new MemoryStream(bytes, writable: false),
                         checked((ulong)bytes.Length))
                     : new ProjectExportDownloadRejected("export_expired"));
+        }
+    }
+
+    private sealed class AlwaysDownloads(byte[] bytes) : IProjectExportDownloads
+    {
+        public List<ProjectExportDownloadRequest> Requests { get; } = [];
+
+        public ValueTask<ProjectExportDownloadOutcome> RedeemAsync(
+            ProjectExportDownloadRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            return ValueTask.FromResult<ProjectExportDownloadOutcome>(
+                new ProjectExportDownloaded(
+                    new MemoryStream(bytes, writable: false),
+                    checked((ulong)bytes.Length)));
         }
     }
 

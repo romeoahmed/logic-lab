@@ -15,7 +15,9 @@ redeeming the ticket as `405 export_download_method_not_allowed` with
 `logiclab-project.logiclab`, and `Cache-Control: private, no-store`. The filename
 is a server constant; no Project text, Durable Display Name, request value, or
 client filename contributes to it. Web streams the complete staging object and
-never copies it through an interactive component.
+never copies it through an interactive component. Every response from this
+download path, including `404` and `405`, carries the same cache prohibition so
+an unauthorized or malformed attempt cannot poison a later authorized request.
 
 Application exposes this typed redemption seam to Web in addition to the closed
 five-method Editor Workspace interface:
@@ -28,11 +30,14 @@ RedeemExport(ExportTicket, WorkspaceCaller)
 
 The prepared ticket is bound to the `WorkspaceCaller` that issued
 `PrepareExport`: an authenticated ticket requires the exact stable subject, and
-an anonymous ticket requires the anonymous caller. Authorization is checked
-before consumption. A caller mismatch therefore neither reveals existence nor
-consumes the owner's ticket. Unknown, malformed, expired, already redeemed, and
-unauthorized tokens all return the same `404` Problem Details shape with code
-`export_expired`.
+an anonymous ticket requires the exact anonymous browser identity issued by Web.
+Web stores that random identity only in a Data Protection-protected, Secure,
+HttpOnly, SameSite=Lax, host-bound session cookie; browser input cannot name the
+typed caller directly. An unidentified anonymous caller cannot authorize an HTTP
+download. Authorization is checked before consumption. A caller mismatch
+therefore neither reveals existence nor consumes the owner's ticket. Unknown,
+malformed, expired, already redeemed, and unauthorized tokens all return the same
+`404` Problem Details shape with code `export_expired`.
 
 Redemption removes the publication atomically before transferring stream
 ownership to Web. Concurrent authorized redemption has at most one winner; all
@@ -42,6 +47,13 @@ server-recorded absolute deadline, never slides on access, and cleanup closes
 the unpublished staging handle. The store owns a published staging stream until
 successful redemption, replacement, expiry, revocation, or shutdown; Web owns
 the stream after `ExportDownloaded` and closes it when the response completes.
+Expiry cleanup is scheduled from the absolute deadline and does not depend on a
+later publish, redeem, or revoke request. On Unix-like hosts the store uses a
+unique owner-only temporary directory and creates staging files with owner
+read/write permission only. These controls use the runtime's testable
+[`TimeProvider` timer](https://learn.microsoft.com/en-us/dotnet/api/system.timeprovider.createtimer?view=net-10.0),
+owner-only [`CreateTempSubdirectory`](https://learn.microsoft.com/en-us/dotnet/api/system.io.directory.createtempsubdirectory?view=net-10.0),
+and [`FileStreamOptions.UnixCreateMode`](https://learn.microsoft.com/en-us/dotnet/api/system.io.filestreamoptions.unixcreatemode?view=net-10.0).
 
 HTTP adapters use RFC 9457 Problem Details:
 

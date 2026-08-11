@@ -14,7 +14,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     public async Task RedeemAsync_AuthorizedTicket_TransfersBytesExactlyOnce(
         CancellationToken cancellationToken)
     {
-        var timeProvider = new ManualTimeProvider(
+        using var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 11, 0, 0, 0, TimeSpan.Zero));
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
@@ -68,15 +68,13 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     public async Task RedeemAsync_UnauthorizedCaller_DoesNotConsumeOwnersTicket(
         CancellationToken cancellationToken)
     {
-        var timeProvider = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        using var timeProvider = new ManualTimeProvider(DateTimeOffset.UtcNow);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             stagingDirectory);
         var ticket = new ExportTicket("export-ticket-owner-0001");
-        var owner = new AuthenticatedWorkspaceCaller(
-            new AuthenticatedSubjectId("owner-subject"));
-        var other = new AuthenticatedWorkspaceCaller(
-            new AuthenticatedSubjectId("other-subject"));
+        var owner = AnonymousBrowserCaller('a');
+        var other = AnonymousBrowserCaller('b');
         var staging = await StageAsync(store, "owner"u8.ToArray(), cancellationToken);
         await store.PublishAsync(
             Publication(
@@ -108,10 +106,37 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task CreateStagingAsync_Unix_UsesOwnerOnlyDirectoryAndFileModes(
+        CancellationToken cancellationToken)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        await using var store = new TemporaryProjectExportStore(
+            TimeProvider.System,
+            stagingDirectory);
+        await using var staging = await store.CreateStagingAsync(cancellationToken);
+        var stagingPath = Directory.EnumerateFiles(stagingDirectory).Single();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(File.GetUnixFileMode(stagingDirectory))
+                .IsEqualTo(
+                    UnixFileMode.UserRead
+                    | UnixFileMode.UserWrite
+                    | UnixFileMode.UserExecute);
+            await Assert.That(File.GetUnixFileMode(stagingPath))
+                .IsEqualTo(UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+    }
+
+    [Test]
     public async Task RedeemAsync_ConcurrentAuthorizedCalls_HasExactlyOneWinner(
         CancellationToken cancellationToken)
     {
-        var timeProvider = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        using var timeProvider = new ManualTimeProvider(DateTimeOffset.UtcNow);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             stagingDirectory);
@@ -145,10 +170,10 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     }
 
     [Test]
-    public async Task RedeemAsync_ExpiredTicket_RejectsAndDeletesStaging(
+    public async Task Expiry_WithoutAnotherStoreRequest_DeletesStaging(
         CancellationToken cancellationToken)
     {
-        var timeProvider = new ManualTimeProvider(
+        using var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 11, 0, 0, 0, TimeSpan.Zero));
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
@@ -164,6 +189,8 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
                 timeProvider.GetUtcNow().AddSeconds(1)),
             cancellationToken);
         timeProvider.Advance(TimeSpan.FromSeconds(1));
+
+        await Assert.That(Directory.EnumerateFiles(stagingDirectory)).IsEmpty();
 
         var outcome = await store.RedeemAsync(
             new ProjectExportDownloadRequest(
@@ -222,12 +249,98 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
             expiresAtUtc,
             checked((ulong)staging.Content.Length));
 
-    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    private static AnonymousBrowserWorkspaceCaller AnonymousBrowserCaller(
+        char digit) =>
+        new(new AnonymousBrowserId(new string(digit, 64)));
+
+    private sealed class ManualTimeProvider(DateTimeOffset utcNow) :
+        TimeProvider,
+        IDisposable
     {
         private DateTimeOffset utcNow = utcNow;
 
+        private ManualTimer? timer;
+
         public override DateTimeOffset GetUtcNow() => utcNow;
 
-        public void Advance(TimeSpan duration) => utcNow += duration;
+        public override ITimer CreateTimer(
+            TimerCallback callback,
+            object? state,
+            TimeSpan dueTime,
+            TimeSpan period)
+        {
+            timer = new ManualTimer(this, callback, state, dueTime, period);
+            return timer;
+        }
+
+        public void Advance(TimeSpan duration)
+        {
+            utcNow += duration;
+            timer?.FireIfDue();
+        }
+
+        public void Dispose() => timer?.Dispose();
+
+        private sealed class ManualTimer : ITimer
+        {
+            private readonly ManualTimeProvider owner;
+            private readonly TimerCallback callback;
+            private readonly object? state;
+            private DateTimeOffset? dueAtUtc;
+            private TimeSpan period;
+            private bool isDisposed;
+
+            public ManualTimer(
+                ManualTimeProvider owner,
+                TimerCallback callback,
+                object? state,
+                TimeSpan dueTime,
+                TimeSpan period)
+            {
+                this.owner = owner;
+                this.callback = callback;
+                this.state = state;
+                Change(dueTime, period);
+            }
+
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                if (isDisposed)
+                {
+                    return false;
+                }
+
+                dueAtUtc = dueTime == Timeout.InfiniteTimeSpan
+                    ? null
+                    : owner.GetUtcNow() + dueTime;
+                this.period = period;
+                return true;
+            }
+
+            public void FireIfDue()
+            {
+                if (isDisposed || dueAtUtc is null || dueAtUtc > owner.GetUtcNow())
+                {
+                    return;
+                }
+
+                dueAtUtc = period == Timeout.InfiniteTimeSpan
+                    ? null
+                    : owner.GetUtcNow() + period;
+                callback(state);
+            }
+
+            public void Dispose()
+            {
+                isDisposed = true;
+                dueAtUtc = null;
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
     }
 }
