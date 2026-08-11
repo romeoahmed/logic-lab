@@ -210,21 +210,14 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 app.UseRouting();
-app.Use(next =>
-    new RequestBodyLimitProblemDetailsMiddleware(next).InvokeAsync);
+app.UseMiddleware<RequestBodyLimitProblemDetailsMiddleware>();
 app.UseAuthentication();
-var dataProtectionProvider = app.Services.GetRequiredService<
-    Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
-app.Use(next => new AnonymousWorkspaceCallerMiddleware(
-    next,
-    dataProtectionProvider).InvokeAsync);
+app.UseMiddleware<AnonymousWorkspaceCallerMiddleware>();
 app.UseAuthorization();
 app.UseRateLimiter();
-app.Use(next =>
-    new RequestBodyBufferingMiddleware(next).InvokeAsync);
+app.UseMiddleware<RequestBodyBufferingMiddleware>();
 app.UseAntiforgery();
-app.Use(next =>
-    new AntiforgeryProblemDetailsMiddleware(next).InvokeAsync);
+app.UseMiddleware<AntiforgeryProblemDetailsMiddleware>();
 app.MapStaticAssets();
 app.MapLogicLabAccountEndpoints();
 app.MapDurableProjectEndpoints();

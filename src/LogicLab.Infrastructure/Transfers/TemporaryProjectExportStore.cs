@@ -394,19 +394,9 @@ public sealed class TemporaryProjectExportStore :
         }
 
         var path = Path.GetFullPath(configuredPath);
-        DirectoryInfo directoryInfo;
-        if (Directory.Exists(path))
-        {
-            directoryInfo = new DirectoryInfo(path);
-        }
-        else if (OperatingSystem.IsWindows())
-        {
-            directoryInfo = Directory.CreateDirectory(path);
-        }
-        else
-        {
-            directoryInfo = Directory.CreateDirectory(path, StagingDirectoryMode);
-        }
+        var directoryInfo = OperatingSystem.IsWindows()
+            ? Directory.CreateDirectory(path)
+            : Directory.CreateDirectory(path, StagingDirectoryMode);
 
         directoryInfo.Refresh();
         if ((directoryInfo.Attributes & FileAttributes.ReparsePoint) != 0

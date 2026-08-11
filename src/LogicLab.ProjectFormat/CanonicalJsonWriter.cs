@@ -486,19 +486,11 @@ internal static class CanonicalJson
                 SkipValidation = false,
             });
 
-    private sealed class CountingBufferWriter : IBufferWriter<byte>
+    private abstract class ScratchBufferWriter : IBufferWriter<byte>
     {
         private byte[] buffer = new byte[4 * 1_024];
 
-        public ulong WrittenCount { get; private set; }
-
-        public void Advance(int count)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(count);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(count, buffer.Length);
-
-            WrittenCount = checked(WrittenCount + (ulong)count);
-        }
+        public abstract void Advance(int count);
 
         public Memory<byte> GetMemory(int sizeHint = 0)
         {
@@ -520,47 +512,40 @@ internal static class CanonicalJson
                 Array.Resize(ref buffer, sizeHint);
             }
         }
+
+        protected ReadOnlySpan<byte> WrittenSpan(int count)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(count);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(count, buffer.Length);
+            return buffer.AsSpan(0, count);
+        }
+    }
+
+    private sealed class CountingBufferWriter : ScratchBufferWriter
+    {
+        public ulong WrittenCount { get; private set; }
+
+        public override void Advance(int count)
+        {
+            _ = WrittenSpan(count);
+            WrittenCount = checked(WrittenCount + (ulong)count);
+        }
     }
 
     private sealed class FixedBufferWriter(Memory<byte> destination) :
-        IBufferWriter<byte>
+        ScratchBufferWriter
     {
-        private byte[] scratch = new byte[4 * 1_024];
-
         public int WrittenCount { get; private set; }
 
-        public void Advance(int count)
+        public override void Advance(int count)
         {
-            ArgumentOutOfRangeException.ThrowIfNegative(count);
-            if (count > scratch.Length
-                || count > destination.Length - WrittenCount)
-            {
-                throw new ArgumentOutOfRangeException(nameof(count));
-            }
+            var written = WrittenSpan(count);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(
+                count,
+                destination.Length - WrittenCount);
 
-            scratch.AsSpan(0, count).CopyTo(destination.Span[WrittenCount..]);
+            written.CopyTo(destination.Span[WrittenCount..]);
             WrittenCount += count;
-        }
-
-        public Memory<byte> GetMemory(int sizeHint = 0)
-        {
-            EnsureCapacity(sizeHint);
-            return scratch;
-        }
-
-        public Span<byte> GetSpan(int sizeHint = 0)
-        {
-            EnsureCapacity(sizeHint);
-            return scratch;
-        }
-
-        private void EnsureCapacity(int sizeHint)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(sizeHint);
-            if (sizeHint > scratch.Length)
-            {
-                Array.Resize(ref scratch, sizeHint);
-            }
         }
     }
 }

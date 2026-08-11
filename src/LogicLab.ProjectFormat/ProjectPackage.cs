@@ -21,7 +21,7 @@ public static class ProjectPackage
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var observations = new ulong[Enum.GetValues<PackageDimension>().Length];
+        var observations = new ulong[request.PackagePolicy.Limits.Count];
 
         if (cancellationToken.IsCancellationRequested)
         {
@@ -78,7 +78,8 @@ public static class ProjectPackage
                 PackagePart.Create(
                     "project.json",
                     projectBytes,
-                    cancellationToken: cancellationToken),
+                    memoryImageId: null,
+                    cancellationToken),
             };
 
             foreach (var image in request.ProjectRevision.Document.MemoryImages.OrderBy(
@@ -266,11 +267,7 @@ public static class ProjectPackage
         CancellationToken cancellationToken)
     {
         return CanonicalJson.Measure(
-            writer => WriteManifestDocument(
-                writer,
-                parts,
-                packageDigest,
-                cancellationToken),
+            writer => WriteManifestDocument(writer, parts, packageDigest),
             observations,
             policy,
             cancellationToken);
@@ -283,11 +280,7 @@ public static class ProjectPackage
         CancellationToken cancellationToken)
     {
         return CanonicalJson.Write(
-            writer => WriteManifestDocument(
-                writer,
-                parts,
-                packageDigest,
-                cancellationToken),
+            writer => WriteManifestDocument(writer, parts, packageDigest),
             measuredByteCount,
             cancellationToken);
     }
@@ -295,10 +288,9 @@ public static class ProjectPackage
     private static void WriteManifestDocument(
         CanonicalJsonWriter writer,
         IReadOnlyList<PackagePart> parts,
-        string packageDigest,
-        CancellationToken cancellationToken)
+        string packageDigest)
     {
-        var projectPart = parts.Single(part => part.Path == "project.json");
+        var projectPart = parts[0];
         writer.WriteStartObject();
         writer.WriteString("format", "logiclab");
         writer.WriteNumber("schemaVersion", 1);
@@ -306,14 +298,16 @@ public static class ProjectPackage
         WriteManifestPart(writer, projectPart);
         writer.WritePropertyName("memoryParts");
         writer.WriteStartArray();
-        foreach (var part in parts
-                     .Where(part => part.MemoryImageId is not null)
-                     .OrderBy(part => part.MemoryImageId, StringComparer.Ordinal)
-                     .ThenBy(part => part.Path, StringComparer.Ordinal))
+        for (var index = 1; index < parts.Count; index++)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            writer.CancellationToken.ThrowIfCancellationRequested();
+            var part = parts[index];
             writer.WriteStartObject();
-            writer.WriteString("memoryImageId", part.MemoryImageId!);
+            writer.WriteString(
+                "memoryImageId",
+                part.MemoryImageId
+                    ?? throw new InvalidOperationException(
+                        "A memory package part must identify its Memory Image."));
             writer.WriteString("path", part.Path);
             writer.WriteNumber("length", checked((ulong)part.Bytes.Length));
             writer.WriteString("sha256", part.HashHex);
@@ -497,17 +491,20 @@ public static class ProjectPackage
         ulong[] observations,
         bool includeCarrier)
     {
-        foreach (var dimension in Enum.GetValues<PackageDimension>())
+        foreach (var limit in policy.Limits)
         {
-            if (!includeCarrier && dimension == PackageDimension.CarrierBytes)
+            if (!includeCarrier
+                && limit.Dimension == PackageDimension.CarrierBytes)
             {
                 continue;
             }
 
-            var observed = observations[(int)dimension];
-            if (observed > policy.Maximum(dimension))
+            var observed = observations[(int)limit.Dimension];
+            if (observed > limit.Maximum)
             {
-                return new PackageDimensionObservation(dimension, observed);
+                return new PackageDimensionObservation(
+                    limit.Dimension,
+                    observed);
             }
         }
 
@@ -525,7 +522,7 @@ public static class ProjectPackage
             [
                 new("policyId", policy.PolicyId),
                 new("policyRevision", policy.PolicyRevision),
-                new("dimension", PackageDimensionNames.Token(breach.Dimension)),
+                new("dimension", breach.GetDimensionToken()),
                 new("observed", breach.Observed.ToString(CultureInfo.InvariantCulture)),
             ]);
         return Rejected(
@@ -550,10 +547,10 @@ public static class ProjectPackage
         PackageDimensionObservation? breach) =>
         new(
             new PackagePolicyIdentity(policy.PolicyId, policy.PolicyRevision),
-            Array.AsReadOnly(Enum.GetValues<PackageDimension>()
-                .Select(dimension => new PackageDimensionObservation(
-                    dimension,
-                    observations[(int)dimension]))
+            Array.AsReadOnly(policy.Limits
+                .Select(limit => new PackageDimensionObservation(
+                    limit.Dimension,
+                    observations[(int)limit.Dimension]))
                 .ToArray()),
             breach);
 
@@ -579,8 +576,8 @@ public static class ProjectPackage
         public static PackagePart Create(
             string path,
             byte[] bytes,
-            string? memoryImageId = null,
-            CancellationToken cancellationToken = default)
+            string? memoryImageId,
+            CancellationToken cancellationToken)
         {
             using var hashing = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             for (var offset = 0; offset < bytes.Length; offset += 64 * 1_024)
