@@ -238,7 +238,7 @@ internal sealed partial class EditorWorkspace
             policyEvidence = new PolicyEvidenceProjection(
                 rejected.Evidence.Policy.PolicyId,
                 rejected.Evidence.Policy.PolicyRevision,
-                PackageDimensionToken(breach.Dimension),
+                breach.GetDimensionToken(),
                 breach.Observed);
         }
 
@@ -247,24 +247,6 @@ internal sealed partial class EditorWorkspace
             rejected.Diagnostics.Select(diagnostic => diagnostic.Code),
             policyEvidence);
     }
-
-    private static string PackageDimensionToken(PackageDimension dimension) =>
-        dimension switch
-        {
-            PackageDimension.CarrierBytes => "carrier_bytes",
-            PackageDimension.EntryCount => "entry_count",
-            PackageDimension.PartBytes => "part_bytes",
-            PackageDimension.ExpandedBytes => "expanded_bytes",
-            PackageDimension.JsonDepth => "json_depth",
-            PackageDimension.JsonTokens => "json_tokens",
-            PackageDimension.StringScalarCount => "string_scalar_count",
-            PackageDimension.StringUtf8Bytes => "string_utf8_bytes",
-            PackageDimension.ArrayItems => "array_items",
-            PackageDimension.EntityCount => "entity_count",
-            PackageDimension.MemoryPartCount => "memory_part_count",
-            PackageDimension.MemoryCellCount => "memory_cell_count",
-            _ => throw new ArgumentOutOfRangeException(nameof(dimension)),
-        };
 
     [LoggerMessage(
         EventId = 1007,

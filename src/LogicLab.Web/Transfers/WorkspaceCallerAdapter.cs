@@ -11,20 +11,25 @@ internal static class WorkspaceCallerAdapter
     public static WorkspaceCaller? FromPrincipal(ClaimsPrincipal principal)
     {
         ArgumentNullException.ThrowIfNull(principal);
-        var authenticatedIdentities = principal.Identities
-            .Where(static identity => identity.IsAuthenticated)
-            .ToArray();
-        var subjectValue = authenticatedIdentities
-            .Select(static identity =>
-                identity.FindFirst(ClaimTypes.NameIdentifier)?.Value)
-            .FirstOrDefault(static value => !string.IsNullOrEmpty(value));
-        if (!string.IsNullOrEmpty(subjectValue))
+        var hasAuthenticatedIdentity = false;
+        foreach (var identity in principal.Identities)
         {
-            return new AuthenticatedWorkspaceCaller(
-                new AuthenticatedSubjectId(subjectValue));
+            if (!identity.IsAuthenticated)
+            {
+                continue;
+            }
+
+            hasAuthenticatedIdentity = true;
+            var subjectValue = identity.FindFirst(
+                ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(subjectValue))
+            {
+                return new AuthenticatedWorkspaceCaller(
+                    new AuthenticatedSubjectId(subjectValue));
+            }
         }
 
-        if (authenticatedIdentities.Length != 0)
+        if (hasAuthenticatedIdentity)
         {
             return null;
         }

@@ -148,7 +148,25 @@ public sealed record PackagePolicyIdentity(string PolicyId, string PolicyRevisio
 
 public sealed record PackageDimensionObservation(
     PackageDimension Dimension,
-    ulong Observed);
+    ulong Observed)
+{
+    public string GetDimensionToken() => Dimension switch
+    {
+        PackageDimension.CarrierBytes => "carrier_bytes",
+        PackageDimension.EntryCount => "entry_count",
+        PackageDimension.PartBytes => "part_bytes",
+        PackageDimension.ExpandedBytes => "expanded_bytes",
+        PackageDimension.JsonDepth => "json_depth",
+        PackageDimension.JsonTokens => "json_tokens",
+        PackageDimension.StringScalarCount => "string_scalar_count",
+        PackageDimension.StringUtf8Bytes => "string_utf8_bytes",
+        PackageDimension.ArrayItems => "array_items",
+        PackageDimension.EntityCount => "entity_count",
+        PackageDimension.MemoryPartCount => "memory_part_count",
+        PackageDimension.MemoryCellCount => "memory_cell_count",
+        _ => throw new ArgumentOutOfRangeException(nameof(Dimension)),
+    };
+}
 
 public sealed record PackageEvidence(
     PackagePolicyIdentity Policy,
@@ -185,23 +203,3 @@ public sealed record PackageWriteRejected(
     string Reason,
     IReadOnlyList<PackageDiagnostic> Diagnostics,
     PackageEvidence Evidence) : PackageWriteOutcome;
-
-internal static class PackageDimensionNames
-{
-    public static string Token(PackageDimension dimension) => dimension switch
-    {
-        PackageDimension.CarrierBytes => "carrier_bytes",
-        PackageDimension.EntryCount => "entry_count",
-        PackageDimension.PartBytes => "part_bytes",
-        PackageDimension.ExpandedBytes => "expanded_bytes",
-        PackageDimension.JsonDepth => "json_depth",
-        PackageDimension.JsonTokens => "json_tokens",
-        PackageDimension.StringScalarCount => "string_scalar_count",
-        PackageDimension.StringUtf8Bytes => "string_utf8_bytes",
-        PackageDimension.ArrayItems => "array_items",
-        PackageDimension.EntityCount => "entity_count",
-        PackageDimension.MemoryPartCount => "memory_part_count",
-        PackageDimension.MemoryCellCount => "memory_cell_count",
-        _ => throw new ArgumentOutOfRangeException(nameof(dimension)),
-    };
-}

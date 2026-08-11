@@ -508,8 +508,7 @@ internal static class CanonicalProjectJson
                 && cancellation.CancellationToken == cancellationToken
                 && cancellationToken.IsCancellationRequested)
         {
-            ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
-            throw;
+            ExceptionDispatchInfo.Throw(exception.InnerException);
         }
 
         return ordered;
