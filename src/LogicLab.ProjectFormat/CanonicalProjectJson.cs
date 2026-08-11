@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Text.Json;
 using LogicLab.Domain;
@@ -507,16 +508,28 @@ internal static class CanonicalProjectJson
         }
 
         var comparisons = 0;
-        Array.Sort(ordered, (left, right) =>
+        try
         {
-            comparisons++;
-            if ((comparisons & 0x3ff) == 0)
+            Array.Sort(ordered, (left, right) =>
             {
-                cancellationToken.ThrowIfCancellationRequested();
-            }
+                comparisons++;
+                if ((comparisons & 0x3ff) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
 
-            return string.CompareOrdinal(selectId(left), selectId(right));
-        });
+                return string.CompareOrdinal(selectId(left), selectId(right));
+            });
+        }
+        catch (InvalidOperationException exception)
+            when (exception.InnerException is OperationCanceledException cancellation
+                && cancellation.CancellationToken == cancellationToken
+                && cancellationToken.IsCancellationRequested)
+        {
+            ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+            throw;
+        }
+
         return ordered;
     }
 }

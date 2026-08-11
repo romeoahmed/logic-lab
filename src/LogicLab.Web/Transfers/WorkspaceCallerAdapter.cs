@@ -8,7 +8,7 @@ internal static class WorkspaceCallerAdapter
     internal const string AnonymousBrowserClaimType =
         "https://logiclab.example/claims/anonymous-browser-id";
 
-    public static WorkspaceCaller FromPrincipal(ClaimsPrincipal principal)
+    public static WorkspaceCaller? FromPrincipal(ClaimsPrincipal principal)
     {
         ArgumentNullException.ThrowIfNull(principal);
         var authenticatedIdentities = principal.Identities
@@ -26,7 +26,7 @@ internal static class WorkspaceCallerAdapter
 
         if (authenticatedIdentities.Length != 0)
         {
-            return AnonymousWorkspaceCaller.Instance;
+            return null;
         }
 
         var browserValue = principal.FindFirst(AnonymousBrowserClaimType)?.Value;

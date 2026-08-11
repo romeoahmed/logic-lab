@@ -28,6 +28,7 @@ public static class WorkspaceOutcomeReasons
     public const string WorkspaceInfrastructureFailure = "workspace_infrastructure_failure";
     public const string WorkspaceExpired = "workspace_expired";
     public const string WorkspaceNotFound = "workspace_not_found";
+    public const string ExportCapacityUnavailable = "export_capacity_unavailable";
     public const string ExportExpired = "export_expired";
 
     internal static RetryDisposition RetryFor(string code)

@@ -18,6 +18,12 @@ client filename contributes to it. Web streams the complete staging object and
 never copies it through an interactive component. Every response from this
 download path, including `404` and `405`, carries the same cache prohibition so
 an unauthorized or malformed attempt cannot poison a later authorized request.
+The initial host policy admits at most eight concurrent export downloads
+globally and twenty download attempts per minute per identified caller, queues
+no excess request, and returns `429 export_download_rate_limit_exceeded` with
+the same cache prohibition. Both limiters run before redemption, so a rejected
+request never consumes the Export Ticket. These values are provisional
+deployment defaults and remain configuration, not package-format behavior.
 
 Application exposes this typed redemption seam to Web in addition to the closed
 five-method Editor Workspace interface:
@@ -45,15 +51,33 @@ other attempts receive `export_expired`. Preparing a later export for the same
 Workspace replaces and cleans the earlier staging object. Expiry uses the
 server-recorded absolute deadline, never slides on access, and cleanup closes
 the unpublished staging handle. The store owns a published staging stream until
-successful redemption, replacement, expiry, revocation, or shutdown; Web owns
+successful redemption, replacement, expiry, or shutdown; Web owns
 the stream after `ExportDownloaded` and closes it when the response completes.
 Expiry cleanup is scheduled from the absolute deadline and does not depend on a
-later publish, redeem, or revoke request. On Unix-like hosts the store uses a
+later publish or redeem request. On Unix-like hosts the store uses a
 unique owner-only temporary directory and creates staging files with owner
 read/write permission only. These controls use the runtime's testable
 [`TimeProvider` timer](https://learn.microsoft.com/en-us/dotnet/api/system.timeprovider.createtimer?view=net-10.0),
 owner-only [`CreateTempSubdirectory`](https://learn.microsoft.com/en-us/dotnet/api/system.io.directory.createtempsubdirectory?view=net-10.0),
 and [`FileStreamOptions.UnixCreateMode`](https://learn.microsoft.com/en-us/dotnet/api/system.io.filestreamoptions.unixcreatemode?view=net-10.0).
+
+Publication is also a closed typed seam:
+
+```text
+PublishExport(staging, WorkspaceId, ExportTicket, WorkspaceCaller, lifetime, carrierByteCount)
+  -> ExportPublished { expiresAtUtc }
+   | ExportPublicationRejected { code: export_capacity_unavailable }
+```
+
+The store atomically replaces the same Workspace's prior ticket and admits the
+candidate only when both global published-ticket and published-carrier-byte
+capacity remain available. The initial provisional bounds are 128 published
+tickets and 512 MiB of published carrier bytes. Capacity rejection does not
+take staging ownership or disturb the prior ticket; Application disposes the
+unpublished staging and returns the typed command rejection without exposing a
+download URL. Cancellation observed before the atomic commit also preserves
+the prior publication, while cancellation requested after commit does not undo
+the replacement.
 
 HTTP adapters use RFC 9457 Problem Details:
 
@@ -121,6 +145,12 @@ Durable Project open ingress rejection uses the exact code
 repository work. It includes `Retry-After` only when the limiter supplies an
 honest duration. This request-rate policy is independent of Workspace admission
 and the account ingress policies.
+
+Export download admission rejection uses the exact code
+`export_download_rate_limit_exceeded`, maps to `429`, carries
+`Cache-Control: private, no-store`, and never enters ticket redemption. A
+concurrency rejection has no `Retry-After`; a request-window rejection includes
+it only when the limiter supplies an honest duration.
 
 An unsupported request method for `/projects/open` uses the exact code
 `project_open_method_not_allowed`, maps to `405`, and publishes `Allow: POST`.

@@ -188,7 +188,7 @@ internal sealed class ProjectExportTests
             return ValueTask.FromResult<IProjectExportStaging>(staging);
         }
 
-        public ValueTask<ProjectExportPublished> PublishAsync(
+        public ValueTask<ProjectExportPublicationOutcome> PublishAsync(
             ProjectExportPublication publication,
             CancellationToken cancellationToken)
         {
@@ -199,13 +199,9 @@ internal sealed class ProjectExportTests
                 TimeSpan.FromTicks(checked(
                     checked((long)publication.ExpiresAfterSeconds)
                     * TimeSpan.TicksPerSecond)));
-            return ValueTask.FromResult(
+            return ValueTask.FromResult<ProjectExportPublicationOutcome>(
                 new ProjectExportPublished(PublishedExpiresAtUtc.Value));
         }
-
-        public ValueTask RevokeAsync(
-            WorkspaceId workspaceId,
-            CancellationToken cancellationToken) => ValueTask.CompletedTask;
     }
 
     private sealed class RecordingStaging : IProjectExportStaging

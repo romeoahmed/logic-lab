@@ -23,9 +23,21 @@ var connectionString = builder.Configuration.GetConnectionString("LogicLab")
 var workspacePolicy = WorkspacePolicy.Default;
 var accountIngressPolicy = AccountIngressPolicy.Default;
 var durableProjectIngressPolicy = DurableProjectIngressPolicy.Default;
+var projectExportTransferPolicy = ProjectExportTransferPolicy.FromConfiguration(
+    builder.Configuration);
+var projectExportStorageDefaults = ProjectExportStoragePolicy.Default;
+var projectExportStoragePolicy = new ProjectExportStoragePolicy(
+    builder.Configuration.GetValue<int?>(
+        $"{ProjectExportTransferPolicy.ConfigurationSectionName}:MaximumPublishedExports")
+        ?? projectExportStorageDefaults.MaximumPublishedExports,
+    builder.Configuration.GetValue<ulong?>(
+        $"{ProjectExportTransferPolicy.ConfigurationSectionName}:MaximumPublishedCarrierBytes")
+        ?? projectExportStorageDefaults.MaximumPublishedCarrierBytes);
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(workspacePolicy);
+builder.Services.AddSingleton(projectExportTransferPolicy);
+builder.Services.AddSingleton(projectExportStoragePolicy);
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider,
@@ -84,6 +96,8 @@ builder.Services.AddProblemDetails();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
+        projectExportTransferPolicy.ConcurrentTransferPartition);
     options.AddPolicy<string>(
         AccountIngressPolicy.LoginRateLimitPolicyName,
         accountIngressPolicy.LoginPartition);
@@ -96,6 +110,9 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy<string>(
         DurableProjectIngressPolicy.OpenRateLimitPolicyName,
         durableProjectIngressPolicy.OpenPartition);
+    options.AddPolicy<string>(
+        ProjectExportTransferPolicy.DownloadRateLimitPolicyName,
+        projectExportTransferPolicy.DownloadPartition);
     options.OnRejected = async (context, _) =>
     {
         if (context.Lease.TryGetMetadata(
@@ -111,6 +128,13 @@ builder.Services.AddRateLimiter(options =>
         var code = context.HttpContext.GetEndpoint()?.Metadata
             .GetMetadata<RateLimitProblemDetailsMetadata>()?.Code
             ?? LogicLabProblemDetails.AuthenticationRateLimitExceededCode;
+        if (context.HttpContext.GetEndpoint()?.Metadata
+                .GetMetadata<ProjectExportTransferMetadata>() is not null)
+        {
+            ProjectExportEndpointRouteBuilderExtensions.DisableCaching(
+                context.HttpContext);
+        }
+
         await LogicLabProblemDetails.Create(context.HttpContext, code)
             .ExecuteAsync(context.HttpContext);
     };

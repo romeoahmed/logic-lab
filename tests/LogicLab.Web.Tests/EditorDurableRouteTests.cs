@@ -76,6 +76,36 @@ internal sealed class EditorDurableRouteTests
     }
 
     [Test]
+    public async Task Editor_AuthenticatedPrincipalWithoutSubject_FailsClosedBeforeAttachment()
+    {
+        await using var context = new BunitContext();
+        await using var workspace = new RecordingAttachWorkspace();
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("Malformed identity project", "Main"),
+            CancellationToken.None);
+        Configure(context, workspace);
+        var authenticationState = Task.FromResult(new AuthenticationState(
+            new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.Name, "authenticated-without-subject")],
+                authenticationType: "Tests"))));
+
+        var rendered = RenderEditor(
+            context,
+            opened.WorkspaceId,
+            authenticationState);
+
+        var recovery = await rendered.WaitForElementAsync(
+            "[data-workspace-attachment-error]");
+        using (Assert.Multiple())
+        {
+            await Assert.That(recovery.GetAttribute("data-error-code"))
+                .IsEqualTo(WorkspaceOutcomeReasons.AuthenticationRequired);
+            await Assert.That(rendered.FindAll("[data-command]")).IsEmpty();
+            await Assert.That(workspace.AttachRequests).IsEmpty();
+        }
+    }
+
+    [Test]
     [Arguments(null)]
     [Arguments("replacement-subject")]
     public async Task Editor_SandboxRoute_AuthenticationSubjectChanges_PreservesAttachmentAndUsesCurrentCaller(

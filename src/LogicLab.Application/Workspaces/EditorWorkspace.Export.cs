@@ -127,10 +127,17 @@ internal sealed partial class EditorWorkspace
                 staging,
                 ExportLifetimeSeconds,
                 succeeded.CarrierByteCount);
-            var receipt = await projectExportStore.PublishAsync(
+            var publicationOutcome = await projectExportStore.PublishAsync(
                     publication,
                     cancellationToken)
                 .ConfigureAwait(false);
+            if (publicationOutcome is ProjectExportPublicationRejected
+                publicationRejected)
+            {
+                return Reject(publicationRejected.Code);
+            }
+
+            var receipt = (ProjectExportPublished)publicationOutcome;
             published = true;
             return new ExportPrepared(
                 revision.RevisionId,

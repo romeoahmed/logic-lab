@@ -154,6 +154,72 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
     }
 
     [Test]
+    public async Task GetExport_TransferLimitsExceeded_RejectBeforeRedemption(
+        CancellationToken cancellationToken)
+    {
+        var downloads = new BlockingDownloads("package-bytes"u8.ToArray());
+        using var host = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting(
+                "LogicLab:ProjectExports:MaximumConcurrentDownloads",
+                "1");
+            builder.UseSetting(
+                "LogicLab:ProjectExports:DownloadPermitLimit",
+                "1");
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthentication(services);
+                services.RemoveAll<IProjectExportDownloads>();
+                services.AddSingleton<IProjectExportDownloads>(downloads);
+            });
+        });
+        using var client = host.CreateHttpsClient();
+        var firstRequest = client.GetAsync(
+            new Uri("/downloads/export-ticket-concurrent-01", UriKind.Relative),
+            cancellationToken);
+        await downloads.Entered.WaitAsync(cancellationToken);
+
+        try
+        {
+            using var rejected = await client.GetAsync(
+                new Uri("/downloads/export-ticket-concurrent-02", UriKind.Relative),
+                cancellationToken);
+
+            await WebTestHttp.AssertProblemDetailsAsync(
+                rejected,
+                HttpStatusCode.TooManyRequests,
+                "export_download_rate_limit_exceeded");
+            using (Assert.Multiple())
+            {
+                await Assert.That(downloads.RequestCount).IsEqualTo(1);
+                await Assert.That(rejected.Headers.CacheControl?.Private).IsTrue();
+                await Assert.That(rejected.Headers.CacheControl?.NoStore).IsTrue();
+            }
+        }
+        finally
+        {
+            downloads.Release();
+        }
+
+        using var first = await firstRequest;
+        first.EnsureSuccessStatusCode();
+
+        using var rateRejected = await client.GetAsync(
+            new Uri("/downloads/export-ticket-rate-limit-01", UriKind.Relative),
+            cancellationToken);
+        await WebTestHttp.AssertProblemDetailsAsync(
+            rateRejected,
+            HttpStatusCode.TooManyRequests,
+            "export_download_rate_limit_exceeded");
+        using (Assert.Multiple())
+        {
+            await Assert.That(downloads.RequestCount).IsEqualTo(1);
+            await Assert.That(rateRejected.Headers.CacheControl?.Private).IsTrue();
+            await Assert.That(rateRejected.Headers.CacheControl?.NoStore).IsTrue();
+        }
+    }
+
+    [Test]
     public async Task GetExport_MalformedTicket_ConcealsWithoutStoreAccess()
     {
         var downloads = new OneTimeDownloads("unused"u8.ToArray());
@@ -268,6 +334,33 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
                     new MemoryStream(bytes, writable: false),
                     checked((ulong)bytes.Length)));
         }
+    }
+
+    private sealed class BlockingDownloads(byte[] bytes) : IProjectExportDownloads
+    {
+        private readonly TaskCompletionSource entered = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource release = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private int requestCount;
+
+        public Task Entered => entered.Task;
+
+        public int RequestCount => Volatile.Read(ref requestCount);
+
+        public async ValueTask<ProjectExportDownloadOutcome> RedeemAsync(
+            ProjectExportDownloadRequest request,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref requestCount);
+            entered.TrySetResult();
+            await release.Task.WaitAsync(cancellationToken);
+            return new ProjectExportDownloaded(
+                new MemoryStream(bytes, writable: false),
+                checked((ulong)bytes.Length));
+        }
+
+        public void Release() => release.TrySetResult();
     }
 
     private sealed class DownloadAuthenticationHandler(

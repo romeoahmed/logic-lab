@@ -20,6 +20,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
         using var timeProvider = new ManualTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
+            ProjectExportStoragePolicy.Default,
             stagingDirectory);
         var workspaceId = new WorkspaceId("workspace-export-once");
         var ticket = new ExportTicket("export-ticket-once-0001");
@@ -75,6 +76,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
         using var timeProvider = new ManualTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
+            ProjectExportStoragePolicy.Default,
             stagingDirectory);
         var ticket = new ExportTicket("export-ticket-owner-0001");
         var owner = AnonymousBrowserCaller('a');
@@ -110,6 +112,127 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     }
 
     [Test]
+    [Arguments(1, 100UL, 2, 2)]
+    [Arguments(2, 3UL, 2, 2)]
+    public async Task PublishAsync_GlobalCapacityExceeded_RejectsWithoutTakingStaging(
+        int maximumPublishedExports,
+        ulong maximumPublishedCarrierBytes,
+        int firstCarrierBytes,
+        int secondCarrierBytes,
+        CancellationToken cancellationToken)
+    {
+        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        var policy = new ProjectExportStoragePolicy(
+            maximumPublishedExports,
+            maximumPublishedCarrierBytes);
+        await using var store = new TemporaryProjectExportStore(
+            timeProvider,
+            policy,
+            stagingDirectory);
+        var owner = AnonymousBrowserCaller('c');
+        var firstTicket = new ExportTicket("export-ticket-capacity-0001");
+        var secondTicket = new ExportTicket("export-ticket-capacity-0002");
+        var firstStaging = await StageAsync(
+            store,
+            new byte[firstCarrierBytes],
+            cancellationToken);
+        var secondStaging = await StageAsync(
+            store,
+            new byte[secondCarrierBytes],
+            cancellationToken);
+
+        var first = await store.PublishAsync(
+            Publication(
+                new WorkspaceId("workspace-capacity-first"),
+                firstTicket,
+                owner,
+                firstStaging,
+                300),
+            cancellationToken);
+        var second = await store.PublishAsync(
+            Publication(
+                new WorkspaceId("workspace-capacity-second"),
+                secondTicket,
+                owner,
+                secondStaging,
+                300),
+            cancellationToken);
+        var firstDownload = await store.RedeemAsync(
+            new ProjectExportDownloadRequest(firstTicket, owner),
+            cancellationToken);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(first).IsTypeOf<ProjectExportPublished>();
+            await Assert.That(second)
+                .IsEqualTo(new ProjectExportPublicationRejected(
+                    WorkspaceOutcomeReasons.ExportCapacityUnavailable));
+            await Assert.That(secondStaging.Content.Length)
+                .IsEqualTo(secondCarrierBytes);
+            await Assert.That(firstDownload).IsTypeOf<ProjectExportDownloaded>();
+        }
+
+        await ((ProjectExportDownloaded)firstDownload).Content.DisposeAsync();
+        await secondStaging.DisposeAsync();
+    }
+
+    [Test]
+    public async Task PublishAsync_CancelledAtReplacementCommit_PreservesPreviousTicket(
+        CancellationToken cancellationToken)
+    {
+        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        await using var store = new TemporaryProjectExportStore(
+            timeProvider,
+            ProjectExportStoragePolicy.Default,
+            stagingDirectory);
+        var workspaceId = new WorkspaceId("workspace-atomic-replacement");
+        var owner = AnonymousBrowserCaller('d');
+        var previousTicket = new ExportTicket("export-ticket-previous-0001");
+        var replacementTicket = new ExportTicket("export-ticket-replacement-01");
+        var previousStaging = await StageAsync(
+            store,
+            "previous"u8.ToArray(),
+            cancellationToken);
+        await store.PublishAsync(
+            Publication(
+                workspaceId,
+                previousTicket,
+                owner,
+                previousStaging,
+                300),
+            cancellationToken);
+        var replacementStaging = await StageAsync(
+            store,
+            "replacement"u8.ToArray(),
+            cancellationToken);
+        using var replacementCancellation = new CancellationTokenSource();
+        timeProvider.AfterGetUtcNow = replacementCancellation.Cancel;
+
+        await Assert.That(async () => await store.PublishAsync(
+                Publication(
+                    workspaceId,
+                    replacementTicket,
+                    owner,
+                    replacementStaging,
+                    300),
+                replacementCancellation.Token))
+            .ThrowsExactly<OperationCanceledException>();
+        timeProvider.AfterGetUtcNow = null;
+        var previous = await store.RedeemAsync(
+            new ProjectExportDownloadRequest(previousTicket, owner),
+            cancellationToken);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(previous).IsTypeOf<ProjectExportDownloaded>();
+            await Assert.That(replacementStaging.Content.Length).IsEqualTo(11L);
+        }
+
+        await ((ProjectExportDownloaded)previous).Content.DisposeAsync();
+        await replacementStaging.DisposeAsync();
+    }
+
+    [Test]
     public async Task CreateStagingAsync_Unix_UsesOwnerOnlyDirectoryAndFileModes(
         CancellationToken cancellationToken)
     {
@@ -122,6 +245,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
         using var timeProvider = new ManualTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
+            ProjectExportStoragePolicy.Default,
             stagingDirectory);
         await using var staging = await store.CreateStagingAsync(cancellationToken);
         var stagingPath = Directory.EnumerateFiles(stagingDirectory).Single();
@@ -145,6 +269,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
         using var timeProvider = new ManualTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
+            ProjectExportStoragePolicy.Default,
             stagingDirectory);
         var ticket = new ExportTicket("export-ticket-race-0001");
         var staging = await StageAsync(store, "race"u8.ToArray(), cancellationToken);
@@ -182,6 +307,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
         using var timeProvider = new ManualTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
+            ProjectExportStoragePolicy.Default,
             stagingDirectory);
         var ticket = new ExportTicket("export-ticket-expired-01");
         var staging = await StageAsync(store, "expired"u8.ToArray(), cancellationToken);
@@ -257,7 +383,14 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
 
         private ManualTimer? timer;
 
-        public override DateTimeOffset GetUtcNow() => utcNow;
+        public Action? AfterGetUtcNow { get; set; }
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            var current = utcNow;
+            AfterGetUtcNow?.Invoke();
+            return current;
+        }
 
         public override ITimer CreateTimer(
             TimerCallback callback,
