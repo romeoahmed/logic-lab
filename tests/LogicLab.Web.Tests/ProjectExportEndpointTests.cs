@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
@@ -32,6 +33,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
             new Uri("/downloads/export-ticket-head-0001", UriKind.Relative));
 
         using var head = await client.SendAsync(request);
+        var headBody = await head.Content.ReadAsByteArrayAsync();
         using var get = await client.GetAsync(
             new Uri("/downloads/export-ticket-head-0001", UriKind.Relative));
 
@@ -41,6 +43,11 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
                 .IsEqualTo(HttpStatusCode.MethodNotAllowed);
             await Assert.That(head.Content.Headers.Allow)
                 .IsEquivalentTo([HttpMethod.Get.Method]);
+            await Assert.That(head.Content.Headers.ContentType?.MediaType)
+                .IsEqualTo("application/problem+json");
+            await Assert.That(headBody).IsEmpty();
+            await Assert.That(head.Headers.CacheControl?.Private).IsTrue();
+            await Assert.That(head.Headers.CacheControl?.NoStore).IsTrue();
             await Assert.That(get.StatusCode).IsEqualTo(HttpStatusCode.OK);
             await Assert.That(downloads.Requests).HasSingleItem();
         }
@@ -68,7 +75,9 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
         using (Assert.Multiple())
         {
             await Assert.That(first.StatusCode).IsEqualTo(HttpStatusCode.OK);
-            await Assert.That(firstBytes).IsEquivalentTo("package-bytes"u8.ToArray());
+            await Assert.That(firstBytes).IsEquivalentTo(
+                "package-bytes"u8.ToArray(),
+                CollectionOrdering.Matching);
             await Assert.That(first.Content.Headers.ContentType?.MediaType)
                 .IsEqualTo("application/octet-stream");
             await Assert.That(first.Content.Headers.ContentDisposition?.DispositionType)

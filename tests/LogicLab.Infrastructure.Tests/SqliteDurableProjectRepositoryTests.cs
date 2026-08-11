@@ -42,7 +42,9 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             await Assert.That(project.DurableVersion)
                 .IsEqualTo(request.InitialDurableVersion.Value);
             await Assert.That(project.DisplayNameSortKey)
-                .IsEquivalentTo("Private project"u8.ToArray());
+                .IsEquivalentTo(
+                    "Private project"u8.ToArray(),
+                    CollectionOrdering.Matching);
             await Assert.That(storedRevision.ProjectRevisionId)
                 .IsEqualTo(revision.RevisionId.Value);
             await Assert.That(storedRevision.DurableProjectId)

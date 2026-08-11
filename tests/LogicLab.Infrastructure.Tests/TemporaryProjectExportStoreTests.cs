@@ -1,10 +1,14 @@
 using LogicLab.Application.Workspaces;
 using LogicLab.Infrastructure.Transfers;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Infrastructure.Tests;
 
 internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
 {
+    private static readonly DateTimeOffset ReferenceTime = new(
+        2026, 8, 11, 0, 0, 0, TimeSpan.Zero);
+
     private readonly string stagingDirectory = Path.Combine(
         Path.GetTempPath(),
         $"logiclab-export-tests-{Guid.CreateVersion7():N}");
@@ -13,8 +17,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     public async Task RedeemAsync_AuthorizedTicket_TransfersBytesExactlyOnce(
         CancellationToken cancellationToken)
     {
-        using var timeProvider = new ManualTimeProvider(
-            new DateTimeOffset(2026, 8, 11, 0, 0, 0, TimeSpan.Zero));
+        using var timeProvider = new ManualTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             stagingDirectory);
@@ -52,7 +55,9 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
             using (Assert.Multiple())
             {
                 await Assert.That(bytes.ToArray())
-                    .IsEquivalentTo("canonical-package"u8.ToArray());
+                    .IsEquivalentTo(
+                        "canonical-package"u8.ToArray(),
+                        CollectionOrdering.Matching);
                 await Assert.That(downloaded.CarrierByteCount)
                     .IsEqualTo(17UL);
                 await Assert.That(second)
@@ -67,7 +72,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     public async Task RedeemAsync_UnauthorizedCaller_DoesNotConsumeOwnersTicket(
         CancellationToken cancellationToken)
     {
-        using var timeProvider = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        using var timeProvider = new ManualTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             stagingDirectory);
@@ -110,11 +115,13 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     {
         if (OperatingSystem.IsWindows())
         {
+            Skip.Test("Unix file modes are not available on Windows.");
             return;
         }
 
+        using var timeProvider = new ManualTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
-            TimeProvider.System,
+            timeProvider,
             stagingDirectory);
         await using var staging = await store.CreateStagingAsync(cancellationToken);
         var stagingPath = Directory.EnumerateFiles(stagingDirectory).Single();
@@ -135,7 +142,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     public async Task RedeemAsync_ConcurrentAuthorizedCalls_HasExactlyOneWinner(
         CancellationToken cancellationToken)
     {
-        using var timeProvider = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        using var timeProvider = new ManualTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             stagingDirectory);
@@ -172,8 +179,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     public async Task Expiry_WithoutAnotherStoreRequest_DeletesStaging(
         CancellationToken cancellationToken)
     {
-        using var timeProvider = new ManualTimeProvider(
-            new DateTimeOffset(2026, 8, 11, 0, 0, 0, TimeSpan.Zero));
+        using var timeProvider = new ManualTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             stagingDirectory);

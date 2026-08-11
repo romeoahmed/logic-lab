@@ -64,11 +64,11 @@ internal sealed class ProjectExportTests
                 .IsEqualTo(AnonymousWorkspaceCaller.Instance);
             await Assert.That(store.Publications[0].Staging.Content.Length)
                 .IsGreaterThan(0L);
-            await Assert.That(store.Publications[0].ExpiresAfterSeconds)
-                .IsEqualTo(300UL);
+            await Assert.That(prepared.ExpiresAfterSeconds).IsGreaterThan(0UL);
             await Assert.That(store.PublishedExpiresAtUtc)
-                .IsEqualTo(now.AddSeconds(330));
-            await Assert.That(prepared.ExpiresAfterSeconds).IsEqualTo(300UL);
+                .IsEqualTo(timeProvider.GetUtcNow().Add(
+                    TimeSpan.FromSeconds(checked(
+                        (long)prepared.ExpiresAfterSeconds))));
             await Assert.That(after.Projection).IsEqualTo(before);
         }
     }

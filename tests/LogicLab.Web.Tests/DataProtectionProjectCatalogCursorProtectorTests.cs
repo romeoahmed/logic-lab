@@ -3,6 +3,7 @@ using LogicLab.Web.Projects;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
@@ -35,7 +36,9 @@ internal sealed class DataProtectionProjectCatalogCursorProtectorTests
             await Assert.That(restored?.PolicyId).IsEqualTo("workspace-policy");
             await Assert.That(restored?.PolicyRevision).IsEqualTo("7");
             await Assert.That(restored?.LastDisplayNameSortKey)
-                .IsEquivalentTo("项目"u8.ToArray());
+                .IsEquivalentTo(
+                    "项目"u8.ToArray(),
+                    CollectionOrdering.Matching);
             await Assert.That(restored?.LastDurableProjectId.Value)
                 .IsEqualTo("project-7");
         }

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using LogicLab.Application.Workspaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Application.Tests;
 
@@ -179,12 +180,16 @@ internal sealed class DurableProjectCatalogTests
         using (Assert.Multiple())
         {
             await Assert.That(page.Items.Select(item => item.DurableProjectId.Value))
-                .IsEquivalentTo(["project-a", "project-b"]);
+                .IsEquivalentTo(
+                    ["project-a", "project-b"],
+                    CollectionOrdering.Matching);
             await Assert.That(page.Next?.Value).IsEqualTo("protected");
             await Assert.That(request.SubjectId).IsEqualTo(Subject);
             await Assert.That(request.MaximumItemCount).IsEqualTo(3);
             await Assert.That(request.AfterDisplayNameSortKey)
-                .IsEquivalentTo("Alpha"u8.ToArray());
+                .IsEquivalentTo(
+                    "Alpha"u8.ToArray(),
+                    CollectionOrdering.Matching);
             await Assert.That(request.AfterDurableProjectId?.Value)
                 .IsEqualTo("project-0");
             await Assert.That(protectedState.SubjectId).IsEqualTo(Subject);
@@ -192,7 +197,9 @@ internal sealed class DurableProjectCatalogTests
             await Assert.That(protectedState.PolicyId).IsEqualTo("catalog-policy");
             await Assert.That(protectedState.PolicyRevision).IsEqualTo("7");
             await Assert.That(protectedState.LastDisplayNameSortKey)
-                .IsEquivalentTo("Beta"u8.ToArray());
+                .IsEquivalentTo(
+                    "Beta"u8.ToArray(),
+                    CollectionOrdering.Matching);
             await Assert.That(protectedState.LastDurableProjectId.Value)
                 .IsEqualTo("project-b");
         }

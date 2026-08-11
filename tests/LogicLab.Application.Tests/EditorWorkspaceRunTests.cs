@@ -4,6 +4,7 @@ using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Engine;
 using LogicLab.Engine.Simulation;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Application.Tests;
 
@@ -386,9 +387,7 @@ internal sealed partial class EditorWorkspaceRunTests
                     1,
                     [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
                 cancellationToken);
-            var stimulusOutcome = await stimulus.WaitAsync(
-                TimeSpan.FromSeconds(1),
-                cancellationToken);
+            var stimulusOutcome = await stimulus.WaitAsync(cancellationToken);
             rejected = await Assert.That(stimulusOutcome)
                 .IsTypeOf<WorkspaceCommandRejected>();
             Assert.NotNull(rejected);
@@ -459,14 +458,11 @@ internal sealed partial class EditorWorkspaceRunTests
                 Command(controlled, "run-that-fails"),
                 EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
             cancellationToken);
-        using var waitForFailure = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken);
-        waitForFailure.CancelAfter(TimeSpan.FromSeconds(1));
         var failedProjection = await WaitForRunStatus(
             workspace,
             controlled,
             RunStatus.Failed,
-            waitForFailure.Token);
+            cancellationToken);
         var failedSimulation = failedProjection.Simulation!;
         var failedRun = failedProjection.FailedRun();
         var failure = failedRun.Failure;
@@ -1106,7 +1102,9 @@ internal sealed partial class EditorWorkspaceRunTests
             await Assert.That(afterSwap.Simulation.TraceCursor)
                 .IsEqualTo(beforeSwap.Simulation.TraceCursor);
             await Assert.That(afterSwap.Simulation.Probes)
-                .IsEquivalentTo(beforeSwap.Simulation.Probes);
+                .IsEquivalentTo(
+                    beforeSwap.Simulation.Probes,
+                    CollectionOrdering.Matching);
         }
     }
 

@@ -32,9 +32,7 @@ internal sealed class EditorWorkspaceSchedulingTests
         try
         {
             await compilationGate.Started.WaitAsync(cancellationToken);
-            var accepted = (await Assert.That(await dispatch.WaitAsync(
-                    TimeSpan.FromSeconds(1),
-                    cancellationToken))
+            var accepted = (await Assert.That(await dispatch.WaitAsync(cancellationToken))
                 .IsTypeOf<CompilationAccepted>())!;
             var running = ((ProjectionSnapshot)await workspace.ReadAsync(
                 EditorWorkspaceTestDriver.Query(

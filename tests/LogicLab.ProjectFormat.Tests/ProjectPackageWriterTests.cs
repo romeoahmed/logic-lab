@@ -157,7 +157,9 @@ internal sealed class ProjectPackageWriterTests
                 .IsEquivalentTo(
                     ["manifest.json", "project.json"],
                     CollectionOrdering.Matching);
-            await Assert.That(entries["project.json"]).IsEquivalentTo(projectBytes);
+            await Assert.That(entries["project.json"]).IsEquivalentTo(
+                projectBytes,
+                CollectionOrdering.Matching);
             await Assert.That(root.GetProperty("format").GetString())
                 .IsEqualTo("logiclab");
             await Assert.That(root.GetProperty("schemaVersion").GetInt32())
@@ -232,7 +234,9 @@ internal sealed class ProjectPackageWriterTests
                 .IsEquivalentTo(
                     ["manifest.json", "project.json", memoryPath],
                     CollectionOrdering.Matching);
-            await Assert.That(entries[memoryPath]).IsEquivalentTo(expectedMemory);
+            await Assert.That(entries[memoryPath]).IsEquivalentTo(
+                expectedMemory,
+                CollectionOrdering.Matching);
             await Assert.That(memoryPart.GetProperty("memoryImageId").GetString())
                 .IsEqualTo(image.Id.Value);
             await Assert.That(memoryPart.GetProperty("path").GetString())
