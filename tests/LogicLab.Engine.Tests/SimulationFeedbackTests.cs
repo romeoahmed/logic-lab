@@ -293,7 +293,7 @@ internal sealed partial class SimulationFeedbackTests
             });
 
             await Assert.That(snapshot.Probes.Select(probe => probe.Value[0]))
-                .IsEquivalentTo(expected);
+                .IsEquivalentTo(expected, CollectionOrdering.Matching);
         }
     }
 

@@ -85,7 +85,9 @@ internal sealed class CompilerSuccessTests
             await Assert.That(succeeded.Artifact.SimulationIr.Nets).Count().IsEqualTo(2);
             await Assert.That(succeeded.Artifact.SourceMap.Nets.Select(item =>
                     ((NetSourceIdentity)item.Source.Identity).NetId))
-                .IsEquivalentTo(definition.Nets.Select(net => net.Id));
+                .IsEquivalentTo(
+                    definition.Nets.Select(net => net.Id),
+                    CollectionOrdering.Matching);
             await Assert.That(authored.Document.EntryCircuitDefinition.Junctions)
                 .Count().IsEqualTo(1);
             await Assert.That(authored.Document.EntryCircuitDefinition.WireGeometries)
