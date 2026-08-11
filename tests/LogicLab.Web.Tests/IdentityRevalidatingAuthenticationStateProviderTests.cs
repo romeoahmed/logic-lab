@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Reflection;
 using System.Security.Claims;
@@ -416,13 +417,14 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         using var response = await client.GetAsync(
             new Uri($"{path}?returnUrl=%2Fprojects", UriKind.Relative));
         var html = await response.Content.ReadAsStringAsync();
+        var document = WebTestMarkup.Parse(html);
 
         using (Assert.Multiple())
         {
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Redirect);
             await Assert.That(RedirectPath(response))
                 .IsEqualTo("/projects");
-            await Assert.That(html).DoesNotContain("<form");
+            await Assert.That(document.QuerySelectorAll("form")).IsEmpty();
         }
     }
 
@@ -458,11 +460,13 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
                 new("Input.RememberMe", "false"),
             ]);
         var html = await response.Content.ReadAsStringAsync();
+        var document = WebTestMarkup.Parse(html);
 
         using (Assert.Multiple())
         {
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
-            await Assert.That(html).Contains("role=\"alert\"");
+            await Assert.That(document.QuerySelectorAll("[role='alert']"))
+                .IsNotEmpty();
             await Assert.That(html).DoesNotContain(submittedPassword);
         }
     }
@@ -530,6 +534,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
                 new("Input.ConfirmPassword", submittedPassword),
             ]);
         var html = await response.Content.ReadAsStringAsync();
+        var document = WebTestMarkup.Parse(html);
         await using var verificationScope = host.Services.CreateAsyncScope();
         var userManager = verificationScope.ServiceProvider
             .GetRequiredService<UserManager<ApplicationUser>>();
@@ -541,7 +546,8 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         {
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
             await Assert.That(html).DoesNotContain(submittedPassword);
-            await Assert.That(html).Contains("role=\"alert\"");
+            await Assert.That(document.QuerySelectorAll("[role='alert']"))
+                .IsNotEmpty();
             await Assert.That(storedUser).IsNotNull();
             await Assert.That(originalPasswordRemainsValid).IsTrue();
         }
@@ -614,9 +620,12 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
-        var input = ExtractElementById(html, "input", inputId);
+        var input = WebTestMarkup.RequireElement(
+            WebTestMarkup.Parse(html),
+            $"input#{inputId}");
 
-        await Assert.That(input).Contains($"maxlength=\"{expectedMaximum}\"");
+        await Assert.That(input.GetAttribute("maxlength"))
+            .IsEqualTo(expectedMaximum.ToString(CultureInfo.InvariantCulture));
     }
 
     [Test]
@@ -1024,31 +1033,6 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         return location?.IsAbsoluteUri is true
             ? location.PathAndQuery
             : location?.OriginalString;
-    }
-
-    private static string ExtractElementById(
-        string html,
-        string elementName,
-        string id)
-    {
-        var idIndex = html.IndexOf($"id=\"{id}\"", StringComparison.Ordinal);
-        if (idIndex < 0)
-        {
-            throw new InvalidOperationException($"Markup did not contain id {id}.");
-        }
-
-        var start = html.LastIndexOf(
-            $"<{elementName}",
-            idIndex,
-            StringComparison.Ordinal);
-        var end = html.IndexOf('>', idIndex);
-        if (start < 0 || end < 0)
-        {
-            throw new InvalidOperationException(
-                $"Markup did not contain a complete {elementName} for id {id}.");
-        }
-
-        return html[start..(end + 1)];
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

@@ -14,10 +14,12 @@ internal static class WebTestHttp
         using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
-        var requestToken = ExtractAttributeAfter(
-            html,
-            "name=\"__RequestVerificationToken\"",
-            "value");
+        var tokenInput = WebTestMarkup.RequireElement(
+            WebTestMarkup.Parse(html),
+            "input[name='__RequestVerificationToken']");
+        var requestToken = tokenInput.GetAttribute("value")
+            ?? throw new InvalidOperationException(
+                "The antiforgery input did not contain a value.");
         var cookie = response.Headers.GetValues("Set-Cookie")
             .Single(value => value.Contains("Antiforgery", StringComparison.Ordinal))
             .Split(';', 2)[0];
@@ -63,29 +65,5 @@ internal static class WebTestHttp
     private static bool IsLowercaseLetterOrDigit(char value)
     {
         return value is >= 'a' and <= 'z' or >= '0' and <= '9';
-    }
-
-    private static string ExtractAttributeAfter(
-        string html,
-        string marker,
-        string attributeName)
-    {
-        var markerIndex = html.IndexOf(marker, StringComparison.Ordinal);
-        if (markerIndex < 0)
-        {
-            throw new InvalidOperationException($"Markup did not contain {marker}.");
-        }
-
-        var prefix = $"{attributeName}=\"";
-        var valueStart = html.IndexOf(prefix, markerIndex, StringComparison.Ordinal);
-        if (valueStart < 0)
-        {
-            throw new InvalidOperationException(
-                $"Markup did not contain {attributeName} after {marker}.");
-        }
-
-        valueStart += prefix.Length;
-        var valueEnd = html.IndexOf('"', valueStart);
-        return html[valueStart..valueEnd];
     }
 }

@@ -31,7 +31,8 @@ internal sealed class EditorDurableRouteTests
             await Assert.That(recovery.GetAttribute("data-error-code"))
                 .IsEqualTo("workspace_not_found");
             await Assert.That(rendered.FindAll("[data-command]")).IsEmpty();
-            await Assert.That(rendered.FindAll(".workbench-heading")).IsEmpty();
+            await Assert.That(rendered.FindAll("section[aria-label='Circuit workbench']"))
+                .IsEmpty();
             await Assert.That(rendered.Find("[data-recovery='projects']")
                     .GetAttribute("href"))
                 .IsEqualTo("/projects");

@@ -26,7 +26,7 @@ internal sealed class WorkbenchChromeComponentTests
             .Add(component => component.Document, revision.Document)
             .Add(component => component.SelectedDefinitionId,
                 revision.Document.EntryCircuitDefinitionId));
-        var navigation = rendered.Find(".definition-tabs");
+        var navigation = rendered.Find("nav[aria-label='Open Circuit Definitions']");
 
         using (Assert.Multiple())
         {
@@ -44,7 +44,7 @@ internal sealed class WorkbenchChromeComponentTests
 
         var rendered = context.Render<WorkbenchStatusStrip>(parameters => parameters
             .Add(component => component.Message, "Connecting to the interactive workbench…"));
-        var facts = rendered.Find(".status-facts");
+        var facts = rendered.Find("dl[aria-label='Workbench status']");
         var statusFacts = facts.QuerySelectorAll(":scope > div");
         var statusKeys = statusFacts
             .Select(status => status.GetAttribute("data-status")!)

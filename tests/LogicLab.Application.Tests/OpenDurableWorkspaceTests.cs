@@ -308,9 +308,10 @@ internal sealed class OpenDurableWorkspaceTests
         try
         {
             await loader.AllRequestsLoaded.WaitAsync(cancellationToken);
-            await WaitUntilAsync(
-                () => opens.Count(task => task.IsCompleted) == 1,
-                cancellationToken);
+            await Assert.That(() => opens.Count(task => task.IsCompleted))
+                .WaitsFor(
+                    count => count.IsEqualTo(1),
+                    timeout: TimeSpan.FromSeconds(5));
             completedBeforeRelease =
             [
                 .. opens.Where(task => task.IsCompletedSuccessfully)
@@ -505,23 +506,6 @@ internal sealed class OpenDurableWorkspaceTests
             hotSwapPeakBytes: 1_024,
             durableDisplayNameLimits: DurableDisplayNameLimits.Default,
             durableProjectCatalogLimits: DurableProjectCatalogLimits.Default);
-    }
-
-    private static async Task WaitUntilAsync(
-        Func<bool> predicate,
-        CancellationToken cancellationToken)
-    {
-        for (var attempt = 0; attempt < 500; attempt++)
-        {
-            if (predicate())
-            {
-                return;
-            }
-
-            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken);
-        }
-
-        throw new TimeoutException("The expected concurrent open state was not observed.");
     }
 
     private static Task<WorkspaceOpenOutcome> StartOpen(
