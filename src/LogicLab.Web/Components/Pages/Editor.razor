@@ -64,6 +64,7 @@
             <div class="workbench-command-region">
                 <WorkbenchCommandBar CanCreate="CanCreate"
                                      CanAuthor="CanAuthor"
+                                     CanPrepareExport="CanPrepareExport"
                                      CanAuthorSteering="CanAuthorSteering"
                                      CanAuthorArithmetic="CanAuthorArithmetic"
                                      CanAuthorHierarchy="CanAuthorHierarchy"
@@ -74,6 +75,7 @@
                                      ActiveCommand="@WorkbenchActiveCommand"
                                      OnCreate="@(() => RunCommandAsync("create", () => CanCreate, CreateProject))"
                                      OnAuthor="@(() => RunCommandAsync("author", () => CanAuthor, AuthorCircuit))"
+                                     OnPrepareExport="@(() => RunCommandAsync("export", () => CanPrepareExport, PrepareProjectExport))"
                                      OnAuthorSteering="@(() => RunCommandAsync("author-steering", () => CanAuthorSteering, AuthorSteeringGallery))"
                                      OnAuthorArithmetic="@(() => RunCommandAsync("author-arithmetic", () => CanAuthorArithmetic, AuthorArithmeticGallery))"
                                      OnAuthorHierarchy="@(() => RunCommandAsync("author-hierarchy", () => CanAuthorHierarchy, AuthorHierarchy))"
@@ -81,6 +83,13 @@
                                      OnCreateSession="@(() => RunCommandAsync("session", () => CanCreateSession, CreateSimulationSession))"
                                      OnScheduleStimulus="@(() => RunCommandAsync("stimulus", () => CanScheduleStimulus, ScheduleStimulus))"
                                      OnStep="@(() => RunCommandAsync("step", () => CanStep, Step))" />
+                @if (PreparedExportUrl is not null)
+                {
+                    <a class="export-download"
+                       data-export-download
+                       href="@PreparedExportUrl"
+                       download="logiclab-project.logiclab">Download .logiclab package</a>
+                }
             </div>
 
             <div class="workbench-definition-region">

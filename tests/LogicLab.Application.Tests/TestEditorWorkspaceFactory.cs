@@ -12,7 +12,8 @@ internal static class TestEditorWorkspaceFactory
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
         IDurableProjectRepository? durableProjectRepository = null,
-        IDurableProjectLoader? durableProjectLoader = null)
+        IDurableProjectLoader? durableProjectLoader = null,
+        IProjectExportStore? projectExportStore = null)
     {
         return EditorWorkspaceFactory.Create(
             buildFingerprint: buildFingerprint,
@@ -23,7 +24,8 @@ internal static class TestEditorWorkspaceFactory
             workspacePolicy: workspacePolicy,
             schedulingPolicy: schedulingPolicy,
             timeProvider: timeProvider,
-            loggerFactory: loggerFactory);
+            loggerFactory: loggerFactory,
+            projectExportStore: projectExportStore);
     }
 
     public static IEditorWorkspace CreateForTesting(
@@ -34,7 +36,8 @@ internal static class TestEditorWorkspaceFactory
         ILoggerFactory? loggerFactory = null,
         string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint,
         IDurableProjectRepository? durableProjectRepository = null,
-        IDurableProjectLoader? durableProjectLoader = null)
+        IDurableProjectLoader? durableProjectLoader = null,
+        IProjectExportStore? projectExportStore = null)
     {
         return EditorWorkspaceFactory.CreateForTesting(
             operations: operations,
@@ -46,7 +49,8 @@ internal static class TestEditorWorkspaceFactory
             schedulingPolicy: schedulingPolicy,
             timeProvider: timeProvider,
             loggerFactory: loggerFactory,
-            buildFingerprint: buildFingerprint);
+            buildFingerprint: buildFingerprint,
+            projectExportStore: projectExportStore);
     }
 
     private sealed class UnexpectedDurableProjectRepository : IDurableProjectRepository

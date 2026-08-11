@@ -5,6 +5,7 @@ using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Scene;
 using LogicLab.Web.Components.Editor;
+using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 
@@ -47,6 +48,8 @@ public sealed partial class Editor : IAsyncDisposable
     private string Status { get; set; } = "Connecting to the interactive workbench…";
 
     private string? ActiveCommand { get; set; }
+
+    private string? PreparedExportUrl { get; set; }
 
     private WorkspaceCaller CurrentCaller { get; set; } =
         AnonymousWorkspaceCaller.Instance;
@@ -91,7 +94,8 @@ public sealed partial class Editor : IAsyncDisposable
     {
         var caller = AuthenticationStateTask is null
             ? AnonymousWorkspaceCaller.Instance
-            : CallerFrom(await AuthenticationStateTask);
+            : WorkspaceCallerAdapter.FromPrincipal(
+                (await AuthenticationStateTask).User);
         if (caller == CurrentCaller)
         {
             return;
@@ -99,6 +103,7 @@ public sealed partial class Editor : IAsyncDisposable
 
         var priorCaller = CurrentCaller;
         CurrentCaller = caller;
+        PreparedExportUrl = null;
         if (Attachment is not { } attachment)
         {
             return;
@@ -132,6 +137,8 @@ public sealed partial class Editor : IAsyncDisposable
         && Projection.Simulation is null
         && Projection.Compilation is not CompilationPublishedProjection
         && Projection.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances.Count == 0;
+
+    private bool CanPrepareExport => CommandsAvailable && Projection is not null;
 
     private bool CanAuthorHierarchy => CanAuthor;
 
@@ -494,6 +501,27 @@ public sealed partial class Editor : IAsyncDisposable
         return null;
     }
 
+    private async Task PrepareProjectExport()
+    {
+        var revision = Projection?.ProjectRevision
+            ?? throw new InvalidOperationException("Workspace is not open.");
+        var revisionId = revision.RevisionId;
+        var outcome = await Execute(context => new PrepareExport(
+            context,
+            new AuthoringPrecondition(revisionId),
+            revisionId));
+        if (outcome is not ExportPrepared prepared)
+        {
+            PreparedExportUrl = null;
+            Status = $"Export preparation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+            return;
+        }
+
+        PreparedExportUrl =
+            $"/downloads/{Uri.EscapeDataString(prepared.ExportTicket.Value)}";
+        Status = $"Export prepared for {prepared.ExpiresAfterSeconds} seconds.";
+    }
+
     private async Task CreateSimulationSession()
     {
         var compilation = Projection?.Compilation as CompilationPublishedProjection
@@ -738,6 +766,7 @@ public sealed partial class Editor : IAsyncDisposable
         HierarchyNavigation.Clear();
         StimulusIsScheduled = false;
         RouteDraftActive = false;
+        PreparedExportUrl = null;
     }
 
     private void ShowAttachmentFailure(string code)
@@ -759,6 +788,7 @@ public sealed partial class Editor : IAsyncDisposable
         Projection = projection;
         if (projectRevisionChanged)
         {
+            PreparedExportUrl = null;
             ProjectScene();
         }
     }
@@ -822,16 +852,6 @@ public sealed partial class Editor : IAsyncDisposable
             attachment.AttachmentId,
             attachment.Generation,
             CurrentCaller);
-    }
-
-    private static WorkspaceCaller CallerFrom(AuthenticationState authenticationState)
-    {
-        var subjectValue = authenticationState.User.FindFirst(
-            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        return string.IsNullOrEmpty(subjectValue)
-            ? AnonymousWorkspaceCaller.Instance
-            : new AuthenticatedWorkspaceCaller(
-                new AuthenticatedSubjectId(subjectValue));
     }
 
     private SessionMutationPrecondition SessionPrecondition()

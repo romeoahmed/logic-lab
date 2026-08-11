@@ -41,7 +41,7 @@ The first required product tracer is complete at item `06`. Infrastructure bread
 
 ## Delivery status
 
-Items `01` through `20` are complete at the Domain, Compiler, Runtime, and applicable Application, Infrastructure, and Web seams promised below. The [Development Readiness](./README.md#development-readiness) table summarizes the current Web surface, executable evidence, and remaining qualification gaps.
+Items `01` through `21` are complete at the Domain, Compiler, Runtime, Project Format, and applicable Application, Infrastructure, and Web seams promised below. The [Development Readiness](./README.md#development-readiness) table summarizes the current Web surface, executable evidence, and remaining qualification gaps.
 
 ## Phase B — Authoring, Component Contracts, and Runtime breadth
 
@@ -113,9 +113,9 @@ Only item `43` authorizes describing the selected deployment profile as producti
 
 ## Dependency frontier
 
-With items `01` through `20` complete, the current frontier is `21`, `23`, and `28`:
+With items `01` through `21` complete, the current frontier is `22`, `23`, and `28`:
 
-- Durable Project transfer (`21`–`22`);
+- Durable Project import (`22`);
 - TeachingMixed presentation (`23`–`25`); and
 - Boolean explanation and proof-gated simplification (`28`–`32`).
 

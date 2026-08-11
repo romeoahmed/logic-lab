@@ -8,6 +8,41 @@ This contract owns import/export transport, download authorization, and RFC 9457
 
 Import uses the Blazor file stream with an explicit maximum and streams into Project Format; it never buffers an untrusted carrier wholly in memory. Application then follows the [Editor Workspace import handoff](./editor-workspace.md#3-editor-workspace-interface), publishing a new Workspace or leaving the origin unchanged. For export, Application returns an opaque Export Ticket and Web maps it to a short-lived authorized URL that streams the package. Cookie-authenticated mutation retains antiforgery protection.
 
+The V1 export download is `GET /downloads/{token}`. `HEAD` is rejected without
+redeeming the ticket as `405 export_download_method_not_allowed` with
+`Allow: GET`. A successful response has
+`Content-Type: application/octet-stream`, attachment filename
+`logiclab-project.logiclab`, and `Cache-Control: private, no-store`. The filename
+is a server constant; no Project text, Durable Display Name, request value, or
+client filename contributes to it. Web streams the complete staging object and
+never copies it through an interactive component.
+
+Application exposes this typed redemption seam to Web in addition to the closed
+five-method Editor Workspace interface:
+
+```text
+RedeemExport(ExportTicket, WorkspaceCaller)
+  -> ExportDownloaded { content: Stream, carrierByteCount }
+   | ExportDownloadRejected { code: export_expired }
+```
+
+The prepared ticket is bound to the `WorkspaceCaller` that issued
+`PrepareExport`: an authenticated ticket requires the exact stable subject, and
+an anonymous ticket requires the anonymous caller. Authorization is checked
+before consumption. A caller mismatch therefore neither reveals existence nor
+consumes the owner's ticket. Unknown, malformed, expired, already redeemed, and
+unauthorized tokens all return the same `404` Problem Details shape with code
+`export_expired`.
+
+Redemption removes the publication atomically before transferring stream
+ownership to Web. Concurrent authorized redemption has at most one winner; all
+other attempts receive `export_expired`. Preparing a later export for the same
+Workspace replaces and cleans the earlier staging object. Expiry uses the
+server-recorded absolute deadline, never slides on access, and cleanup closes
+the unpublished staging handle. The store owns a published staging stream until
+successful redemption, replacement, expiry, revocation, or shutdown; Web owns
+the stream after `ExportDownloaded` and closes it when the response completes.
+
 HTTP adapters use RFC 9457 Problem Details:
 
 ```json

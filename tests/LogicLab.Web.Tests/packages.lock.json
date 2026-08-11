@@ -783,6 +783,7 @@
         "dependencies": {
           "LogicLab.Domain": "[1.0.0, )",
           "LogicLab.Engine": "[1.0.0, )",
+          "LogicLab.ProjectFormat": "[1.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.10, )"
         }
       },
@@ -806,6 +807,12 @@
         }
       },
       "logiclab.presentation": {
+        "type": "Project",
+        "dependencies": {
+          "LogicLab.Domain": "[1.0.0, )"
+        }
+      },
+      "logiclab.projectformat": {
         "type": "Project",
         "dependencies": {
           "LogicLab.Domain": "[1.0.0, )"

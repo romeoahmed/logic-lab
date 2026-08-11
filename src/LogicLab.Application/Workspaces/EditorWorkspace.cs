@@ -7,6 +7,7 @@ using LogicLab.Domain.Components;
 using LogicLab.Engine;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
+using LogicLab.ProjectFormat;
 using Microsoft.Extensions.Logging;
 
 namespace LogicLab.Application.Workspaces;
@@ -22,6 +23,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private readonly WorkspaceModuleOperations operations;
     private readonly IDurableProjectRepository durableProjectRepository;
     private readonly IDurableProjectLoader durableProjectLoader;
+    private readonly PackagePolicy packagePolicy;
+    private readonly IProjectExportStore projectExportStore;
     private readonly ILogger<EditorWorkspace> logger;
     private int workspaceReservations;
     private bool isDisposed;
@@ -34,6 +37,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         WorkspaceModuleOperations operations,
         IDurableProjectRepository durableProjectRepository,
         IDurableProjectLoader durableProjectLoader,
+        PackagePolicy packagePolicy,
+        IProjectExportStore projectExportStore,
         ILogger<WorkCoordinator> workCoordinatorLogger,
         ILogger<EditorWorkspace> logger)
     {
@@ -44,6 +49,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(durableProjectRepository);
         ArgumentNullException.ThrowIfNull(durableProjectLoader);
+        ArgumentNullException.ThrowIfNull(packagePolicy);
+        ArgumentNullException.ThrowIfNull(projectExportStore);
         ArgumentNullException.ThrowIfNull(workCoordinatorLogger);
         ArgumentNullException.ThrowIfNull(logger);
         workCoordinator = new WorkCoordinator(schedulingPolicy, workCoordinatorLogger);
@@ -53,6 +60,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         this.operations = operations;
         this.durableProjectRepository = durableProjectRepository;
         this.durableProjectLoader = durableProjectLoader;
+        this.packagePolicy = packagePolicy;
+        this.projectExportStore = projectExportStore;
         this.logger = logger;
     }
 
@@ -183,6 +192,10 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             ClaimSandbox or SaveDurable => await ExecuteDurableCommandAsync(
                 state,
                 command,
+                cancellationToken).ConfigureAwait(false),
+            PrepareExport prepare => await ExecutePrepareExportAsync(
+                state,
+                prepare,
                 cancellationToken).ConfigureAwait(false),
             RequestCompilation request => await QueueCompilationAsync(
                 state,

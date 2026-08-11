@@ -6,5 +6,6 @@
   <ItemGroup>
     <ProjectReference Include="..\LogicLab.Domain\LogicLab.Domain.csproj" />
     <ProjectReference Include="..\LogicLab.Engine\LogicLab.Engine.csproj" />
+    <ProjectReference Include="..\LogicLab.ProjectFormat\LogicLab.ProjectFormat.csproj" />
   </ItemGroup>
 </Project>

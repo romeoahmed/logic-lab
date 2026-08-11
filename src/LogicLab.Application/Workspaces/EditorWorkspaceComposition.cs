@@ -1,5 +1,6 @@
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
+using LogicLab.ProjectFormat;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -239,7 +240,9 @@ public static class EditorWorkspaceFactory
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        PackagePolicy? packagePolicy = null,
+        IProjectExportStore? projectExportStore = null)
     {
         ArgumentNullException.ThrowIfNull(durableProjectRepository);
         ArgumentNullException.ThrowIfNull(durableProjectLoader);
@@ -251,7 +254,9 @@ public static class EditorWorkspaceFactory
             buildFingerprint,
             WorkspaceModuleOperations.Production,
             durableProjectRepository,
-            durableProjectLoader);
+            durableProjectLoader,
+            packagePolicy,
+            projectExportStore);
     }
 
     internal static IEditorWorkspace CreateForTesting(
@@ -262,7 +267,9 @@ public static class EditorWorkspaceFactory
         SchedulingPolicy? schedulingPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
-        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint)
+        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint,
+        PackagePolicy? packagePolicy = null,
+        IProjectExportStore? projectExportStore = null)
     {
         ArgumentNullException.ThrowIfNull(durableProjectRepository);
         ArgumentNullException.ThrowIfNull(durableProjectLoader);
@@ -274,7 +281,9 @@ public static class EditorWorkspaceFactory
             buildFingerprint,
             operations,
             durableProjectRepository,
-            durableProjectLoader);
+            durableProjectLoader,
+            packagePolicy,
+            projectExportStore);
     }
 
     private static EditorWorkspace CreateCore(
@@ -285,7 +294,9 @@ public static class EditorWorkspaceFactory
         string buildFingerprint,
         WorkspaceModuleOperations operations,
         IDurableProjectRepository durableProjectRepository,
-        IDurableProjectLoader durableProjectLoader)
+        IDurableProjectLoader durableProjectLoader,
+        PackagePolicy? packagePolicy,
+        IProjectExportStore? projectExportStore)
     {
         ArgumentException.ThrowIfNullOrEmpty(buildFingerprint);
         var resolvedLoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
@@ -297,6 +308,8 @@ public static class EditorWorkspaceFactory
             operations,
             durableProjectRepository,
             durableProjectLoader,
+            packagePolicy ?? PackagePolicy.Development,
+            projectExportStore ?? UnavailableProjectExportStore.Instance,
             resolvedLoggerFactory.CreateLogger<Work.WorkCoordinator>(),
             resolvedLoggerFactory.CreateLogger<EditorWorkspace>());
     }
@@ -309,12 +322,39 @@ internal sealed record WorkspaceModuleOperations(
         ExecuteSimulation,
     Func<SimulationSessionHandle, SimulationQuery, CancellationToken, SimulationReadOutcome>
         ReadSimulation,
-    Func<SimulationSessionHandle, CloseSimulationOutcome> CloseSimulation)
+    Func<SimulationSessionHandle, CloseSimulationOutcome> CloseSimulation,
+    Func<ProjectPackageWriteRequest, CancellationToken, Task<PackageWriteOutcome>>
+        WritePackage)
 {
     public static WorkspaceModuleOperations Production { get; } = new(
         Compiler.Compile,
         SimulationRuntime.Open,
         SimulationRuntime.Execute,
         SimulationRuntime.Read,
-        SimulationRuntime.Close);
+        SimulationRuntime.Close,
+        ProjectPackage.WriteAsync);
+}
+
+internal sealed class UnavailableProjectExportStore : IProjectExportStore
+{
+    private UnavailableProjectExportStore()
+    {
+    }
+
+    public static UnavailableProjectExportStore Instance { get; } = new();
+
+    public ValueTask<IProjectExportStaging> CreateStagingAsync(
+        CancellationToken cancellationToken) =>
+        ValueTask.FromException<IProjectExportStaging>(
+            new IOException("Project export staging is not configured."));
+
+    public ValueTask PublishAsync(
+        ProjectExportPublication publication,
+        CancellationToken cancellationToken) =>
+        ValueTask.FromException(
+            new IOException("Project export staging is not configured."));
+
+    public ValueTask RevokeAsync(
+        WorkspaceId workspaceId,
+        CancellationToken cancellationToken) => ValueTask.CompletedTask;
 }
