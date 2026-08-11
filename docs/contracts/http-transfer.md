@@ -54,7 +54,7 @@ or exceeds the bounded HTTP shape. This validation occurs before constructing
 An unauthenticated `/projects/open` request, including a cookie challenge or an
 authenticated principal without a stable subject, uses the exact code
 `authentication_required` and maps to `401`; this API-style endpoint never
-redirects to an account page. Login and registration ingress rejection uses
+redirects to an account page. Account ingress rejection uses
 the exact code `authentication_rate_limit_exceeded`, maps to `429`, and includes
 `Retry-After` only when the limiter supplies an honest duration. An endpoint
 request body that exceeds its declared byte limit uses the exact code

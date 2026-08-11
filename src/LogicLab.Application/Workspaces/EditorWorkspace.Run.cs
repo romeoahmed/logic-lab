@@ -192,7 +192,7 @@ internal sealed partial class EditorWorkspace
         Exception exception)
     {
         var reason = AdvanceFailureReasonFrom(exception);
-        var correlation = Guid.CreateVersion7().ToString("N");
+        var correlation = ApplicationCorrelation.CurrentOrCreate();
         LogAdvanceFailure(logger, exception, correlation, reason);
 
         if (state.IsRetired)

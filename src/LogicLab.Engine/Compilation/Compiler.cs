@@ -26,7 +26,11 @@ public static partial class Compiler
                 exception,
                 cancellationToken))
         {
-            return Reject(request, "compilation_cancelled", [], observations);
+            return Reject(
+                request,
+                CompilationOutcomeReasons.Cancelled,
+                [],
+                observations);
         }
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
@@ -42,7 +46,7 @@ public static partial class Compiler
                     request.ProjectRevision.Document.ProjectId));
             return Reject(
                 request,
-                "compilation_internal_defect",
+                CompilationOutcomeReasons.InternalDefect,
                 [diagnostic],
                 observations);
         }
@@ -319,7 +323,7 @@ public static partial class Compiler
                 request.ProjectRevision.Document.ProjectId));
         return Reject(
             request,
-            "compilation_policy_exhausted",
+            CompilationOutcomeReasons.PolicyExhausted,
             [diagnostic],
             observations,
             breach);
@@ -1282,7 +1286,7 @@ public static partial class Compiler
     {
         return Reject(
             request,
-            "compilation_invalid",
+            CompilationOutcomeReasons.Invalid,
             CompilerCanonicalizer.Diagnostics(diagnostics),
             observations);
     }

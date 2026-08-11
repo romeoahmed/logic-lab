@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
@@ -176,6 +177,40 @@ internal sealed class OpenDurableWorkspaceTests
         {
             await Assert.That(rejected.Code).IsEqualTo(expectedCode);
             await Assert.That(sandbox).IsTypeOf<WorkspaceOpened>();
+        }
+    }
+
+    [Test]
+    public async Task OpenAsync_LoaderDefect_LogsClosedOutcomeWithCurrentTrace()
+    {
+        using var activity = new Activity("open-durable-test")
+            .SetIdFormat(ActivityIdFormat.W3C)
+            .Start();
+        using var loggerFactory = new RecordingLoggerFactory();
+        using var cancellation = new CancellationTokenSource();
+        var loader = new RecordingLoader(LoaderFailure.Defect, cancellation);
+        await using var workspace = TestEditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint,
+            loggerFactory: loggerFactory,
+            durableProjectLoader: loader);
+
+        var outcome = await workspace.OpenAsync(
+            new OpenDurable(ProjectId, Owner),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        var log = loggerFactory.Entries.Single(entry => entry.EventId.Id == 1006);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("workspace_internal_defect");
+            await Assert.That(log.Level).IsEqualTo(Microsoft.Extensions.Logging.LogLevel.Error);
+            await Assert.That(log.Exception).IsTypeOf<InvalidOperationException>();
+            await Assert.That(log.Properties["Correlation"])
+                .IsEqualTo(activity.TraceId.ToHexString());
+            await Assert.That(log.Properties["Stage"]).IsEqualTo("load");
+            await Assert.That(log.Properties["OutcomeCode"])
+                .IsEqualTo(rejected.Code);
         }
     }
 

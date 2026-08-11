@@ -4,10 +4,11 @@ namespace LogicLab.Web.Tests;
 
 internal abstract class DelegatingEditorWorkspace(
     WorkspacePolicy? workspacePolicy = null,
-    IDurableProjectLoader? durableProjectLoader = null) : IEditorWorkspace
+    IDurableProjectLoader? durableProjectLoader = null,
+    string? buildFingerprint = null) : IEditorWorkspace
 {
     private IEditorWorkspace Inner { get; } = EditorWorkspaceFactory.Create(
-        buildFingerprint: LogicLabWebBuild.Fingerprint,
+        buildFingerprint: buildFingerprint ?? LogicLabWebBuild.Fingerprint,
         durableProjectRepository: UnexpectedDurableProjectRepository.Instance,
         workspacePolicy: workspacePolicy,
         durableProjectLoader:

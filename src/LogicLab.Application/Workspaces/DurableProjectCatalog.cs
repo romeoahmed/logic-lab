@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace LogicLab.Application.Workspaces;
 
@@ -238,19 +239,26 @@ public static class DurableProjectCatalogFactory
     public static IDurableProjectCatalog Create(
         WorkspacePolicy workspacePolicy,
         IDurableProjectCatalogRepository repository,
-        IProjectCatalogCursorProtector cursorProtector)
+        IProjectCatalogCursorProtector cursorProtector,
+        ILoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(workspacePolicy);
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(cursorProtector);
-        return new DurableProjectCatalog(workspacePolicy, repository, cursorProtector);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+        return new DurableProjectCatalog(
+            workspacePolicy,
+            repository,
+            cursorProtector,
+            loggerFactory.CreateLogger<DurableProjectCatalog>());
     }
 }
 
-internal sealed class DurableProjectCatalog(
+internal sealed partial class DurableProjectCatalog(
     WorkspacePolicy workspacePolicy,
     IDurableProjectCatalogRepository repository,
-    IProjectCatalogCursorProtector cursorProtector) : IDurableProjectCatalog
+    IProjectCatalogCursorProtector cursorProtector,
+    ILogger<DurableProjectCatalog> logger) : IDurableProjectCatalog
 {
     private const string OrderingContractVersion = "1";
 
@@ -263,29 +271,32 @@ internal sealed class DurableProjectCatalog(
         ArgumentNullException.ThrowIfNull(request);
         if (cancellationToken.IsCancellationRequested)
         {
-            return Reject(DurableProjectCatalogReasons.Cancelled);
+            return Reject(DurableProjectCatalogOutcomeReasons.Cancelled);
         }
 
+        var stage = "validation";
         try
         {
             if (request.PageSize <= 0
                 || request.PageSize > workspacePolicy.DurableProjectCatalogLimits.PageItems)
             {
-                return Reject(DurableProjectCatalogReasons.RequestInvalid);
+                return Reject(DurableProjectCatalogOutcomeReasons.RequestInvalid);
             }
 
             ProjectCatalogCursorState? after = null;
             if (request.After is not null)
             {
+                stage = "cursor";
                 if (Encoding.UTF8.GetByteCount(request.After.Value)
                         > workspacePolicy.DurableProjectCatalogLimits.CursorBytes
                     || !cursorProtector.TryUnprotect(request.After, out after)
                     || !MatchesCursor(after, subjectId))
                 {
-                    return Reject(DurableProjectCatalogReasons.CursorInvalid);
+                    return Reject(DurableProjectCatalogOutcomeReasons.CursorInvalid);
                 }
             }
 
+            stage = "repository";
             var repositoryItems = await repository.ListAuthorizedAsync(
                 new DurableProjectCatalogRepositoryRequest(
                     subjectId,
@@ -293,11 +304,12 @@ internal sealed class DurableProjectCatalog(
                     after?.LastDisplayNameSortKey,
                     after?.LastDurableProjectId),
                 cancellationToken).ConfigureAwait(false);
+            stage = "projection";
             ArgumentNullException.ThrowIfNull(repositoryItems);
             if (repositoryItems.Count > request.PageSize + 1
                 || !HasStrictInvariantOrder(repositoryItems, after))
             {
-                return Reject(DurableProjectCatalogReasons.InternalDefect);
+                return Reject(DurableProjectCatalogOutcomeReasons.InternalDefect);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -317,7 +329,7 @@ internal sealed class DurableProjectCatalog(
                 if (Encoding.UTF8.GetByteCount(next.Value)
                     > workspacePolicy.DurableProjectCatalogLimits.CursorBytes)
                 {
-                    return Reject(DurableProjectCatalogReasons.InternalDefect);
+                    return Reject(DurableProjectCatalogOutcomeReasons.InternalDefect);
                 }
             }
 
@@ -332,15 +344,33 @@ internal sealed class DurableProjectCatalog(
                 exception,
                 cancellationToken))
         {
-            return Reject(DurableProjectCatalogReasons.Cancelled);
+            return Reject(DurableProjectCatalogOutcomeReasons.Cancelled);
         }
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
-            return Reject(ExceptionClassifier.IsInfrastructureFailure(exception)
-                ? DurableProjectCatalogReasons.InfrastructureFailure
-                : DurableProjectCatalogReasons.InternalDefect);
+            var code = ExceptionClassifier.IsInfrastructureFailure(exception)
+                ? DurableProjectCatalogOutcomeReasons.InfrastructureFailure
+                : DurableProjectCatalogOutcomeReasons.InternalDefect;
+            LogCatalogFailure(
+                logger,
+                exception,
+                ApplicationCorrelation.CurrentOrCreate(),
+                stage,
+                code);
+            return Reject(code);
         }
     }
+
+    [LoggerMessage(
+        EventId = 1101,
+        Level = LogLevel.Error,
+        Message = "Durable Project Catalog failed with correlation {Correlation}, stage {Stage}, and outcome {OutcomeCode}.")]
+    private static partial void LogCatalogFailure(
+        ILogger logger,
+        Exception exception,
+        string correlation,
+        string stage,
+        string outcomeCode);
 
     private bool MatchesCursor(
         ProjectCatalogCursorState? state,
@@ -417,13 +447,4 @@ internal sealed class DurableProjectCatalog(
 
     private static DurableProjectListRejected Reject(string reason)
         => new(reason, [], RetryDisposition.DoNotRetry);
-}
-
-internal static class DurableProjectCatalogReasons
-{
-    public const string RequestInvalid = "project_catalog_request_invalid";
-    public const string CursorInvalid = "project_catalog_cursor_invalid";
-    public const string Cancelled = "project_catalog_cancelled";
-    public const string InfrastructureFailure = "project_catalog_infrastructure_failure";
-    public const string InternalDefect = "project_catalog_internal_defect";
 }

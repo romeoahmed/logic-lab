@@ -245,7 +245,7 @@ internal sealed partial class EditorWorkspace
         }
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
-            var correlation = Guid.CreateVersion7().ToString("N");
+            var correlation = ApplicationCorrelation.CurrentOrCreate();
             LogSimulationCleanupFailure(logger, exception, correlation);
         }
     }

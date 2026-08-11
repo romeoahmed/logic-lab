@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Threading.RateLimiting;
 
 namespace LogicLab.Web.Identity;
@@ -6,17 +7,22 @@ internal sealed record AccountIngressPolicy(
     int LoginPermitLimit,
     TimeSpan LoginWindow,
     int RegistrationPermitLimit,
-    TimeSpan RegistrationWindow)
+    TimeSpan RegistrationWindow,
+    int LogoutPermitLimit,
+    TimeSpan LogoutWindow)
 {
     public const string LoginRateLimitPolicyName = "account-login";
     public const string RegistrationRateLimitPolicyName = "account-registration";
+    public const string LogoutRateLimitPolicyName = "account-logout";
     public const int MaximumRequestBodyBytes = 4096;
 
     public static AccountIngressPolicy Default { get; } = new(
         LoginPermitLimit: 10,
         LoginWindow: TimeSpan.FromMinutes(1),
         RegistrationPermitLimit: 5,
-        RegistrationWindow: TimeSpan.FromMinutes(1));
+        RegistrationWindow: TimeSpan.FromMinutes(1),
+        LogoutPermitLimit: 5,
+        LogoutWindow: TimeSpan.FromMinutes(1));
 
     public RateLimitPartition<string> LoginPartition(HttpContext context)
         => Partition(context, LoginPermitLimit, LoginWindow);
@@ -24,10 +30,21 @@ internal sealed record AccountIngressPolicy(
     public RateLimitPartition<string> RegistrationPartition(HttpContext context)
         => Partition(context, RegistrationPermitLimit, RegistrationWindow);
 
+    public RateLimitPartition<string> LogoutPartition(HttpContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        var subjectId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var partitionKey = string.IsNullOrEmpty(subjectId)
+            ? ClientPartitionKey(context)
+            : $"subject:{subjectId}";
+        return Partition(context, LogoutPermitLimit, LogoutWindow, partitionKey);
+    }
+
     private static RateLimitPartition<string> Partition(
         HttpContext context,
         int permitLimit,
-        TimeSpan window)
+        TimeSpan window,
+        string? partitionKey = null)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -36,8 +53,7 @@ internal sealed record AccountIngressPolicy(
             return RateLimitPartition.GetNoLimiter("read");
         }
 
-        var partitionKey = context.Connection.RemoteIpAddress?.ToString()
-            ?? "unknown-client";
+        partitionKey ??= ClientPartitionKey(context);
         return RateLimitPartition.GetFixedWindowLimiter(
             partitionKey,
             _ => new FixedWindowRateLimiterOptions
@@ -48,6 +64,11 @@ internal sealed record AccountIngressPolicy(
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 Window = window,
             });
+    }
+
+    private static string ClientPartitionKey(HttpContext context)
+    {
+        return $"client:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
     }
 }
 

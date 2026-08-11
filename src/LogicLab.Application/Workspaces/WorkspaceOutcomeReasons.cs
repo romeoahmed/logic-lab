@@ -2,7 +2,7 @@ using LogicLab.Engine.Simulation;
 
 namespace LogicLab.Application.Workspaces;
 
-internal static class WorkspaceOutcomeReasons
+public static class WorkspaceOutcomeReasons
 {
     public const string AuthenticationRequired = "authentication_required";
     public const string HotSwapIncompatible = "hot_swap_incompatible";
@@ -29,7 +29,7 @@ internal static class WorkspaceOutcomeReasons
     public const string WorkspaceExpired = "workspace_expired";
     public const string WorkspaceNotFound = "workspace_not_found";
 
-    public static RetryDisposition RetryFor(string code)
+    internal static RetryDisposition RetryFor(string code)
     {
         return code switch
         {
@@ -45,7 +45,7 @@ internal static class WorkspaceOutcomeReasons
         };
     }
 
-    public static string FromSimulation(SimulationFailureReason reason)
+    internal static string FromSimulation(SimulationFailureReason reason)
     {
         return reason switch
         {

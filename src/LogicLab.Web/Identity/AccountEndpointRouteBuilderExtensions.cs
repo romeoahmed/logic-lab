@@ -2,6 +2,7 @@ using System.Security.Claims;
 using LogicLab.Web.Data;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 
 namespace LogicLab.Web.Identity;
 
@@ -34,6 +35,11 @@ internal static class AccountEndpointRouteBuilderExtensions
                     return Results.LocalRedirect("~/");
                 })
             .RequireAuthorization()
-            .WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+            .WithMetadata(new RequestSizeLimitAttribute(
+                AccountIngressPolicy.MaximumRequestBodyBytes))
+            .WithMetadata(new RequireAntiforgeryTokenAttribute(true))
+            .RequireRateLimiting(AccountIngressPolicy.LogoutRateLimitPolicyName)
+            .WithMetadata(new RateLimitProblemDetailsMetadata(
+                LogicLabProblemDetails.AuthenticationRateLimitExceededCode));
     }
 }

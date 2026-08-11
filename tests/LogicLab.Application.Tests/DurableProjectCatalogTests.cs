@@ -1,4 +1,7 @@
+using System.Diagnostics;
 using LogicLab.Application.Workspaces;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LogicLab.Application.Tests;
 
@@ -317,11 +320,54 @@ internal sealed class DurableProjectCatalogTests
         await Assert.That(rejected.Reason).IsEqualTo(expectedReason);
     }
 
+    [Test]
+    public async Task ListAsync_RepositoryDefect_LogsClosedOutcomeWithCurrentTrace()
+    {
+        using var activity = new Activity("durable-catalog-test")
+            .SetIdFormat(ActivityIdFormat.W3C)
+            .Start();
+        using var loggerFactory = new RecordingLoggerFactory();
+        using var cancellation = new CancellationTokenSource();
+        var repository = new RecordingCatalogRepository(
+            FailureKind.Defect,
+            cancellation);
+        var catalog = CreateCatalog(
+            repository,
+            new RecordingCursorProtector(),
+            loggerFactory);
+
+        var outcome = await catalog.ListAsync(
+            Subject,
+            new DurableProjectPageRequest(2, null),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<DurableProjectListRejected>())!;
+        var log = loggerFactory.Entries.Single(entry => entry.EventId.Id == 1101);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason)
+                .IsEqualTo("project_catalog_internal_defect");
+            await Assert.That(log.Level).IsEqualTo(LogLevel.Error);
+            await Assert.That(log.Exception).IsTypeOf<InvalidOperationException>();
+            await Assert.That(log.Properties["Correlation"])
+                .IsEqualTo(activity.TraceId.ToHexString());
+            await Assert.That(log.Properties["Stage"]).IsEqualTo("repository");
+            await Assert.That(log.Properties["OutcomeCode"])
+                .IsEqualTo(rejected.Reason);
+        }
+    }
+
     private static IDurableProjectCatalog CreateCatalog(
         IDurableProjectCatalogRepository repository,
-        IProjectCatalogCursorProtector protector)
+        IProjectCatalogCursorProtector protector,
+        ILoggerFactory? loggerFactory = null)
     {
-        return DurableProjectCatalogFactory.Create(Policy(), repository, protector);
+        return DurableProjectCatalogFactory.Create(
+            Policy(),
+            repository,
+            protector,
+            loggerFactory ?? NullLoggerFactory.Instance);
     }
 
     private static WorkspacePolicy Policy()

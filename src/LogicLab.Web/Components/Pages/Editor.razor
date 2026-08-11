@@ -18,12 +18,21 @@
                 <h1 id="workspace-recovery-title">@AttachmentFailure.Title</h1>
                 <p class="workspace-recovery-description">@AttachmentFailure.Description</p>
                 <div class="workspace-recovery-actions">
-                    <a class="recovery-primary"
-                       data-recovery="projects"
-                       href="/projects">View Durable Projects</a>
-                    <a class="recovery-secondary"
-                       data-recovery="sandbox"
-                       href="/editor">Start a new Sandbox</a>
+                    @if (AttachmentFailure.Code == WorkspaceOutcomeReasons.BuildFingerprintMismatch)
+                    {
+                        <FluentButton data-recovery="reload"
+                                      Appearance="ButtonAppearance.Primary"
+                                      OnClick="ReloadApplication">Reload Logic Lab</FluentButton>
+                    }
+                    else
+                    {
+                        <a class="recovery-primary"
+                           data-recovery="projects"
+                           href="/projects">View Durable Projects</a>
+                        <a class="recovery-secondary"
+                           data-recovery="sandbox"
+                           href="/editor">Start a new Sandbox</a>
+                    }
                 </div>
                 <p class="workspace-error-code">Error code: <code>@AttachmentFailure.Code</code></p>
             </FluentCard>

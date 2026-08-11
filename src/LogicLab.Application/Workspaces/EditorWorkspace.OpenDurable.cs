@@ -1,4 +1,5 @@
 using LogicLab.Application.Work;
+using Microsoft.Extensions.Logging;
 
 namespace LogicLab.Application.Workspaces;
 
@@ -21,6 +22,7 @@ internal sealed partial class EditorWorkspace
         }
 
         var hasReservation = true;
+        var stage = "load";
         try
         {
             var load = await durableProjectLoader.LoadAsync(
@@ -43,6 +45,7 @@ internal sealed partial class EditorWorkspace
                 return RejectOpen(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
             }
 
+            stage = "bootstrap";
             var revision = found.ProjectRevision;
             var id = WorkspaceId.Create();
             var generation = new CompilationGeneration(1);
@@ -62,6 +65,7 @@ internal sealed partial class EditorWorkspace
             };
             var compilationCompleted = new TaskCompletionSource(
                 TaskCreationOptions.RunContinuationsAsynchronously);
+            stage = "compilation-admission";
             if (!workCoordinator.TryScheduleCompilation(
                     id,
                     context => CompileRetainedAsync(
@@ -79,6 +83,7 @@ internal sealed partial class EditorWorkspace
                 return RejectOpen(rejectionReason!);
             }
 
+            stage = "compilation";
             using (cancellationToken.Register(
                 static state => ((WorkCoordinator.ScheduledCompilationWork)state!).Cancel(),
                 scheduledCompilation!))
@@ -98,6 +103,7 @@ internal sealed partial class EditorWorkspace
             // Bootstrap transitions are not observable until publication. The first visible
             // snapshot therefore starts at the initial Projection Version.
             state.ProjectionVersion = 1;
+            stage = "publication";
             lock (gate)
             {
                 workspaceReservations--;
@@ -130,9 +136,16 @@ internal sealed partial class EditorWorkspace
         }
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
-            return RejectOpen(ExceptionClassifier.IsInfrastructureFailure(exception)
+            var code = ExceptionClassifier.IsInfrastructureFailure(exception)
                 ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
-                : WorkspaceOutcomeReasons.WorkspaceInternalDefect);
+                : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
+            LogDurableOpenFailure(
+                logger,
+                exception,
+                ApplicationCorrelation.CurrentOrCreate(),
+                stage,
+                code);
+            return RejectOpen(code);
         }
         finally
         {
@@ -142,6 +155,17 @@ internal sealed partial class EditorWorkspace
             }
         }
     }
+
+    [LoggerMessage(
+        EventId = 1006,
+        Level = LogLevel.Error,
+        Message = "Durable Project open failed with correlation {Correlation}, stage {Stage}, and outcome {OutcomeCode}.")]
+    private static partial void LogDurableOpenFailure(
+        ILogger logger,
+        Exception exception,
+        string correlation,
+        string stage,
+        string outcomeCode);
 
     private static void DisposeUnpublishedWorkspace(WorkspaceState state)
     {
