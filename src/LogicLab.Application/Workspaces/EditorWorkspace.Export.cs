@@ -126,15 +126,17 @@ internal sealed partial class EditorWorkspace
                 ticket,
                 caller,
                 staging,
-                timeProvider.GetUtcNow().AddSeconds(ExportLifetimeSeconds),
+                ExportLifetimeSeconds,
                 succeeded.CarrierByteCount);
-            await projectExportStore.PublishAsync(publication, cancellationToken)
+            var receipt = await projectExportStore.PublishAsync(
+                    publication,
+                    cancellationToken)
                 .ConfigureAwait(false);
             published = true;
             return new ExportPrepared(
                 revision.RevisionId,
                 ticket,
-                ExportLifetimeSeconds);
+                WholeSecondsUntil(receipt.ExpiresAtUtc, timeProvider.GetUtcNow()));
         }
         catch (OperationCanceledException exception)
             when (ExceptionClassifier.IsCooperativeCancellation(
@@ -167,6 +169,18 @@ internal sealed partial class EditorWorkspace
                 }
             }
         }
+    }
+
+    private static ulong WholeSecondsUntil(
+        DateTimeOffset expiresAtUtc,
+        DateTimeOffset nowUtc)
+    {
+        if (expiresAtUtc <= nowUtc)
+        {
+            return 0;
+        }
+
+        return checked((ulong)((expiresAtUtc - nowUtc).Ticks / TimeSpan.TicksPerSecond));
     }
 
     private static WorkspaceCommandRejected ProjectFormatRejected(

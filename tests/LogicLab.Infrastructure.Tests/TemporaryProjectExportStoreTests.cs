@@ -28,7 +28,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
                 ticket,
                 AnonymousWorkspaceCaller.Instance,
                 staging,
-                timeProvider.GetUtcNow().AddMinutes(5)),
+                300),
             cancellationToken);
 
         await Assert.That(() => staging.Content)
@@ -82,7 +82,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
                 ticket,
                 owner,
                 staging,
-                timeProvider.GetUtcNow().AddMinutes(5)),
+                300),
             cancellationToken);
 
         var unauthorized = await store.RedeemAsync(
@@ -148,7 +148,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
                 ticket,
                 AnonymousWorkspaceCaller.Instance,
                 staging,
-                timeProvider.GetUtcNow().AddMinutes(5)),
+                300),
             cancellationToken);
 
         var request = new ProjectExportDownloadRequest(
@@ -186,7 +186,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
                 ticket,
                 AnonymousWorkspaceCaller.Instance,
                 staging,
-                timeProvider.GetUtcNow().AddSeconds(1)),
+                1),
             cancellationToken);
         timeProvider.Advance(TimeSpan.FromSeconds(1));
 
@@ -231,7 +231,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
         ExportTicket ticket,
         WorkspaceCaller caller,
         IProjectExportStaging staging,
-        DateTimeOffset expiresAtUtc) =>
+        ulong expiresAfterSeconds) =>
         new(
             workspaceId,
             ((ProjectGenesisCommitted)ProjectEditor.Begin(
@@ -246,7 +246,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
             ticket,
             caller,
             staging,
-            expiresAtUtc,
+            expiresAfterSeconds,
             checked((ulong)staging.Content.Length));
 
     private static AnonymousBrowserWorkspaceCaller AnonymousBrowserCaller(

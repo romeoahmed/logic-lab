@@ -64,7 +64,7 @@ public sealed record ProjectExportPublication
         ExportTicket exportTicket,
         WorkspaceCaller authorizedCaller,
         IProjectExportStaging staging,
-        DateTimeOffset expiresAtUtc,
+        ulong expiresAfterSeconds,
         ulong carrierByteCount)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
@@ -72,12 +72,20 @@ public sealed record ProjectExportPublication
         ArgumentNullException.ThrowIfNull(exportTicket);
         ArgumentNullException.ThrowIfNull(authorizedCaller);
         ArgumentNullException.ThrowIfNull(staging);
+        if (expiresAfterSeconds == 0
+            || expiresAfterSeconds > (ulong)(long.MaxValue / TimeSpan.TicksPerSecond))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(expiresAfterSeconds),
+                "An export publication lifetime must be a representable positive duration.");
+        }
+
         WorkspaceId = workspaceId;
         ProjectRevisionId = projectRevisionId;
         ExportTicket = exportTicket;
         AuthorizedCaller = authorizedCaller;
         Staging = staging;
-        ExpiresAtUtc = expiresAtUtc;
+        ExpiresAfterSeconds = expiresAfterSeconds;
         CarrierByteCount = carrierByteCount;
     }
 
@@ -91,17 +99,19 @@ public sealed record ProjectExportPublication
 
     public IProjectExportStaging Staging { get; }
 
-    public DateTimeOffset ExpiresAtUtc { get; }
+    public ulong ExpiresAfterSeconds { get; }
 
     public ulong CarrierByteCount { get; }
 }
+
+public sealed record ProjectExportPublished(DateTimeOffset ExpiresAtUtc);
 
 public interface IProjectExportStore
 {
     ValueTask<IProjectExportStaging> CreateStagingAsync(
         CancellationToken cancellationToken);
 
-    ValueTask PublishAsync(
+    ValueTask<ProjectExportPublished> PublishAsync(
         ProjectExportPublication publication,
         CancellationToken cancellationToken);
 
