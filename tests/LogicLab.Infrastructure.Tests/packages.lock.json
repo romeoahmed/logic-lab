@@ -237,6 +237,7 @@
         "dependencies": {
           "LogicLab.Domain": "[1.0.0, )",
           "LogicLab.Engine": "[1.0.0, )",
+          "LogicLab.ProjectFormat": "[1.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.10, )"
         }
       },
@@ -257,6 +258,12 @@
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.10, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.10, )",
           "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )"
+        }
+      },
+      "logiclab.projectformat": {
+        "type": "Project",
+        "dependencies": {
+          "LogicLab.Domain": "[1.0.0, )"
         }
       },
       "Microsoft.EntityFrameworkCore.Sqlite": {

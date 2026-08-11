@@ -13,6 +13,37 @@ namespace LogicLab.Web.Tests;
 
 internal sealed class WorkbenchComponentTests
 {
+    [Test]
+    public async Task Editor_PrepareExport_ProjectsOneTimeDownloadLink()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new PreparedExportWorkspace();
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "export"));
+
+        await ClickAndWaitForState(
+            rendered,
+            "export",
+            () => rendered.FindAll("[data-export-download]").Count == 1);
+
+        var link = rendered.Find("[data-export-download]");
+        var command = (await Assert.That(workspace.Command).IsTypeOf<PrepareExport>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(command.ProjectRevisionId)
+                .IsEqualTo(command.Precondition.ProjectRevisionId);
+            await Assert.That(link.GetAttribute("href"))
+                .IsEqualTo("/downloads/export-ticket-component-0001");
+            await Assert.That(link.GetAttribute("download"))
+                .IsEqualTo("logiclab-project.logiclab");
+            await Assert.That(rendered.Markup).Contains("Export prepared for 300 seconds");
+        }
+    }
+
     [Test, Timeout(30_000)]
     public async Task Editor_PendingCompilation_DisposalCancelsWait(
         CancellationToken cancellationToken)
@@ -707,6 +738,28 @@ internal sealed class WorkbenchComponentTests
         }
 
         public void Release() => release.TrySetResult();
+    }
+
+    private sealed class PreparedExportWorkspace : DelegatingEditorWorkspace
+    {
+        public WorkspaceCommand? Command { get; private set; }
+
+        public override Task<WorkspaceCommandOutcome> DispatchAsync(
+            WorkspaceCommand command,
+            CancellationToken cancellationToken)
+        {
+            if (command is not PrepareExport prepare)
+            {
+                return base.DispatchAsync(command, cancellationToken);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            Command = command;
+            return Task.FromResult<WorkspaceCommandOutcome>(new ExportPrepared(
+                prepare.ProjectRevisionId,
+                new ExportTicket("export-ticket-component-0001"),
+                300));
+        }
     }
 
     private sealed class BlockingCompilationObservationWorkspace : DelegatingEditorWorkspace

@@ -98,6 +98,14 @@
   border-block-end: 1px solid var(--ll-border);
 }
 
+.export-download {
+  display: inline-flex;
+  margin: 0 1rem 1rem;
+  color: var(--ll-signal);
+  font-weight: 700;
+  text-underline-offset: 0.2em;
+}
+
 .workbench-body {
   display: grid;
   grid-template-columns: minmax(17rem, 20rem) minmax(0, 1fr);

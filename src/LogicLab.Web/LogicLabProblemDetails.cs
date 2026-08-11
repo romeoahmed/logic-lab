@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using LogicLab.Application.Workspaces;
 using LogicLab.Engine.Compilation;
+using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LogicLab.Web;
@@ -63,6 +64,9 @@ internal static class LogicLabProblemDetails
             ProjectOpenMethodNotAllowedCode => (
                 StatusCodes.Status405MethodNotAllowed,
                 "The request method is not supported for project opening"),
+            ProjectExportEndpointRouteBuilderExtensions.MethodNotAllowedCode => (
+                StatusCodes.Status405MethodNotAllowed,
+                "The request method is not supported for export download"),
             AntiforgeryValidationFailedCode => (
                 StatusCodes.Status400BadRequest,
                 "Antiforgery validation failed"),
@@ -74,6 +78,8 @@ internal static class LogicLabProblemDetails
                 "Authentication is required"),
             WorkspaceOutcomeReasons.WorkspaceNotFound or ForbiddenCode =>
                 (StatusCodes.Status404NotFound, "The requested resource was not found"),
+            WorkspaceOutcomeReasons.ExportExpired =>
+                (StatusCodes.Status404NotFound, "The export is unavailable"),
             DurableProjectCatalogOutcomeReasons.RequestInvalid => (
                 StatusCodes.Status422UnprocessableEntity,
                 "The project catalog request is invalid"),

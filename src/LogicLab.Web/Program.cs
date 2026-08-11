@@ -2,11 +2,13 @@ using System.Globalization;
 using System.Threading.RateLimiting;
 using LogicLab.Application.Workspaces;
 using LogicLab.Infrastructure.Persistence;
+using LogicLab.Infrastructure.Transfers;
 using LogicLab.Web;
 using LogicLab.Web.Components;
 using LogicLab.Web.Data;
 using LogicLab.Web.Identity;
 using LogicLab.Web.Projects;
+using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Identity;
@@ -129,6 +131,11 @@ builder.Services.AddLogicLabSqlitePersistence(
 builder.Services.AddDataProtection();
 builder.Services.AddSingleton<IProjectCatalogCursorProtector,
     DataProtectionProjectCatalogCursorProtector>();
+builder.Services.AddSingleton<TemporaryProjectExportStore>();
+builder.Services.AddSingleton<IProjectExportStore>(services =>
+    services.GetRequiredService<TemporaryProjectExportStore>());
+builder.Services.AddSingleton<IProjectExportDownloads>(services =>
+    services.GetRequiredService<TemporaryProjectExportStore>());
 builder.Services.AddSingleton<IDurableProjectCatalog>(services =>
     DurableProjectCatalogFactory.Create(
         workspacePolicy,
@@ -145,6 +152,8 @@ builder.Services.AddSingleton<IEditorWorkspace>(services =>
             services.GetRequiredService<IDurableProjectRepository>(),
         durableProjectLoader:
             services.GetRequiredService<IDurableProjectLoader>(),
+        projectExportStore:
+            services.GetRequiredService<IProjectExportStore>(),
         buildFingerprint: LogicLabWebBuild.Fingerprint));
 builder.Services.AddFluentUIComponents();
 builder.Services.AddRazorComponents()
@@ -176,6 +185,7 @@ app.Use(next =>
 app.MapStaticAssets();
 app.MapLogicLabAccountEndpoints();
 app.MapDurableProjectEndpoints();
+app.MapProjectExportEndpoints();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode(options =>
         options.DisableWebSocketCompression = true)

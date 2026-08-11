@@ -11,6 +11,10 @@
                           Disabled="@(!CanAuthor || IsBusy)"
                           Loading="@(ActiveCommand is "author")"
                           OnClick="OnAuthor">Author circuit</FluentButton>
+            <FluentButton data-command="export"
+                          Disabled="@(!CanPrepareExport || IsBusy)"
+                          Loading="@(ActiveCommand is "export")"
+                          OnClick="OnPrepareExport">Prepare export</FluentButton>
         </div>
     </div>
     <div class="command-cluster" role="group" aria-label="Example authoring commands">
@@ -70,6 +74,9 @@
     public bool CanAuthor { get; set; }
 
     [Parameter]
+    public bool CanPrepareExport { get; set; }
+
+    [Parameter]
     public bool CanAuthorSteering { get; set; }
 
     [Parameter]
@@ -98,6 +105,9 @@
 
     [Parameter]
     public EventCallback OnAuthor { get; set; }
+
+    [Parameter]
+    public EventCallback OnPrepareExport { get; set; }
 
     [Parameter]
     public EventCallback OnAuthorSteering { get; set; }
