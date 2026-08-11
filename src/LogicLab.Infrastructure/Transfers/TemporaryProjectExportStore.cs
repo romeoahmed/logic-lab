@@ -13,7 +13,9 @@ public sealed class TemporaryProjectExportStore :
         | UnixFileMode.UserExecute;
     private const UnixFileMode StagingFileMode =
         UnixFileMode.UserRead | UnixFileMode.UserWrite;
-    private readonly Lock gate = new();
+#pragma warning disable CA2213 // No wait handle is created; disposal could race queued store calls.
+    private readonly SemaphoreSlim gate = new(1, 1);
+#pragma warning restore CA2213
     private readonly Dictionary<string, PublishedExport> exportsByTicket =
         new(StringComparer.Ordinal);
     private readonly Dictionary<WorkspaceId, string> ticketsByWorkspace = [];
@@ -54,36 +56,38 @@ public sealed class TemporaryProjectExportStore :
     }
 
 #pragma warning disable CA2000 // Ownership of both resources transfers through IProjectExportStaging.
-    public ValueTask<IProjectExportStaging> CreateStagingAsync(
+    public async ValueTask<IProjectExportStaging> CreateStagingAsync(
         CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        lock (gate)
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
             ObjectDisposedException.ThrowIf(isDisposed, this);
-        }
+            var path = Path.Combine(
+                stagingDirectory,
+                $"logiclab-export-{Guid.CreateVersion7():N}.tmp");
+            var options = new FileStreamOptions
+            {
+                Access = FileAccess.ReadWrite,
+                BufferSize = 64 * 1024,
+                Mode = FileMode.CreateNew,
+                Options = FileOptions.Asynchronous
+                    | FileOptions.SequentialScan
+                    | FileOptions.DeleteOnClose,
+                Share = FileShare.None,
+            };
+            if (!OperatingSystem.IsWindows())
+            {
+                options.UnixCreateMode = StagingFileMode;
+            }
 
-        var path = Path.Combine(
-            stagingDirectory,
-            $"logiclab-export-{Guid.CreateVersion7():N}.tmp");
-        var options = new FileStreamOptions
-        {
-            Access = FileAccess.ReadWrite,
-            BufferSize = 64 * 1024,
-            Mode = FileMode.CreateNew,
-            Options = FileOptions.Asynchronous
-                | FileOptions.SequentialScan
-                | FileOptions.DeleteOnClose,
-            Share = FileShare.None,
-        };
-        if (!OperatingSystem.IsWindows())
-        {
-            options.UnixCreateMode = StagingFileMode;
+            var stream = new FileStream(path, options);
+            return new TemporaryProjectExportStaging(stream);
         }
-
-        var stream = new FileStream(path, options);
-        return ValueTask.FromResult<IProjectExportStaging>(
-            new TemporaryProjectExportStaging(stream));
+        finally
+        {
+            gate.Release();
+        }
     }
 #pragma warning restore CA2000
 
@@ -100,11 +104,13 @@ public sealed class TemporaryProjectExportStore :
         }
 
         await staging.Content.FlushAsync(cancellationToken).ConfigureAwait(false);
+        var carrierByteCount = checked((ulong)staging.Content.Length);
         List<PublishedExport> retired = [];
         ProjectExportPublicationOutcome outcome;
         try
         {
-            lock (gate)
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
             {
                 ObjectDisposedException.ThrowIf(isDisposed, this);
                 var now = timeProvider.GetUtcNow();
@@ -134,10 +140,10 @@ public sealed class TemporaryProjectExportStore :
                 var retainedExportCount = exportsByTicket.Count
                     - (previous is null ? 0 : 1);
                 var retainedCarrierBytes = publishedCarrierBytes
-                    - (previous?.Publication.CarrierByteCount ?? 0);
+                    - (previous?.CarrierByteCount ?? 0);
                 var exceedsCount = retainedExportCount
                     >= policy.MaximumPublishedExports;
-                var exceedsBytes = publication.CarrierByteCount
+                var exceedsBytes = carrierByteCount
                     > policy.MaximumPublishedCarrierBytes - retainedCarrierBytes;
                 if (exceedsCount || exceedsBytes)
                 {
@@ -147,14 +153,15 @@ public sealed class TemporaryProjectExportStore :
                 else
                 {
                     var replacementCarrierBytes = checked(
-                        retainedCarrierBytes + publication.CarrierByteCount);
+                        retainedCarrierBytes + carrierByteCount);
                     var publishedAtUtc = timeProvider.GetUtcNow();
                     var expiresAtUtc = publishedAtUtc.Add(
                         Lifetime(publication.ExpiresAfterSeconds));
                     var published = new PublishedExport(
                         publication,
                         staging,
-                        expiresAtUtc);
+                        expiresAtUtc,
+                        carrierByteCount);
                     staging.Register();
                     exportsByTicket.Add(publication.ExportTicket.Value, published);
                     ticketsByWorkspace[publication.WorkspaceId] =
@@ -173,6 +180,10 @@ public sealed class TemporaryProjectExportStore :
 
                 ScheduleNextExpiryUnderLock(now);
             }
+            finally
+            {
+                gate.Release();
+            }
         }
         finally
         {
@@ -187,26 +198,42 @@ public sealed class TemporaryProjectExportStore :
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        cancellationToken.ThrowIfCancellationRequested();
         PublishedExport? redeemed = null;
-        List<PublishedExport> retired;
-        lock (gate)
+        List<PublishedExport> retired = [];
+        try
         {
-            ObjectDisposedException.ThrowIf(isDisposed, this);
-            var now = timeProvider.GetUtcNow();
-            retired = RemoveExpiredUnderLock(now);
-            if (exportsByTicket.TryGetValue(
-                    request.ExportTicket.Value,
-                    out var candidate)
-                && candidate.Publication.AuthorizedCaller == request.Caller)
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
             {
-                redeemed = RemoveUnderLock(request.ExportTicket.Value);
+                ObjectDisposedException.ThrowIf(isDisposed, this);
+                var now = timeProvider.GetUtcNow();
+                retired = RemoveExpiredUnderLock(now);
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (exportsByTicket.TryGetValue(
+                            request.ExportTicket.Value,
+                            out var candidate)
+                        && candidate.Publication.AuthorizedCaller == request.Caller)
+                    {
+                        redeemed = RemoveUnderLock(request.ExportTicket.Value);
+                    }
+                }
+                finally
+                {
+                    ScheduleNextExpiryUnderLock(now);
+                }
             }
-
-            ScheduleNextExpiryUnderLock(now);
+            finally
+            {
+                gate.Release();
+            }
+        }
+        finally
+        {
+            await DisposeAllSilentlyAsync(retired).ConfigureAwait(false);
         }
 
-        await DisposeAllSilentlyAsync(retired).ConfigureAwait(false);
         if (redeemed is null)
         {
             return new ProjectExportDownloadRejected(
@@ -217,13 +244,14 @@ public sealed class TemporaryProjectExportStore :
         content.Position = 0;
         return new ProjectExportDownloaded(
             content,
-            redeemed.Publication.CarrierByteCount);
+            redeemed.CarrierByteCount);
     }
 
     public async ValueTask DisposeAsync()
     {
         PublishedExport[] retired;
-        lock (gate)
+        await gate.WaitAsync().ConfigureAwait(false);
+        try
         {
             if (isDisposed)
             {
@@ -239,6 +267,10 @@ public sealed class TemporaryProjectExportStore :
             ticketsByWorkspace.Clear();
             publishedCarrierBytes = 0;
         }
+        finally
+        {
+            gate.Release();
+        }
 
         await expirationTimer.DisposeAsync().ConfigureAwait(false);
         await DisposeAllSilentlyAsync(retired).ConfigureAwait(false);
@@ -250,7 +282,8 @@ public sealed class TemporaryProjectExportStore :
     private void ExpireDue()
     {
         List<PublishedExport> retired;
-        lock (gate)
+        gate.Wait();
+        try
         {
             if (isDisposed)
             {
@@ -260,6 +293,10 @@ public sealed class TemporaryProjectExportStore :
             var now = timeProvider.GetUtcNow();
             retired = RemoveExpiredUnderLock(now);
             ScheduleNextExpiryUnderLock(now);
+        }
+        finally
+        {
+            gate.Release();
         }
 
         DisposeAllSilently(retired);
@@ -304,7 +341,7 @@ public sealed class TemporaryProjectExportStore :
         }
 
         publishedCarrierBytes = checked(
-            publishedCarrierBytes - removed.Publication.CarrierByteCount);
+            publishedCarrierBytes - removed.CarrierByteCount);
 
         if (ticketsByWorkspace.TryGetValue(
                 removed.Publication.WorkspaceId,
@@ -420,7 +457,8 @@ public sealed class TemporaryProjectExportStore :
     private sealed record PublishedExport(
         ProjectExportPublication Publication,
         TemporaryProjectExportStaging Staging,
-        DateTimeOffset ExpiresAtUtc);
+        DateTimeOffset ExpiresAtUtc,
+        ulong CarrierByteCount);
 
     private sealed class TemporaryProjectExportStaging(FileStream content) :
         IProjectExportStaging

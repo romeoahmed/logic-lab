@@ -78,8 +78,7 @@ public sealed record ProjectExportPublication
         ExportTicket exportTicket,
         WorkspaceCaller authorizedCaller,
         IProjectExportStaging staging,
-        ulong expiresAfterSeconds,
-        ulong carrierByteCount)
+        ulong expiresAfterSeconds)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(exportTicket);
@@ -98,7 +97,6 @@ public sealed record ProjectExportPublication
         AuthorizedCaller = authorizedCaller;
         Staging = staging;
         ExpiresAfterSeconds = expiresAfterSeconds;
-        CarrierByteCount = carrierByteCount;
     }
 
     public WorkspaceId WorkspaceId { get; }
@@ -110,8 +108,6 @@ public sealed record ProjectExportPublication
     public IProjectExportStaging Staging { get; }
 
     public ulong ExpiresAfterSeconds { get; }
-
-    public ulong CarrierByteCount { get; }
 }
 
 public abstract record ProjectExportPublicationOutcome

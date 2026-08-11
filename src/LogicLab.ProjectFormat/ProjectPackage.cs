@@ -51,9 +51,27 @@ public static class ProjectPackage
                     domainBreach);
             }
 
-            var projectBytes = CanonicalProjectJson.Write(
+            var projectByteCount = CanonicalProjectJson.Measure(
                 request.ProjectRevision.Document,
                 observations,
+                request.PackagePolicy,
+                cancellationToken);
+            ObserveProjectPart(projectByteCount, observations);
+            var projectBreach = FindBreach(
+                request.PackagePolicy,
+                observations,
+                includeCarrier: false);
+            if (projectBreach is not null)
+            {
+                return LimitRejected(
+                    request.PackagePolicy,
+                    observations,
+                    projectBreach);
+            }
+
+            var projectBytes = CanonicalProjectJson.Write(
+                request.ProjectRevision.Document,
+                projectByteCount,
                 cancellationToken);
             var parts = new List<PackagePart>
             {
@@ -83,13 +101,14 @@ public static class ProjectPackage
                 "logiclab-project-content-v1\0",
                 parts,
                 cancellationToken);
-            var manifestBytes = WriteManifest(
+            var manifestByteCount = MeasureManifest(
                 parts,
                 packageDigest,
                 observations,
+                request.PackagePolicy,
                 cancellationToken);
             ObservePackage(
-                manifestBytes,
+                manifestByteCount,
                 parts,
                 observations,
                 cancellationToken);
@@ -105,6 +124,12 @@ public static class ProjectPackage
                     observations,
                     preflightBreach);
             }
+
+            var manifestBytes = WriteManifest(
+                parts,
+                packageDigest,
+                manifestByteCount,
+                cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
             var countingDestination = new CountingWriteStream(request.Destination);
@@ -152,6 +177,13 @@ public static class ProjectPackage
                 [],
                 observations,
                 null);
+        }
+        catch (PackagePolicyLimitException exception)
+        {
+            return LimitRejected(
+                request.PackagePolicy,
+                observations,
+                exception.Breach);
         }
         catch (DestinationWriteException)
         {
@@ -226,56 +258,71 @@ public static class ProjectPackage
         return bytes;
     }
 
-    private static byte[] WriteManifest(
+    private static ulong MeasureManifest(
         IReadOnlyList<PackagePart> parts,
         string packageDigest,
         ulong[] observations,
+        PackagePolicy policy,
+        CancellationToken cancellationToken)
+    {
+        return CanonicalJson.Measure(
+            writer => WriteManifestDocument(
+                writer,
+                parts,
+                packageDigest,
+                cancellationToken),
+            observations,
+            policy,
+            cancellationToken);
+    }
+
+    private static byte[] WriteManifest(
+        IReadOnlyList<PackagePart> parts,
+        string packageDigest,
+        ulong measuredByteCount,
+        CancellationToken cancellationToken)
+    {
+        return CanonicalJson.Write(
+            writer => WriteManifestDocument(
+                writer,
+                parts,
+                packageDigest,
+                cancellationToken),
+            measuredByteCount,
+            cancellationToken);
+    }
+
+    private static void WriteManifestDocument(
+        CanonicalJsonWriter writer,
+        IReadOnlyList<PackagePart> parts,
+        string packageDigest,
         CancellationToken cancellationToken)
     {
         var projectPart = parts.Single(part => part.Path == "project.json");
-        var buffer = new ArrayBufferWriter<byte>();
-        using (var utf8Writer = new Utf8JsonWriter(
-            buffer,
-            new JsonWriterOptions
-            {
-                Indented = false,
-                SkipValidation = false,
-            }))
+        writer.WriteStartObject();
+        writer.WriteString("format", "logiclab");
+        writer.WriteNumber("schemaVersion", 1);
+        writer.WritePropertyName("projectPart");
+        WriteManifestPart(writer, projectPart);
+        writer.WritePropertyName("memoryParts");
+        writer.WriteStartArray();
+        foreach (var part in parts
+                     .Where(part => part.MemoryImageId is not null)
+                     .OrderBy(part => part.MemoryImageId, StringComparer.Ordinal)
+                     .ThenBy(part => part.Path, StringComparer.Ordinal))
         {
-            var writer = new CanonicalJsonWriter(
-                utf8Writer,
-                observations,
-                cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             writer.WriteStartObject();
-            writer.WriteString("format", "logiclab");
-            writer.WriteNumber("schemaVersion", 1);
-            writer.WritePropertyName("projectPart");
-            WriteManifestPart(writer, projectPart);
-            writer.WritePropertyName("memoryParts");
-            writer.WriteStartArray();
-            foreach (var part in parts
-                         .Where(part => part.MemoryImageId is not null)
-                         .OrderBy(part => part.MemoryImageId, StringComparer.Ordinal)
-                         .ThenBy(part => part.Path, StringComparer.Ordinal))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                writer.WriteStartObject();
-                writer.WriteString("memoryImageId", part.MemoryImageId!);
-                writer.WriteString("path", part.Path);
-                writer.WriteNumber("length", checked((ulong)part.Bytes.Length));
-                writer.WriteString("sha256", part.HashHex);
-                writer.WriteEndObject();
-            }
-
-            writer.WriteEndArray();
-            writer.WriteString("packageDigest", packageDigest);
+            writer.WriteString("memoryImageId", part.MemoryImageId!);
+            writer.WriteString("path", part.Path);
+            writer.WriteNumber("length", checked((ulong)part.Bytes.Length));
+            writer.WriteString("sha256", part.HashHex);
             writer.WriteEndObject();
         }
 
-        var bytes = new byte[buffer.WrittenCount + 1];
-        buffer.WrittenSpan.CopyTo(bytes);
-        bytes[^1] = (byte)'\n';
-        return bytes;
+        writer.WriteEndArray();
+        writer.WriteString("packageDigest", packageDigest);
+        writer.WriteEndObject();
     }
 
     private static void WriteManifestPart(
@@ -362,12 +409,12 @@ public static class ProjectPackage
     }
 
     private static void ObservePackage(
-        byte[] manifestBytes,
+        ulong manifestByteCount,
         IReadOnlyList<PackagePart> parts,
         ulong[] observations,
         CancellationToken cancellationToken)
     {
-        var largestPartBytes = checked((ulong)manifestBytes.Length);
+        var largestPartBytes = manifestByteCount;
         var expandedBytes = largestPartBytes;
         foreach (var part in parts)
         {
@@ -380,6 +427,18 @@ public static class ProjectPackage
         observations[(int)PackageDimension.EntryCount] = checked((ulong)parts.Count + 1);
         observations[(int)PackageDimension.PartBytes] = largestPartBytes;
         observations[(int)PackageDimension.ExpandedBytes] = expandedBytes;
+    }
+
+    private static void ObserveProjectPart(
+        ulong projectByteCount,
+        ulong[] observations)
+    {
+        observations[(int)PackageDimension.PartBytes] = Math.Max(
+            observations[(int)PackageDimension.PartBytes],
+            projectByteCount);
+        observations[(int)PackageDimension.ExpandedBytes] = SaturatingAdd(
+            observations[(int)PackageDimension.ExpandedBytes],
+            projectByteCount);
     }
 
     private static void ObserveDomain(

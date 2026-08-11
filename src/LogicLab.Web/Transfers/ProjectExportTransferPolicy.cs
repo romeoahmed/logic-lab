@@ -5,7 +5,6 @@ namespace LogicLab.Web.Transfers;
 
 internal sealed record ProjectExportTransferPolicy
 {
-    public const string ConfigurationSectionName = "LogicLab:ProjectExports";
     public const string DownloadRateLimitPolicyName = "project-export-download";
 
     public ProjectExportTransferPolicy(
@@ -35,26 +34,6 @@ internal sealed record ProjectExportTransferPolicy
         maximumConcurrentDownloads: 8,
         downloadPermitLimit: 20,
         downloadWindow: TimeSpan.FromMinutes(1));
-
-    public static ProjectExportTransferPolicy FromConfiguration(
-        IConfiguration configuration)
-    {
-        ArgumentNullException.ThrowIfNull(configuration);
-        var defaults = Default;
-        var prefix = ConfigurationSectionName;
-        var windowSeconds = configuration.GetValue<int?>(
-            $"{prefix}:DownloadWindowSeconds");
-        return new ProjectExportTransferPolicy(
-            configuration.GetValue<int?>(
-                $"{prefix}:MaximumConcurrentDownloads")
-                ?? defaults.MaximumConcurrentDownloads,
-            configuration.GetValue<int?>(
-                $"{prefix}:DownloadPermitLimit")
-                ?? defaults.DownloadPermitLimit,
-            windowSeconds is null
-                ? defaults.DownloadWindow
-                : TimeSpan.FromSeconds(windowSeconds.Value));
-    }
 
     public RateLimitPartition<string> ConcurrentTransferPartition(
         HttpContext context)

@@ -64,14 +64,16 @@ and [`FileStreamOptions.UnixCreateMode`](https://learn.microsoft.com/en-us/dotne
 Publication is also a closed typed seam:
 
 ```text
-PublishExport(staging, WorkspaceId, ExportTicket, WorkspaceCaller, lifetime, carrierByteCount)
+PublishExport(staging, WorkspaceId, ExportTicket, WorkspaceCaller, lifetime)
   -> ExportPublished { expiresAtUtc }
    | ExportPublicationRejected { code: export_capacity_unavailable }
 ```
 
-The store atomically replaces the same Workspace's prior ticket and admits the
-candidate only when both global published-ticket and published-carrier-byte
-capacity remain available. The initial provisional bounds are 128 published
+The store flushes the store-created staging and measures its actual stream length; no
+caller declaration participates in capacity accounting. It atomically replaces
+the same Workspace's prior ticket and admits the candidate only when both
+global published-ticket and published-carrier-byte capacity remain available.
+The initial provisional bounds are 128 published
 tickets and 512 MiB of published carrier bytes. Capacity rejection does not
 take staging ownership or disturb the prior ticket; Application disposes the
 unpublished staging and returns the typed command rejection without exposing a
