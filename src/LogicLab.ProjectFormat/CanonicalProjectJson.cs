@@ -1,9 +1,5 @@
-using System.Buffers;
-using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
-using System.Text;
-using System.Text.Json;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
@@ -12,30 +8,30 @@ namespace LogicLab.ProjectFormat;
 
 internal static class CanonicalProjectJson
 {
-    public static byte[] Write(
+    public static ulong Measure(
         ProjectDocument document,
         ulong[] observations,
+        PackagePolicy policy,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var buffer = new ArrayBufferWriter<byte>();
-        using (var writer = new Utf8JsonWriter(
-            buffer,
-            new JsonWriterOptions
-            {
-                Indented = false,
-                SkipValidation = false,
-            }))
-        {
-            WriteDocument(
-                new CanonicalJsonWriter(writer, observations, cancellationToken),
-                document);
-        }
+        return CanonicalJson.Measure(
+            writer => WriteDocument(writer, document),
+            observations,
+            policy,
+            cancellationToken);
+    }
 
-        var bytes = new byte[buffer.WrittenCount + 1];
-        buffer.WrittenSpan.CopyTo(bytes);
-        bytes[^1] = (byte)'\n';
-        return bytes;
+    public static byte[] Write(
+        ProjectDocument document,
+        ulong measuredByteCount,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return CanonicalJson.Write(
+            writer => WriteDocument(writer, document),
+            measuredByteCount,
+            cancellationToken);
     }
 
     private static void WriteDocument(
@@ -256,9 +252,11 @@ internal static class CanonicalProjectJson
                 break;
             case LogicVectorParameterValue vector:
                 writer.WriteString("kind", "logicVector");
-                writer.WriteString(
-                    "bits",
-                    LogicVectorText(vector.Values, writer.CancellationToken));
+                writer.WritePropertyName("bits");
+                writer.WriteUnescapedAsciiStringValue(
+                    vector.Values.Count,
+                    index => LogicValueByte(
+                        vector.Values[vector.Values.Count - 1 - index]));
                 break;
             case WidthsParameterValue widths:
                 writer.WriteString("kind", "unsigned32List");
@@ -465,30 +463,14 @@ internal static class CanonicalProjectJson
         writer.WriteEndObject();
     }
 
-    private static string LogicVectorText(
-        ReadOnlyCollection<LogicValue> values,
-        CancellationToken cancellationToken)
+    private static byte LogicValueByte(LogicValue value) => value switch
     {
-        var text = new StringBuilder(values.Count);
-        for (var index = values.Count - 1; index >= 0; index--)
-        {
-            if ((index & 0x3ff) == 0)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-
-            text.Append(values[index] switch
-            {
-                LogicValue.Zero => '0',
-                LogicValue.One => '1',
-                LogicValue.X => 'X',
-                _ => throw new InvalidOperationException(
-                    "An authored logic vector cannot contain high impedance."),
-            });
-        }
-
-        return text.ToString();
-    }
+        LogicValue.Zero => (byte)'0',
+        LogicValue.One => (byte)'1',
+        LogicValue.X => (byte)'X',
+        _ => throw new InvalidOperationException(
+            "An authored logic vector cannot contain high impedance."),
+    };
 
     private static T[] OrderById<T>(
         IReadOnlyList<T> items,

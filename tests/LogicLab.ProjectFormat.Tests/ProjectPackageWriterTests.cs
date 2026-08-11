@@ -335,6 +335,38 @@ internal sealed class ProjectPackageWriterTests
     }
 
     [Test]
+    public async Task WriteAsync_LongStringBeyondPolicy_StopsAtFirstDisallowedScalar()
+    {
+        var revision = BeginProject(new string('x', 128 * 1_024), "Main");
+        var maximum = checked((ulong)(
+            "projectId".Length
+            + revision.Document.ProjectId.Value.Length
+            + "displayName".Length
+            + 1));
+        var limits = PackagePolicy.Development.Limits.ToArray();
+        limits[(int)PackageDimension.StringScalarCount] = new PackageLimit(
+            PackageDimension.StringScalarCount,
+            maximum);
+        var policy = new PackagePolicy("test-package", "1", limits);
+        await using var destination = new MemoryStream();
+
+        var outcome = await ProjectPackage.WriteAsync(
+            new ProjectPackageWriteRequest(revision, destination, policy),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageWriteRejected>())!;
+        var breach = (await Assert.That(rejected.Evidence.PolicyLimitBreach).IsNotNull())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("package_limit_exceeded");
+            await Assert.That(breach.Dimension)
+                .IsEqualTo(PackageDimension.StringScalarCount);
+            await Assert.That(breach.Observed).IsEqualTo(maximum + 1);
+            await Assert.That(destination.Length).IsEqualTo(0L);
+        }
+    }
+
+    [Test]
     public async Task WriteAsync_PackageLimitExactlyMet_AllowsCarrierPublication()
     {
         var revision = BeginProject("Exact limit project", "Main");

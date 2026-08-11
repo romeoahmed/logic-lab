@@ -18,6 +18,23 @@ namespace LogicLab.Web.Tests;
 internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
 {
     [Test]
+    public async Task Start_InvalidProjectExportConfiguration_FailsOptionsValidation()
+    {
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.UseSetting(
+                "LogicLab:ProjectExports:MaximumPublishedExports",
+                "0"));
+
+        await Assert.That(async () =>
+            {
+                using var client = host.CreateHttpsClient();
+                using var response = await client.GetAsync(
+                    new Uri("/", UriKind.Relative));
+            })
+            .ThrowsExactly<OptionsValidationException>();
+    }
+
+    [Test]
     public async Task HeadExport_DoesNotConsumeTicketAndReturnsMethodNotAllowed()
     {
         var downloads = new OneTimeDownloads("package-bytes"u8.ToArray());

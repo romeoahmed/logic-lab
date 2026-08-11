@@ -177,6 +177,41 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task PublishAsync_ActualStagingLengthExceedsCapacity_RejectsWithoutTakingStaging(
+        CancellationToken cancellationToken)
+    {
+        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        await using var store = new TemporaryProjectExportStore(
+            timeProvider,
+            new ProjectExportStoragePolicy(
+                maximumPublishedExports: 1,
+                maximumPublishedCarrierBytes: 3),
+            stagingDirectory);
+        var staging = await StageAsync(
+            store,
+            "four"u8.ToArray(),
+            cancellationToken);
+        var publication = new ProjectExportPublication(
+            new WorkspaceId("workspace-actual-capacity"),
+            new ExportTicket("export-ticket-actual-capacity"),
+            AnonymousBrowserCaller('f'),
+            staging,
+            expiresAfterSeconds: 300);
+
+        var outcome = await store.PublishAsync(publication, cancellationToken);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(outcome)
+                .IsEqualTo(new ProjectExportPublicationRejected(
+                    WorkspaceOutcomeReasons.ExportCapacityUnavailable));
+            await Assert.That(staging.Content.Length).IsEqualTo(4L);
+        }
+
+        await staging.DisposeAsync();
+    }
+
+    [Test]
     public async Task PublishAsync_CancelledAtReplacementCommit_PreservesPreviousTicket(
         CancellationToken cancellationToken)
     {
@@ -356,6 +391,68 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task RedeemAsync_CancelledWhileWaitingForStoreGate_DoesNotConsumeTicket(
+        CancellationToken cancellationToken)
+    {
+        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        await using var store = new TemporaryProjectExportStore(
+            timeProvider,
+            ProjectExportStoragePolicy.Default,
+            stagingDirectory);
+        var owner = AnonymousBrowserCaller('1');
+        var other = AnonymousBrowserCaller('2');
+        var ticket = new ExportTicket("export-ticket-cancelled-wait");
+        var staging = await StageAsync(
+            store,
+            "owner"u8.ToArray(),
+            cancellationToken);
+        await store.PublishAsync(
+            Publication(
+                new WorkspaceId("workspace-cancelled-wait"),
+                ticket,
+                owner,
+                staging,
+                300),
+            cancellationToken);
+        var gateEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var releaseGate = new ManualResetEventSlim();
+        timeProvider.AfterGetUtcNow = () =>
+        {
+            gateEntered.TrySetResult();
+            releaseGate.Wait();
+        };
+        var blockingRedeem = Task.Run(async () => await store.RedeemAsync(
+            new ProjectExportDownloadRequest(ticket, other),
+            CancellationToken.None));
+
+        try
+        {
+            await gateEntered.Task.WaitAsync(cancellationToken);
+            using var cancellation = new CancellationTokenSource();
+            var cancelledRedeem = store.RedeemAsync(
+                new ProjectExportDownloadRequest(ticket, owner),
+                cancellation.Token).AsTask();
+            cancellation.Cancel();
+            await Assert.That(async () => await cancelledRedeem)
+                .ThrowsExactly<OperationCanceledException>();
+        }
+        finally
+        {
+            timeProvider.AfterGetUtcNow = null;
+            releaseGate.Set();
+            _ = await blockingRedeem;
+        }
+
+        var ownerRedeem = await store.RedeemAsync(
+            new ProjectExportDownloadRequest(ticket, owner),
+            cancellationToken);
+        var downloaded = (await Assert.That(ownerRedeem)
+            .IsTypeOf<ProjectExportDownloaded>())!;
+        await downloaded.Content.DisposeAsync();
+    }
+
+    [Test]
     public async Task Expiry_WithoutAnotherStoreRequest_DeletesStaging(
         CancellationToken cancellationToken)
     {
@@ -423,8 +520,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
             ticket,
             caller,
             staging,
-            expiresAfterSeconds,
-            checked((ulong)staging.Content.Length));
+            expiresAfterSeconds);
 
     private static AnonymousBrowserWorkspaceCaller AnonymousBrowserCaller(
         char digit) =>

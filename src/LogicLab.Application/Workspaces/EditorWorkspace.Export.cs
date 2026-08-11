@@ -126,15 +126,13 @@ internal sealed partial class EditorWorkspace
                 return ProjectFormatRejected(rejected);
             }
 
-            var succeeded = (PackageWriteSucceeded)packageOutcome;
             var ticket = ExportTicket.Create();
             var publication = new ProjectExportPublication(
                 workspaceId,
                 ticket,
                 caller,
                 staging,
-                ExportLifetimeSeconds,
-                succeeded.CarrierByteCount);
+                ExportLifetimeSeconds);
             var publicationOutcome = await projectExportStore.PublishAsync(
                     publication,
                     cancellationToken)

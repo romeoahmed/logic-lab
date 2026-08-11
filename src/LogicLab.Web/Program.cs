@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.FluentUI.AspNetCore.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,27 +24,30 @@ var connectionString = builder.Configuration.GetConnectionString("LogicLab")
 var workspacePolicy = WorkspacePolicy.Default;
 var accountIngressPolicy = AccountIngressPolicy.Default;
 var durableProjectIngressPolicy = DurableProjectIngressPolicy.Default;
-var projectExportTransferPolicy = ProjectExportTransferPolicy.FromConfiguration(
-    builder.Configuration);
-var projectExportStorageDefaults = ProjectExportStoragePolicy.Default;
-var projectExportStoragePolicy = new ProjectExportStoragePolicy(
-    builder.Configuration.GetValue<int?>(
-        $"{ProjectExportTransferPolicy.ConfigurationSectionName}:MaximumPublishedExports")
-        ?? projectExportStorageDefaults.MaximumPublishedExports,
-    builder.Configuration.GetValue<ulong?>(
-        $"{ProjectExportTransferPolicy.ConfigurationSectionName}:MaximumPublishedCarrierBytes")
-        ?? projectExportStorageDefaults.MaximumPublishedCarrierBytes);
-var projectExportPreparationDefaults = ProjectExportPreparationPolicy.Default;
-var projectExportPreparationPolicy = new ProjectExportPreparationPolicy(
-    builder.Configuration.GetValue<int?>(
-        $"{ProjectExportTransferPolicy.ConfigurationSectionName}:MaximumConcurrentPreparations")
-        ?? projectExportPreparationDefaults.MaximumConcurrentPreparations);
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(workspacePolicy);
-builder.Services.AddSingleton(projectExportTransferPolicy);
-builder.Services.AddSingleton(projectExportStoragePolicy);
-builder.Services.AddSingleton(projectExportPreparationPolicy);
+builder.Services
+    .AddOptions<ProjectExportOptions>()
+    .BindConfiguration(
+        ProjectExportOptions.ConfigurationSectionName,
+        static binder => binder.ErrorOnUnknownConfiguration = true)
+    .Validate(
+        static options => options.IsValid(),
+        "Project export limits and durations must be positive.")
+    .ValidateOnStart();
+builder.Services.AddSingleton(services => services
+    .GetRequiredService<IOptions<ProjectExportOptions>>()
+    .Value
+    .CreateTransferPolicy());
+builder.Services.AddSingleton(services => services
+    .GetRequiredService<IOptions<ProjectExportOptions>>()
+    .Value
+    .CreateStoragePolicy());
+builder.Services.AddSingleton(services => services
+    .GetRequiredService<IOptions<ProjectExportOptions>>()
+    .Value
+    .CreatePreparationPolicy());
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider,
@@ -99,52 +103,54 @@ builder.Services.AddAntiforgery(options =>
 });
 builder.Services.AddAuthorization();
 builder.Services.AddProblemDetails();
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
-        projectExportTransferPolicy.ConcurrentTransferPartition);
-    options.AddPolicy<string>(
-        AccountIngressPolicy.LoginRateLimitPolicyName,
-        accountIngressPolicy.LoginPartition);
-    options.AddPolicy<string>(
-        AccountIngressPolicy.RegistrationRateLimitPolicyName,
-        accountIngressPolicy.RegistrationPartition);
-    options.AddPolicy<string>(
-        AccountIngressPolicy.LogoutRateLimitPolicyName,
-        accountIngressPolicy.LogoutPartition);
-    options.AddPolicy<string>(
-        DurableProjectIngressPolicy.OpenRateLimitPolicyName,
-        durableProjectIngressPolicy.OpenPartition);
-    options.AddPolicy<string>(
-        ProjectExportTransferPolicy.DownloadRateLimitPolicyName,
-        projectExportTransferPolicy.DownloadPartition);
-    options.OnRejected = async (context, _) =>
+builder.Services.AddRateLimiter();
+builder.Services.AddOptions<RateLimiterOptions>()
+    .Configure<ProjectExportTransferPolicy>((options, projectExportTransferPolicy) =>
     {
-        if (context.Lease.TryGetMetadata(
-                MetadataName.RetryAfter,
-                out var retryAfter))
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
+            projectExportTransferPolicy.ConcurrentTransferPartition);
+        options.AddPolicy<string>(
+            AccountIngressPolicy.LoginRateLimitPolicyName,
+            accountIngressPolicy.LoginPartition);
+        options.AddPolicy<string>(
+            AccountIngressPolicy.RegistrationRateLimitPolicyName,
+            accountIngressPolicy.RegistrationPartition);
+        options.AddPolicy<string>(
+            AccountIngressPolicy.LogoutRateLimitPolicyName,
+            accountIngressPolicy.LogoutPartition);
+        options.AddPolicy<string>(
+            DurableProjectIngressPolicy.OpenRateLimitPolicyName,
+            durableProjectIngressPolicy.OpenPartition);
+        options.AddPolicy<string>(
+            ProjectExportTransferPolicy.DownloadRateLimitPolicyName,
+            projectExportTransferPolicy.DownloadPartition);
+        options.OnRejected = async (context, _) =>
         {
-            context.HttpContext.Response.Headers[
-                Microsoft.Net.Http.Headers.HeaderNames.RetryAfter] = Math
-                    .Ceiling(retryAfter.TotalSeconds)
-                    .ToString(CultureInfo.InvariantCulture);
-        }
+            if (context.Lease.TryGetMetadata(
+                    MetadataName.RetryAfter,
+                    out var retryAfter))
+            {
+                context.HttpContext.Response.Headers[
+                    Microsoft.Net.Http.Headers.HeaderNames.RetryAfter] = Math
+                        .Ceiling(retryAfter.TotalSeconds)
+                        .ToString(CultureInfo.InvariantCulture);
+            }
 
-        var code = context.HttpContext.GetEndpoint()?.Metadata
-            .GetMetadata<RateLimitProblemDetailsMetadata>()?.Code
-            ?? LogicLabProblemDetails.AuthenticationRateLimitExceededCode;
-        if (context.HttpContext.GetEndpoint()?.Metadata
-                .GetMetadata<ProjectExportTransferMetadata>() is not null)
-        {
-            ProjectExportEndpointRouteBuilderExtensions.DisableCaching(
-                context.HttpContext);
-        }
+            var code = context.HttpContext.GetEndpoint()?.Metadata
+                .GetMetadata<RateLimitProblemDetailsMetadata>()?.Code
+                ?? LogicLabProblemDetails.AuthenticationRateLimitExceededCode;
+            if (context.HttpContext.GetEndpoint()?.Metadata
+                    .GetMetadata<ProjectExportTransferMetadata>() is not null)
+            {
+                ProjectExportEndpointRouteBuilderExtensions.DisableCaching(
+                    context.HttpContext);
+            }
 
-        await LogicLabProblemDetails.Create(context.HttpContext, code)
-            .ExecuteAsync(context.HttpContext);
-    };
-});
+            await LogicLabProblemDetails.Create(context.HttpContext, code)
+                .ExecuteAsync(context.HttpContext);
+        };
+    });
 builder.Services.AddDbContext<ApplicationIdentityDbContext>(options =>
     options.UseSqlite(connectionString));
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
