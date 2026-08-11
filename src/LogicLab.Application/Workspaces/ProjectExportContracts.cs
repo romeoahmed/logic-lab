@@ -99,19 +99,26 @@ public sealed record ProjectExportPublication
     public ulong CarrierByteCount { get; }
 }
 
-public sealed record ProjectExportPublished(DateTimeOffset ExpiresAtUtc);
+public abstract record ProjectExportPublicationOutcome
+{
+    private protected ProjectExportPublicationOutcome()
+    {
+    }
+}
+
+public sealed record ProjectExportPublished(DateTimeOffset ExpiresAtUtc) :
+    ProjectExportPublicationOutcome;
+
+public sealed record ProjectExportPublicationRejected(string Code) :
+    ProjectExportPublicationOutcome;
 
 public interface IProjectExportStore
 {
     ValueTask<IProjectExportStaging> CreateStagingAsync(
         CancellationToken cancellationToken);
 
-    ValueTask<ProjectExportPublished> PublishAsync(
+    ValueTask<ProjectExportPublicationOutcome> PublishAsync(
         ProjectExportPublication publication,
-        CancellationToken cancellationToken);
-
-    ValueTask RevokeAsync(
-        WorkspaceId workspaceId,
         CancellationToken cancellationToken);
 }
 

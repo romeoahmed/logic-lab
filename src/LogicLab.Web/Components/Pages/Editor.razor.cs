@@ -54,6 +54,8 @@ public sealed partial class Editor : IAsyncDisposable
     private WorkspaceCaller CurrentCaller { get; set; } =
         AnonymousWorkspaceCaller.Instance;
 
+    private bool IsCallerAvailable { get; set; } = true;
+
     private string EditorPageTitle => AttachmentFailure?.Title ?? WorkbenchTitle;
 
     private string WorkbenchEyebrow => Projection?.Durability switch
@@ -96,13 +98,40 @@ public sealed partial class Editor : IAsyncDisposable
             ? AnonymousWorkspaceCaller.Instance
             : WorkspaceCallerAdapter.FromPrincipal(
                 (await AuthenticationStateTask).User);
-        if (caller == CurrentCaller)
+        if (caller is null)
+        {
+            if (!IsCallerAvailable)
+            {
+                return;
+            }
+
+            var invalidPriorCaller = CurrentCaller;
+            var invalidAttachment = Attachment;
+            IsCallerAvailable = false;
+            ShowAttachmentFailure(WorkspaceOutcomeReasons.AuthenticationRequired);
+            Status = "Authentication is missing a stable subject. Reload to continue.";
+            if (invalidAttachment is not null)
+            {
+                _ = await workspace.DetachAsync(
+                    new DetachRequest(
+                        invalidAttachment.Projection.WorkspaceId,
+                        invalidAttachment.AttachmentId,
+                        invalidAttachment.Generation,
+                        invalidPriorCaller),
+                    CancellationToken.None);
+            }
+
+            return;
+        }
+
+        if (IsCallerAvailable && caller == CurrentCaller)
         {
             return;
         }
 
         var priorCaller = CurrentCaller;
         CurrentCaller = caller;
+        IsCallerAvailable = true;
         PreparedExportUrl = null;
         if (Attachment is not { } attachment)
         {
@@ -126,6 +155,7 @@ public sealed partial class Editor : IAsyncDisposable
     }
 
     private bool CommandsAvailable => IsInteractive
+        && IsCallerAvailable
         && (WorkspaceIdValue is null || Attachment is not null);
 
     private bool CanCreate => CommandsAvailable
@@ -183,6 +213,12 @@ public sealed partial class Editor : IAsyncDisposable
         if (firstRender && RendererInfo.IsInteractive)
         {
             IsInteractive = true;
+            if (!IsCallerAvailable)
+            {
+                StateHasChanged();
+                return;
+            }
+
             if (WorkspaceIdValue is null)
             {
                 Status = "Ready to create a Sandbox Project.";
@@ -198,7 +234,7 @@ public sealed partial class Editor : IAsyncDisposable
 
     private async Task AttachOpenedWorkspaceAsync()
     {
-        var caller = CurrentCaller;
+        var caller = RequireCurrentCaller();
         var attachOutcome = await workspace.AttachAsync(
             new InitialAttach(
                 new LogicLab.Application.Workspaces.WorkspaceId(WorkspaceIdValue!),
@@ -211,6 +247,7 @@ public sealed partial class Editor : IAsyncDisposable
                 RetryDisposition: RetryDisposition.Reattach,
             }
             && caller is AuthenticatedWorkspaceCaller authenticatedCaller
+            && IsCallerAvailable
             && caller == CurrentCaller)
         {
             attachOutcome = await workspace.AttachAsync(
@@ -242,7 +279,7 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
-        if (caller != CurrentCaller)
+        if (!IsCallerAvailable || caller != CurrentCaller)
         {
             ShowAttachmentFailure("workspace_authorization_changed");
             Status = "Authentication changed. Reload the Workspace to continue.";
@@ -294,7 +331,7 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
-        var caller = CurrentCaller;
+        var caller = RequireCurrentCaller();
         var attachOutcome = await workspace.AttachAsync(
             new InitialAttach(
                 opened.WorkspaceId,
@@ -651,7 +688,7 @@ public sealed partial class Editor : IAsyncDisposable
             return false;
         }
 
-        var caller = CurrentCaller;
+        var caller = RequireCurrentCaller();
         var outcome = await workspace.AttachAsync(
             new Reattach(
                 projection.WorkspaceId,
@@ -685,9 +722,10 @@ public sealed partial class Editor : IAsyncDisposable
     {
         var attachmentWasSuperseded = expectedCurrentAttachment is not null
             && !HasCurrentFence(expectedCurrentAttachment);
-        var authorizationChanged = attached.Projection.Durability
-                is not SandboxWorkspaceDurabilityProjection
-            && caller != CurrentCaller;
+        var authorizationChanged = !IsCallerAvailable
+            || (attached.Projection.Durability
+                    is not SandboxWorkspaceDurabilityProjection
+                && caller != CurrentCaller);
         if (Volatile.Read(ref isDisposed) == 0
             && !attachmentWasSuperseded
             && !authorizationChanged)
@@ -697,8 +735,13 @@ public sealed partial class Editor : IAsyncDisposable
 
         if (authorizationChanged)
         {
-            ShowAttachmentFailure("workspace_authorization_changed");
-            Status = "Authentication changed. Reload the Workspace to continue.";
+            var code = IsCallerAvailable
+                ? "workspace_authorization_changed"
+                : WorkspaceOutcomeReasons.AuthenticationRequired;
+            ShowAttachmentFailure(code);
+            Status = IsCallerAvailable
+                ? "Authentication changed. Reload the Workspace to continue."
+                : "Authentication is missing a stable subject. Reload to continue.";
         }
 
         _ = await workspace.DetachAsync(
@@ -726,12 +769,13 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
-        var caller = CurrentCaller;
+        var caller = RequireCurrentCaller();
         var read = await workspace.ReadAsync(
             QueryContext(),
             ReadProjection.Instance,
             cancellationToken);
-        if (caller != CurrentCaller
+        if (!IsCallerAvailable
+            || caller != CurrentCaller
             || Attachment is not { } currentAttachment
             || currentAttachment.AttachmentId != attachment.AttachmentId
             || currentAttachment.Generation != attachment.Generation)
@@ -838,7 +882,7 @@ public sealed partial class Editor : IAsyncDisposable
             attachment.AttachmentId,
             attachment.Generation,
             clientIntentId,
-            CurrentCaller);
+            RequireCurrentCaller());
     }
 
     private WorkspaceQueryContext QueryContext()
@@ -851,7 +895,15 @@ public sealed partial class Editor : IAsyncDisposable
             projection.WorkspaceId,
             attachment.AttachmentId,
             attachment.Generation,
-            CurrentCaller);
+            RequireCurrentCaller());
+    }
+
+    private WorkspaceCaller RequireCurrentCaller()
+    {
+        return IsCallerAvailable
+            ? CurrentCaller
+            : throw new InvalidOperationException(
+                "The current authentication state has no stable Workspace caller.");
     }
 
     private SessionMutationPrecondition SessionPrecondition()

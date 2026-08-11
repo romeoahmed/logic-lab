@@ -67,6 +67,9 @@ internal static class LogicLabProblemDetails
             ProjectExportEndpointRouteBuilderExtensions.MethodNotAllowedCode => (
                 StatusCodes.Status405MethodNotAllowed,
                 "The request method is not supported for export download"),
+            ProjectExportEndpointRouteBuilderExtensions.RateLimitExceededCode => (
+                StatusCodes.Status429TooManyRequests,
+                "Too many export download requests"),
             AntiforgeryValidationFailedCode => (
                 StatusCodes.Status400BadRequest,
                 "Antiforgery validation failed"),

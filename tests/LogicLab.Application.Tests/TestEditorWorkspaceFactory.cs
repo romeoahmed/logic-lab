@@ -113,12 +113,8 @@ internal static class TestEditorWorkspaceFactory
         public ValueTask<IProjectExportStaging> CreateStagingAsync(
             CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
 
-        public ValueTask<ProjectExportPublished> PublishAsync(
+        public ValueTask<ProjectExportPublicationOutcome> PublishAsync(
             ProjectExportPublication publication,
-            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
-
-        public ValueTask RevokeAsync(
-            WorkspaceId workspaceId,
             CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
     }
 }

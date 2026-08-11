@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using LogicLab.Application.Workspaces;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace LogicLab.Web.Transfers;
 
@@ -10,6 +11,8 @@ internal static class ProjectExportEndpointRouteBuilderExtensions
     internal const string FileName = "logiclab-project.logiclab";
     internal const string MethodNotAllowedCode =
         "export_download_method_not_allowed";
+    internal const string RateLimitExceededCode =
+        "export_download_rate_limit_exceeded";
     private const string CacheControl = "private, no-store";
 
     public static IEndpointConventionBuilder MapProjectExportEndpoints(
@@ -66,7 +69,12 @@ internal static class ProjectExportEndpointRouteBuilderExtensions
                     ContentType,
                     FileName,
                     enableRangeProcessing: false);
-            });
+            })
+            .RequireRateLimiting(
+                ProjectExportTransferPolicy.DownloadRateLimitPolicyName)
+            .WithMetadata(ProjectExportTransferMetadata.Instance)
+            .WithMetadata(new RateLimitProblemDetailsMetadata(
+                RateLimitExceededCode));
 
         endpoints.MapFallback(DownloadPattern, IResult (HttpContext httpContext) =>
         {
@@ -88,6 +96,6 @@ internal static class ProjectExportEndpointRouteBuilderExtensions
         return downloadEndpoint;
     }
 
-    private static void DisableCaching(HttpContext httpContext) =>
+    internal static void DisableCaching(HttpContext httpContext) =>
         httpContext.Response.Headers.CacheControl = CacheControl;
 }
