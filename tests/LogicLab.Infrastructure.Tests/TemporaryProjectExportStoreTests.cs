@@ -233,6 +233,61 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     }
 
     [Test]
+    public async Task PublishAsync_CancelledAfterExpiredRemoval_ReleasesRetiredStaging(
+        CancellationToken cancellationToken)
+    {
+        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        await using var store = new TemporaryProjectExportStore(
+            timeProvider,
+            ProjectExportStoragePolicy.Default,
+            stagingDirectory);
+        var owner = AnonymousBrowserCaller('e');
+        var expiredStaging = await StageAsync(
+            store,
+            "expired"u8.ToArray(),
+            cancellationToken);
+        await store.PublishAsync(
+            Publication(
+                new WorkspaceId("workspace-expired-on-publish"),
+                new ExportTicket("export-ticket-expired-publish"),
+                owner,
+                expiredStaging,
+                1),
+            cancellationToken);
+        timeProvider.AdvanceWithoutFiringTimer(TimeSpan.FromSeconds(1));
+        var candidateStaging = await StageAsync(
+            store,
+            "candidate"u8.ToArray(),
+            cancellationToken);
+        using var cancellation = new CancellationTokenSource();
+        timeProvider.AfterGetUtcNow = cancellation.Cancel;
+        string[] remainingFiles;
+
+        try
+        {
+            await Assert.That(async () => await store.PublishAsync(
+                    Publication(
+                        new WorkspaceId("workspace-cancelled-after-expiry"),
+                        new ExportTicket("export-ticket-cancelled-expiry"),
+                        owner,
+                        candidateStaging,
+                        300),
+                    cancellation.Token))
+                .ThrowsExactly<OperationCanceledException>();
+            await candidateStaging.DisposeAsync();
+            remainingFiles = [.. Directory.EnumerateFiles(stagingDirectory)];
+        }
+        finally
+        {
+            timeProvider.AfterGetUtcNow = null;
+            await candidateStaging.DisposeAsync();
+            await expiredStaging.DisposeAsync();
+        }
+
+        await Assert.That(remainingFiles).IsEmpty();
+    }
+
+    [Test]
     public async Task CreateStagingAsync_Unix_UsesOwnerOnlyDirectoryAndFileModes(
         CancellationToken cancellationToken)
     {
@@ -404,9 +459,12 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
 
         public void Advance(TimeSpan duration)
         {
-            utcNow += duration;
+            AdvanceWithoutFiringTimer(duration);
             timer?.FireIfDue();
         }
+
+        public void AdvanceWithoutFiringTimer(TimeSpan duration) =>
+            utcNow += duration;
 
         public void Dispose() => timer?.Dispose();
 

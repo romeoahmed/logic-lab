@@ -15,6 +15,7 @@ namespace LogicLab.Application.Workspaces;
 internal sealed partial class EditorWorkspace : IEditorWorkspace
 {
     private readonly Lock gate = new();
+    private readonly Lock projectExportPreparationAdmissionGate = new();
     private readonly Dictionary<WorkspaceId, WorkspaceState> workspaces = [];
     private readonly WorkCoordinator workCoordinator;
     private readonly WorkspacePolicy workspacePolicy;
@@ -25,7 +26,9 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private readonly IDurableProjectLoader durableProjectLoader;
     private readonly PackagePolicy packagePolicy;
     private readonly IProjectExportStore projectExportStore;
+    private readonly int maximumConcurrentProjectExportPreparations;
     private readonly ILogger<EditorWorkspace> logger;
+    private int activeProjectExportPreparations;
     private int workspaceReservations;
     private bool isDisposed;
 
@@ -38,6 +41,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         IDurableProjectRepository durableProjectRepository,
         IDurableProjectLoader durableProjectLoader,
         PackagePolicy packagePolicy,
+        ProjectExportPreparationPolicy projectExportPreparationPolicy,
         IProjectExportStore projectExportStore,
         ILogger<WorkCoordinator> workCoordinatorLogger,
         ILogger<EditorWorkspace> logger)
@@ -50,6 +54,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         ArgumentNullException.ThrowIfNull(durableProjectRepository);
         ArgumentNullException.ThrowIfNull(durableProjectLoader);
         ArgumentNullException.ThrowIfNull(packagePolicy);
+        ArgumentNullException.ThrowIfNull(projectExportPreparationPolicy);
         ArgumentNullException.ThrowIfNull(projectExportStore);
         ArgumentNullException.ThrowIfNull(workCoordinatorLogger);
         ArgumentNullException.ThrowIfNull(logger);
@@ -61,6 +66,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         this.durableProjectRepository = durableProjectRepository;
         this.durableProjectLoader = durableProjectLoader;
         this.packagePolicy = packagePolicy;
+        maximumConcurrentProjectExportPreparations =
+            projectExportPreparationPolicy.MaximumConcurrentPreparations;
         this.projectExportStore = projectExportStore;
         this.logger = logger;
     }

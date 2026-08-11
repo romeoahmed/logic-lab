@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using LogicLab.Application.Workspaces;
+using Microsoft.AspNetCore.Components.Endpoints;
 using Microsoft.AspNetCore.DataProtection;
 
 namespace LogicLab.Web.Transfers;
@@ -11,6 +12,7 @@ internal sealed class AnonymousWorkspaceCallerMiddleware(
 {
     internal const string CookieName = "__Host-LogicLab.AnonymousCaller";
 
+    private const string PrivateNoStore = "private, no-store";
     private const string ProtectionPurpose =
         "LogicLab.Web.AnonymousWorkspaceCaller.v1";
     private readonly RequestDelegate next =
@@ -23,6 +25,18 @@ internal sealed class AnonymousWorkspaceCallerMiddleware(
     public async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
+        var isEditorBootstrap = IsEditorBootstrap(context.GetEndpoint());
+        if (isEditorBootstrap)
+        {
+            context.Response.OnStarting(
+                static state =>
+                {
+                    ((HttpResponse)state).Headers.CacheControl = PrivateNoStore;
+                    return Task.CompletedTask;
+                },
+                context.Response);
+        }
+
         if (context.User.Identities.Any(static identity => identity.IsAuthenticated))
         {
             await next(context);
@@ -32,6 +46,12 @@ internal sealed class AnonymousWorkspaceCallerMiddleware(
         var browserId = ReadBrowserId(context.Request.Cookies[CookieName]);
         if (browserId is null)
         {
+            if (!isEditorBootstrap)
+            {
+                await next(context);
+                return;
+            }
+
             browserId = new AnonymousBrowserId(
                 Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32)));
             context.Response.Cookies.Append(
@@ -53,6 +73,10 @@ internal sealed class AnonymousWorkspaceCallerMiddleware(
                 browserId.Value)]));
         await next(context);
     }
+
+    private static bool IsEditorBootstrap(Endpoint? endpoint) =>
+        endpoint?.Metadata.OfType<ComponentTypeMetadata>()
+            .LastOrDefault()?.Type == typeof(Components.Pages.Editor);
 
     private AnonymousBrowserId? ReadBrowserId(string? protectedValue)
     {

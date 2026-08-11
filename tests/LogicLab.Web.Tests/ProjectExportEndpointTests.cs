@@ -28,6 +28,9 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
                 services.AddSingleton<IProjectExportDownloads>(downloads);
             }));
         using var client = host.CreateHttpsClient();
+        using var bootstrap = await client.GetAsync(
+            new Uri("/editor", UriKind.Relative));
+        client.DefaultRequestHeaders.Add("Cookie", AnonymousCookie(bootstrap));
         using var request = new HttpRequestMessage(
             HttpMethod.Head,
             new Uri("/downloads/export-ticket-head-0001", UriKind.Relative));
@@ -64,11 +67,13 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
                 services.AddSingleton<IProjectExportDownloads>(downloads);
             }));
         using var client = host.CreateHttpsClient();
+        using var bootstrap = await client.GetAsync(
+            new Uri("/editor", UriKind.Relative));
+        client.DefaultRequestHeaders.Add("Cookie", AnonymousCookie(bootstrap));
 
         using var first = await client.GetAsync(
             new Uri("/downloads/export-ticket-web-0001", UriKind.Relative));
         var firstBytes = await first.Content.ReadAsByteArrayAsync();
-        client.DefaultRequestHeaders.Add("Cookie", AnonymousCookie(first));
         using var second = await client.GetAsync(
             new Uri("/downloads/export-ticket-web-0001", UriKind.Relative));
 
@@ -111,6 +116,14 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
             }));
         using var clientA = host.CreateHttpsClient();
         using var clientB = host.CreateHttpsClient();
+        using var bootstrapA = await clientA.GetAsync(
+            new Uri("/editor", UriKind.Relative));
+        using var bootstrapB = await clientB.GetAsync(
+            new Uri("/editor", UriKind.Relative));
+        var cookieA = AnonymousCookie(bootstrapA);
+        var cookieB = AnonymousCookie(bootstrapB);
+        clientA.DefaultRequestHeaders.Add("Cookie", cookieA);
+        clientB.DefaultRequestHeaders.Add("Cookie", cookieB);
 
         using var responseA = await clientA.GetAsync(
             new Uri("/downloads/export-ticket-browser-a", UriKind.Relative));
@@ -124,10 +137,14 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
         using (Assert.Multiple())
         {
             await Assert.That(callerA).IsNotEqualTo(callerB);
-            await Assert.That(AnonymousCookie(responseA))
+            await Assert.That(cookieA)
                 .StartsWith("__Host-LogicLab.AnonymousCaller=");
-            await Assert.That(responseA.Headers.GetValues("Set-Cookie").Single())
+            await Assert.That(bootstrapA.Headers.GetValues("Set-Cookie").Single(
+                    value => value.StartsWith(
+                        $"{AnonymousWorkspaceCallerMiddleware.CookieName}=",
+                        StringComparison.Ordinal)))
                 .Contains("secure; samesite=lax; httponly", StringComparison.OrdinalIgnoreCase);
+            await Assert.That(responseA.Headers.Contains("Set-Cookie")).IsFalse();
         }
     }
 
@@ -282,7 +299,9 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
     }
 
     private static string AnonymousCookie(HttpResponseMessage response) =>
-        response.Headers.GetValues("Set-Cookie").Single().Split(';', 2)[0];
+        response.Headers.GetValues("Set-Cookie").Single(value => value.StartsWith(
+            $"{AnonymousWorkspaceCallerMiddleware.CookieName}=",
+            StringComparison.Ordinal)).Split(';', 2)[0];
 
     private static void ConfigureAuthentication(IServiceCollection services)
     {

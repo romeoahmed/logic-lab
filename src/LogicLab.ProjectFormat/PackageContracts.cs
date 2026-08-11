@@ -33,6 +33,19 @@ public sealed class PackagePolicy
         ArgumentException.ThrowIfNullOrEmpty(policyId);
         ArgumentException.ThrowIfNullOrEmpty(policyRevision);
         ArgumentNullException.ThrowIfNull(limits);
+        if (!IsStableToken(policyId))
+        {
+            throw new ArgumentException(
+                "The Package Policy ID must be a Stable Token.",
+                nameof(policyId));
+        }
+
+        if (!IsStableToken(policyRevision))
+        {
+            throw new ArgumentException(
+                "The Package Policy revision must be a Stable Token.",
+                nameof(policyRevision));
+        }
 
         var dimensions = Enum.GetValues<PackageDimension>();
         if (limits.Count != dimensions.Length)
@@ -85,6 +98,21 @@ public sealed class PackagePolicy
 
     internal ulong Maximum(PackageDimension dimension) =>
         limits[(int)dimension].Maximum;
+
+    private static bool IsStableToken(string value)
+    {
+        return value.Length <= 96
+            && IsAsciiLetterOrDigit(value[0])
+            && value.All(character =>
+                IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
+    }
+
+    private static bool IsAsciiLetterOrDigit(char value)
+    {
+        return value is >= 'A' and <= 'Z'
+            or >= 'a' and <= 'z'
+            or >= '0' and <= '9';
+    }
 }
 
 public sealed class ProjectPackageWriteRequest

@@ -14,6 +14,59 @@ namespace LogicLab.ProjectFormat.Tests;
 internal sealed class ProjectPackageWriterTests
 {
     [Test]
+    public async Task PackagePolicy_InvalidStableTokens_ThrowArgumentException()
+    {
+        string[] invalidTokens =
+        [
+            "_leading",
+            ".leading",
+            "-leading",
+            "contains/slash",
+            "contains space",
+            "nonascii-\u00e9",
+            "control\u0001",
+            new string('a', 97),
+        ];
+        var limits = PackagePolicy.Development.Limits;
+
+        using (Assert.Multiple())
+        {
+            foreach (var invalidToken in invalidTokens)
+            {
+                await Assert.That(() => new PackagePolicy(
+                        invalidToken,
+                        "1",
+                        limits))
+                    .ThrowsExactly<ArgumentException>();
+                await Assert.That(() => new PackagePolicy(
+                        "valid",
+                        invalidToken,
+                        limits))
+                    .ThrowsExactly<ArgumentException>();
+            }
+        }
+    }
+
+    [Test]
+    public async Task PackagePolicy_StableTokenBoundaryValues_AreAccepted()
+    {
+        var oneCharacter = "A";
+        var maximumLength = $"A._-{new string('z', 92)}";
+        var limits = PackagePolicy.Development.Limits;
+
+        var first = new PackagePolicy(oneCharacter, maximumLength, limits);
+        var second = new PackagePolicy(maximumLength, oneCharacter, limits);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(first.PolicyId).IsEqualTo(oneCharacter);
+            await Assert.That(first.PolicyRevision).IsEqualTo(maximumLength);
+            await Assert.That(second.PolicyId).IsEqualTo(maximumLength);
+            await Assert.That(second.PolicyRevision).IsEqualTo(oneCharacter);
+        }
+    }
+
+    [Test]
     public async Task WriteAsync_FullyPopulatedRevision_EmitsEveryV1DiscriminatorAndDigest()
     {
         var revision = CreateFullyPopulatedRevision();

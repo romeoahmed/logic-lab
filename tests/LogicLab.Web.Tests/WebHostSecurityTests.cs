@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using LogicLab.Web.Identity;
+using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -51,6 +52,37 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         "script-src 'self'",
         "style-src 'self' 'unsafe-inline'",
     ];
+
+    [Test]
+    public async Task Get_AnonymousBootstrap_IssuesCallerCookieOnlyOnPrivateEditorResponse()
+    {
+        using var client = factory.CreateHttpsClient();
+
+        using var staticAsset = await client.GetAsync(
+            new Uri("/app.css", UriKind.Relative));
+        using var editor = await client.GetAsync(
+            new Uri("/editor", UriKind.Relative));
+        var staticCookies = SetCookies(staticAsset);
+        var editorCallerCookies = SetCookies(editor).Where(value => value.StartsWith(
+                $"{AnonymousWorkspaceCallerMiddleware.CookieName}=",
+                StringComparison.Ordinal))
+            .ToArray();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(staticAsset.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(staticCookies.Any(value => value.StartsWith(
+                    $"{AnonymousWorkspaceCallerMiddleware.CookieName}=",
+                    StringComparison.Ordinal)))
+                .IsFalse();
+            await Assert.That(editor.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(editor.Headers.CacheControl?.Private).IsTrue();
+            await Assert.That(editor.Headers.CacheControl?.NoStore).IsTrue();
+            await Assert.That(editorCallerCookies).HasSingleItem();
+            await Assert.That(editorCallerCookies.FirstOrDefault() ?? string.Empty)
+                .Contains("secure; samesite=lax; httponly", StringComparison.OrdinalIgnoreCase);
+        }
+    }
 
     [Test]
     [Arguments("/editor", HttpStatusCode.OK)]
@@ -232,6 +264,13 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     private static string Header(HttpResponseMessage response, string name)
     {
         return string.Join(' ', response.Headers.GetValues(name));
+    }
+
+    private static string[] SetCookies(HttpResponseMessage response)
+    {
+        return response.Headers.TryGetValues("Set-Cookie", out var values)
+            ? [.. values]
+            : [];
     }
 
     private static async Task<HttpResponseMessage> PostInvalidIdentityFormAsync(

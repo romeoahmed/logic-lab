@@ -240,6 +240,7 @@ public static class EditorWorkspaceFactory
         IProjectExportStore projectExportStore,
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
+        ProjectExportPreparationPolicy? projectExportPreparationPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
         PackagePolicy? packagePolicy = null)
@@ -257,6 +258,7 @@ public static class EditorWorkspaceFactory
             durableProjectRepository,
             durableProjectLoader,
             packagePolicy,
+            projectExportPreparationPolicy,
             projectExportStore);
     }
 
@@ -267,6 +269,7 @@ public static class EditorWorkspaceFactory
         IProjectExportStore projectExportStore,
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
+        ProjectExportPreparationPolicy? projectExportPreparationPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
         string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint,
@@ -285,6 +288,7 @@ public static class EditorWorkspaceFactory
             durableProjectRepository,
             durableProjectLoader,
             packagePolicy,
+            projectExportPreparationPolicy,
             projectExportStore);
     }
 
@@ -298,6 +302,7 @@ public static class EditorWorkspaceFactory
         IDurableProjectRepository durableProjectRepository,
         IDurableProjectLoader durableProjectLoader,
         PackagePolicy? packagePolicy,
+        ProjectExportPreparationPolicy? projectExportPreparationPolicy,
         IProjectExportStore projectExportStore)
     {
         ArgumentException.ThrowIfNullOrEmpty(buildFingerprint);
@@ -311,6 +316,7 @@ public static class EditorWorkspaceFactory
             durableProjectRepository,
             durableProjectLoader,
             packagePolicy ?? PackagePolicy.Development,
+            projectExportPreparationPolicy ?? ProjectExportPreparationPolicy.Default,
             projectExportStore,
             resolvedLoggerFactory.CreateLogger<Work.WorkCoordinator>(),
             resolvedLoggerFactory.CreateLogger<EditorWorkspace>());

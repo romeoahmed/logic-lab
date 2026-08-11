@@ -9,6 +9,7 @@ internal static class TestEditorWorkspaceFactory
         string buildFingerprint,
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
+        ProjectExportPreparationPolicy? projectExportPreparationPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
         IDurableProjectRepository? durableProjectRepository = null,
@@ -25,6 +26,7 @@ internal static class TestEditorWorkspaceFactory
                 projectExportStore ?? UnexpectedProjectExportStore.Instance,
             workspacePolicy: workspacePolicy,
             schedulingPolicy: schedulingPolicy,
+            projectExportPreparationPolicy: projectExportPreparationPolicy,
             timeProvider: timeProvider,
             loggerFactory: loggerFactory);
     }
@@ -33,6 +35,7 @@ internal static class TestEditorWorkspaceFactory
         WorkspaceModuleOperations operations,
         WorkspacePolicy? workspacePolicy = null,
         SchedulingPolicy? schedulingPolicy = null,
+        ProjectExportPreparationPolicy? projectExportPreparationPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
         string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint,
@@ -50,6 +53,7 @@ internal static class TestEditorWorkspaceFactory
                 projectExportStore ?? UnexpectedProjectExportStore.Instance,
             workspacePolicy: workspacePolicy,
             schedulingPolicy: schedulingPolicy,
+            projectExportPreparationPolicy: projectExportPreparationPolicy,
             timeProvider: timeProvider,
             loggerFactory: loggerFactory,
             buildFingerprint: buildFingerprint);
