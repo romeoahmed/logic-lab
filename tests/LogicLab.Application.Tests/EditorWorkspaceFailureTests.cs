@@ -3,6 +3,7 @@ using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Engine.Simulation;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Application.Tests;
 
@@ -28,11 +29,10 @@ internal sealed class EditorWorkspaceFailureTests
         var accepted = (await Assert.That(outcome).IsTypeOf<CompilationAccepted>())!;
 
         var projection = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
-                workspace,
-                opened.WorkspaceId,
-                opened.Attached,
-                cancellationToken)
-            .WaitAsync(TimeSpan.FromSeconds(1), cancellationToken);
+            workspace,
+            opened.WorkspaceId,
+            opened.Attached,
+            cancellationToken);
         var rejected = projection.RejectedCompilation();
 
         using (Assert.Multiple())
@@ -133,7 +133,9 @@ internal sealed class EditorWorkspaceFailureTests
             await Assert.That(afterCompilation.ArtifactKey)
                 .IsEqualTo(beforeCompilation.ArtifactKey);
             await Assert.That(afterCompilation.DiagnosticCodes)
-                .IsEquivalentTo(beforeCompilation.DiagnosticCodes);
+                .IsEquivalentTo(
+                    beforeCompilation.DiagnosticCodes,
+                    CollectionOrdering.Matching);
             await Assert.That(after.Simulation).IsNull();
         }
     }

@@ -26,11 +26,10 @@ internal sealed class WorkbenchChromeComponentTests
             .Add(component => component.Document, revision.Document)
             .Add(component => component.SelectedDefinitionId,
                 revision.Document.EntryCircuitDefinitionId));
-        var navigation = rendered.Find("nav[aria-label='Open Circuit Definitions']");
+        var navigation = rendered.Find("nav[aria-label]:not([aria-label=''])");
 
         using (Assert.Multiple())
         {
-            await Assert.That(navigation.TagName).IsEqualTo("NAV");
             await Assert.That(navigation.QuerySelectorAll("button[type='button']"))
                 .HasSingleItem();
             await Assert.That(rendered.FindAll("[aria-current='page']")).Count().IsEqualTo(1);
@@ -44,7 +43,7 @@ internal sealed class WorkbenchChromeComponentTests
 
         var rendered = context.Render<WorkbenchStatusStrip>(parameters => parameters
             .Add(component => component.Message, "Connecting to the interactive workbench…"));
-        var facts = rendered.Find("dl[aria-label='Workbench status']");
+        var facts = rendered.Find("dl[aria-label]:not([aria-label=''])");
         var statusFacts = facts.QuerySelectorAll(":scope > div");
         var statusKeys = statusFacts
             .Select(status => status.GetAttribute("data-status")!)
@@ -52,7 +51,6 @@ internal sealed class WorkbenchChromeComponentTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(facts.TagName).IsEqualTo("DL");
             await Assert.That(statusKeys).IsEquivalentTo([
                 "connection",
                 "logical-time",

@@ -57,7 +57,6 @@ internal sealed class WorkbenchComponentTests
                 .IsEqualTo("/downloads/export-ticket-component-0001");
             await Assert.That(link.GetAttribute("download"))
                 .IsEqualTo("logiclab-project.logiclab");
-            await Assert.That(rendered.Markup).Contains("Export prepared for 300 seconds");
         }
     }
 

@@ -4,6 +4,7 @@ using LogicLab.Web.Projects;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
@@ -37,15 +38,21 @@ internal sealed class ProjectsComponentTests
         using (Assert.Multiple())
         {
             await Assert.That(items.Select(item => item.GetAttribute("data-project-id")!))
-                .IsEquivalentTo(["project-a", "project-b"]);
+                .IsEquivalentTo(
+                    ["project-a", "project-b"],
+                    CollectionOrdering.Matching);
             await Assert.That(rendered.FindAll("[data-project-id] > bdi[dir='auto']")
                     .Select(item => item.TextContent))
-                .IsEquivalentTo(["Alpha", "项目 B"]);
+                .IsEquivalentTo(
+                    ["Alpha", "项目 B"],
+                    CollectionOrdering.Matching);
             await Assert.That(rendered.FindAll("form[action='/projects/open']").Count)
                 .IsEqualTo(2);
             await Assert.That(rendered.FindAll("input[name='durableProjectId']")
                     .Select(input => input.GetAttribute("value")!))
-                .IsEquivalentTo(["project-a", "project-b"]);
+                .IsEquivalentTo(
+                    ["project-a", "project-b"],
+                    CollectionOrdering.Matching);
             await Assert.That(rendered.Find("[data-projects-next]")
                     .GetAttribute("href"))
                 .IsEqualTo("/projects?after=protected%2B%2Fcursor%3D");
