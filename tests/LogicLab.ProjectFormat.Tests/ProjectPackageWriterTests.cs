@@ -124,7 +124,8 @@ internal sealed class ProjectPackageWriterTests
     [Test]
     public async Task WriteAsync_MinimalProject_ProducesCanonicalPackageAndDigests()
     {
-        var revision = BeginProject("Canonical 项目", "Main");
+        const string displayName = "Canonical\u3000\U0001F600\uE000项目";
+        var revision = BeginProject(displayName, "Main");
         await using var destination = new MemoryStream();
 
         var outcome = await ProjectPackage.WriteAsync(
@@ -137,7 +138,7 @@ internal sealed class ProjectPackageWriterTests
         var succeeded = (await Assert.That(outcome).IsTypeOf<PackageWriteSucceeded>())!;
         var entries = ReadEntries(destination);
         var expectedProjectJson = $$$"""
-            {"projectId":"{{{revision.Document.ProjectId.Value}}}","displayName":"Canonical 项目","symbolProfile":{"id":"TeachingMixed","version":"1.0.0","indicationConvention":"negation"},"libraryReferences":[{"id":"{{{revision.Document.LibrarySnapshot.LibraryId}}}","version":"{{{revision.Document.LibrarySnapshot.Version}}}","digest":"{{{revision.Document.LibrarySnapshot.ContentDigest}}}"}],"entryCircuitDefinitionId":"{{{revision.Document.EntryCircuitDefinitionId.Value}}}","circuitDefinitions":[{"id":"{{{revision.Document.EntryCircuitDefinitionId.Value}}}","displayName":"Main","ports":[],"componentInstances":[],"nets":[],"junctions":[],"wireGeometry":[],"presentation":{"componentPlacements":[],"definitionPortPlacements":[],"annotations":[]}}],"memoryImages":[]}
+            {"projectId":"{{{revision.Document.ProjectId.Value}}}","displayName":"{{{displayName}}}","symbolProfile":{"id":"TeachingMixed","version":"1.0.0","indicationConvention":"negation"},"libraryReferences":[{"id":"{{{revision.Document.LibrarySnapshot.LibraryId}}}","version":"{{{revision.Document.LibrarySnapshot.Version}}}","digest":"{{{revision.Document.LibrarySnapshot.ContentDigest}}}"}],"entryCircuitDefinitionId":"{{{revision.Document.EntryCircuitDefinitionId.Value}}}","circuitDefinitions":[{"id":"{{{revision.Document.EntryCircuitDefinitionId.Value}}}","displayName":"Main","ports":[],"componentInstances":[],"nets":[],"junctions":[],"wireGeometry":[],"presentation":{"componentPlacements":[],"definitionPortPlacements":[],"annotations":[]}}],"memoryImages":[]}
             """;
         var projectBytes = Encoding.UTF8.GetBytes(expectedProjectJson + "\n");
         var projectHash = SHA256.HashData(projectBytes);
@@ -347,6 +348,32 @@ internal sealed class ProjectPackageWriterTests
             await Assert.That(destination.SynchronousFlushCount).IsEqualTo(0);
             await Assert.That(destination.SynchronousArrayWriteCount).IsEqualTo(0);
             await Assert.That(destination.SynchronousSpanWriteCount).IsEqualTo(0);
+        }
+    }
+
+    [Test]
+    public async Task WriteAsync_DestinationFlushFails_PreservesBytesAndClassifiesInfrastructure()
+    {
+        var revision = BeginProject("Failing destination", "Main");
+        await using var destination = new FlushFailingWriteStream();
+
+        var outcome = await ProjectPackage.WriteAsync(
+            new ProjectPackageWriteRequest(
+                revision,
+                destination,
+                PackagePolicy.Development),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageWriteRejected>())!;
+        var carrierBytes = rejected.Evidence.ObservedDimensions.Single(
+            item => item.Dimension == PackageDimension.CarrierBytes);
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason)
+                .IsEqualTo("package_infrastructure_failure");
+            await Assert.That(destination.Length).IsGreaterThan(0L);
+            await Assert.That(carrierBytes.Observed)
+                .IsEqualTo(checked((ulong)destination.Length));
         }
     }
 
@@ -689,5 +716,11 @@ internal sealed class ProjectPackageWriterTests
             await base.DisposeAsync();
             GC.SuppressFinalize(this);
         }
+    }
+
+    private sealed class FlushFailingWriteStream : MemoryStream
+    {
+        public override Task FlushAsync(CancellationToken cancellationToken) =>
+            Task.FromException(new InvalidOperationException("Destination flush failed."));
     }
 }

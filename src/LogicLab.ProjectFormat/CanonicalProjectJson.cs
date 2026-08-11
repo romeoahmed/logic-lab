@@ -2,7 +2,6 @@ using System.Buffers;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
-using System.Text.Encodings.Web;
 using System.Text.Json;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
@@ -12,19 +11,24 @@ namespace LogicLab.ProjectFormat;
 
 internal static class CanonicalProjectJson
 {
-    public static byte[] Write(ProjectDocument document)
+    public static byte[] Write(
+        ProjectDocument document,
+        ulong[] observations,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var buffer = new ArrayBufferWriter<byte>();
         using (var writer = new Utf8JsonWriter(
             buffer,
             new JsonWriterOptions
             {
-                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
                 Indented = false,
                 SkipValidation = false,
             }))
         {
-            WriteDocument(writer, document);
+            WriteDocument(
+                new CanonicalJsonWriter(writer, observations, cancellationToken),
+                document);
         }
 
         var bytes = new byte[buffer.WrittenCount + 1];
@@ -33,7 +37,9 @@ internal static class CanonicalProjectJson
         return bytes;
     }
 
-    private static void WriteDocument(Utf8JsonWriter writer, ProjectDocument document)
+    private static void WriteDocument(
+        CanonicalJsonWriter writer,
+        ProjectDocument document)
     {
         writer.WriteStartObject();
         writer.WriteString("projectId", document.ProjectId.Value);
@@ -64,9 +70,10 @@ internal static class CanonicalProjectJson
             document.EntryCircuitDefinitionId.Value);
         writer.WritePropertyName("circuitDefinitions");
         writer.WriteStartArray();
-        foreach (var definition in document.CircuitDefinitions.OrderBy(
-                     item => item.Id.Value,
-                     StringComparer.Ordinal))
+        foreach (var definition in OrderById(
+                     document.CircuitDefinitions,
+                     static item => item.Id.Value,
+                     writer.CancellationToken))
         {
             WriteDefinition(writer, definition);
         }
@@ -74,9 +81,10 @@ internal static class CanonicalProjectJson
         writer.WriteEndArray();
         writer.WritePropertyName("memoryImages");
         writer.WriteStartArray();
-        foreach (var image in document.MemoryImages.OrderBy(
-                     item => item.Id.Value,
-                     StringComparer.Ordinal))
+        foreach (var image in OrderById(
+                     document.MemoryImages,
+                     static item => item.Id.Value,
+                     writer.CancellationToken))
         {
             writer.WriteStartObject();
             writer.WriteString("id", image.Id.Value);
@@ -94,7 +102,7 @@ internal static class CanonicalProjectJson
     }
 
     private static void WriteDefinition(
-        Utf8JsonWriter writer,
+        CanonicalJsonWriter writer,
         CircuitDefinition definition)
     {
         writer.WriteStartObject();
@@ -122,9 +130,10 @@ internal static class CanonicalProjectJson
         writer.WriteEndArray();
         writer.WritePropertyName("componentInstances");
         writer.WriteStartArray();
-        foreach (var instance in definition.ComponentInstances.OrderBy(
-                     item => item.Id.Value,
-                     StringComparer.Ordinal))
+        foreach (var instance in OrderById(
+                     definition.ComponentInstances,
+                     static item => item.Id.Value,
+                     writer.CancellationToken))
         {
             WriteComponentInstance(writer, instance);
         }
@@ -132,9 +141,10 @@ internal static class CanonicalProjectJson
         writer.WriteEndArray();
         writer.WritePropertyName("nets");
         writer.WriteStartArray();
-        foreach (var net in definition.Nets.OrderBy(
-                     item => item.Id.Value,
-                     StringComparer.Ordinal))
+        foreach (var net in OrderById(
+                     definition.Nets,
+                     static item => item.Id.Value,
+                     writer.CancellationToken))
         {
             WriteNet(writer, net);
         }
@@ -142,9 +152,10 @@ internal static class CanonicalProjectJson
         writer.WriteEndArray();
         writer.WritePropertyName("junctions");
         writer.WriteStartArray();
-        foreach (var junction in definition.Junctions.OrderBy(
-                     item => item.Id.Value,
-                     StringComparer.Ordinal))
+        foreach (var junction in OrderById(
+                     definition.Junctions,
+                     static item => item.Id.Value,
+                     writer.CancellationToken))
         {
             writer.WriteStartObject();
             writer.WriteString("id", junction.Id.Value);
@@ -157,9 +168,10 @@ internal static class CanonicalProjectJson
         writer.WriteEndArray();
         writer.WritePropertyName("wireGeometry");
         writer.WriteStartArray();
-        foreach (var geometry in definition.WireGeometries.OrderBy(
-                     item => item.Id.Value,
-                     StringComparer.Ordinal))
+        foreach (var geometry in OrderById(
+                     definition.WireGeometries,
+                     static item => item.Id.Value,
+                     writer.CancellationToken))
         {
             WriteWireGeometry(writer, geometry);
         }
@@ -171,7 +183,7 @@ internal static class CanonicalProjectJson
     }
 
     private static void WriteComponentInstance(
-        Utf8JsonWriter writer,
+        CanonicalJsonWriter writer,
         ComponentInstance instance)
     {
         writer.WriteStartObject();
@@ -221,7 +233,7 @@ internal static class CanonicalProjectJson
     }
 
     private static void WriteParameterValue(
-        Utf8JsonWriter writer,
+        CanonicalJsonWriter writer,
         ComponentParameterValue value)
     {
         writer.WriteStartObject();
@@ -243,7 +255,9 @@ internal static class CanonicalProjectJson
                 break;
             case LogicVectorParameterValue vector:
                 writer.WriteString("kind", "logicVector");
-                writer.WriteString("bits", LogicVectorText(vector.Values));
+                writer.WriteString(
+                    "bits",
+                    LogicVectorText(vector.Values, writer.CancellationToken));
                 break;
             case WidthsParameterValue widths:
                 writer.WriteString("kind", "unsigned32List");
@@ -281,7 +295,7 @@ internal static class CanonicalProjectJson
         writer.WriteEndObject();
     }
 
-    private static void WriteNet(Utf8JsonWriter writer, Net net)
+    private static void WriteNet(CanonicalJsonWriter writer, Net net)
     {
         writer.WriteStartObject();
         writer.WriteString("id", net.Id.Value);
@@ -324,7 +338,7 @@ internal static class CanonicalProjectJson
     }
 
     private static void WriteWireGeometry(
-        Utf8JsonWriter writer,
+        CanonicalJsonWriter writer,
         WireGeometry geometry)
     {
         writer.WriteStartObject();
@@ -357,15 +371,16 @@ internal static class CanonicalProjectJson
     }
 
     private static void WritePresentation(
-        Utf8JsonWriter writer,
+        CanonicalJsonWriter writer,
         CircuitDefinition definition)
     {
         writer.WriteStartObject();
         writer.WritePropertyName("componentPlacements");
         writer.WriteStartArray();
-        foreach (var instance in definition.ComponentInstances.OrderBy(
-                     item => item.Id.Value,
-                     StringComparer.Ordinal))
+        foreach (var instance in OrderById(
+                     definition.ComponentInstances,
+                     static item => item.Id.Value,
+                     writer.CancellationToken))
         {
             writer.WriteStartObject();
             writer.WriteString("componentInstanceId", instance.Id.Value);
@@ -393,9 +408,10 @@ internal static class CanonicalProjectJson
         writer.WriteEndArray();
         writer.WritePropertyName("definitionPortPlacements");
         writer.WriteStartArray();
-        foreach (var port in definition.Ports.OrderBy(
-                     item => item.Id.Value,
-                     StringComparer.Ordinal))
+        foreach (var port in OrderById(
+                     definition.Ports,
+                     static item => item.Id.Value,
+                     writer.CancellationToken))
         {
             writer.WriteStartObject();
             writer.WriteString("portId", port.Id.Value);
@@ -440,7 +456,7 @@ internal static class CanonicalProjectJson
         writer.WriteEndObject();
     }
 
-    private static void WritePoint(Utf8JsonWriter writer, GridPoint point)
+    private static void WritePoint(CanonicalJsonWriter writer, GridPoint point)
     {
         writer.WriteStartObject();
         writer.WriteNumber("x", point.X);
@@ -448,11 +464,18 @@ internal static class CanonicalProjectJson
         writer.WriteEndObject();
     }
 
-    private static string LogicVectorText(ReadOnlyCollection<LogicValue> values)
+    private static string LogicVectorText(
+        ReadOnlyCollection<LogicValue> values,
+        CancellationToken cancellationToken)
     {
         var text = new StringBuilder(values.Count);
         for (var index = values.Count - 1; index >= 0; index--)
         {
+            if ((index & 0x3ff) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             text.Append(values[index] switch
             {
                 LogicValue.Zero => '0',
@@ -464,5 +487,36 @@ internal static class CanonicalProjectJson
         }
 
         return text.ToString();
+    }
+
+    private static T[] OrderById<T>(
+        IReadOnlyList<T> items,
+        Func<T, string> selectId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var ordered = new T[items.Count];
+        for (var index = 0; index < items.Count; index++)
+        {
+            if ((index & 0x3ff) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            ordered[index] = items[index];
+        }
+
+        var comparisons = 0;
+        Array.Sort(ordered, (left, right) =>
+        {
+            comparisons++;
+            if ((comparisons & 0x3ff) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            return string.CompareOrdinal(selectId(left), selectId(right));
+        });
+        return ordered;
     }
 }

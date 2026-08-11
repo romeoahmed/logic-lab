@@ -4,7 +4,6 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Encodings.Web;
 using System.Text.Json;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
@@ -13,6 +12,7 @@ namespace LogicLab.ProjectFormat;
 
 public static class ProjectPackage
 {
+    private const int CancellationInterval = 4_096;
     private static readonly DateTimeOffset CanonicalEntryTimestamp =
         new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
@@ -35,7 +35,10 @@ public static class ProjectPackage
 
         try
         {
-            ObserveDomain(request.ProjectRevision.Document, observations);
+            ObserveDomain(
+                request.ProjectRevision.Document,
+                observations,
+                cancellationToken);
             var domainBreach = FindBreach(
                 request.PackagePolicy,
                 observations,
@@ -49,10 +52,15 @@ public static class ProjectPackage
             }
 
             var projectBytes = CanonicalProjectJson.Write(
-                request.ProjectRevision.Document);
+                request.ProjectRevision.Document,
+                observations,
+                cancellationToken);
             var parts = new List<PackagePart>
             {
-                PackagePart.Create("project.json", projectBytes),
+                PackagePart.Create(
+                    "project.json",
+                    projectBytes,
+                    cancellationToken: cancellationToken),
             };
 
             foreach (var image in request.ProjectRevision.Document.MemoryImages.OrderBy(
@@ -62,20 +70,30 @@ public static class ProjectPackage
                 cancellationToken.ThrowIfCancellationRequested();
                 parts.Add(PackagePart.Create(
                     $"memory/{image.Id.Value}.bin",
-                    WriteMemoryImage(image),
-                    image.Id.Value));
+                    WriteMemoryImage(image, cancellationToken),
+                    image.Id.Value,
+                    cancellationToken));
             }
 
-            var packageDigest = ComputeDigest("logiclab-package-v1\0", parts);
+            var packageDigest = ComputeDigest(
+                "logiclab-package-v1\0",
+                parts,
+                cancellationToken);
             var projectContentDigest = ComputeDigest(
                 "logiclab-project-content-v1\0",
-                parts);
-            var manifestBytes = WriteManifest(parts, packageDigest);
+                parts,
+                cancellationToken);
+            var manifestBytes = WriteManifest(
+                parts,
+                packageDigest,
+                observations,
+                cancellationToken);
             Observe(
                 request.ProjectRevision.Document,
                 manifestBytes,
                 parts,
-                observations);
+                observations,
+                cancellationToken);
 
             var preflightBreach = FindBreach(
                 request.PackagePolicy,
@@ -90,12 +108,22 @@ public static class ProjectPackage
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            var carrierBytes = await WriteCarrierAsync(
-                request.Destination,
-                manifestBytes,
-                parts,
-                cancellationToken).ConfigureAwait(false);
-            observations[(int)PackageDimension.CarrierBytes] = carrierBytes;
+            var countingDestination = new CountingWriteStream(request.Destination);
+            try
+            {
+                await WriteCarrierAsync(
+                    countingDestination,
+                    manifestBytes,
+                    parts,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                observations[(int)PackageDimension.CarrierBytes] =
+                    countingDestination.BytesWritten;
+            }
+
+            var carrierBytes = countingDestination.BytesWritten;
 
             var carrierBreach = FindBreach(
                 request.PackagePolicy,
@@ -116,7 +144,8 @@ public static class ProjectPackage
                 carrierBytes,
                 Evidence(request.PackagePolicy, observations, null));
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception)
+            when (IsCooperativeCancellation(exception, cancellationToken))
         {
             return Rejected(
                 request.PackagePolicy,
@@ -125,7 +154,7 @@ public static class ProjectPackage
                 observations,
                 null);
         }
-        catch (Exception exception) when (IsInfrastructureFailure(exception))
+        catch (DestinationWriteException)
         {
             return Rejected(
                 request.PackagePolicy,
@@ -145,7 +174,9 @@ public static class ProjectPackage
         }
     }
 
-    private static byte[] WriteMemoryImage(MemoryImage image)
+    private static byte[] WriteMemoryImage(
+        MemoryImage image,
+        CancellationToken cancellationToken)
     {
         var cellCount = checked((ulong)image.Width * image.Depth);
         var payloadLength = checked((cellCount + 3) / 4);
@@ -167,6 +198,11 @@ public static class ProjectPackage
         {
             foreach (var value in word.Values)
             {
+                if ((cellIndex & (CancellationInterval - 1)) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
                 var encoded = value switch
                 {
                     LogicValue.Zero => 0,
@@ -193,19 +229,24 @@ public static class ProjectPackage
 
     private static byte[] WriteManifest(
         IReadOnlyList<PackagePart> parts,
-        string packageDigest)
+        string packageDigest,
+        ulong[] observations,
+        CancellationToken cancellationToken)
     {
         var projectPart = parts.Single(part => part.Path == "project.json");
         var buffer = new ArrayBufferWriter<byte>();
-        using (var writer = new Utf8JsonWriter(
+        using (var utf8Writer = new Utf8JsonWriter(
             buffer,
             new JsonWriterOptions
             {
-                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
                 Indented = false,
                 SkipValidation = false,
             }))
         {
+            var writer = new CanonicalJsonWriter(
+                utf8Writer,
+                observations,
+                cancellationToken);
             writer.WriteStartObject();
             writer.WriteString("format", "logiclab");
             writer.WriteNumber("schemaVersion", 1);
@@ -218,8 +259,9 @@ public static class ProjectPackage
                          .OrderBy(part => part.MemoryImageId, StringComparer.Ordinal)
                          .ThenBy(part => part.Path, StringComparer.Ordinal))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 writer.WriteStartObject();
-                writer.WriteString("memoryImageId", part.MemoryImageId);
+                writer.WriteString("memoryImageId", part.MemoryImageId!);
                 writer.WriteString("path", part.Path);
                 writer.WriteNumber("length", checked((ulong)part.Bytes.Length));
                 writer.WriteString("sha256", part.HashHex);
@@ -237,7 +279,9 @@ public static class ProjectPackage
         return bytes;
     }
 
-    private static void WriteManifestPart(Utf8JsonWriter writer, PackagePart part)
+    private static void WriteManifestPart(
+        CanonicalJsonWriter writer,
+        PackagePart part)
     {
         writer.WriteStartObject();
         writer.WriteString("path", part.Path);
@@ -248,13 +292,15 @@ public static class ProjectPackage
 
     private static string ComputeDigest(
         string prefix,
-        IReadOnlyList<PackagePart> parts)
+        IReadOnlyList<PackagePart> parts,
+        CancellationToken cancellationToken)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         hash.AppendData(Encoding.UTF8.GetBytes(prefix));
         Span<byte> length = stackalloc byte[sizeof(ulong)];
         foreach (var part in parts.OrderBy(part => part.Path, StringComparer.Ordinal))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var pathBytes = Encoding.UTF8.GetBytes(part.Path);
             BinaryPrimitives.WriteUInt32LittleEndian(
                 length[..sizeof(uint)],
@@ -271,15 +317,14 @@ public static class ProjectPackage
         return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
 
-    private static async Task<ulong> WriteCarrierAsync(
-        Stream destination,
+    private static async Task WriteCarrierAsync(
+        CountingWriteStream destination,
         byte[] manifestBytes,
         IReadOnlyList<PackagePart> parts,
         CancellationToken cancellationToken)
     {
-        var counting = new CountingWriteStream(destination);
         await using (var archive = await ZipArchive.CreateAsync(
-                         counting,
+                         destination,
                          ZipArchiveMode.Create,
                          leaveOpen: true,
                          entryNameEncoding: Encoding.UTF8,
@@ -300,8 +345,7 @@ public static class ProjectPackage
             }
         }
 
-        await counting.FlushAsync(cancellationToken).ConfigureAwait(false);
-        return counting.BytesWritten;
+        await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task WriteEntryAsync(
@@ -322,9 +366,10 @@ public static class ProjectPackage
         ProjectDocument document,
         byte[] manifestBytes,
         IReadOnlyList<PackagePart> parts,
-        ulong[] observations)
+        ulong[] observations,
+        CancellationToken cancellationToken)
     {
-        ObserveDomain(document, observations);
+        ObserveDomain(document, observations, cancellationToken);
         observations[(int)PackageDimension.EntryCount] = checked((ulong)parts.Count + 1);
         observations[(int)PackageDimension.PartBytes] = Max(
             checked((ulong)manifestBytes.Length),
@@ -332,46 +377,49 @@ public static class ProjectPackage
         observations[(int)PackageDimension.ExpandedBytes] = SaturatingAdd(
             checked((ulong)manifestBytes.Length),
             parts.Select(part => checked((ulong)part.Bytes.Length)));
-        ObserveJson(manifestBytes, observations);
-        foreach (var part in parts.Where(part => part.Path.EndsWith(".json", StringComparison.Ordinal)))
-        {
-            ObserveJson(part.Bytes, observations);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     private static void ObserveDomain(
         ProjectDocument document,
-        ulong[] observations)
+        ulong[] observations,
+        CancellationToken cancellationToken)
     {
-        var memoryPartBytes = document.MemoryImages.Select(image =>
+        var maximumMemoryPartBytes = 0UL;
+        var expandedMemoryBytes = 0UL;
+        var memoryCellCount = 0UL;
+        foreach (var image in document.MemoryImages)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var cells = checked((ulong)image.Width * image.Depth);
-            return SaturatingAdd(20, SaturatingAdd(cells, 3) / 4);
-        }).ToArray();
+            var partBytes = SaturatingAdd(20, SaturatingAdd(cells, 3) / 4);
+            maximumMemoryPartBytes = Math.Max(maximumMemoryPartBytes, partBytes);
+            expandedMemoryBytes = SaturatingAdd(expandedMemoryBytes, partBytes);
+            memoryCellCount = SaturatingAdd(memoryCellCount, cells);
+        }
+
         observations[(int)PackageDimension.EntryCount] =
             checked((ulong)document.MemoryImages.Count + 2);
-        observations[(int)PackageDimension.PartBytes] = memoryPartBytes
-            .DefaultIfEmpty(0UL)
-            .Max();
-        observations[(int)PackageDimension.ExpandedBytes] =
-            SaturatingAdd(0, memoryPartBytes);
-        observations[(int)PackageDimension.EntityCount] = ObserveEntities(document);
+        observations[(int)PackageDimension.PartBytes] = maximumMemoryPartBytes;
+        observations[(int)PackageDimension.ExpandedBytes] = expandedMemoryBytes;
+        observations[(int)PackageDimension.EntityCount] = ObserveEntities(
+            document,
+            cancellationToken);
         observations[(int)PackageDimension.MemoryPartCount] =
             checked((ulong)document.MemoryImages.Count);
-        observations[(int)PackageDimension.MemoryCellCount] =
-            SaturatingAdd(
-                0,
-                document.MemoryImages.Select(
-                    image => checked((ulong)image.Width * image.Depth)));
+        observations[(int)PackageDimension.MemoryCellCount] = memoryCellCount;
     }
 
-    private static ulong ObserveEntities(ProjectDocument document)
+    private static ulong ObserveEntities(
+        ProjectDocument document,
+        CancellationToken cancellationToken)
     {
         var count = 1UL;
         count = SaturatingAdd(count, checked((ulong)document.CircuitDefinitions.Count));
         count = SaturatingAdd(count, checked((ulong)document.MemoryImages.Count));
         foreach (var definition in document.CircuitDefinitions)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             count = SaturatingAdd(count, checked((ulong)definition.Ports.Count));
             count = SaturatingAdd(count, checked((ulong)definition.ComponentInstances.Count));
             count = SaturatingAdd(count, checked((ulong)definition.Nets.Count));
@@ -381,55 +429,6 @@ public static class ProjectPackage
         }
 
         return count;
-    }
-
-    private static void ObserveJson(byte[] bytes, ulong[] observations)
-    {
-        var reader = new Utf8JsonReader(bytes);
-        var arrays = new List<bool>();
-        while (reader.Read())
-        {
-            observations[(int)PackageDimension.JsonTokens] = SaturatingAdd(
-                observations[(int)PackageDimension.JsonTokens],
-                1);
-            observations[(int)PackageDimension.JsonDepth] = Math.Max(
-                observations[(int)PackageDimension.JsonDepth],
-                checked((ulong)reader.CurrentDepth + 1));
-
-            if (arrays.Count > 0
-                && arrays[^1]
-                && reader.TokenType is not (JsonTokenType.EndArray or JsonTokenType.EndObject))
-            {
-                observations[(int)PackageDimension.ArrayItems] = SaturatingAdd(
-                    observations[(int)PackageDimension.ArrayItems],
-                    1);
-            }
-
-            if (reader.TokenType is JsonTokenType.PropertyName or JsonTokenType.String)
-            {
-                var value = reader.GetString() ?? string.Empty;
-                observations[(int)PackageDimension.StringScalarCount] = SaturatingAdd(
-                    observations[(int)PackageDimension.StringScalarCount],
-                    checked((ulong)value.EnumerateRunes().Count()));
-                observations[(int)PackageDimension.StringUtf8Bytes] = SaturatingAdd(
-                    observations[(int)PackageDimension.StringUtf8Bytes],
-                    checked((ulong)Encoding.UTF8.GetByteCount(value)));
-            }
-
-            switch (reader.TokenType)
-            {
-                case JsonTokenType.StartArray:
-                    arrays.Add(true);
-                    break;
-                case JsonTokenType.StartObject:
-                    arrays.Add(false);
-                    break;
-                case JsonTokenType.EndArray:
-                case JsonTokenType.EndObject:
-                    arrays.RemoveAt(arrays.Count - 1);
-                    break;
-            }
-        }
     }
 
     private static PackageDimensionObservation? FindBreach(
@@ -497,11 +496,11 @@ public static class ProjectPackage
                 .ToArray()),
             breach);
 
-    private static bool IsInfrastructureFailure(Exception exception) =>
-        exception is IOException
-            or UnauthorizedAccessException
-            or ObjectDisposedException
-            or NotSupportedException;
+    private static bool IsCooperativeCancellation(
+        OperationCanceledException exception,
+        CancellationToken cancellationToken) =>
+        cancellationToken.IsCancellationRequested
+        && exception.CancellationToken == cancellationToken;
 
     private static bool IsFatal(Exception exception) => exception is
         OutOfMemoryException or StackOverflowException or AccessViolationException;
@@ -541,9 +540,18 @@ public static class ProjectPackage
         public static PackagePart Create(
             string path,
             byte[] bytes,
-            string? memoryImageId = null)
+            string? memoryImageId = null,
+            CancellationToken cancellationToken = default)
         {
-            var hash = SHA256.HashData(bytes);
+            using var hashing = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            for (var offset = 0; offset < bytes.Length; offset += 64 * 1_024)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var length = Math.Min(64 * 1_024, bytes.Length - offset);
+                hashing.AppendData(bytes, offset, length);
+            }
+
+            var hash = hashing.GetHashAndReset();
             return new PackagePart(
                 path,
                 bytes,
@@ -563,7 +571,20 @@ public static class ProjectPackage
 
         public override bool CanSeek => false;
 
-        public override bool CanWrite => destination.CanWrite;
+        public override bool CanWrite
+        {
+            get
+            {
+                try
+                {
+                    return destination.CanWrite;
+                }
+                catch (Exception exception) when (!IsFatal(exception))
+                {
+                    throw new DestinationWriteException(exception);
+                }
+            }
+        }
 
         public override long Length => throw new NotSupportedException();
 
@@ -580,7 +601,19 @@ public static class ProjectPackage
         public override async Task FlushAsync(CancellationToken cancellationToken)
         {
             await FlushDeferredWritesAsync(cancellationToken).ConfigureAwait(false);
-            await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException exception)
+                when (IsCooperativeCancellation(exception, cancellationToken))
+            {
+                throw;
+            }
+            catch (Exception exception) when (!IsFatal(exception))
+            {
+                throw new DestinationWriteException(exception);
+            }
         }
 
         public override int Read(byte[] buffer, int offset, int count) =>
@@ -595,15 +628,11 @@ public static class ProjectPackage
         public override void Write(byte[] buffer, int offset, int count)
         {
             deferredSynchronousWrites.Write(buffer.AsSpan(offset, count));
-            BytesWritten = SaturatingAdd(BytesWritten, checked((ulong)count));
         }
 
         public override void Write(ReadOnlySpan<byte> buffer)
         {
             deferredSynchronousWrites.Write(buffer);
-            BytesWritten = SaturatingAdd(
-                BytesWritten,
-                checked((ulong)buffer.Length));
         }
 
         public override async ValueTask WriteAsync(
@@ -611,10 +640,7 @@ public static class ProjectPackage
             CancellationToken cancellationToken = default)
         {
             await FlushDeferredWritesAsync(cancellationToken).ConfigureAwait(false);
-            await destination.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
-            BytesWritten = SaturatingAdd(
-                BytesWritten,
-                checked((ulong)buffer.Length));
+            await WriteToDestinationAsync(buffer, cancellationToken).ConfigureAwait(false);
         }
 
         public override async Task WriteAsync(
@@ -624,13 +650,9 @@ public static class ProjectPackage
             CancellationToken cancellationToken)
         {
             await FlushDeferredWritesAsync(cancellationToken).ConfigureAwait(false);
-            await destination.WriteAsync(
-                    buffer.AsMemory(offset, count),
-                    cancellationToken)
-                .ConfigureAwait(false);
-            BytesWritten = SaturatingAdd(
-                BytesWritten,
-                checked((ulong)count));
+            await WriteToDestinationAsync(
+                buffer.AsMemory(offset, count),
+                cancellationToken).ConfigureAwait(false);
         }
 
         private async Task FlushDeferredWritesAsync(
@@ -641,11 +663,37 @@ public static class ProjectPackage
                 return;
             }
 
-            await destination.WriteAsync(
-                    deferredSynchronousWrites.WrittenMemory,
-                    cancellationToken)
-                .ConfigureAwait(false);
+            await WriteToDestinationAsync(
+                deferredSynchronousWrites.WrittenMemory,
+                cancellationToken).ConfigureAwait(false);
             deferredSynchronousWrites.Clear();
         }
+
+        private async ValueTask WriteToDestinationAsync(
+            ReadOnlyMemory<byte> buffer,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await destination.WriteAsync(buffer, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException exception)
+                when (IsCooperativeCancellation(exception, cancellationToken))
+            {
+                throw;
+            }
+            catch (Exception exception) when (!IsFatal(exception))
+            {
+                throw new DestinationWriteException(exception);
+            }
+
+            BytesWritten = SaturatingAdd(
+                BytesWritten,
+                checked((ulong)buffer.Length));
+        }
     }
+
+    private sealed class DestinationWriteException(Exception innerException) :
+        Exception("The project package destination failed.", innerException);
 }
