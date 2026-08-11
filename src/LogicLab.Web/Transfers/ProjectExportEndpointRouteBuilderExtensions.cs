@@ -10,14 +10,15 @@ internal static class ProjectExportEndpointRouteBuilderExtensions
     internal const string FileName = "logiclab-project.logiclab";
     internal const string MethodNotAllowedCode =
         "export_download_method_not_allowed";
+    private const string CacheControl = "private, no-store";
 
     public static IEndpointConventionBuilder MapProjectExportEndpoints(
         this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        return endpoints.MapMethods(
+        var downloadEndpoint = endpoints.MapMethods(
             DownloadPattern,
-            [HttpMethods.Get, HttpMethods.Head],
+            [HttpMethods.Get],
             async Task<IResult> (
                 string token,
                 HttpContext httpContext,
@@ -25,13 +26,7 @@ internal static class ProjectExportEndpointRouteBuilderExtensions
                 IProjectExportDownloads downloads,
                 CancellationToken cancellationToken) =>
             {
-                if (!HttpMethods.IsGet(httpContext.Request.Method))
-                {
-                    httpContext.Response.Headers.Allow = HttpMethods.Get;
-                    return LogicLabProblemDetails.Create(
-                        httpContext,
-                        MethodNotAllowedCode);
-                }
+                DisableCaching(httpContext);
 
                 ExportTicket exportTicket;
                 try
@@ -45,10 +40,18 @@ internal static class ProjectExportEndpointRouteBuilderExtensions
                         WorkspaceOutcomeReasons.ExportExpired);
                 }
 
+                var caller = WorkspaceCallerAdapter.FromTransferPrincipal(principal);
+                if (caller is null)
+                {
+                    return LogicLabProblemDetails.Create(
+                        httpContext,
+                        WorkspaceOutcomeReasons.ExportExpired);
+                }
+
                 var outcome = await downloads.RedeemAsync(
                     new ProjectExportDownloadRequest(
                         exportTicket,
-                        WorkspaceCallerAdapter.FromPrincipal(principal)),
+                        caller),
                     cancellationToken);
                 if (outcome is ProjectExportDownloadRejected rejected)
                 {
@@ -58,12 +61,33 @@ internal static class ProjectExportEndpointRouteBuilderExtensions
                 }
 
                 var downloaded = (ProjectExportDownloaded)outcome;
-                httpContext.Response.Headers.CacheControl = "private, no-store";
                 return TypedResults.File(
                     downloaded.Content,
                     ContentType,
                     FileName,
                     enableRangeProcessing: false);
             });
+
+        endpoints.MapFallback(DownloadPattern, IResult (HttpContext httpContext) =>
+        {
+            DisableCaching(httpContext);
+            httpContext.Response.Headers.Allow = HttpMethods.Get;
+            if (HttpMethods.IsHead(httpContext.Request.Method))
+            {
+                httpContext.Response.StatusCode =
+                    StatusCodes.Status405MethodNotAllowed;
+                httpContext.Response.ContentType = "application/problem+json";
+                return Results.Empty;
+            }
+
+            return LogicLabProblemDetails.Create(
+                httpContext,
+                MethodNotAllowedCode);
+        });
+
+        return downloadEndpoint;
     }
+
+    private static void DisableCaching(HttpContext httpContext) =>
+        httpContext.Response.Headers.CacheControl = CacheControl;
 }

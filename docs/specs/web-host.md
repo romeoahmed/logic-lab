@@ -100,6 +100,16 @@ Localized resources are strongly keyed by owning feature. English and Simplified
 
 All cookie-authenticated mutations retain antiforgery validation. Import, export preparation, download, account, and Durable Project actions authenticate and authorize independently. The culture action is available before authentication but remains same-origin, antiforgery-protected, allowlisted, and unable to name a protected resource. A route, Workspace ID, Durable Project ID, attachment, or download token is a locator, never sufficient authority.
 
+For an anonymous export, Web issues a random per-browser identity in a Data
+Protection-protected `__Host-` session cookie marked Secure, HttpOnly, and
+SameSite=Lax. The same typed identity crosses the Interactive Server circuit and
+the separate download request; different anonymous browsers never share export
+authority, and an authenticated principal without a stable subject fails closed.
+The protected value follows ASP.NET Core's
+[`IDataProtector` consumer pattern](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/consumer-apis/overview?view=aspnetcore-10.0),
+and the browser restrictions use the documented
+[`CookieOptions`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.cookieoptions?view=aspnetcore-10.0).
+
 Every authenticated `/projects` response sets `Cache-Control: private, no-store`
 before rendering, including an empty catalog and catalog failures. Caching policy
 never depends on whether the page happens to render an antiforgery token.

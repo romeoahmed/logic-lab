@@ -30,6 +30,37 @@ public sealed record AnonymousWorkspaceCaller : WorkspaceCaller
     public static AnonymousWorkspaceCaller Instance { get; } = new();
 }
 
+public sealed record AnonymousBrowserId
+{
+    public AnonymousBrowserId(string value)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(value);
+        if (value.Length != 64
+            || value.Any(static character => character is not (>= '0' and <= '9')
+                and not (>= 'a' and <= 'f')))
+        {
+            throw new ArgumentException(
+                "An Anonymous Browser ID must be lowercase 256-bit hexadecimal.",
+                nameof(value));
+        }
+
+        Value = value;
+    }
+
+    public string Value { get; }
+}
+
+public sealed record AnonymousBrowserWorkspaceCaller : WorkspaceCaller
+{
+    public AnonymousBrowserWorkspaceCaller(AnonymousBrowserId browserId)
+    {
+        ArgumentNullException.ThrowIfNull(browserId);
+        BrowserId = browserId;
+    }
+
+    public AnonymousBrowserId BrowserId { get; }
+}
+
 public sealed record AuthenticatedWorkspaceCaller : WorkspaceCaller
 {
     public AuthenticatedWorkspaceCaller(AuthenticatedSubjectId subjectId)

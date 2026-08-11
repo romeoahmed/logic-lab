@@ -175,6 +175,11 @@ app.UseRouting();
 app.Use(next =>
     new RequestBodyLimitProblemDetailsMiddleware(next).InvokeAsync);
 app.UseAuthentication();
+var dataProtectionProvider = app.Services.GetRequiredService<
+    Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
+app.Use(next => new AnonymousWorkspaceCallerMiddleware(
+    next,
+    dataProtectionProvider).InvokeAsync);
 app.UseAuthorization();
 app.UseRateLimiter();
 app.Use(next =>
