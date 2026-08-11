@@ -275,6 +275,57 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     }
 
     [Test]
+    public async Task Post_Logout_RevocationInfrastructureFails_ClearsCookieAndReturnsProblemDetails()
+    {
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        var principalSource = new PrincipalSource();
+        using var host = CreateIdentityHost(
+            connection,
+            new FixedTimeProvider(now),
+            principalSource,
+            configureAuthenticatedHttp: true);
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            var created = await CreateUserAsync(scope.ServiceProvider);
+            principalSource.Principal = AuthenticationStateFor(
+                created.User,
+                created.SecurityStamp,
+                created.Options,
+                now.AddMinutes(5).ToString("O")).User;
+        }
+
+        using var client = host.CreateHttpsClient();
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
+        await connection.CloseAsync();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            new Uri("/account/logout", UriKind.Relative))
+        {
+            Content = new FormUrlEncodedContent(
+            [
+                new("__RequestVerificationToken", form.RequestToken),
+            ]),
+        };
+        request.Headers.Add("Cookie", form.Cookie);
+
+        using var response = await client.SendAsync(request);
+        var applicationCookieDeleted = response.Headers.TryGetValues(
+                "Set-Cookie",
+                out var cookieHeaders)
+            && cookieHeaders.Any(value => value.StartsWith(
+                    ".AspNetCore.Identity.Application=;",
+                    StringComparison.Ordinal)
+                && value.Contains("expires=", StringComparison.OrdinalIgnoreCase));
+
+        await WebTestHttp.AssertProblemDetailsAsync(
+            response,
+            HttpStatusCode.ServiceUnavailable,
+            "authentication_revocation_failed");
+        await Assert.That(applicationCookieDeleted).IsTrue();
+    }
+
+    [Test]
     public async Task Post_Logout_RequestBodyLimitIsInclusiveAndPreventsAdditionalRevocation()
     {
         var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);

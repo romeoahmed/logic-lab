@@ -64,6 +64,11 @@ binding. A protected form request whose antiforgery verdict is invalid uses the
 exact code `antiforgery_validation_failed`, maps to `400`, and never enters form
 binding or application work.
 
+Logout always clears the current browser's authentication cookie. If global
+security-stamp revocation cannot be confirmed, the endpoint uses the exact code
+`authentication_revocation_failed` and maps to `503`; a concurrency failure is
+retried once against fresh Identity state before that failure is published.
+
 Durable Project open ingress rejection uses the exact code
 `project_open_rate_limit_exceeded`, maps to `429`, and never enters Workspace or
 repository work. It includes `Retry-After` only when the limiter supplies an

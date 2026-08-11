@@ -422,6 +422,34 @@ internal sealed class EditorDurableRouteTests
     }
 
     [Test]
+    public async Task Editor_DurableRoute_ReportsPersistentSaveState()
+    {
+        await using var context = new BunitContext();
+        var owner = new AuthenticatedWorkspaceCaller(
+            new AuthenticatedSubjectId("subject-editor"));
+        var projectId = new DurableProjectId("durable-save-status");
+        await using var workspace = new RecordingAttachWorkspace(
+            durableProjectLoader: DurableLoader(projectId));
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new OpenDurable(projectId, owner),
+            CancellationToken.None);
+        Configure(context, workspace);
+
+        var rendered = RenderEditor(
+            context,
+            opened.WorkspaceId,
+            AuthenticationStateFor("subject-editor"));
+        var saveStatus = await rendered.WaitForElementAsync(
+            "[data-status='save'] dd");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(saveStatus.TextContent).Contains("Durable");
+            await Assert.That(saveStatus.TextContent).DoesNotContain("Sandbox");
+        }
+    }
+
+    [Test]
     public async Task Editor_DurableRoute_FreshComponentRecoversAttachmentAndFencesPriorComponent()
     {
         await using var context = new BunitContext();
