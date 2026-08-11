@@ -19,6 +19,8 @@ internal static class LogicLabProblemDetails
         WorkspaceOutcomeReasons.AuthenticationRequired;
     internal const string AuthenticationRateLimitExceededCode =
         "authentication_rate_limit_exceeded";
+    internal const string AuthenticationRevocationFailedCode =
+        "authentication_revocation_failed";
     internal const string AntiforgeryValidationFailedCode =
         "antiforgery_validation_failed";
     internal const string RequestBodyTooLargeCode = "request_body_too_large";
@@ -26,8 +28,17 @@ internal static class LogicLabProblemDetails
 
     public static IResult Create(HttpContext httpContext, string code)
     {
+        return Create(httpContext, code, CurrentCorrelationToken());
+    }
+
+    internal static IResult Create(
+        HttpContext httpContext,
+        string code,
+        string correlationToken)
+    {
         ArgumentNullException.ThrowIfNull(httpContext);
         ArgumentException.ThrowIfNullOrEmpty(code);
+        ArgumentException.ThrowIfNullOrEmpty(correlationToken);
 
         var (status, title) = Describe(code);
         var problem = new ProblemDetails
@@ -38,7 +49,7 @@ internal static class LogicLabProblemDetails
             Instance = httpContext.Request.Path,
         };
         problem.Extensions["code"] = code;
-        problem.Extensions["traceId"] = CorrelationToken();
+        problem.Extensions["traceId"] = correlationToken;
         return Results.Problem(problem);
     }
 
@@ -84,6 +95,9 @@ internal static class LogicLabProblemDetails
             AuthenticationRateLimitExceededCode => (
                 StatusCodes.Status429TooManyRequests,
                 "Too many authentication requests"),
+            AuthenticationRevocationFailedCode => (
+                StatusCodes.Status503ServiceUnavailable,
+                "The authentication session could not be revoked"),
             WorkspaceOutcomeReasons.WorkspaceCancelled => (
                 StatusCodes.Status503ServiceUnavailable,
                 "Workspace opening was cancelled"),
@@ -117,7 +131,7 @@ internal static class LogicLabProblemDetails
         };
     }
 
-    private static string CorrelationToken()
+    internal static string CurrentCorrelationToken()
     {
         return Activity.Current is { TraceId: var traceId } && traceId != default
             ? traceId.ToHexString()

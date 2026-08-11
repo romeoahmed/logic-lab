@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using LogicLab.Application.Workspaces;
 using Microsoft.Extensions.Logging;
 
@@ -5,6 +6,9 @@ namespace LogicLab.Application.Work;
 
 internal sealed partial class WorkCoordinator : IAsyncDisposable
 {
+    private static readonly ActivitySource WorkActivitySource = new(
+        "LogicLab.Application.Work");
+
     private readonly Lock gate = new();
     private readonly CancellationTokenSource stopping = new();
     private readonly LinkedList<WorkspaceId> compilationQueue = [];
@@ -31,8 +35,20 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         this.logger = logger;
         compilationQueueCapacity = policy.CompilationQueueCapacity;
         sessionQueueCapacity = policy.SessionQueueCapacity;
-        compilationWorker = ConsumeCompilationsAsync();
-        sessionWorker = ConsumeSessionsAsync();
+        (compilationWorker, sessionWorker) = StartWorkers();
+    }
+
+    private (Task Compilation, Task Session) StartWorkers()
+    {
+        if (ExecutionContext.IsFlowSuppressed())
+        {
+            return (ConsumeCompilationsAsync(), ConsumeSessionsAsync());
+        }
+
+        using (ExecutionContext.SuppressFlow())
+        {
+            return (ConsumeCompilationsAsync(), ConsumeSessionsAsync());
+        }
     }
 
     internal bool TryScheduleCompilation(
@@ -426,6 +442,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 item.MarkRemovedUnderLock();
             }
 
+            using var correlationScope = ApplicationCorrelation.Push(item.Correlation);
+            using var activity = StartWorkActivity(item, "compilation");
             try
             {
                 var context = new CompilationWorkContext(
@@ -508,6 +526,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 }
             }
 
+            using var correlationScope = ApplicationCorrelation.Push(item.Correlation);
+            using var activity = StartWorkActivity(item, "session");
             try
             {
                 var outcome = await item.Operation(item.CancellationToken).ConfigureAwait(false);
@@ -597,6 +617,19 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         return code;
     }
 
+    private static Activity? StartWorkActivity(WorkItem item, string lane)
+    {
+        if (item.ParentActivityContext is not { } parent)
+        {
+            return null;
+        }
+
+        return WorkActivitySource.StartActivity(
+            $"LogicLab.Work.{lane}",
+            ActivityKind.Internal,
+            parent);
+    }
+
     [LoggerMessage(
         EventId = 1001,
         Level = LogLevel.Error,
@@ -633,9 +666,15 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         {
             cancellation = ownedCancellation;
             CancellationToken = cancellation.Token;
+            ParentActivityContext = Activity.Current?.Context;
+            Correlation = ApplicationCorrelation.CurrentOrCreate();
         }
 
         public CancellationToken CancellationToken { get; }
+
+        public ActivityContext? ParentActivityContext { get; }
+
+        public string Correlation { get; }
 
         protected void Cancel()
         {

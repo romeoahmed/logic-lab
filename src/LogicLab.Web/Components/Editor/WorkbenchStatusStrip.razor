@@ -24,7 +24,7 @@
         </div>
         <div data-status="save">
             <dt>Save</dt>
-            <dd>Sandbox · memory only</dd>
+            <dd>@Save</dd>
         </div>
     </dl>
     <p class="status-message" role="status" aria-live="polite">@Message</p>
@@ -33,6 +33,26 @@
 @code {
     [Parameter]
     public WorkspaceProjection? Projection { get; set; }
+
+    private string Save => Projection?.Durability switch
+    {
+        SandboxWorkspaceDurabilityProjection => "Sandbox · memory only",
+        DurableWorkspaceDurabilityProjection
+        {
+            SaveStatus: DurableSaveStatus.Clean,
+        } durable => $"Durable · saved · {durable.ObservedDurableVersion.Value}",
+        DurableWorkspaceDurabilityProjection
+        {
+            SaveStatus: DurableSaveStatus.Changed,
+        } durable => $"Durable · changed · {durable.ObservedDurableVersion.Value}",
+        DurableWorkspaceDurabilityProjection
+        {
+            SaveStatus: DurableSaveStatus.Conflict,
+            ConflictActualDurableVersion: { } actualVersion,
+        } => $"Durable · conflict · {actualVersion.Value}",
+        DurableWorkspaceDurabilityProjection => "Durable · status unavailable",
+        _ => "Unavailable",
+    };
 
     [Parameter]
     public bool IsConnected { get; set; }
