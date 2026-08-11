@@ -129,8 +129,6 @@ public sealed record PackageEvidence(
 
 public enum PackageDiagnosticSeverity
 {
-    Info,
-    Warning,
     Error,
 }
 

@@ -88,8 +88,7 @@ public static class ProjectPackage
                 packageDigest,
                 observations,
                 cancellationToken);
-            Observe(
-                request.ProjectRevision.Document,
+            ObservePackage(
                 manifestBytes,
                 parts,
                 observations,
@@ -362,22 +361,25 @@ public static class ProjectPackage
         await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
     }
 
-    private static void Observe(
-        ProjectDocument document,
+    private static void ObservePackage(
         byte[] manifestBytes,
         IReadOnlyList<PackagePart> parts,
         ulong[] observations,
         CancellationToken cancellationToken)
     {
-        ObserveDomain(document, observations, cancellationToken);
+        var largestPartBytes = checked((ulong)manifestBytes.Length);
+        var expandedBytes = largestPartBytes;
+        foreach (var part in parts)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var partBytes = checked((ulong)part.Bytes.Length);
+            largestPartBytes = Math.Max(largestPartBytes, partBytes);
+            expandedBytes = SaturatingAdd(expandedBytes, partBytes);
+        }
+
         observations[(int)PackageDimension.EntryCount] = checked((ulong)parts.Count + 1);
-        observations[(int)PackageDimension.PartBytes] = Max(
-            checked((ulong)manifestBytes.Length),
-            parts.Select(part => checked((ulong)part.Bytes.Length)));
-        observations[(int)PackageDimension.ExpandedBytes] = SaturatingAdd(
-            checked((ulong)manifestBytes.Length),
-            parts.Select(part => checked((ulong)part.Bytes.Length)));
-        cancellationToken.ThrowIfCancellationRequested();
+        observations[(int)PackageDimension.PartBytes] = largestPartBytes;
+        observations[(int)PackageDimension.ExpandedBytes] = expandedBytes;
     }
 
     private static void ObserveDomain(
@@ -505,30 +507,8 @@ public static class ProjectPackage
     private static bool IsFatal(Exception exception) => exception is
         OutOfMemoryException or StackOverflowException or AccessViolationException;
 
-    private static ulong Max(ulong first, IEnumerable<ulong> rest)
-    {
-        var maximum = first;
-        foreach (var value in rest)
-        {
-            maximum = Math.Max(maximum, value);
-        }
-
-        return maximum;
-    }
-
     private static ulong SaturatingAdd(ulong left, ulong right) =>
         ulong.MaxValue - left < right ? ulong.MaxValue : left + right;
-
-    private static ulong SaturatingAdd(ulong first, IEnumerable<ulong> rest)
-    {
-        var sum = first;
-        foreach (var value in rest)
-        {
-            sum = SaturatingAdd(sum, value);
-        }
-
-        return sum;
-    }
 
     private sealed record PackagePart(
         string Path,
