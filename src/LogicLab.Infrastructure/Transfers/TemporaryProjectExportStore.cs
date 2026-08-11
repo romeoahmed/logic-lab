@@ -323,8 +323,7 @@ public sealed class TemporaryProjectExportStore :
             {
                 await export.Staging.DisposeAsync().ConfigureAwait(false);
             }
-            catch (Exception exception) when (exception is not (
-                OutOfMemoryException or StackOverflowException or AccessViolationException))
+            catch (Exception exception) when (!IsFatal(exception))
             {
             }
         }
@@ -338,8 +337,7 @@ public sealed class TemporaryProjectExportStore :
             {
                 export.Staging.DisposeAfterPublication();
             }
-            catch (Exception exception) when (exception is not (
-                OutOfMemoryException or StackOverflowException or AccessViolationException))
+            catch (Exception exception) when (!IsFatal(exception))
             {
             }
         }
@@ -356,12 +354,20 @@ public sealed class TemporaryProjectExportStore :
         }
 
         var path = Path.GetFullPath(configuredPath);
-        var alreadyExists = Directory.Exists(path);
-        var directoryInfo = alreadyExists
-            ? new DirectoryInfo(path)
-            : OperatingSystem.IsWindows()
-                ? Directory.CreateDirectory(path)
-                : Directory.CreateDirectory(path, StagingDirectoryMode);
+        DirectoryInfo directoryInfo;
+        if (Directory.Exists(path))
+        {
+            directoryInfo = new DirectoryInfo(path);
+        }
+        else if (OperatingSystem.IsWindows())
+        {
+            directoryInfo = Directory.CreateDirectory(path);
+        }
+        else
+        {
+            directoryInfo = Directory.CreateDirectory(path, StagingDirectoryMode);
+        }
+
         directoryInfo.Refresh();
         if ((directoryInfo.Attributes & FileAttributes.ReparsePoint) != 0
             || directoryInfo.LinkTarget is not null)
@@ -403,8 +409,10 @@ public sealed class TemporaryProjectExportStore :
     }
 
     private static TimeSpan Lifetime(ulong expiresAfterSeconds) =>
-        TimeSpan.FromTicks(checked(
-            checked((long)expiresAfterSeconds) * TimeSpan.TicksPerSecond));
+        TimeSpan.FromSeconds(checked((long)expiresAfterSeconds));
+
+    private static bool IsFatal(Exception exception) => exception is
+        OutOfMemoryException or StackOverflowException or AccessViolationException;
 
     private sealed record PublishedExport(
         ProjectExportPublication Publication,
