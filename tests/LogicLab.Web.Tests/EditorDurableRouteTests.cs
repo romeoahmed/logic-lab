@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Bunit;
+using Bunit.TestDoubles;
 using LogicLab.Application.Workspaces;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Components.Pages;
@@ -12,6 +13,38 @@ namespace LogicLab.Web.Tests;
 
 internal sealed class EditorDurableRouteTests
 {
+    [Test]
+    public async Task Editor_BuildMismatch_OffersHardReloadRecovery()
+    {
+        await using var context = new BunitContext();
+        await using var workspace = new RecordingAttachWorkspace(
+            buildFingerprint: "previous-build");
+        var opened = (WorkspaceOpened)await workspace.OpenAsync(
+            new CreateSandbox("Previous build project", "Main"),
+            CancellationToken.None);
+        Configure(context, workspace);
+
+        var rendered = RenderEditor(
+            context,
+            opened.WorkspaceId,
+            AuthenticationStateFor(null));
+
+        var reload = await rendered.WaitForElementAsync(
+            "[data-recovery='reload']");
+        await reload.ClickAsync();
+        var navigation = (BunitNavigationManager)context.Services
+            .GetRequiredService<NavigationManager>();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.Find("[data-workspace-attachment-error]")
+                    .GetAttribute("data-error-code"))
+                .IsEqualTo("build_fingerprint_mismatch");
+            await Assert.That(navigation.History).Count().IsEqualTo(1);
+            await Assert.That(navigation.History.Single().Options.ForceLoad).IsTrue();
+        }
+    }
+
     [Test]
     public async Task Editor_MissingWorkspace_RendersRecoveryStateInsteadOfSandboxWorkbench()
     {
@@ -547,8 +580,11 @@ internal sealed class EditorDurableRouteTests
         bool blockFirstAttach = false,
         bool blockFirstReattach = false,
         bool rejectFirstDispatchWithReattach = false,
-        IDurableProjectLoader? durableProjectLoader = null)
-        : DelegatingEditorWorkspace(durableProjectLoader: durableProjectLoader)
+        IDurableProjectLoader? durableProjectLoader = null,
+        string? buildFingerprint = null)
+        : DelegatingEditorWorkspace(
+            durableProjectLoader: durableProjectLoader,
+            buildFingerprint: buildFingerprint)
     {
         private readonly object gate = new();
         private readonly List<AttachRequest> attachRequests = [];

@@ -55,6 +55,7 @@ Prefer the shared framework and BCL before a package. A package must remove mate
 - Interface collections are present, non-null, owned, and read-only. When ownership and validation both require enumeration, copy once and validate the owned snapshot. `Span<T>`, `Memory<T>`, pooled owners, mutable builders, EF entities, and JavaScript/JSON DTOs do not cross Domain or core Module seams.
 - Validate untrusted bytes, browser records, HTTP values, configuration, and persistence results at their ingress seam. Inside a typed Module, enforce constructors and invariants once rather than scattering defensive revalidation across every helper.
 - Expected domain, policy, cancellation, concurrency, and eligibility conditions return the specification's closed outcomes. Exceptions represent defects or infrastructure failure and are translated once at the Application/host seam; exception messages and types are never caller logic.
+- Each Module declares its implemented stable outcome-reason constants once. Adapters reference the owning constants instead of copying wire strings; contract tests may still assert the literal external value.
 - Do not introduce a generic `Result<T>`, generic command envelope, service locator, repository-per-entity interface, marker interface, or shared `Common` model.
 
 Checked arithmetic is the default compiler context. Intentional modular arithmetic, bit packing, hashing, and protocol truncation use the smallest explicit `unchecked` expression and tests at zero, maximum, overflow, and tail boundaries.

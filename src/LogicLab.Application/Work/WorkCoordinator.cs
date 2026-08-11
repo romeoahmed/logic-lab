@@ -592,7 +592,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         var code = ExceptionClassifier.IsInfrastructureFailure(exception)
             ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
             : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
-        var correlation = Guid.CreateVersion7().ToString("N");
+        var correlation = ApplicationCorrelation.CurrentOrCreate();
         LogWorkFailure(logger, exception, correlation, lane, code);
         return code;
     }

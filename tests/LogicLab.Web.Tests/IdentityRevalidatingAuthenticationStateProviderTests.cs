@@ -275,6 +275,110 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     }
 
     [Test]
+    public async Task Post_Logout_RequestBodyLimitIsInclusiveAndPreventsAdditionalRevocation()
+    {
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        var principalSource = new PrincipalSource();
+        using var host = CreateIdentityHost(
+            connection,
+            new FixedTimeProvider(now),
+            principalSource,
+            configureAuthenticatedHttp: true);
+        ApplicationUser user;
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            var created = await CreateUserAsync(scope.ServiceProvider);
+            user = created.User;
+            principalSource.Principal = AuthenticationStateFor(
+                created.User,
+                created.SecurityStamp,
+                created.Options,
+                now.AddMinutes(5).ToString("O")).User;
+        }
+
+        using var client = host.CreateHttpsClient();
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
+        using var accepted = await PostSizedLogoutFormAsync(
+            client,
+            form,
+            AccountIngressPolicy.MaximumRequestBodyBytes);
+        var stampAfterAccepted = await ReadSecurityStampAsync(host.Services, user.Id);
+        using var rejected = await PostSizedLogoutFormAsync(
+            client,
+            form,
+            AccountIngressPolicy.MaximumRequestBodyBytes + 1);
+        var stampAfterRejected = await ReadSecurityStampAsync(host.Services, user.Id);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(accepted.StatusCode).IsEqualTo(HttpStatusCode.Redirect);
+            await WebTestHttp.AssertProblemDetailsAsync(
+                rejected,
+                HttpStatusCode.RequestEntityTooLarge,
+                "request_body_too_large");
+            await Assert.That(stampAfterRejected).IsEqualTo(stampAfterAccepted);
+        }
+    }
+
+    [Test]
+    public async Task Post_Logout_RateLimitRejectsBeforeAdditionalRevocation()
+    {
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var connection = await OpenIdentityDatabaseAsync();
+        var principalSource = new PrincipalSource();
+        using var host = CreateIdentityHost(
+            connection,
+            new FixedTimeProvider(now),
+            principalSource,
+            configureAuthenticatedHttp: true);
+        ApplicationUser user;
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            var created = await CreateUserAsync(scope.ServiceProvider);
+            user = created.User;
+            principalSource.Principal = AuthenticationStateFor(
+                created.User,
+                created.SecurityStamp,
+                created.Options,
+                now.AddMinutes(5).ToString("O")).User;
+        }
+
+        using var client = host.CreateHttpsClient();
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
+        for (var attempt = 0;
+             attempt < AccountIngressPolicy.Default.LogoutPermitLimit;
+             attempt++)
+        {
+            using var accepted = await PostSizedLogoutFormAsync(
+                client,
+                form,
+                AccountIngressPolicy.MaximumRequestBodyBytes);
+            await Assert.That(accepted.StatusCode).IsEqualTo(HttpStatusCode.Redirect);
+        }
+
+        var stampAfterAccepted = await ReadSecurityStampAsync(host.Services, user.Id);
+        using var rejected = await PostSizedLogoutFormAsync(
+            client,
+            form,
+            AccountIngressPolicy.MaximumRequestBodyBytes);
+        var stampAfterRejected = await ReadSecurityStampAsync(host.Services, user.Id);
+        var retryAfter = rejected.Headers.RetryAfter?.Delta;
+
+        using (Assert.Multiple())
+        {
+            await WebTestHttp.AssertProblemDetailsAsync(
+                rejected,
+                HttpStatusCode.TooManyRequests,
+                "authentication_rate_limit_exceeded");
+            await Assert.That(retryAfter).IsNotNull();
+            await Assert.That(retryAfter.GetValueOrDefault())
+                .IsGreaterThan(TimeSpan.Zero);
+            await Assert.That(stampAfterRejected).IsEqualTo(stampAfterAccepted);
+        }
+    }
+
+    [Test]
     public async Task Post_LoginWhileAuthenticated_FailsClosedWithoutIdentitySwitch()
     {
         const string password = "Circuit-Passw0rd!";
@@ -990,6 +1094,56 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         };
         request.Headers.Add("Cookie", preparedForm.Cookie);
         return await client.SendAsync(request);
+    }
+
+    private static async Task<HttpResponseMessage> PostSizedLogoutFormAsync(
+        HttpClient client,
+        AntiforgeryForm preparedForm,
+        int bodyLength)
+    {
+        var values = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", preparedForm.RequestToken),
+            new("padding", string.Empty),
+        };
+        using var unpadded = new FormUrlEncodedContent(values);
+        var paddingLength = checked(
+            bodyLength - (int)(unpadded.Headers.ContentLength
+                ?? throw new InvalidOperationException(
+                    "The logout form did not expose its length.")));
+        if (paddingLength < 0)
+        {
+            throw new InvalidOperationException(
+                "The requested body length is smaller than the logout form envelope.");
+        }
+
+        values[^1] = new("padding", new string('x', paddingLength));
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            new Uri("/account/logout", UriKind.Relative))
+        {
+            Content = new FormUrlEncodedContent(values),
+        };
+        if (request.Content.Headers.ContentLength != bodyLength)
+        {
+            throw new InvalidOperationException(
+                "The encoded logout form did not reach the requested byte boundary.");
+        }
+
+        request.Headers.Add("Cookie", preparedForm.Cookie);
+        return await client.SendAsync(request);
+    }
+
+    private static async Task<string> ReadSecurityStampAsync(
+        IServiceProvider services,
+        string userId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var userManager = scope.ServiceProvider
+            .GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByIdAsync(userId)
+            ?? throw new InvalidOperationException("The test user disappeared.");
+        return await userManager.GetSecurityStampAsync(user);
     }
 
     private static async Task AssertCurrentIdentityPreservedAsync(

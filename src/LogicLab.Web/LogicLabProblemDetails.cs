@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using LogicLab.Application.Workspaces;
+using LogicLab.Engine.Compilation;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LogicLab.Web;
@@ -14,7 +16,7 @@ internal static class LogicLabProblemDetails
     internal const string ProjectOpenRateLimitExceededCode =
         "project_open_rate_limit_exceeded";
     internal const string AuthenticationRequiredCode =
-        "authentication_required";
+        WorkspaceOutcomeReasons.AuthenticationRequired;
     internal const string AuthenticationRateLimitExceededCode =
         "authentication_rate_limit_exceeded";
     internal const string AntiforgeryValidationFailedCode =
@@ -59,21 +61,21 @@ internal static class LogicLabProblemDetails
             AuthenticationRequiredCode => (
                 StatusCodes.Status401Unauthorized,
                 "Authentication is required"),
-            "workspace_not_found" or ForbiddenCode =>
+            WorkspaceOutcomeReasons.WorkspaceNotFound or ForbiddenCode =>
                 (StatusCodes.Status404NotFound, "The requested resource was not found"),
-            "project_catalog_request_invalid" => (
+            DurableProjectCatalogOutcomeReasons.RequestInvalid => (
                 StatusCodes.Status422UnprocessableEntity,
                 "The project catalog request is invalid"),
-            "project_catalog_cursor_invalid" => (
+            DurableProjectCatalogOutcomeReasons.CursorInvalid => (
                 StatusCodes.Status422UnprocessableEntity,
                 "The project catalog cursor is invalid"),
-            "compilation_invalid" => (
+            CompilationOutcomeReasons.Invalid => (
                 StatusCodes.Status422UnprocessableEntity,
                 "The project revision is invalid"),
-            "compilation_policy_exhausted" => (
+            CompilationOutcomeReasons.PolicyExhausted => (
                 StatusCodes.Status422UnprocessableEntity,
                 "The project exceeds compilation policy"),
-            "workspace_admission_rejected" => (
+            WorkspaceOutcomeReasons.WorkspaceAdmissionRejected => (
                 StatusCodes.Status429TooManyRequests,
                 "Workspace capacity is unavailable"),
             ProjectOpenRateLimitExceededCode => (
@@ -82,31 +84,31 @@ internal static class LogicLabProblemDetails
             AuthenticationRateLimitExceededCode => (
                 StatusCodes.Status429TooManyRequests,
                 "Too many authentication requests"),
-            "workspace_cancelled" => (
+            WorkspaceOutcomeReasons.WorkspaceCancelled => (
                 StatusCodes.Status503ServiceUnavailable,
                 "Workspace opening was cancelled"),
-            "workspace_infrastructure_failure" => (
+            WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure => (
                 StatusCodes.Status503ServiceUnavailable,
                 "The Workspace service is unavailable"),
-            "compilation_cancelled" => (
+            CompilationOutcomeReasons.Cancelled => (
                 StatusCodes.Status503ServiceUnavailable,
                 "Project compilation was cancelled"),
-            "compilation_infrastructure_failure" => (
+            CompilationOutcomeReasons.InfrastructureFailure => (
                 StatusCodes.Status503ServiceUnavailable,
                 "The Compiler service is unavailable"),
-            "project_catalog_cancelled" => (
+            DurableProjectCatalogOutcomeReasons.Cancelled => (
                 StatusCodes.Status503ServiceUnavailable,
                 "Project catalog loading was cancelled"),
-            "project_catalog_infrastructure_failure" => (
+            DurableProjectCatalogOutcomeReasons.InfrastructureFailure => (
                 StatusCodes.Status503ServiceUnavailable,
                 "The project catalog is unavailable"),
-            "workspace_internal_defect" => (
+            WorkspaceOutcomeReasons.WorkspaceInternalDefect => (
                 StatusCodes.Status500InternalServerError,
                 "The Workspace could not be opened"),
-            "compilation_internal_defect" => (
+            CompilationOutcomeReasons.InternalDefect => (
                 StatusCodes.Status500InternalServerError,
                 "The project could not be compiled"),
-            "project_catalog_internal_defect" => (
+            DurableProjectCatalogOutcomeReasons.InternalDefect => (
                 StatusCodes.Status500InternalServerError,
                 "The project catalog could not be loaded"),
             _ => (

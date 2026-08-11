@@ -89,6 +89,9 @@ builder.Services.AddRateLimiter(options =>
         AccountIngressPolicy.RegistrationRateLimitPolicyName,
         accountIngressPolicy.RegistrationPartition);
     options.AddPolicy<string>(
+        AccountIngressPolicy.LogoutRateLimitPolicyName,
+        accountIngressPolicy.LogoutPartition);
+    options.AddPolicy<string>(
         DurableProjectIngressPolicy.OpenRateLimitPolicyName,
         durableProjectIngressPolicy.OpenPartition);
     options.OnRejected = async (context, _) =>
@@ -130,7 +133,8 @@ builder.Services.AddSingleton<IDurableProjectCatalog>(services =>
     DurableProjectCatalogFactory.Create(
         workspacePolicy,
         services.GetRequiredService<IDurableProjectCatalogRepository>(),
-        services.GetRequiredService<IProjectCatalogCursorProtector>()));
+        services.GetRequiredService<IProjectCatalogCursorProtector>(),
+        services.GetRequiredService<ILoggerFactory>()));
 builder.Services.AddScoped(static _ => new DurableProjectCatalogPageState());
 builder.Services.AddSingleton<IEditorWorkspace>(services =>
     EditorWorkspaceFactory.Create(

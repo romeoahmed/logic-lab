@@ -355,7 +355,7 @@ internal sealed partial class EditorWorkspace
 
     private void LogDurableRepositoryException(Exception exception)
     {
-        var correlation = Guid.CreateVersion7().ToString("N");
+        var correlation = ApplicationCorrelation.CurrentOrCreate();
         LogDurableRepositoryFailure(logger, exception, correlation);
     }
 

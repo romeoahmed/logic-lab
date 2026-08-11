@@ -106,13 +106,15 @@ never depends on whether the page happens to render an antiforgery token.
 
 The host applies separate bounded policies to request rate, request body bytes, concurrent transfers, expanded package work, Workspace admission, and background work. ASP.NET Core rate limiting is an ingress control, not a complete DDoS defense or a replacement for Module policy; official guidance requires load testing configured policies ([rate limiting](https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit?view=aspnetcore-10.0)).
 
-Static SSR login and registration POSTs use independent fixed-window ingress
-policies partitioned by client address; reads do not consume their permits.
-The initial policy admits at most ten login attempts and five registration
-attempts per minute per partition, queues no excess requests, and publishes an
-RFC 9457 `429` rejection. Each account form request body is independently
-bounded to 4096 bytes before form binding and publishes an RFC 9457 `413`
-rejection. Account email input is bounded to 256 characters and
+Static SSR login, registration, and logout POSTs use independent fixed-window
+ingress policies; reads do not consume their permits. Login and registration
+are partitioned by client address, while authenticated logout is partitioned by
+subject. The initial policy admits at most ten login attempts, five registration
+attempts, and five logout attempts per minute per partition, queues no excess
+requests, and publishes an RFC 9457 `429` rejection. Each account form request
+body is independently bounded to 4096 bytes before antiforgery validation or
+form binding and publishes an RFC 9457 `413` rejection. Account email input is
+bounded to 256 characters and
 password and confirmation input to 100 characters at both HTML and application
 validation boundaries. A password is cleared from the bound render model before
 calling Identity and on every invalid submission, so no failure response writes

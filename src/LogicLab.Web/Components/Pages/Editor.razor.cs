@@ -84,6 +84,9 @@ public sealed partial class Editor : IAsyncDisposable
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
+    [Inject]
+    private NavigationManager Navigation { get; set; } = null!;
+
     protected override async Task OnParametersSetAsync()
     {
         var caller = AuthenticationStateTask is null
@@ -743,6 +746,11 @@ public sealed partial class Editor : IAsyncDisposable
         AttachmentFailure = WorkspaceAttachmentFailure.From(code);
     }
 
+    private void ReloadApplication()
+    {
+        Navigation.Refresh(forceReload: true);
+    }
+
     private void UpdateProjection(WorkspaceProjection projection)
     {
         ArgumentNullException.ThrowIfNull(projection);
@@ -925,7 +933,8 @@ public sealed partial class Editor : IAsyncDisposable
             ArgumentException.ThrowIfNullOrEmpty(code);
             return code switch
             {
-                "workspace_not_found" or "workspace_expired" => new(
+                WorkspaceOutcomeReasons.WorkspaceNotFound
+                    or WorkspaceOutcomeReasons.WorkspaceExpired => new(
                     code,
                     "This workspace is no longer available.",
                     "It may have expired or been closed. Return to your Durable Projects, or start a new Sandbox."),
@@ -933,11 +942,11 @@ public sealed partial class Editor : IAsyncDisposable
                     code,
                     "Your access to this workspace changed.",
                     "Sign in with the project owner account and reopen it from Durable Projects."),
-                "stale_workspace_attachment" => new(
+                WorkspaceOutcomeReasons.StaleWorkspaceAttachment => new(
                     code,
                     "This workspace is attached elsewhere.",
                     "Continue in the tab that owns the active attachment, or reopen an authorized Durable Project."),
-                "client_build_incompatible" => new(
+                WorkspaceOutcomeReasons.BuildFingerprintMismatch => new(
                     code,
                     "Logic Lab was updated.",
                     "Reload the application before reopening this workspace."),

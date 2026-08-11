@@ -7,7 +7,7 @@
 
 ## Rendering configuration
 
-This project uses per-page Interactive Server with prerendering. It was created with `dotnet new blazor -int Server`.
+This project uses per-page Interactive Server with prerendering.
 
 Pages are Static SSR by default. Only components that explicitly add `@rendermode InteractiveServer` become interactive.
 

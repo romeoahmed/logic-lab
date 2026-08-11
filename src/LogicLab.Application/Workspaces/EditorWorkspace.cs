@@ -472,7 +472,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             var code = ExceptionClassifier.IsInfrastructureFailure(exception)
                 ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
                 : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
-            var correlation = Guid.CreateVersion7().ToString("N");
+            var correlation = ApplicationCorrelation.CurrentOrCreate();
             LogCompilationFailure(logger, exception, correlation, code);
             await PublishCompilationFailureAsync(
                 state,
@@ -821,7 +821,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
             var reason = AdvanceFailureReasonFrom(exception);
-            var correlation = Guid.CreateVersion7().ToString("N");
+            var correlation = ApplicationCorrelation.CurrentOrCreate();
             LogAdvanceFailure(logger, exception, correlation, reason);
             return AdvanceFailure(
                 simulation,

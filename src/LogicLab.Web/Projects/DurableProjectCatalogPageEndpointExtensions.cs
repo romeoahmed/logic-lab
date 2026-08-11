@@ -51,7 +51,8 @@ internal static class DurableProjectCatalogPageEndpointExtensions
         {
             await LogicLabProblemDetails.Create(
                 httpContext,
-                "authentication_required").ExecuteAsync(httpContext);
+                LogicLabProblemDetails.AuthenticationRequiredCode)
+                .ExecuteAsync(httpContext);
             return;
         }
 
@@ -60,7 +61,8 @@ internal static class DurableProjectCatalogPageEndpointExtensions
         {
             await LogicLabProblemDetails.Create(
                 httpContext,
-                "project_catalog_request_invalid").ExecuteAsync(httpContext);
+                DurableProjectCatalogOutcomeReasons.RequestInvalid)
+                .ExecuteAsync(httpContext);
             return;
         }
 
@@ -68,7 +70,8 @@ internal static class DurableProjectCatalogPageEndpointExtensions
         {
             await LogicLabProblemDetails.Create(
                 httpContext,
-                "project_catalog_cursor_invalid").ExecuteAsync(httpContext);
+                DurableProjectCatalogOutcomeReasons.CursorInvalid)
+                .ExecuteAsync(httpContext);
             return;
         }
 
