@@ -6,6 +6,7 @@ using LogicLab.Presentation.Scene;
 using LogicLab.Web.Components.Editor;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
@@ -33,9 +34,11 @@ internal sealed class AccessibleCircuitSceneTests
             await Assert.That(section.GetAttribute("aria-labelledby")).IsEqualTo(heading.Id);
             await Assert.That(heading.TextContent).IsEqualTo(scene.DisplayName);
             await Assert.That(componentIds).IsEquivalentTo(
-                scene.Components.Select(component => component.Source.ComponentInstanceId.Value));
+                scene.Components.Select(component => component.Source.ComponentInstanceId.Value),
+                CollectionOrdering.Matching);
             await Assert.That(connectionIds).IsEquivalentTo(
-                scene.Connections.Select(connection => connection.Source.NetId.Value));
+                scene.Connections.Select(connection => connection.Source.NetId.Value),
+                CollectionOrdering.Matching);
         }
 
         foreach (var component in scene.Components)
@@ -93,9 +96,11 @@ internal sealed class AccessibleCircuitSceneTests
         using (Assert.Multiple())
         {
             await Assert.That(junctionIds).IsEquivalentTo(projectedConnection.Junctions
-                .Select(junction => junction.Source.JunctionId.Value));
+                    .Select(junction => junction.Source.JunctionId.Value),
+                CollectionOrdering.Matching);
             await Assert.That(wireGeometryIds).IsEquivalentTo(projectedConnection.WireGeometries
-                .Select(geometry => geometry.Source.WireGeometryId.Value));
+                    .Select(geometry => geometry.Source.WireGeometryId.Value),
+                CollectionOrdering.Matching);
             await Assert.That(rendered.FindAll("[data-junction]")
                     .All(element => !string.IsNullOrWhiteSpace(element.TextContent)))
                 .IsTrue();
