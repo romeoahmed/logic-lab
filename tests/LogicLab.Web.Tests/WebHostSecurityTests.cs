@@ -164,6 +164,36 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     }
 
     [Test]
+    [Arguments("/account/login", "#login-email-validation", "#login-password-validation")]
+    [Arguments(
+        "/account/register",
+        "#register-email-validation",
+        "#register-password-validation",
+        "#register-confirm-password-validation")]
+    public async Task Get_AccountForm_ProvidesFieldLevelValidationTargets(
+        string path,
+        params string[] validationSelectors)
+    {
+        using var client = factory.CreateHttpsClient();
+
+        using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
+        response.EnsureSuccessStatusCode();
+        var document = WebTestMarkup.Parse(await response.Content.ReadAsStringAsync());
+
+        foreach (var selector in validationSelectors)
+        {
+            var validation = WebTestMarkup.RequireElement(document, selector);
+            var validationId = selector[1..];
+            var inputId = validationId[..^"-validation".Length];
+            var input = WebTestMarkup.RequireElement(document, $"#{inputId}");
+            var descriptions = input.GetAttribute("aria-describedby")?
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
+            await Assert.That(validation.GetAttribute("aria-live")).IsEqualTo("polite");
+            await Assert.That(descriptions).Contains(validationId);
+        }
+    }
+
+    [Test]
     public async Task Post_AuthenticationEntries_UseIndependentBoundedPoliciesWithProblemDetails()
     {
         var policy = AccountIngressPolicy.Default;

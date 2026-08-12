@@ -60,6 +60,15 @@
   text-align: center;
 }
 
+.empty-state::before {
+  inline-size: 3rem;
+  block-size: 1.25rem;
+  margin-block-end: 1rem;
+  border-block-end: 2px solid var(--ll-signal);
+  background: linear-gradient(135deg, transparent 42%, var(--ll-signal) 43% 48%, transparent 49%) 0 0 / 0.8rem 100%;
+  content: "";
+}
+
 .component-list,
 .connection-list,
 .definition-port-list {
@@ -89,10 +98,21 @@
 .component-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
-  gap: 0.75rem;
+  grid-auto-rows: auto auto minmax(0, 1fr);
+  gap: 0.65rem 0.75rem;
+}
+
+.component-list > li {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  min-inline-size: 0;
 }
 
 .component-card {
+  display: grid;
+  grid-row: 1 / -1;
+  grid-template-rows: subgrid;
   min-block-size: 9rem;
   padding: 1rem;
   border: 1px solid var(--ll-border-strong);
@@ -100,12 +120,18 @@
   background: color-mix(in oklab, var(--ll-panel) 94%, var(--ll-signal-soft));
 }
 
+.component-card:hover {
+  border-color: var(--ll-signal);
+  background: color-mix(in oklab, var(--ll-panel) 88%, var(--ll-signal-soft));
+}
+
 .component-card h3,
 .component-card p {
-  margin-block-start: 0;
+  margin: 0;
 }
 
 .component-card ul {
+  margin: 0;
   padding-inline-start: 1.25rem;
 }
 
@@ -115,10 +141,15 @@
 
 .connection-list {
   display: grid;
-  gap: 0.5rem;
+  grid-template-columns: [path] minmax(0, 1fr) [width] max-content;
+  gap: 0.5rem 1rem;
 }
 
 .connection-list > li {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  row-gap: 0.5rem;
   padding: 0.65rem 0.8rem;
   border-inline-start: 3px solid var(--ll-signal);
   border-block: 1px solid var(--ll-border);
@@ -127,13 +158,24 @@
 }
 
 .connection-summary {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+
+.connection-summary > span {
+  grid-column: path;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.connection-summary > small {
+  grid-column: width;
 }
 
 .topology-list {
   display: grid;
+  grid-column: 1 / -1;
   gap: 0.25rem;
   margin-block-start: 0.5rem;
   padding-inline-start: 1.25rem;

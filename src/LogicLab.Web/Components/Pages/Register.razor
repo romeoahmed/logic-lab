@@ -39,27 +39,48 @@
         <div class="form-field">
             <label for="register-email">Email</label>
             <InputText id="register-email"
+                       aria-describedby="register-email-validation"
                        autocomplete="username"
                        maxlength="@AccountInputLimits.MaximumEmailLength"
                        @bind-Value="Input.Email" />
+            <div class="field-validation"
+                 id="register-email-validation"
+                 aria-live="polite">
+                <ValidationMessage For="@(() => Input.Email)" />
+            </div>
         </div>
         <div class="form-field">
             <label for="register-password">Password</label>
             <InputText id="register-password"
+                       aria-describedby="register-password-hint register-password-validation"
                        type="password"
                        autocomplete="new-password"
                        maxlength="@AccountInputLimits.MaximumPasswordLength"
                        @bind-Value="Input.Password" />
+            <p class="field-hint" id="register-password-hint">
+                Use at least 8 characters.
+            </p>
+            <div class="field-validation"
+                 id="register-password-validation"
+                 aria-live="polite">
+                <ValidationMessage For="@(() => Input.Password)" />
+            </div>
         </div>
         <div class="form-field">
             <label for="register-confirm-password">Confirm password</label>
             <InputText id="register-confirm-password"
+                       aria-describedby="register-confirm-password-validation"
                        type="password"
                        autocomplete="new-password"
                        maxlength="@AccountInputLimits.MaximumPasswordLength"
                        @bind-Value="Input.ConfirmPassword" />
+            <div class="field-validation"
+                 id="register-confirm-password-validation"
+                 aria-live="polite">
+                <ValidationMessage For="@(() => Input.ConfirmPassword)" />
+            </div>
         </div>
-        <button class="primary-action" type="submit">Create account</button>
+        <button class="primary-action" type="submit">Create secure account</button>
     </EditForm>
 
     <p class="account-switch">Already registered? <a href="/account/login">Log in</a></p>

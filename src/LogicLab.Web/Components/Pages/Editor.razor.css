@@ -88,8 +88,9 @@
   overflow: clip;
   min-inline-size: 0;
   border: 1px solid var(--ll-border-strong);
-  border-radius: var(--ll-radius-small);
+  border-radius: var(--ll-radius-medium);
   background: var(--ll-panel);
+  box-shadow: 0 0.35rem 1.25rem rgb(16 42 51 / 6%);
 }
 
 .workbench-command-region,
@@ -254,10 +255,18 @@
 
 @media (max-width: 560px) {
   .workbench-shell {
-    padding: 0.85rem;
+    padding: 0.65rem;
   }
 
   .workbench-heading h1 {
     font-size: clamp(2.5rem, 13vw, 3.8rem);
+  }
+
+  .workbench-heading {
+    padding-inline: 0.35rem;
+  }
+
+  .workbench-deck {
+    border-radius: var(--ll-radius-small);
   }
 }

@@ -90,6 +90,7 @@
     grid-template-columns: repeat(4, max-content);
     overflow-x: auto;
     scrollbar-width: thin;
+    scroll-snap-type: inline proximity;
   }
 
   .topology-command-group {
@@ -98,6 +99,7 @@
     padding-inline: 0.75rem;
     border-block-start: 0;
     border-inline-start: 1px solid var(--ll-border);
+    scroll-snap-align: start;
   }
 
   .topology-command-group:first-child {
@@ -109,5 +111,12 @@
 @media (max-width: 720px) {
   .topology-command-heading {
     display: grid;
+  }
+
+  .topology-command-bar {
+    padding-inline-end: 2.5rem;
+    background:
+      linear-gradient(90deg, transparent, var(--ll-panel) 75%) right / 2.5rem 100% no-repeat,
+      var(--ll-panel);
   }
 }

@@ -83,11 +83,6 @@
   font-weight: 750;
 }
 
-.error-actions .error-primary {
-  padding: 0.8rem 1rem;
-  border: 1px solid var(--ll-signal);
-  border-radius: var(--ll-radius-small);
-  color: white;
-  background: var(--ll-signal);
+.error-actions ::deep .error-primary {
   text-decoration: none;
 }

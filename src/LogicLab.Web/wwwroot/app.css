@@ -1,5 +1,21 @@
 :root {
   color-scheme: light;
+  --colorBrandBackground: #08788c;
+  --colorBrandBackgroundHover: #066978;
+  --colorBrandBackgroundPressed: #055f69;
+  --colorBrandForeground1: #066978;
+  --colorBrandForeground2: #055f69;
+  --colorBrandStroke1: #08788c;
+  --colorNeutralBackground1: #ffffff;
+  --colorNeutralBackground2: #f7fafb;
+  --colorNeutralBackground3: #edf3f5;
+  --colorNeutralForeground1: #172a33;
+  --colorNeutralForeground2: #536970;
+  --colorNeutralForeground3: #657a82;
+  --colorNeutralStroke1: #b7c7cc;
+  --colorNeutralStroke2: #d0dcdf;
+  --colorPaletteGreenBackground2: #dff5e7;
+  --colorPaletteGreenForeground2: #176b3a;
   --ll-bench: #e7eef1;
   --ll-bench-deep: #dce6e9;
   --ll-panel: #f7fafb;
@@ -23,8 +39,8 @@
   --ll-danger-soft: rgb(180 35 44 / 9%);
   --ll-radius-small: 0.35rem;
   --ll-radius-medium: 0.65rem;
-  --ll-radius-large: 0.95rem;
-  --ll-shadow-panel: 0 1rem 2.5rem rgb(16 42 51 / 9%);
+  --ll-radius-large: 0.8rem;
+  --ll-shadow-panel: 0 0.5rem 1.75rem rgb(16 42 51 / 8%);
   --ll-shadow-float: 0 1.5rem 4rem rgb(16 42 51 / 14%);
   --ll-page-width: 96rem;
   font-family: "Atkinson Hyperlegible Next", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
@@ -58,6 +74,11 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
 }
 
 :focus-visible {
@@ -108,5 +129,11 @@ h1:focus {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+}
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline-color: Highlight;
   }
 }
