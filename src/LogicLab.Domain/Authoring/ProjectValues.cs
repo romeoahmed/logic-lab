@@ -73,10 +73,12 @@ public sealed record NewProjectSeed(
 
 public sealed class ProjectImportCandidate
 {
-    internal ProjectImportCandidate(ProjectDocument document)
+    internal ProjectImportCandidate(
+        ProjectDocument document,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
-        ProjectEditor.ValidateDocument(document);
+        ProjectEditor.ValidateDocument(document, cancellationToken);
         Document = document;
     }
 

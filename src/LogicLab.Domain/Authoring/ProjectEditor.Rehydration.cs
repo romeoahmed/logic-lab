@@ -16,62 +16,82 @@ public static partial class ProjectEditor
         return new ProjectRevision(revisionId, document);
     }
 
-    internal static void ValidateDocument(ProjectDocument document)
+    internal static void ValidateDocument(
+        ProjectDocument document,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
+        cancellationToken.ThrowIfCancellationRequested();
         Ensure(HasValue(document.ProjectId.Value));
-        Ensure(GetDisplayTextRule(document.DisplayName) is null);
+        Ensure(GetDisplayTextRule(document.DisplayName, cancellationToken) is null);
         Ensure(IsCurrentLibrary(document.LibrarySnapshot));
         Ensure(SymbolProfileCatalog.Contains(document.SymbolProfile));
         Ensure(document.CircuitDefinitions.Count > 0);
         Ensure(HasDistinctIds(
             document.CircuitDefinitions,
-            static definition => definition.Id.Value));
+            static definition => definition.Id.Value,
+            cancellationToken));
         Ensure(HasDistinctIds(
             document.MemoryImages,
-            static image => image.Id.Value));
+            static image => image.Id.Value,
+            cancellationToken));
         Ensure(document.FindCircuitDefinition(
             document.EntryCircuitDefinitionId) is not null);
+        cancellationToken.ThrowIfCancellationRequested();
 
         foreach (var image in document.MemoryImages)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Ensure(HasValue(image.Id.Value));
-            Ensure(GetDisplayTextRule(image.DisplayName) is null);
+            Ensure(GetDisplayTextRule(image.DisplayName, cancellationToken) is null);
             Ensure(image.Width > 0);
             Ensure(image.Depth > 0);
         }
 
         foreach (var definition in document.CircuitDefinitions)
         {
-            ValidateDefinition(document, definition);
+            cancellationToken.ThrowIfCancellationRequested();
+            ValidateDefinition(document, definition, cancellationToken);
         }
     }
 
     private static void ValidateDefinition(
         ProjectDocument document,
-        CircuitDefinition definition)
+        CircuitDefinition definition,
+        CancellationToken cancellationToken)
     {
         Ensure(HasValue(definition.Id.Value));
-        Ensure(GetDisplayTextRule(definition.DisplayName) is null);
-        Ensure(HasDistinctIds(definition.Ports, static port => port.Id.Value));
+        Ensure(GetDisplayTextRule(definition.DisplayName, cancellationToken) is null);
+        Ensure(HasDistinctIds(
+            definition.Ports,
+            static port => port.Id.Value,
+            cancellationToken));
         Ensure(HasDistinctIds(
             definition.ComponentInstances,
-            static instance => instance.Id.Value));
-        Ensure(HasDistinctIds(definition.Nets, static net => net.Id.Value));
+            static instance => instance.Id.Value,
+            cancellationToken));
+        Ensure(HasDistinctIds(
+            definition.Nets,
+            static net => net.Id.Value,
+            cancellationToken));
         Ensure(HasDistinctIds(
             definition.Junctions,
-            static junction => junction.Id.Value));
+            static junction => junction.Id.Value,
+            cancellationToken));
         Ensure(HasDistinctIds(
             definition.WireGeometries,
-            static geometry => geometry.Id.Value));
+            static geometry => geometry.Id.Value,
+            cancellationToken));
         Ensure(HasDistinctIds(
             definition.Annotations,
-            static annotation => annotation.Id.Value));
+            static annotation => annotation.Id.Value,
+            cancellationToken));
 
         foreach (var port in definition.Ports)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Ensure(HasValue(port.Id.Value));
-            Ensure(GetDisplayTextRule(port.DisplayName) is null);
+            Ensure(GetDisplayTextRule(port.DisplayName, cancellationToken) is null);
             Ensure(Enum.IsDefined(port.Direction));
             Ensure(port.Width > 0);
             Ensure(Enum.IsDefined(port.Placement.Facing));
@@ -79,30 +99,35 @@ public static partial class ProjectEditor
 
         foreach (var instance in definition.ComponentInstances)
         {
-            ValidateInstance(document, instance);
+            cancellationToken.ThrowIfCancellationRequested();
+            ValidateInstance(document, instance, cancellationToken);
         }
 
-        ValidateTopology(document, definition);
+        ValidateTopology(document, definition, cancellationToken);
 
         foreach (var annotation in definition.Annotations)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Ensure(HasValue(annotation.Id.Value));
-            Ensure(ValidateAnnotation(new AnnotationValue(
-                annotation.Text,
-                annotation.Position,
-                annotation.Alignment)).Count == 0);
+            Ensure(ValidateAnnotation(
+                new AnnotationValue(
+                    annotation.Text,
+                    annotation.Position,
+                    annotation.Alignment),
+                cancellationToken).Count == 0);
         }
     }
 
     private static void ValidateInstance(
         ProjectDocument document,
-        ComponentInstance instance)
+        ComponentInstance instance,
+        CancellationToken cancellationToken)
     {
         Ensure(HasValue(instance.Id.Value));
         Ensure(Enum.IsDefined(instance.Placement.QuarterTurnsClockwise));
         if (instance.DisplayName is not null)
         {
-            Ensure(GetDisplayTextRule(instance.DisplayName) is null);
+            Ensure(GetDisplayTextRule(instance.DisplayName, cancellationToken) is null);
         }
 
         switch (instance.Target)
@@ -115,11 +140,13 @@ public static partial class ProjectEditor
                     library.ContractKey,
                     schema,
                     instance.Parameters,
-                    document).Length == 0);
+                    document,
+                    cancellationToken).Length == 0);
                 break;
             case CircuitDefinitionComponentTarget definition:
                 Ensure(document.FindCircuitDefinition(
                     definition.CircuitDefinitionId) is not null);
+                cancellationToken.ThrowIfCancellationRequested();
                 Ensure(instance.Parameters.Count == 0);
                 break;
             default:
@@ -139,18 +166,35 @@ public static partial class ProjectEditor
 
     private static void ValidateTopology(
         ProjectDocument document,
-        CircuitDefinition definition)
+        CircuitDefinition definition,
+        CancellationToken cancellationToken)
     {
-        var nets = definition.Nets.ToDictionary(net => net.Id);
-        var junctions = definition.Junctions.ToDictionary(junction => junction.Id);
-        var geometryNetIds = definition.WireGeometries
-            .Select(geometry => geometry.NetId)
-            .ToHashSet();
+        var nets = new Dictionary<NetId, Net>();
+        foreach (var net in definition.Nets)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            nets.Add(net.Id, net);
+        }
+
+        var junctions = new Dictionary<JunctionId, Junction>();
+        foreach (var junction in definition.Junctions)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            junctions.Add(junction.Id, junction);
+        }
+
+        var geometryNetIds = new HashSet<NetId>();
+        foreach (var geometry in definition.WireGeometries)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            geometryNetIds.Add(geometry.NetId);
+        }
         var terminalMembership = new HashSet<AuthoredTerminalReference>();
         var junctionMembership = new HashSet<JunctionId>();
 
         foreach (var net in definition.Nets)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Ensure(HasValue(net.Id.Value));
             Ensure(net.Width > 0);
             Ensure(net.Terminals.Count > 0
@@ -159,6 +203,7 @@ public static partial class ProjectEditor
 
             foreach (var terminal in net.Terminals)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 Ensure(terminal.CircuitDefinitionId == definition.Id);
                 Ensure(terminalMembership.Add(terminal));
                 Ensure(TryGetTerminalWidth(
@@ -171,6 +216,7 @@ public static partial class ProjectEditor
 
             foreach (var junctionId in net.JunctionIds)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 Ensure(HasValue(junctionId.Value));
                 Ensure(junctionMembership.Add(junctionId));
                 Ensure(junctions.TryGetValue(junctionId, out var junction));
@@ -178,18 +224,25 @@ public static partial class ProjectEditor
             }
         }
 
-        Ensure(junctionMembership.SetEquals(junctions.Keys));
+        Ensure(junctionMembership.Count == junctions.Count);
+        foreach (var junctionId in junctions.Keys)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Ensure(junctionMembership.Contains(junctionId));
+        }
         foreach (var junction in definition.Junctions)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Ensure(HasValue(junction.Id.Value));
             Ensure(nets.ContainsKey(junction.NetId));
         }
 
         foreach (var geometry in definition.WireGeometries)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Ensure(HasValue(geometry.Id.Value));
             Ensure(nets.ContainsKey(geometry.NetId));
-            Ensure(ValidateRoute(geometry.Route) is null);
+            Ensure(ValidateRoute(geometry.Route, cancellationToken) is null);
         }
     }
 
@@ -211,11 +264,21 @@ public static partial class ProjectEditor
 
     private static bool HasDistinctIds<T>(
         IEnumerable<T> values,
-        Func<T, string> selectId)
+        Func<T, string> selectId,
+        CancellationToken cancellationToken)
     {
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        return values.All(value => HasValue(selectId(value))
-            && ids.Add(selectId(value)));
+        foreach (var value in values)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var id = selectId(value);
+            if (!HasValue(id) || !ids.Add(id))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool HasValue(string? value) => !string.IsNullOrEmpty(value);

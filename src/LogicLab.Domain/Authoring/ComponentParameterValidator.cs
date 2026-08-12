@@ -122,7 +122,12 @@ internal static class ComponentParameterValidator
             (ComponentParameterKind.Widths, WidthsParameterValue widths) =>
                 GetInvalidWidthsRule(schema, widths, cancellationToken),
             (ComponentParameterKind.MemoryImage, MemoryImageParameterValue image) =>
-                GetInvalidMemoryImageRule(schema, image, allParameters, document),
+                GetInvalidMemoryImageRule(
+                    schema,
+                    image,
+                    allParameters,
+                    document,
+                    cancellationToken),
             (ComponentParameterKind.BinaryLogicValue,
                 LogicVectorParameterValue binary) =>
                 binary.Values is [LogicValue.Zero or LogicValue.One]
@@ -140,7 +145,8 @@ internal static class ComponentParameterValidator
         ComponentParameterSchema schema,
         MemoryImageParameterValue reference,
         IReadOnlyList<ComponentParameterBinding> allParameters,
-        ProjectDocument? document)
+        ProjectDocument? document,
+        CancellationToken cancellationToken)
     {
         if (document is null)
         {
@@ -148,6 +154,7 @@ internal static class ComponentParameterValidator
         }
 
         var image = document.FindMemoryImage(reference.MemoryImageId);
+        cancellationToken.ThrowIfCancellationRequested();
         if (image is null)
         {
             return "memoryImageReference";

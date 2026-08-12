@@ -836,23 +836,33 @@ public static partial class ProjectEditor
         }
     }
 
-    private static AuthoringDiagnostic? ValidateRoute(WireRoute route)
+    private static AuthoringDiagnostic? ValidateRoute(
+        WireRoute route,
+        CancellationToken cancellationToken = default)
     {
         return route switch
         {
             UnroutedWireRoute => null,
             OrthogonalWireRoute { Points.Count: < 2 } =>
                 InvalidRoute("minimumPointCount"),
-            OrthogonalWireRoute orthogonal => ValidateOrthogonalSegments(orthogonal),
+            OrthogonalWireRoute orthogonal => ValidateOrthogonalSegments(
+                orthogonal,
+                cancellationToken),
             _ => InvalidRoute("variant"),
         };
     }
 
     private static AuthoringDiagnostic? ValidateOrthogonalSegments(
-        OrthogonalWireRoute route)
+        OrthogonalWireRoute route,
+        CancellationToken cancellationToken)
     {
         for (var index = 1; index < route.Points.Count; index++)
         {
+            if ((index & 4_095) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             var previous = route.Points[index - 1];
             var current = route.Points[index];
             if (previous == current)

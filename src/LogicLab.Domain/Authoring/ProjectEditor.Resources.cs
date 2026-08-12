@@ -437,10 +437,12 @@ public static partial class ProjectEditor
         return diagnostics;
     }
 
-    private static List<AuthoringDiagnostic> ValidateAnnotation(AnnotationValue value)
+    private static List<AuthoringDiagnostic> ValidateAnnotation(
+        AnnotationValue value,
+        CancellationToken cancellationToken = default)
     {
         var diagnostics = new List<AuthoringDiagnostic>();
-        var rule = GetAnnotationTextRule(value.Text);
+        var rule = GetAnnotationTextRule(value.Text, cancellationToken);
         if (rule is not null)
         {
             diagnostics.Add(new AuthoringDiagnostic(
@@ -463,7 +465,9 @@ public static partial class ProjectEditor
         return diagnostics;
     }
 
-    private static string? GetAnnotationTextRule(string? value)
+    private static string? GetAnnotationTextRule(
+        string? value,
+        CancellationToken cancellationToken)
     {
         if (value is null)
         {
@@ -472,6 +476,11 @@ public static partial class ProjectEditor
 
         for (var index = 0; index < value.Length; index++)
         {
+            if ((index & 4_095) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             var character = value[index];
             if (character <= '\u001f' && character != '\n')
             {
@@ -493,7 +502,9 @@ public static partial class ProjectEditor
             }
         }
 
-        return value.IsNormalized(NormalizationForm.FormC)
+        var isNormalized = value.IsNormalized(NormalizationForm.FormC);
+        cancellationToken.ThrowIfCancellationRequested();
+        return isNormalized
             ? null
             : "normalizationFormC";
     }
