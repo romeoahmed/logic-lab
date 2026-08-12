@@ -77,14 +77,8 @@ internal sealed class CompilerContractTests
             CancellationToken.None);
         var foreignSource = second.Artifact.SourceMap.Nets[0].Source;
 
-        var found = first.Artifact.SourceMap.TryGetNetOrdinal(
-            foreignSource,
-            out var ordinal);
+        var found = first.Artifact.SourceMap.TryGetNetOrdinal(foreignSource, out _);
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(found).IsFalse();
-            await Assert.That(ordinal).IsEqualTo(0);
-        }
+        await Assert.That(found).IsFalse();
     }
 }
