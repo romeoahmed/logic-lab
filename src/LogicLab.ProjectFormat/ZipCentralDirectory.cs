@@ -22,13 +22,14 @@ internal static class ZipCentralDirectory
             location.Length);
     }
 
-    public static async Task<bool> HasUnsupportedCompressionAsync(
+    public static async Task<ZipUnsupportedFeature?> FindUnsupportedFeatureAsync(
         FileStream spool,
         ZipCentralDirectoryInfo directory,
         CancellationToken cancellationToken)
     {
         const int headerLength = 46;
-        var hasUnsupportedCompression = false;
+        const ushort encryptionFlags = 0x2041;
+        ZipUnsupportedFeature? unsupportedFeature = null;
         var header = new byte[headerLength];
         var localHeader = new byte[30];
         var directoryEnd = checked(directory.Offset + directory.Length);
@@ -69,6 +70,13 @@ internal static class ZipCentralDirectory
             var localHeaderOffset = ResolveLocalHeaderOffset(
                 header,
                 variableData.AsSpan(nameLength, extraLength));
+            if (ResolveDiskStart(
+                    header,
+                    variableData.AsSpan(nameLength, extraLength)) != 0)
+            {
+                throw new InvalidDataException("Split ZIP archives are unsupported.");
+            }
+
             var nextCentralEntry = spool.Position;
             if (spool.Length < localHeader.Length
                 || localHeaderOffset > checked(
@@ -90,9 +98,27 @@ internal static class ZipCentralDirectory
                 BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(10));
             var localCompressionMethod =
                 BinaryPrimitives.ReadUInt16LittleEndian(localHeader.AsSpan(8));
-            hasUnsupportedCompression |=
-                centralCompressionMethod is not 0 and not 8
-                || localCompressionMethod is not 0 and not 8;
+            var centralFlags = BinaryPrimitives.ReadUInt16LittleEndian(
+                header.AsSpan(8));
+            var localFlags = BinaryPrimitives.ReadUInt16LittleEndian(
+                localHeader.AsSpan(6));
+            if ((centralFlags & encryptionFlags) != 0
+                || (localFlags & encryptionFlags) != 0)
+            {
+                unsupportedFeature = ZipUnsupportedFeature.Encryption;
+            }
+            else if (centralCompressionMethod is not 0 and not 8
+                || localCompressionMethod is not 0 and not 8)
+            {
+                unsupportedFeature ??= ZipUnsupportedFeature.Compression;
+            }
+            else if (centralFlags != localFlags
+                || centralCompressionMethod != localCompressionMethod)
+            {
+                throw new InvalidDataException(
+                    "The ZIP local and central headers are inconsistent.");
+            }
+
             spool.Position = nextCentralEntry;
         }
 
@@ -101,7 +127,42 @@ internal static class ZipCentralDirectory
             throw new InvalidDataException("The ZIP central directory count is inconsistent.");
         }
 
-        return hasUnsupportedCompression;
+        return unsupportedFeature;
+    }
+
+    private static uint ResolveDiskStart(
+        byte[] header,
+        ReadOnlySpan<byte> extraFields)
+    {
+        var diskStart = BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(34));
+        if (diskStart != ushort.MaxValue)
+        {
+            return diskStart;
+        }
+
+        var zip64 = FindExtraField(extraFields, 0x0001);
+        var offset = 0;
+        if (BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(24)) == uint.MaxValue)
+        {
+            offset = checked(offset + sizeof(ulong));
+        }
+
+        if (BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(20)) == uint.MaxValue)
+        {
+            offset = checked(offset + sizeof(ulong));
+        }
+
+        if (BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(42)) == uint.MaxValue)
+        {
+            offset = checked(offset + sizeof(ulong));
+        }
+
+        if (zip64.Length < checked(offset + sizeof(uint)))
+        {
+            throw new InvalidDataException("The ZIP64 disk start is missing.");
+        }
+
+        return BinaryPrimitives.ReadUInt32LittleEndian(zip64[offset..]);
     }
 
     private static ulong ResolveLocalHeaderOffset(
@@ -192,7 +253,9 @@ internal static class ZipCentralDirectory
         var centralDirectoryDisk = BinaryPrimitives.ReadUInt16LittleEndian(endRecord[6..]);
         var entriesOnDisk = BinaryPrimitives.ReadUInt16LittleEndian(endRecord[8..]);
         var totalEntries = BinaryPrimitives.ReadUInt16LittleEndian(endRecord[10..]);
-        if (diskNumber != centralDirectoryDisk || entriesOnDisk != totalEntries)
+        if (diskNumber != 0
+            || centralDirectoryDisk != 0
+            || entriesOnDisk != totalEntries)
         {
             throw new InvalidDataException("Split ZIP archives are unsupported.");
         }
@@ -235,6 +298,12 @@ internal static class ZipCentralDirectory
             throw new InvalidDataException("The ZIP64 locator is missing.");
         }
 
+        if (BinaryPrimitives.ReadUInt32LittleEndian(locator.AsSpan(4)) != 0
+            || BinaryPrimitives.ReadUInt32LittleEndian(locator.AsSpan(16)) != 1)
+        {
+            throw new InvalidDataException("Split ZIP64 archives are unsupported.");
+        }
+
         var zip64EndRecordOffset = BinaryPrimitives.ReadUInt64LittleEndian(
             locator.AsSpan(8));
         if (spool.Length < zip64EndRecordMinimumLength
@@ -259,7 +328,9 @@ internal static class ZipCentralDirectory
             record.AsSpan(20));
         var entriesOnDisk = BinaryPrimitives.ReadUInt64LittleEndian(record.AsSpan(24));
         var totalEntries = BinaryPrimitives.ReadUInt64LittleEndian(record.AsSpan(32));
-        if (diskNumber != centralDirectoryDisk || entriesOnDisk != totalEntries)
+        if (diskNumber != 0
+            || centralDirectoryDisk != 0
+            || entriesOnDisk != totalEntries)
         {
             throw new InvalidDataException("Split ZIP64 archives are unsupported.");
         }
@@ -301,3 +372,9 @@ internal sealed record ZipCentralDirectoryInfo(
     ulong EntryCount,
     ulong Offset,
     ulong Length);
+
+internal enum ZipUnsupportedFeature
+{
+    Compression,
+    Encryption,
+}

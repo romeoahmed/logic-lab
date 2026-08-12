@@ -114,6 +114,7 @@ internal sealed class ProjectPackageReaderTests
         BinaryPrimitives.WriteUInt64LittleEndian(
             locator.AsSpan(8),
             checked((ulong)endRecordIndex));
+        BinaryPrimitives.WriteUInt32LittleEndian(locator.AsSpan(16), 1);
         var endRecord = bytes.AsSpan(endRecordIndex).ToArray();
         BinaryPrimitives.WriteUInt16LittleEndian(endRecord.AsSpan(8), ushort.MaxValue);
         BinaryPrimitives.WriteUInt16LittleEndian(endRecord.AsSpan(10), ushort.MaxValue);
@@ -319,6 +320,50 @@ internal sealed class ProjectPackageReaderTests
     }
 
     [Test]
+    public async Task ReadAsync_LocalEncryptionFlag_RejectsEncryptedEntry()
+    {
+        var revision = BeginProject("Local encryption flag", "Main");
+        await using var carrier = await WriteAsync(revision);
+        await using var encrypted = PatchLocalGeneralPurposeFlag(
+            carrier.Stream,
+            "project.json",
+            0x0001);
+
+        var outcome = await ReadAsync(encrypted);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        var diagnostic = rejected.Diagnostics.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("package_invalid");
+            await Assert.That(diagnostic.Code)
+                .IsEqualTo("package_unsupported_feature");
+            await Assert.That(diagnostic.Arguments)
+                .Contains(new PackageDiagnosticArgument("feature", "encryption"));
+        }
+    }
+
+    [Test]
+    public async Task ReadAsync_NonzeroDiskMetadata_RejectsSplitArchive()
+    {
+        var revision = BeginProject("Split archive metadata", "Main");
+        await using var carrier = await WriteAsync(revision);
+        await using var split = PatchDiskNumbers(carrier.Stream, 1);
+
+        var outcome = await ReadAsync(split);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        var diagnostic = rejected.Diagnostics.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("package_invalid");
+            await Assert.That(diagnostic.Code).IsEqualTo("package_illegal_entry");
+            await Assert.That(diagnostic.Arguments)
+                .Contains(new PackageDiagnosticArgument("rule", "carrier"));
+        }
+    }
+
+    [Test]
     public async Task ReadAsync_CorruptDeflateEntry_RejectsCarrierInsteadOfCompressionProfile()
     {
         var revision = BeginProject("Corrupt Deflate", "Main");
@@ -355,6 +400,38 @@ internal sealed class ProjectPackageReaderTests
         var outcome = await ProjectPackage.ReadAsync(
             new ProjectPackageReadRequest(tampered, PackagePolicy.Development),
             CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("package_invalid");
+            await Assert.That(rejected.Diagnostics.Select(item => item.Code))
+                .Contains("package_json_invalid");
+        }
+    }
+
+    [Test]
+    [Arguments("manifest.json")]
+    [Arguments("project.json")]
+    public async Task ReadAsync_NullRecordArrayElement_RejectsSchema(string partPath)
+    {
+        var revision = BeginProject("Null array element", "Main");
+        await using var carrier = await WriteAsync(revision);
+        var entries = ReadEntries(carrier.Stream);
+        var document = JsonNode.Parse(entries[partPath])!.AsObject();
+        var arrayName = partPath == "manifest.json"
+            ? "memoryParts"
+            : "circuitDefinitions";
+        document[arrayName]!.AsArray().Add(null);
+        entries[partPath] = Encoding.UTF8.GetBytes(document.ToJsonString());
+        if (partPath == "project.json")
+        {
+            RefreshIntegrity(entries);
+        }
+
+        await using var tampered = WriteEntries(entries);
+
+        var outcome = await ReadAsync(tampered);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
         using (Assert.Multiple())
@@ -902,6 +979,46 @@ internal sealed class ProjectPackageReaderTests
         BinaryPrimitives.WriteUInt16LittleEndian(
             bytes.AsSpan(localOffset + 8),
             localMethod);
+        return new MemoryStream(bytes);
+    }
+
+    private static MemoryStream PatchLocalGeneralPurposeFlag(
+        MemoryStream package,
+        string path,
+        ushort flag)
+    {
+        var bytes = package.ToArray();
+        var centralOffset = FindCentralDirectoryEntry(bytes, path);
+        var localOffset = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(
+            bytes.AsSpan(centralOffset + 42)));
+        var flags = BinaryPrimitives.ReadUInt16LittleEndian(
+            bytes.AsSpan(localOffset + 6));
+        BinaryPrimitives.WriteUInt16LittleEndian(
+            bytes.AsSpan(localOffset + 6),
+            checked((ushort)(flags | flag)));
+        return new MemoryStream(bytes);
+    }
+
+    private static MemoryStream PatchDiskNumbers(
+        MemoryStream package,
+        ushort diskNumber)
+    {
+        var bytes = package.ToArray();
+        foreach (var path in new[] { "manifest.json", "project.json" })
+        {
+            var centralOffset = FindCentralDirectoryEntry(bytes, path);
+            BinaryPrimitives.WriteUInt16LittleEndian(
+                bytes.AsSpan(centralOffset + 34),
+                diskNumber);
+        }
+
+        var endRecordOffset = bytes.AsSpan().LastIndexOf("PK\x05\x06"u8);
+        BinaryPrimitives.WriteUInt16LittleEndian(
+            bytes.AsSpan(endRecordOffset + 4),
+            diskNumber);
+        BinaryPrimitives.WriteUInt16LittleEndian(
+            bytes.AsSpan(endRecordOffset + 6),
+            diskNumber);
         return new MemoryStream(bytes);
     }
 

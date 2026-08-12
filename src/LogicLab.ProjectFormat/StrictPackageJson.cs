@@ -62,6 +62,10 @@ public static partial class ProjectPackage
                         policy,
                         observations,
                         PackageDimension.ArrayItems);
+                    if (reader.TokenType == JsonTokenType.Null)
+                    {
+                        throw Invalid("package_json_invalid", ("rule", "schema"));
+                    }
                 }
 
                 switch (reader.TokenType)
@@ -596,6 +600,11 @@ public static partial class ProjectPackage
         CancellationToken cancellationToken,
         params (string Kind, string[] Members)[] variants)
     {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw Invalid("package_json_invalid", ("rule", "schema"));
+        }
+
         var kind = TryGetString(element, "kind");
         if (kind is null)
         {
@@ -621,7 +630,7 @@ public static partial class ProjectPackage
     {
         if (element.ValueKind != JsonValueKind.Object)
         {
-            return;
+            throw Invalid("package_json_invalid", ("rule", "schema"));
         }
 
         var expected = members.ToHashSet(StringComparer.Ordinal);
