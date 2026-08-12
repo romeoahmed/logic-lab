@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Net;
-using System.Reflection;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using LogicLab.Application.Workspaces;
@@ -31,7 +30,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         "logiclab:authentication_expires_utc";
 
     [Test]
-    public async Task ValidateAuthenticationStateAsync_ExpiryClaim_FailsClosedAtSessionBoundary()
+    public async Task ValidateSessionAsync_ExpiryClaim_FailsClosedAtSessionBoundary()
     {
         var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var connection = await OpenIdentityDatabaseAsync();
@@ -1112,21 +1111,12 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
             IdentityConstants.ApplicationScheme)));
     }
 
-    private static async Task<bool> ValidateAsync(
+    private static Task<bool> ValidateAsync(
         AuthenticationStateProvider provider,
         AuthenticationState authenticationState)
     {
-        var method = provider.GetType().GetMethod(
-            "ValidateAuthenticationStateAsync",
-            BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException(
-                "The revalidating provider does not expose its validation seam.");
-        var task = method.Invoke(
-            provider,
-            [authenticationState, CancellationToken.None]) as Task<bool>
-            ?? throw new InvalidOperationException(
-                "The revalidating provider returned an unexpected validation task.");
-        return await task;
+        return ((IdentityRevalidatingAuthenticationStateProvider)provider)
+            .ValidateSessionAsync(authenticationState, CancellationToken.None);
     }
 
     private static async Task<HttpResponseMessage> PostIdentityFormAsync(

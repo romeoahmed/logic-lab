@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using TUnit.Assertions.Enums;
+using static LogicLab.ProjectFormat.Tests.ProjectPackageTestFixture;
 
 namespace LogicLab.ProjectFormat.Tests;
 
@@ -775,19 +776,6 @@ internal sealed class ProjectPackageReaderTests
         }
     }
 
-    private static ProjectRevision BeginProject(string displayName, string entryName)
-    {
-        return ((ProjectGenesisCommitted)ProjectEditor.Begin(
-            new NewProjectSeed(
-                displayName,
-                LibrarySnapshot.Core,
-                new SymbolProfileReference(
-                    "TeachingMixed",
-                    "1.0.0",
-                    IndicationConvention.Negation),
-                entryName))).Revision;
-    }
-
     private static ProjectRevision AddSingleCellMemory(
         ProjectRevision revision,
         string displayName)
@@ -862,22 +850,6 @@ internal sealed class ProjectPackageReaderTests
             throw new InvalidOperationException(
                 $"{rejected.Reason}: {string.Join(',', rejected.Diagnostics.Select(item => item.Code + '[' + string.Join(',', item.Arguments.Select(argument => argument.Name + '=' + argument.Value)) + ']'))}");
         }
-    }
-
-    private static Dictionary<string, byte[]> ReadEntries(MemoryStream package)
-    {
-        package.Position = 0;
-        using var archive = new ZipArchive(package, ZipArchiveMode.Read, leaveOpen: true);
-        return archive.Entries.ToDictionary(
-            entry => entry.FullName,
-            entry =>
-            {
-                using var source = entry.Open();
-                using var bytes = new MemoryStream();
-                source.CopyTo(bytes);
-                return bytes.ToArray();
-            },
-            StringComparer.Ordinal);
     }
 
     private static MemoryStream WriteEntries(

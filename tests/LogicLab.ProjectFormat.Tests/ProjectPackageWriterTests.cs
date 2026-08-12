@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -8,6 +7,7 @@ using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.ProjectFormat;
 using TUnit.Assertions.Enums;
+using static LogicLab.ProjectFormat.Tests.ProjectPackageTestFixture;
 
 namespace LogicLab.ProjectFormat.Tests;
 
@@ -466,19 +466,6 @@ internal sealed class ProjectPackageWriterTests
         }
     }
 
-    private static ProjectRevision BeginProject(string displayName, string entryName)
-    {
-        return ((ProjectGenesisCommitted)ProjectEditor.Begin(
-            new NewProjectSeed(
-                displayName,
-                LibrarySnapshot.Core,
-                new SymbolProfileReference(
-                    "TeachingMixed",
-                    "1.0.0",
-                    IndicationConvention.Negation),
-                entryName))).Revision;
-    }
-
     private static ProjectRevision Commit(EditOutcome outcome) =>
         ((EditCommitted)outcome).Revision;
 
@@ -687,22 +674,6 @@ internal sealed class ProjectPackageWriterTests
                 new ComponentPlacement(
                     new GridPoint(displayName.Length, displayName.Length + 1)),
                 displayName)));
-    }
-
-    private static Dictionary<string, byte[]> ReadEntries(MemoryStream package)
-    {
-        package.Position = 0;
-        using var archive = new ZipArchive(package, ZipArchiveMode.Read, leaveOpen: true);
-        return archive.Entries.ToDictionary(
-            entry => entry.FullName,
-            entry =>
-            {
-                using var source = entry.Open();
-                using var bytes = new MemoryStream();
-                source.CopyTo(bytes);
-                return bytes.ToArray();
-            },
-            StringComparer.Ordinal);
     }
 
     private static string Digest(

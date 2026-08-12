@@ -10,8 +10,8 @@ internal sealed class WorkspaceContractTests
         await Assert.That(() => EditorWorkspaceFactory.Create(
                 WorkspaceBuild.DevelopmentFingerprint,
                 durableProjectRepository: null!,
-                durableProjectLoader: UnexpectedDurableStore.Instance,
-                projectExportStore: UnexpectedProjectExportStore.Instance))
+                durableProjectLoader: TestEditorWorkspaceFactory.UnexpectedLoader,
+                projectExportStore: TestEditorWorkspaceFactory.UnexpectedExportStore))
             .ThrowsExactly<ArgumentNullException>();
     }
 
@@ -20,9 +20,9 @@ internal sealed class WorkspaceContractTests
     {
         await Assert.That(() => EditorWorkspaceFactory.Create(
                 WorkspaceBuild.DevelopmentFingerprint,
-                durableProjectRepository: UnexpectedDurableStore.Instance,
+                durableProjectRepository: TestEditorWorkspaceFactory.UnexpectedRepository,
                 durableProjectLoader: null!,
-                projectExportStore: UnexpectedProjectExportStore.Instance))
+                projectExportStore: TestEditorWorkspaceFactory.UnexpectedExportStore))
             .ThrowsExactly<ArgumentNullException>();
     }
 
@@ -31,8 +31,8 @@ internal sealed class WorkspaceContractTests
     {
         await Assert.That(() => EditorWorkspaceFactory.Create(
                 WorkspaceBuild.DevelopmentFingerprint,
-                durableProjectRepository: UnexpectedDurableStore.Instance,
-                durableProjectLoader: UnexpectedDurableStore.Instance,
+                durableProjectRepository: TestEditorWorkspaceFactory.UnexpectedRepository,
+                durableProjectLoader: TestEditorWorkspaceFactory.UnexpectedLoader,
                 projectExportStore: null!))
             .ThrowsExactly<ArgumentNullException>();
     }
@@ -201,56 +201,4 @@ internal sealed class WorkspaceContractTests
             durableProjectCatalogLimits: DurableProjectCatalogLimits.Default);
     }
 
-    private sealed class UnexpectedDurableStore :
-        IDurableProjectRepository,
-        IDurableProjectLoader
-    {
-        private const string Message =
-            "The null-dependency contract must not invoke the Durable store.";
-
-        private UnexpectedDurableStore()
-        {
-        }
-
-        public static UnexpectedDurableStore Instance { get; } = new();
-
-        public Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
-            DurableProjectClaimRequest request,
-            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
-
-        public Task<DurableProjectClaimRepositoryOutcome?> TryReadClaimReceiptAsync(
-            DurableProjectClaimRequest request,
-            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
-
-        public Task<DurableProjectSaveRepositoryOutcome> SaveAsync(
-            DurableProjectSaveRequest request,
-            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
-
-        public Task<DurableProjectSaveRepositoryOutcome?> TryReadSaveReceiptAsync(
-            DurableProjectSaveRequest request,
-            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
-
-        public Task<DurableProjectOpenRepositoryOutcome> LoadAsync(
-            DurableProjectOpenRequest request,
-            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
-    }
-
-    private sealed class UnexpectedProjectExportStore : IProjectExportStore
-    {
-        private const string Message =
-            "The null-dependency contract must not invoke the Project Export store.";
-
-        private UnexpectedProjectExportStore()
-        {
-        }
-
-        public static UnexpectedProjectExportStore Instance { get; } = new();
-
-        public ValueTask<IProjectExportStaging> CreateStagingAsync(
-            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
-
-        public ValueTask<ProjectExportPublicationOutcome> PublishAsync(
-            ProjectExportPublication publication,
-            CancellationToken cancellationToken) => throw new InvalidOperationException(Message);
-    }
 }
