@@ -99,7 +99,7 @@ internal sealed class ImportProjectWorkspaceTests
         limits[(int)PackageDimension.CarrierBytes] = new PackageLimit(
             PackageDimension.CarrierBytes,
             4);
-        var workflow = ProjectImportWorkflowFactory.Create(
+        var workflow = new ProjectImportWorkflow(
             workspace,
             new PackagePolicy("import-test-package", "1", limits));
         await using var source = new MemoryStream([1, 2, 3, 4, 5]);
@@ -110,7 +110,7 @@ internal sealed class ImportProjectWorkspaceTests
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
-            .IsTypeOf<ProjectImportRejected>())!;
+            .IsTypeOf<WorkspaceOpenRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(workflow.MaximumCarrierBytes).IsEqualTo(4L);

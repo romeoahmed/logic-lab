@@ -18,7 +18,7 @@ public sealed partial class Editor : IAsyncDisposable
     private static readonly TimeSpan CompilationRefreshInterval =
         TimeSpan.FromMilliseconds(250);
     private readonly IEditorWorkspace workspace;
-    private readonly IProjectImportWorkflow projectImportWorkflow;
+    private readonly ProjectImportWorkflow projectImportWorkflow;
     private readonly TimeProvider timeProvider;
     private readonly CancellationTokenSource componentLifetime = new();
     private int isDisposed;
@@ -28,7 +28,7 @@ public sealed partial class Editor : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(workspace);
         ArgumentNullException.ThrowIfNull(timeProvider);
         this.workspace = workspace;
-        projectImportWorkflow = ProjectImportWorkflowFactory.Create(workspace);
+        projectImportWorkflow = new ProjectImportWorkflow(workspace);
         this.timeProvider = timeProvider;
     }
 
@@ -582,16 +582,16 @@ public sealed partial class Editor : IAsyncDisposable
             var outcome = await projectImportWorkflow.ImportAsync(
                 source,
                 componentLifetime.Token);
-            if (outcome is ProjectImportRejected rejected)
+            if (outcome is WorkspaceOpenRejected rejected)
             {
                 Status = $"Import rejected: {rejected.Code}.";
                 return;
             }
 
-            var imported = (ProjectImported)outcome;
+            var imported = (WorkspaceOpened)outcome;
             Status = "Import validated and compiled. Opening its independent Workspace…";
             Navigation.NavigateTo(
-                $"/editor/{Uri.EscapeDataString(imported.Workspace.WorkspaceId.Value)}",
+                $"/editor/{Uri.EscapeDataString(imported.WorkspaceId.Value)}",
                 forceLoad: true);
         }
         catch (OperationCanceledException)
