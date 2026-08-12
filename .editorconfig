@@ -35,8 +35,8 @@ dotnet_code_quality.CA1852.ignore_internalsvisibleto = true
 [src/LogicLab.Web/{AntiforgeryProblemDetailsMiddleware.cs,RequestBodyBufferingMiddleware.cs,RequestBodyLimitProblemDetailsMiddleware.cs,SecurityHeadersMiddleware.cs,Transfers/AnonymousWorkspaceCallerMiddleware.cs}]
 dotnet_diagnostic.CA1812.severity = none
 
-# Activated by ASP.NET Core DI or EF Core, which CA1812 cannot observe.
-[src/LogicLab.Web/{Data/ApplicationIdentityDbContext.cs,Identity/IdentityRedirectManager.cs,Identity/IdentityRevalidatingAuthenticationStateProvider.cs,Projects/DataProtectionProjectCatalogCursorProtector.cs}]
+# Activated by ASP.NET Core DI, Options binding, or EF Core, which CA1812 cannot observe.
+[src/LogicLab.Web/{Data/ApplicationIdentityDbContext.cs,Identity/IdentityRedirectManager.cs,Identity/IdentityRevalidatingAuthenticationStateProvider.cs,Projects/DataProtectionProjectCatalogCursorProtector.cs,Transfers/ProjectExportOptions.cs}]
 dotnet_diagnostic.CA1812.severity = none
 
 # Test executables expose no reusable API; keep their implementation types internal.
