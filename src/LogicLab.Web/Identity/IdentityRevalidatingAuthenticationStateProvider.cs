@@ -16,10 +16,16 @@ internal sealed class IdentityRevalidatingAuthenticationStateProvider(
 {
     protected override TimeSpan RevalidationInterval => TimeSpan.FromMinutes(5);
 
-    protected override async Task<bool> ValidateAuthenticationStateAsync(
+    protected override Task<bool> ValidateAuthenticationStateAsync(
+        AuthenticationState authenticationState,
+        CancellationToken cancellationToken) =>
+        ValidateSessionAsync(authenticationState, cancellationToken);
+
+    internal async Task<bool> ValidateSessionAsync(
         AuthenticationState authenticationState,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!AuthenticationTicketExpiry.IsCurrent(
                 authenticationState.User,
                 timeProvider))

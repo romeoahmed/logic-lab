@@ -5,6 +5,15 @@ namespace LogicLab.Application.Tests;
 
 internal static class TestEditorWorkspaceFactory
 {
+    public static IDurableProjectRepository UnexpectedRepository { get; } =
+        UnexpectedDurableProjectRepository.Instance;
+
+    public static IDurableProjectLoader UnexpectedLoader { get; } =
+        UnexpectedDurableProjectLoader.Instance;
+
+    public static IProjectExportStore UnexpectedExportStore { get; } =
+        UnexpectedProjectExportStore.Instance;
+
     public static IEditorWorkspace Create(
         string buildFingerprint,
         WorkspacePolicy? workspacePolicy = null,
@@ -19,11 +28,11 @@ internal static class TestEditorWorkspaceFactory
         return EditorWorkspaceFactory.Create(
             buildFingerprint: buildFingerprint,
             durableProjectRepository:
-                durableProjectRepository ?? UnexpectedDurableProjectRepository.Instance,
+                durableProjectRepository ?? UnexpectedRepository,
             durableProjectLoader:
-                durableProjectLoader ?? UnexpectedDurableProjectLoader.Instance,
+                durableProjectLoader ?? UnexpectedLoader,
             projectExportStore:
-                projectExportStore ?? UnexpectedProjectExportStore.Instance,
+                projectExportStore ?? UnexpectedExportStore,
             workspacePolicy: workspacePolicy,
             schedulingPolicy: schedulingPolicy,
             projectExportPreparationPolicy: projectExportPreparationPolicy,
@@ -46,11 +55,11 @@ internal static class TestEditorWorkspaceFactory
         return EditorWorkspaceFactory.CreateForTesting(
             operations: operations,
             durableProjectRepository:
-                durableProjectRepository ?? UnexpectedDurableProjectRepository.Instance,
+                durableProjectRepository ?? UnexpectedRepository,
             durableProjectLoader:
-                durableProjectLoader ?? UnexpectedDurableProjectLoader.Instance,
+                durableProjectLoader ?? UnexpectedLoader,
             projectExportStore:
-                projectExportStore ?? UnexpectedProjectExportStore.Instance,
+                projectExportStore ?? UnexpectedExportStore,
             workspacePolicy: workspacePolicy,
             schedulingPolicy: schedulingPolicy,
             projectExportPreparationPolicy: projectExportPreparationPolicy,
