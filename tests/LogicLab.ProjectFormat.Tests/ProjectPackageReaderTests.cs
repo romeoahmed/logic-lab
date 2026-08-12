@@ -200,6 +200,29 @@ internal sealed class ProjectPackageReaderTests
     }
 
     [Test]
+    public async Task ReadAsync_StringLimitPrecedesFullEscapeDecoding()
+    {
+        var revision = BeginProject("Bounded string", "Main");
+        await using var carrier = await WriteAsync(revision);
+        var entries = ReadEntries(carrier.Stream);
+        entries["manifest.json"] = "{\"aaaaa\\uD800\":0}"u8.ToArray();
+        await using var tampered = WriteEntries(entries);
+        var policy = WithLimit(PackageDimension.StringUtf8Bytes, 4);
+
+        var outcome = await ProjectPackage.ReadAsync(
+            new ProjectPackageReadRequest(tampered, policy),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("package_limit_exceeded");
+            await Assert.That(rejected.Evidence.PolicyLimitBreach?.Dimension)
+                .IsEqualTo(PackageDimension.StringUtf8Bytes);
+        }
+    }
+
+    [Test]
     public async Task ReadAsync_ProjectPartHashMismatch_RejectsIntegrityBeforeDomainConstruction()
     {
         var revision = BeginProject("Integrity", "Main");

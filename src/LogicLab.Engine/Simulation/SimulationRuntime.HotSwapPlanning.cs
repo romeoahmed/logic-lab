@@ -11,7 +11,7 @@ public static partial class SimulationRuntime
     {
         var migrationCount = 0;
         var incompatibleCount = 0;
-        ulong migratedRamCellReferenceCount = 0;
+        ulong migratedRamOwnedBufferBytes = 0;
         foreach (var evaluator in current.SimulationIr.Evaluators.Where(IsMigratedState))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -28,16 +28,16 @@ public static partial class SimulationRuntime
             migrationCount++;
             if (evaluator.Kind == SimulationEvaluatorKind.MemoryRamSinglePort)
             {
-                migratedRamCellReferenceCount = checked(
-                    migratedRamCellReferenceCount
-                    + (ulong)migration.Replacement.InitialMemory!.Count);
+                migratedRamOwnedBufferBytes = checked(
+                    migratedRamOwnedBufferBytes
+                    + migration.Replacement.InitialMemory!.OwnedBufferBytes);
             }
         }
 
         return new StateMigrationPreflight(
             migrationCount,
             incompatibleCount,
-            migratedRamCellReferenceCount);
+            migratedRamOwnedBufferBytes);
     }
 
     private static HotSwapStateMigration[] CreateStateMigrations(
@@ -138,9 +138,8 @@ public static partial class SimulationRuntime
 
         var currentMemory = current.InitialMemory!;
         var replacementMemory = replacement.InitialMemory!;
-        return currentMemory.Count == replacementMemory.Count
-            && currentMemory.Zip(replacementMemory).All(pair =>
-                pair.First.Width == pair.Second.Width);
+        return currentMemory.Width == replacementMemory.Width
+            && currentMemory.Depth == replacementMemory.Depth;
     }
 
     private static ProbeBindingPreflight InspectProbeBindings(
@@ -252,7 +251,7 @@ public static partial class SimulationRuntime
     private readonly record struct StateMigrationPreflight(
         int MigrationCount,
         int IncompatibleCount,
-        ulong MigratedRamCellReferenceCount);
+        ulong MigratedRamOwnedBufferBytes);
 
     private readonly record struct ProbeBindingPreflight(
         int PreservedProbeCount);

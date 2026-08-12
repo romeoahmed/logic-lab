@@ -11,7 +11,7 @@ internal static class HotSwapOwnedBufferAccounting
     public static HotSwapOwnedBufferEstimate MeasureCandidatePeak(
         SimulationSessionState state,
         CompilationArtifact replacement,
-        ulong migratedRamCellReferenceCount,
+        ulong migratedRamOwnedBufferBytes,
         int preservedProbeCount,
         int unresolvedProbeCount,
         HotSwapConsumerBufferRequirements consumerBuffers)
@@ -25,7 +25,7 @@ internal static class HotSwapOwnedBufferAccounting
                     + ReplacementCandidateBytes(
                         replacement.SimulationIr,
                         state.LogicalTime,
-                        migratedRamCellReferenceCount,
+                        migratedRamOwnedBufferBytes,
                         preservedProbeCount,
                         unresolvedProbeCount)),
                 IsSaturated: false);
@@ -79,7 +79,7 @@ internal static class HotSwapOwnedBufferAccounting
         LogicVector[] driverValues,
         LogicVector[] netValues,
         LogicVector?[] sequentialStates,
-        LogicVector[]?[] memoryStates,
+        PackedMemory?[] memoryStates,
         ProbeState[] probes,
         SimulationTraceStore currentTrace,
         ChangedProbeBufferMeasure changedProbes,
@@ -149,16 +149,6 @@ internal static class HotSwapOwnedBufferAccounting
             + OwnedVectorPlaneBytes(state)
             + ScheduledEventFrontierBytes(state)
             + state.ClockEvents.RetainedOwnedBufferBytes);
-        foreach (var memory in state.MemoryStates)
-        {
-            if (memory is not null)
-            {
-                bytes = checked(
-                    bytes
-                    + ReferenceSlots(memory.Length));
-            }
-        }
-
         return checked(bytes + state.Trace.RetainedOwnedBufferBytes);
     }
 
@@ -167,7 +157,7 @@ internal static class HotSwapOwnedBufferAccounting
         LogicVector[] driverValues,
         LogicVector[] netValues,
         LogicVector?[] sequentialStates,
-        LogicVector[]?[] memoryStates,
+        PackedMemory?[] memoryStates,
         ProbeState[] probes,
         SimulationTraceStore currentTrace,
         ChangedProbeBufferMeasure changedProbes,
@@ -193,21 +183,13 @@ internal static class HotSwapOwnedBufferAccounting
             + currentTrace.ForkResultRetainedOwnedBufferBytes(
                 changedProbes.Count,
                 changedProbes.PackedWordCount));
-        foreach (var memory in memoryStates)
-        {
-            if (memory is not null)
-            {
-                bytes = checked(bytes + ReferenceSlots(memory.Length));
-            }
-        }
-
         return bytes;
     }
 
     private static ulong ReplacementCandidateBytes(
         SimulationIr replacement,
         ulong logicalTimeOrigin,
-        ulong migratedRamCellReferenceCount,
+        ulong migratedRamOwnedBufferBytes,
         int preservedProbeCount,
         int unresolvedProbeCount)
     {
@@ -237,18 +219,7 @@ internal static class HotSwapOwnedBufferAccounting
                 + NetResolutionCausePlaneBytes(net.Width));
         }
 
-        for (var index = 0; index < replacement.Evaluators.Count; index++)
-        {
-            var evaluator = replacement.Evaluators[index];
-            if (evaluator.InitialMemory is not { } memory)
-            {
-                continue;
-            }
-
-            bytes = checked(bytes + ReferenceSlots(memory.Count));
-        }
-
-        return checked(bytes + ReferenceSlots(migratedRamCellReferenceCount));
+        return checked(bytes + migratedRamOwnedBufferBytes);
     }
 
     private static ulong PreCommitPublicationOwnedBufferBytes(
@@ -315,7 +286,7 @@ internal static class HotSwapOwnedBufferAccounting
         LogicVector[] driverValues,
         LogicVector[] netValues,
         LogicVector?[] sequentialStates,
-        LogicVector[]?[] memoryStates)
+        PackedMemory?[] memoryStates)
     {
         var sharedArtifactVectors = new HashSet<LogicVector>(
             ReferenceEqualityComparer.Instance);
@@ -326,28 +297,29 @@ internal static class HotSwapOwnedBufferAccounting
                 _ = sharedArtifactVectors.Add(initialValue);
             }
 
-            if (evaluator.InitialMemory is { } initialMemory)
-            {
-                sharedArtifactVectors.UnionWith(initialMemory);
-            }
         }
 
         var ownedVectors = new HashSet<LogicVector>(ReferenceEqualityComparer.Instance);
         AddOwnedVectors(driverValues, sharedArtifactVectors, ownedVectors);
         AddOwnedVectors(netValues, sharedArtifactVectors, ownedVectors);
         AddOwnedVectors(sequentialStates, sharedArtifactVectors, ownedVectors);
-        foreach (var memory in memoryStates)
+        ulong memoryBytes = 0;
+        for (var index = 0; index < memoryStates.Length; index++)
         {
-            if (memory is not null)
+            var memory = memoryStates[index];
+            if (memory is not null
+                && !ReferenceEquals(
+                    memory,
+                    artifact.SimulationIr.Evaluators[index].InitialMemory))
             {
-                AddOwnedVectors(memory, sharedArtifactVectors, ownedVectors);
+                memoryBytes = checked(memoryBytes + memory.OwnedBufferBytes);
             }
         }
 
-        return ownedVectors.Aggregate(
+        return checked(memoryBytes + ownedVectors.Aggregate(
             0UL,
             (bytes, vector) => checked(
-                bytes + ((ulong)vector.WordCount * 2UL * sizeof(ulong))));
+                bytes + ((ulong)vector.WordCount * 2UL * sizeof(ulong)))));
     }
 
     private static void AddOwnedVectors(

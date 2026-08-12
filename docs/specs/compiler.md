@@ -98,7 +98,9 @@ Compilation performs these logical stages in stable order:
 3. build the definition call graph and reject recursion with one canonical witness;
 4. elaborate every reachable occurrence with a complete Hierarchy Path;
 5. admit the complete elaborated shape under Project Scale Policy;
-6. materialize generated Ports and resolve Memory Images and Circuit Definition call sites;
+6. materialize generated Ports and resolve Memory Images into contiguous packed two-plane
+   storage, after admitting each referenced image's checked `word width * depth` bit-cell count,
+   and resolve Circuit Definition call sites;
 7. validate directions, widths, Driver rules, state schemas, and memory shapes;
 8. construct the evaluator/Driver/Net graph and cut state outputs;
 9. compute combinational strongly connected components and the condensation order;

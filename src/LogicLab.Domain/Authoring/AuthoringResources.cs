@@ -93,6 +93,8 @@ public sealed class MemoryImage
 
     public IReadOnlyList<MemoryImageWord> Words { get; }
 
+    public LogicValue this[uint address, uint bit] => GetCell(address, bit);
+
     private LogicValue GetCell(uint address, uint bit)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(address, Depth);

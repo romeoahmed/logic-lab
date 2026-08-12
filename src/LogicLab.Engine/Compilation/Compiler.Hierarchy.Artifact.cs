@@ -178,7 +178,8 @@ public static partial class Compiler
                 GetInitialMemory(
                     document,
                     resolved.Kind,
-                    resolved.Instance.Parameters));
+                    resolved.Instance.Parameters,
+                    cancellationToken));
             sources[resolved.Ordinal] = new SourceMapEntry(
                 resolved.Ordinal,
                 Source(

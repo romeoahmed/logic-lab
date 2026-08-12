@@ -1,4 +1,5 @@
 using LogicLab.Domain;
+using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
 using TUnit.Assertions.Enums;
 
@@ -24,6 +25,11 @@ internal sealed class MemoryEvaluationTests
             new([LogicValue.Zero, LogicValue.One]),
             new([LogicValue.One, LogicValue.One]),
         ];
+        var memory = PackedMemory.FromImage(
+            MemoryTestCircuit.Create().CreateMemoryImage(
+                "Words",
+                [.. words.Select(LogicVectorTestData.ToValues)]),
+            CancellationToken.None);
 
         foreach (var low in AddressValues)
         {
@@ -39,7 +45,7 @@ internal sealed class MemoryEvaluationTests
                         [.. reachable.Select(word => word[bit])]))]);
 
                 var actual = MemoryEvaluation.Read(
-                    words,
+                    memory,
                     address,
                     CancellationToken.None);
 
@@ -61,6 +67,11 @@ internal sealed class MemoryEvaluationTests
             new([LogicValue.Zero, LogicValue.Zero]),
             new([LogicValue.Zero, LogicValue.Zero]),
         ];
+        var initialMemory = PackedMemory.FromImage(
+            MemoryTestCircuit.Create().CreateMemoryImage(
+                "Words",
+                [.. words.Select(LogicVectorTestData.ToValues)]),
+            CancellationToken.None);
         var data = new LogicVector([LogicValue.One, LogicValue.Z]);
 
         foreach (var low in AddressValues)
@@ -70,7 +81,7 @@ internal sealed class MemoryEvaluationTests
                 foreach (var writeEnable in AddressValues)
                 {
                     var address = new LogicVector([low, high]);
-                    var actual = words.ToArray();
+                    var actual = initialMemory.Clone();
                     var writes = MemoryEvaluation.SampleWrite(
                         actual,
                         address,
@@ -91,7 +102,8 @@ internal sealed class MemoryEvaluationTests
                             [.. Enumerable.Range(0, data.Width).Select(bit =>
                                 ConservativeMerge.Merge(
                                     [.. possibleWords.Select(word => word[bit])]))]);
-                        await Assert.That(LogicVectorTestData.ToValues(actual[wordIndex]))
+                        await Assert.That(LogicVectorTestData.ToValues(
+                                actual.ReadWord(wordIndex)))
                             .IsEquivalentTo(
                                 LogicVectorTestData.ToValues(expected),
                                 CollectionOrdering.Matching);

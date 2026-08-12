@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Bunit;
 using Bunit.TestDoubles;
 using LogicLab.Application.Workspaces;
+using LogicLab.ProjectFormat;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Components.Pages;
 using Microsoft.AspNetCore.Components;
@@ -587,7 +588,9 @@ internal sealed class EditorDurableRouteTests
             .Mode = JSRuntimeMode.Loose;
         context.Services.AddFluentUIComponents();
         context.Services.AddSingleton(TimeProvider.System);
+        context.Services.AddSingleton(PackagePolicy.Development);
         context.Services.AddSingleton(workspace);
+        context.Services.AddSingleton<ProjectImportWorkflow>();
         context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
     }
 

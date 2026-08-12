@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text;
 using System.Text.Json;
 
@@ -68,11 +69,11 @@ public static partial class ProjectPackage
                         break;
                     case JsonTokenType.PropertyName:
                         {
+                            ObserveJsonString(reader.ValueSpan, policy, observations);
                             var propertyName = reader.GetString()
                                 ?? throw Invalid(
                                     "package_json_invalid",
                                     ("rule", "propertyName"));
-                            ObserveJsonString(propertyName, policy, observations);
                             if (containers.Count == 0
                                 || containers[^1].IsArray
                                 || !containers[^1].PropertyNames.Add(propertyName))
@@ -85,13 +86,7 @@ public static partial class ProjectPackage
                             break;
                         }
                     case JsonTokenType.String:
-                        ObserveJsonString(
-                            reader.GetString()
-                                ?? throw Invalid(
-                                    "package_json_invalid",
-                                    ("rule", "string")),
-                            policy,
-                            observations);
+                        ObserveJsonString(reader.ValueSpan, policy, observations);
                         break;
                     case JsonTokenType.Number:
                         ValidateIntegerLexeme(reader.ValueSpan);
@@ -115,30 +110,130 @@ public static partial class ProjectPackage
         or JsonTokenType.Null;
 
     private static void ObserveJsonString(
-        string value,
+        ReadOnlySpan<byte> encodedValue,
         PackagePolicy policy,
         ulong[] observations)
     {
-        ulong scalarCount = 0;
-        foreach (var _ in value.EnumerateRunes())
+        var index = 0;
+        while (index < encodedValue.Length)
         {
-            scalarCount = SaturatingAdd(scalarCount, 1);
+            int utf8Length;
+            if (encodedValue[index] != (byte)'\\')
+            {
+                if (Rune.DecodeFromUtf8(
+                        encodedValue[index..],
+                        out var rune,
+                        out var consumed) != OperationStatus.Done)
+                {
+                    throw Invalid("package_json_invalid", ("rule", "syntax"));
+                }
+
+                utf8Length = rune.Utf8SequenceLength;
+                index += consumed;
+            }
+            else
+            {
+                (utf8Length, index) = DecodeEscapedScalar(encodedValue, index);
+            }
+
+            observations[(int)PackageDimension.StringScalarCount] = SaturatingAdd(
+                observations[(int)PackageDimension.StringScalarCount],
+                1);
+            observations[(int)PackageDimension.StringUtf8Bytes] = SaturatingAdd(
+                observations[(int)PackageDimension.StringUtf8Bytes],
+                checked((ulong)utf8Length));
+            ThrowIfReadLimitExceeded(
+                policy,
+                observations,
+                PackageDimension.StringScalarCount);
+            ThrowIfReadLimitExceeded(
+                policy,
+                observations,
+                PackageDimension.StringUtf8Bytes);
+        }
+    }
+
+    private static (int Utf8Length, int NextIndex) DecodeEscapedScalar(
+        ReadOnlySpan<byte> encodedValue,
+        int escapeIndex)
+    {
+        if (escapeIndex + 1 >= encodedValue.Length)
+        {
+            throw Invalid("package_json_invalid", ("rule", "syntax"));
         }
 
-        observations[(int)PackageDimension.StringScalarCount] = SaturatingAdd(
-            observations[(int)PackageDimension.StringScalarCount],
-            scalarCount);
-        observations[(int)PackageDimension.StringUtf8Bytes] = SaturatingAdd(
-            observations[(int)PackageDimension.StringUtf8Bytes],
-            checked((ulong)Encoding.UTF8.GetByteCount(value)));
-        ThrowIfReadLimitExceeded(
-            policy,
-            observations,
-            PackageDimension.StringScalarCount);
-        ThrowIfReadLimitExceeded(
-            policy,
-            observations,
-            PackageDimension.StringUtf8Bytes);
+        var escape = encodedValue[escapeIndex + 1];
+        if (escape is (byte)'"' or (byte)'\\' or (byte)'/'
+            or (byte)'b' or (byte)'f' or (byte)'n' or (byte)'r' or (byte)'t')
+        {
+            return (1, escapeIndex + 2);
+        }
+
+        if (escape != (byte)'u'
+            || !TryReadHex16(encodedValue, escapeIndex + 2, out var codeUnit))
+        {
+            throw Invalid("package_json_invalid", ("rule", "syntax"));
+        }
+
+        var nextIndex = escapeIndex + 6;
+        if (char.IsHighSurrogate((char)codeUnit))
+        {
+            if (nextIndex + 5 >= encodedValue.Length
+                || encodedValue[nextIndex] != (byte)'\\'
+                || encodedValue[nextIndex + 1] != (byte)'u'
+                || !TryReadHex16(encodedValue, nextIndex + 2, out var lowSurrogate)
+                || !char.IsLowSurrogate((char)lowSurrogate))
+            {
+                throw Invalid("package_json_invalid", ("rule", "syntax"));
+            }
+
+            _ = Rune.TryCreate(
+                (char)codeUnit,
+                (char)lowSurrogate,
+                out var scalar);
+            return (scalar.Utf8SequenceLength, nextIndex + 6);
+        }
+
+        if (char.IsLowSurrogate((char)codeUnit))
+        {
+            throw Invalid("package_json_invalid", ("rule", "syntax"));
+        }
+
+        return (new Rune((char)codeUnit).Utf8SequenceLength, nextIndex);
+    }
+
+    private static bool TryReadHex16(
+        ReadOnlySpan<byte> encodedValue,
+        int index,
+        out int value)
+    {
+        value = 0;
+        if (index > encodedValue.Length - 4)
+        {
+            return false;
+        }
+
+        for (var offset = 0; offset < 4; offset++)
+        {
+            var digit = encodedValue[index + offset] switch
+            {
+                >= (byte)'0' and <= (byte)'9' =>
+                    encodedValue[index + offset] - (byte)'0',
+                >= (byte)'a' and <= (byte)'f' =>
+                    encodedValue[index + offset] - (byte)'a' + 10,
+                >= (byte)'A' and <= (byte)'F' =>
+                    encodedValue[index + offset] - (byte)'A' + 10,
+                _ => -1,
+            };
+            if (digit < 0)
+            {
+                return false;
+            }
+
+            value = (value << 4) | digit;
+        }
+
+        return true;
     }
 
     private static void ValidateIntegerLexeme(ReadOnlySpan<byte> value)

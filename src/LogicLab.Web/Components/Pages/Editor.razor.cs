@@ -23,12 +23,16 @@ public sealed partial class Editor : IAsyncDisposable
     private readonly CancellationTokenSource componentLifetime = new();
     private int isDisposed;
 
-    public Editor(IEditorWorkspace workspace, TimeProvider timeProvider)
+    public Editor(
+        IEditorWorkspace workspace,
+        ProjectImportWorkflow projectImportWorkflow,
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(workspace);
+        ArgumentNullException.ThrowIfNull(projectImportWorkflow);
         ArgumentNullException.ThrowIfNull(timeProvider);
         this.workspace = workspace;
-        projectImportWorkflow = new ProjectImportWorkflow(workspace);
+        this.projectImportWorkflow = projectImportWorkflow;
         this.timeProvider = timeProvider;
     }
 

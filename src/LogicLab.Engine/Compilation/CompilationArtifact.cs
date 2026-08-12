@@ -122,7 +122,7 @@ internal sealed class SimulationEvaluator
         bool option = false,
         ClockSchedule? clockSchedule = null,
         SequentialEvaluatorOptions? sequentialOptions = null,
-        IReadOnlyList<LogicVector>? initialMemory = null)
+        PackedMemory? initialMemory = null)
     {
         Ordinal = ordinal;
         Kind = kind;
@@ -136,9 +136,7 @@ internal sealed class SimulationEvaluator
         Option = option;
         ClockSchedule = clockSchedule;
         SequentialOptions = sequentialOptions;
-        InitialMemory = initialMemory is null
-            ? null
-            : Array.AsReadOnly(initialMemory.ToArray());
+        InitialMemory = initialMemory;
     }
 
     public int Ordinal { get; }
@@ -163,7 +161,7 @@ internal sealed class SimulationEvaluator
 
     public SequentialEvaluatorOptions? SequentialOptions { get; }
 
-    public ReadOnlyCollection<LogicVector>? InitialMemory { get; }
+    public PackedMemory? InitialMemory { get; }
 }
 
 internal sealed record SimulationDriver(

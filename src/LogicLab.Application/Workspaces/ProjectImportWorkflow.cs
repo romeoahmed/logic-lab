@@ -9,10 +9,10 @@ public sealed class ProjectImportWorkflow
 
     public ProjectImportWorkflow(
         IEditorWorkspace workspace,
-        PackagePolicy? packagePolicy = null)
+        PackagePolicy packagePolicy)
     {
         ArgumentNullException.ThrowIfNull(workspace);
-        packagePolicy ??= PackagePolicy.Development;
+        ArgumentNullException.ThrowIfNull(packagePolicy);
         var maximum = packagePolicy.Limits[(int)PackageDimension.CarrierBytes]
             .Maximum;
         if (maximum > long.MaxValue)

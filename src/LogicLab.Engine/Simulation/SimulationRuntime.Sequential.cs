@@ -73,7 +73,7 @@ public static partial class SimulationRuntime
         ref SettlementResult settlement,
         LogicVector[] driverValues,
         LogicVector?[] sequentialStates,
-        LogicVector[]?[] memoryStates,
+        PackedMemory?[] memoryStates,
         bool[] ownedMemoryStates,
         SimulationPolicy policy,
         SettlementWork work,
@@ -229,7 +229,7 @@ public static partial class SimulationRuntime
     private static void CommitMemoryWrites(
         int evaluatorOrdinal,
         MemoryCellWrite[] writes,
-        LogicVector[]?[] memoryStates,
+        PackedMemory?[] memoryStates,
         bool[] ownedMemoryStates,
         SimulationPolicy policy,
         SettlementWork work,
@@ -245,7 +245,7 @@ public static partial class SimulationRuntime
         foreach (var write in writes)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!ValuesEqual(memory[write.Address], write.Value))
+            if (!memory.WordEquals(write.Address, write.Value))
             {
                 changesMemory = true;
                 break;
@@ -263,8 +263,8 @@ public static partial class SimulationRuntime
                 policy,
                 SimulationDimension.AdvanceWorkItemCount,
                 ref work.WorkItems,
-                checked((ulong)memory.Length));
-            memory = (LogicVector[])memory.Clone();
+                memory.CloneWorkItemCount);
+            memory = memory.Clone();
             memoryStates[evaluatorOrdinal] = memory;
             ownedMemoryStates[evaluatorOrdinal] = true;
         }
@@ -437,7 +437,7 @@ public static partial class SimulationRuntime
             LogicVector[] netValues,
             LogicVector[] driverValues,
             LogicVector?[] sequentialStates,
-            LogicVector[]?[] memoryStates,
+            PackedMemory?[] memoryStates,
             SimulationPolicy policy,
             CancellationToken cancellationToken)
         {
@@ -485,14 +485,14 @@ public static partial class SimulationRuntime
         private readonly LogicVector[] netValues;
         private readonly LogicVector[] driverValues;
         private readonly LogicVector?[] sequentialStates;
-        private readonly LogicVector[]?[] memoryStates;
+        private readonly PackedMemory?[] memoryStates;
 
         private ZeroTimeWorkingState(
             LogicVector[] previousNetValues,
             LogicVector[] netValues,
             LogicVector[] driverValues,
             LogicVector?[] sequentialStates,
-            LogicVector[]?[] memoryStates,
+            PackedMemory?[] memoryStates,
             ZeroTimeStateDescriptor descriptor)
         {
             this.previousNetValues = previousNetValues;
@@ -513,7 +513,7 @@ public static partial class SimulationRuntime
             LogicVector[] netValues,
             LogicVector[] driverValues,
             LogicVector?[] sequentialStates,
-            LogicVector[]?[] memoryStates,
+            PackedMemory?[] memoryStates,
             CancellationToken cancellationToken)
         {
             return new ZeroTimeWorkingState(
@@ -623,8 +623,8 @@ public static partial class SimulationRuntime
         }
 
         private static bool MemoryArraysEqual(
-            LogicVector[]?[] left,
-            LogicVector[]?[] right,
+            PackedMemory?[] left,
+            PackedMemory?[] right,
             CancellationToken cancellationToken)
         {
             if (left.Length != right.Length)
@@ -642,8 +642,7 @@ public static partial class SimulationRuntime
                         return false;
                     }
                 }
-                else if (!VectorArraysEqual(
-                        left[index]!,
+                else if (!left[index]!.ContentEquals(
                         right[index]!,
                         cancellationToken))
                 {
@@ -682,7 +681,7 @@ public static partial class SimulationRuntime
             LogicVector[] netValues,
             LogicVector[] driverValues,
             LogicVector?[] sequentialStates,
-            LogicVector[]?[] memoryStates,
+            PackedMemory?[] memoryStates,
             CancellationToken cancellationToken)
         {
             var accumulator = new ZeroTimeStateAccumulator();
@@ -717,7 +716,7 @@ public static partial class SimulationRuntime
         private static void AppendMemoryVectors(
             ref ZeroTimeStateAccumulator accumulator,
             ulong domain,
-            LogicVector[]?[] values,
+            PackedMemory?[] values,
             CancellationToken cancellationToken)
         {
             accumulator.Append(domain);
@@ -728,11 +727,17 @@ public static partial class SimulationRuntime
                 accumulator.Append(memory is null ? 0UL : 1UL);
                 if (memory is not null)
                 {
-                    AppendVectors(
-                        ref accumulator,
-                        domain: 0,
-                        memory,
-                        cancellationToken);
+                    accumulator.Append(checked((ulong)memory.Width));
+                    accumulator.Append(checked((ulong)memory.Depth));
+                    accumulator.Append(checked((ulong)memory.PlaneWordCount));
+                    for (var wordIndex = 0;
+                        wordIndex < memory.PlaneWordCount;
+                        wordIndex++)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        accumulator.Append(memory.GetLowPlaneWord(wordIndex));
+                        accumulator.Append(memory.GetHighPlaneWord(wordIndex));
+                    }
                 }
             }
         }

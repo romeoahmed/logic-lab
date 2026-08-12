@@ -19,9 +19,17 @@ internal sealed partial class EditorWorkspace
         }
 
         var hasReservation = true;
-        var stage = "genesis";
+        var stage = "authoring-admission";
         try
         {
+            if (!AuthoringAdmission.AdmitsDocument(
+                    request.ImportCandidate.Document,
+                    workspacePolicy))
+            {
+                return RejectOpen(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
+            }
+
+            stage = "genesis";
             var genesis = ProjectEditor.Begin(
                 new ImportedProjectSeed(request.ImportCandidate));
             if (genesis is ProjectGenesisRejected rejectedGenesis)
