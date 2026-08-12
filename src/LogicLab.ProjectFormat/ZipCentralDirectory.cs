@@ -22,19 +22,15 @@ internal static class ZipCentralDirectory
             location.Length);
     }
 
-    public static async Task<ZipEntryProfile[]> ReadEntryProfilesAsync(
+    public static async Task<bool> HasUnsupportedCompressionAsync(
         FileStream spool,
         ZipCentralDirectoryInfo directory,
         CancellationToken cancellationToken)
     {
-        if (directory.EntryCount > int.MaxValue)
-        {
-            throw new InvalidDataException("The ZIP entry count is not addressable.");
-        }
-
         const int headerLength = 46;
-        var profiles = new ZipEntryProfile[checked((int)directory.EntryCount)];
+        var hasUnsupportedCompression = false;
         var header = new byte[headerLength];
+        var localHeader = new byte[30];
         var directoryEnd = checked(directory.Offset + directory.Length);
         if (directory.Offset > checked((ulong)spool.Length)
             || directoryEnd > checked((ulong)spool.Length))
@@ -43,7 +39,7 @@ internal static class ZipCentralDirectory
         }
 
         spool.Position = checked((long)directory.Offset);
-        for (var index = 0; index < profiles.Length; index++)
+        for (ulong index = 0; index < directory.EntryCount; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (checked((ulong)spool.Position + headerLength) > directoryEnd)
@@ -74,7 +70,6 @@ internal static class ZipCentralDirectory
                 header,
                 variableData.AsSpan(nameLength, extraLength));
             var nextCentralEntry = spool.Position;
-            var localHeader = new byte[30];
             if (spool.Length < localHeader.Length
                 || localHeaderOffset > checked(
                     (ulong)(spool.Length - localHeader.Length)))
@@ -91,9 +86,13 @@ internal static class ZipCentralDirectory
                 throw new InvalidDataException("The ZIP local header is invalid.");
             }
 
-            profiles[index] = new ZipEntryProfile(
-                BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(10)),
-                BinaryPrimitives.ReadUInt16LittleEndian(localHeader.AsSpan(8)));
+            var centralCompressionMethod =
+                BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(10));
+            var localCompressionMethod =
+                BinaryPrimitives.ReadUInt16LittleEndian(localHeader.AsSpan(8));
+            hasUnsupportedCompression |=
+                centralCompressionMethod is not 0 and not 8
+                || localCompressionMethod is not 0 and not 8;
             spool.Position = nextCentralEntry;
         }
 
@@ -102,7 +101,7 @@ internal static class ZipCentralDirectory
             throw new InvalidDataException("The ZIP central directory count is inconsistent.");
         }
 
-        return profiles;
+        return hasUnsupportedCompression;
     }
 
     private static ulong ResolveLocalHeaderOffset(
@@ -302,7 +301,3 @@ internal sealed record ZipCentralDirectoryInfo(
     ulong EntryCount,
     ulong Offset,
     ulong Length);
-
-internal readonly record struct ZipEntryProfile(
-    ushort CentralCompressionMethod,
-    ushort LocalCompressionMethod);

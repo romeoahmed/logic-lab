@@ -512,7 +512,7 @@ public static partial class ProjectPackage
             [
                 new("policyId", policy.PolicyId),
                 new("policyRevision", policy.PolicyRevision),
-                new("dimension", breach.GetDimensionToken()),
+                new("dimension", breach.DimensionToken),
                 new("observed", breach.Observed.ToString(CultureInfo.InvariantCulture)),
             ]);
         return Rejected(
@@ -560,9 +560,10 @@ public static partial class ProjectPackage
         string Path,
         byte[] Bytes,
         byte[] Hash,
-        string HashHex,
         string? MemoryImageId)
     {
+        public string HashHex => Convert.ToHexStringLower(Hash);
+
         public static PackagePart Create(
             string path,
             byte[] bytes,
@@ -582,7 +583,6 @@ public static partial class ProjectPackage
                 path,
                 bytes,
                 hash,
-                Convert.ToHexStringLower(hash),
                 memoryImageId);
         }
     }
@@ -590,22 +590,13 @@ public static partial class ProjectPackage
     private sealed record PackagePartDigest(
         string Path,
         ulong Length,
-        byte[] Hash,
-        string HashHex,
-        string? MemoryImageId)
+        byte[] Hash)
     {
         public static PackagePartDigest FromPackagePart(PackagePart part) => new(
             part.Path,
             checked((ulong)part.Bytes.Length),
-            part.Hash,
-            part.HashHex,
-            part.MemoryImageId);
+            part.Hash);
     }
-
-    private sealed record ReadPartDigest(
-        ulong Length,
-        byte[] Hash,
-        string HashHex);
 
     private sealed class CountingWriteStream(Stream destination) : Stream
     {

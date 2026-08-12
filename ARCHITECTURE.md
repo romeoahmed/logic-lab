@@ -119,7 +119,7 @@ The linked owner defines the exact interface and closed outcomes. Architecture f
 | Compiler | compile; extract one Boolean Region | validation, hierarchy, SCCs, ordinals, IR, Source Map | [Compiler](./docs/specs/compiler.md) |
 | Simulation Runtime | open, execute, and read one Simulation Session | propagation, batching, rollback, memory, Trace, Hot Swap | [Simulation Runtime](./docs/specs/simulation-runtime.md) |
 | Boolean Analysis | explain; find one verified simplification | QMC/Petrick, AIG, mapping, ROBDD/exhaustive proof | [Boolean Analysis](./docs/specs/boolean-analysis.md) |
-| Project Format | read or write one `.logiclab` carrier | bounded spool, ZIP, strict DTOs, migrations, digests | [Project Package V1](./docs/specs/project-package-v1.md) |
+| Project Format | read or write one `.logiclab` carrier | bounded spool, ZIP, strict V1 DTOs, digests | [Project Package V1](./docs/specs/project-package-v1.md) |
 | Diagram Presentation | plan one symbol; project one Circuit Definition | constraints, text metrics, drawing operations, conformance | [Diagram Presentation](./docs/specs/diagram-presentation.md) |
 | Editor Workspace | open, attach, dispatch, and read | fencing, idempotency, history, save, work coordination, proposals | [Editor Workspace Contract](./docs/contracts/editor-workspace.md) |
 | Durable Project Catalog | list one authorized bounded page | authorization filtering, invariant order, keyset cursor, persistence projection | [Durable Project Catalog Contract](./docs/contracts/durable-project-catalog.md) |
@@ -201,7 +201,7 @@ Evidence follows fact ownership.
 | Compiler | deterministic artifacts/diagnostics, hierarchy/SCC/CSR properties, Source Map totality |
 | Simulation Runtime | scalar oracle, packed differential properties, fixed-point/Trigger Batch/rollback/Trace cases |
 | Boolean Analysis | brute-force oracles, mapping/proof invariants, verifier mutation tests |
-| Project Format | golden/migration/adversarial packages, strict JSON, ZIP and memory properties |
+| Project Format | golden/unsupported-version/adversarial packages, strict JSON, ZIP and memory properties |
 | Diagram Presentation | rule/property tests, Geometry Plan/SVG goldens, accessibility projection |
 | Editor Workspace/Infrastructure | attachment, idempotency, concurrency, work lanes, authorized catalog paging, repository integration |
 | Web | host integration, bUnit projections, browser adapter contract tests, Playwright workflows |

@@ -568,9 +568,9 @@ internal sealed class ProjectPackageReaderTests
     }
 
     [Test]
-    public async Task ReadAsync_UnsupportedSchemaVersion_RejectsAtMigrationBoundary()
+    public async Task ReadAsync_UnsupportedSchemaVersion_RejectsManifest()
     {
-        var revision = BeginProject("Migration", "Main");
+        var revision = BeginProject("Unsupported schema", "Main");
         await using var carrier = await WriteAsync(revision);
         var entries = ReadEntries(carrier.Stream);
         entries["manifest.json"] = Encoding.UTF8.GetBytes(
