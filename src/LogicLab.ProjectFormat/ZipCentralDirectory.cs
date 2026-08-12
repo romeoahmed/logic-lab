@@ -32,13 +32,14 @@ internal static class ZipCentralDirectory
         ZipUnsupportedFeature? unsupportedFeature = null;
         var header = new byte[headerLength];
         var localHeader = new byte[30];
-        var directoryEnd = checked(directory.Offset + directory.Length);
-        if (directory.Offset > checked((ulong)spool.Length)
-            || directoryEnd > checked((ulong)spool.Length))
+        var spoolLength = checked((ulong)spool.Length);
+        if (directory.Offset > spoolLength
+            || directory.Length > spoolLength - directory.Offset)
         {
             throw new InvalidDataException("The ZIP central directory is outside the carrier.");
         }
 
+        var directoryEnd = directory.Offset + directory.Length;
         spool.Position = checked((long)directory.Offset);
         for (ulong index = 0; index < directory.EntryCount; index++)
         {

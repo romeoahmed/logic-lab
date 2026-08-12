@@ -89,42 +89,10 @@ internal sealed class ProjectPackageReaderTests
     {
         var revision = BeginProject("ZIP64 entry count", "Main");
         await using var carrier = await WriteAsync(revision);
-        var bytes = carrier.Stream.ToArray();
-        var endRecordIndex = bytes.AsSpan().LastIndexOf("PK\x05\x06"u8);
-        var centralDirectoryOffset = BinaryPrimitives.ReadUInt32LittleEndian(
-            bytes.AsSpan(endRecordIndex + 16));
         const ulong declaredEntryCount = 10_000;
-        var zip64EndRecord = new byte[56];
-        BinaryPrimitives.WriteUInt32LittleEndian(zip64EndRecord, 0x06064b50);
-        BinaryPrimitives.WriteUInt64LittleEndian(zip64EndRecord.AsSpan(4), 44);
-        BinaryPrimitives.WriteUInt64LittleEndian(
-            zip64EndRecord.AsSpan(24),
+        await using var zip64 = PatchZip64Directory(
+            carrier.Stream,
             declaredEntryCount);
-        BinaryPrimitives.WriteUInt64LittleEndian(
-            zip64EndRecord.AsSpan(32),
-            declaredEntryCount);
-        BinaryPrimitives.WriteUInt64LittleEndian(
-            zip64EndRecord.AsSpan(40),
-            checked((ulong)(endRecordIndex - centralDirectoryOffset)));
-        BinaryPrimitives.WriteUInt64LittleEndian(
-            zip64EndRecord.AsSpan(48),
-            centralDirectoryOffset);
-        var locator = new byte[20];
-        BinaryPrimitives.WriteUInt32LittleEndian(locator, 0x07064b50);
-        BinaryPrimitives.WriteUInt64LittleEndian(
-            locator.AsSpan(8),
-            checked((ulong)endRecordIndex));
-        BinaryPrimitives.WriteUInt32LittleEndian(locator.AsSpan(16), 1);
-        var endRecord = bytes.AsSpan(endRecordIndex).ToArray();
-        BinaryPrimitives.WriteUInt16LittleEndian(endRecord.AsSpan(8), ushort.MaxValue);
-        BinaryPrimitives.WriteUInt16LittleEndian(endRecord.AsSpan(10), ushort.MaxValue);
-        BinaryPrimitives.WriteUInt32LittleEndian(endRecord.AsSpan(16), uint.MaxValue);
-        await using var zip64 = new MemoryStream([
-            .. bytes.AsSpan(0, endRecordIndex),
-            .. zip64EndRecord,
-            .. locator,
-            .. endRecord,
-        ]);
         var policy = WithLimit(PackageDimension.EntryCount, 3);
 
         var outcome = await ProjectPackage.ReadAsync(
@@ -139,6 +107,29 @@ internal sealed class ProjectPackageReaderTests
                 .IsEqualTo(PackageDimension.EntryCount);
             await Assert.That(rejected.Evidence.PolicyLimitBreach?.Observed)
                 .IsEqualTo(declaredEntryCount);
+        }
+    }
+
+    [Test]
+    public async Task ReadAsync_Zip64CentralDirectoryRangeOverflow_RejectsMalformedCarrier()
+    {
+        var revision = BeginProject("ZIP64 range overflow", "Main");
+        await using var carrier = await WriteAsync(revision);
+        await using var malformed = PatchZip64Directory(
+            carrier.Stream,
+            directoryOffset: ulong.MaxValue,
+            directoryLength: 1);
+
+        var outcome = await ReadAsync(malformed);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        await Assert.That(rejected.Reason).IsEqualTo("package_invalid");
+        var diagnostic = rejected.Diagnostics.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(diagnostic.Code).IsEqualTo("package_illegal_entry");
+            await Assert.That(diagnostic.Arguments)
+                .Contains(new PackageDiagnosticArgument("rule", "carrier"));
         }
     }
 
@@ -1020,6 +1011,56 @@ internal sealed class ProjectPackageReaderTests
             bytes.AsSpan(endRecordOffset + 6),
             diskNumber);
         return new MemoryStream(bytes);
+    }
+
+    private static MemoryStream PatchZip64Directory(
+        MemoryStream package,
+        ulong? declaredEntryCount = null,
+        ulong? directoryOffset = null,
+        ulong? directoryLength = null)
+    {
+        var bytes = package.ToArray();
+        var endRecordIndex = bytes.AsSpan().LastIndexOf("PK\x05\x06"u8);
+        var originalDirectoryOffset = BinaryPrimitives.ReadUInt32LittleEndian(
+            bytes.AsSpan(endRecordIndex + 16));
+        var originalDirectoryLength = BinaryPrimitives.ReadUInt32LittleEndian(
+            bytes.AsSpan(endRecordIndex + 12));
+        var originalEntryCount = BinaryPrimitives.ReadUInt16LittleEndian(
+            bytes.AsSpan(endRecordIndex + 10));
+        var zip64EndRecord = new byte[56];
+        BinaryPrimitives.WriteUInt32LittleEndian(zip64EndRecord, 0x06064b50);
+        BinaryPrimitives.WriteUInt64LittleEndian(zip64EndRecord.AsSpan(4), 44);
+        BinaryPrimitives.WriteUInt64LittleEndian(
+            zip64EndRecord.AsSpan(24),
+            declaredEntryCount ?? originalEntryCount);
+        BinaryPrimitives.WriteUInt64LittleEndian(
+            zip64EndRecord.AsSpan(32),
+            declaredEntryCount ?? originalEntryCount);
+        BinaryPrimitives.WriteUInt64LittleEndian(
+            zip64EndRecord.AsSpan(40),
+            directoryLength ?? originalDirectoryLength);
+        BinaryPrimitives.WriteUInt64LittleEndian(
+            zip64EndRecord.AsSpan(48),
+            directoryOffset ?? originalDirectoryOffset);
+
+        var locator = new byte[20];
+        BinaryPrimitives.WriteUInt32LittleEndian(locator, 0x07064b50);
+        BinaryPrimitives.WriteUInt64LittleEndian(
+            locator.AsSpan(8),
+            checked((ulong)endRecordIndex));
+        BinaryPrimitives.WriteUInt32LittleEndian(locator.AsSpan(16), 1);
+
+        var endRecord = bytes.AsSpan(endRecordIndex).ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(endRecord.AsSpan(8), ushort.MaxValue);
+        BinaryPrimitives.WriteUInt16LittleEndian(endRecord.AsSpan(10), ushort.MaxValue);
+        BinaryPrimitives.WriteUInt32LittleEndian(endRecord.AsSpan(12), uint.MaxValue);
+        BinaryPrimitives.WriteUInt32LittleEndian(endRecord.AsSpan(16), uint.MaxValue);
+        return new MemoryStream([
+            .. bytes.AsSpan(0, endRecordIndex),
+            .. zip64EndRecord,
+            .. locator,
+            .. endRecord,
+        ]);
     }
 
     private static MemoryStream CorruptCompressedEntry(
