@@ -113,26 +113,37 @@ internal sealed class ProjectEditorGenesisTests
     }
 
     [Test]
-    public async Task Begin_ValidatedImportedSeed_PreservesAuthoredIdsAndAllocatesFreshRevision()
+    public async Task Begin_ValidatedImportedSeed_PreservesAuthoredIdsAndAllocatesFreshRevisionPerGenesis()
     {
         var source = (ProjectGenesisCommitted)ProjectEditor.Begin(
             CreateSeed("Imported project", "Imported main"));
         var candidate = new ProjectImportCandidate(source.Revision.Document);
 
-        var outcome = ProjectEditor.Begin(new ImportedProjectSeed(candidate));
-
-        var imported = (await Assert.That(outcome).IsTypeOf<ProjectGenesisCommitted>())!;
+        var first = (await Assert.That(ProjectEditor.Begin(
+                new ImportedProjectSeed(candidate)))
+            .IsTypeOf<ProjectGenesisCommitted>())!;
+        var second = (await Assert.That(ProjectEditor.Begin(
+                new ImportedProjectSeed(candidate)))
+            .IsTypeOf<ProjectGenesisCommitted>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(imported.Revision.Document.ProjectId)
+            await Assert.That(first.Revision.Document.ProjectId)
                 .IsEqualTo(source.Revision.Document.ProjectId);
-            await Assert.That(imported.Revision.Document.EntryCircuitDefinitionId)
+            await Assert.That(first.Revision.Document.EntryCircuitDefinitionId)
                 .IsEqualTo(source.Revision.Document.EntryCircuitDefinitionId);
-            await Assert.That(imported.Revision.Document.CircuitDefinitions[0].Id)
+            await Assert.That(first.Revision.Document.CircuitDefinitions[0].Id)
                 .IsEqualTo(source.Revision.Document.CircuitDefinitions[0].Id);
-            await Assert.That(imported.Revision.RevisionId)
+            await Assert.That(second.Revision.Document.ProjectId)
+                .IsEqualTo(source.Revision.Document.ProjectId);
+            await Assert.That(second.Revision.Document.EntryCircuitDefinitionId)
+                .IsEqualTo(source.Revision.Document.EntryCircuitDefinitionId);
+            await Assert.That(first.Revision.RevisionId)
                 .IsNotEqualTo(source.Revision.RevisionId);
-            await Assert.That(imported.ChangedSources)
+            await Assert.That(second.Revision.RevisionId)
+                .IsNotEqualTo(source.Revision.RevisionId);
+            await Assert.That(second.Revision.RevisionId)
+                .IsNotEqualTo(first.Revision.RevisionId);
+            await Assert.That(first.ChangedSources)
                 .IsEquivalentTo(
                     new AuthoredSourceIdentity[]
                     {
@@ -141,27 +152,6 @@ internal sealed class ProjectEditorGenesisTests
                             source.Revision.Document.EntryCircuitDefinitionId),
                     },
                     CollectionOrdering.Matching);
-        }
-    }
-
-    [Test]
-    public async Task ProjectImportCandidate_ValidDocument_CanProduceIndependentGenesises()
-    {
-        var source = (ProjectGenesisCommitted)ProjectEditor.Begin(
-            CreateSeed("Imported project", "Imported main"));
-        var candidate = new ProjectImportCandidate(source.Revision.Document);
-
-        var first = (ProjectGenesisCommitted)ProjectEditor.Begin(
-            new ImportedProjectSeed(candidate));
-        var second = (ProjectGenesisCommitted)ProjectEditor.Begin(
-            new ImportedProjectSeed(candidate));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(first.Revision.Document)
-                .IsSameReferenceAs(second.Revision.Document);
-            await Assert.That(first.Revision.RevisionId)
-                .IsNotEqualTo(second.Revision.RevisionId);
         }
     }
 

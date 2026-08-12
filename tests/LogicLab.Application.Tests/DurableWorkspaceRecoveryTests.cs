@@ -398,12 +398,11 @@ internal sealed partial class DurableWorkspaceTests
     }
 
     [Test]
-    [Arguments(nameof(ClaimRecoveryFailure.Infrastructure))]
-    [Arguments(nameof(ClaimRecoveryFailure.Cancellation))]
+    [Arguments(ClaimRecoveryFailure.Infrastructure)]
+    [Arguments(ClaimRecoveryFailure.Cancellation)]
     public async Task AccessAsync_UnknownClaimRecoveryFailure_PreservesOwnerFence(
-        string failureName)
+        ClaimRecoveryFailure failure)
     {
-        var failure = Enum.Parse<ClaimRecoveryFailure>(failureName);
         var repository = new RecordingDurableProjectRepository
         {
             ClaimPostCommitFailure = static _ =>
@@ -439,7 +438,7 @@ internal sealed partial class DurableWorkspaceTests
             ClaimRecoveryFailure.Cancellation => token =>
                 CancelClaimRecovery(cancellation, token),
             _ => throw new ArgumentOutOfRangeException(
-                nameof(failureName),
+                nameof(failure),
                 failure,
                 null),
         };
@@ -475,7 +474,7 @@ internal sealed partial class DurableWorkspaceTests
                     "workspace_infrastructure_failure",
                 ClaimRecoveryFailure.Cancellation => "workspace_cancelled",
                 _ => throw new ArgumentOutOfRangeException(
-                    nameof(failureName),
+                    nameof(failure),
                     failure,
                     null),
             });
@@ -582,15 +581,14 @@ internal sealed partial class DurableWorkspaceTests
     }
 
     [Test]
-    [Arguments(nameof(DurableAccess.Dispatch))]
-    [Arguments(nameof(DurableAccess.Read))]
-    [Arguments(nameof(DurableAccess.InitialAttach))]
-    [Arguments(nameof(DurableAccess.Detach))]
-    [Arguments(nameof(DurableAccess.Copy))]
+    [Arguments(DurableAccess.Dispatch)]
+    [Arguments(DurableAccess.Read)]
+    [Arguments(DurableAccess.InitialAttach)]
+    [Arguments(DurableAccess.Detach)]
+    [Arguments(DurableAccess.Copy)]
     public async Task AccessAsync_ExpiredDurableWorkspace_MatchesMissingWorkspace(
-        string accessName)
+        DurableAccess access)
     {
-        var access = Enum.Parse<DurableAccess>(accessName);
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 9, 0, 0, 0, TimeSpan.Zero));
         var repository = new RecordingDurableProjectRepository();
@@ -725,7 +723,7 @@ internal sealed partial class DurableWorkspaceTests
         };
     }
 
-    private enum DurableAccess
+    internal enum DurableAccess
     {
         Dispatch,
         Read,
@@ -734,7 +732,7 @@ internal sealed partial class DurableWorkspaceTests
         Copy,
     }
 
-    private enum ClaimRecoveryFailure
+    internal enum ClaimRecoveryFailure
     {
         Infrastructure,
         Cancellation,

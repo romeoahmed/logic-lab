@@ -7,17 +7,16 @@ namespace LogicLab.Engine.Tests;
 internal sealed class SteeringLogicTests
 {
     [Test]
-    [Arguments("and", LogicValue.Zero)]
-    [Arguments("nand", LogicValue.One)]
-    [Arguments("or", LogicValue.One)]
-    [Arguments("nor", LogicValue.Zero)]
-    [Arguments("xor", LogicValue.X)]
-    [Arguments("xnor", LogicValue.X)]
+    [Arguments(SimulationEvaluatorKind.LogicAnd, LogicValue.Zero)]
+    [Arguments(SimulationEvaluatorKind.LogicNand, LogicValue.One)]
+    [Arguments(SimulationEvaluatorKind.LogicOr, LogicValue.One)]
+    [Arguments(SimulationEvaluatorKind.LogicNor, LogicValue.Zero)]
+    [Arguments(SimulationEvaluatorKind.LogicXor, LogicValue.X)]
+    [Arguments(SimulationEvaluatorKind.LogicXnor, LogicValue.X)]
     public async Task Gate_ThreeInputs_UsesFourStateFold(
-        string gate,
+        SimulationEvaluatorKind kind,
         LogicValue expected)
     {
-        var kind = Enum.Parse<SimulationEvaluatorKind>("Logic" + gate, ignoreCase: true);
         var result = CombinationalEvaluation.Gate(
             kind,
             [Vector(LogicValue.One), Vector(LogicValue.X), Vector(LogicValue.Zero)]);

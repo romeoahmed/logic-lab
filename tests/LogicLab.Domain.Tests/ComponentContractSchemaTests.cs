@@ -91,66 +91,6 @@ internal sealed class ComponentContractSchemaTests
         }
     }
 
-    [Test]
-    public async Task ResolvePorts_TopologySplit_GeneratesOrderedSlicePorts()
-    {
-        var contract = await FindCoreContract("topology.split");
-        var parameters = new ComponentParameterBinding[]
-        {
-            new("width", new Unsigned32ParameterValue(8)),
-            new("slices", new SlicesParameterValue(
-                [new BitSlice(0, 4), new BitSlice(2, 3), new BitSlice(7, 1)])),
-        };
-
-        var resolution = contract.ResolvePorts(parameters);
-        var ports = Materialize(resolution);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(resolution.TryGetPortCount(out var portCount)).IsTrue();
-            await Assert.That(portCount).IsEqualTo(4UL);
-            await Assert.That(ports.Select(port =>
-                    (port.Id, port.Direction, port.Width)))
-                .IsEquivalentTo(
-                    [
-                        ("D", PortDirection.Input, 8U),
-                        ("Q0", PortDirection.Output, 4U),
-                        ("Q1", PortDirection.Output, 3U),
-                        ("Q2", PortDirection.Output, 1U),
-                    ],
-                    CollectionOrdering.Matching);
-        }
-    }
-
-    [Test]
-    public async Task ResolvePorts_TopologyConcat_GeneratesOrderedInputPortsAndOutputWidth()
-    {
-        var contract = await FindCoreContract("topology.concat");
-        var parameters = new ComponentParameterBinding[]
-        {
-            new("inputWidths", new WidthsParameterValue([1, 3, 4])),
-        };
-
-        var resolution = contract.ResolvePorts(parameters);
-        var ports = Materialize(resolution);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(resolution.TryGetPortCount(out var portCount)).IsTrue();
-            await Assert.That(portCount).IsEqualTo(4UL);
-            await Assert.That(ports.Select(port =>
-                    (port.Id, port.Direction, port.Width)))
-                .IsEquivalentTo(
-                    [
-                        ("D0", PortDirection.Input, 1U),
-                        ("D1", PortDirection.Input, 3U),
-                        ("D2", PortDirection.Input, 4U),
-                        ("Q", PortDirection.Output, 8U),
-                    ],
-                    CollectionOrdering.Matching);
-        }
-    }
-
     [Test, FsCheckProperty(Arbitrary = new[] { typeof(ComponentContractArbitraries) })]
     public Property ResolvePorts_TopologySplit_ValidSlicesMatchOrderedPortModel(
         SplitPortCase sample)
