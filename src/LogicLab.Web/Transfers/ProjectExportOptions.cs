@@ -3,7 +3,7 @@ using LogicLab.Infrastructure.Transfers;
 
 namespace LogicLab.Web.Transfers;
 
-public sealed class ProjectExportOptions
+internal sealed class ProjectExportOptions
 {
     public const string ConfigurationSectionName = "LogicLab:ProjectExports";
 
