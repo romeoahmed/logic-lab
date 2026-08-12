@@ -5,10 +5,13 @@
     linear-gradient(var(--ll-grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--ll-grid) 1px, transparent 1px),
     linear-gradient(var(--ll-grid-strong) 1px, transparent 1px),
-    linear-gradient(90deg, var(--ll-grid-strong) 1px, transparent 1px),
-    var(--ll-canvas);
+    linear-gradient(90deg, var(--ll-grid-strong) 1px, transparent 1px), var(--ll-canvas);
   background-position: -1px -1px;
-  background-size: 1.5rem 1.5rem, 1.5rem 1.5rem, 6rem 6rem, 6rem 6rem;
+  background-size:
+    1.5rem 1.5rem,
+    1.5rem 1.5rem,
+    6rem 6rem,
+    6rem 6rem;
 }
 
 .scene-heading {
@@ -65,7 +68,8 @@
   block-size: 1.25rem;
   margin-block-end: 1rem;
   border-block-end: 2px solid var(--ll-signal);
-  background: linear-gradient(135deg, transparent 42%, var(--ll-signal) 43% 48%, transparent 49%) 0 0 / 0.8rem 100%;
+  background: linear-gradient(135deg, transparent 42%, var(--ll-signal) 43% 48%, transparent 49%) 0
+    0 / 0.8rem 100%;
   content: "";
 }
 

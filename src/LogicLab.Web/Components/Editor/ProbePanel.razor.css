@@ -46,7 +46,8 @@
   block-size: 1rem;
   margin-block-end: 1rem;
   border-bottom: 2px solid var(--ll-signal);
-  background: linear-gradient(135deg, transparent 42%, var(--ll-signal) 43% 48%, transparent 49%) 0 0 / 0.75rem 100%;
+  background: linear-gradient(135deg, transparent 42%, var(--ll-signal) 43% 48%, transparent 49%) 0
+    0 / 0.75rem 100%;
 }
 
 .probe-empty p {

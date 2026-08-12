@@ -63,8 +63,12 @@ body.logic-lab-root {
   overflow-y: auto;
   color: var(--ll-ink);
   background-color: var(--ll-bench);
-  background-image:
-    linear-gradient(90deg, transparent 0 49.95%, rgb(255 255 255 / 22%) 50% 50.05%, transparent 50.1%);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0 49.95%,
+    rgb(255 255 255 / 22%) 50% 50.05%,
+    transparent 50.1%
+  );
   background-size: 12rem 100%;
   text-rendering: optimizeLegibility;
 }
