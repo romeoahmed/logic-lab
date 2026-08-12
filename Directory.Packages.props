@@ -8,17 +8,14 @@
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="bunit" Version="2.9.0" />
     <PackageVersion Include="FsCheck" Version="3.3.4" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
     <PackageVersion Include="Microsoft.FluentUI.AspNetCore.Components" Version="5.0.0-rc.5-26219.1" />
-    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
-    <!-- EF Core SQLite 10.0.10 still permits vulnerable 2.1.11. Promote only to
-         the compatible 2.x security release; remove when EF raises its floor. -->
-    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
-    <PackageVersion Include="TUnit" Version="1.64.6" />
-    <PackageVersion Include="TUnit.AspNetCore" Version="1.64.6" />
-    <PackageVersion Include="TUnit.FsCheck" Version="1.64.6" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.11" />
+    <PackageVersion Include="TUnit" Version="1.64.13" />
+    <PackageVersion Include="TUnit.AspNetCore" Version="1.64.13" />
+    <PackageVersion Include="TUnit.FsCheck" Version="1.64.13" />
   </ItemGroup>
 </Project>
