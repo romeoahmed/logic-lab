@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <InternalsVisibleTo Include="LogicLab.Infrastructure.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\LogicLab.Application\LogicLab.Application.csproj" />
     <ProjectReference Include="..\LogicLab.Domain\LogicLab.Domain.csproj" />
   </ItemGroup>

@@ -1,2 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <InternalsVisibleTo Include="LogicLab.Domain.Tests" />
+    <InternalsVisibleTo Include="LogicLab.Infrastructure" />
+    <InternalsVisibleTo Include="LogicLab.ProjectFormat" />
+  </ItemGroup>
 </Project>
