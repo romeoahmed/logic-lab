@@ -15,7 +15,7 @@ internal static class ComponentParameterValidator
             contractKey,
             schema,
             parameters,
-            document: null,
+            memoryImages: null,
             cancellationToken);
     }
 
@@ -27,14 +27,35 @@ internal static class ComponentParameterValidator
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
-        return ValidateCore(contractKey, schema, parameters, document, cancellationToken);
+        return ValidateCore(
+            contractKey,
+            schema,
+            parameters,
+            new MemoryImageLookup(document),
+            cancellationToken);
+    }
+
+    internal static AuthoringDiagnostic[] ValidateForDocument(
+        ComponentContractKey contractKey,
+        ComponentContractSchema schema,
+        ReadOnlyCollection<ComponentParameterBinding> parameters,
+        Dictionary<MemoryImageId, MemoryImage> memoryImages,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(memoryImages);
+        return ValidateCore(
+            contractKey,
+            schema,
+            parameters,
+            new MemoryImageLookup(memoryImages),
+            cancellationToken);
     }
 
     private static AuthoringDiagnostic[] ValidateCore(
         ComponentContractKey contractKey,
         ComponentContractSchema schema,
         ReadOnlyCollection<ComponentParameterBinding> parameters,
-        ProjectDocument? document,
+        MemoryImageLookup? memoryImages,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -59,7 +80,7 @@ internal static class ComponentParameterValidator
                 expected,
                 actual.Value,
                 parameters,
-                document,
+                memoryImages,
                 cancellationToken);
             if (rule is not null)
             {
@@ -92,7 +113,7 @@ internal static class ComponentParameterValidator
         ComponentParameterSchema schema,
         ComponentParameterValue? value,
         ReadOnlyCollection<ComponentParameterBinding> allParameters,
-        ProjectDocument? document,
+        MemoryImageLookup? memoryImages,
         CancellationToken cancellationToken)
     {
         return (schema.Kind, value) switch
@@ -126,7 +147,7 @@ internal static class ComponentParameterValidator
                     schema,
                     image,
                     allParameters,
-                    document,
+                    memoryImages,
                     cancellationToken),
             (ComponentParameterKind.BinaryLogicValue,
                 LogicVectorParameterValue binary) =>
@@ -145,15 +166,15 @@ internal static class ComponentParameterValidator
         ComponentParameterSchema schema,
         MemoryImageParameterValue reference,
         IReadOnlyList<ComponentParameterBinding> allParameters,
-        ProjectDocument? document,
+        MemoryImageLookup? memoryImages,
         CancellationToken cancellationToken)
     {
-        if (document is null)
+        if (memoryImages is null)
         {
             return null;
         }
 
-        var image = document.FindMemoryImage(reference.MemoryImageId);
+        var image = memoryImages.Value.Find(reference.MemoryImageId);
         cancellationToken.ThrowIfCancellationRequested();
         if (image is null)
         {
@@ -180,6 +201,27 @@ internal static class ComponentParameterValidator
         return image.Width == wordWidth && image.Depth == expectedDepth
             ? null
             : "memoryImageShape";
+    }
+
+    private readonly struct MemoryImageLookup
+    {
+        private readonly ProjectDocument? document;
+        private readonly Dictionary<MemoryImageId, MemoryImage>? index;
+
+        public MemoryImageLookup(ProjectDocument document)
+        {
+            this.document = document;
+            index = null;
+        }
+
+        public MemoryImageLookup(Dictionary<MemoryImageId, MemoryImage> index)
+        {
+            document = null;
+            this.index = index;
+        }
+
+        public MemoryImage? Find(MemoryImageId id) =>
+            index?.GetValueOrDefault(id) ?? document?.FindMemoryImage(id);
     }
 
     private static string? GetInvalidWidthRule(

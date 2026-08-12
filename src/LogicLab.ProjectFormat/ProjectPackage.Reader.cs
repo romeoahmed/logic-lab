@@ -185,16 +185,29 @@ public static partial class ProjectPackage
         ulong[] observations,
         CancellationToken cancellationToken)
     {
-        var declaredEntryCount = await ZipCentralDirectory.ReadDeclaredEntryCountAsync(
+        var centralDirectory = await ZipCentralDirectory.ReadInfoAsync(
             spool,
             cancellationToken).ConfigureAwait(false);
-        if (declaredEntryCount > policy.Maximum(PackageDimension.EntryCount))
+        if (centralDirectory.EntryCount > policy.Maximum(PackageDimension.EntryCount))
         {
-            observations[(int)PackageDimension.EntryCount] = declaredEntryCount;
+            observations[(int)PackageDimension.EntryCount] = centralDirectory.EntryCount;
             ThrowIfReadLimitExceeded(
                 policy,
                 observations,
                 PackageDimension.EntryCount);
+        }
+
+        var entryProfiles = await ZipCentralDirectory.ReadEntryProfilesAsync(
+            spool,
+            centralDirectory,
+            cancellationToken).ConfigureAwait(false);
+        if (entryProfiles.Any(profile =>
+                profile.CentralCompressionMethod is not 0 and not 8
+                || profile.LocalCompressionMethod is not 0 and not 8))
+        {
+            throw Invalid(
+                "package_unsupported_feature",
+                ("feature", "compression"));
         }
 
         spool.Position = 0;
@@ -206,6 +219,7 @@ public static partial class ProjectPackage
             cancellationToken).ConfigureAwait(false);
         var entries = EnumerateEntries(
             archive,
+            entryProfiles,
             policy,
             observations,
             cancellationToken);
@@ -215,17 +229,19 @@ public static partial class ProjectPackage
             throw Invalid("package_illegal_entry", ("rule", "requiredPart"));
         }
 
-        var manifestBytes = await ReadEntryAsync(
+        var manifestBytes = await ReadEntryBytesAsync(
             manifestEntry,
             policy,
             observations,
             cancellationToken).ConfigureAwait(false);
         ValidateJson(manifestBytes, policy, observations, cancellationToken);
-        ValidateManifestMembers(manifestBytes, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        var manifest = JsonSerializer.Deserialize(
-            manifestBytes,
-            ReadJsonContext.PackageManifestDtoV1)
+        await ValidateManifestMembersAsync(manifestBytes, cancellationToken)
+            .ConfigureAwait(false);
+        using var manifestStream = new MemoryStream(manifestBytes, writable: false);
+        var manifest = await JsonSerializer.DeserializeAsync(
+            manifestStream,
+            ReadJsonContext.PackageManifestDtoV1,
+            cancellationToken).ConfigureAwait(false)
             ?? throw Invalid("package_json_invalid", ("rule", "schema"));
         cancellationToken.ThrowIfCancellationRequested();
         ValidateManifest(manifest, entries, cancellationToken);
@@ -236,29 +252,47 @@ public static partial class ProjectPackage
             observations,
             PackageDimension.MemoryPartCount);
 
-        var parts = new List<PackagePart>(checked(manifest.MemoryParts.Length + 1));
-        var projectBytes = await ReadDeclaredPartAsync(
+        var partDigests = new List<PackagePartDigest>(
+            checked(manifest.MemoryParts.Length + 1));
+        var projectPart = await ReadDeclaredPartDigestAsync(
             entries,
             manifest.ProjectPart.Path,
-            manifest.ProjectPart.Length,
-            manifest.ProjectPart.Sha256,
-            "project",
             memoryImageId: null,
             policy,
             observations,
             cancellationToken).ConfigureAwait(false);
-        parts.Add(PackagePart.Create(
-            manifest.ProjectPart.Path,
-            projectBytes,
-            memoryImageId: null,
-            cancellationToken));
+        partDigests.Add(projectPart);
+        foreach (var memoryPart in manifest.MemoryParts)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            partDigests.Add(await ReadDeclaredPartDigestAsync(
+                entries,
+                memoryPart.Path,
+                memoryPart.MemoryImageId,
+                policy,
+                observations,
+                cancellationToken).ConfigureAwait(false));
+        }
+
+        ValidatePartIntegrity(
+            projectPart,
+            manifest.ProjectPart.Length,
+            manifest.ProjectPart.Sha256,
+            "project");
+
+        var projectBytes = await ReadValidatedPartBytesAsync(
+            entries[manifest.ProjectPart.Path],
+            manifest.ProjectPart.Length,
+            cancellationToken).ConfigureAwait(false);
 
         ValidateJson(projectBytes, policy, observations, cancellationToken);
-        ValidateProjectMembers(projectBytes, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        var decodedProject = JsonSerializer.Deserialize(
-            projectBytes,
-            ReadJsonContext.ProjectDocumentDtoV1)
+        await ValidateProjectMembersAsync(projectBytes, cancellationToken)
+            .ConfigureAwait(false);
+        using var projectStream = new MemoryStream(projectBytes, writable: false);
+        var decodedProject = await JsonSerializer.DeserializeAsync(
+            projectStream,
+            ReadJsonContext.ProjectDocumentDtoV1,
+            cancellationToken).ConfigureAwait(false)
             ?? throw Invalid("package_json_invalid", ("rule", "schema"));
         cancellationToken.ThrowIfCancellationRequested();
         var project = MigrateProject(manifest.SchemaVersion, decodedProject);
@@ -271,32 +305,19 @@ public static partial class ProjectPackage
             project,
             manifest,
             cancellationToken);
-
-        var memoryBytes = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-        foreach (var memoryPart in manifest.MemoryParts)
+        for (var index = 0; index < manifest.MemoryParts.Length; index++)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var bytes = await ReadDeclaredPartAsync(
-                entries,
-                memoryPart.Path,
+            var memoryPart = manifest.MemoryParts[index];
+            ValidatePartIntegrity(
+                partDigests[index + 1],
                 memoryPart.Length,
                 memoryPart.Sha256,
-                "memory",
-                memoryPart.MemoryImageId,
-                policy,
-                observations,
-                cancellationToken).ConfigureAwait(false);
-            memoryBytes.Add(memoryPart.MemoryImageId, bytes);
-            parts.Add(PackagePart.Create(
-                memoryPart.Path,
-                bytes,
-                memoryPart.MemoryImageId,
-                cancellationToken));
+                "memory");
         }
 
         var packageDigest = ComputeDigest(
             "logiclab-package-v1\0",
-            parts,
+            partDigests,
             cancellationToken);
         if (!string.Equals(
                 manifest.PackageDigest,
@@ -307,6 +328,23 @@ public static partial class ProjectPackage
                 "package_integrity_mismatch",
                 ("partKind", "package"),
                 ("check", "digest"));
+        }
+
+        var memoryBytes = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        var memoryParts = new List<PackagePart>(manifest.MemoryParts.Length);
+        foreach (var memoryPart in manifest.MemoryParts)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var bytes = await ReadValidatedPartBytesAsync(
+                entries[memoryPart.Path],
+                memoryPart.Length,
+                cancellationToken).ConfigureAwait(false);
+            memoryBytes.Add(memoryPart.MemoryImageId, bytes);
+            memoryParts.Add(PackagePart.Create(
+                memoryPart.Path,
+                bytes,
+                memoryPart.MemoryImageId,
+                cancellationToken));
         }
 
         var candidate = TranslateProject(
@@ -331,8 +369,7 @@ public static partial class ProjectPackage
                 memoryImageId: null,
                 cancellationToken),
         };
-        normalizedParts.AddRange(parts
-            .Where(part => part.MemoryImageId is not null)
+        normalizedParts.AddRange(memoryParts
             .OrderBy(part => part.Path, StringComparer.Ordinal));
         var projectContentDigest = ComputeDigest(
             "logiclab-project-content-v1\0",
@@ -347,13 +384,15 @@ public static partial class ProjectPackage
 
     private static Dictionary<string, ZipArchiveEntry> EnumerateEntries(
         ZipArchive archive,
+        ZipEntryProfile[] entryProfiles,
         PackagePolicy policy,
         ulong[] observations,
         CancellationToken cancellationToken)
     {
         var entries = new Dictionary<string, ZipArchiveEntry>(StringComparer.Ordinal);
-        foreach (var entry in archive.Entries)
+        for (var index = 0; index < archive.Entries.Count; index++)
         {
+            var entry = archive.Entries[index];
             cancellationToken.ThrowIfCancellationRequested();
             observations[(int)PackageDimension.EntryCount] = SaturatingAdd(
                 observations[(int)PackageDimension.EntryCount],
@@ -368,6 +407,15 @@ public static partial class ProjectPackage
                 throw Invalid(
                     "package_unsupported_feature",
                     ("feature", "encryption"));
+            }
+
+            if (index >= entryProfiles.Length
+                || entryProfiles[index].CentralCompressionMethod is not 0 and not 8
+                || entryProfiles[index].LocalCompressionMethod is not 0 and not 8)
+            {
+                throw Invalid(
+                    "package_unsupported_feature",
+                    ("feature", "compression"));
             }
 
             if (!entries.TryAdd(entry.FullName, entry))
@@ -405,12 +453,9 @@ public static partial class ProjectPackage
         }
     }
 
-    private static async Task<byte[]> ReadDeclaredPartAsync(
+    private static async Task<PackagePartDigest> ReadDeclaredPartDigestAsync(
         Dictionary<string, ZipArchiveEntry> entries,
         string path,
-        ulong declaredLength,
-        string declaredHash,
-        string partKind,
         string? memoryImageId,
         PackagePolicy policy,
         ulong[] observations,
@@ -418,35 +463,115 @@ public static partial class ProjectPackage
     {
         if (!entries.TryGetValue(path, out var entry))
         {
-            throw Invalid("package_integrity_mismatch", ("partKind", partKind), ("check", "missing"));
+            throw Invalid(
+                "package_integrity_mismatch",
+                ("partKind", memoryImageId is null ? "project" : "memory"),
+                ("check", "missing"));
         }
 
-        var bytes = await ReadEntryAsync(
+        var part = await ReadEntryDigestAsync(
             entry,
             policy,
             observations,
             cancellationToken).ConfigureAwait(false);
-        if (checked((ulong)bytes.Length) != declaredLength)
-        {
-            throw Invalid("package_integrity_mismatch", ("partKind", partKind), ("check", "length"));
-        }
-
-        var actualHash = Convert.ToHexStringLower(SHA256.HashData(bytes));
-        if (!string.Equals(declaredHash, actualHash, StringComparison.Ordinal))
-        {
-            throw Invalid("package_integrity_mismatch", ("partKind", partKind), ("check", "sha256"));
-        }
-
         if (memoryImageId is not null
             && !string.Equals(path, $"memory/{memoryImageId}.bin", StringComparison.Ordinal))
         {
             throw Invalid("package_illegal_entry", ("rule", "memoryPath"));
         }
 
-        return bytes;
+        return new PackagePartDigest(
+            path,
+            part.Length,
+            part.Hash,
+            part.HashHex,
+            memoryImageId);
     }
 
-    private static async Task<byte[]> ReadEntryAsync(
+    private static void ValidatePartIntegrity(
+        PackagePartDigest part,
+        ulong declaredLength,
+        string declaredHash,
+        string partKind)
+    {
+        if (part.Length != declaredLength)
+        {
+            throw Invalid(
+                "package_integrity_mismatch",
+                ("partKind", partKind),
+                ("check", "length"));
+        }
+
+        if (!string.Equals(declaredHash, part.HashHex, StringComparison.Ordinal))
+        {
+            throw Invalid(
+                "package_integrity_mismatch",
+                ("partKind", partKind),
+                ("check", "sha256"));
+        }
+    }
+
+    private static async Task<ReadPartDigest> ReadEntryDigestAsync(
+        ZipArchiveEntry entry,
+        PackagePolicy policy,
+        ulong[] observations,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var source = await entry.OpenAsync(cancellationToken)
+                .ConfigureAwait(false);
+            using var hashing = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            var buffer = new byte[ReadBufferSize];
+            ulong partBytes = 0;
+            while (true)
+            {
+                var read = await source.ReadAsync(buffer, cancellationToken)
+                    .ConfigureAwait(false);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                partBytes = SaturatingAdd(partBytes, checked((ulong)read));
+                observations[(int)PackageDimension.PartBytes] = Math.Max(
+                    observations[(int)PackageDimension.PartBytes],
+                    partBytes);
+                observations[(int)PackageDimension.ExpandedBytes] = SaturatingAdd(
+                    observations[(int)PackageDimension.ExpandedBytes],
+                    checked((ulong)read));
+                ThrowIfReadLimitExceeded(
+                    policy,
+                    observations,
+                    PackageDimension.PartBytes);
+                ThrowIfReadLimitExceeded(
+                    policy,
+                    observations,
+                    PackageDimension.ExpandedBytes);
+                hashing.AppendData(buffer, 0, read);
+            }
+
+            var hash = hashing.GetHashAndReset();
+            return new ReadPartDigest(
+                partBytes,
+                hash,
+                Convert.ToHexStringLower(hash));
+        }
+        catch (InvalidDataException)
+        {
+            throw Invalid(
+                "package_illegal_entry",
+                ("rule", "corruptPart"));
+        }
+        catch (NotSupportedException)
+        {
+            throw Invalid(
+                "package_unsupported_feature",
+                ("feature", "compression"));
+        }
+    }
+
+    private static async Task<byte[]> ReadEntryBytesAsync(
         ZipArchiveEntry entry,
         PackagePolicy policy,
         ulong[] observations,
@@ -490,9 +615,44 @@ public static partial class ProjectPackage
         }
         catch (InvalidDataException)
         {
+            throw Invalid("package_illegal_entry", ("rule", "corruptPart"));
+        }
+        catch (NotSupportedException)
+        {
             throw Invalid(
                 "package_unsupported_feature",
                 ("feature", "compression"));
+        }
+    }
+
+    private static async Task<byte[]> ReadValidatedPartBytesAsync(
+        ZipArchiveEntry entry,
+        ulong validatedLength,
+        CancellationToken cancellationToken)
+    {
+        if (validatedLength > int.MaxValue)
+        {
+            throw Invalid("package_illegal_entry", ("rule", "partLength"));
+        }
+
+        try
+        {
+            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)validatedLength));
+            await using var source = await entry.OpenAsync(cancellationToken)
+                .ConfigureAwait(false);
+            await source.ReadExactlyAsync(bytes, cancellationToken).ConfigureAwait(false);
+            var extra = new byte[1];
+            if (await source.ReadAsync(extra, cancellationToken)
+                    .ConfigureAwait(false) != 0)
+            {
+                throw Invalid("package_integrity_mismatch", ("partKind", "part"), ("check", "length"));
+            }
+
+            return bytes;
+        }
+        catch (InvalidDataException)
+        {
+            throw Invalid("package_illegal_entry", ("rule", "corruptPart"));
         }
         catch (NotSupportedException)
         {
@@ -597,9 +757,23 @@ public static partial class ProjectPackage
         {
             cancellationToken.ThrowIfCancellationRequested();
             var depth = ParseCanonicalUnsigned64(image.Depth, "depth");
+            if (image.WordWidth == 0
+                || image.WordWidth > int.MaxValue
+                || depth is 0 or > int.MaxValue)
+            {
+                throw Invalid("package_memory_invalid", ("rule", "shape"));
+            }
+
+            var cellCount = SaturatingMultiply(image.WordWidth, depth);
+            var payloadLength = SaturatingAdd(20, SaturatingAdd(cellCount, 3) / 4);
+            if (payloadLength > int.MaxValue)
+            {
+                throw Invalid("package_memory_invalid", ("rule", "shape"));
+            }
+
             memoryCells = SaturatingAdd(
                 memoryCells,
-                SaturatingMultiply(image.WordWidth, depth));
+                cellCount);
         }
 
         foreach (var definition in project.CircuitDefinitions)

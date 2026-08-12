@@ -207,6 +207,136 @@ internal sealed class ProjectPackageReaderTests
     }
 
     [Test]
+    [Arguments("wordWidth")]
+    [Arguments("depth")]
+    public async Task ReadAsync_ZeroMemoryDimension_RejectsShapeBeforeBodyIntegrity(
+        string dimension)
+    {
+        var revision = AddSingleCellMemory(
+            BeginProject("Memory shape", "Main"),
+            "Program");
+        await using var carrier = await WriteAsync(revision);
+        var entries = ReadEntries(carrier.Stream);
+        var project = JsonNode.Parse(entries["project.json"])!.AsObject();
+        project["memoryImages"]!.AsArray()[0]![dimension] = dimension == "wordWidth"
+            ? JsonValue.Create(0)
+            : JsonValue.Create("0");
+        entries["project.json"] = Encoding.UTF8.GetBytes(project.ToJsonString());
+        var manifest = JsonNode.Parse(entries["manifest.json"])!.AsObject();
+        SetPartIntegrity(manifest["projectPart"]!.AsObject(), entries["project.json"]);
+        entries["manifest.json"] = Encoding.UTF8.GetBytes(manifest.ToJsonString());
+        var memoryPath = entries.Keys.Single(path => path.StartsWith(
+            "memory/",
+            StringComparison.Ordinal));
+        entries[memoryPath][^1] ^= 1;
+        await using var tampered = WriteEntries(entries);
+
+        var outcome = await ReadAsync(tampered);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        var diagnostic = rejected.Diagnostics.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(diagnostic.Code).IsEqualTo("package_memory_invalid");
+            await Assert.That(diagnostic.Arguments)
+                .Contains(new PackageDiagnosticArgument("rule", "shape"));
+        }
+    }
+
+    [Test]
+    public async Task ReadAsync_OversizedMemoryPart_PrecedesInvalidProjectJson()
+    {
+        var revision = AddSingleCellMemory(
+            BeginProject("Actual byte precedence", "Main"),
+            "Program");
+        await using var carrier = await WriteAsync(revision);
+        var entries = ReadEntries(carrier.Stream);
+        var memoryPath = entries.Keys.Single(path => path.StartsWith(
+            "memory/",
+            StringComparison.Ordinal));
+        entries["project.json"] = "{"u8.ToArray();
+        entries[memoryPath] = new byte[4 * 1_024];
+        RefreshIntegrity(entries);
+        await using var tampered = WriteEntries(entries);
+        var policy = WithLimit(PackageDimension.PartBytes, 1_024);
+
+        var outcome = await ProjectPackage.ReadAsync(
+            new ProjectPackageReadRequest(tampered, policy),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("package_limit_exceeded");
+            await Assert.That(rejected.Evidence.PolicyLimitBreach?.Dimension)
+                .IsEqualTo(PackageDimension.PartBytes);
+        }
+    }
+
+    [Test]
+    public async Task ReadAsync_Deflate64Entry_RejectsZipProfileBeforeManifestAgreement()
+    {
+        var revision = BeginProject("Compression profile", "Main");
+        await using var carrier = await WriteAsync(revision);
+        var entries = ReadEntries(carrier.Stream);
+        await using var withExtraEntry = WriteEntries(
+            entries,
+            ("memory/extra.bin", Array.Empty<byte>()));
+        await using var deflate64 = PatchCompressionMethods(
+            withExtraEntry,
+            "memory/extra.bin",
+            centralMethod: 9,
+            localMethod: 9);
+
+        var outcome = await ReadAsync(deflate64);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        var diagnostic = rejected.Diagnostics.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(diagnostic.Code)
+                .IsEqualTo("package_unsupported_feature");
+            await Assert.That(diagnostic.Arguments)
+                .Contains(new PackageDiagnosticArgument("feature", "compression"));
+        }
+    }
+
+    [Test]
+    public async Task ReadAsync_LocalCompressionMethodOutsideProfile_RejectsCarrier()
+    {
+        var revision = BeginProject("Local compression profile", "Main");
+        await using var carrier = await WriteAsync(revision);
+        await using var unsupported = PatchCompressionMethods(
+            carrier.Stream,
+            "project.json",
+            centralMethod: 8,
+            localMethod: 9);
+
+        var outcome = await ReadAsync(unsupported);
+
+        await AssertDiagnostic(outcome, "package_unsupported_feature");
+    }
+
+    [Test]
+    public async Task ReadAsync_CorruptDeflateEntry_RejectsCarrierInsteadOfCompressionProfile()
+    {
+        var revision = BeginProject("Corrupt Deflate", "Main");
+        await using var carrier = await WriteAsync(revision);
+        await using var corrupt = CorruptCompressedEntry(carrier.Stream, "project.json");
+
+        var outcome = await ReadAsync(corrupt);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        var diagnostic = rejected.Diagnostics.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(diagnostic.Code).IsEqualTo("package_illegal_entry");
+            await Assert.That(diagnostic.Arguments)
+                .Contains(new PackageDiagnosticArgument("rule", "corruptPart"));
+        }
+    }
+
+    [Test]
     public async Task ReadAsync_DuplicateManifestMember_RejectsStrictJson()
     {
         var revision = BeginProject("Strict JSON", "Main");
@@ -782,6 +912,65 @@ internal sealed class ProjectPackageReaderTests
 
         package.Position = 0;
         return package;
+    }
+
+    private static MemoryStream PatchCompressionMethods(
+        MemoryStream package,
+        string path,
+        ushort centralMethod,
+        ushort localMethod)
+    {
+        var bytes = package.ToArray();
+        var centralOffset = FindCentralDirectoryEntry(bytes, path);
+        BinaryPrimitives.WriteUInt16LittleEndian(
+            bytes.AsSpan(centralOffset + 10),
+            centralMethod);
+        var localOffset = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(
+            bytes.AsSpan(centralOffset + 42)));
+        BinaryPrimitives.WriteUInt16LittleEndian(
+            bytes.AsSpan(localOffset + 8),
+            localMethod);
+        return new MemoryStream(bytes);
+    }
+
+    private static MemoryStream CorruptCompressedEntry(
+        MemoryStream package,
+        string path)
+    {
+        var bytes = package.ToArray();
+        var centralOffset = FindCentralDirectoryEntry(bytes, path);
+        var localOffset = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(
+            bytes.AsSpan(centralOffset + 42)));
+        var nameLength = BinaryPrimitives.ReadUInt16LittleEndian(
+            bytes.AsSpan(localOffset + 26));
+        var extraLength = BinaryPrimitives.ReadUInt16LittleEndian(
+            bytes.AsSpan(localOffset + 28));
+        var dataOffset = checked(localOffset + 30 + nameLength + extraLength);
+        bytes[dataOffset] = 0xff;
+        return new MemoryStream(bytes);
+    }
+
+    private static int FindCentralDirectoryEntry(byte[] bytes, string path)
+    {
+        var pathBytes = Encoding.UTF8.GetBytes(path);
+        for (var offset = 0; offset <= bytes.Length - 46; offset++)
+        {
+            if (BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset)) !=
+                0x02014b50)
+            {
+                continue;
+            }
+
+            var nameLength = BinaryPrimitives.ReadUInt16LittleEndian(
+                bytes.AsSpan(offset + 28));
+            if (nameLength == pathBytes.Length
+                && bytes.AsSpan(offset + 46, nameLength).SequenceEqual(pathBytes))
+            {
+                return offset;
+            }
+        }
+
+        throw new InvalidOperationException($"ZIP entry '{path}' was not found.");
     }
 
     private static void RefreshIntegrity(Dictionary<string, byte[]> entries)

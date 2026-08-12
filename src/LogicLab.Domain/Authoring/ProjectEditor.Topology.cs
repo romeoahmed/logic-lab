@@ -671,19 +671,25 @@ public static partial class ProjectEditor
         ProjectDocument document,
         CircuitDefinition definition,
         AuthoredTerminalReference terminal,
-        out uint width)
+        out uint width,
+        DocumentValidationIndex? index = null)
     {
         width = 0;
         switch (terminal)
         {
             case DefinitionTerminalReference definitionTerminal:
-                var definitionPort = definition.FindPort(
-                    definitionTerminal.DefinitionPortId);
+                var definitionPort = index?.FindPort(
+                        definition.Id,
+                        definitionTerminal.DefinitionPortId.Value)
+                    ?? definition.FindPort(definitionTerminal.DefinitionPortId);
                 width = definitionPort?.Width ?? 0;
                 return definitionPort is not null;
             case InstanceTerminalReference instanceTerminal:
-                var instance = definition.FindComponentInstance(
-                    instanceTerminal.ComponentInstanceId);
+                var instance = index?.FindInstance(
+                        definition.Id,
+                        instanceTerminal.ComponentInstanceId)
+                    ?? definition.FindComponentInstance(
+                        instanceTerminal.ComponentInstanceId);
                 if (instance is null)
                 {
                     return false;
@@ -707,9 +713,14 @@ public static partial class ProjectEditor
                         width = componentPort.Width;
                         return true;
                     case CircuitDefinitionComponentTarget definitionTarget:
-                        var target = document.FindCircuitDefinition(
-                            definitionTarget.CircuitDefinitionId);
-                        var targetPort = target?.FindPort(instanceTerminal.PortId);
+                        var target = index?.FindDefinition(
+                                definitionTarget.CircuitDefinitionId)
+                            ?? document.FindCircuitDefinition(
+                                definitionTarget.CircuitDefinitionId);
+                        var targetPort = target is null
+                            ? null
+                            : index?.FindPort(target.Id, instanceTerminal.PortId)
+                                ?? target.FindPort(instanceTerminal.PortId);
                         width = targetPort?.Width ?? 0;
                         return targetPort is not null;
                     default:
