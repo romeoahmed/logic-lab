@@ -489,7 +489,7 @@ internal sealed class ProjectPackageReaderTests
     }
 
     [Test]
-    public async Task ReadAsync_MemoryImage_RestoresCanonicalWords()
+    public async Task ReadAsync_MemoryImage_RestoresCanonicalCells()
     {
         var revision = BeginProject("Memory", "Main");
         revision = ((EditCommitted)ProjectEditor.Apply(
@@ -521,14 +521,12 @@ internal sealed class ProjectPackageReaderTests
                 .IsEqualTo(revision.Document.MemoryImages.Single().Id);
             await Assert.That(image.Width).IsEqualTo(3U);
             await Assert.That(image.Depth).IsEqualTo(2U);
-            await Assert.That(image.Words[0].Values)
-                .IsEquivalentTo(
-                    [LogicValue.Zero, LogicValue.One, LogicValue.X],
-                    CollectionOrdering.Matching);
-            await Assert.That(image.Words[1].Values)
-                .IsEquivalentTo(
-                    [LogicValue.One, LogicValue.Zero, LogicValue.X],
-                    CollectionOrdering.Matching);
+            await Assert.That(image[0, 0]).IsEqualTo(LogicValue.Zero);
+            await Assert.That(image[0, 1]).IsEqualTo(LogicValue.One);
+            await Assert.That(image[0, 2]).IsEqualTo(LogicValue.X);
+            await Assert.That(image[1, 0]).IsEqualTo(LogicValue.One);
+            await Assert.That(image[1, 1]).IsEqualTo(LogicValue.Zero);
+            await Assert.That(image[1, 2]).IsEqualTo(LogicValue.X);
         }
     }
 

@@ -40,6 +40,8 @@ internal sealed class ProjectRevisionPayloadSerializerTests
             .Select(geometry => geometry.Route.GetType())
             .Distinct()
             .ToArray();
+        var expectedMemory = revision.Document.MemoryImages.Single();
+        var restoredMemory = restored.Document.MemoryImages.Single();
 
         using (Assert.Multiple())
         {
@@ -85,10 +87,16 @@ internal sealed class ProjectRevisionPayloadSerializerTests
                     typeof(OrthogonalWireRoute),
                 },
                 CollectionOrdering.Any);
-            await Assert.That(restored.Document.MemoryImages.Single().Words)
-                .IsEquivalentTo(
-                    revision.Document.MemoryImages.Single().Words,
-                    CollectionOrdering.Matching);
+            await Assert.That(restoredMemory.Width).IsEqualTo(expectedMemory.Width);
+            await Assert.That(restoredMemory.Depth).IsEqualTo(expectedMemory.Depth);
+            for (var address = 0U; address < expectedMemory.Depth; address++)
+            {
+                for (var bit = 0U; bit < expectedMemory.Width; bit++)
+                {
+                    await Assert.That(restoredMemory[address, bit])
+                        .IsEqualTo(expectedMemory[address, bit]);
+                }
+            }
         }
     }
 

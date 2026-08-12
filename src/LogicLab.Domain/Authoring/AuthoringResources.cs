@@ -58,14 +58,7 @@ public sealed class MemoryImage
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(displayName);
-        ArgumentOutOfRangeException.ThrowIfZero(width);
-        ArgumentOutOfRangeException.ThrowIfZero(depth);
-        if (width > int.MaxValue || depth > int.MaxValue)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(depth),
-                "Memory Image dimensions must fit an indexed collection.");
-        }
+        ValidateDimensions(width, depth);
 
         var cellCount = checked((ulong)width * depth);
         var packedLength = checked((cellCount + 3) / 4);
@@ -83,7 +76,6 @@ public sealed class MemoryImage
         this.packedCells = packedCells.ToArray();
         cancellationToken.ThrowIfCancellationRequested();
         ValidatePackedCells(this.packedCells, cellCount, cancellationToken);
-        Words = new PackedMemoryImageWords(this);
     }
 
     public MemoryImageId Id { get; }
@@ -94,18 +86,17 @@ public sealed class MemoryImage
 
     public uint Depth { get; }
 
-    public IReadOnlyList<MemoryImageWord> Words { get; }
-
-    public LogicValue this[uint address, uint bit] => GetCell(address, bit);
-
-    private LogicValue GetCell(uint address, uint bit)
+    public LogicValue this[uint address, uint bit]
     {
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(address, Depth);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(bit, Width);
-        var cellIndex = checked(((ulong)address * Width) + bit);
-        var encoded = (packedCells[checked((int)(cellIndex / 4))]
-            >> checked((int)((cellIndex % 4) * 2))) & 0x03;
-        return (LogicValue)encoded;
+        get
+        {
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(address, Depth);
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(bit, Width);
+            var cellIndex = checked(((ulong)address * Width) + bit);
+            var encoded = (packedCells[checked((int)(cellIndex / 4))]
+                >> checked((int)((cellIndex % 4) * 2))) & 0x03;
+            return (LogicValue)encoded;
+        }
     }
 
     internal ReadOnlySpan<byte> PackedCells => packedCells;
@@ -145,35 +136,13 @@ public sealed class MemoryImage
         }
     }
 
-    private MemoryImageWord GetWord(int address)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(address);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(
-            checked((uint)address),
-            Depth);
-        var values = new LogicValue[Width];
-        for (var bit = 0U; bit < Width; bit++)
-        {
-            values[bit] = GetCell(checked((uint)address), bit);
-        }
-
-        return new MemoryImageWord(values);
-    }
-
     private static byte[] Pack(
         uint width,
         uint depth,
         MemoryImageWord[] words)
     {
         ArgumentNullException.ThrowIfNull(words);
-        ArgumentOutOfRangeException.ThrowIfZero(width);
-        ArgumentOutOfRangeException.ThrowIfZero(depth);
-        if (width > int.MaxValue || depth > int.MaxValue)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(depth),
-                "Memory Image dimensions must fit an indexed collection.");
-        }
+        ValidateDimensions(width, depth);
 
         if (checked((ulong)words.Length) != depth)
         {
@@ -222,23 +191,12 @@ public sealed class MemoryImage
         return packed;
     }
 
-    private sealed class PackedMemoryImageWords(MemoryImage image)
-        : IReadOnlyList<MemoryImageWord>
+    private static void ValidateDimensions(uint width, uint depth)
     {
-        public int Count => checked((int)image.Depth);
-
-        public MemoryImageWord this[int index] => image.GetWord(index);
-
-        public IEnumerator<MemoryImageWord> GetEnumerator()
-        {
-            for (var address = 0; address < Count; address++)
-            {
-                yield return image.GetWord(address);
-            }
-        }
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>
-            GetEnumerator();
+        ArgumentOutOfRangeException.ThrowIfZero(width);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(width, checked((uint)int.MaxValue));
+        ArgumentOutOfRangeException.ThrowIfZero(depth);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(depth, checked((uint)int.MaxValue));
     }
 }
 
