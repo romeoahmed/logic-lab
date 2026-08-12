@@ -145,8 +145,8 @@ internal static class CompilationArtifactValidator
             return;
         }
 
-        if (evaluator.InitialMemory!.Count == 0
-            || evaluator.InitialMemory.Any(word => word.Width != checked((int)evaluator.Width)))
+        if (evaluator.InitialMemory!.Depth == 0
+            || evaluator.InitialMemory.Width != checked((int)evaluator.Width))
         {
             Invalid("Memory evaluator data does not match its word shape.");
         }
@@ -160,7 +160,7 @@ internal static class CompilationArtifactValidator
 
         var addressWidth = ir.Nets[evaluator.InputNetOrdinals[0]].Width;
         if (addressWidth >= 31
-            || evaluator.InitialMemory.Count != 1 << checked((int)addressWidth))
+            || evaluator.InitialMemory.Depth != 1 << checked((int)addressWidth))
         {
             Invalid("Memory evaluator data does not match its address space.");
         }

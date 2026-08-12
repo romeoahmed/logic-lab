@@ -64,10 +64,9 @@ internal static class SettlementOwnedBufferAccounting
         return checked(bytes + evaluator.Kind switch
         {
             SimulationEvaluatorKind.MemoryRom
-                or SimulationEvaluatorKind.MemoryRamSinglePort => OwnedSlots(
-                    checked(
-                        (ulong)evaluator.InitialMemory!.Count
-                        + ir.Nets[evaluator.InputNetOrdinals[0]].Width)),
+                or SimulationEvaluatorKind.MemoryRamSinglePort => checked(
+                    OwnedSlots(ir.Nets[evaluator.InputNetOrdinals[0]].Width)
+                    + PackedPlaneBytes(evaluator.Width)),
             SimulationEvaluatorKind.LogicAnd
                 or SimulationEvaluatorKind.LogicNand
                 or SimulationEvaluatorKind.LogicOr
@@ -186,6 +185,13 @@ internal static class SettlementOwnedBufferAccounting
         return checked(
             (ulong)LogicVector.GetWordCount(checked((int)width))
             * 2UL
+            * sizeof(ulong));
+    }
+
+    private static ulong PackedPlaneBytes(uint width)
+    {
+        return checked(
+            (ulong)LogicVector.GetWordCount(checked((int)width))
             * sizeof(ulong));
     }
 

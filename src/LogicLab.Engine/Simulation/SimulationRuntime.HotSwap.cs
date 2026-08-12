@@ -45,7 +45,7 @@ public static partial class SimulationRuntime
         var candidatePeakOwnedBuffers = HotSwapOwnedBufferAccounting.MeasureCandidatePeak(
             state,
             replacement,
-            migrationPreflight.MigratedRamCellReferenceCount,
+            migrationPreflight.MigratedRamOwnedBufferBytes,
             probePreflight.PreservedProbeCount,
             state.Probes.Length - probePreflight.PreservedProbeCount,
             consumerBuffers);
@@ -84,7 +84,7 @@ public static partial class SimulationRuntime
             else
             {
                 memoryStates[migration.Replacement.Ordinal] =
-                    (LogicVector[])state.MemoryStates[migration.Current.Ordinal]!.Clone();
+                    state.MemoryStates[migration.Current.Ordinal]!.Clone();
             }
         }
 

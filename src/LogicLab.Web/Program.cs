@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using LogicLab.Application.Workspaces;
 using LogicLab.Infrastructure.Persistence;
 using LogicLab.Infrastructure.Transfers;
+using LogicLab.ProjectFormat;
 using LogicLab.Web;
 using LogicLab.Web.Components;
 using LogicLab.Web.Data;
@@ -22,6 +23,7 @@ var connectionString = builder.Configuration.GetConnectionString("LogicLab")
     ?? throw new InvalidOperationException(
         "ConnectionStrings:LogicLab must be configured.");
 var workspacePolicy = WorkspacePolicy.Default;
+var packagePolicy = PackagePolicy.Development;
 var accountIngressPolicy = AccountIngressPolicy.Default;
 var durableProjectIngressPolicy = DurableProjectIngressPolicy.Default;
 
@@ -179,9 +181,12 @@ builder.Services.AddSingleton<IDurableProjectCatalog>(services =>
         services.GetRequiredService<IProjectCatalogCursorProtector>(),
         services.GetRequiredService<ILoggerFactory>()));
 builder.Services.AddScoped(static _ => new DurableProjectCatalogPageState());
+builder.Services.AddSingleton(packagePolicy);
+builder.Services.AddSingleton<ProjectImportWorkflow>();
 builder.Services.AddSingleton<IEditorWorkspace>(services =>
     EditorWorkspaceFactory.Create(
         workspacePolicy: workspacePolicy,
+        packagePolicy: packagePolicy,
         loggerFactory: services.GetRequiredService<ILoggerFactory>(),
         timeProvider: services.GetRequiredService<TimeProvider>(),
         durableProjectRepository:

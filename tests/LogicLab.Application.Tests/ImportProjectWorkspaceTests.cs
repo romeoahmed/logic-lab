@@ -90,6 +90,48 @@ internal sealed class ImportProjectWorkspaceTests
     }
 
     [Test]
+    public async Task OpenAsync_ImportedDocumentBeyondAuthoringLimits_RejectsBeforeCompilation()
+    {
+        var revision = BeginProject("Oversized import");
+        revision = ((EditCommitted)ProjectEditor.Apply(
+            revision,
+            new CreateCircuitDefinitionIntent("Second", []))).Revision;
+        var candidate = await RoundTripCandidateAsync(revision);
+        var compilationCount = 0;
+        var operations = WorkspaceModuleOperations.Production with
+        {
+            Compile = (_, _) =>
+            {
+                Interlocked.Increment(ref compilationCount);
+                throw new InvalidOperationException(
+                    "An inadmissible import reached Compilation.");
+            },
+        };
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
+            operations,
+            workspacePolicy: WorkspacePolicyWithLimit(
+                workspaceLimit: 1,
+                authoringLimits: new WorkspaceAuthoringLimits(1, 10, 10)));
+
+        var outcome = await workspace.OpenAsync(
+            new ImportProject(candidate),
+            CancellationToken.None);
+        var replacement = await workspace.OpenAsync(
+            new CreateSandbox("Replacement", "Main"),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code)
+                .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(compilationCount).IsEqualTo(0);
+            await Assert.That(replacement).IsTypeOf<WorkspaceOpened>();
+        }
+    }
+
+    [Test]
     public async Task ImportAsync_CarrierLimitRejectsBeforeWorkspaceAllocation()
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
@@ -226,14 +268,16 @@ internal sealed class ImportProjectWorkspaceTests
                 new ComponentPlacement(new GridPoint(0, 0))))).Revision;
     }
 
-    private static WorkspacePolicy WorkspacePolicyWithLimit(int workspaceLimit)
+    private static WorkspacePolicy WorkspacePolicyWithLimit(
+        int workspaceLimit,
+        WorkspaceAuthoringLimits? authoringLimits = null)
     {
         return new WorkspacePolicy(
             "import-tests",
             "1",
             workspaceLimit,
             sandboxRetention: TimeSpan.FromMinutes(1),
-            authoringLimits: WorkspaceAuthoringLimits.Default,
+            authoringLimits: authoringLimits ?? WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 4,
             idempotencyRecordCount: 4,
             detachedRetention: TimeSpan.FromMinutes(1),

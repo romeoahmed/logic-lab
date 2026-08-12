@@ -24,14 +24,14 @@ internal sealed class HotSwapOwnedBufferAccountingTests
         var twoOutputPeak = HotSwapOwnedBufferAccounting.MeasureCandidatePeak(
             opened.Handle.State,
             twoOutputDemux,
-            migratedRamCellReferenceCount: 0,
+            migratedRamOwnedBufferBytes: 0,
             preservedProbeCount: 0,
             unresolvedProbeCount: 0,
             consumerBuffers: HotSwapConsumerBufferRequirements.None);
         var eightOutputPeak = HotSwapOwnedBufferAccounting.MeasureCandidatePeak(
             opened.Handle.State,
             eightOutputDemux,
-            migratedRamCellReferenceCount: 0,
+            migratedRamOwnedBufferBytes: 0,
             preservedProbeCount: 0,
             unresolvedProbeCount: 0,
             consumerBuffers: HotSwapConsumerBufferRequirements.None);

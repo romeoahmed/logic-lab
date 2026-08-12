@@ -71,6 +71,9 @@ slot, and Net record in the elaborated entry. Hierarchical compilation also
 counts each reachable occurrence and each scoped Net before boundary unions.
 The Compiler measures generated Port cardinality and admits this complete count
 before it allocates generated Port identities or topology storage.
+`memory_cell_count` counts every referenced Memory Image bit cell as
+`word width * depth` for each elaborated ROM or RAM instance. Compiler admits
+that total before materializing the private packed two-plane memory storage.
 
 ### Shared policy shape
 
@@ -106,6 +109,7 @@ zero_time_state_word_count
 
 The first two bound retained future input; the next four bound one discardable Logical-time Advance. `zero_time_state_count` bounds the number of distinct exact repetition witnesses. `zero_time_state_word_count` bounds their cumulative canonical 64-bit-word representation, including shape markers and both packed Logic planes, so circuit size and witness count cannot multiply into unbounded retained evidence. Neither dimension is a heuristic proof. Work counters increment before the corresponding item is admitted, use checked arithmetic, and roll the advance back when the maximum would be exceeded.
 Each reachable amount admitted by logical shift's explicit possible-case set consumes one `advance_work_item_count` item before case evaluation begins. The evaluator may stream the Conservative Merge without retaining every reachable result; symbolic logic that does not enumerate a case set is charged for its ordinary evaluator and Net work only.
+Before a first effective RAM write clones copy-on-write storage, each copied 64-bit word in both packed Logic planes consumes one `advance_work_item_count` item.
 
 ### Trace Policy
 
@@ -211,9 +215,9 @@ Driver assignment, two slots per Clock bucket, and two slots per Clock transitio
 logical storage units; tree links, collection growth slack, and other CLR storage metadata are
 excluded. The peak includes the committed Session working-layer buffers, nested Diagnostic
 reference buffers, and retained Trace storage once; the complete replacement working-layer
-candidate including its Diagnostics and new Clock event calendar; one initial cell-reference
-buffer for every replacement Memory; one additional cell-reference buffer only for each
-compatible migrated RAM while both can coexist; the exact changed-Probe staging array, Trace fork
+candidate including its Diagnostics and new Clock event calendar; one additional packed
+two-plane buffer only for each compatible migrated RAM while both versions can coexist; the exact
+changed-Probe staging array, Trace fork
 index, and staged transition chunk; and the Hot Swap terminal publication arrays that coexist with
 the candidate, including migrated-state sources, shared evidence/outcome Probe IDs, and observed
 Probes. Application reports the retained Workspace Projection buffers that coexist with the

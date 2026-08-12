@@ -10,7 +10,7 @@ namespace LogicLab.Engine.Tests;
 internal sealed class MemoryRuntimeTests
 {
     [Test]
-    public async Task Compile_RomAndRam_PublishesExplicitMemoryAndExactCellEvidence()
+    public async Task Compile_RomAndRam_PublishesExplicitMemoryAndExactBitCellEvidence()
     {
         var circuit = MemoryTestCircuit.Create();
         var image = circuit.CreateMemoryImage(
@@ -46,14 +46,14 @@ internal sealed class MemoryRuntimeTests
         _ = circuit.Connect((rom, "Q"), (romSink, "D"));
         _ = circuit.Connect((ram, "Q"), (ramSink, "D"));
 
-        var outcome = circuit.Compile(MemoryPolicy(maximumCells: 8));
+        var outcome = circuit.Compile(MemoryPolicy(maximumCells: 16));
 
         var succeeded = (await Assert.That(outcome).IsTypeOf<CompilationSucceeded>())!;
         using (Assert.Multiple())
         {
             await Assert.That(succeeded.Evidence.ObservedDimensions.Single(dimension =>
                     dimension.Dimension == ProjectScaleDimension.MemoryCellCount).Observed)
-                .IsEqualTo(8UL);
+                .IsEqualTo(16UL);
             await Assert.That(succeeded.Artifact.SourceMap.Evaluators).Count().IsEqualTo(8);
         }
     }
@@ -371,13 +371,18 @@ internal sealed class MemoryRuntimeTests
     }
 
     [Test]
-    public async Task Execute_RamWriteExceedsWorkPolicy_RollsBackMemory()
+    public async Task Execute_WideRamCloneExceedsWorkPolicy_RollsBackMemory()
     {
+        const int width = 1_025;
+        var initialWord = Enumerable.Repeat(LogicValue.Zero, width).ToArray();
+        var writtenWord = initialWord.ToArray();
+        writtenWord[^1] = LogicValue.One;
         var circuit = CreateRam(
-            [.. Enumerable.Repeat(LogicValue.Zero, 6)],
-            [LogicValue.One],
+            [LogicValue.Zero],
+            writtenWord,
             LogicValue.One,
-            [.. Enumerable.Range(0, 64).Select(_ => new[] { LogicValue.Zero })]);
+            initialWord,
+            initialWord);
         var policy = SimulationPolicyWithLimits(advanceWorkItems: 50);
         var opened = (SimulationOpened)SimulationRuntime.Open(
             MemoryTestCircuit.Request(circuit.Artifact, policy, circuit.OutputNet),
@@ -618,7 +623,8 @@ internal sealed class MemoryRuntimeTests
         _ = circuit.Connect((addressSource, "Q"), (rom, "A"));
         var outputNet = circuit.Connect((rom, "Q"), (sink, "D"));
         var succeeded = (CompilationSucceeded)circuit.Compile(
-            MemoryPolicy(checked((ulong)words.Length)));
+            MemoryPolicy(checked(
+                (ulong)words.Length * (ulong)words[0].Length)));
         return (succeeded.Artifact, outputNet);
     }
 
@@ -660,7 +666,8 @@ internal sealed class MemoryRuntimeTests
         _ = circuit.Connect((clock, "Q"), (ram, "CLK"));
         var outputNet = circuit.Connect((ram, "Q"), (sink, "D"));
         var succeeded = (CompilationSucceeded)circuit.Compile(
-            MemoryPolicy(checked((ulong)initialWords.Length)));
+            MemoryPolicy(checked(
+                (ulong)initialWords.Length * (ulong)initialWords[0].Length)));
         return new RamCircuit(succeeded.Artifact, outputNet, address);
     }
 

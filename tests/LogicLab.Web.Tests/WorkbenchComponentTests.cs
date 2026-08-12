@@ -93,6 +93,38 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
+    public async Task Editor_ConfiguredPackagePolicyBoundsImport()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new PassthroughWorkspace();
+        var package = await CreatePackageAsync();
+        var limits = PackagePolicy.Development.Limits.ToArray();
+        limits[(int)PackageDimension.CarrierBytes] = new PackageLimit(
+            PackageDimension.CarrierBytes,
+            checked((ulong)package.Length - 1));
+        context.Services.AddSingleton(new PackagePolicy(
+            "web-import-test",
+            "1",
+            limits));
+        var rendered = RenderEditor(context, workspace);
+        var navigation = (BunitNavigationManager)context.Services
+            .GetRequiredService<NavigationManager>();
+        _ = await rendered.WaitForElementAsync("[data-command='import']:not([disabled])");
+
+        rendered.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary(
+                package,
+                "project.logiclab",
+                contentType: "application/vnd.logiclab+zip"));
+
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[role='status']")
+            .Any(status => status.TextContent.Contains(
+                "package_limit_exceeded",
+                StringComparison.Ordinal)));
+        await Assert.That(navigation.Uri).IsEqualTo("http://localhost/");
+    }
+
+    [Test]
     public async Task Editor_PrepareExport_ProjectsOneTimeDownloadLink()
     {
         await using var context = CreateContext();
@@ -752,6 +784,8 @@ internal sealed class WorkbenchComponentTests
             .Mode = JSRuntimeMode.Loose;
         context.Services.AddFluentUIComponents();
         context.Services.AddSingleton(TimeProvider.System);
+        context.Services.AddSingleton(PackagePolicy.Development);
+        context.Services.AddSingleton<ProjectImportWorkflow>();
         return context;
     }
 

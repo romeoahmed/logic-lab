@@ -80,7 +80,7 @@ public sealed class ProjectImportCandidate
         Document = document;
     }
 
-    internal ProjectDocument Document { get; }
+    public ProjectDocument Document { get; }
 }
 
 public sealed record ImportedProjectSeed : ProjectSeed

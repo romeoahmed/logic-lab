@@ -8,7 +8,7 @@ namespace LogicLab.Engine.Compilation;
 
 public static partial class Compiler
 {
-    public const string SemanticVersion = "logiclab.compiler.memory-v1";
+    public const string SemanticVersion = "logiclab.compiler.memory-v2";
 
     public static CompilationOutcome Compile(
         CompilationRequest request,
@@ -783,7 +783,8 @@ public static partial class Compiler
                 GetInitialMemory(
                     document,
                     resolved.Kind,
-                    resolved.Instance.Parameters));
+                    resolved.Instance.Parameters,
+                    cancellationToken));
             evaluatorSources[resolved.Ordinal] = new SourceMapEntry(
                 resolved.Ordinal,
                 Source(
@@ -1190,10 +1191,11 @@ public static partial class Compiler
             direction);
     }
 
-    private static LogicVector[]? GetInitialMemory(
+    private static PackedMemory? GetInitialMemory(
         ProjectDocument document,
         SimulationEvaluatorKind kind,
-        IReadOnlyList<ComponentParameterBinding> parameters)
+        IReadOnlyList<ComponentParameterBinding> parameters,
+        CancellationToken cancellationToken)
     {
         if (!SimulationEvaluatorKindFacts.IsMemory(kind))
         {
@@ -1208,7 +1210,7 @@ public static partial class Compiler
         var image = document.FindMemoryImage(reference.MemoryImageId)
             ?? throw new InvalidOperationException(
                 "A compiled memory evaluator references a missing Memory Image.");
-        return [.. image.Words.Select(word => new LogicVector(word.Values))];
+        return PackedMemory.FromImage(image, cancellationToken);
     }
 
     private static ulong CountMemoryCells(
@@ -1226,7 +1228,7 @@ public static partial class Compiler
             var image = document.FindMemoryImage(reference.MemoryImageId)
                 ?? throw new InvalidOperationException(
                     "A compiled memory evaluator references a missing Memory Image.");
-            cells = checked(cells + image.Depth);
+            cells = checked(cells + ((ulong)image.Width * image.Depth));
         }
 
         return cells;

@@ -1,4 +1,5 @@
 using LogicLab.Domain;
+using LogicLab.Engine.Compilation;
 
 namespace LogicLab.Engine.Simulation;
 
@@ -29,36 +30,23 @@ internal static class MemoryEvaluation
     }
 
     public static LogicVector Read(
-        IReadOnlyList<LogicVector> words,
+        PackedMemory memory,
         LogicVector address,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(words);
+        ArgumentNullException.ThrowIfNull(memory);
         ArgumentNullException.ThrowIfNull(address);
-        if (words.Count == 0)
-        {
-            throw new ArgumentException("Memory must contain at least one word.", nameof(words));
-        }
-
-        var reachable = new List<LogicVector>(
-            checked((int)ReachableAddressCount(address)));
-        foreach (var index in ReachableAddresses(address))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            reachable.Add(words[index]);
-        }
-
-        return VectorConservativeMerge.Merge(reachable);
+        return memory.ReadMerged(ReachableAddresses(address), cancellationToken);
     }
 
     public static MemoryCellWrite[] SampleWrite(
-        IReadOnlyList<LogicVector> words,
+        PackedMemory memory,
         LogicVector address,
         LogicVector data,
         LogicValue writeEnable,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(words);
+        ArgumentNullException.ThrowIfNull(memory);
         ArgumentNullException.ThrowIfNull(address);
         ArgumentNullException.ThrowIfNull(data);
         if (writeEnable == LogicValue.Zero)
@@ -76,7 +64,8 @@ internal static class MemoryEvaluation
             cancellationToken.ThrowIfCancellationRequested();
             var value = writeIsDefinite
                 ? normalizedData
-                : VectorConservativeMerge.Merge([words[index], normalizedData]);
+                : VectorConservativeMerge.Merge(
+                    [memory.ReadWord(index), normalizedData]);
             writes.Add(new MemoryCellWrite(index, value));
         }
 
@@ -84,16 +73,16 @@ internal static class MemoryEvaluation
     }
 
     public static void ApplyWrites(
-        LogicVector[] words,
+        PackedMemory memory,
         IReadOnlyList<MemoryCellWrite> writes,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(words);
+        ArgumentNullException.ThrowIfNull(memory);
         ArgumentNullException.ThrowIfNull(writes);
         foreach (var write in writes)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            words[write.Address] = write.Value;
+            memory.WriteWord(write.Address, write.Value);
         }
     }
 

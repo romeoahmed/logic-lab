@@ -477,10 +477,6 @@ public static partial class ProjectPackage
                 "package_unsupported_feature",
                 ("feature", "compression"));
         }
-        catch (IOException)
-        {
-            throw Invalid("package_illegal_entry", ("rule", "corruptPart"));
-        }
         catch (NotSupportedException)
         {
             throw Invalid(

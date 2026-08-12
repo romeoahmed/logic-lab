@@ -710,11 +710,11 @@ internal sealed class SimulationHotSwapTests
     }
 
     [Test]
-    public async Task Execute_HotSwapToNewRom_UsesOneInitialMemoryReferenceBuffer()
+    public async Task Execute_HotSwapToNewRom_AccountsForPackedInitialMemory()
     {
-        // 168 committed bytes, 280 replacement working-layer bytes,
+        // 168 committed bytes, 256 replacement working-layer bytes,
         // 16 publication bytes, and a 32-byte Trace fork index.
-        const ulong exactPeakOwnedBufferBytes = 496;
+        const ulong exactPeakOwnedBufferBytes = 472;
         var policy = new ProjectScalePolicy(
             "hot-swap-memory-test",
             "1",
