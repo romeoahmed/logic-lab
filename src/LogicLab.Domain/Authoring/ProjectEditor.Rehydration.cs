@@ -35,8 +35,8 @@ public static partial class ProjectEditor
             document.MemoryImages,
             static image => image.Id.Value,
             cancellationToken));
-        Ensure(document.FindCircuitDefinition(
-            document.EntryCircuitDefinitionId) is not null);
+        var index = new DocumentValidationIndex(document, cancellationToken);
+        Ensure(index.FindDefinition(document.EntryCircuitDefinitionId) is not null);
         cancellationToken.ThrowIfCancellationRequested();
 
         foreach (var image in document.MemoryImages)
@@ -51,13 +51,18 @@ public static partial class ProjectEditor
         foreach (var definition in document.CircuitDefinitions)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ValidateDefinition(document, definition, cancellationToken);
+            ValidateDefinition(
+                document,
+                definition,
+                index,
+                cancellationToken);
         }
     }
 
     private static void ValidateDefinition(
         ProjectDocument document,
         CircuitDefinition definition,
+        DocumentValidationIndex index,
         CancellationToken cancellationToken)
     {
         Ensure(HasValue(definition.Id.Value));
@@ -100,10 +105,18 @@ public static partial class ProjectEditor
         foreach (var instance in definition.ComponentInstances)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ValidateInstance(document, instance, cancellationToken);
+            ValidateInstance(
+                document,
+                instance,
+                index,
+                cancellationToken);
         }
 
-        ValidateTopology(document, definition, cancellationToken);
+        ValidateTopology(
+            document,
+            definition,
+            index,
+            cancellationToken);
 
         foreach (var annotation in definition.Annotations)
         {
@@ -121,6 +134,7 @@ public static partial class ProjectEditor
     private static void ValidateInstance(
         ProjectDocument document,
         ComponentInstance instance,
+        DocumentValidationIndex index,
         CancellationToken cancellationToken)
     {
         Ensure(HasValue(instance.Id.Value));
@@ -140,12 +154,11 @@ public static partial class ProjectEditor
                     library.ContractKey,
                     schema,
                     instance.Parameters,
-                    document,
+                    index.MemoryImages,
                     cancellationToken).Length == 0);
                 break;
             case CircuitDefinitionComponentTarget definition:
-                Ensure(document.FindCircuitDefinition(
-                    definition.CircuitDefinitionId) is not null);
+                Ensure(index.FindDefinition(definition.CircuitDefinitionId) is not null);
                 cancellationToken.ThrowIfCancellationRequested();
                 Ensure(instance.Parameters.Count == 0);
                 break;
@@ -167,6 +180,7 @@ public static partial class ProjectEditor
     private static void ValidateTopology(
         ProjectDocument document,
         CircuitDefinition definition,
+        DocumentValidationIndex index,
         CancellationToken cancellationToken)
     {
         var nets = new Dictionary<NetId, Net>();
@@ -210,7 +224,8 @@ public static partial class ProjectEditor
                     document,
                     definition,
                     terminal,
-                    out var width));
+                    out var width,
+                    index));
                 Ensure(width == net.Width);
             }
 
@@ -279,6 +294,84 @@ public static partial class ProjectEditor
         }
 
         return true;
+    }
+
+    private static Dictionary<TKey, TValue> IndexBy<TValue, TKey>(
+        IEnumerable<TValue> values,
+        Func<TValue, TKey> selectKey,
+        CancellationToken cancellationToken)
+        where TKey : notnull
+    {
+        var index = new Dictionary<TKey, TValue>();
+        foreach (var value in values)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            index.Add(selectKey(value), value);
+        }
+
+        return index;
+    }
+
+    private sealed class DocumentValidationIndex
+    {
+        private readonly Dictionary<CircuitDefinitionId, CircuitDefinition> definitions;
+        private readonly Dictionary<
+            CircuitDefinitionId,
+            Dictionary<ComponentInstanceId, ComponentInstance>> instances;
+        private readonly Dictionary<
+            CircuitDefinitionId,
+            Dictionary<string, DefinitionPort>> ports;
+
+        public DocumentValidationIndex(
+            ProjectDocument document,
+            CancellationToken cancellationToken)
+        {
+            definitions = IndexBy(
+                document.CircuitDefinitions,
+                static definition => definition.Id,
+                cancellationToken);
+            MemoryImages = IndexBy(
+                document.MemoryImages,
+                static image => image.Id,
+                cancellationToken);
+            instances = new Dictionary<
+                CircuitDefinitionId,
+                Dictionary<ComponentInstanceId, ComponentInstance>>();
+            ports = new Dictionary<
+                CircuitDefinitionId,
+                Dictionary<string, DefinitionPort>>();
+            foreach (var definition in document.CircuitDefinitions)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                instances.Add(
+                    definition.Id,
+                    IndexBy(
+                        definition.ComponentInstances,
+                        static instance => instance.Id,
+                        cancellationToken));
+                ports.Add(
+                    definition.Id,
+                    IndexBy(
+                        definition.Ports,
+                        static port => port.Id.Value,
+                        cancellationToken));
+            }
+        }
+
+        public Dictionary<MemoryImageId, MemoryImage> MemoryImages { get; }
+
+        public CircuitDefinition? FindDefinition(CircuitDefinitionId id) =>
+            definitions.GetValueOrDefault(id);
+
+        public ComponentInstance? FindInstance(
+            CircuitDefinitionId definitionId,
+            ComponentInstanceId instanceId) =>
+            instances[definitionId].GetValueOrDefault(instanceId);
+
+        public DefinitionPort? FindPort(
+            CircuitDefinitionId definitionId,
+            string portId) =>
+            ports[definitionId].GetValueOrDefault(portId);
     }
 
     private static bool HasValue(string? value) => !string.IsNullOrEmpty(value);

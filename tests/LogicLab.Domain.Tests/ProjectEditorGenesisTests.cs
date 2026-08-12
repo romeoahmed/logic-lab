@@ -1,4 +1,5 @@
 using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
 
 namespace LogicLab.Domain.Tests;
@@ -152,6 +153,72 @@ internal sealed class ProjectEditorGenesisTests
                             source.Revision.Document.EntryCircuitDefinitionId),
                     },
                     CollectionOrdering.Matching);
+        }
+    }
+
+    [Test]
+    public async Task Begin_ImportedConnectedInstanceTopology_PreservesValidatedNet()
+    {
+        var revision = (ProjectGenesisCommitted)ProjectEditor.Begin(
+            CreateSeed("Imported topology", "Main"));
+        var inputPlaced = (EditCommitted)ProjectEditor.Apply(
+            revision.Revision,
+            new PlaceComponentInstanceIntent(
+                revision.Revision.Document.EntryCircuitDefinitionId,
+                new ComponentContractKey("logiclab.core", "source.input"),
+                [
+                    new ComponentParameterBinding(
+                        "width",
+                        new Unsigned32ParameterValue(1)),
+                    new ComponentParameterBinding(
+                        "initialValue",
+                        new LogicVectorParameterValue([LogicValue.Zero])),
+                ],
+                new ComponentPlacement(new GridPoint(0, 0))));
+        var outputPlaced = (EditCommitted)ProjectEditor.Apply(
+            inputPlaced.Revision,
+            new PlaceComponentInstanceIntent(
+                inputPlaced.Revision.Document.EntryCircuitDefinitionId,
+                new ComponentContractKey("logiclab.core", "sink.output"),
+                [
+                    new ComponentParameterBinding(
+                        "width",
+                        new Unsigned32ParameterValue(1)),
+                    new ComponentParameterBinding(
+                        "radix",
+                        new ChoiceParameterValue("binary")),
+                ],
+                new ComponentPlacement(new GridPoint(4, 0))));
+        var instances = outputPlaced.Revision.Document.EntryCircuitDefinition
+            .ComponentInstances.ToDictionary(
+                instance => ((LibraryComponentTarget)instance.Target).ContractKey.ContractId);
+        var connected = (EditCommitted)ProjectEditor.Apply(
+            outputPlaced.Revision,
+            new ConnectTerminalsIntent(
+                [
+                    new InstanceTerminalReference(
+                        outputPlaced.Revision.Document.EntryCircuitDefinitionId,
+                        instances["source.input"].Id,
+                        "Q"),
+                    new InstanceTerminalReference(
+                        outputPlaced.Revision.Document.EntryCircuitDefinitionId,
+                        instances["sink.output"].Id,
+                        "D"),
+                ]));
+
+        var candidate = new ProjectImportCandidate(connected.Revision.Document);
+        var imported = (ProjectGenesisCommitted)ProjectEditor.Begin(
+            new ImportedProjectSeed(candidate));
+
+        var net = imported.Revision.Document.EntryCircuitDefinition.Nets.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(net.Width).IsEqualTo(1U);
+            await Assert.That(net.Terminals)
+                .Contains(new InstanceTerminalReference(
+                    imported.Revision.Document.EntryCircuitDefinitionId,
+                    instances["source.input"].Id,
+                    "Q"));
         }
     }
 

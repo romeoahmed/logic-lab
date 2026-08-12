@@ -314,6 +314,17 @@ public static partial class ProjectPackage
         IReadOnlyList<PackagePart> parts,
         CancellationToken cancellationToken)
     {
+        return ComputeDigest(
+            prefix,
+            [.. parts.Select(PackagePartDigest.FromPackagePart)],
+            cancellationToken);
+    }
+
+    private static string ComputeDigest(
+        string prefix,
+        IReadOnlyList<PackagePartDigest> parts,
+        CancellationToken cancellationToken)
+    {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         hash.AppendData(Encoding.UTF8.GetBytes(prefix));
         Span<byte> length = stackalloc byte[sizeof(ulong)];
@@ -328,7 +339,7 @@ public static partial class ProjectPackage
             hash.AppendData(pathBytes);
             BinaryPrimitives.WriteUInt64LittleEndian(
                 length,
-                checked((ulong)part.Bytes.Length));
+                part.Length);
             hash.AppendData(length);
             hash.AppendData(part.Hash);
         }
@@ -575,6 +586,26 @@ public static partial class ProjectPackage
                 memoryImageId);
         }
     }
+
+    private sealed record PackagePartDigest(
+        string Path,
+        ulong Length,
+        byte[] Hash,
+        string HashHex,
+        string? MemoryImageId)
+    {
+        public static PackagePartDigest FromPackagePart(PackagePart part) => new(
+            part.Path,
+            checked((ulong)part.Bytes.Length),
+            part.Hash,
+            part.HashHex,
+            part.MemoryImageId);
+    }
+
+    private sealed record ReadPartDigest(
+        ulong Length,
+        byte[] Hash,
+        string HashHex);
 
     private sealed class CountingWriteStream(Stream destination) : Stream
     {

@@ -272,12 +272,15 @@ public static partial class ProjectPackage
         }
     }
 
-    private static void ValidateManifestMembers(
+    private static async Task ValidateManifestMembersAsync(
         byte[] json,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        using var document = JsonDocument.Parse(json);
+        using var stream = new MemoryStream(json, writable: false);
+        using var document = await JsonDocument.ParseAsync(
+            stream,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         var root = document.RootElement;
         RequireMembers(
@@ -311,12 +314,15 @@ public static partial class ProjectPackage
         }
     }
 
-    private static void ValidateProjectMembers(
+    private static async Task ValidateProjectMembersAsync(
         byte[] json,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        using var document = JsonDocument.Parse(json);
+        using var stream = new MemoryStream(json, writable: false);
+        using var document = await JsonDocument.ParseAsync(
+            stream,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         var root = document.RootElement;
         RequireMembers(

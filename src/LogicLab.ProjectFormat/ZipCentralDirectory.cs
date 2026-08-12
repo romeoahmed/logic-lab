@@ -4,11 +4,168 @@ namespace LogicLab.ProjectFormat;
 
 internal static class ZipCentralDirectory
 {
+    private const uint CentralDirectoryEntrySignature = 0x02014b50;
     private const uint EndOfCentralDirectorySignature = 0x06054b50;
+    private const uint LocalFileHeaderSignature = 0x04034b50;
     private const uint Zip64EndOfCentralDirectorySignature = 0x06064b50;
     private const uint Zip64EndOfCentralDirectoryLocatorSignature = 0x07064b50;
 
-    public static async Task<ulong> ReadDeclaredEntryCountAsync(
+    public static async Task<ZipCentralDirectoryInfo> ReadInfoAsync(
+        FileStream spool,
+        CancellationToken cancellationToken)
+    {
+        var location = await ReadLocationAsync(spool, cancellationToken)
+            .ConfigureAwait(false);
+        return new ZipCentralDirectoryInfo(
+            location.EntryCount,
+            location.Offset,
+            location.Length);
+    }
+
+    public static async Task<ZipEntryProfile[]> ReadEntryProfilesAsync(
+        FileStream spool,
+        ZipCentralDirectoryInfo directory,
+        CancellationToken cancellationToken)
+    {
+        if (directory.EntryCount > int.MaxValue)
+        {
+            throw new InvalidDataException("The ZIP entry count is not addressable.");
+        }
+
+        const int headerLength = 46;
+        var profiles = new ZipEntryProfile[checked((int)directory.EntryCount)];
+        var header = new byte[headerLength];
+        var directoryEnd = checked(directory.Offset + directory.Length);
+        if (directory.Offset > checked((ulong)spool.Length)
+            || directoryEnd > checked((ulong)spool.Length))
+        {
+            throw new InvalidDataException("The ZIP central directory is outside the carrier.");
+        }
+
+        spool.Position = checked((long)directory.Offset);
+        for (var index = 0; index < profiles.Length; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (checked((ulong)spool.Position + headerLength) > directoryEnd)
+            {
+                throw new InvalidDataException("The ZIP central directory is truncated.");
+            }
+
+            await spool.ReadExactlyAsync(header, cancellationToken).ConfigureAwait(false);
+            if (BinaryPrimitives.ReadUInt32LittleEndian(header) !=
+                CentralDirectoryEntrySignature)
+            {
+                throw new InvalidDataException("The ZIP central directory entry is invalid.");
+            }
+
+            var nameLength = BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(28));
+            var extraLength = BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(30));
+            var commentLength = BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(32));
+            var variableLength = checked(nameLength + extraLength + commentLength);
+            if (checked((ulong)spool.Position + (ulong)variableLength) > directoryEnd)
+            {
+                throw new InvalidDataException("The ZIP central directory entry is truncated.");
+            }
+
+            var variableData = new byte[variableLength];
+            await spool.ReadExactlyAsync(variableData, cancellationToken)
+                .ConfigureAwait(false);
+            var localHeaderOffset = ResolveLocalHeaderOffset(
+                header,
+                variableData.AsSpan(nameLength, extraLength));
+            var nextCentralEntry = spool.Position;
+            var localHeader = new byte[30];
+            if (spool.Length < localHeader.Length
+                || localHeaderOffset > checked(
+                    (ulong)(spool.Length - localHeader.Length)))
+            {
+                throw new InvalidDataException("The ZIP local header is outside the carrier.");
+            }
+
+            spool.Position = checked((long)localHeaderOffset);
+            await spool.ReadExactlyAsync(localHeader, cancellationToken)
+                .ConfigureAwait(false);
+            if (BinaryPrimitives.ReadUInt32LittleEndian(localHeader) !=
+                LocalFileHeaderSignature)
+            {
+                throw new InvalidDataException("The ZIP local header is invalid.");
+            }
+
+            profiles[index] = new ZipEntryProfile(
+                BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(10)),
+                BinaryPrimitives.ReadUInt16LittleEndian(localHeader.AsSpan(8)));
+            spool.Position = nextCentralEntry;
+        }
+
+        if (checked((ulong)spool.Position) != directoryEnd)
+        {
+            throw new InvalidDataException("The ZIP central directory count is inconsistent.");
+        }
+
+        return profiles;
+    }
+
+    private static ulong ResolveLocalHeaderOffset(
+        byte[] header,
+        ReadOnlySpan<byte> extraFields)
+    {
+        var localHeaderOffset = BinaryPrimitives.ReadUInt32LittleEndian(
+            header.AsSpan(42));
+        if (localHeaderOffset != uint.MaxValue)
+        {
+            return localHeaderOffset;
+        }
+
+        var zip64 = FindExtraField(extraFields, 0x0001);
+        var offset = 0;
+        if (BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(24)) == uint.MaxValue)
+        {
+            offset = checked(offset + sizeof(ulong));
+        }
+
+        if (BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(20)) == uint.MaxValue)
+        {
+            offset = checked(offset + sizeof(ulong));
+        }
+
+        if (zip64.Length < checked(offset + sizeof(ulong)))
+        {
+            throw new InvalidDataException("The ZIP64 local header offset is missing.");
+        }
+
+        return BinaryPrimitives.ReadUInt64LittleEndian(zip64[offset..]);
+    }
+
+    private static ReadOnlySpan<byte> FindExtraField(
+        ReadOnlySpan<byte> extraFields,
+        ushort expectedId)
+    {
+        while (extraFields.Length >= 4)
+        {
+            var id = BinaryPrimitives.ReadUInt16LittleEndian(extraFields);
+            var length = BinaryPrimitives.ReadUInt16LittleEndian(extraFields[2..]);
+            if (extraFields.Length < checked(4 + length))
+            {
+                throw new InvalidDataException("The ZIP extra field is truncated.");
+            }
+
+            if (id == expectedId)
+            {
+                return extraFields.Slice(4, length);
+            }
+
+            extraFields = extraFields[(4 + length)..];
+        }
+
+        if (!extraFields.IsEmpty)
+        {
+            throw new InvalidDataException("The ZIP extra field is truncated.");
+        }
+
+        throw new InvalidDataException("The ZIP64 extra field is missing.");
+    }
+
+    private static async Task<CentralDirectoryLocation> ReadLocationAsync(
         FileStream spool,
         CancellationToken cancellationToken)
     {
@@ -41,29 +198,33 @@ internal static class ZipCentralDirectory
             throw new InvalidDataException("Split ZIP archives are unsupported.");
         }
 
+        var directoryLength = BinaryPrimitives.ReadUInt32LittleEndian(endRecord[12..]);
+        var directoryOffset = BinaryPrimitives.ReadUInt32LittleEndian(endRecord[16..]);
         var endRecordOffset = checked(spool.Length - tailLength + endRecordIndex);
         return entriesOnDisk == ushort.MaxValue
             || totalEntries == ushort.MaxValue
-            || BinaryPrimitives.ReadUInt32LittleEndian(endRecord[16..]) == uint.MaxValue
-            ? await ReadZip64DeclaredEntryCountAsync(
-                spool,
-                endRecordOffset,
-                totalEntries,
-                cancellationToken).ConfigureAwait(false)
-            : totalEntries;
+            || directoryLength == uint.MaxValue
+            || directoryOffset == uint.MaxValue
+                ? await ReadZip64LocationAsync(
+                    spool,
+                    endRecordOffset,
+                    cancellationToken).ConfigureAwait(false)
+                : new CentralDirectoryLocation(
+                    totalEntries,
+                    directoryOffset,
+                    directoryLength);
     }
 
-    private static async Task<ulong> ReadZip64DeclaredEntryCountAsync(
+    private static async Task<CentralDirectoryLocation> ReadZip64LocationAsync(
         FileStream spool,
         long endRecordOffset,
-        ulong fallback,
         CancellationToken cancellationToken)
     {
         const int locatorLength = 20;
         const int zip64EndRecordMinimumLength = 56;
         if (endRecordOffset < locatorLength)
         {
-            return fallback;
+            throw new InvalidDataException("The ZIP64 locator is missing.");
         }
 
         var locator = new byte[locatorLength];
@@ -72,7 +233,7 @@ internal static class ZipCentralDirectory
         if (BinaryPrimitives.ReadUInt32LittleEndian(locator) !=
             Zip64EndOfCentralDirectoryLocatorSignature)
         {
-            return fallback;
+            throw new InvalidDataException("The ZIP64 locator is missing.");
         }
 
         var zip64EndRecordOffset = BinaryPrimitives.ReadUInt64LittleEndian(
@@ -104,7 +265,10 @@ internal static class ZipCentralDirectory
             throw new InvalidDataException("Split ZIP64 archives are unsupported.");
         }
 
-        return totalEntries;
+        return new CentralDirectoryLocation(
+            totalEntries,
+            BinaryPrimitives.ReadUInt64LittleEndian(record.AsSpan(48)),
+            BinaryPrimitives.ReadUInt64LittleEndian(record.AsSpan(40)));
     }
 
     private static int FindEndOfCentralDirectory(byte[] bytes)
@@ -127,4 +291,18 @@ internal static class ZipCentralDirectory
 
         return -1;
     }
+
+    private sealed record CentralDirectoryLocation(
+        ulong EntryCount,
+        ulong Offset,
+        ulong Length);
 }
+
+internal sealed record ZipCentralDirectoryInfo(
+    ulong EntryCount,
+    ulong Offset,
+    ulong Length);
+
+internal readonly record struct ZipEntryProfile(
+    ushort CentralCompressionMethod,
+    ushort LocalCompressionMethod);
