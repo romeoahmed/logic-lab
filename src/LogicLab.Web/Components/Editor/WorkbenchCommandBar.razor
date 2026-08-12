@@ -11,6 +11,13 @@
                           Disabled="@(!CanAuthor || IsBusy)"
                           Loading="@(ActiveCommand is "author")"
                           OnClick="OnAuthor">Author circuit</FluentButton>
+            <label class="import-command">
+                <span>Import .logiclab</span>
+                <InputFile data-command="import"
+                           accept=".logiclab,application/vnd.logiclab+zip"
+                           disabled="@(!CanImport || IsBusy)"
+                           OnChange="OnImport" />
+            </label>
             <FluentButton data-command="export"
                           Disabled="@(!CanPrepareExport || IsBusy)"
                           Loading="@(ActiveCommand is "export")"
@@ -74,6 +81,9 @@
     public bool CanAuthor { get; set; }
 
     [Parameter]
+    public bool CanImport { get; set; }
+
+    [Parameter]
     public bool CanPrepareExport { get; set; }
 
     [Parameter]
@@ -105,6 +115,9 @@
 
     [Parameter]
     public EventCallback OnAuthor { get; set; }
+
+    [Parameter]
+    public EventCallback<InputFileChangeEventArgs> OnImport { get; set; }
 
     [Parameter]
     public EventCallback OnPrepareExport { get; set; }

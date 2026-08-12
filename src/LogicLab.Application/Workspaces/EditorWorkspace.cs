@@ -93,6 +93,11 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return OpenDurableAsync(openDurable, cancellationToken);
         }
 
+        if (request is ImportProject importProject)
+        {
+            return ImportProjectAsync(importProject, cancellationToken);
+        }
+
         if (request is not CreateSandbox create)
         {
             return Task.FromResult<WorkspaceOpenOutcome>(

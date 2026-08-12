@@ -113,6 +113,59 @@ internal sealed class ProjectEditorGenesisTests
     }
 
     [Test]
+    public async Task Begin_ValidatedImportedSeed_PreservesAuthoredIdsAndAllocatesFreshRevision()
+    {
+        var source = (ProjectGenesisCommitted)ProjectEditor.Begin(
+            CreateSeed("Imported project", "Imported main"));
+        var candidate = new ProjectImportCandidate(source.Revision.Document);
+
+        var outcome = ProjectEditor.Begin(new ImportedProjectSeed(candidate));
+
+        var imported = (await Assert.That(outcome).IsTypeOf<ProjectGenesisCommitted>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(imported.Revision.Document.ProjectId)
+                .IsEqualTo(source.Revision.Document.ProjectId);
+            await Assert.That(imported.Revision.Document.EntryCircuitDefinitionId)
+                .IsEqualTo(source.Revision.Document.EntryCircuitDefinitionId);
+            await Assert.That(imported.Revision.Document.CircuitDefinitions[0].Id)
+                .IsEqualTo(source.Revision.Document.CircuitDefinitions[0].Id);
+            await Assert.That(imported.Revision.RevisionId)
+                .IsNotEqualTo(source.Revision.RevisionId);
+            await Assert.That(imported.ChangedSources)
+                .IsEquivalentTo(
+                    new AuthoredSourceIdentity[]
+                    {
+                        new ProjectRootSourceIdentity(source.Revision.Document.ProjectId),
+                        new CircuitRootSourceIdentity(
+                            source.Revision.Document.EntryCircuitDefinitionId),
+                    },
+                    CollectionOrdering.Matching);
+        }
+    }
+
+    [Test]
+    public async Task ProjectImportCandidate_ValidDocument_CanProduceIndependentGenesises()
+    {
+        var source = (ProjectGenesisCommitted)ProjectEditor.Begin(
+            CreateSeed("Imported project", "Imported main"));
+        var candidate = new ProjectImportCandidate(source.Revision.Document);
+
+        var first = (ProjectGenesisCommitted)ProjectEditor.Begin(
+            new ImportedProjectSeed(candidate));
+        var second = (ProjectGenesisCommitted)ProjectEditor.Begin(
+            new ImportedProjectSeed(candidate));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(first.Revision.Document)
+                .IsSameReferenceAs(second.Revision.Document);
+            await Assert.That(first.Revision.RevisionId)
+                .IsNotEqualTo(second.Revision.RevisionId);
+        }
+    }
+
+    [Test]
     public async Task Begin_InvalidSymbolProfile_RejectsWithSafeTokenArguments()
     {
         var seed = new NewProjectSeed(

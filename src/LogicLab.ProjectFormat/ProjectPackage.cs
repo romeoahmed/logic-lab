@@ -10,7 +10,7 @@ using LogicLab.Domain.Authoring;
 
 namespace LogicLab.ProjectFormat;
 
-public static class ProjectPackage
+public static partial class ProjectPackage
 {
     private const int CancellationInterval = 4_096;
     private static readonly DateTimeOffset CanonicalEntryTimestamp =

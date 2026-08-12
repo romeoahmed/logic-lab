@@ -71,6 +71,29 @@ public sealed record NewProjectSeed(
     SymbolProfileReference SymbolProfile,
     string EntryCircuitDefinitionDisplayName) : ProjectSeed;
 
+public sealed class ProjectImportCandidate
+{
+    internal ProjectImportCandidate(ProjectDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ProjectEditor.ValidateDocument(document);
+        Document = document;
+    }
+
+    internal ProjectDocument Document { get; }
+}
+
+public sealed record ImportedProjectSeed : ProjectSeed
+{
+    public ImportedProjectSeed(ProjectImportCandidate candidate)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        Candidate = candidate;
+    }
+
+    public ProjectImportCandidate Candidate { get; }
+}
+
 public readonly record struct GridPoint(int X, int Y);
 
 public abstract record WireRoute

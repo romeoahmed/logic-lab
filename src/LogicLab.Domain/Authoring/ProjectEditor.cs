@@ -12,6 +12,8 @@ public static partial class ProjectEditor
         return seed switch
         {
             NewProjectSeed newProjectSeed => BeginNewProject(newProjectSeed),
+            ImportedProjectSeed importedProjectSeed =>
+                BeginImportedProject(importedProjectSeed),
             _ => throw new InvalidOperationException("The Project Seed variant is undefined."),
         };
     }
@@ -205,6 +207,78 @@ public static partial class ProjectEditor
             [
                 new ProjectRootSourceIdentity(projectId),
                 new CircuitRootSourceIdentity(circuitDefinitionId),
+            ]);
+    }
+
+    private static ProjectGenesisOutcome BeginImportedProject(
+        ImportedProjectSeed seed)
+    {
+        try
+        {
+            var revision = Rehydrate(
+                ProjectRevisionId.Create(),
+                seed.Candidate.Document);
+            return new ProjectGenesisCommitted(
+                revision,
+                ImportedSources(revision.Document));
+        }
+        catch (ArgumentException)
+        {
+            return RejectImportedGenesis();
+        }
+    }
+
+    private static AuthoredSourceIdentity[] ImportedSources(ProjectDocument document)
+    {
+        var sources = new List<AuthoredSourceIdentity>
+        {
+            new ProjectRootSourceIdentity(document.ProjectId),
+        };
+        sources.AddRange(document.MemoryImages.Select(image =>
+            (AuthoredSourceIdentity)new MemoryImageSourceIdentity(
+                document.ProjectId,
+                image.Id)));
+        foreach (var definition in document.CircuitDefinitions)
+        {
+            sources.Add(new CircuitRootSourceIdentity(definition.Id));
+            sources.AddRange(definition.Ports.Select(port =>
+                (AuthoredSourceIdentity)new DefinitionPortSourceIdentity(
+                    definition.Id,
+                    port.Id)));
+            sources.AddRange(definition.ComponentInstances.Select(instance =>
+                (AuthoredSourceIdentity)new ComponentInstanceSourceIdentity(
+                    definition.Id,
+                    instance.Id)));
+            sources.AddRange(definition.Nets.Select(net =>
+                (AuthoredSourceIdentity)new NetSourceIdentity(definition.Id, net.Id)));
+            sources.AddRange(definition.Junctions.Select(junction =>
+                (AuthoredSourceIdentity)new JunctionSourceIdentity(
+                    definition.Id,
+                    junction.Id)));
+            sources.AddRange(definition.WireGeometries.Select(geometry =>
+                (AuthoredSourceIdentity)new WireGeometrySourceIdentity(
+                    definition.Id,
+                    geometry.Id)));
+            sources.AddRange(definition.Annotations.Select(annotation =>
+                (AuthoredSourceIdentity)new AnnotationSourceIdentity(
+                    definition.Id,
+                    annotation.Id)));
+        }
+
+        return [.. sources];
+    }
+
+    private static ProjectGenesisRejected RejectImportedGenesis()
+    {
+        return new ProjectGenesisRejected(
+            [
+                new AuthoringDiagnostic(
+                    "authoring_missing_reference",
+                    [
+                        new AuthoringDiagnosticArgument(
+                            "referenceKind",
+                            new StableTokenDiagnosticValue("importCandidate")),
+                    ]),
             ]);
     }
 

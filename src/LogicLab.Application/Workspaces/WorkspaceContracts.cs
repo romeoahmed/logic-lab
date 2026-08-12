@@ -61,6 +61,17 @@ public sealed record OpenDurable : OpenWorkspaceRequest
     public WorkspaceCaller Caller { get; }
 }
 
+public sealed record ImportProject : OpenWorkspaceRequest
+{
+    public ImportProject(ProjectImportCandidate importCandidate)
+    {
+        ArgumentNullException.ThrowIfNull(importCandidate);
+        ImportCandidate = importCandidate;
+    }
+
+    public ProjectImportCandidate ImportCandidate { get; }
+}
+
 public abstract record WorkspaceOpenOutcome
 {
     private protected WorkspaceOpenOutcome()
