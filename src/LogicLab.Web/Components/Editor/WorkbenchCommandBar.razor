@@ -1,4 +1,8 @@
-<div class="command-bar" role="group" aria-label="Workbench commands">
+<div class="command-bar"
+     role="group"
+     aria-label="Workbench commands"
+     aria-busy="@(IsBusy ? "true" : "false")"
+     data-active-command="@ActiveCommand">
     <div class="command-cluster" role="group" aria-label="Project commands">
         <span class="command-cluster-label">Project</span>
         <div>
@@ -8,17 +12,26 @@
                           Loading="@(ActiveCommand is "create")"
                           OnClick="OnCreate">Create Sandbox Project</FluentButton>
             <FluentButton data-command="author"
+                          Appearance="ButtonAppearance.Outline"
                           Disabled="@(!CanAuthor || IsBusy)"
                           Loading="@(ActiveCommand is "author")"
                           OnClick="OnAuthor">Author circuit</FluentButton>
-            <label class="import-command">
-                <span>Import .logiclab</span>
-                <InputFile data-command="import"
-                           accept=".logiclab,application/vnd.logiclab+zip"
-                           disabled="@(!CanImport || IsBusy)"
-                           OnChange="OnImport" />
-            </label>
+            <FluentInputFile Id="logiclab-import-picker"
+                             AnchorId="logiclab-import-trigger"
+                             Accept=".logiclab,application/vnd.logiclab+zip"
+                             aria-hidden="true"
+                             tabindex="-1"
+                             Disabled="@(!CanImport || IsBusy)"
+                             DragDropZoneVisible="false"
+                             OnInputFileChange="OnImport" />
+            <FluentButton Id="logiclab-import-trigger"
+                          data-command="import"
+                          aria-label="Import a .logiclab project package"
+                          Appearance="ButtonAppearance.Outline"
+                          Disabled="@(!CanImport || IsBusy)"
+                          Loading="@(ActiveCommand is "import")">Import project</FluentButton>
             <FluentButton data-command="export"
+                          Appearance="ButtonAppearance.Outline"
                           Disabled="@(!CanPrepareExport || IsBusy)"
                           Loading="@(ActiveCommand is "export")"
                           OnClick="OnPrepareExport">Prepare export</FluentButton>
@@ -48,6 +61,7 @@
         <span class="command-cluster-label">Build</span>
         <div>
             <FluentButton data-command="compile"
+                          Appearance="ButtonAppearance.Outline"
                           Disabled="@(!CanCompile || IsBusy)"
                           Loading="@(ActiveCommand is "compile")"
                           OnClick="OnCompile">Compile</FluentButton>
@@ -57,10 +71,12 @@
         <span class="command-cluster-label">Simulation</span>
         <div>
             <FluentButton data-command="session"
+                          Appearance="ButtonAppearance.Outline"
                           Disabled="@(!CanCreateSession || IsBusy)"
                           Loading="@(ActiveCommand is "session")"
                           OnClick="OnCreateSession">Create Session</FluentButton>
             <FluentButton data-command="stimulus"
+                          Appearance="ButtonAppearance.Outline"
                           Disabled="@(!CanScheduleStimulus || IsBusy)"
                           Loading="@(ActiveCommand is "stimulus")"
                           OnClick="OnScheduleStimulus">Inputs = 1</FluentButton>

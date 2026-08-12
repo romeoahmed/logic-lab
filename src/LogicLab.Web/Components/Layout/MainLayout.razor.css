@@ -73,6 +73,19 @@
   letter-spacing: -0.015em;
 }
 
+.brand-copy {
+  display: grid;
+  line-height: 1.05;
+}
+
+.brand-copy small {
+  margin-block-start: 0.25rem;
+  color: var(--ll-subtle);
+  font-size: 0.66rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
 .primary-navigation {
   display: flex;
   gap: 0.25rem;
@@ -94,6 +107,12 @@
   color: var(--ll-ink);
   background: color-mix(in oklab, var(--ll-canvas) 72%, transparent);
   box-shadow: inset 0 -2px var(--ll-signal);
+}
+
+.primary-navigation ::deep a,
+.navigation-button {
+  font-size: 0.9rem;
+  font-weight: 650;
 }
 
 .primary-navigation ::deep a.navigation-accent {
@@ -141,16 +160,28 @@ main {
   inset-inline: 0;
   inset-block-end: 0;
   display: none;
-  padding: 0.75rem 1rem;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.85rem 4rem 0.85rem 1rem;
   color: #111827;
   background: #ffe68a;
   box-shadow: 0 -1px 3px rgb(0 0 0 / 25%);
   z-index: 1000;
 }
 
+#blazor-error-ui strong {
+  margin-inline-end: 0.35rem;
+}
+
 #blazor-error-ui .dismiss {
   position: absolute;
   inset-inline-end: 0.75rem;
+  min-inline-size: 2.25rem;
+  min-block-size: 2.25rem;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font-size: 1.35rem;
   cursor: pointer;
 }
 
@@ -159,6 +190,10 @@ main {
     display: grid;
     gap: 0.65rem;
     padding-block: 0.85rem;
+  }
+
+  .brand-copy small {
+    display: none;
   }
 
   .primary-navigation {
@@ -170,5 +205,10 @@ main {
 
   .primary-navigation > * {
     flex: 0 0 auto;
+  }
+
+  .primary-navigation ::deep a,
+  .navigation-button {
+    min-block-size: 2.75rem;
   }
 }

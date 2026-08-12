@@ -22,6 +22,17 @@ namespace LogicLab.Web.Tests;
 internal sealed class WorkbenchComponentTests
 {
     [Test]
+    public async Task Editor_InteractiveSurface_ProvidesFluentInfrastructure()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+
+        var rendered = RenderEditor(context, workspace);
+
+        await Assert.That(rendered.FindComponents<FluentProviders>()).HasSingleItem();
+    }
+
+    [Test]
     public async Task Editor_ValidLogicLabUpload_OpensCompiledImportedWorkspace()
     {
         await using var context = CreateContext();
@@ -741,6 +752,14 @@ internal sealed class WorkbenchComponentTests
     private static BunitContext CreateContext()
     {
         var context = new BunitContext();
+        context.JSInterop
+            .SetupModule(
+                "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/InputFile/FluentInputFile.razor.js")
+            .Mode = JSRuntimeMode.Loose;
+        context.JSInterop
+            .SetupModule(
+                "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/KeyCode/FluentKeyCode.razor.js")
+            .Mode = JSRuntimeMode.Loose;
         context.Services.AddFluentUIComponents();
         context.Services.AddSingleton(TimeProvider.System);
         return context;

@@ -66,14 +66,7 @@
   align-items: center;
 }
 
-.recovery-link {
-  justify-self: start;
-  padding: 0.8rem 1rem;
-  border: 1px solid var(--ll-signal);
-  border-radius: var(--ll-radius-small);
-  color: white;
-  background: var(--ll-signal);
-  font-weight: 750;
+.recovery-actions ::deep .recovery-link {
   text-decoration: none;
 }
 

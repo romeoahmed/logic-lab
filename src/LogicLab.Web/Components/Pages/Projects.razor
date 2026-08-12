@@ -34,7 +34,7 @@
         <FluentDivider Appearance="DividerAppearance.Subtle" />
         @if (Page.Items.Count == 0)
         {
-            <div class="catalog-empty">
+            <div class="catalog-empty" data-catalog-empty role="status">
                 <span class="catalog-empty-mark" aria-hidden="true">◇</span>
                 <h2>No Durable Projects yet</h2>
                 <p>Start in the Sandbox, then keep the work that deserves a durable home.</p>
@@ -43,7 +43,7 @@
         }
         else
         {
-            <ul class="project-catalog">
+            <ul class="project-catalog" aria-label="Durable Projects">
                 @foreach (var item in Page.Items)
                 {
                     <li data-project-id="@item.DurableProjectId.Value">
@@ -54,7 +54,10 @@
                             <input type="hidden"
                                    name="durableProjectId"
                                    value="@item.DurableProjectId.Value" />
-                            <button type="submit">Open</button>
+                            <button type="submit"
+                                    aria-label="Open @item.DisplayName.Value">
+                                Open project <span aria-hidden="true">→</span>
+                            </button>
                         </form>
                     </li>
                 }
@@ -65,8 +68,11 @@
     @if (Page.Next is not null)
     {
         <nav class="catalog-pagination" aria-label="Project catalog pages">
-            <a data-projects-next
-               href="@NextPage(Page.Next)">Next page <span aria-hidden="true">→</span></a>
+            <FluentAnchorButton data-projects-next
+                                Href="@NextPage(Page.Next)"
+                                Appearance="ButtonAppearance.Outline">
+                Next page <span aria-hidden="true">→</span>
+            </FluentAnchorButton>
         </nav>
     }
 </section>

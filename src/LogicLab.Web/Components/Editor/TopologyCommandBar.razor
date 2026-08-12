@@ -11,10 +11,12 @@
             <span>Membership</span>
             <div>
                 <FluentButton data-command="topology-merge"
+                              Appearance="ButtonAppearance.Outline"
                               Disabled="@(!CanMerge || BlocksCommittedCommands)"
                               Loading="@(ActiveCommand is "topology-merge")"
                               OnClick="OnMerge">Merge Nets</FluentButton>
                 <FluentButton data-command="topology-split"
+                              Appearance="ButtonAppearance.Outline"
                               Disabled="@(!CanSplit || BlocksCommittedCommands)"
                               Loading="@(ActiveCommand is "topology-split")"
                               OnClick="OnSplit">Split Net</FluentButton>
@@ -24,10 +26,12 @@
             <span>Junctions</span>
             <div>
                 <FluentButton data-command="topology-add-junction"
+                              Appearance="ButtonAppearance.Subtle"
                               Disabled="@(!CanAddJunction || BlocksCommittedCommands)"
                               Loading="@(ActiveCommand is "topology-add-junction")"
                               OnClick="OnAddJunction">Add</FluentButton>
                 <FluentButton data-command="topology-remove-junction"
+                              Appearance="ButtonAppearance.Subtle"
                               Disabled="@(!CanRemoveJunction || BlocksCommittedCommands)"
                               Loading="@(ActiveCommand is "topology-remove-junction")"
                               OnClick="OnRemoveJunction">Remove</FluentButton>
@@ -37,13 +41,16 @@
             <span>Geometry</span>
             <div>
                 <FluentButton data-command="topology-prepare-route"
+                              Appearance="ButtonAppearance.Outline"
                               Disabled="@(!CanPrepareRoute || BlocksCommittedCommands)"
                               OnClick="OnPrepareRoute">Prepare</FluentButton>
                 <FluentButton data-command="topology-unroute"
+                              Appearance="ButtonAppearance.Subtle"
                               Disabled="@(!CanUnroute || BlocksCommittedCommands)"
                               Loading="@(ActiveCommand is "topology-unroute")"
                               OnClick="OnUnroute">Unroute</FluentButton>
                 <FluentButton data-command="topology-route"
+                              Appearance="ButtonAppearance.Outline"
                               Disabled="@(!CanRoute || BlocksCommittedCommands)"
                               Loading="@(ActiveCommand is "topology-route")"
                               OnClick="OnRoute">Route</FluentButton>
@@ -53,7 +60,9 @@
             <span>Draft</span>
             <div>
                 <FluentButton data-command="topology-commit-route"
-                              Appearance="ButtonAppearance.Primary"
+                              Appearance="@(RouteDraftActive
+                                  ? ButtonAppearance.Primary
+                                  : ButtonAppearance.Outline)"
                               Disabled="@(!RouteDraftActive || IsBusy)"
                               Loading="@(ActiveCommand is "topology-commit-route")"
                               OnClick="OnCommitRoute">Commit</FluentButton>

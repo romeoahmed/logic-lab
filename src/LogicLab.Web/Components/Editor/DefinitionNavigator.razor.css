@@ -82,13 +82,20 @@
 .definition-tabs button,
 .hierarchy-row button,
 .occurrence-links button {
-  min-block-size: 2.25rem;
+  min-block-size: 2.5rem;
   padding: 0.4rem 0.7rem;
   border: 1px solid var(--ll-border-strong);
   background: var(--ll-canvas);
   color: inherit;
   border-radius: var(--ll-radius-small);
   cursor: pointer;
+}
+
+.definition-tabs button:hover,
+.hierarchy-row button:hover,
+.occurrence-links button:hover {
+  border-color: var(--ll-signal);
+  background: var(--ll-signal-softer);
 }
 
 .definition-tabs button[aria-current="page"] {

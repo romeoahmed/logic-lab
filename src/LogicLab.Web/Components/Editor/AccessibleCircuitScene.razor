@@ -12,13 +12,13 @@
 
     @if (Scene is null)
     {
-        <p class="empty-state">Create a Sandbox Project to begin.</p>
+        <p class="empty-state" role="status">Create a Sandbox Project to begin.</p>
     }
     else if (Scene.Components.Count == 0
         && Scene.DefinitionPorts.Count == 0
         && Scene.Connections.Count == 0)
     {
-        <p class="empty-state">The project is ready. Author the narrow input–NOT–output circuit.</p>
+        <p class="empty-state" role="status">The project is ready. Author the narrow input–NOT–output circuit.</p>
     }
     else
     {

@@ -1,6 +1,10 @@
 @using System.Globalization
 
-<div class="status-strip">
+<div class="status-strip"
+     role="region"
+     aria-label="Workbench telemetry"
+     aria-busy="@(!IsConnected)"
+     data-connection-state="@(IsConnected ? "connected" : "connecting")">
     <dl class="status-facts" aria-label="Workbench status">
         <div data-status="connection">
             <dt>Connection</dt>

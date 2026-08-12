@@ -9,6 +9,14 @@
   font-size: 0.875rem;
 }
 
+.status-strip[aria-busy="true"] {
+  border-inline-start: 3px solid var(--ll-transition);
+}
+
+.status-strip[data-connection-state="connected"] {
+  border-inline-start: 3px solid #2f9d60;
+}
+
 .status-facts {
   display: grid;
   grid-template-columns: repeat(6, minmax(7rem, 1fr));

@@ -42,11 +42,16 @@
 }
 
 .account-assurances span {
-  inline-size: 0.5rem;
-  block-size: 0.5rem;
+  display: grid;
+  inline-size: 1.2rem;
+  block-size: 1.2rem;
+  place-items: center;
   border: 1px solid var(--ll-signal);
+  border-radius: 50%;
+  color: var(--ll-signal-strong);
   background: var(--ll-signal-soft);
-  transform: rotate(45deg);
+  font-size: 0.7rem;
+  font-weight: 850;
 }
 
 .account-eyebrow {
@@ -110,6 +115,30 @@
   background: var(--ll-canvas);
 }
 
+.account-shell ::deep .field-hint,
+.account-shell ::deep .validation-message {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.account-shell ::deep .field-validation {
+  min-block-size: 1.1rem;
+}
+
+.account-shell ::deep .field-hint {
+  color: var(--ll-subtle);
+}
+
+.account-shell ::deep .validation-message {
+  color: var(--ll-danger-strong);
+  font-weight: 650;
+}
+
+.account-shell ::deep .validation-message:empty {
+  display: none;
+}
+
 .account-shell ::deep .form-field input:hover {
   border-color: var(--ll-signal);
 }
@@ -140,6 +169,10 @@
   background: var(--ll-signal);
   font-weight: 750;
   cursor: pointer;
+}
+
+.account-shell ::deep .primary-action:active {
+  transform: translateY(0);
 }
 
 .account-shell ::deep .primary-action:hover {

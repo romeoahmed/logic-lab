@@ -15,7 +15,12 @@
             synchronous simulation, and an accessible semantic probe in one workbench.
         </p>
         <div class="hero-actions">
-            <a class="primary-link" href="/editor">Open the Sandbox Workbench <span aria-hidden="true">→</span></a>
+            <FluentAnchorButton class="primary-link"
+                                Href="/editor"
+                                Appearance="ButtonAppearance.Primary"
+                                Size="ButtonSize.Large">
+                Open the Sandbox Workbench <span class="hero-action-arrow" aria-hidden="true">→</span>
+            </FluentAnchorButton>
             <a class="secondary-link" href="#signal-path">Explore the signal path</a>
         </div>
     </div>
@@ -29,7 +34,11 @@
                 <p class="eyebrow">Workbench sequence</p>
                 <h2>One circuit, four inspectable stages.</h2>
             </div>
-            <span class="signal-indicator"><i aria-hidden="true"></i> Ready</span>
+            <FluentBadge Appearance="BadgeAppearance.Tint"
+                         Color="BadgeColor.Success"
+                         Shape="BadgeShape.Rounded"
+                         Size="BadgeSize.Small"
+                         Content="Ready" />
         </div>
         <FluentDivider Appearance="DividerAppearance.Subtle" />
         <ol class="signal-path-list">

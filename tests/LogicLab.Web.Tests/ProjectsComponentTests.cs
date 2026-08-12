@@ -48,6 +48,11 @@ internal sealed class ProjectsComponentTests
                     CollectionOrdering.Matching);
             await Assert.That(rendered.FindAll("form[action='/projects/open']").Count)
                 .IsEqualTo(2);
+            await Assert.That(rendered.FindAll("button[aria-label]")
+                    .Select(button => button.GetAttribute("aria-label")!))
+                .IsEquivalentTo(
+                    ["Open Alpha", "Open 项目 B"],
+                    CollectionOrdering.Matching);
             await Assert.That(rendered.FindAll("input[name='durableProjectId']")
                     .Select(input => input.GetAttribute("value")!))
                 .IsEquivalentTo(
@@ -56,6 +61,31 @@ internal sealed class ProjectsComponentTests
             await Assert.That(rendered.Find("[data-projects-next]")
                     .GetAttribute("href"))
                 .IsEqualTo("/projects?after=protected%2B%2Fcursor%3D");
+        }
+    }
+
+    [Test]
+    public async Task Projects_EmptyCatalog_OffersIntentionalSandboxRecovery()
+    {
+        await using var context = new BunitContext();
+        context.Services.AddAuthorizationCore();
+        context.Services.AddAntiforgery();
+        context.Services.AddFluentUIComponents();
+        context.Services.AddSingleton(new DurableProjectCatalogPageState
+        {
+            Page = new DurableProjectPage([], next: null),
+        });
+
+        var rendered = context.Render<LogicLab.Web.Components.Pages.Projects>();
+        var empty = rendered.Find("[data-catalog-empty][role='status']");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(empty.QuerySelector("h2")?.TextContent)
+                .IsEqualTo("No Durable Projects yet");
+            await Assert.That(empty.QuerySelector("a[href='/editor']")?.TextContent)
+                .Contains("Open the Sandbox Workbench");
+            await Assert.That(rendered.FindAll("[data-project-id]")).IsEmpty();
         }
     }
 

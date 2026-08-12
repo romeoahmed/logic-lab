@@ -543,10 +543,7 @@ internal sealed class EditorDurableRouteTests
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Reopened project", "Main"),
             CancellationToken.None);
-        context.Services.AddFluentUIComponents();
-        context.Services.AddSingleton(TimeProvider.System);
-        context.Services.AddSingleton<IEditorWorkspace>(workspace);
-        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        Configure(context, workspace);
         var authenticationState = Task.FromResult(new AuthenticationState(
             new ClaimsPrincipal(new ClaimsIdentity(
                 [new Claim(ClaimTypes.NameIdentifier, "subject-editor")],
@@ -586,6 +583,14 @@ internal sealed class EditorDurableRouteTests
         BunitContext context,
         IEditorWorkspace workspace)
     {
+        context.JSInterop
+            .SetupModule(
+                "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/InputFile/FluentInputFile.razor.js")
+            .Mode = JSRuntimeMode.Loose;
+        context.JSInterop
+            .SetupModule(
+                "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/KeyCode/FluentKeyCode.razor.js")
+            .Mode = JSRuntimeMode.Loose;
         context.Services.AddFluentUIComponents();
         context.Services.AddSingleton(TimeProvider.System);
         context.Services.AddSingleton(workspace);
