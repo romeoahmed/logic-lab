@@ -290,10 +290,8 @@ internal sealed class ProjectEditorResourceTests
         var committedRemoval = (await Assert.That(removed).IsTypeOf<EditCommitted>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(image.Words[0].Values.ToArray())
-                .IsEquivalentTo(
-                    [LogicValue.Zero, LogicValue.One],
-                    CollectionOrdering.Matching);
+            await Assert.That(image[0, 0]).IsEqualTo(LogicValue.Zero);
+            await Assert.That(image[0, 1]).IsEqualTo(LogicValue.One);
             await Assert.That(replaced.Revision.Document.MemoryImages.Single().DisplayName)
                 .IsEqualTo("Program v2");
             await Assert.That(replaced.Revision.Document.MemoryImages.Single().Id)
