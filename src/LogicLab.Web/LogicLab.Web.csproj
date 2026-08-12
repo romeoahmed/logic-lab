@@ -5,6 +5,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="LogicLab.Web.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\LogicLab.Application\LogicLab.Application.csproj" />
     <ProjectReference Include="..\LogicLab.Infrastructure\LogicLab.Infrastructure.csproj" />
     <ProjectReference Include="..\LogicLab.Presentation\LogicLab.Presentation.csproj" />
