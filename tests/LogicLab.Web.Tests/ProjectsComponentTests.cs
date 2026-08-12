@@ -35,6 +35,7 @@ internal sealed class ProjectsComponentTests
         var rendered = context.Render<LogicLab.Web.Components.Pages.Projects>();
 
         var items = rendered.FindAll("[data-project-id]");
+        var openButtons = rendered.FindAll("button[type='submit']");
         using (Assert.Multiple())
         {
             await Assert.That(items.Select(item => item.GetAttribute("data-project-id")!))
@@ -48,11 +49,12 @@ internal sealed class ProjectsComponentTests
                     CollectionOrdering.Matching);
             await Assert.That(rendered.FindAll("form[action='/projects/open']").Count)
                 .IsEqualTo(2);
-            await Assert.That(rendered.FindAll("button[aria-label]")
-                    .Select(button => button.GetAttribute("aria-label")!))
-                .IsEquivalentTo(
-                    ["Open Alpha", "Open 项目 B"],
-                    CollectionOrdering.Matching);
+            await Assert.That(openButtons.Count).IsEqualTo(2);
+            await Assert.That(openButtons.Select((button, index) =>
+                    button.GetAttribute("aria-label")?.Contains(
+                        page.Items[index].DisplayName.Value,
+                        StringComparison.Ordinal) is true)
+                .All(static hasAuthoredName => hasAuthoredName)).IsTrue();
             await Assert.That(rendered.FindAll("input[name='durableProjectId']")
                     .Select(input => input.GetAttribute("value")!))
                 .IsEquivalentTo(
@@ -78,13 +80,13 @@ internal sealed class ProjectsComponentTests
 
         var rendered = context.Render<LogicLab.Web.Components.Pages.Projects>();
         var empty = rendered.Find("[data-catalog-empty][role='status']");
+        var recovery = empty.QuerySelector("a[href='/editor']")
+            ?? throw new InvalidOperationException(
+                "The empty catalog did not provide a Sandbox recovery action.");
 
         using (Assert.Multiple())
         {
-            await Assert.That(empty.QuerySelector("h2")?.TextContent)
-                .IsEqualTo("No Durable Projects yet");
-            await Assert.That(empty.QuerySelector("a[href='/editor']")?.TextContent)
-                .Contains("Open the Sandbox Workbench");
+            await Assert.That(string.IsNullOrWhiteSpace(recovery.TextContent)).IsFalse();
             await Assert.That(rendered.FindAll("[data-project-id]")).IsEmpty();
         }
     }

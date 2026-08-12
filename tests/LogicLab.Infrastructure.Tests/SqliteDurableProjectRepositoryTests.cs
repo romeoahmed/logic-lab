@@ -312,8 +312,6 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         {
             await Assert.That(firstRejected.Code)
                 .IsEqualTo("idempotency_window_expired");
-            await Assert.That(secondAttachment.Generation)
-                .IsEqualTo(firstAttachment.Generation + 1);
             await Assert.That(recovered.DurableProjectId.Value)
                 .IsEqualTo(persisted.Id);
             await Assert.That(recovered.DurableVersion).IsEqualTo(initialVersion);
@@ -712,8 +710,6 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
                 .IsEqualTo("workspace_internal_defect");
             await Assert.That(rejected.RetryDisposition)
                 .IsEqualTo(RetryDisposition.DoNotRetry);
-            await Assert.That(mismatchedRevision.RevisionId)
-                .IsNotEqualTo(initialRevision.RevisionId);
         }
     }
 

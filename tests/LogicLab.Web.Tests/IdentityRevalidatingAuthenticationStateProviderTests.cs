@@ -959,10 +959,15 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
                 new("Input.RememberMe", "false"),
             ]);
         var html = await response.Content.ReadAsStringAsync();
+        var emailValidation = WebTestMarkup.RequireElement(
+            WebTestMarkup.Parse(html),
+            "#login-email-validation");
 
         using (Assert.Multiple())
         {
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(string.IsNullOrWhiteSpace(emailValidation.TextContent))
+                .IsFalse();
             await Assert.That(html).DoesNotContain(password);
         }
     }
