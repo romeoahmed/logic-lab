@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
 using LogicLab.ProjectFormat;
@@ -109,6 +110,7 @@ public sealed record WorkspacePolicy
         string policyId,
         string policyRevision,
         int globalWorkspaceLimit,
+        int workspaceCountPerSubject,
         TimeSpan sandboxRetention,
         WorkspaceAuthoringLimits authoringLimits,
         int historyRevisionCount,
@@ -138,6 +140,7 @@ public sealed record WorkspacePolicy
         }
 
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(globalWorkspaceLimit);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(workspaceCountPerSubject);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
             sandboxRetention,
             TimeSpan.Zero);
@@ -151,6 +154,7 @@ public sealed record WorkspacePolicy
         PolicyId = policyId;
         PolicyRevision = policyRevision;
         GlobalWorkspaceLimit = globalWorkspaceLimit;
+        WorkspaceCountPerSubject = workspaceCountPerSubject;
         SandboxRetention = sandboxRetention;
         AuthoringLimits = authoringLimits;
         HistoryRevisionCount = historyRevisionCount;
@@ -166,6 +170,8 @@ public sealed record WorkspacePolicy
     public string PolicyRevision { get; }
 
     public int GlobalWorkspaceLimit { get; }
+
+    public int WorkspaceCountPerSubject { get; }
 
     public TimeSpan SandboxRetention { get; }
 
@@ -187,6 +193,7 @@ public sealed record WorkspacePolicy
         policyId: "workbench-workspace",
         policyRevision: "1",
         globalWorkspaceLimit: 128,
+        workspaceCountPerSubject: 8,
         sandboxRetention: TimeSpan.FromMinutes(30),
         authoringLimits: WorkspaceAuthoringLimits.Default,
         historyRevisionCount: 128,
@@ -212,23 +219,154 @@ public sealed record WorkspacePolicy
     }
 }
 
-public sealed record SchedulingPolicy
+public enum SchedulingDimension
 {
-    public SchedulingPolicy(int compilationQueueCapacity, int sessionQueueCapacity)
+    AdmissionRequestsPerSubject,
+    AdmissionWindowMilliseconds,
+    CompilationQueueItems,
+    SessionQueueItems,
+    AnalysisQueueItems,
+    AnalysisQueueItemsPerSubject,
+    CompilationWorkerCount,
+    SessionWorkerCount,
+    AnalysisWorkerCount,
+    AnalysisResultRetentionSeconds,
+}
+
+public sealed record SchedulingLimit(SchedulingDimension Dimension, ulong Maximum);
+
+public sealed class SchedulingPolicy
+{
+    private readonly SchedulingLimit[] limits;
+
+    public SchedulingPolicy(
+        string policyId,
+        string policyRevision,
+        IReadOnlyList<SchedulingLimit> limits)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(compilationQueueCapacity);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sessionQueueCapacity);
-        CompilationQueueCapacity = compilationQueueCapacity;
-        SessionQueueCapacity = sessionQueueCapacity;
+        ArgumentException.ThrowIfNullOrEmpty(policyId);
+        ArgumentException.ThrowIfNullOrEmpty(policyRevision);
+        ArgumentNullException.ThrowIfNull(limits);
+        if (!IsStableToken(policyId))
+        {
+            throw new ArgumentException(
+                "The Scheduling Policy ID must be a Stable Token.",
+                nameof(policyId));
+        }
+
+        if (!IsStableToken(policyRevision))
+        {
+            throw new ArgumentException(
+                "The Scheduling Policy revision must be a Stable Token.",
+                nameof(policyRevision));
+        }
+
+        var dimensions = Enum.GetValues<SchedulingDimension>();
+        if (limits.Count != dimensions.Length)
+        {
+            throw new ArgumentException(
+                "A Scheduling Policy must define every dimension exactly once.",
+                nameof(limits));
+        }
+
+        var ownedLimits = limits.ToArray();
+        for (var index = 0; index < dimensions.Length; index++)
+        {
+            if (ownedLimits[index] is not { } limit
+                || limit.Dimension != dimensions[index]
+                || limit.Maximum == 0)
+            {
+                throw new ArgumentException(
+                    "Scheduling Policy limits must be positive and in canonical dimension order.",
+                    nameof(limits));
+            }
+        }
+
+        this.limits = ownedLimits;
+        PolicyId = policyId;
+        PolicyRevision = policyRevision;
+        Limits = Array.AsReadOnly(this.limits);
     }
 
-    public int CompilationQueueCapacity { get; }
+    public string PolicyId { get; }
 
-    public int SessionQueueCapacity { get; }
+    public string PolicyRevision { get; }
+
+    public ReadOnlyCollection<SchedulingLimit> Limits { get; }
 
     public static SchedulingPolicy Default { get; } = new(
-        compilationQueueCapacity: 16,
-        sessionQueueCapacity: 64);
+        "workbench-scheduling",
+        "1",
+        [
+            new(SchedulingDimension.AdmissionRequestsPerSubject, 256),
+            new(SchedulingDimension.AdmissionWindowMilliseconds, 1_000),
+            new(SchedulingDimension.CompilationQueueItems, 16),
+            new(SchedulingDimension.SessionQueueItems, 64),
+            new(SchedulingDimension.AnalysisQueueItems, 64),
+            new(SchedulingDimension.AnalysisQueueItemsPerSubject, 8),
+            new(SchedulingDimension.CompilationWorkerCount, 1),
+            new(SchedulingDimension.SessionWorkerCount, 1),
+            new(SchedulingDimension.AnalysisWorkerCount, 1),
+            new(SchedulingDimension.AnalysisResultRetentionSeconds, 300),
+        ]);
+
+    public ulong GetMaximum(SchedulingDimension dimension)
+    {
+        if (!Enum.IsDefined(dimension))
+        {
+            throw new ArgumentOutOfRangeException(nameof(dimension));
+        }
+
+        return limits[(int)dimension].Maximum;
+    }
+
+    internal PolicyEvidenceProjection Evidence(
+        SchedulingDimension dimension,
+        ulong observed)
+    {
+        return new PolicyEvidenceProjection(
+            PolicyId,
+            PolicyRevision,
+            DimensionToken(dimension),
+            observed);
+    }
+
+    internal static string DimensionToken(SchedulingDimension dimension)
+    {
+        return dimension switch
+        {
+            SchedulingDimension.AdmissionRequestsPerSubject =>
+                "admission_requests_per_subject",
+            SchedulingDimension.AdmissionWindowMilliseconds =>
+                "admission_window_milliseconds",
+            SchedulingDimension.CompilationQueueItems => "compilation_queue_items",
+            SchedulingDimension.SessionQueueItems => "session_queue_items",
+            SchedulingDimension.AnalysisQueueItems => "analysis_queue_items",
+            SchedulingDimension.AnalysisQueueItemsPerSubject =>
+                "analysis_queue_items_per_subject",
+            SchedulingDimension.CompilationWorkerCount => "compilation_worker_count",
+            SchedulingDimension.SessionWorkerCount => "session_worker_count",
+            SchedulingDimension.AnalysisWorkerCount => "analysis_worker_count",
+            SchedulingDimension.AnalysisResultRetentionSeconds =>
+                "analysis_result_retention_seconds",
+            _ => throw new ArgumentOutOfRangeException(nameof(dimension)),
+        };
+    }
+
+    private static bool IsStableToken(string value)
+    {
+        return value.Length <= 96
+            && IsAsciiLetterOrDigit(value[0])
+            && value.All(character =>
+                IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
+    }
+
+    private static bool IsAsciiLetterOrDigit(char value)
+    {
+        return value is >= 'A' and <= 'Z'
+            or >= 'a' and <= 'z'
+            or >= '0' and <= '9';
+    }
 }
 
 public static class EditorWorkspaceFactory

@@ -331,8 +331,9 @@ public sealed partial class Editor : IAsyncDisposable
 
     private async Task CreateProject()
     {
+        var caller = RequireCurrentCaller();
         var outcome = await workspace.OpenAsync(
-            new CreateSandbox("Sandbox Project", "Main"),
+            new CreateSandbox("Sandbox Project", "Main", caller),
             CancellationToken.None);
         if (outcome is not WorkspaceOpened opened)
         {
@@ -340,7 +341,6 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
-        var caller = RequireCurrentCaller();
         var attachOutcome = await workspace.AttachAsync(
             new InitialAttach(
                 opened.WorkspaceId,
@@ -585,6 +585,7 @@ public sealed partial class Editor : IAsyncDisposable
                 componentLifetime.Token);
             var outcome = await projectImportWorkflow.ImportAsync(
                 source,
+                RequireCurrentCaller(),
                 componentLifetime.Token);
             if (outcome is WorkspaceOpenRejected rejected)
             {

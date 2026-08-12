@@ -29,13 +29,34 @@ internal static class LogicLabProblemDetails
 
     public static IResult Create(HttpContext httpContext, string code)
     {
-        return Create(httpContext, code, CurrentCorrelationToken());
+        return Create(
+            httpContext,
+            code,
+            CurrentCorrelationToken(),
+            policyEvidence: null);
+    }
+
+    public static IResult Create(
+        HttpContext httpContext,
+        string code,
+        PolicyEvidenceProjection? policyEvidence)
+    {
+        return Create(httpContext, code, CurrentCorrelationToken(), policyEvidence);
     }
 
     internal static IResult Create(
         HttpContext httpContext,
         string code,
         string correlationToken)
+    {
+        return Create(httpContext, code, correlationToken, policyEvidence: null);
+    }
+
+    private static IResult Create(
+        HttpContext httpContext,
+        string code,
+        string correlationToken,
+        PolicyEvidenceProjection? policyEvidence)
     {
         ArgumentNullException.ThrowIfNull(httpContext);
         ArgumentException.ThrowIfNullOrEmpty(code);
@@ -51,6 +72,14 @@ internal static class LogicLabProblemDetails
         };
         problem.Extensions["code"] = code;
         problem.Extensions["traceId"] = correlationToken;
+        if (policyEvidence is not null)
+        {
+            problem.Extensions["policyId"] = policyEvidence.PolicyId;
+            problem.Extensions["policyRevision"] = policyEvidence.PolicyRevision;
+            problem.Extensions["dimension"] = policyEvidence.Dimension;
+            problem.Extensions["observed"] = policyEvidence.Observed;
+        }
+
         return Results.Problem(problem);
     }
 

@@ -356,11 +356,11 @@ public sealed record CopyWorkspace : OpenWorkspaceRequest
         ulong expectedProjectionVersion,
         WorkspaceCopySaveTarget saveTarget,
         WorkspaceCaller caller)
+        : base(caller)
     {
         ArgumentNullException.ThrowIfNull(sourceWorkspaceId);
         ArgumentNullException.ThrowIfNull(sourceAttachmentId);
         ArgumentOutOfRangeException.ThrowIfZero(sourceAttachmentGeneration);
-        ArgumentNullException.ThrowIfNull(caller);
         if (!Enum.IsDefined(saveTarget))
         {
             throw new ArgumentOutOfRangeException(nameof(saveTarget));
@@ -371,7 +371,6 @@ public sealed record CopyWorkspace : OpenWorkspaceRequest
         SourceAttachmentGeneration = sourceAttachmentGeneration;
         ExpectedProjectionVersion = expectedProjectionVersion;
         SaveTarget = saveTarget;
-        Caller = caller;
     }
 
     public WorkspaceId SourceWorkspaceId { get; }
@@ -384,7 +383,6 @@ public sealed record CopyWorkspace : OpenWorkspaceRequest
 
     public WorkspaceCopySaveTarget SaveTarget { get; }
 
-    public WorkspaceCaller Caller { get; }
 }
 
 public sealed record Undo : WorkspaceCommand

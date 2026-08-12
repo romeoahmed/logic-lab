@@ -310,11 +310,14 @@ internal sealed partial class EditorWorkspace
                 return RejectOpen(WorkspaceOutcomeReasons.DurableClaimUnresolved);
             }
 
-            var rejectionReason = ReserveWorkspace(out var retired);
+            var rejectionReason = ReserveWorkspace(
+                request.Caller,
+                out var retired,
+                out var policyEvidence);
             RetireAll(retired);
             if (rejectionReason is not null)
             {
-                return RejectOpen(rejectionReason);
+                return RejectOpen(rejectionReason, policyEvidence: policyEvidence);
             }
 
             var hasReservation = true;
@@ -324,6 +327,7 @@ internal sealed partial class EditorWorkspace
                 var copy = new WorkspaceState(
                     id,
                     source.Revision,
+                    request.Caller,
                     timeProvider.GetTimestamp());
                 if (request.SaveTarget == WorkspaceCopySaveTarget.Preserve
                     && source.Durability is DurableWorkspaceState durable)
@@ -332,21 +336,15 @@ internal sealed partial class EditorWorkspace
                 }
                 lock (gate)
                 {
-                    workspaceReservations--;
                     hasReservation = false;
-                    if (isDisposed || cancellationToken.IsCancellationRequested)
-                    {
-                        rejectionReason = WorkspaceOutcomeReasons.WorkspaceCancelled;
-                    }
-                    else
-                    {
-                        workspaces.Add(id, copy);
-                    }
+                    rejectionReason = PublishWorkspaceReservationUnderLock(
+                        copy,
+                        cancellationToken);
                 }
 
                 if (rejectionReason is not null)
                 {
-                    copy.CommandGate.Dispose();
+                    DisposeUnpublishedWorkspace(copy);
                     return RejectOpen(rejectionReason);
                 }
 
@@ -356,7 +354,7 @@ internal sealed partial class EditorWorkspace
             {
                 if (hasReservation)
                 {
-                    ReleaseWorkspaceReservation();
+                    ReleaseWorkspaceReservation(request.Caller);
                 }
             }
         }

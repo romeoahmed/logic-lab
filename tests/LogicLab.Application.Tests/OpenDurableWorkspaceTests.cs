@@ -107,7 +107,7 @@ internal sealed class OpenDurableWorkspaceTests
             new OpenDurable(ProjectId, Owner),
             CancellationToken.None);
         var sandbox = await workspace.OpenAsync(
-            new CreateSandbox("Sandbox", "Main"),
+            new CreateSandbox("Sandbox", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var rejected = (await Assert.That(outcome)
             .IsTypeOf<WorkspaceOpenRejected>())!;
@@ -137,7 +137,7 @@ internal sealed class OpenDurableWorkspaceTests
             new OpenDurable(ProjectId, Owner),
             CancellationToken.None);
         var sandbox = await workspace.OpenAsync(
-            new CreateSandbox("Sandbox", "Main"),
+            new CreateSandbox("Sandbox", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
@@ -168,7 +168,7 @@ internal sealed class OpenDurableWorkspaceTests
             new OpenDurable(ProjectId, Owner),
             cancellation.Token);
         var sandbox = await workspace.OpenAsync(
-            new CreateSandbox("Sandbox", "Main"),
+            new CreateSandbox("Sandbox", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
@@ -243,7 +243,7 @@ internal sealed class OpenDurableWorkspaceTests
             new OpenDurable(ProjectId, Owner),
             cancellation.Token);
         var sandbox = await workspace.OpenAsync(
-            new CreateSandbox("Sandbox", "Main"),
+            new CreateSandbox("Sandbox", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
@@ -288,7 +288,7 @@ internal sealed class OpenDurableWorkspaceTests
             new OpenDurable(ProjectId, Owner),
             CancellationToken.None);
         var sandbox = await workspace.OpenAsync(
-            new CreateSandbox("Sandbox", "Main"),
+            new CreateSandbox("Sandbox", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
@@ -304,7 +304,8 @@ internal sealed class OpenDurableWorkspaceTests
     public async Task OpenAsync_ConcurrentDurableBootstrap_UsesBoundedCompilationLaneAndReleasesRejectedReservation(
         CancellationToken cancellationToken)
     {
-        var queueCapacity = SchedulingPolicy.Default.CompilationQueueCapacity;
+        var queueCapacity = checked((int)SchedulingPolicy.Default.GetMaximum(
+            SchedulingDimension.CompilationQueueItems));
         var openCount = checked(queueCapacity + 2);
         var revision = CreateCompleteRevision();
         var loader = new ConcurrentLoader(
@@ -410,7 +411,7 @@ internal sealed class OpenDurableWorkspaceTests
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations,
             workspacePolicy: SingleWorkspacePolicy(globalWorkspaceLimit: 2),
-            schedulingPolicy: new SchedulingPolicy(1, 1),
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(1, 1),
             durableProjectLoader: loader);
         var active = StartOpen(workspace, cancellationToken);
         await compilationGate.Started.WaitAsync(cancellationToken);
@@ -482,7 +483,7 @@ internal sealed class OpenDurableWorkspaceTests
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations,
             workspacePolicy: SingleWorkspacePolicy(globalWorkspaceLimit: 2),
-            schedulingPolicy: new SchedulingPolicy(1, 1),
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(1, 1),
             timeProvider: timeProvider,
             durableProjectLoader: loader);
         var active = StartOpen(workspace, cancellationToken);
@@ -533,6 +534,7 @@ internal sealed class OpenDurableWorkspaceTests
             "open-durable-tests",
             "1",
             globalWorkspaceLimit,
+            workspaceCountPerSubject: globalWorkspaceLimit,
             sandboxRetention: TimeSpan.FromMinutes(1),
             authoringLimits: WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 4,

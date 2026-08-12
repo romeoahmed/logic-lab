@@ -11,6 +11,57 @@ namespace LogicLab.Application.Tests;
 internal sealed class EditorWorkspaceTests
 {
     [Test]
+    public async Task DispatchAsync_CompilationPolicyExhausted_PreservesPolicyEvidence(
+        CancellationToken cancellationToken)
+    {
+        var projectScalePolicy = new ProjectScalePolicy(
+            "test-project-scale",
+            "1",
+            [
+                new(ProjectScaleDimension.DefinitionCount, 1),
+                new(ProjectScaleDimension.EntityCount, 100),
+                new(ProjectScaleDimension.HierarchyDepth, 16),
+                new(ProjectScaleDimension.ElaboratedSlotCount, 100),
+                new(ProjectScaleDimension.MemoryCellCount, 100),
+            ]);
+        var operations = WorkspaceModuleOperations.Production with
+        {
+            Compile = (request, operationCancellationToken) => Compiler.Compile(
+                new CompilationRequest(
+                    request.ProjectRevision,
+                    request.EntryCircuitDefinitionId,
+                    request.LibrarySnapshot,
+                    projectScalePolicy),
+                operationCancellationToken),
+        };
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
+            operations);
+        var controlled = await Open(workspace, cancellationToken);
+        await Apply(
+            workspace,
+            controlled,
+            new CreateCircuitDefinitionIntent("Second", []));
+        var beforeCompilation = await Read(workspace, controlled);
+
+        _ = await workspace.DispatchAsync(
+            Compilation(controlled, beforeCompilation),
+            CancellationToken.None);
+        var afterCompilation = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
+            workspace,
+            controlled.WorkspaceId,
+            controlled.Attachment,
+            cancellationToken);
+        var rejected = afterCompilation.RejectedCompilation();
+
+        await Assert.That(rejected.PolicyEvidence)
+            .IsEqualTo(new PolicyEvidenceProjection(
+                "test-project-scale",
+                "1",
+                "definition_count",
+                2));
+    }
+
+    [Test]
     public async Task DispatchAsync_EditWithExistingSession_PublishesFreshCompilationAndRetainsSession(
         CancellationToken cancellationToken)
     {
@@ -828,7 +879,7 @@ internal sealed class EditorWorkspaceTests
         };
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations,
-            schedulingPolicy: new SchedulingPolicy(1, 1));
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(1, 1));
         var (opened, _) = await OpenInputOutputProject(workspace, cancellationToken);
         var attachment = opened.Attachment;
         var beforeCompilation = await Read(workspace, opened);
@@ -1115,7 +1166,7 @@ internal sealed class EditorWorkspaceTests
         CancellationToken cancellationToken)
     {
         var outcome = await workspace.OpenAsync(
-            new CreateSandbox("Test project", "Main"),
+            new CreateSandbox("Test project", "Main", AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         var opened = (await Assert.That(outcome).IsTypeOf<WorkspaceOpened>())!;
         var attached = await Attach(workspace, opened.WorkspaceId, cancellationToken);

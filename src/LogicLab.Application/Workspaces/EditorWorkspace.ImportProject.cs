@@ -11,22 +11,27 @@ internal sealed partial class EditorWorkspace
         ImportProject request,
         CancellationToken cancellationToken)
     {
-        var rejectionReason = ReserveWorkspace(out var retired);
+        var rejectionReason = ReserveWorkspace(
+            request.Caller,
+            out var retired,
+            out var policyEvidence);
         RetireAll(retired);
         if (rejectionReason is not null)
         {
-            return RejectOpen(rejectionReason);
+            return RejectOpen(rejectionReason, policyEvidence: policyEvidence);
         }
 
         var hasReservation = true;
         var stage = "authoring-admission";
         try
         {
-            if (!AuthoringAdmission.AdmitsDocument(
+            if (AuthoringAdmission.RejectionForDocument(
                     request.ImportCandidate.Document,
-                    workspacePolicy))
+                    workspacePolicy) is { } authoringPolicyEvidence)
             {
-                return RejectOpen(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
+                return RejectOpen(
+                    WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
+                    policyEvidence: authoringPolicyEvidence);
             }
 
             stage = "genesis";
@@ -45,6 +50,7 @@ internal sealed partial class EditorWorkspace
             var state = new WorkspaceState(
                 id,
                 revision,
+                request.Caller,
                 timeProvider.GetTimestamp())
             {
                 Compilation = new CompilationQueuedProjection(generation),
@@ -55,6 +61,7 @@ internal sealed partial class EditorWorkspace
             stage = "compilation-admission";
             if (!workCoordinator.TryScheduleCompilation(
                     id,
+                    request.Caller,
                     context => CompileRetainedAsync(
                         state,
                         revision,
@@ -64,10 +71,12 @@ internal sealed partial class EditorWorkspace
                     CompilationWorkCancellation.BoundToCaller,
                     cancellationToken,
                     out var scheduledCompilation,
-                    out rejectionReason))
+                    out var schedulingRejection))
             {
                 DisposeUnpublishedWorkspace(state);
-                return RejectOpen(rejectionReason!);
+                return RejectOpen(
+                    schedulingRejection!.Code,
+                    policyEvidence: schedulingRejection.PolicyEvidence);
             }
 
             stage = "compilation";
@@ -85,7 +94,8 @@ internal sealed partial class EditorWorkspace
                 return compilation is CompilationRejectedProjection rejectedCompilation
                     ? RejectOpen(
                         rejectedCompilation.RejectionCode,
-                        rejectedCompilation.DiagnosticCodes)
+                        rejectedCompilation.DiagnosticCodes,
+                        rejectedCompilation.PolicyEvidence)
                     : RejectOpen(WorkspaceOutcomeReasons.WorkspaceCancelled);
             }
 
@@ -93,17 +103,10 @@ internal sealed partial class EditorWorkspace
             stage = "publication";
             lock (gate)
             {
-                workspaceReservations--;
                 hasReservation = false;
-                if (isDisposed || cancellationToken.IsCancellationRequested)
-                {
-                    rejectionReason = WorkspaceOutcomeReasons.WorkspaceCancelled;
-                }
-                else
-                {
-                    state.LastAccessTimestamp = timeProvider.GetTimestamp();
-                    workspaces.Add(id, state);
-                }
+                rejectionReason = PublishWorkspaceReservationUnderLock(
+                    state,
+                    cancellationToken);
             }
 
             if (rejectionReason is not null)
@@ -138,7 +141,7 @@ internal sealed partial class EditorWorkspace
         {
             if (hasReservation)
             {
-                ReleaseWorkspaceReservation();
+                ReleaseWorkspaceReservation(request.Caller);
             }
         }
     }

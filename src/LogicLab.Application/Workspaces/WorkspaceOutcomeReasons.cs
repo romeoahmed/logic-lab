@@ -22,6 +22,7 @@ public static class WorkspaceOutcomeReasons
     public const string DurableClaimUnresolved = "durable_claim_unresolved";
     public const string BuildFingerprintMismatch = "build_fingerprint_mismatch";
     public const string SessionPreconditionFailed = "session_precondition_failed";
+    public const string DurableDisplayNameInvalid = "durable_display_name_invalid";
     public const string WorkspaceAdmissionRejected = "workspace_admission_rejected";
     public const string WorkspaceCancelled = "workspace_cancelled";
     public const string WorkspaceInternalDefect = "workspace_internal_defect";

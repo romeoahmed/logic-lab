@@ -109,7 +109,7 @@ internal sealed partial class EditorWorkspaceRunTests
         var queuedCommandGate = new BlockingOperationGate();
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             BlockFirstTwoAdvances(runningAdvanceGate, queuedCommandGate),
-            schedulingPolicy: new SchedulingPolicy(1, 4),
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(1, 4),
             durableProjectRepository: new ClaimingDurableProjectRepository());
         var running = await CreateClockWorkspace(workspace, cancellationToken);
         var blocker = await CreateInputWorkspace(workspace, cancellationToken);
@@ -218,7 +218,7 @@ internal sealed partial class EditorWorkspaceRunTests
         };
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations,
-            schedulingPolicy: new SchedulingPolicy(1, 1),
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(1, 1),
             durableProjectRepository: new ClaimingDurableProjectRepository());
         var blocker = await CreateInputWorkspace(workspace, cancellationToken);
         var target = await CreateInputWorkspace(workspace, cancellationToken);
@@ -359,7 +359,7 @@ internal sealed partial class EditorWorkspaceRunTests
             },
         };
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
-            schedulingPolicy: new SchedulingPolicy(1, 1),
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(1, 1),
             operations: operations);
         var runningWorkspace = await CreateClockWorkspace(workspace, cancellationToken);
         var stimulusWorkspace = await CreateInputWorkspace(workspace, cancellationToken);
@@ -861,7 +861,7 @@ internal sealed partial class EditorWorkspaceRunTests
         var queuedCommandGate = new BlockingOperationGate();
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             BlockFirstTwoAdvances(runningAdvanceGate, queuedCommandGate),
-            schedulingPolicy: new SchedulingPolicy(1, 4));
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(1, 4));
         var running = await CreateClockWorkspace(workspace, cancellationToken);
         var blocker = await CreateInputWorkspace(workspace, cancellationToken);
         var beforeRun = await Read(workspace, running, cancellationToken);
@@ -948,6 +948,7 @@ internal sealed partial class EditorWorkspaceRunTests
                 policyId: "test-workspace",
                 policyRevision: "1",
                 globalWorkspaceLimit: 16,
+                workspaceCountPerSubject: 16,
                 sandboxRetention: TimeSpan.FromMinutes(1),
                 authoringLimits: WorkspaceAuthoringLimits.Default,
                 historyRevisionCount: 16,
@@ -1039,6 +1040,7 @@ internal sealed partial class EditorWorkspaceRunTests
             policyId: "test-workspace",
             policyRevision: "hot-swap-projection-limit",
             globalWorkspaceLimit: 16,
+            workspaceCountPerSubject: 16,
             sandboxRetention: TimeSpan.FromMinutes(30),
             authoringLimits: WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 16,
@@ -1367,7 +1369,7 @@ internal sealed partial class EditorWorkspaceRunTests
         CancellationToken cancellationToken)
     {
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox(displayName, "Main"),
+            new CreateSandbox(displayName, "Main", AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         var attached = await EditorWorkspaceTestDriver.AttachAsync(
             workspace,

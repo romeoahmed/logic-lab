@@ -98,9 +98,9 @@ These are typed C# calls. `WorkspaceCommand` and `WorkspaceOutcome` are closed a
 `OpenWorkspaceRequest` is exactly one of:
 
 ```text
-CreateSandbox { NewProjectSeed without persistent IDs }
-OpenDurable { DurableProjectId }
-ImportProject { validated ImportCandidate }
+CreateSandbox { NewProjectSeed without persistent IDs, caller }
+OpenDurable { DurableProjectId, caller }
+ImportProject { validated ImportCandidate, caller }
 CopyWorkspace {
   sourceWorkspaceId, sourceAttachmentId, sourceAttachmentGeneration,
   expectedProjectionVersion,
@@ -109,7 +109,7 @@ CopyWorkspace {
 }
 ```
 
-The deep Workspace implementation asks Project Editor for Project Genesis when required, resolves a durable current Project Revision when requested, compiles before publication, and returns `Opened { WorkspaceId, ProjectRevisionId, ProjectionVersion }` or `OpenRejected { reason, diagnostics, RetryDisposition }`. A failure allocates no visible Workspace or Durable Project. Browser-supplied Project Revision, owner, or persistent entity IDs are not open inputs.
+The deep Workspace implementation asks Project Editor for Project Genesis when required, resolves a durable current Project Revision when requested, compiles before publication, and returns `Opened { WorkspaceId, ProjectRevisionId, ProjectionVersion }` or `OpenRejected { reason, diagnostics, RetryDisposition, policyEvidence? }`. A failure allocates no visible Workspace or Durable Project. Browser-supplied Project Revision, owner, or persistent entity IDs are not open inputs. Every open variant carries the trusted caller so global and per-subject Workspace admission can reserve capacity atomically before genesis, loading, import compilation, or copy publication.
 
 `CopyWorkspace` reauthorizes and fences the source attachment, then starts separate history at its exact current Project Revision, including authorized unsaved edits. Earlier history is not copied and Undo cannot cross the new base. `Preserve` retains Sandbox status or the Durable Project ID and observed Durable Version; while a Claim outcome is unresolved, `Preserve` returns `durable_claim_unresolved` and allocates no Workspace. `DetachedSandbox` removes the durable association and implements “Keep as copy.” Both successful copy targets preserve authored Project identity and the fork revision, but copy no attachment, Session, Run, Analysis Operation, Proposal, idempotency record, or browser preference. A stale Projection Version returns `projection_version_precondition_failed`; the source remains unchanged.
 
@@ -145,7 +145,7 @@ one command-specific Precondition
 typed command payload
 ```
 
-`Caller` is trusted request context derived by Web from the current authentication state; browser input cannot name an authenticated subject. Commands, reads, attach, detach, and copy all carry it explicitly. Sandbox access admits the anonymous caller, while every access to a Durable Workspace requires an authenticated caller whose subject owns the Durable Project. Authorization runs before attachment lookup, idempotency lookup, payload validation, or projection publication, so a different subject cannot replay an owner's retained outcome.
+`Caller` is trusted request context derived by Web from the current authentication state; browser input cannot name an authenticated subject. Open requests, commands, reads, attach, and detach all carry it explicitly. Sandbox access admits the anonymous caller, while every access to a Durable Workspace requires an authenticated caller whose subject owns the Durable Project. Authorization runs before attachment lookup, idempotency lookup, payload validation, or projection publication, so a different subject cannot replay an owner's retained outcome.
 
 ### 3.1 Closed command and outcome catalog
 
@@ -176,7 +176,7 @@ typed command payload
 
 Unknown variants fail before dispatch. Import is deliberately absent: it validates an external carrier and opens a separate Workspace. Selection, viewport, panels, waveform cursor, and Transient Preview are browser/Web state and are not Workspace commands.
 
-`DurableDisplayName` is nonempty NFC Unicode without NUL, isolated surrogate code points, or C0 controls and must satisfy both Workspace Policy scalar-count and UTF-8-byte dimensions. Input is rejected rather than silently trimmed or normalized. It is the immutable V1 catalog label, not the authored Project display name or a filename.
+`DurableDisplayName` is nonempty NFC Unicode without NUL, isolated surrogate code points, or C0 controls and must satisfy both Workspace Policy scalar-count and UTF-8-byte dimensions. Malformed input returns `durable_display_name_invalid`; scalar-count or UTF-8-byte exhaustion returns `workspace_admission_rejected` with Workspace Policy evidence. Input is rejected rather than silently trimmed or normalized. It is the immutable V1 catalog label, not the authored Project display name or a filename.
 
 One Probe binding request is `RetainProbe { ProbeId, ElaboratedNetRefV1 }` or `CreateProbe { ElaboratedNetRefV1 }`. The complete list has no duplicate Probe ID or elaborated Net binding. The active Session validates every retained binding and allocates a new Probe ID for each create request; callers never invent a Probe ID. Removing a binding retires its Probe ID. Reordering retains identity.
 
@@ -215,7 +215,7 @@ does not take the unpublished staging, and leaves any earlier ticket for the
 Workspace intact. Cancellation before the atomic publication commit has the
 same preservation rule; cancellation after commit does not undo publication.
 
-Compilation completion is observed after the acceptance response through `ReadCompilation(CompilationGeneration)`. `CompilationState` is exactly `NotRequested | Queued | Running | Superseded(newerGeneration) | Published(CompilationArtifactKey, diagnostics) | Rejected(reason, diagnostics, RetryDisposition)`; every noninitial state carries its Compilation Generation. The Workspace Projection carries the newest generation's state. Reading that generation returns its current state; after a newer generation is admitted, reading any older accepted generation deterministically returns `Superseded(newerGeneration)`. A generation that was never accepted or is no longer addressable without a newer generation returns `compilation_generation_unavailable`. Only the newest non-cancelled generation can publish. A family-specific outcome never changes shape based on success data, and no success variant also carries a failure reason. `ExportTicket` is an opaque short-lived locator that Web maps to its download route; it is neither a URL nor authority. Export expiry is a canonical nonnegative whole-second duration measured from outcome publication. `PrepareExport` writes only to an unpublished staging stream and returns `ExportPrepared` only after Project Format succeeds and Application atomically publishes that staging object. Ticket redemption is a separate typed Application-to-Web seam owned by [HTTP Transfer](./http-transfer.md#1-transfer-lifecycle); it does not add a sixth Editor Workspace method or a download query to the closed read catalog.
+Compilation completion is observed after the acceptance response through `ReadCompilation(CompilationGeneration)`. `CompilationState` is exactly `NotRequested | Queued | Running | Superseded(newerGeneration) | Published(CompilationArtifactKey, diagnostics) | Rejected(reason, diagnostics, RetryDisposition, policyEvidence?)`; every noninitial state carries its Compilation Generation. Project Scale exhaustion retains the Compiler policy ID/revision, breached dimension, and observed work in `policyEvidence`; non-policy rejection omits it. The Workspace Projection carries the newest generation's state. Reading that generation returns its current state; after a newer generation is admitted, reading any older accepted generation deterministically returns `Superseded(newerGeneration)`. A generation that was never accepted or is no longer addressable without a newer generation returns `compilation_generation_unavailable`. Only the newest non-cancelled generation can publish. A family-specific outcome never changes shape based on success data, and no success variant also carries a failure reason. `ExportTicket` is an opaque short-lived locator that Web maps to its download route; it is neither a URL nor authority. Export expiry is a canonical nonnegative whole-second duration measured from outcome publication. `PrepareExport` writes only to an unpublished staging stream and returns `ExportPrepared` only after Project Format succeeds and Application atomically publishes that staging object. Ticket redemption is a separate typed Application-to-Web seam owned by [HTTP Transfer](./http-transfer.md#1-transfer-lifecycle); it does not add a sixth Editor Workspace method or a download query to the closed read catalog.
 
 Hot Swap migration evidence contains canonical ordered source identities of migrated state-bearing Component Instances plus preserved and unresolved Probe IDs. If multiple prior Probe sources resolve to one replacement elaborated Net, the first binding in active Probe order is preserved and every later duplicate is reported as unresolved; the committed Session therefore retains the unique elaborated Net binding invariant. A failed swap may return incompatible state identities as safe rejection evidence; it retains the old Session unchanged and never labels an incompatible state as migrated.
 

@@ -50,6 +50,18 @@ internal sealed partial class EditorWorkspace
                             state,
                             command,
                             out displayName);
+                        if (completed is null
+                            && command is ClaimSandbox
+                            && !TryReserveWorkspaceAdmissionTransfer(
+                                state,
+                                command.Context.Caller,
+                                out var transferEvidence))
+                        {
+                            completed = Reject(
+                                WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
+                                policyEvidence: transferEvidence);
+                        }
+
                         if (completed is null)
                         {
                             if (command is ClaimSandbox)
@@ -359,7 +371,7 @@ internal sealed partial class EditorWorkspace
         LogDurableRepositoryFailure(logger, exception, correlation);
     }
 
-    private static AuthorizationAdmissionEpoch? PublishDurableOutcomeUnderLock(
+    private AuthorizationAdmissionEpoch? PublishDurableOutcomeUnderLock(
         WorkspaceState state,
         WorkspaceCommand command,
         WorkspaceCommandOutcome outcome,
@@ -384,6 +396,7 @@ internal sealed partial class EditorWorkspace
                 claimed.DisplayName,
                 claimed.DurableVersion,
                 claimed.ProjectRevisionId);
+            CommitWorkspaceAdmissionTransfer(state);
             state.ProjectionVersion++;
             return null;
         }
@@ -393,6 +406,7 @@ internal sealed partial class EditorWorkspace
             if (!isPendingClaimRecovery)
             {
                 state.Durability = SandboxWorkspaceState.Instance;
+                ReleaseWorkspaceAdmissionTransfer(state);
                 return RotateAuthorizationAdmissionUnderLock(state);
             }
 
@@ -439,7 +453,7 @@ internal sealed partial class EditorWorkspace
         displayName = null;
         if (!DurableDisplayName.IsValid(value))
         {
-            rejection = Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
+            rejection = Reject(WorkspaceOutcomeReasons.DurableDisplayNameInvalid);
             return false;
         }
 

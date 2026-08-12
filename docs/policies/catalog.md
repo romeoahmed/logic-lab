@@ -164,7 +164,7 @@ analysis_worker_count
 analysis_result_retention_seconds
 ```
 
-The admission pair defines one fixed per-subject window. Queues reject rather than drop when full. Compilation remains newest-wins per Workspace, Session work remains FIFO and single-consumer per Session, and Analysis is FIFO within one subject plus round-robin across nonempty subject queues. An active Run retains one admitted Session scheduling item across its repeated Advances; continuations reuse that item and never bypass `session_queue_items`. Pause is bounded Run control and becomes effective at an atomic boundary without allocating another Session queue item. Worker counts bound concurrent executing calls, not the number of hidden ThreadPool threads. Retention expiry uses `TimeProvider` and never extends authorization.
+The admission pair defines one fixed per-subject window. Queues reject rather than drop when full. Compilation remains newest-wins per Workspace, Session work remains FIFO and single-consumer per Session, and Analysis is FIFO within one subject plus round-robin across nonempty subject queues. An active Run retains one admitted Session scheduling item across its repeated Advances; continuations reuse that item and never bypass `session_queue_items`. Pause is bounded Run control and becomes effective at an atomic boundary without allocating another Session queue item. Worker counts bound concurrent executing calls, not the number of hidden ThreadPool threads. Admission windows and retention expiry use `TimeProvider`; result retention never extends authorization.
 
 ### Workspace Policy
 
@@ -203,6 +203,13 @@ publication and produce the contract's explicit truncation or expired-idempotenc
 the same idempotency count bounds newest-first Durable Project repository receipts, whose
 pruning shares the command transaction. These limits never make a valid edit or save partially
 commit. Time-based retention uses `TimeProvider`.
+
+The trusted `WorkspaceCaller` on every open request defines the per-subject partition. A
+Sandbox Claim reserves the authenticated target partition before persistence begins, retains
+that reservation while commit acknowledgement is uncertain, and atomically transfers the live
+Workspace from its prior partition only when Claim succeeds. A definitive failure releases the
+target reservation; close or retention cleanup releases both the live and any pending transfer.
+
 `hot_swap_peak_bytes` is declared owned-buffer accounting, not a promise about total process
 RSS. The accounting uses fixed logical byte units: eight bytes per owned reference or index
 slot, sixteen bytes per packed Logic Vector word (the two 64-bit logic planes), twenty-four

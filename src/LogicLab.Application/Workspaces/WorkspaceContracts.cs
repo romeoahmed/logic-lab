@@ -22,16 +22,22 @@ public sealed record WorkspaceId
 
 public abstract record OpenWorkspaceRequest
 {
-    private protected OpenWorkspaceRequest()
+    private protected OpenWorkspaceRequest(WorkspaceCaller caller)
     {
+        ArgumentNullException.ThrowIfNull(caller);
+        Caller = caller;
     }
+
+    public WorkspaceCaller Caller { get; }
 }
 
 public sealed record CreateSandbox : OpenWorkspaceRequest
 {
     public CreateSandbox(
         string projectDisplayName,
-        string entryCircuitDefinitionDisplayName)
+        string entryCircuitDefinitionDisplayName,
+        WorkspaceCaller caller)
+        : base(caller)
     {
         ArgumentNullException.ThrowIfNull(projectDisplayName);
         ArgumentNullException.ThrowIfNull(entryCircuitDefinitionDisplayName);
@@ -49,21 +55,21 @@ public sealed record OpenDurable : OpenWorkspaceRequest
     public OpenDurable(
         DurableProjectId durableProjectId,
         WorkspaceCaller caller)
+        : base(caller)
     {
         ArgumentNullException.ThrowIfNull(durableProjectId);
-        ArgumentNullException.ThrowIfNull(caller);
         DurableProjectId = durableProjectId;
-        Caller = caller;
     }
 
     public DurableProjectId DurableProjectId { get; }
-
-    public WorkspaceCaller Caller { get; }
 }
 
 public sealed record ImportProject : OpenWorkspaceRequest
 {
-    public ImportProject(ProjectImportCandidate importCandidate)
+    public ImportProject(
+        ProjectImportCandidate importCandidate,
+        WorkspaceCaller caller)
+        : base(caller)
     {
         ArgumentNullException.ThrowIfNull(importCandidate);
         ImportCandidate = importCandidate;
@@ -88,13 +94,15 @@ public sealed record WorkspaceOpenRejected : WorkspaceOpenOutcome
     public WorkspaceOpenRejected(
         string code,
         IReadOnlyList<string> diagnosticCodes,
-        RetryDisposition retryDisposition)
+        RetryDisposition retryDisposition,
+        PolicyEvidenceProjection? policyEvidence = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(code);
         ArgumentNullException.ThrowIfNull(diagnosticCodes);
         Code = code;
         DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
         RetryDisposition = retryDisposition;
+        PolicyEvidence = policyEvidence;
     }
 
     public string Code { get; }
@@ -102,6 +110,8 @@ public sealed record WorkspaceOpenRejected : WorkspaceOpenOutcome
     public ReadOnlyCollection<string> DiagnosticCodes { get; }
 
     public RetryDisposition RetryDisposition { get; }
+
+    public PolicyEvidenceProjection? PolicyEvidence { get; }
 }
 
 public abstract record WorkspaceCommand
@@ -718,7 +728,8 @@ public sealed record CompilationRejectedProjection : CompilationProjection
         CompilationGeneration generation,
         IReadOnlyList<string> diagnosticCodes,
         string rejectionCode,
-        RetryDisposition retryDisposition)
+        RetryDisposition retryDisposition,
+        PolicyEvidenceProjection? policyEvidence)
         : base(CompilationPublicationStatus.Rejected)
     {
         ArgumentNullException.ThrowIfNull(generation);
@@ -728,6 +739,7 @@ public sealed record CompilationRejectedProjection : CompilationProjection
         DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
         RejectionCode = rejectionCode;
         RetryDisposition = retryDisposition;
+        PolicyEvidence = policyEvidence;
     }
 
     public override CompilationGeneration Generation { get; }
@@ -737,6 +749,8 @@ public sealed record CompilationRejectedProjection : CompilationProjection
     public string RejectionCode { get; }
 
     public RetryDisposition RetryDisposition { get; }
+
+    public PolicyEvidenceProjection? PolicyEvidence { get; }
 }
 
 public sealed record ProbeProjection

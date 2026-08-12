@@ -4,13 +4,13 @@ namespace LogicLab.Application.Workspaces;
 
 internal static class AuthoringAdmission
 {
-    public static bool AdmitsCommand(
+    public static PolicyEvidenceProjection? RejectionForCommand(
         EditIntent intent,
         WorkspacePolicy policy)
     {
         var budget = new AuthoringAdmissionBudget(
             policy.AuthoringLimits.CommandItemCount);
-        return intent switch
+        var admitted = intent switch
         {
             CreateCircuitDefinitionIntent create => budget.TryConsume(create.Ports.Count),
             SetEntryCircuitDefinitionIntent => budget.TryConsume(1),
@@ -63,15 +63,24 @@ internal static class AuthoringAdmission
             RemoveAnnotationIntent => budget.TryConsume(1),
             _ => false,
         };
+        return admitted
+            ? null
+            : Evidence(
+                policy,
+                "authoring_command_item_count",
+                budget.RejectedObserved);
     }
 
-    public static bool AdmitsDocument(
+    public static PolicyEvidenceProjection? RejectionForDocument(
         ProjectDocument document,
         WorkspacePolicy policy)
     {
         if (document.CircuitDefinitions.Count > policy.AuthoringLimits.DefinitionCount)
         {
-            return false;
+            return Evidence(
+                policy,
+                "authoring_definition_count",
+                checked((ulong)document.CircuitDefinitions.Count));
         }
 
         var budget = new AuthoringAdmissionBudget(policy.AuthoringLimits.EntityCount);
@@ -84,11 +93,31 @@ internal static class AuthoringAdmission
                 || !budget.TryConsume(definition.WireGeometries.Count)
                 || !budget.TryConsume(definition.Annotations.Count))
             {
-                return false;
+                return Evidence(
+                    policy,
+                    "authoring_entity_count",
+                    budget.RejectedObserved);
             }
         }
 
-        return budget.TryConsume(document.MemoryImages.Count);
+        return budget.TryConsume(document.MemoryImages.Count)
+            ? null
+            : Evidence(
+                policy,
+                "authoring_entity_count",
+                budget.RejectedObserved);
+    }
+
+    private static PolicyEvidenceProjection Evidence(
+        WorkspacePolicy policy,
+        string dimension,
+        ulong observed)
+    {
+        return new PolicyEvidenceProjection(
+            policy.PolicyId,
+            policy.PolicyRevision,
+            dimension,
+            observed);
     }
 
     private static bool TryAdmitParameters(
@@ -264,22 +293,28 @@ internal static class AuthoringAdmission
 
     private sealed class AuthoringAdmissionBudget
     {
-        private int remaining;
+        private readonly int maximum;
+        private int consumed;
 
         public AuthoringAdmissionBudget(int maximum)
         {
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximum);
-            remaining = maximum;
+            this.maximum = maximum;
         }
+
+        public ulong RejectedObserved { get; private set; }
 
         public bool TryConsume(int itemCount)
         {
-            if (itemCount < 0 || itemCount > remaining)
+            ArgumentOutOfRangeException.ThrowIfNegative(itemCount);
+            var observed = checked((ulong)consumed + (ulong)itemCount);
+            if (observed > (ulong)maximum)
             {
+                RejectedObserved = observed;
                 return false;
             }
 
-            remaining -= itemCount;
+            consumed += itemCount;
             return true;
         }
     }

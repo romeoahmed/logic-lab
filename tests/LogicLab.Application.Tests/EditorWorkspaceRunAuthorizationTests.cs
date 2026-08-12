@@ -32,7 +32,7 @@ internal sealed partial class EditorWorkspaceRunTests
         };
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations,
-            schedulingPolicy: new SchedulingPolicy(1, 1),
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(1, 1),
             durableProjectRepository: new ClaimingDurableProjectRepository());
         var blocker = await CreateInputWorkspace(workspace, cancellationToken);
         var target = await CreateInputWorkspace(workspace, cancellationToken);

@@ -383,6 +383,7 @@ internal sealed class DurableProjectCatalogTests
             "catalog-policy",
             "7",
             globalWorkspaceLimit: 4,
+            workspaceCountPerSubject: 4,
             sandboxRetention: TimeSpan.FromMinutes(1),
             authoringLimits: WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 4,

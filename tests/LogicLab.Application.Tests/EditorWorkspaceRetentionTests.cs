@@ -130,7 +130,7 @@ internal sealed class EditorWorkspaceRetentionTests
         timeProvider.Advance(TimeSpan.FromMinutes(5));
 
         var replacement = await workspace.OpenAsync(
-            new CreateSandbox("Replacement", "Main"),
+            new CreateSandbox("Replacement", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var outcome = await workspace.AttachAsync(
             new Reattach(
@@ -227,7 +227,7 @@ internal sealed class EditorWorkspaceRetentionTests
                 cancellationToken));
             timeProvider.Advance(TimeSpan.FromMinutes(5));
             replacement = await workspace.OpenAsync(
-                new CreateSandbox("Replacement", "Main"),
+                new CreateSandbox("Replacement", "Main", AnonymousWorkspaceCaller.Instance),
                 cancellationToken);
         }
         finally
@@ -315,7 +315,7 @@ internal sealed class EditorWorkspaceRetentionTests
     private static async Task<WorkspaceOpened> Open(IEditorWorkspace workspace)
     {
         return await IsType<WorkspaceOpened>(await workspace.OpenAsync(
-            new CreateSandbox("Test project", "Main"),
+            new CreateSandbox("Test project", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None));
     }
 
@@ -376,6 +376,7 @@ internal sealed class EditorWorkspaceRetentionTests
             "test-workspace",
             "1",
             globalWorkspaceLimit,
+            workspaceCountPerSubject: globalWorkspaceLimit,
             sandboxRetention ?? TimeSpan.FromHours(1),
             WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 16,

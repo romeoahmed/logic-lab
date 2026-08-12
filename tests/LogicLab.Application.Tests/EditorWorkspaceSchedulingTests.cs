@@ -89,7 +89,7 @@ internal sealed class EditorWorkspaceSchedulingTests
             },
         };
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
-            schedulingPolicy: new SchedulingPolicy(1, 1),
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(1, 1),
             operations: operations);
         var firstWorkspace = await Open(workspace, "First", cancellationToken);
         var secondWorkspace = await Open(workspace, "Second", cancellationToken);
@@ -132,6 +132,12 @@ internal sealed class EditorWorkspaceSchedulingTests
         {
             await Assert.That(rejection.Code)
                 .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(rejection.PolicyEvidence)
+                .IsEqualTo(new PolicyEvidenceProjection(
+                    "test-scheduling",
+                    "1",
+                    "compilation_queue_items",
+                    2));
             await Assert.That(secondPublished.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.Published);
             await Assert.That(invocationCount).IsEqualTo(2);
@@ -157,7 +163,7 @@ internal sealed class EditorWorkspaceSchedulingTests
             },
         };
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
-            schedulingPolicy: new SchedulingPolicy(1, 1),
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(1, 1),
             operations: operations);
         var controlled = await Open(workspace, "Controlled", cancellationToken);
         var queued = await Open(workspace, "Queued", cancellationToken);
@@ -250,7 +256,7 @@ internal sealed class EditorWorkspaceSchedulingTests
             },
         };
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
-            schedulingPolicy: new SchedulingPolicy(2, 1),
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(2, 1),
             operations: operations);
         var opened = await Open(workspace, "Newest wins", cancellationToken);
 
@@ -315,7 +321,7 @@ internal sealed class EditorWorkspaceSchedulingTests
             },
         };
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
-            schedulingPolicy: new SchedulingPolicy(1, 1),
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(1, 1),
             operations: operations);
         var opened = await Open(workspace, "Pending coalescing", cancellationToken);
         var first = await workspace.DispatchAsync(
@@ -389,7 +395,7 @@ internal sealed class EditorWorkspaceSchedulingTests
         };
         var workspace = TestEditorWorkspaceFactory.CreateForTesting(
             operations,
-            schedulingPolicy: new SchedulingPolicy(1, 1));
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(1, 1));
 
         try
         {
@@ -541,7 +547,7 @@ internal sealed class EditorWorkspaceSchedulingTests
             },
         };
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
-            schedulingPolicy: new SchedulingPolicy(2, 1),
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(2, 1),
             operations: operations);
         var opened = await Open(workspace, "Observable supersession", cancellationToken);
         var first = await workspace.DispatchAsync(
@@ -599,7 +605,7 @@ internal sealed class EditorWorkspaceSchedulingTests
             },
         };
         await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
-            schedulingPolicy: new SchedulingPolicy(1, 1),
+            schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(1, 1),
             operations: operations);
         var blocking = await Open(workspace, "Blocking", cancellationToken);
         var cancelled = await Open(workspace, "Cancelled", cancellationToken);
@@ -698,7 +704,7 @@ internal sealed class EditorWorkspaceSchedulingTests
         CancellationToken cancellationToken)
     {
         var outcome = await workspace.OpenAsync(
-            new CreateSandbox(projectDisplayName, "Main"),
+            new CreateSandbox(projectDisplayName, "Main", AnonymousWorkspaceCaller.Instance),
             cancellationToken);
 
         var opened = (await Assert.That(outcome).IsTypeOf<WorkspaceOpened>())!;

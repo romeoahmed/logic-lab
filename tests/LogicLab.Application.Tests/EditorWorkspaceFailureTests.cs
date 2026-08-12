@@ -472,7 +472,7 @@ internal sealed class EditorWorkspaceFailureTests
         CancellationToken cancellationToken)
     {
         return workspace.OpenAsync(
-            new CreateSandbox("Test project", "Main"),
+            new CreateSandbox("Test project", "Main", AnonymousWorkspaceCaller.Instance),
             cancellationToken);
     }
 
