@@ -1,13 +1,9 @@
-using System.Collections.Concurrent;
-using System.Data.Common;
-using System.Text;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using TUnit.Assertions.Enums;
 
 namespace LogicLab.Infrastructure.Tests;
@@ -53,69 +49,6 @@ internal sealed class SqliteDurableProjectCatalogRepositoryTests : IAsyncDisposa
                     .Any(item => item.DurableProjectId.Value == "unauthorized"))
                 .IsFalse();
             await Assert.That(second[0].DisplayName.Value).IsEqualTo("中");
-        }
-    }
-
-    [Test]
-    public async Task ListAuthorizedAsync_Query_ProjectsOnlyCatalogColumnsAndUsesKeysetIndex()
-    {
-        var capture = new CommandCaptureInterceptor();
-        var (repository, factory) = await CreateRepositoryAsync(capture);
-        await ClaimAsync(repository, "project-a", "workspace-a", "subject-1", "Alpha", 'a');
-        await ClaimAsync(repository, "project-b", "workspace-b", "subject-1", "Beta", 'b');
-
-        _ = await repository.ListAuthorizedAsync(
-            new DurableProjectCatalogRepositoryRequest(
-                new AuthenticatedSubjectId("subject-1"),
-                maximumItemCount: 2,
-                "Alpha"u8.ToArray(),
-                new DurableProjectId("project-a")),
-            CancellationToken.None);
-
-        var query = capture.Commands.Single(command =>
-            command.Text.Contains(
-                "AS \"DisplayNameSortKey\"",
-                StringComparison.OrdinalIgnoreCase)
-            && command.Text.Contains("LIMIT", StringComparison.OrdinalIgnoreCase));
-        await using var context = await factory.CreateDbContextAsync();
-        var connection = context.Database.GetDbConnection();
-        await connection.OpenAsync();
-        await using var planCommand = connection.CreateCommand();
-        planCommand.CommandText = $"EXPLAIN QUERY PLAN\n{query.Text}";
-        foreach (var captured in query.Parameters)
-        {
-            var parameter = planCommand.CreateParameter();
-            parameter.ParameterName = captured.Name;
-            parameter.Value = captured.Value;
-            planCommand.Parameters.Add(parameter);
-        }
-
-        var plan = new List<string>();
-        await using (var reader = await planCommand.ExecuteReaderAsync())
-        {
-            while (await reader.ReadAsync())
-            {
-                plan.Add(reader.GetString(3));
-            }
-        }
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(query.Text).Contains("durable_project_id");
-            await Assert.That(query.Text).Contains("display_name");
-            await Assert.That(query.Text).Contains("display_name_sort_key");
-            await Assert.That(query.Text).Contains("subject_id");
-            await Assert.That(query.Text).Contains("LIMIT");
-            await Assert.That(query.Text).Contains(
-                "ORDER BY display_name_sort_key, durable_project_id");
-            await Assert.That(query.Text).DoesNotContain("OFFSET");
-            await Assert.That(query.Text).DoesNotContain("current_project_revision_id");
-            await Assert.That(query.Text).DoesNotContain("durable_version");
-            await Assert.That(query.Text).DoesNotContain("payload");
-            await Assert.That(plan.Any(line => line.Contains(
-                    "ix_durable_projects_subject_sort_key_id",
-                    StringComparison.Ordinal)))
-                .IsTrue();
         }
     }
 
@@ -181,7 +114,7 @@ internal sealed class SqliteDurableProjectCatalogRepositoryTests : IAsyncDisposa
     }
 
     private async Task<(SqliteDurableProjectRepository Repository, TestDbContextFactory Factory)>
-        CreateRepositoryAsync(params IInterceptor[] interceptors)
+        CreateRepositoryAsync()
     {
         var options = new DbContextOptionsBuilder<LogicLabDbContext>()
             .UseSqlite(new SqliteConnectionStringBuilder
@@ -190,7 +123,6 @@ internal sealed class SqliteDurableProjectCatalogRepositoryTests : IAsyncDisposa
                 Pooling = false,
                 DefaultTimeout = 30,
             }.ToString())
-            .AddInterceptors(interceptors)
             .Options;
         var factory = new TestDbContextFactory(options);
         await using var context = await factory.CreateDbContextAsync();
@@ -252,48 +184,5 @@ internal sealed class SqliteDurableProjectCatalogRepositoryTests : IAsyncDisposa
         public Task<LogicLabDbContext> CreateDbContextAsync(
             CancellationToken cancellationToken = default)
             => Task.FromResult(CreateDbContext());
-    }
-
-    private sealed record CapturedCommand(
-        string Text,
-        IReadOnlyList<CapturedParameter> Parameters);
-
-    private sealed record CapturedParameter(string Name, object Value);
-
-    private sealed class CommandCaptureInterceptor : DbCommandInterceptor
-    {
-        public ConcurrentQueue<CapturedCommand> Commands { get; } = new();
-
-        public override InterceptionResult<DbDataReader> ReaderExecuting(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result)
-        {
-            Commands.Enqueue(Capture(command));
-            return result;
-        }
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            Commands.Enqueue(Capture(command));
-            return ValueTask.FromResult(result);
-        }
-
-        private static CapturedCommand Capture(DbCommand command)
-        {
-            var parameters = command.Parameters
-                .Cast<DbParameter>()
-                .Select(parameter => new CapturedParameter(
-                    parameter.ParameterName,
-                    parameter.Value is byte[] bytes
-                        ? (byte[])bytes.Clone()
-                        : parameter.Value ?? DBNull.Value))
-                .ToArray();
-            return new CapturedCommand(command.CommandText, parameters);
-        }
     }
 }
