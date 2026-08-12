@@ -46,6 +46,11 @@ public static partial class ProjectEditor
             intent.Width,
             intent.Depth,
             intent.Words);
+        if (diagnostics.Count != 0)
+        {
+            return new EditRejected([.. diagnostics]);
+        }
+
         var replacement = new MemoryImage(
             original.Id,
             intent.DisplayName,

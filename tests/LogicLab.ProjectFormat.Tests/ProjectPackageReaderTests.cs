@@ -84,6 +84,63 @@ internal sealed class ProjectPackageReaderTests
     }
 
     [Test]
+    public async Task ReadAsync_Zip64DeclaredEntryCountBeyondPolicy_RejectsBeforeMaterialization()
+    {
+        var revision = BeginProject("ZIP64 entry count", "Main");
+        await using var carrier = await WriteAsync(revision);
+        var bytes = carrier.Stream.ToArray();
+        var endRecordIndex = bytes.AsSpan().LastIndexOf("PK\x05\x06"u8);
+        var centralDirectoryOffset = BinaryPrimitives.ReadUInt32LittleEndian(
+            bytes.AsSpan(endRecordIndex + 16));
+        const ulong declaredEntryCount = 10_000;
+        var zip64EndRecord = new byte[56];
+        BinaryPrimitives.WriteUInt32LittleEndian(zip64EndRecord, 0x06064b50);
+        BinaryPrimitives.WriteUInt64LittleEndian(zip64EndRecord.AsSpan(4), 44);
+        BinaryPrimitives.WriteUInt64LittleEndian(
+            zip64EndRecord.AsSpan(24),
+            declaredEntryCount);
+        BinaryPrimitives.WriteUInt64LittleEndian(
+            zip64EndRecord.AsSpan(32),
+            declaredEntryCount);
+        BinaryPrimitives.WriteUInt64LittleEndian(
+            zip64EndRecord.AsSpan(40),
+            checked((ulong)(endRecordIndex - centralDirectoryOffset)));
+        BinaryPrimitives.WriteUInt64LittleEndian(
+            zip64EndRecord.AsSpan(48),
+            centralDirectoryOffset);
+        var locator = new byte[20];
+        BinaryPrimitives.WriteUInt32LittleEndian(locator, 0x07064b50);
+        BinaryPrimitives.WriteUInt64LittleEndian(
+            locator.AsSpan(8),
+            checked((ulong)endRecordIndex));
+        var endRecord = bytes.AsSpan(endRecordIndex).ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(endRecord.AsSpan(8), ushort.MaxValue);
+        BinaryPrimitives.WriteUInt16LittleEndian(endRecord.AsSpan(10), ushort.MaxValue);
+        BinaryPrimitives.WriteUInt32LittleEndian(endRecord.AsSpan(16), uint.MaxValue);
+        await using var zip64 = new MemoryStream([
+            .. bytes.AsSpan(0, endRecordIndex),
+            .. zip64EndRecord,
+            .. locator,
+            .. endRecord,
+        ]);
+        var policy = WithLimit(PackageDimension.EntryCount, 3);
+
+        var outcome = await ProjectPackage.ReadAsync(
+            new ProjectPackageReadRequest(zip64, policy),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("package_limit_exceeded");
+            await Assert.That(rejected.Evidence.PolicyLimitBreach?.Dimension)
+                .IsEqualTo(PackageDimension.EntryCount);
+            await Assert.That(rejected.Evidence.PolicyLimitBreach?.Observed)
+                .IsEqualTo(declaredEntryCount);
+        }
+    }
+
+    [Test]
     public async Task ReadAsync_ManifestMemoryCountBeyondPolicy_RejectsBeforePartIntegrity()
     {
         var revision = BeginProject("Memory count", "Main");
@@ -264,6 +321,62 @@ internal sealed class ProjectPackageReaderTests
         var outcome = await ReadAsync(tampered);
 
         await AssertDiagnostic(outcome, "package_unknown_discriminator");
+    }
+
+    [Test]
+    public async Task ReadAsync_TargetDiscriminatorAfterDataMember_AcceptsLegalMemberOrder()
+    {
+        var revision = BeginProject("Reordered discriminator", "Main");
+        revision = ((EditCommitted)ProjectEditor.Apply(
+            revision,
+            new PlaceComponentInstanceIntent(
+                revision.Document.EntryCircuitDefinitionId,
+                new LogicLab.Domain.Components.ComponentContractKey(
+                    LogicLab.Domain.Components.CoreLibrarySchema.LibraryId,
+                    "logic.not"),
+                [new ComponentParameterBinding(
+                    "width",
+                    new Unsigned32ParameterValue(1))],
+                new ComponentPlacement(new GridPoint(0, 0))))).Revision;
+        await using var carrier = await WriteAsync(revision);
+        var written = (PackageWriteSucceeded)carrier.Outcome;
+        var entries = ReadEntries(carrier.Stream);
+        entries["project.json"] = Encoding.UTF8.GetBytes(
+            Encoding.UTF8.GetString(entries["project.json"])
+                .Replace(
+                    "\"kind\":\"libraryContract\",\"libraryId\":\"logiclab.core\"",
+                    "\"libraryId\":\"logiclab.core\",\"kind\":\"libraryContract\"",
+                    StringComparison.Ordinal));
+        RefreshIntegrity(entries);
+        await using var reordered = WriteEntries(entries);
+
+        var outcome = await ReadAsync(reordered);
+
+        var succeeded = (await Assert.That(outcome).IsTypeOf<PackageReadSucceeded>())!;
+        await Assert.That(succeeded.ProjectContentDigest)
+            .IsEqualTo(written.ProjectContentDigest);
+    }
+
+    [Test]
+    public async Task ReadAsync_EntityLimitBelowMinimalProject_RejectsProjectRoot()
+    {
+        var revision = BeginProject("Entity limit", "Main");
+        await using var carrier = await WriteAsync(revision);
+        var policy = WithLimit(PackageDimension.EntityCount, 1);
+
+        var outcome = await ProjectPackage.ReadAsync(
+            new ProjectPackageReadRequest(carrier.Stream, policy),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("package_limit_exceeded");
+            await Assert.That(rejected.Evidence.PolicyLimitBreach?.Dimension)
+                .IsEqualTo(PackageDimension.EntityCount);
+            await Assert.That(rejected.Evidence.PolicyLimitBreach?.Observed)
+                .IsEqualTo(2UL);
+        }
     }
 
     [Test]

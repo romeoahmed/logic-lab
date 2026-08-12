@@ -12,7 +12,7 @@ namespace LogicLab.Infrastructure.Tests;
 internal sealed class ProjectRevisionPayloadSerializerTests
 {
     [Test]
-    public async Task RoundTrip_AllV1Variants_PreservesStablePayloadAndDomainMeaning()
+    public async Task RoundTrip_AllV2Variants_PreservesStablePayloadAndDomainMeaning()
     {
         var revision = CreateFullyPopulatedRevision();
 
@@ -45,7 +45,7 @@ internal sealed class ProjectRevisionPayloadSerializerTests
         {
             await Assert.That(reencoded)
                 .IsEquivalentTo(payload, CollectionOrdering.Matching);
-            await Assert.That(json).Contains("\"schemaVersion\":1");
+            await Assert.That(json).Contains("\"schemaVersion\":2");
             await Assert.That(json).DoesNotContain("LogicLab.Domain");
             await Assert.That(json).DoesNotContain("$type");
             await Assert.That(restored.RevisionId).IsEqualTo(revision.RevisionId);
@@ -93,14 +93,14 @@ internal sealed class ProjectRevisionPayloadSerializerTests
     }
 
     [Test]
-    public async Task Deserialize_V1GoldenPayload_RestoresStableSample()
+    public async Task Deserialize_V2GoldenPayload_RestoresStableSample()
     {
         var payload = Encoding.UTF8.GetBytes("""
             {
-              "schemaVersion": 1,
-              "revisionId": "revision-v1",
+              "schemaVersion": 2,
+              "revisionId": "revision-v2",
               "document": {
-                "projectId": "project-v1",
+                "projectId": "project-v2",
                 "displayName": "Stored project",
                 "library": {
                   "libraryId": "logiclab.core",
@@ -134,8 +134,8 @@ internal sealed class ProjectRevisionPayloadSerializerTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(restored.RevisionId.Value).IsEqualTo("revision-v1");
-            await Assert.That(restored.Document.ProjectId.Value).IsEqualTo("project-v1");
+            await Assert.That(restored.RevisionId.Value).IsEqualTo("revision-v2");
+            await Assert.That(restored.Document.ProjectId.Value).IsEqualTo("project-v2");
             await Assert.That(restored.Document.DisplayName).IsEqualTo("Stored project");
             await Assert.That(restored.Document.EntryCircuitDefinition.DisplayName)
                 .IsEqualTo("Main");
@@ -148,7 +148,7 @@ internal sealed class ProjectRevisionPayloadSerializerTests
         var payload = ProjectRevisionPayloadSerializer.Serialize(
             CreateFullyPopulatedRevision());
         var document = JsonNode.Parse(payload)!.AsObject();
-        document["schemaVersion"] = 2;
+        document["schemaVersion"] = 3;
 
         await Assert.That(() => ProjectRevisionPayloadSerializer.Deserialize(
             Encoding.UTF8.GetBytes(document.ToJsonString())))
