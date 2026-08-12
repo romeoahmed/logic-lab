@@ -64,6 +64,7 @@
             <div class="workbench-command-region">
                 <WorkbenchCommandBar CanCreate="CanCreate"
                                      CanAuthor="CanAuthor"
+                                     CanImport="CanImport"
                                      CanPrepareExport="CanPrepareExport"
                                      CanAuthorSteering="CanAuthorSteering"
                                      CanAuthorArithmetic="CanAuthorArithmetic"
@@ -75,6 +76,7 @@
                                      ActiveCommand="@WorkbenchActiveCommand"
                                      OnCreate="@(() => RunCommandAsync("create", () => CanCreate, CreateProject))"
                                      OnAuthor="@(() => RunCommandAsync("author", () => CanAuthor, AuthorCircuit))"
+                                     OnImport="ImportProjectPackage"
                                      OnPrepareExport="@(() => RunCommandAsync("export", () => CanPrepareExport, PrepareProjectExport))"
                                      OnAuthorSteering="@(() => RunCommandAsync("author-steering", () => CanAuthorSteering, AuthorSteeringGallery))"
                                      OnAuthorArithmetic="@(() => RunCommandAsync("author-arithmetic", () => CanAuthorArithmetic, AuthorArithmeticGallery))"

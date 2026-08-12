@@ -1,13 +1,18 @@
 using System.Security.Claims;
 using Bunit;
+using Bunit.TestDoubles;
 using LogicLab.Application.Workspaces;
+using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
 using LogicLab.Engine.Compilation;
+using LogicLab.ProjectFormat;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Components.Pages;
 using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
@@ -16,6 +21,76 @@ namespace LogicLab.Web.Tests;
 
 internal sealed class WorkbenchComponentTests
 {
+    [Test]
+    public async Task Editor_ValidLogicLabUpload_OpensCompiledImportedWorkspace()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new PassthroughWorkspace();
+        var rendered = RenderEditor(context, workspace);
+        var navigation = (BunitNavigationManager)context.Services
+            .GetRequiredService<NavigationManager>();
+        _ = await rendered.WaitForElementAsync("[data-command='import']:not([disabled])");
+        var package = await CreatePackageAsync();
+
+        rendered.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary(
+                package,
+                "project.logiclab",
+                contentType: "application/vnd.logiclab+zip"));
+
+        await rendered.WaitForStateAsync(() =>
+            navigation.Uri.Contains("/editor/", StringComparison.Ordinal));
+        var importedWorkspaceId = new WorkspaceId(
+            new Uri(navigation.Uri).Segments[^1].TrimEnd('/'));
+        var attach = await workspace.AttachAsync(
+            new InitialAttach(
+                importedWorkspaceId,
+                LogicLabWebBuild.Fingerprint,
+                AnonymousWorkspaceCaller.Instance),
+            CancellationToken.None);
+        var attached = (await Assert.That(attach).IsTypeOf<Attached>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(navigation.Uri).StartsWith("http://localhost/editor/");
+            await Assert.That(attached.Projection.ProjectRevision.Document.DisplayName)
+                .IsEqualTo("Uploaded project");
+            await Assert.That(attached.Projection.Compilation)
+                .IsTypeOf<CompilationPublishedProjection>();
+        }
+    }
+
+    [Test]
+    public async Task Editor_InvalidLogicLabUpload_ReportsRejectionAndKeepsCurrentPage()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new PassthroughWorkspace();
+        var rendered = RenderEditor(context, workspace);
+        var navigation = (BunitNavigationManager)context.Services
+            .GetRequiredService<NavigationManager>();
+        _ = await rendered.WaitForElementAsync("[data-command='import']:not([disabled])");
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author"));
+
+        rendered.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromText(
+                "not a package",
+                "invalid.logiclab",
+                contentType: "application/vnd.logiclab+zip"));
+
+        await rendered.WaitForStateAsync(() => rendered.Markup.Contains(
+            "Import rejected: package_invalid.",
+            StringComparison.Ordinal));
+        using (Assert.Multiple())
+        {
+            await Assert.That(navigation.Uri).IsEqualTo("http://localhost/");
+            await Assert.That(IsDisabled(rendered, "create")).IsTrue();
+            await Assert.That(IsDisabled(rendered, "author")).IsFalse();
+            await Assert.That(IsDisabled(rendered, "export")).IsFalse();
+        }
+    }
+
     [Test]
     public async Task Editor_PrepareExport_ProjectsOneTimeDownloadLink()
     {
@@ -671,6 +746,32 @@ internal sealed class WorkbenchComponentTests
         return context;
     }
 
+    private static async Task<byte[]> CreatePackageAsync()
+    {
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(
+            new NewProjectSeed(
+                "Uploaded project",
+                LibrarySnapshot.Core,
+                new SymbolProfileReference(
+                    "TeachingMixed",
+                    "1.0.0",
+                    IndicationConvention.Negation),
+                "Main"))).Revision;
+        await using var carrier = new MemoryStream();
+        var outcome = await ProjectPackage.WriteAsync(
+            new ProjectPackageWriteRequest(
+                revision,
+                carrier,
+                PackagePolicy.Development),
+            CancellationToken.None);
+        if (outcome is not PackageWriteSucceeded)
+        {
+            throw new InvalidOperationException("Test package write failed.");
+        }
+
+        return carrier.ToArray();
+    }
+
     private static IRenderedComponent<Editor> RenderEditor(
         BunitContext context,
         IEditorWorkspace workspace,
@@ -729,6 +830,10 @@ internal sealed class WorkbenchComponentTests
         var projection = await workspace.ReadCurrent();
         return projection.ProjectRevision.Document.EntryCircuitDefinition
             .WireGeometries.Single().Route;
+    }
+
+    private sealed class PassthroughWorkspace : DelegatingEditorWorkspace
+    {
     }
 
     private sealed class BlockingWorkspace : DelegatingEditorWorkspace

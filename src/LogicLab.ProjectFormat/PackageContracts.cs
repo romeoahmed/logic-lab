@@ -144,6 +144,30 @@ public sealed class ProjectPackageWriteRequest
     public PackagePolicy PackagePolicy { get; }
 }
 
+public sealed class ProjectPackageReadRequest
+{
+    public ProjectPackageReadRequest(
+        Stream source,
+        PackagePolicy packagePolicy)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(packagePolicy);
+        if (!source.CanRead)
+        {
+            throw new ArgumentException(
+                "The package source must be readable.",
+                nameof(source));
+        }
+
+        Source = source;
+        PackagePolicy = packagePolicy;
+    }
+
+    public Stream Source { get; }
+
+    public PackagePolicy PackagePolicy { get; }
+}
+
 public sealed record PackagePolicyIdentity(string PolicyId, string PolicyRevision);
 
 public sealed record PackageDimensionObservation(
@@ -203,3 +227,21 @@ public sealed record PackageWriteRejected(
     string Reason,
     IReadOnlyList<PackageDiagnostic> Diagnostics,
     PackageEvidence Evidence) : PackageWriteOutcome;
+
+public abstract record PackageReadOutcome
+{
+    private protected PackageReadOutcome()
+    {
+    }
+}
+
+public sealed record PackageReadSucceeded(
+    ProjectImportCandidate ImportCandidate,
+    string ProjectContentDigest,
+    string PackageDigest,
+    PackageEvidence Evidence) : PackageReadOutcome;
+
+public sealed record PackageReadRejected(
+    string Reason,
+    IReadOnlyList<PackageDiagnostic> Diagnostics,
+    PackageEvidence Evidence) : PackageReadOutcome;

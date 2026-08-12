@@ -8,6 +8,7 @@ using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Forms;
 
 namespace LogicLab.Web.Components.Pages;
 
@@ -17,6 +18,7 @@ public sealed partial class Editor : IAsyncDisposable
     private static readonly TimeSpan CompilationRefreshInterval =
         TimeSpan.FromMilliseconds(250);
     private readonly IEditorWorkspace workspace;
+    private readonly IProjectImportWorkflow projectImportWorkflow;
     private readonly TimeProvider timeProvider;
     private readonly CancellationTokenSource componentLifetime = new();
     private int isDisposed;
@@ -26,6 +28,7 @@ public sealed partial class Editor : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(workspace);
         ArgumentNullException.ThrowIfNull(timeProvider);
         this.workspace = workspace;
+        projectImportWorkflow = ProjectImportWorkflowFactory.Create(workspace);
         this.timeProvider = timeProvider;
     }
 
@@ -169,6 +172,8 @@ public sealed partial class Editor : IAsyncDisposable
         && Projection.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances.Count == 0;
 
     private bool CanPrepareExport => CommandsAvailable && Projection is not null;
+
+    private bool CanImport => CommandsAvailable;
 
     private bool CanAuthorHierarchy => CanAuthor;
 
@@ -557,6 +562,51 @@ public sealed partial class Editor : IAsyncDisposable
         PreparedExportUrl =
             $"/downloads/{Uri.EscapeDataString(prepared.ExportTicket.Value)}";
         Status = $"Export prepared for {prepared.ExpiresAfterSeconds} seconds.";
+    }
+
+    private async Task ImportProjectPackage(InputFileChangeEventArgs change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        if (ActiveCommand is not null || !CanImport)
+        {
+            return;
+        }
+
+        ActiveCommand = "import";
+        PreparedExportUrl = null;
+        try
+        {
+            await using var source = change.File.OpenReadStream(
+                projectImportWorkflow.MaximumCarrierBytes,
+                componentLifetime.Token);
+            var outcome = await projectImportWorkflow.ImportAsync(
+                source,
+                componentLifetime.Token);
+            if (outcome is ProjectImportRejected rejected)
+            {
+                Status = $"Import rejected: {rejected.Code}.";
+                return;
+            }
+
+            var imported = (ProjectImported)outcome;
+            Status = "Import validated and compiled. Opening its independent Workspace…";
+            Navigation.NavigateTo(
+                $"/editor/{Uri.EscapeDataString(imported.Workspace.WorkspaceId.Value)}",
+                forceLoad: true);
+        }
+        catch (OperationCanceledException)
+            when (componentLifetime.IsCancellationRequested)
+        {
+            Status = "Import cancelled.";
+        }
+        catch (IOException)
+        {
+            Status = "Import rejected: package_limit_exceeded.";
+        }
+        finally
+        {
+            ActiveCommand = null;
+        }
     }
 
     private async Task CreateSimulationSession()

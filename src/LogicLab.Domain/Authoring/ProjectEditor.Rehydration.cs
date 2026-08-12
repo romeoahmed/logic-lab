@@ -12,6 +12,13 @@ public static partial class ProjectEditor
         ArgumentNullException.ThrowIfNull(revisionId);
         ArgumentNullException.ThrowIfNull(document);
         Ensure(HasValue(revisionId.Value));
+        ValidateDocument(document);
+        return new ProjectRevision(revisionId, document);
+    }
+
+    internal static void ValidateDocument(ProjectDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
         Ensure(HasValue(document.ProjectId.Value));
         Ensure(GetDisplayTextRule(document.DisplayName) is null);
         Ensure(IsCurrentLibrary(document.LibrarySnapshot));
@@ -40,8 +47,6 @@ public static partial class ProjectEditor
         {
             ValidateDefinition(document, definition);
         }
-
-        return new ProjectRevision(revisionId, document);
     }
 
     private static void ValidateDefinition(
