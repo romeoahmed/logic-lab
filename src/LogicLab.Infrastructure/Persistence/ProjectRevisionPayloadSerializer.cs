@@ -8,7 +8,7 @@ namespace LogicLab.Infrastructure.Persistence;
 
 internal static class ProjectRevisionPayloadSerializer
 {
-    private const int SchemaVersion = 1;
+    private const int SchemaVersion = 2;
 
     private static readonly ProjectRevisionPayloadJsonContext JsonContext = new(
         new JsonSerializerOptions(JsonSerializerOptions.Strict)
@@ -21,7 +21,7 @@ internal static class ProjectRevisionPayloadSerializer
         ArgumentNullException.ThrowIfNull(revision);
         return JsonSerializer.SerializeToUtf8Bytes(
             ToPayload(revision),
-            JsonContext.ProjectRevisionPayloadV1);
+            JsonContext.ProjectRevisionPayloadV2);
     }
 
     public static ProjectRevision Deserialize(ReadOnlySpan<byte> payload)
@@ -30,7 +30,7 @@ internal static class ProjectRevisionPayloadSerializer
         {
             var stored = JsonSerializer.Deserialize(
                 payload,
-                JsonContext.ProjectRevisionPayloadV1)
+                JsonContext.ProjectRevisionPayloadV2)
                 ?? throw InvalidPayload();
             if (stored.SchemaVersion != SchemaVersion)
             {
@@ -46,24 +46,24 @@ internal static class ProjectRevisionPayloadSerializer
         }
     }
 
-    private static ProjectRevisionPayloadV1 ToPayload(ProjectRevision revision)
+    private static ProjectRevisionPayloadV2 ToPayload(ProjectRevision revision)
     {
-        return new ProjectRevisionPayloadV1(
+        return new ProjectRevisionPayloadV2(
             SchemaVersion,
             revision.RevisionId.Value,
             ToPayload(revision.Document));
     }
 
-    private static ProjectDocumentPayloadV1 ToPayload(ProjectDocument document)
+    private static ProjectDocumentPayloadV2 ToPayload(ProjectDocument document)
     {
-        return new ProjectDocumentPayloadV1(
+        return new ProjectDocumentPayloadV2(
             document.ProjectId.Value,
             document.DisplayName,
-            new LibraryReferencePayloadV1(
+            new LibraryReferencePayloadV2(
                 document.LibrarySnapshot.LibraryId,
                 document.LibrarySnapshot.Version,
                 document.LibrarySnapshot.ContentDigest),
-            new SymbolProfilePayloadV1(
+            new SymbolProfilePayloadV2(
                 document.SymbolProfile.Id,
                 document.SymbolProfile.Version,
                 ToToken(document.SymbolProfile.IndicationConvention)),
@@ -72,10 +72,10 @@ internal static class ProjectRevisionPayloadSerializer
             [.. document.MemoryImages.Select(ToPayload)]);
     }
 
-    private static CircuitDefinitionPayloadV1 ToPayload(
+    private static CircuitDefinitionPayloadV2 ToPayload(
         CircuitDefinition definition)
     {
-        return new CircuitDefinitionPayloadV1(
+        return new CircuitDefinitionPayloadV2(
             definition.Id.Value,
             definition.DisplayName,
             [.. definition.Ports.Select(ToPayload)],
@@ -86,26 +86,26 @@ internal static class ProjectRevisionPayloadSerializer
             [.. definition.Annotations.Select(ToPayload)]);
     }
 
-    private static DefinitionPortPayloadV1 ToPayload(DefinitionPort port)
+    private static DefinitionPortPayloadV2 ToPayload(DefinitionPort port)
     {
-        return new DefinitionPortPayloadV1(
+        return new DefinitionPortPayloadV2(
             port.Id.Value,
             port.DisplayName,
             ToToken(port.Direction),
             port.Width,
-            new DefinitionPortPlacementPayloadV1(
+            new DefinitionPortPlacementPayloadV2(
                 ToPayload(port.Placement.Position),
                 ToToken(port.Placement.Facing)));
     }
 
-    private static ComponentInstancePayloadV1 ToPayload(
+    private static ComponentInstancePayloadV2 ToPayload(
         ComponentInstance instance)
     {
-        return new ComponentInstancePayloadV1(
+        return new ComponentInstancePayloadV2(
             instance.Id.Value,
             ToPayload(instance.Target),
             [.. instance.Parameters.Select(ToPayload)],
-            new ComponentPlacementPayloadV1(
+            new ComponentPlacementPayloadV2(
                 ToPayload(instance.Placement.Origin),
                 (int)instance.Placement.QuarterTurnsClockwise,
                 instance.Placement.Reflected),
@@ -113,75 +113,75 @@ internal static class ProjectRevisionPayloadSerializer
             instance.SymbolVariantId);
     }
 
-    private static ComponentTargetPayloadV1 ToPayload(ComponentTarget target)
+    private static ComponentTargetPayloadV2 ToPayload(ComponentTarget target)
     {
         return target switch
         {
-            LibraryComponentTarget library => new LibraryComponentTargetPayloadV1(
+            LibraryComponentTarget library => new LibraryComponentTargetPayloadV2(
                 library.ContractKey.LibraryId,
                 library.ContractKey.ContractId),
             CircuitDefinitionComponentTarget definition =>
-                new CircuitDefinitionComponentTargetPayloadV1(
+                new CircuitDefinitionComponentTargetPayloadV2(
                     definition.CircuitDefinitionId.Value),
             _ => throw new InvalidOperationException(
                 "The Component Target variant is undefined."),
         };
     }
 
-    private static ComponentParameterBindingPayloadV1 ToPayload(
+    private static ComponentParameterBindingPayloadV2 ToPayload(
         ComponentParameterBinding binding)
     {
-        return new ComponentParameterBindingPayloadV1(
+        return new ComponentParameterBindingPayloadV2(
             binding.ParameterId,
             ToPayload(binding.Value));
     }
 
-    private static ComponentParameterValuePayloadV1 ToPayload(
+    private static ComponentParameterValuePayloadV2 ToPayload(
         ComponentParameterValue value)
     {
         return value switch
         {
-            MemoryImageParameterValue image => new MemoryImageParameterValuePayloadV1(
+            MemoryImageParameterValue image => new MemoryImageParameterValuePayloadV2(
                 image.MemoryImageId.Value),
-            Unsigned32ParameterValue unsigned => new Unsigned32ParameterValuePayloadV1(
+            Unsigned32ParameterValue unsigned => new Unsigned32ParameterValuePayloadV2(
                 unsigned.Value),
-            Unsigned64ParameterValue unsigned => new Unsigned64ParameterValuePayloadV1(
+            Unsigned64ParameterValue unsigned => new Unsigned64ParameterValuePayloadV2(
                 unsigned.Value.ToString(CultureInfo.InvariantCulture)),
-            ChoiceParameterValue choice => new ChoiceParameterValuePayloadV1(
+            ChoiceParameterValue choice => new ChoiceParameterValuePayloadV2(
                 choice.Value),
-            LogicVectorParameterValue vector => new LogicVectorParameterValuePayloadV1(
+            LogicVectorParameterValue vector => new LogicVectorParameterValuePayloadV2(
                 ToBits(vector.Values)),
-            SlicesParameterValue slices => new SlicesParameterValuePayloadV1(
-                [.. slices.Values.Select(slice => new BitSlicePayloadV1(
+            SlicesParameterValue slices => new SlicesParameterValuePayloadV2(
+                [.. slices.Values.Select(slice => new BitSlicePayloadV2(
                     slice.Offset,
                     slice.Length))]),
-            WidthsParameterValue widths => new WidthsParameterValuePayloadV1(
+            WidthsParameterValue widths => new WidthsParameterValuePayloadV2(
                 [.. widths.Values]),
             _ => throw new InvalidOperationException(
                 "The Component Parameter Value variant is undefined."),
         };
     }
 
-    private static NetPayloadV1 ToPayload(Net net)
+    private static NetPayloadV2 ToPayload(Net net)
     {
-        return new NetPayloadV1(
+        return new NetPayloadV2(
             net.Id.Value,
             net.Width,
             [.. net.Terminals.Select(ToPayload)],
             [.. net.JunctionIds.Select(id => id.Value)]);
     }
 
-    private static AuthoredTerminalReferencePayloadV1 ToPayload(
+    private static AuthoredTerminalReferencePayloadV2 ToPayload(
         AuthoredTerminalReference terminal)
     {
         return terminal switch
         {
             DefinitionTerminalReference definition =>
-                new DefinitionTerminalReferencePayloadV1(
+                new DefinitionTerminalReferencePayloadV2(
                     definition.CircuitDefinitionId.Value,
                     definition.DefinitionPortId.Value),
             InstanceTerminalReference instance =>
-                new InstanceTerminalReferencePayloadV1(
+                new InstanceTerminalReferencePayloadV2(
                     instance.CircuitDefinitionId.Value,
                     instance.ComponentInstanceId.Value,
                     instance.PortId),
@@ -190,57 +190,57 @@ internal static class ProjectRevisionPayloadSerializer
         };
     }
 
-    private static JunctionPayloadV1 ToPayload(Junction junction)
+    private static JunctionPayloadV2 ToPayload(Junction junction)
     {
-        return new JunctionPayloadV1(
+        return new JunctionPayloadV2(
             junction.Id.Value,
             junction.NetId.Value,
             ToPayload(junction.Position));
     }
 
-    private static WireGeometryPayloadV1 ToPayload(WireGeometry geometry)
+    private static WireGeometryPayloadV2 ToPayload(WireGeometry geometry)
     {
-        return new WireGeometryPayloadV1(
+        return new WireGeometryPayloadV2(
             geometry.Id.Value,
             geometry.NetId.Value,
             ToPayload(geometry.Route));
     }
 
-    private static WireRoutePayloadV1 ToPayload(WireRoute route)
+    private static WireRoutePayloadV2 ToPayload(WireRoute route)
     {
         return route switch
         {
-            UnroutedWireRoute => new UnroutedWireRoutePayloadV1(),
-            OrthogonalWireRoute orthogonal => new OrthogonalWireRoutePayloadV1(
+            UnroutedWireRoute => new UnroutedWireRoutePayloadV2(),
+            OrthogonalWireRoute orthogonal => new OrthogonalWireRoutePayloadV2(
                 [.. orthogonal.Points.Select(ToPayload)]),
             _ => throw new InvalidOperationException(
                 "The Wire Route variant is undefined."),
         };
     }
 
-    private static AnnotationPayloadV1 ToPayload(Annotation annotation)
+    private static AnnotationPayloadV2 ToPayload(Annotation annotation)
     {
-        return new AnnotationPayloadV1(
+        return new AnnotationPayloadV2(
             annotation.Id.Value,
             annotation.Text,
             ToPayload(annotation.Position),
             ToToken(annotation.Alignment));
     }
 
-    private static MemoryImagePayloadV1 ToPayload(MemoryImage image)
+    private static MemoryImagePayloadV2 ToPayload(MemoryImage image)
     {
-        return new MemoryImagePayloadV1(
+        return new MemoryImagePayloadV2(
             image.Id.Value,
             image.DisplayName,
             image.Width,
             image.Depth,
-            [.. image.Words.Select(word => ToBits(word.Values))]);
+            image.PackedCells.ToArray());
     }
 
-    private static GridPointPayloadV1 ToPayload(GridPoint point) =>
+    private static GridPointPayloadV2 ToPayload(GridPoint point) =>
         new(point.X, point.Y);
 
-    private static ProjectRevision FromPayload(ProjectRevisionPayloadV1 payload)
+    private static ProjectRevision FromPayload(ProjectRevisionPayloadV2 payload)
     {
         var document = RequireNotNull(payload.Document);
         var circuitDefinitions = RequireNotNull(document.CircuitDefinitions);
@@ -260,7 +260,7 @@ internal static class ProjectRevisionPayloadSerializer
             projectDocument);
     }
 
-    private static LibrarySnapshot FromPayload(LibraryReferencePayloadV1 library)
+    private static LibrarySnapshot FromPayload(LibraryReferencePayloadV2 library)
     {
         RequireNotNull(library);
         if (!string.Equals(
@@ -283,7 +283,7 @@ internal static class ProjectRevisionPayloadSerializer
     }
 
     private static SymbolProfileReference FromPayload(
-        SymbolProfilePayloadV1 profile)
+        SymbolProfilePayloadV2 profile)
     {
         RequireNotNull(profile);
         return new SymbolProfileReference(
@@ -297,7 +297,7 @@ internal static class ProjectRevisionPayloadSerializer
             });
     }
 
-    private static CircuitDefinition FromPayload(CircuitDefinitionPayloadV1 definition)
+    private static CircuitDefinition FromPayload(CircuitDefinitionPayloadV2 definition)
     {
         RequireNotNull(definition);
         return new CircuitDefinition(
@@ -311,7 +311,7 @@ internal static class ProjectRevisionPayloadSerializer
             [.. RequireNotNull(definition.Annotations).Select(FromPayload)]);
     }
 
-    private static DefinitionPort FromPayload(DefinitionPortPayloadV1 port)
+    private static DefinitionPort FromPayload(DefinitionPortPayloadV2 port)
     {
         RequireNotNull(port);
         var placement = RequireNotNull(port.Placement);
@@ -337,7 +337,7 @@ internal static class ProjectRevisionPayloadSerializer
                 }));
     }
 
-    private static ComponentInstance FromPayload(ComponentInstancePayloadV1 instance)
+    private static ComponentInstance FromPayload(ComponentInstancePayloadV2 instance)
     {
         RequireNotNull(instance);
         var placement = RequireNotNull(instance.Placement);
@@ -360,15 +360,15 @@ internal static class ProjectRevisionPayloadSerializer
             instance.SymbolVariantId);
     }
 
-    private static ComponentTarget FromPayload(ComponentTargetPayloadV1 target)
+    private static ComponentTarget FromPayload(ComponentTargetPayloadV2 target)
     {
         return target switch
         {
-            LibraryComponentTargetPayloadV1 library => new LibraryComponentTarget(
+            LibraryComponentTargetPayloadV2 library => new LibraryComponentTarget(
                 new ComponentContractKey(
                     RequireValue(library.LibraryId),
                     RequireValue(library.ContractId))),
-            CircuitDefinitionComponentTargetPayloadV1 definition =>
+            CircuitDefinitionComponentTargetPayloadV2 definition =>
                 new CircuitDefinitionComponentTarget(
                     new CircuitDefinitionId(RequireValue(
                         definition.CircuitDefinitionId))),
@@ -377,7 +377,7 @@ internal static class ProjectRevisionPayloadSerializer
     }
 
     private static ComponentParameterBinding FromPayload(
-        ComponentParameterBindingPayloadV1 binding)
+        ComponentParameterBindingPayloadV2 binding)
     {
         RequireNotNull(binding);
         return new ComponentParameterBinding(
@@ -386,29 +386,29 @@ internal static class ProjectRevisionPayloadSerializer
     }
 
     private static ComponentParameterValue FromPayload(
-        ComponentParameterValuePayloadV1 value)
+        ComponentParameterValuePayloadV2 value)
     {
         return value switch
         {
-            MemoryImageParameterValuePayloadV1 image => new MemoryImageParameterValue(
+            MemoryImageParameterValuePayloadV2 image => new MemoryImageParameterValue(
                 new MemoryImageId(RequireValue(image.MemoryImageId))),
-            Unsigned32ParameterValuePayloadV1 unsigned =>
+            Unsigned32ParameterValuePayloadV2 unsigned =>
                 new Unsigned32ParameterValue(unsigned.Value),
-            Unsigned64ParameterValuePayloadV1 unsigned =>
+            Unsigned64ParameterValuePayloadV2 unsigned =>
                 new Unsigned64ParameterValue(ParseUnsigned64(unsigned.Decimal)),
-            ChoiceParameterValuePayloadV1 choice =>
+            ChoiceParameterValuePayloadV2 choice =>
                 new ChoiceParameterValue(RequireValue(choice.Value)),
-            LogicVectorParameterValuePayloadV1 vector =>
+            LogicVectorParameterValuePayloadV2 vector =>
                 new LogicVectorParameterValue(FromBits(vector.Bits)),
-            SlicesParameterValuePayloadV1 slices => new SlicesParameterValue(
+            SlicesParameterValuePayloadV2 slices => new SlicesParameterValue(
                 [.. RequireNotNull(slices.Values).Select(FromPayload)]),
-            WidthsParameterValuePayloadV1 widths =>
+            WidthsParameterValuePayloadV2 widths =>
                 new WidthsParameterValue(RequireNotNull(widths.Values)),
             _ => throw InvalidPayload(),
         };
     }
 
-    private static Net FromPayload(NetPayloadV1 net)
+    private static Net FromPayload(NetPayloadV2 net)
     {
         RequireNotNull(net);
         return new Net(
@@ -419,24 +419,24 @@ internal static class ProjectRevisionPayloadSerializer
                 .Select(id => new JunctionId(RequireValue(id)))]);
     }
 
-    private static BitSlice FromPayload(BitSlicePayloadV1 slice)
+    private static BitSlice FromPayload(BitSlicePayloadV2 slice)
     {
         RequireNotNull(slice);
         return new BitSlice(slice.Offset, slice.Length);
     }
 
     private static AuthoredTerminalReference FromPayload(
-        AuthoredTerminalReferencePayloadV1 terminal)
+        AuthoredTerminalReferencePayloadV2 terminal)
     {
         return terminal switch
         {
-            DefinitionTerminalReferencePayloadV1 definition =>
+            DefinitionTerminalReferencePayloadV2 definition =>
                 new DefinitionTerminalReference(
                     new CircuitDefinitionId(RequireValue(
                         definition.CircuitDefinitionId)),
                     new DefinitionPortId(RequireValue(
                         definition.DefinitionPortId))),
-            InstanceTerminalReferencePayloadV1 instance =>
+            InstanceTerminalReferencePayloadV2 instance =>
                 new InstanceTerminalReference(
                     new CircuitDefinitionId(RequireValue(
                         instance.CircuitDefinitionId)),
@@ -447,7 +447,7 @@ internal static class ProjectRevisionPayloadSerializer
         };
     }
 
-    private static Junction FromPayload(JunctionPayloadV1 junction)
+    private static Junction FromPayload(JunctionPayloadV2 junction)
     {
         RequireNotNull(junction);
         return new Junction(
@@ -456,7 +456,7 @@ internal static class ProjectRevisionPayloadSerializer
             FromPayload(junction.Position));
     }
 
-    private static WireGeometry FromPayload(WireGeometryPayloadV1 geometry)
+    private static WireGeometry FromPayload(WireGeometryPayloadV2 geometry)
     {
         RequireNotNull(geometry);
         return new WireGeometry(
@@ -465,18 +465,18 @@ internal static class ProjectRevisionPayloadSerializer
             FromPayload(geometry.Route));
     }
 
-    private static WireRoute FromPayload(WireRoutePayloadV1 route)
+    private static WireRoute FromPayload(WireRoutePayloadV2 route)
     {
         return route switch
         {
-            UnroutedWireRoutePayloadV1 => new UnroutedWireRoute(),
-            OrthogonalWireRoutePayloadV1 orthogonal => new OrthogonalWireRoute(
+            UnroutedWireRoutePayloadV2 => new UnroutedWireRoute(),
+            OrthogonalWireRoutePayloadV2 orthogonal => new OrthogonalWireRoute(
                 [.. RequireNotNull(orthogonal.Points).Select(FromPayload)]),
             _ => throw InvalidPayload(),
         };
     }
 
-    private static Annotation FromPayload(AnnotationPayloadV1 annotation)
+    private static Annotation FromPayload(AnnotationPayloadV2 annotation)
     {
         RequireNotNull(annotation);
         return new Annotation(
@@ -493,7 +493,7 @@ internal static class ProjectRevisionPayloadSerializer
                 }));
     }
 
-    private static MemoryImage FromPayload(MemoryImagePayloadV1 image)
+    private static MemoryImage FromPayload(MemoryImagePayloadV2 image)
     {
         RequireNotNull(image);
         return new MemoryImage(
@@ -501,11 +501,10 @@ internal static class ProjectRevisionPayloadSerializer
             image.DisplayName,
             image.Width,
             image.Depth,
-            [.. RequireNotNull(image.Words)
-                .Select(word => new MemoryImageWord(FromBits(word)))]);
+            RequireNotNull(image.PackedCells));
     }
 
-    private static GridPoint FromPayload(GridPointPayloadV1 point) =>
+    private static GridPoint FromPayload(GridPointPayloadV2 point) =>
         new(point.X, point.Y);
 
     private static string ToBits(IEnumerable<LogicValue> values) =>

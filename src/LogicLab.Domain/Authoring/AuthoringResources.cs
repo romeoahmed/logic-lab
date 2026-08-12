@@ -35,18 +35,52 @@ public sealed record MemoryImageWord
 
 public sealed class MemoryImage
 {
+    private readonly byte[] packedCells;
+
     internal MemoryImage(
         MemoryImageId id,
         string displayName,
         uint width,
         uint depth,
         MemoryImageWord[] words)
+        : this(id, displayName, width, depth, Pack(width, depth, words))
     {
+    }
+
+    internal MemoryImage(
+        MemoryImageId id,
+        string displayName,
+        uint width,
+        uint depth,
+        ReadOnlySpan<byte> packedCells)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(displayName);
+        ArgumentOutOfRangeException.ThrowIfZero(width);
+        ArgumentOutOfRangeException.ThrowIfZero(depth);
+        if (width > int.MaxValue || depth > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(depth),
+                "Memory Image dimensions must fit an indexed collection.");
+        }
+
+        var cellCount = checked((ulong)width * depth);
+        var packedLength = checked((cellCount + 3) / 4);
+        if (packedLength > int.MaxValue || packedCells.Length != (int)packedLength)
+        {
+            throw new ArgumentException(
+                "The packed Memory Image does not match its shape.",
+                nameof(packedCells));
+        }
+
         Id = id;
         DisplayName = displayName;
         Width = width;
         Depth = depth;
-        Words = Array.AsReadOnly((MemoryImageWord[])words.Clone());
+        this.packedCells = packedCells.ToArray();
+        ValidatePackedCells(this.packedCells, cellCount);
+        Words = new PackedMemoryImageWords(this);
     }
 
     public MemoryImageId Id { get; }
@@ -57,7 +91,142 @@ public sealed class MemoryImage
 
     public uint Depth { get; }
 
-    public ReadOnlyCollection<MemoryImageWord> Words { get; }
+    public IReadOnlyList<MemoryImageWord> Words { get; }
+
+    private LogicValue GetCell(uint address, uint bit)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(address, Depth);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(bit, Width);
+        var cellIndex = checked(((ulong)address * Width) + bit);
+        var encoded = (packedCells[checked((int)(cellIndex / 4))]
+            >> checked((int)((cellIndex % 4) * 2))) & 0x03;
+        return (LogicValue)encoded;
+    }
+
+    internal ReadOnlySpan<byte> PackedCells => packedCells;
+
+    private static void ValidatePackedCells(byte[] packedCells, ulong cellCount)
+    {
+        for (var index = 0; index < packedCells.Length; index++)
+        {
+            var value = packedCells[index];
+            if (index == packedCells.Length - 1
+                && cellCount % 4 is var usedFields and not 0)
+            {
+                var usedBits = checked((int)usedFields * 2);
+                var unusedMask = unchecked((byte)~((1 << usedBits) - 1));
+                if ((value & unusedMask) != 0)
+                {
+                    throw new ArgumentException(
+                        "The packed Memory Image has nonzero tail cells.",
+                        nameof(packedCells));
+                }
+            }
+
+            if ((value & (value >> 1) & 0x55) != 0)
+            {
+                throw new ArgumentException(
+                    "The packed Memory Image contains a reserved Logic Value.",
+                    nameof(packedCells));
+            }
+        }
+    }
+
+    private MemoryImageWord GetWord(int address)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(address);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(
+            checked((uint)address),
+            Depth);
+        var values = new LogicValue[Width];
+        for (var bit = 0U; bit < Width; bit++)
+        {
+            values[bit] = GetCell(checked((uint)address), bit);
+        }
+
+        return new MemoryImageWord(values);
+    }
+
+    private static byte[] Pack(
+        uint width,
+        uint depth,
+        MemoryImageWord[] words)
+    {
+        ArgumentNullException.ThrowIfNull(words);
+        ArgumentOutOfRangeException.ThrowIfZero(width);
+        ArgumentOutOfRangeException.ThrowIfZero(depth);
+        if (width > int.MaxValue || depth > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(depth),
+                "Memory Image dimensions must fit an indexed collection.");
+        }
+
+        if (checked((ulong)words.Length) != depth)
+        {
+            throw new ArgumentException(
+                "The Memory Image word count does not match its depth.",
+                nameof(words));
+        }
+
+        var cellCount = checked((ulong)width * depth);
+        var packedLength = checked((cellCount + 3) / 4);
+        if (packedLength > int.MaxValue)
+        {
+            throw new ArgumentException(
+                "The Memory Image cannot be represented in memory.",
+                nameof(words));
+        }
+
+        var packed = new byte[(int)packedLength];
+        ulong cellIndex = 0;
+        foreach (var word in words)
+        {
+            ArgumentNullException.ThrowIfNull(word);
+            if (checked((ulong)word.Values.Count) != width)
+            {
+                throw new ArgumentException(
+                    "A Memory Image word does not match its width.",
+                    nameof(words));
+            }
+
+            foreach (var value in word.Values)
+            {
+                if (value is LogicValue.Z || !Enum.IsDefined(value))
+                {
+                    throw new ArgumentException(
+                        "A Memory Image contains an invalid authored Logic Value.",
+                        nameof(words));
+                }
+
+                var byteIndex = checked((int)(cellIndex / 4));
+                var shift = checked((int)((cellIndex % 4) * 2));
+                packed[byteIndex] |= checked((byte)((byte)value << shift));
+                cellIndex++;
+            }
+        }
+
+        return packed;
+    }
+
+    private sealed class PackedMemoryImageWords(MemoryImage image)
+        : IReadOnlyList<MemoryImageWord>
+    {
+        public int Count => checked((int)image.Depth);
+
+        public MemoryImageWord this[int index] => image.GetWord(index);
+
+        public IEnumerator<MemoryImageWord> GetEnumerator()
+        {
+            for (var address = 0; address < Count; address++)
+            {
+                yield return image.GetWord(address);
+            }
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>
+            GetEnumerator();
+    }
 }
 
 public enum AnnotationAlignment

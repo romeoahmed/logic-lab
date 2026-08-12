@@ -16,6 +16,7 @@ public static partial class ProjectPackage
     private static readonly ProjectPackageJsonContext ReadJsonContext = new(
         new JsonSerializerOptions(JsonSerializerOptions.Strict)
         {
+            AllowOutOfOrderMetadataProperties = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         });
 
@@ -184,6 +185,19 @@ public static partial class ProjectPackage
         ulong[] observations,
         CancellationToken cancellationToken)
     {
+        var declaredEntryCount = await ZipCentralDirectory.ReadDeclaredEntryCountAsync(
+            spool,
+            cancellationToken).ConfigureAwait(false);
+        if (declaredEntryCount > policy.Maximum(PackageDimension.EntryCount))
+        {
+            observations[(int)PackageDimension.EntryCount] = declaredEntryCount;
+            ThrowIfReadLimitExceeded(
+                policy,
+                observations,
+                PackageDimension.EntryCount);
+        }
+
+        spool.Position = 0;
         await using var archive = await ZipArchive.CreateAsync(
             spool,
             ZipArchiveMode.Read,
@@ -553,7 +567,7 @@ public static partial class ProjectPackage
         PackagePolicy policy,
         ulong[] observations)
     {
-        var entities = checked((ulong)project.MemoryImages.Length);
+        var entities = checked(1UL + (ulong)project.MemoryImages.Length);
         ulong memoryCells = 0;
         foreach (var image in project.MemoryImages)
         {
@@ -728,31 +742,26 @@ public static partial class ProjectPackage
             throw Invalid("package_memory_invalid", ("rule", "payloadLength"));
         }
 
-        var words = new MemoryImageWord[depth];
-        ulong cellIndex = 0;
-        for (var address = 0; address < depth; address++)
+        var payload = bytes.AsSpan(20);
+        for (var index = 0; index < payload.Length; index++)
         {
-            var values = new LogicValue[width];
-            for (var bit = 0; bit < width; bit++)
+            if ((index & (CancellationInterval - 1)) == 0)
             {
-                if ((cellIndex & (CancellationInterval - 1)) == 0)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                }
-
-                var encoded = (bytes[checked(20 + (int)(cellIndex / 4))]
-                    >> checked((int)((cellIndex % 4) * 2))) & 0x03;
-                values[bit] = encoded switch
-                {
-                    0 => LogicValue.Zero,
-                    1 => LogicValue.One,
-                    2 => LogicValue.X,
-                    _ => throw Invalid("package_memory_invalid", ("rule", "reservedCell")),
-                };
-                cellIndex++;
+                cancellationToken.ThrowIfCancellationRequested();
             }
 
-            words[address] = new MemoryImageWord(values);
+            var value = payload[index];
+            if (index == payload.Length - 1
+                && cellCount % 4 is var payloadUsedFields and not 0)
+            {
+                var usedBits = checked((int)payloadUsedFields * 2);
+                value &= checked((byte)((1 << usedBits) - 1));
+            }
+
+            if ((value & (value >> 1) & 0x55) != 0)
+            {
+                throw Invalid("package_memory_invalid", ("rule", "reservedCell"));
+            }
         }
 
         var usedFields = checked((int)(cellCount % 4));
@@ -771,7 +780,7 @@ public static partial class ProjectPackage
             reference.DisplayName,
             width,
             depth,
-            words);
+            payload);
     }
 
     private static CircuitDefinition TranslateDefinition(CircuitDefinitionDtoV1 definition)

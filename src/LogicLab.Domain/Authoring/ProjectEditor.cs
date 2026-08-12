@@ -210,22 +210,15 @@ public static partial class ProjectEditor
             ]);
     }
 
-    private static ProjectGenesisOutcome BeginImportedProject(
+    private static ProjectGenesisCommitted BeginImportedProject(
         ImportedProjectSeed seed)
     {
-        try
-        {
-            var revision = Rehydrate(
-                ProjectRevisionId.Create(),
-                seed.Candidate.Document);
-            return new ProjectGenesisCommitted(
-                revision,
-                ImportedSources(revision.Document));
-        }
-        catch (ArgumentException)
-        {
-            return RejectImportedGenesis();
-        }
+        var revision = new ProjectRevision(
+            ProjectRevisionId.Create(),
+            seed.Candidate.Document);
+        return new ProjectGenesisCommitted(
+            revision,
+            ImportedSources(revision.Document));
     }
 
     private static AuthoredSourceIdentity[] ImportedSources(ProjectDocument document)
@@ -266,20 +259,6 @@ public static partial class ProjectEditor
         }
 
         return [.. sources];
-    }
-
-    private static ProjectGenesisRejected RejectImportedGenesis()
-    {
-        return new ProjectGenesisRejected(
-            [
-                new AuthoringDiagnostic(
-                    "authoring_missing_reference",
-                    [
-                        new AuthoringDiagnosticArgument(
-                            "referenceKind",
-                            new StableTokenDiagnosticValue("importCandidate")),
-                    ]),
-            ]);
     }
 
     private static EditOutcome ApplyPlace(

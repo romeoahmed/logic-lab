@@ -225,35 +225,14 @@ public static partial class ProjectPackage
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8, 4), image.Width);
         BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(12, 8), image.Depth);
 
-        ulong cellIndex = 0;
-        foreach (var word in image.Words)
+        for (var index = 0; index < image.PackedCells.Length; index++)
         {
-            foreach (var value in word.Values)
+            if ((index & (CancellationInterval - 1)) == 0)
             {
-                if ((cellIndex & (CancellationInterval - 1)) == 0)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                }
-
-                var encoded = value switch
-                {
-                    LogicValue.Zero => 0,
-                    LogicValue.One => 1,
-                    LogicValue.X => 2,
-                    _ => throw new InvalidOperationException(
-                        "An authored memory image cannot contain high impedance."),
-                };
-                var byteIndex = checked(20 + (int)(cellIndex / 4));
-                var shift = checked((int)((cellIndex % 4) * 2));
-                bytes[byteIndex] |= checked((byte)(encoded << shift));
-                cellIndex++;
+                cancellationToken.ThrowIfCancellationRequested();
             }
-        }
 
-        if (cellIndex != cellCount)
-        {
-            throw new InvalidOperationException(
-                "The authored memory image shape is inconsistent.");
+            bytes[20 + index] = image.PackedCells[index];
         }
 
         return bytes;

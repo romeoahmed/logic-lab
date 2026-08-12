@@ -36,11 +36,9 @@ public static partial class ProjectEditor
         foreach (var image in document.MemoryImages)
         {
             Ensure(HasValue(image.Id.Value));
-            Ensure(ValidateMemoryImage(
-                image.DisplayName,
-                image.Width,
-                image.Depth,
-                image.Words).Count == 0);
+            Ensure(GetDisplayTextRule(image.DisplayName) is null);
+            Ensure(image.Width > 0);
+            Ensure(image.Depth > 0);
         }
 
         foreach (var definition in document.CircuitDefinitions)
@@ -145,6 +143,9 @@ public static partial class ProjectEditor
     {
         var nets = definition.Nets.ToDictionary(net => net.Id);
         var junctions = definition.Junctions.ToDictionary(junction => junction.Id);
+        var geometryNetIds = definition.WireGeometries
+            .Select(geometry => geometry.NetId)
+            .ToHashSet();
         var terminalMembership = new HashSet<AuthoredTerminalReference>();
         var junctionMembership = new HashSet<JunctionId>();
 
@@ -154,7 +155,7 @@ public static partial class ProjectEditor
             Ensure(net.Width > 0);
             Ensure(net.Terminals.Count > 0
                 || net.JunctionIds.Count > 0
-                || definition.WireGeometries.Any(geometry => geometry.NetId == net.Id));
+                || geometryNetIds.Contains(net.Id));
 
             foreach (var terminal in net.Terminals)
             {
