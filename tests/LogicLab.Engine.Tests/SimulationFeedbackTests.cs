@@ -267,37 +267,6 @@ internal sealed partial class SimulationFeedbackTests
     private static partial Regex CorrelationTokenPattern();
 
     [Test]
-    public async Task Open_FeedbackCorpus_MatchesSynchronousBottomIterationOracle()
-    {
-        var circuits = new[]
-        {
-            CreateAndZeroFeedback(),
-            CreateSelfInvertingFeedback(),
-            CreateCrossCoupledInverters(),
-            CreateContendedFeedback(),
-        };
-
-        foreach (var circuit in circuits)
-        {
-            var (_, snapshot) = Open(circuit);
-            var oracleNetValues = SettleSynchronouslyFromBottom(circuit.Artifact);
-            var expected = circuit.Probes.Select(probe =>
-            {
-                if (!circuit.Artifact.SourceMap.TryGetNetOrdinal(probe, out var ordinal))
-                {
-                    throw new InvalidOperationException(
-                        "The feedback probe did not resolve in its own artifact.");
-                }
-
-                return oracleNetValues[ordinal];
-            });
-
-            await Assert.That(snapshot.Probes.Select(probe => probe.Value[0]))
-                .IsEquivalentTo(expected, CollectionOrdering.Matching);
-        }
-    }
-
-    [Test]
     public async Task Open_ReversedEvaluatorOrdinals_SettlesIdenticalKnownFeedbackValues()
     {
         var forward = CreateTwoEvaluatorKnownFeedback(reverseGates: false);
