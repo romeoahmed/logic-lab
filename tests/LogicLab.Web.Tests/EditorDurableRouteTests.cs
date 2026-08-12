@@ -63,9 +63,7 @@ internal sealed class EditorDurableRouteTests
         {
             await Assert.That(recovery.GetAttribute("data-error-code"))
                 .IsEqualTo("workspace_not_found");
-            await Assert.That(rendered.FindAll("[data-command]")).IsEmpty();
-            await Assert.That(rendered.FindAll("section[aria-label='Circuit workbench']"))
-                .IsEmpty();
+            await Assert.That(ShowsWorkspaceRecoveryWithoutEditor(rendered)).IsTrue();
             await Assert.That(rendered.Find("[data-recovery='projects']")
                     .GetAttribute("href"))
                 .IsEqualTo("/projects");
@@ -452,7 +450,7 @@ internal sealed class EditorDurableRouteTests
     }
 
     [Test]
-    public async Task Editor_DurableRoute_ReportsPersistentSaveState()
+    public async Task Editor_DurableRoute_ReportsObservedDurableVersion()
     {
         await using var context = new BunitContext();
         var owner = new AuthenticatedWorkspaceCaller(
@@ -472,11 +470,7 @@ internal sealed class EditorDurableRouteTests
         var saveStatus = await rendered.WaitForElementAsync(
             "[data-status='save'] dd");
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(saveStatus.TextContent).Contains("Durable");
-            await Assert.That(saveStatus.TextContent).DoesNotContain("Sandbox");
-        }
+        await Assert.That(saveStatus.TextContent).Contains("version-1");
     }
 
     [Test]

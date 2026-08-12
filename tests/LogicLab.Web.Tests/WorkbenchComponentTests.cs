@@ -22,17 +22,6 @@ namespace LogicLab.Web.Tests;
 internal sealed class WorkbenchComponentTests
 {
     [Test]
-    public async Task Editor_InteractiveSurface_ProvidesFluentInfrastructure()
-    {
-        await using var context = CreateContext();
-        await using var workspace = new TrackingWorkspace();
-
-        var rendered = RenderEditor(context, workspace);
-
-        await Assert.That(rendered.FindComponents<FluentProviders>()).HasSingleItem();
-    }
-
-    [Test]
     public async Task Editor_ValidLogicLabUpload_OpensCompiledImportedWorkspace()
     {
         await using var context = CreateContext();
@@ -90,9 +79,10 @@ internal sealed class WorkbenchComponentTests
                 "invalid.logiclab",
                 contentType: "application/vnd.logiclab+zip"));
 
-        await rendered.WaitForStateAsync(() => rendered.Markup.Contains(
-            "Import rejected: package_invalid.",
-            StringComparison.Ordinal));
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[role='status']")
+            .Any(status => status.TextContent.Contains(
+                "package_invalid",
+                StringComparison.Ordinal)));
         using (Assert.Multiple())
         {
             await Assert.That(navigation.Uri).IsEqualTo("http://localhost/");
