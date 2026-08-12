@@ -14,7 +14,7 @@ internal sealed class EditorWorkspaceLifecycleTests
         var first = await Open(workspace);
         var second = await Open(workspace);
         var rejected = await workspace.OpenAsync(
-            new CreateSandbox("Rejected", "Main"),
+            new CreateSandbox("Rejected", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var openRejection = (await Assert.That(rejected).IsTypeOf<WorkspaceOpenRejected>())!;
@@ -23,6 +23,47 @@ internal sealed class EditorWorkspaceLifecycleTests
             await Assert.That(first).IsTypeOf<WorkspaceOpened>();
             await Assert.That(second).IsTypeOf<WorkspaceOpened>();
             await Assert.That(openRejection.Code).IsEqualTo("workspace_admission_rejected");
+            await Assert.That(openRejection.PolicyEvidence)
+                .IsEqualTo(new PolicyEvidenceProjection(
+                    "test-workspace",
+                    "1",
+                    "global_workspace_count",
+                    3));
+        }
+    }
+
+    [Test]
+    public async Task OpenAsync_PerSubjectLimitReached_RejectsWithPolicyEvidence()
+    {
+        var firstCaller = new AuthenticatedWorkspaceCaller(
+            new AuthenticatedSubjectId("first-subject"));
+        var secondCaller = new AuthenticatedWorkspaceCaller(
+            new AuthenticatedSubjectId("second-subject"));
+        await using var workspace = TestEditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint,
+            Policy(
+                globalWorkspaceLimit: 3,
+                TimeSpan.FromHours(1),
+                workspaceCountPerSubject: 1));
+
+        var first = await Open(workspace, firstCaller);
+        var rejected = await Open(workspace, firstCaller);
+        var otherSubject = await Open(workspace, secondCaller);
+
+        var openRejection = (await Assert.That(rejected)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(first).IsTypeOf<WorkspaceOpened>();
+            await Assert.That(otherSubject).IsTypeOf<WorkspaceOpened>();
+            await Assert.That(openRejection.Code)
+                .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(openRejection.PolicyEvidence)
+                .IsEqualTo(new PolicyEvidenceProjection(
+                    "test-workspace",
+                    "1",
+                    "workspace_count_per_subject",
+                    2));
         }
     }
 
@@ -96,7 +137,7 @@ internal sealed class EditorWorkspaceLifecycleTests
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromHours(1)));
 
         var rejected = await workspace.OpenAsync(
-            new CreateSandbox(string.Empty, "Main"),
+            new CreateSandbox(string.Empty, "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var replacement = await Open(workspace);
 
@@ -191,8 +232,15 @@ internal sealed class EditorWorkspaceLifecycleTests
 
     private static Task<WorkspaceOpenOutcome> Open(IEditorWorkspace workspace)
     {
+        return Open(workspace, AnonymousWorkspaceCaller.Instance);
+    }
+
+    private static Task<WorkspaceOpenOutcome> Open(
+        IEditorWorkspace workspace,
+        WorkspaceCaller caller)
+    {
         return workspace.OpenAsync(
-            new CreateSandbox("Test project", "Main"),
+            new CreateSandbox("Test project", "Main", caller),
             CancellationToken.None);
     }
 
@@ -234,12 +282,14 @@ internal sealed class EditorWorkspaceLifecycleTests
 
     private static WorkspacePolicy Policy(
         int globalWorkspaceLimit,
-        TimeSpan sandboxRetention)
+        TimeSpan sandboxRetention,
+        int? workspaceCountPerSubject = null)
     {
         return new WorkspacePolicy(
             "test-workspace",
             "1",
             globalWorkspaceLimit,
+            workspaceCountPerSubject ?? globalWorkspaceLimit,
             sandboxRetention,
             WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 128,
@@ -271,7 +321,7 @@ internal sealed class EditorWorkspaceLifecycleTests
 
                 await start.Task.WaitAsync(cancellationToken);
                 return await workspace.OpenAsync(
-                    new CreateSandbox($"{projectNamePrefix} {index}", "Main"),
+                    new CreateSandbox($"{projectNamePrefix} {index}", "Main", AnonymousWorkspaceCaller.Instance),
                     cancellationToken);
             })
             .ToArray();

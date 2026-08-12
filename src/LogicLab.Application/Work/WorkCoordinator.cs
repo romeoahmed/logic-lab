@@ -16,68 +16,105 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     private readonly int compilationQueueCapacity;
     private readonly LinkedList<SessionWorkItem> sessionQueue = [];
     private readonly SemaphoreSlim sessionQueueSignal = new(0);
+    private readonly HashSet<WorkspaceId> activeSessionWorkspaces = [];
     private readonly int sessionQueueCapacity;
+    private readonly SchedulingPolicy policy;
+    private readonly TimeProvider timeProvider;
+    private readonly ulong admissionRequestsPerSubject;
+    private readonly TimeSpan admissionWindow;
     private readonly ILogger<WorkCoordinator> logger;
+    private readonly Dictionary<WorkspaceCaller, AdmissionWindowState> admissionWindows = [];
     private readonly Dictionary<WorkspaceId, CompilationWorkItem> latestCompilations = [];
     private readonly Dictionary<WorkspaceId, CompilationWorkItem> pendingCompilations = [];
-    private readonly Task compilationWorker;
-    private readonly Task sessionWorker;
+    private readonly Task[] compilationWorkers;
+    private readonly Task[] sessionWorkers;
     private int reservedSessionItems;
     private bool isDisposed;
 
     public WorkCoordinator(
         SchedulingPolicy policy,
+        TimeProvider timeProvider,
         ILogger<WorkCoordinator> logger)
     {
         ArgumentNullException.ThrowIfNull(policy);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
+        this.policy = policy;
+        this.timeProvider = timeProvider;
         this.logger = logger;
-        compilationQueueCapacity = policy.CompilationQueueCapacity;
-        sessionQueueCapacity = policy.SessionQueueCapacity;
-        (compilationWorker, sessionWorker) = StartWorkers();
+        compilationQueueCapacity = MaximumAsInt(
+            policy,
+            SchedulingDimension.CompilationQueueItems);
+        sessionQueueCapacity = MaximumAsInt(
+            policy,
+            SchedulingDimension.SessionQueueItems);
+        admissionRequestsPerSubject = policy.GetMaximum(
+            SchedulingDimension.AdmissionRequestsPerSubject);
+        admissionWindow = TimeSpan.FromMilliseconds(checked((long)policy.GetMaximum(
+            SchedulingDimension.AdmissionWindowMilliseconds)));
+        (compilationWorkers, sessionWorkers) = StartWorkers(
+            MaximumAsInt(policy, SchedulingDimension.CompilationWorkerCount),
+            MaximumAsInt(policy, SchedulingDimension.SessionWorkerCount));
     }
 
-    private (Task Compilation, Task Session) StartWorkers()
+    private (Task[] Compilation, Task[] Session) StartWorkers(
+        int compilationWorkerCount,
+        int sessionWorkerCount)
     {
         if (ExecutionContext.IsFlowSuppressed())
         {
-            return (ConsumeCompilationsAsync(), ConsumeSessionsAsync());
+            return CreateWorkers();
         }
 
         using (ExecutionContext.SuppressFlow())
         {
-            return (ConsumeCompilationsAsync(), ConsumeSessionsAsync());
+            return CreateWorkers();
+        }
+
+        (Task[] Compilation, Task[] Session) CreateWorkers()
+        {
+            return (
+                Enumerable.Range(0, compilationWorkerCount)
+                    .Select(_ => ConsumeCompilationsAsync())
+                    .ToArray(),
+                Enumerable.Range(0, sessionWorkerCount)
+                    .Select(_ => ConsumeSessionsAsync())
+                    .ToArray());
         }
     }
 
     internal bool TryScheduleCompilation(
         WorkspaceId workspaceId,
+        WorkspaceCaller caller,
         Func<CompilationWorkContext, ValueTask> operation,
         Action releaseOwnership,
         CancellationToken admissionCancellationToken,
-        out string? rejectionCode)
+        out SchedulingRejection? rejection)
     {
         return TryScheduleCompilation(
             workspaceId,
+            caller,
             operation,
             releaseOwnership,
             CompilationWorkCancellation.OutlivesCaller,
             admissionCancellationToken,
             out _,
-            out rejectionCode);
+            out rejection);
     }
 
     internal bool TryScheduleCompilation(
         WorkspaceId workspaceId,
+        WorkspaceCaller caller,
         Func<CompilationWorkContext, ValueTask> operation,
         Action releaseOwnership,
         CompilationWorkCancellation cancellationBehavior,
         CancellationToken admissionCancellationToken,
         out ScheduledCompilationWork? scheduledWork,
-        out string? rejectionCode)
+        out SchedulingRejection? rejection)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
+        ArgumentNullException.ThrowIfNull(caller);
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(releaseOwnership);
         var operationCancellationToken = cancellationBehavior switch
@@ -97,7 +134,13 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             if (isDisposed || admissionCancellationToken.IsCancellationRequested)
             {
                 scheduledWork = null;
-                rejectionCode = WorkspaceOutcomeReasons.WorkspaceCancelled;
+                rejection = CancelledRejection;
+                return false;
+            }
+
+            if (!TryAdmitSchedulingUnderLock(caller, out rejection))
+            {
+                scheduledWork = null;
                 return false;
             }
 
@@ -118,7 +161,9 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             {
                 item.Dispose();
                 scheduledWork = null;
-                rejectionCode = WorkspaceOutcomeReasons.WorkspaceAdmissionRejected;
+                rejection = PolicyRejection(
+                    SchedulingDimension.CompilationQueueItems,
+                    checked((ulong)compilationQueue.Count + 1));
                 return false;
             }
             else
@@ -145,7 +190,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         }
 
         scheduledWork = new ScheduledCompilationWork(() => CancelCompilation(item));
-        rejectionCode = null;
+        rejection = null;
         return true;
     }
 
@@ -179,16 +224,20 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     }
 
     internal bool TryScheduleSession(
+        WorkspaceId workspaceId,
+        WorkspaceCaller caller,
         Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
         CancellationToken cancellationToken,
         out ScheduledSessionWork? scheduledWork,
-        out string? rejectionCode)
+        out SchedulingRejection? rejection)
     {
+        ArgumentNullException.ThrowIfNull(workspaceId);
+        ArgumentNullException.ThrowIfNull(caller);
         ArgumentNullException.ThrowIfNull(operation);
         if (cancellationToken.IsCancellationRequested)
         {
             scheduledWork = null;
-            rejectionCode = WorkspaceOutcomeReasons.WorkspaceCancelled;
+            rejection = CancelledRejection;
             return false;
         }
 
@@ -197,18 +246,27 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             if (isDisposed)
             {
                 scheduledWork = null;
-                rejectionCode = WorkspaceOutcomeReasons.WorkspaceCancelled;
+                rejection = CancelledRejection;
+                return false;
+            }
+
+            if (!TryAdmitSchedulingUnderLock(caller, out rejection))
+            {
+                scheduledWork = null;
                 return false;
             }
 
             if (reservedSessionItems >= sessionQueueCapacity)
             {
                 scheduledWork = null;
-                rejectionCode = WorkspaceOutcomeReasons.WorkspaceAdmissionRejected;
+                rejection = PolicyRejection(
+                    SchedulingDimension.SessionQueueItems,
+                    checked((ulong)reservedSessionItems + 1));
                 return false;
             }
 
             SessionWorkItem? item = SessionWorkItem.CreateCommand(
+                workspaceId,
                 operation,
                 cancellationToken,
                 stopping.Token);
@@ -221,7 +279,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                     () => CancelSession(scheduledItem));
                 item = null;
                 reservedSessionItems++;
-                rejectionCode = null;
+                rejection = null;
                 return true;
             }
             finally
@@ -253,26 +311,30 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     }
 
     internal bool TryStartSessionContinuation(
+        WorkspaceId workspaceId,
         Func<SessionContinuation, CancellationToken, ValueTask<WorkspaceCommandOutcome>>
             operation,
-        out string? rejectionCode)
+        out SchedulingRejection? rejection)
     {
+        ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(operation);
         lock (gate)
         {
             if (isDisposed)
             {
-                rejectionCode = WorkspaceOutcomeReasons.WorkspaceCancelled;
+                rejection = CancelledRejection;
                 return false;
             }
 
             if (reservedSessionItems >= sessionQueueCapacity)
             {
-                rejectionCode = WorkspaceOutcomeReasons.WorkspaceAdmissionRejected;
+                rejection = PolicyRejection(
+                    SchedulingDimension.SessionQueueItems,
+                    checked((ulong)reservedSessionItems + 1));
                 return false;
             }
 
-            var continuation = new SessionContinuation(this);
+            var continuation = new SessionContinuation(this, workspaceId);
             SessionWorkItem? item = SessionWorkItem.CreateContinuation(
                 token => operation(continuation, token),
                 continuation,
@@ -283,7 +345,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                 item = null;
                 continuation.MarkQueuedUnderLock();
                 reservedSessionItems++;
-                rejectionCode = null;
+                rejection = null;
                 return true;
             }
             finally
@@ -351,6 +413,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
             abandoned = [.. sessionQueue];
             sessionQueue.Clear();
+            activeSessionWorkspaces.Clear();
             foreach (var item in abandoned)
             {
                 item.MarkRemovedUnderLock();
@@ -379,7 +442,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         }
 
         await stopping.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAll(compilationWorker, sessionWorker).ConfigureAwait(false);
+        await Task.WhenAll([.. compilationWorkers, .. sessionWorkers])
+            .ConfigureAwait(false);
         compilationQueueSignal.Dispose();
         sessionQueueSignal.Dispose();
         stopping.Dispose();
@@ -389,6 +453,97 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     {
         item.MarkQueuedUnderLock(compilationQueue.AddLast(item.WorkspaceId));
         compilationQueueSignal.Release();
+    }
+
+    private bool TryAdmitSchedulingUnderLock(
+        WorkspaceCaller caller,
+        out SchedulingRejection? rejection)
+    {
+        var nowTimestamp = timeProvider.GetTimestamp();
+        if (!admissionWindows.TryGetValue(caller, out var window))
+        {
+            PruneExpiredAdmissionWindowsUnderLock(nowTimestamp);
+            admissionWindows[caller] = new AdmissionWindowState(nowTimestamp, 1);
+            rejection = null;
+            return true;
+        }
+
+        if (timeProvider.GetElapsedTime(window.StartTimestamp, nowTimestamp)
+            >= admissionWindow)
+        {
+            admissionWindows[caller] = new AdmissionWindowState(nowTimestamp, 1);
+            rejection = null;
+            return true;
+        }
+
+        if (window.RequestCount >= admissionRequestsPerSubject)
+        {
+            var observed = window.RequestCount == ulong.MaxValue
+                ? ulong.MaxValue
+                : window.RequestCount + 1;
+            rejection = PolicyRejection(
+                SchedulingDimension.AdmissionRequestsPerSubject,
+                observed);
+            return false;
+        }
+
+        window.RequestCount++;
+        rejection = null;
+        return true;
+    }
+
+    private void PruneExpiredAdmissionWindowsUnderLock(long nowTimestamp)
+    {
+        foreach (var caller in admissionWindows
+            .Where(pair => timeProvider.GetElapsedTime(
+                    pair.Value.StartTimestamp,
+                    nowTimestamp) >= admissionWindow)
+            .Select(static pair => pair.Key)
+            .ToArray())
+        {
+            _ = admissionWindows.Remove(caller);
+        }
+    }
+
+    private SchedulingRejection PolicyRejection(
+        SchedulingDimension dimension,
+        ulong observed)
+    {
+        return new SchedulingRejection(
+            WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
+            policy.Evidence(dimension, observed));
+    }
+
+    private static int MaximumAsInt(
+        SchedulingPolicy policy,
+        SchedulingDimension dimension)
+    {
+        var maximum = policy.GetMaximum(dimension);
+        if (maximum > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(policy),
+                $"The {SchedulingPolicy.DimensionToken(dimension)} limit must fit Int32.");
+        }
+
+        return checked((int)maximum);
+    }
+
+    private static SchedulingRejection CancelledRejection { get; } = new(
+        WorkspaceOutcomeReasons.WorkspaceCancelled,
+        PolicyEvidence: null);
+
+    internal sealed record SchedulingRejection(
+        string Code,
+        PolicyEvidenceProjection? PolicyEvidence);
+
+    private sealed class AdmissionWindowState(
+        long startTimestamp,
+        ulong requestCount)
+    {
+        public long StartTimestamp { get; } = startTimestamp;
+
+        public ulong RequestCount { get; set; } = requestCount;
     }
 
     private void RemoveQueuedCompilationUnderLock(CompilationWorkItem item)
@@ -513,9 +668,22 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                     continue;
                 }
 
-                item = sessionQueue.First.Value;
-                sessionQueue.RemoveFirst();
+                var node = sessionQueue.First;
+                while (node is not null
+                    && activeSessionWorkspaces.Contains(node.Value.WorkspaceId))
+                {
+                    node = node.Next;
+                }
+
+                if (node is null)
+                {
+                    continue;
+                }
+
+                item = node.Value;
+                sessionQueue.Remove(node);
                 item.MarkRemovedUnderLock();
+                activeSessionWorkspaces.Add(item.WorkspaceId);
                 if (item.Continuation is null)
                 {
                     reservedSessionItems--;
@@ -549,10 +717,17 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             {
                 lock (gate)
                 {
+                    _ = activeSessionWorkspaces.Remove(item.WorkspaceId);
                     if (item.Continuation is { } continuation
                         && continuation.CompleteExecutionUnderLock())
                     {
                         reservedSessionItems--;
+                    }
+
+                    if (sessionQueue.Any(queued =>
+                            !activeSessionWorkspaces.Contains(queued.WorkspaceId)))
+                    {
+                        sessionQueueSignal.Release();
                     }
                 }
 
@@ -756,6 +931,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     }
 
     private sealed class SessionWorkItem(
+        WorkspaceId workspaceId,
         Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
         SessionContinuation? continuation,
         TaskCompletionSource<WorkspaceCommandOutcome>? completion,
@@ -763,6 +939,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         CancellationToken stoppingToken)
         : WorkItem(callerCancellationToken, stoppingToken)
     {
+        public WorkspaceId WorkspaceId { get; } = workspaceId;
+
         public LinkedListNode<SessionWorkItem>? QueueNode { get; private set; }
 
         public Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> Operation { get; }
@@ -795,11 +973,13 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         }
 
         public static SessionWorkItem CreateCommand(
+            WorkspaceId workspaceId,
             Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
             CancellationToken callerCancellationToken,
             CancellationToken stoppingToken)
         {
             return new SessionWorkItem(
+                workspaceId,
                 operation,
                 continuation: null,
                 new TaskCompletionSource<WorkspaceCommandOutcome>(
@@ -814,6 +994,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             CancellationToken stoppingToken)
         {
             return new SessionWorkItem(
+                continuation.WorkspaceId,
                 operation,
                 continuation,
                 completion: null,
@@ -844,11 +1025,15 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         internal void Cancel() => cancel();
     }
 
-    internal sealed class SessionContinuation(WorkCoordinator owner)
+    internal sealed class SessionContinuation(
+        WorkCoordinator owner,
+        WorkspaceId workspaceId)
     {
         private bool isExecuting;
         private bool isQueued;
         private bool isReserved = true;
+
+        internal WorkspaceId WorkspaceId { get; } = workspaceId;
 
         internal bool TrySchedule(
             Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation)

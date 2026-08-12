@@ -14,11 +14,14 @@ internal sealed partial class EditorWorkspace
             return RejectOpen(WorkspaceOutcomeReasons.AuthenticationRequired);
         }
 
-        var rejectionReason = ReserveWorkspace(out var retired);
+        var rejectionReason = ReserveWorkspace(
+            request.Caller,
+            out var retired,
+            out var policyEvidence);
         RetireAll(retired);
         if (rejectionReason is not null)
         {
-            return RejectOpen(rejectionReason);
+            return RejectOpen(rejectionReason, policyEvidence: policyEvidence);
         }
 
         var hasReservation = true;
@@ -52,6 +55,7 @@ internal sealed partial class EditorWorkspace
             var state = new WorkspaceState(
                 id,
                 revision,
+                request.Caller,
                 timeProvider.GetTimestamp())
             {
                 Durability = new DurableWorkspaceState(
@@ -68,6 +72,7 @@ internal sealed partial class EditorWorkspace
             stage = "compilation-admission";
             if (!workCoordinator.TryScheduleCompilation(
                     id,
+                    request.Caller,
                     context => CompileRetainedAsync(
                         state,
                         revision,
@@ -77,10 +82,12 @@ internal sealed partial class EditorWorkspace
                     CompilationWorkCancellation.BoundToCaller,
                     cancellationToken,
                     out var scheduledCompilation,
-                    out rejectionReason))
+                    out var schedulingRejection))
             {
                 DisposeUnpublishedWorkspace(state);
-                return RejectOpen(rejectionReason!);
+                return RejectOpen(
+                    schedulingRejection!.Code,
+                    policyEvidence: schedulingRejection.PolicyEvidence);
             }
 
             stage = "compilation";
@@ -96,7 +103,10 @@ internal sealed partial class EditorWorkspace
             {
                 DisposeUnpublishedWorkspace(state);
                 return compilation is CompilationRejectedProjection rejected
-                    ? RejectOpen(rejected.RejectionCode, rejected.DiagnosticCodes)
+                    ? RejectOpen(
+                        rejected.RejectionCode,
+                        rejected.DiagnosticCodes,
+                        rejected.PolicyEvidence)
                     : RejectOpen(WorkspaceOutcomeReasons.WorkspaceCancelled);
             }
 
@@ -106,17 +116,10 @@ internal sealed partial class EditorWorkspace
             stage = "publication";
             lock (gate)
             {
-                workspaceReservations--;
                 hasReservation = false;
-                if (isDisposed || cancellationToken.IsCancellationRequested)
-                {
-                    rejectionReason = WorkspaceOutcomeReasons.WorkspaceCancelled;
-                }
-                else
-                {
-                    state.LastAccessTimestamp = timeProvider.GetTimestamp();
-                    workspaces.Add(id, state);
-                }
+                rejectionReason = PublishWorkspaceReservationUnderLock(
+                    state,
+                    cancellationToken);
             }
 
             if (rejectionReason is not null)
@@ -151,7 +154,7 @@ internal sealed partial class EditorWorkspace
         {
             if (hasReservation)
             {
-                ReleaseWorkspaceReservation();
+                ReleaseWorkspaceReservation(request.Caller);
             }
         }
     }

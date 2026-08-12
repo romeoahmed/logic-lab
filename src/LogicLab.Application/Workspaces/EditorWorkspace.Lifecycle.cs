@@ -47,8 +47,7 @@ internal sealed partial class EditorWorkspace
                 return Reject(WorkspaceOutcomeReasons.WorkspaceNotFound);
             }
 
-            workspaces.Remove(state.Id);
-            state.IsRetired = true;
+            RemoveWorkspaceUnderLock(state);
         }
 
         return new WorkspaceClosed(state.Id);
@@ -78,8 +77,7 @@ internal sealed partial class EditorWorkspace
                 return WorkspaceAcquisition.Acquired(this, state);
             }
 
-            workspaces.Remove(workspaceId);
-            state.IsRetired = true;
+            RemoveWorkspaceUnderLock(state);
             expired = state;
         }
 
@@ -87,9 +85,14 @@ internal sealed partial class EditorWorkspace
         return WorkspaceAcquisition.Rejected(WorkspaceOutcomeReasons.WorkspaceNotFound);
     }
 
-    private string? ReserveWorkspace(out List<WorkspaceState> retired)
+    private string? ReserveWorkspace(
+        WorkspaceCaller caller,
+        out List<WorkspaceState> retired,
+        out PolicyEvidenceProjection? policyEvidence)
     {
+        ArgumentNullException.ThrowIfNull(caller);
         retired = [];
+        policyEvidence = null;
         lock (gate)
         {
             if (isDisposed)
@@ -98,23 +101,62 @@ internal sealed partial class EditorWorkspace
             }
 
             retired = ReclaimExpiredUnderLock(timeProvider.GetTimestamp());
-            if (workspaces.Count + workspaceReservations
+            if ((long)workspaces.Count + workspaceReservations
                 >= workspacePolicy.GlobalWorkspaceLimit)
             {
+                policyEvidence = WorkspacePolicyEvidence(
+                    "global_workspace_count",
+                    (ulong)workspaces.Count + (ulong)workspaceReservations + 1);
+                return WorkspaceOutcomeReasons.WorkspaceAdmissionRejected;
+            }
+
+            _ = workspaceCountsByCaller.TryGetValue(caller, out var subjectCount);
+            if (subjectCount >= workspacePolicy.WorkspaceCountPerSubject)
+            {
+                policyEvidence = WorkspacePolicyEvidence(
+                    "workspace_count_per_subject",
+                    (ulong)subjectCount + 1);
                 return WorkspaceOutcomeReasons.WorkspaceAdmissionRejected;
             }
 
             workspaceReservations++;
+            workspaceCountsByCaller[caller] = subjectCount + 1;
             return null;
         }
     }
 
-    private void ReleaseWorkspaceReservation()
+    private void ReleaseWorkspaceReservation(WorkspaceCaller caller)
     {
         lock (gate)
         {
             workspaceReservations--;
+            DecrementWorkspaceCountUnderLock(caller);
         }
+    }
+
+    private string? PublishWorkspaceReservationUnderLock(
+        WorkspaceState state,
+        CancellationToken cancellationToken)
+    {
+        workspaceReservations--;
+        if (isDisposed || cancellationToken.IsCancellationRequested)
+        {
+            DecrementWorkspaceCountUnderLock(state.AdmissionCaller);
+            return WorkspaceOutcomeReasons.WorkspaceCancelled;
+        }
+
+        state.LastAccessTimestamp = timeProvider.GetTimestamp();
+        try
+        {
+            workspaces.Add(state.Id, state);
+        }
+        catch
+        {
+            DecrementWorkspaceCountUnderLock(state.AdmissionCaller);
+            throw;
+        }
+
+        return null;
     }
 
     private List<WorkspaceState> ReclaimExpiredUnderLock(long nowTimestamp)
@@ -124,11 +166,104 @@ internal sealed partial class EditorWorkspace
             .ToList();
         foreach (var state in expired)
         {
-            workspaces.Remove(state.Id);
-            state.IsRetired = true;
+            RemoveWorkspaceUnderLock(state);
         }
 
         return expired;
+    }
+
+    private void RemoveWorkspaceUnderLock(WorkspaceState state)
+    {
+        _ = workspaces.Remove(state.Id);
+        state.IsRetired = true;
+        DecrementWorkspaceCountUnderLock(state.AdmissionCaller);
+        if (state.PendingAdmissionCaller is { } pendingCaller)
+        {
+            DecrementWorkspaceCountUnderLock(pendingCaller);
+            state.PendingAdmissionCaller = null;
+        }
+    }
+
+    private bool TryReserveWorkspaceAdmissionTransfer(
+        WorkspaceState state,
+        WorkspaceCaller targetCaller,
+        out PolicyEvidenceProjection? policyEvidence)
+    {
+        policyEvidence = null;
+        lock (gate)
+        {
+            if (state.AdmissionCaller == targetCaller
+                || state.PendingAdmissionCaller == targetCaller)
+            {
+                return true;
+            }
+
+            _ = workspaceCountsByCaller.TryGetValue(targetCaller, out var subjectCount);
+            if (subjectCount >= workspacePolicy.WorkspaceCountPerSubject)
+            {
+                policyEvidence = WorkspacePolicyEvidence(
+                    "workspace_count_per_subject",
+                    (ulong)subjectCount + 1);
+                return false;
+            }
+
+            workspaceCountsByCaller[targetCaller] = subjectCount + 1;
+            state.PendingAdmissionCaller = targetCaller;
+            return true;
+        }
+    }
+
+    private void CommitWorkspaceAdmissionTransfer(WorkspaceState state)
+    {
+        lock (gate)
+        {
+            if (state.PendingAdmissionCaller is not { } targetCaller)
+            {
+                return;
+            }
+
+            DecrementWorkspaceCountUnderLock(state.AdmissionCaller);
+            state.AdmissionCaller = targetCaller;
+            state.PendingAdmissionCaller = null;
+        }
+    }
+
+    private void ReleaseWorkspaceAdmissionTransfer(WorkspaceState state)
+    {
+        lock (gate)
+        {
+            if (state.PendingAdmissionCaller is not { } targetCaller)
+            {
+                return;
+            }
+
+            DecrementWorkspaceCountUnderLock(targetCaller);
+            state.PendingAdmissionCaller = null;
+        }
+    }
+
+    private void DecrementWorkspaceCountUnderLock(WorkspaceCaller caller)
+    {
+        var remaining = workspaceCountsByCaller[caller] - 1;
+        if (remaining == 0)
+        {
+            _ = workspaceCountsByCaller.Remove(caller);
+        }
+        else
+        {
+            workspaceCountsByCaller[caller] = remaining;
+        }
+    }
+
+    private PolicyEvidenceProjection WorkspacePolicyEvidence(
+        string dimension,
+        ulong observed)
+    {
+        return new PolicyEvidenceProjection(
+            workspacePolicy.PolicyId,
+            workspacePolicy.PolicyRevision,
+            dimension,
+            observed);
     }
 
     private bool IsExpired(WorkspaceState state, long nowTimestamp)
@@ -262,6 +397,7 @@ internal sealed partial class EditorWorkspace
     private sealed class WorkspaceState(
         WorkspaceId id,
         ProjectRevision revision,
+        WorkspaceCaller admissionCaller,
         long lastAccessTimestamp)
     {
         public WorkspaceId Id { get; } = id;
@@ -269,6 +405,10 @@ internal sealed partial class EditorWorkspace
         public ulong ProjectionVersion { get; set; } = 1;
 
         public ProjectRevision Revision { get; set; } = revision;
+
+        public WorkspaceCaller AdmissionCaller { get; set; } = admissionCaller;
+
+        public WorkspaceCaller? PendingAdmissionCaller { get; set; }
 
         public List<ProjectRevision> History { get; } = [revision];
 

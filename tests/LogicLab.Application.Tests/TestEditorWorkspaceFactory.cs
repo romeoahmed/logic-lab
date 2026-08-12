@@ -5,6 +5,27 @@ namespace LogicLab.Application.Tests;
 
 internal static class TestEditorWorkspaceFactory
 {
+    public static SchedulingPolicy SchedulingPolicyWithQueues(
+        ulong compilationQueueItems,
+        ulong sessionQueueItems)
+    {
+        return new SchedulingPolicy(
+            "test-scheduling",
+            "1",
+            [
+                new(SchedulingDimension.AdmissionRequestsPerSubject, 10_000),
+                new(SchedulingDimension.AdmissionWindowMilliseconds, 1_000),
+                new(SchedulingDimension.CompilationQueueItems, compilationQueueItems),
+                new(SchedulingDimension.SessionQueueItems, sessionQueueItems),
+                new(SchedulingDimension.AnalysisQueueItems, 64),
+                new(SchedulingDimension.AnalysisQueueItemsPerSubject, 8),
+                new(SchedulingDimension.CompilationWorkerCount, 1),
+                new(SchedulingDimension.SessionWorkerCount, 1),
+                new(SchedulingDimension.AnalysisWorkerCount, 1),
+                new(SchedulingDimension.AnalysisResultRetentionSeconds, 300),
+            ]);
+    }
+
     public static IDurableProjectRepository UnexpectedRepository { get; } =
         UnexpectedDurableProjectRepository.Instance;
 

@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 using LogicLab.Application.Workspaces;
 using LogicLab.Web.Projects;
 using Microsoft.AspNetCore.Authentication;
@@ -220,6 +221,49 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
 
         await WebTestHttp.AssertProblemDetailsAsync(response, expectedStatus, code);
         await Assert.That(response.Headers.Location).IsNull();
+    }
+
+    [Test]
+    public async Task Post_OpenAdmissionRejected_ProjectsPolicyEvidence()
+    {
+        var evidence = new PolicyEvidenceProjection(
+            "workbench-workspace",
+            "1",
+            "workspace_count_per_subject",
+            9);
+        await using var workspace = new RejectingOpenWorkspace(
+            "workspace_admission_rejected",
+            evidence);
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthentication(services);
+                services.RemoveAll<IDurableProjectCatalog>();
+                services.AddSingleton<IDurableProjectCatalog>(
+                    new SingleProjectCatalog());
+                services.RemoveAll<IEditorWorkspace>();
+                services.AddSingleton<IEditorWorkspace>(workspace);
+            }));
+        using var client = host.CreateHttpsClient();
+
+        using var response = await PostOpenAsync(client, "project-a");
+        using var payload = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync());
+        var root = payload.RootElement;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(response.StatusCode)
+                .IsEqualTo(HttpStatusCode.TooManyRequests);
+            await Assert.That(root.GetProperty("policyId").GetString())
+                .IsEqualTo(evidence.PolicyId);
+            await Assert.That(root.GetProperty("policyRevision").GetString())
+                .IsEqualTo(evidence.PolicyRevision);
+            await Assert.That(root.GetProperty("dimension").GetString())
+                .IsEqualTo(evidence.Dimension);
+            await Assert.That(root.GetProperty("observed").GetUInt64())
+                .IsEqualTo(evidence.Observed);
+        }
     }
 
     [Test]
@@ -1020,7 +1064,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
             CallCount++;
             Request = request;
             return base.OpenAsync(
-                new CreateSandbox("Reopened project", "Main"),
+                new CreateSandbox("Reopened project", "Main", AnonymousWorkspaceCaller.Instance),
                 cancellationToken);
         }
     }
@@ -1079,7 +1123,9 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         Oversized,
     }
 
-    private sealed class RejectingOpenWorkspace(string code)
+    private sealed class RejectingOpenWorkspace(
+        string code,
+        PolicyEvidenceProjection? policyEvidence = null)
         : DelegatingEditorWorkspace
     {
         public override Task<WorkspaceOpenOutcome> OpenAsync(
@@ -1090,7 +1136,8 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 new WorkspaceOpenRejected(
                     code,
                     [],
-                    RetryDisposition.DoNotRetry));
+                    RetryDisposition.DoNotRetry,
+                    policyEvidence));
         }
     }
 

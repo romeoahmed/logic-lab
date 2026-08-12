@@ -17,6 +17,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private readonly Lock gate = new();
     private readonly Lock projectExportPreparationAdmissionGate = new();
     private readonly Dictionary<WorkspaceId, WorkspaceState> workspaces = [];
+    private readonly Dictionary<WorkspaceCaller, int> workspaceCountsByCaller = [];
     private readonly WorkCoordinator workCoordinator;
     private readonly WorkspacePolicy workspacePolicy;
     private readonly TimeProvider timeProvider;
@@ -58,7 +59,10 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         ArgumentNullException.ThrowIfNull(projectExportStore);
         ArgumentNullException.ThrowIfNull(workCoordinatorLogger);
         ArgumentNullException.ThrowIfNull(logger);
-        workCoordinator = new WorkCoordinator(schedulingPolicy, workCoordinatorLogger);
+        workCoordinator = new WorkCoordinator(
+            schedulingPolicy,
+            timeProvider,
+            workCoordinatorLogger);
         this.workspacePolicy = workspacePolicy;
         this.timeProvider = timeProvider;
         this.buildFingerprint = buildFingerprint;
@@ -104,12 +108,15 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 RejectOpen(WorkspaceOutcomeReasons.WorkspaceInternalDefect));
         }
 
-        var rejectionReason = ReserveWorkspace(out var retired);
+        var rejectionReason = ReserveWorkspace(
+            create.Caller,
+            out var retired,
+            out var policyEvidence);
         RetireAll(retired);
         if (rejectionReason is not null)
         {
             return Task.FromResult<WorkspaceOpenOutcome>(
-                RejectOpen(rejectionReason));
+                RejectOpen(rejectionReason, policyEvidence: policyEvidence));
         }
 
         var hasReservation = true;
@@ -135,24 +142,19 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             var state = new WorkspaceState(
                 id,
                 committed.Revision,
+                create.Caller,
                 timeProvider.GetTimestamp());
             lock (gate)
             {
-                workspaceReservations--;
                 hasReservation = false;
-                if (isDisposed || cancellationToken.IsCancellationRequested)
-                {
-                    rejectionReason = WorkspaceOutcomeReasons.WorkspaceCancelled;
-                }
-                else
-                {
-                    workspaces.Add(id, state);
-                }
+                rejectionReason = PublishWorkspaceReservationUnderLock(
+                    state,
+                    cancellationToken);
             }
 
             if (rejectionReason is not null)
             {
-                state.CommandGate.Dispose();
+                DisposeUnpublishedWorkspace(state);
                 return Task.FromResult<WorkspaceOpenOutcome>(
                     RejectOpen(rejectionReason));
             }
@@ -164,7 +166,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         {
             if (hasReservation)
             {
-                ReleaseWorkspaceReservation();
+                ReleaseWorkspaceReservation(create.Caller);
             }
         }
     }
@@ -308,9 +310,13 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
-        if (!AuthoringAdmission.AdmitsCommand(command.Intent, workspacePolicy))
+        if (AuthoringAdmission.RejectionForCommand(
+                command.Intent,
+                workspacePolicy) is { } commandPolicyEvidence)
         {
-            return Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
+            return Reject(
+                WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
+                policyEvidence: commandPolicyEvidence);
         }
 
         var outcome = ProjectEditor.Apply(state.Revision, command.Intent);
@@ -322,11 +328,13 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         }
 
         var committed = (EditCommitted)outcome;
-        if (!AuthoringAdmission.AdmitsDocument(
+        if (AuthoringAdmission.RejectionForDocument(
                 committed.Revision.Document,
-                workspacePolicy))
+                workspacePolicy) is { } documentPolicyEvidence)
         {
-            return Reject(WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
+            return Reject(
+                WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
+                policyEvidence: documentPolicyEvidence);
         }
 
         if (ReferenceEquals(committed.Revision, state.Revision))
@@ -414,6 +422,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
                         if (!workCoordinator.TryScheduleCompilation(
                                 state.Id,
+                                command.Context.Caller,
                                 context => CompileRetainedAsync(
                                     state,
                                     requestedRevision,
@@ -421,10 +430,12 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                                     context),
                                 () => Release(state),
                                 cancellationToken,
-                                out var schedulingRejectionCode))
+                                out var schedulingRejection))
                         {
                             Release(state);
-                            var rejected = Reject(schedulingRejectionCode!);
+                            var rejected = Reject(
+                                schedulingRejection!.Code,
+                                policyEvidence: schedulingRejection.PolicyEvidence);
                             RecordIdempotencyUnderLock(
                                 state,
                                 command.Context.ClientIntentId,
@@ -608,7 +619,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                 generation,
                 [],
                 code,
-                WorkspaceOutcomeReasons.RetryFor(code));
+                WorkspaceOutcomeReasons.RetryFor(code),
+                policyEvidence: null);
             state.ProjectionVersion++;
         });
     }
@@ -649,7 +661,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
                     generation,
                     diagnosticCodes,
                     rejected.Reason,
-                    WorkspaceOutcomeReasons.RetryFor(rejected.Reason));
+                    WorkspaceOutcomeReasons.RetryFor(rejected.Reason),
+                    PolicyEvidenceFrom(rejected.Evidence));
             }))
         {
             _ = TryRejectCompilation(
@@ -928,6 +941,33 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         return ExceptionClassifier.IsInfrastructureFailure(exception)
             ? AdvanceFailureReason.SimulationInfrastructureFailure
             : AdvanceFailureReason.SimulationInternalDefect;
+    }
+
+    private static PolicyEvidenceProjection? PolicyEvidenceFrom(
+        CompilationEvidence evidence)
+    {
+        if (evidence.PolicyLimitBreach is not { } breach)
+        {
+            return null;
+        }
+
+        var dimension = breach.Dimension switch
+        {
+            ProjectScaleDimension.DefinitionCount => "definition_count",
+            ProjectScaleDimension.EntityCount => "entity_count",
+            ProjectScaleDimension.HierarchyDepth => "hierarchy_depth",
+            ProjectScaleDimension.ElaboratedSlotCount => "elaborated_slot_count",
+            ProjectScaleDimension.MemoryCellCount => "memory_cell_count",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(evidence),
+                breach.Dimension,
+                "The Project Scale dimension is undefined."),
+        };
+        return new PolicyEvidenceProjection(
+            evidence.Policy.PolicyId,
+            evidence.Policy.PolicyRevision,
+            dimension,
+            breach.Observed);
     }
 
     private static PolicyEvidenceProjection? PolicyEvidenceFrom(
@@ -1226,12 +1266,14 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
 
     private static WorkspaceOpenRejected RejectOpen(
         string code,
-        IEnumerable<string>? diagnosticCodes = null)
+        IEnumerable<string>? diagnosticCodes = null,
+        PolicyEvidenceProjection? policyEvidence = null)
     {
         return new WorkspaceOpenRejected(
             code,
             diagnosticCodes?.ToArray() ?? [],
-            WorkspaceOutcomeReasons.RetryFor(code));
+            WorkspaceOutcomeReasons.RetryFor(code),
+            policyEvidence);
     }
 
     private static WorkspaceReadRejected RejectRead(string code)

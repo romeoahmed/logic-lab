@@ -32,6 +32,8 @@ internal sealed partial class EditorWorkspace
                         command,
                         accepted.CanonicalIdentity);
                     if (workCoordinator.TryScheduleSession(
+                            state.Id,
+                            command.Context.Caller,
                             token => ExecuteReservedSessionCommandAsync(
                                 state,
                                 command,
@@ -48,7 +50,9 @@ internal sealed partial class EditorWorkspace
                         CompletePendingIdempotencyUnderLock(
                             state,
                             pendingIntent,
-                            Reject(schedulingRejection!));
+                            Reject(
+                                schedulingRejection!.Code,
+                                policyEvidence: schedulingRejection.PolicyEvidence));
                     }
 
                     break;
@@ -130,7 +134,7 @@ internal sealed partial class EditorWorkspace
                     if (state.PendingRunPause is not null)
                     {
                         var rejected = Reject(
-                            WorkspaceOutcomeReasons.WorkspaceAdmissionRejected);
+                            WorkspaceOutcomeReasons.RunGenerationPreconditionFailed);
                         RecordIdempotencyUnderLock(
                             state,
                             command.Context.ClientIntentId,

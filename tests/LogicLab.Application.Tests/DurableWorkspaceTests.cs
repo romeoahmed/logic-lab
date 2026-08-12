@@ -11,6 +11,39 @@ internal sealed partial class DurableWorkspaceTests
         new AuthenticatedSubjectId("subject-1"));
 
     [Test]
+    public async Task DispatchAsync_SuccessfulClaim_TransfersPerSubjectWorkspaceCapacity()
+    {
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(
+            repository,
+            globalWorkspaceLimit: 3,
+            workspaceCountPerSubject: 1);
+        var (opened, attached) = await OpenAttached(workspace);
+
+        var claim = await Claim(workspace, opened, attached, "Transferred project");
+        var rejectedForOwner = await workspace.OpenAsync(
+            new CreateSandbox("Owner project", "Main", AuthenticatedCaller),
+            CancellationToken.None);
+        var openedForAnonymous = await workspace.OpenAsync(
+            new CreateSandbox(
+                "Anonymous project",
+                "Main",
+                AnonymousWorkspaceCaller.Instance),
+            CancellationToken.None);
+
+        var rejection = (await Assert.That(rejectedForOwner)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(claim).IsTypeOf<DurableProjectClaimed>();
+            await Assert.That(openedForAnonymous).IsTypeOf<WorkspaceOpened>();
+            await Assert.That(rejection.PolicyEvidence?.Dimension)
+                .IsEqualTo("workspace_count_per_subject");
+            await Assert.That(rejection.PolicyEvidence?.Observed).IsEqualTo(2UL);
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_AnonymousClaim_RejectsBeforeWorkspaceLookupAndRepository()
     {
         var repository = new RecordingDurableProjectRepository();
@@ -63,7 +96,7 @@ internal sealed partial class DurableWorkspaceTests
             .IsTypeOf<WorkspaceCommandRejected>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Code).IsEqualTo("workspace_admission_rejected");
+            await Assert.That(rejected.Code).IsEqualTo("durable_display_name_invalid");
             await Assert.That(repository.ClaimCallCount).IsEqualTo(0);
         }
     }
@@ -807,6 +840,7 @@ internal sealed partial class DurableWorkspaceTests
         IDurableProjectRepository repository,
         DurableDisplayNameLimits? displayNameLimits = null,
         int? globalWorkspaceLimit = null,
+        int? workspaceCountPerSubject = null,
         TimeProvider? timeProvider = null,
         TimeSpan? sandboxRetention = null)
     {
@@ -814,12 +848,15 @@ internal sealed partial class DurableWorkspaceTests
             buildFingerprint: BuildFingerprint,
             workspacePolicy: displayNameLimits is null
                 && globalWorkspaceLimit is null
+                && workspaceCountPerSubject is null
                 && sandboxRetention is null
                 ? null
                 : new WorkspacePolicy(
                     policyId: "durable-tests",
                     policyRevision: "1",
                     globalWorkspaceLimit: globalWorkspaceLimit ?? 16,
+                    workspaceCountPerSubject:
+                        workspaceCountPerSubject ?? globalWorkspaceLimit ?? 16,
                     sandboxRetention: sandboxRetention ?? TimeSpan.FromHours(1),
                     authoringLimits: WorkspaceAuthoringLimits.Default,
                     historyRevisionCount: 16,
@@ -837,7 +874,7 @@ internal sealed partial class DurableWorkspaceTests
         IEditorWorkspace workspace)
     {
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Sandbox", "Main"),
+            new CreateSandbox("Sandbox", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var attached = (Attached)await workspace.AttachAsync(
             new InitialAttach(

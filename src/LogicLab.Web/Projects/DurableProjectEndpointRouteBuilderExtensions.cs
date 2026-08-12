@@ -94,7 +94,10 @@ internal static class DurableProjectEndpointRouteBuilderExtensions
                         WorkspaceOpened opened => Results.LocalRedirect(
                             $"~/editor/{Uri.EscapeDataString(opened.WorkspaceId.Value)}"),
                         WorkspaceOpenRejected rejected =>
-                            LogicLabProblemDetails.Create(httpContext, rejected.Code),
+                            LogicLabProblemDetails.Create(
+                                httpContext,
+                                rejected.Code,
+                                rejected.PolicyEvidence),
                         _ => throw new InvalidOperationException(
                             "The Workspace open outcome hierarchy is closed."),
                     };

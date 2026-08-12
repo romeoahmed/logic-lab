@@ -560,7 +560,7 @@ internal sealed partial class DurableWorkspaceTests
                 AuthenticatedCaller),
             CancellationToken.None);
         var replacement = await workspace.OpenAsync(
-            new CreateSandbox("Replacement", "Main"),
+            new CreateSandbox("Replacement", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var claimRejected = (await Assert.That(claim)

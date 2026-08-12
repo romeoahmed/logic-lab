@@ -35,10 +35,10 @@ internal sealed class ProjectExportTests
             projectExportPreparationPolicy: new ProjectExportPreparationPolicy(1),
             projectExportStore: store);
         var firstOpened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("First export", "Main"),
+            new CreateSandbox("First export", "Main", AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         var secondOpened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Second export", "Main"),
+            new CreateSandbox("Second export", "Main", AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         var firstAttached = await EditorWorkspaceTestDriver.AttachAsync(
             workspace,
@@ -120,7 +120,7 @@ internal sealed class ProjectExportTests
             timeProvider: timeProvider,
             projectExportStore: store);
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Export project", "Main"),
+            new CreateSandbox("Export project", "Main", AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         var attached = await EditorWorkspaceTestDriver.AttachAsync(
             workspace,
@@ -187,7 +187,7 @@ internal sealed class ProjectExportTests
             operations,
             projectExportStore: store);
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Rejected export", "Main"),
+            new CreateSandbox("Rejected export", "Main", AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         var attached = await EditorWorkspaceTestDriver.AttachAsync(
             workspace,
@@ -222,7 +222,7 @@ internal sealed class ProjectExportTests
             WorkspaceBuild.DevelopmentFingerprint,
             projectExportStore: store);
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Stale export", "Main"),
+            new CreateSandbox("Stale export", "Main", AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         var attached = await EditorWorkspaceTestDriver.AttachAsync(
             workspace,

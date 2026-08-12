@@ -233,7 +233,7 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             durableProjectLoader: UnexpectedDurableProjectLoader.Instance,
             projectExportStore: UnexpectedProjectExportStore.Instance);
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Sandbox", "Main"),
+            new CreateSandbox("Sandbox", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var firstAttachment = (Attached)await workspace.AttachAsync(
             new InitialAttach(
@@ -820,7 +820,7 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             string buildFingerprint)
     {
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Sandbox", "Main"),
+            new CreateSandbox("Sandbox", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var attached = (Attached)await workspace.AttachAsync(
             new InitialAttach(

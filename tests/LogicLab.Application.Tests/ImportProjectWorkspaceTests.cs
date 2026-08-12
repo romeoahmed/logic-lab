@@ -17,7 +17,7 @@ internal sealed class ImportProjectWorkspaceTests
             WorkspaceBuild.DevelopmentFingerprint);
 
         var outcome = await workspace.OpenAsync(
-            new ImportProject(candidate),
+            new ImportProject(candidate, AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var opened = (await Assert.That(outcome).IsTypeOf<WorkspaceOpened>())!;
@@ -43,7 +43,7 @@ internal sealed class ImportProjectWorkspaceTests
             WorkspaceBuild.DevelopmentFingerprint,
             workspacePolicy: WorkspacePolicyWithLimit(2));
         var origin = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Origin", "Main"),
+            new CreateSandbox("Origin", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var attached = await EditorWorkspaceTestDriver.AttachAsync(
             workspace,
@@ -51,7 +51,7 @@ internal sealed class ImportProjectWorkspaceTests
         var before = await ReadAsync(workspace, origin, attached);
 
         var outcome = await workspace.OpenAsync(
-            new ImportProject(candidate),
+            new ImportProject(candidate, AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var after = await ReadAsync(workspace, origin, attached);
 
@@ -76,10 +76,10 @@ internal sealed class ImportProjectWorkspaceTests
             workspacePolicy: WorkspacePolicyWithLimit(1));
 
         var rejected = await workspace.OpenAsync(
-            new ImportProject(candidate),
+            new ImportProject(candidate, AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var replacement = await workspace.OpenAsync(
-            new CreateSandbox("Replacement", "Main"),
+            new CreateSandbox("Replacement", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         using (Assert.Multiple())
@@ -114,10 +114,10 @@ internal sealed class ImportProjectWorkspaceTests
                 authoringLimits: new WorkspaceAuthoringLimits(1, 10, 10)));
 
         var outcome = await workspace.OpenAsync(
-            new ImportProject(candidate),
+            new ImportProject(candidate, AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var replacement = await workspace.OpenAsync(
-            new CreateSandbox("Replacement", "Main"),
+            new CreateSandbox("Replacement", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
@@ -126,6 +126,12 @@ internal sealed class ImportProjectWorkspaceTests
         {
             await Assert.That(rejected.Code)
                 .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(rejected.PolicyEvidence)
+                .IsEqualTo(new PolicyEvidenceProjection(
+                    "import-tests",
+                    "1",
+                    "authoring_definition_count",
+                    2));
             await Assert.That(compilationCount).IsEqualTo(0);
             await Assert.That(replacement).IsTypeOf<WorkspaceOpened>();
         }
@@ -146,9 +152,12 @@ internal sealed class ImportProjectWorkspaceTests
             new PackagePolicy("import-test-package", "1", limits));
         await using var source = new MemoryStream([1, 2, 3, 4, 5]);
 
-        var outcome = await workflow.ImportAsync(source, CancellationToken.None);
+        var outcome = await workflow.ImportAsync(
+            source,
+            AnonymousWorkspaceCaller.Instance,
+            CancellationToken.None);
         var replacement = await workspace.OpenAsync(
-            new CreateSandbox("Replacement", "Main"),
+            new CreateSandbox("Replacement", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
@@ -157,6 +166,12 @@ internal sealed class ImportProjectWorkspaceTests
         {
             await Assert.That(workflow.MaximumCarrierBytes).IsEqualTo(4L);
             await Assert.That(rejected.Code).IsEqualTo("package_limit_exceeded");
+            await Assert.That(rejected.PolicyEvidence)
+                .IsEqualTo(new PolicyEvidenceProjection(
+                    "import-test-package",
+                    "1",
+                    "carrier_bytes",
+                    5));
             await Assert.That(replacement).IsTypeOf<WorkspaceOpened>();
         }
     }
@@ -181,10 +196,10 @@ internal sealed class ImportProjectWorkspaceTests
             workspacePolicy: WorkspacePolicyWithLimit(1));
 
         var outcome = await workspace.OpenAsync(
-            new ImportProject(candidate),
+            new ImportProject(candidate, AnonymousWorkspaceCaller.Instance),
             cancellation.Token);
         var replacement = await workspace.OpenAsync(
-            new CreateSandbox("Replacement", "Main"),
+            new CreateSandbox("Replacement", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
@@ -215,10 +230,10 @@ internal sealed class ImportProjectWorkspaceTests
             workspacePolicy: WorkspacePolicyWithLimit(1));
 
         var outcome = await workspace.OpenAsync(
-            new ImportProject(candidate),
+            new ImportProject(candidate, AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var replacement = await workspace.OpenAsync(
-            new CreateSandbox("Replacement", "Main"),
+            new CreateSandbox("Replacement", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
@@ -276,6 +291,7 @@ internal sealed class ImportProjectWorkspaceTests
             "import-tests",
             "1",
             workspaceLimit,
+            workspaceCountPerSubject: workspaceLimit,
             sandboxRetention: TimeSpan.FromMinutes(1),
             authoringLimits: authoringLimits ?? WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 4,

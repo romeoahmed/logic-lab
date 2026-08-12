@@ -890,7 +890,7 @@ internal sealed class EditorWorkspaceContinuityTests
     private static async Task<WorkspaceOpened> Open(IEditorWorkspace workspace)
     {
         return await IsType<WorkspaceOpened>(await workspace.OpenAsync(
-                new CreateSandbox("Test project", "Main"),
+                new CreateSandbox("Test project", "Main", AnonymousWorkspaceCaller.Instance),
                 CancellationToken.None));
     }
 
@@ -944,6 +944,7 @@ internal sealed class EditorWorkspaceContinuityTests
             policyId: "test-workspace",
             policyRevision: "1",
             globalWorkspaceLimit: 16,
+            workspaceCountPerSubject: 16,
             sandboxRetention: TimeSpan.FromHours(1),
             authoringLimits: WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 16,

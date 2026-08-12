@@ -21,7 +21,7 @@ internal sealed class EditorDurableRouteTests
         await using var workspace = new RecordingAttachWorkspace(
             buildFingerprint: "previous-build");
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Previous build project", "Main"),
+            new CreateSandbox("Previous build project", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         Configure(context, workspace);
 
@@ -80,7 +80,7 @@ internal sealed class EditorDurableRouteTests
         await using var context = new BunitContext();
         await using var workspace = new RecordingAttachWorkspace();
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Malformed identity project", "Main"),
+            new CreateSandbox("Malformed identity project", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         Configure(context, workspace);
         var authenticationState = Task.FromResult(new AuthenticationState(
@@ -113,7 +113,7 @@ internal sealed class EditorDurableRouteTests
         await using var context = new BunitContext();
         await using var workspace = new RecordingAttachWorkspace();
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Reopened project", "Main"),
+            new CreateSandbox("Reopened project", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         Configure(context, workspace);
         var rendered = RenderEditor(
@@ -199,7 +199,7 @@ internal sealed class EditorDurableRouteTests
         await using var context = new BunitContext();
         await using var workspace = new RecordingAttachWorkspace();
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Claimed project", "Main"),
+            new CreateSandbox("Claimed project", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         Configure(context, workspace);
         var rendered = RenderEditor(
@@ -250,7 +250,7 @@ internal sealed class EditorDurableRouteTests
             blockFirstReattach: true,
             rejectFirstDispatchWithReattach: true);
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Reopened project", "Main"),
+            new CreateSandbox("Reopened project", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         Configure(context, workspace);
         var rendered = RenderEditor(
@@ -536,7 +536,7 @@ internal sealed class EditorDurableRouteTests
         await using var context = new BunitContext();
         await using var workspace = new RecordingAttachWorkspace();
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Reopened project", "Main"),
+            new CreateSandbox("Reopened project", "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         Configure(context, workspace);
         var authenticationState = Task.FromResult(new AuthenticationState(

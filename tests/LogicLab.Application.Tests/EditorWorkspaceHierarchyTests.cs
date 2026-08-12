@@ -14,7 +14,7 @@ internal sealed class EditorWorkspaceHierarchyTests
         await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.DevelopmentFingerprint);
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox("Hierarchy project", "Main"),
+            new CreateSandbox("Hierarchy project", "Main", AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         var workspaceId = opened.WorkspaceId;
         var attached = await EditorWorkspaceTestDriver.AttachAsync(

@@ -28,10 +28,12 @@ internal sealed partial class EditorWorkspace
 
         var generation = new RunGeneration(checked(state.NextRunGeneration + 1UL));
         var projectionVersion = checked(state.ProjectionVersion + 1UL);
-        var schedulingRejectionCode = TryStartRunContinuation(state, generation);
-        if (schedulingRejectionCode is not null)
+        var schedulingRejection = TryStartRunContinuation(state, generation);
+        if (schedulingRejection is not null)
         {
-            return Reject(schedulingRejectionCode);
+            return Reject(
+                schedulingRejection.Code,
+                policyEvidence: schedulingRejection.PolicyEvidence);
         }
 
         state.NextRunGeneration = generation.Value;
@@ -118,28 +120,31 @@ internal sealed partial class EditorWorkspace
             state.ProjectionVersion);
     }
 
-    private string? TryStartRunContinuation(
+    private WorkCoordinator.SchedulingRejection? TryStartRunContinuation(
         WorkspaceState state,
         RunGeneration generation)
     {
         if (!TryRetainWorkspace(state, out var retentionRejectionCode))
         {
-            return retentionRejectionCode;
+            return new WorkCoordinator.SchedulingRejection(
+                retentionRejectionCode!,
+                PolicyEvidence: null);
         }
 
         if (workCoordinator.TryStartSessionContinuation(
+            state.Id,
             (continuation, token) => ContinueRunRetainedAsync(
                 state,
                 continuation,
                 generation,
                 token),
-            out var rejectionCode))
+            out var rejection))
         {
             return null;
         }
 
         Release(state);
-        return rejectionCode;
+        return rejection;
     }
 
     private bool QueueRunContinuation(

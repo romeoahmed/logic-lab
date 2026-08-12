@@ -108,6 +108,13 @@ internal sealed class EditorWorkspaceAdmissionTests
         var after = await ReadProjection(workspace, opened);
 
         await AssertRejectedWithoutPublication(rejected, before, after);
+        var admissionRejection = (WorkspaceCommandRejected)rejected;
+        await Assert.That(admissionRejection.PolicyEvidence)
+            .IsEqualTo(new PolicyEvidenceProjection(
+                "test-workspace",
+                "1",
+                "authoring_command_item_count",
+                2));
         await Assert.That(after.ProjectRevision.Document.CircuitDefinitions)
             .Count().IsEqualTo(1);
     }
@@ -156,6 +163,7 @@ internal sealed class EditorWorkspaceAdmissionTests
                 policyId: "test-workspace",
                 policyRevision: "1",
                 globalWorkspaceLimit: 128,
+                workspaceCountPerSubject: 128,
                 sandboxRetention: TimeSpan.FromMinutes(30),
                 authoringLimits: limits,
                 historyRevisionCount: 128,
@@ -171,7 +179,7 @@ internal sealed class EditorWorkspaceAdmissionTests
         string projectName)
     {
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
-            new CreateSandbox(projectName, "Main"),
+            new CreateSandbox(projectName, "Main", AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
         var attached = await EditorWorkspaceTestDriver.AttachAsync(
             workspace,
