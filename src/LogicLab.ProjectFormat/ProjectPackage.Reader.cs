@@ -204,7 +204,11 @@ public static partial class ProjectPackage
             leaveOpen: true,
             entryNameEncoding: Encoding.UTF8,
             cancellationToken).ConfigureAwait(false);
-        var entries = EnumerateEntries(archive, policy, observations);
+        var entries = EnumerateEntries(
+            archive,
+            policy,
+            observations,
+            cancellationToken);
         if (!entries.TryGetValue("manifest.json", out var manifestEntry)
             || !entries.ContainsKey("project.json"))
         {
@@ -216,13 +220,15 @@ public static partial class ProjectPackage
             policy,
             observations,
             cancellationToken).ConfigureAwait(false);
-        ValidateJson(manifestBytes, policy, observations);
-        ValidateManifestMembers(manifestBytes);
+        ValidateJson(manifestBytes, policy, observations, cancellationToken);
+        ValidateManifestMembers(manifestBytes, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         var manifest = JsonSerializer.Deserialize(
             manifestBytes,
             ReadJsonContext.PackageManifestDtoV1)
             ?? throw Invalid("package_json_invalid", ("rule", "schema"));
-        ValidateManifest(manifest, entries);
+        cancellationToken.ThrowIfCancellationRequested();
+        ValidateManifest(manifest, entries, cancellationToken);
         observations[(int)PackageDimension.MemoryPartCount] = checked(
             (ulong)manifest.MemoryParts.Length);
         ThrowIfReadLimitExceeded(
@@ -247,10 +253,27 @@ public static partial class ProjectPackage
             memoryImageId: null,
             cancellationToken));
 
+        ValidateJson(projectBytes, policy, observations, cancellationToken);
+        ValidateProjectMembers(projectBytes, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var decodedProject = JsonSerializer.Deserialize(
+            projectBytes,
+            ReadJsonContext.ProjectDocumentDtoV1)
+            ?? throw Invalid("package_json_invalid", ("rule", "schema"));
+        cancellationToken.ThrowIfCancellationRequested();
+        var project = MigrateProject(manifest.SchemaVersion, decodedProject);
+        ObserveDecodedProject(
+            project,
+            policy,
+            observations,
+            cancellationToken);
+        var manifestMemoryIds = ValidateMemoryPartAgreement(
+            project,
+            manifest,
+            cancellationToken);
+
         var memoryBytes = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-        foreach (var memoryPart in manifest.MemoryParts.OrderBy(
-                     item => item.MemoryImageId,
-                     StringComparer.Ordinal))
+        foreach (var memoryPart in manifest.MemoryParts)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var bytes = await ReadDeclaredPartAsync(
@@ -286,17 +309,9 @@ public static partial class ProjectPackage
                 ("check", "digest"));
         }
 
-        ValidateJson(projectBytes, policy, observations);
-        ValidateProjectMembers(projectBytes);
-        var decodedProject = JsonSerializer.Deserialize(
-            projectBytes,
-            ReadJsonContext.ProjectDocumentDtoV1)
-            ?? throw Invalid("package_json_invalid", ("rule", "schema"));
-        var project = MigrateProject(manifest.SchemaVersion, decodedProject);
-        ObserveDecodedProject(project, policy, observations);
         var candidate = TranslateProject(
             project,
-            manifest,
+            manifestMemoryIds,
             memoryBytes,
             cancellationToken);
         var normalizedObservations = new ulong[policy.Limits.Count];
@@ -333,11 +348,13 @@ public static partial class ProjectPackage
     private static Dictionary<string, ZipArchiveEntry> EnumerateEntries(
         ZipArchive archive,
         PackagePolicy policy,
-        ulong[] observations)
+        ulong[] observations,
+        CancellationToken cancellationToken)
     {
         var entries = new Dictionary<string, ZipArchiveEntry>(StringComparer.Ordinal);
         foreach (var entry in archive.Entries)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             observations[(int)PackageDimension.EntryCount] = SaturatingAdd(
                 observations[(int)PackageDimension.EntryCount],
                 1);
@@ -487,7 +504,8 @@ public static partial class ProjectPackage
 
     private static void ValidateManifest(
         PackageManifestDtoV1 manifest,
-        Dictionary<string, ZipArchiveEntry> entries)
+        Dictionary<string, ZipArchiveEntry> entries,
+        CancellationToken cancellationToken)
     {
         if (!string.Equals(manifest.Format, "logiclab", StringComparison.Ordinal))
         {
@@ -517,6 +535,7 @@ public static partial class ProjectPackage
         string? priorMemoryImageId = null;
         foreach (var part in manifest.MemoryParts)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!IsOpaqueId(part.MemoryImageId)
                 || !string.Equals(
                     part.Path,
@@ -538,10 +557,18 @@ public static partial class ProjectPackage
             priorMemoryImageId = part.MemoryImageId;
         }
 
-        if (entries.Count != paths.Count
-            || entries.Keys.Any(path => !paths.Contains(path)))
+        if (entries.Count != paths.Count)
         {
             throw Invalid("package_illegal_entry", ("rule", "undeclaredPart"));
+        }
+
+        foreach (var path in entries.Keys)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!paths.Contains(path))
+            {
+                throw Invalid("package_illegal_entry", ("rule", "undeclaredPart"));
+            }
         }
     }
 
@@ -561,12 +588,14 @@ public static partial class ProjectPackage
     private static void ObserveDecodedProject(
         ProjectDocumentDtoV1 project,
         PackagePolicy policy,
-        ulong[] observations)
+        ulong[] observations,
+        CancellationToken cancellationToken)
     {
         var entities = checked(1UL + (ulong)project.MemoryImages.Length);
         ulong memoryCells = 0;
         foreach (var image in project.MemoryImages)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var depth = ParseCanonicalUnsigned64(image.Depth, "depth");
             memoryCells = SaturatingAdd(
                 memoryCells,
@@ -575,6 +604,7 @@ public static partial class ProjectPackage
 
         foreach (var definition in project.CircuitDefinitions)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             entities = SaturatingAdd(entities, 1);
             entities = SaturatingAdd(entities, checked((ulong)definition.Ports.Length));
             entities = SaturatingAdd(
@@ -602,12 +632,13 @@ public static partial class ProjectPackage
 
     private static ProjectImportCandidate TranslateProject(
         ProjectDocumentDtoV1 project,
-        PackageManifestDtoV1 manifest,
+        HashSet<string> manifestMemoryIds,
         IReadOnlyDictionary<string, byte[]> memoryBytes,
         CancellationToken cancellationToken)
     {
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             RequireOpaqueId(project.ProjectId);
             RequireOpaqueId(project.EntryCircuitDefinitionId);
             if (project.LibraryReferences.Length != 1)
@@ -632,34 +663,30 @@ public static partial class ProjectPackage
                     "directPolarity" => IndicationConvention.DirectPolarity,
                     _ => throw Invalid("package_json_invalid", ("rule", "indicationConvention")),
                 });
-            var manifestIds = manifest.MemoryParts
-                .Select(item => item.MemoryImageId)
-                .ToHashSet(StringComparer.Ordinal);
-            EnsureDistinct(project.MemoryImages, item => item.Id, "memoryImage");
-            var projectMemoryIds = project.MemoryImages
-                .Select(item => item.Id)
-                .ToHashSet(StringComparer.Ordinal);
-            if (!manifestIds.SetEquals(projectMemoryIds))
-            {
-                throw Invalid(
-                    "package_integrity_mismatch",
-                    ("partKind", "memory"),
-                    ("check", "agreement"));
-            }
-
-            var memoryImages = project.MemoryImages
-                .OrderBy(item => item.Id, StringComparer.Ordinal)
-                .Select(item => TranslateMemoryImage(
+            var memoryImages = Map(
+                OrderedById(
+                    project.MemoryImages,
+                    item => item.Id,
+                    cancellationToken),
+                item => TranslateMemoryImage(
                     item,
-                    manifestIds,
+                    manifestMemoryIds,
                     memoryBytes,
-                    cancellationToken))
-                .ToArray();
-            EnsureDistinct(project.CircuitDefinitions, item => item.Id, "circuitDefinition");
-            var definitions = project.CircuitDefinitions
-                .OrderBy(item => item.Id, StringComparer.Ordinal)
-                .Select(TranslateDefinition)
-                .ToArray();
+                    cancellationToken),
+                cancellationToken);
+
+            EnsureDistinct(
+                project.CircuitDefinitions,
+                item => item.Id,
+                "circuitDefinition",
+                cancellationToken);
+            var definitions = Map(
+                OrderedById(
+                    project.CircuitDefinitions,
+                    item => item.Id,
+                    cancellationToken),
+                item => TranslateDefinition(item, cancellationToken),
+                cancellationToken);
             var document = new ProjectDocument(
                 new ProjectId(project.ProjectId),
                 project.DisplayName,
@@ -668,7 +695,7 @@ public static partial class ProjectPackage
                 new CircuitDefinitionId(project.EntryCircuitDefinitionId),
                 definitions,
                 memoryImages);
-            return new ProjectImportCandidate(document);
+            return new ProjectImportCandidate(document, cancellationToken);
         }
         catch (PackageReadInvalidException)
         {
@@ -707,6 +734,50 @@ public static partial class ProjectPackage
             checked((uint)depth),
             bytes,
             cancellationToken);
+    }
+
+    private static HashSet<string> ValidateMemoryPartAgreement(
+        ProjectDocumentDtoV1 project,
+        PackageManifestDtoV1 manifest,
+        CancellationToken cancellationToken)
+    {
+        EnsureDistinct(
+            project.MemoryImages,
+            item => item.Id,
+            "memoryImage",
+            cancellationToken);
+        var projectMemoryIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var image in project.MemoryImages)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var id = RequireOpaqueId(image.Id);
+            if (!string.Equals(
+                    image.PartPath,
+                    $"memory/{id}.bin",
+                    StringComparison.Ordinal))
+            {
+                throw Invalid(
+                    "package_integrity_mismatch",
+                    ("partKind", "memory"),
+                    ("check", "agreement"));
+            }
+
+            projectMemoryIds.Add(id);
+        }
+
+        var manifestMemoryIds = ToIdSet(
+            manifest.MemoryParts,
+            item => item.MemoryImageId,
+            cancellationToken);
+        if (!manifestMemoryIds.SetEquals(projectMemoryIds))
+        {
+            throw Invalid(
+                "package_integrity_mismatch",
+                ("partKind", "memory"),
+                ("check", "agreement"));
+        }
+
+        return manifestMemoryIds;
     }
 
     private static MemoryImage DecodeMemoryImage(
@@ -776,34 +847,58 @@ public static partial class ProjectPackage
             reference.DisplayName,
             width,
             depth,
-            payload);
+            payload,
+            cancellationToken);
     }
 
-    private static CircuitDefinition TranslateDefinition(CircuitDefinitionDtoV1 definition)
+    private static CircuitDefinition TranslateDefinition(
+        CircuitDefinitionDtoV1 definition,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         RequireOpaqueId(definition.Id);
         var definitionId = new CircuitDefinitionId(definition.Id);
-        EnsureDistinct(definition.Ports, item => item.Id, "definitionPort");
+        EnsureDistinct(
+            definition.Ports,
+            item => item.Id,
+            "definitionPort",
+            cancellationToken);
         EnsureDistinct(
             definition.ComponentInstances,
             item => item.Id,
-            "componentInstance");
-        EnsureDistinct(definition.Nets, item => item.Id, "net");
-        EnsureDistinct(definition.Junctions, item => item.Id, "junction");
-        EnsureDistinct(definition.WireGeometry, item => item.Id, "wireGeometry");
+            "componentInstance",
+            cancellationToken);
+        EnsureDistinct(
+            definition.Nets,
+            item => item.Id,
+            "net",
+            cancellationToken);
+        EnsureDistinct(
+            definition.Junctions,
+            item => item.Id,
+            "junction",
+            cancellationToken);
+        EnsureDistinct(
+            definition.WireGeometry,
+            item => item.Id,
+            "wireGeometry",
+            cancellationToken);
         EnsureDistinct(
             definition.Presentation.Annotations,
             item => item.Id,
-            "annotation");
+            "annotation",
+            cancellationToken);
         var portPlacements = UniqueBy(
             definition.Presentation.DefinitionPortPlacements,
             item => item.PortId,
-            "definitionPortPlacement");
+            "definitionPortPlacement",
+            cancellationToken);
         var componentPlacements = UniqueBy(
             definition.Presentation.ComponentPlacements,
             item => item.ComponentInstanceId,
-            "componentPlacement");
-        var ports = definition.Ports.Select(port =>
+            "componentPlacement",
+            cancellationToken);
+        var ports = Map(definition.Ports, port =>
         {
             RequireOpaqueId(port.Id);
             if (!portPlacements.TryGetValue(port.Id, out var placement))
@@ -824,15 +919,18 @@ public static partial class ProjectPackage
                 new DefinitionPortPlacement(
                     ToPoint(placement.Position),
                     ToCardinalDirection(placement.Facing)));
-        }).ToArray();
+        }, cancellationToken);
         if (portPlacements.Count != ports.Length)
         {
             throw Invalid("package_domain_invalid", ("rule", "portPlacement"));
         }
 
-        var components = definition.ComponentInstances
-            .OrderBy(instance => instance.Id, StringComparer.Ordinal)
-            .Select(instance =>
+        var components = Map(
+            OrderedById(
+                definition.ComponentInstances,
+                item => item.Id,
+                cancellationToken),
+            instance =>
         {
             RequireOpaqueId(instance.Id);
             if (!componentPlacements.TryGetValue(instance.Id, out var placement))
@@ -843,7 +941,7 @@ public static partial class ProjectPackage
             return new ComponentInstance(
                 new ComponentInstanceId(instance.Id),
                 TranslateTarget(instance.Target),
-                [.. instance.Parameters.Select(TranslateParameter)],
+                TranslateParameters(instance.Parameters, cancellationToken),
                 new ComponentPlacement(
                     ToPoint(placement.Origin),
                     placement.Orientation.QuarterTurnsClockwise switch
@@ -857,35 +955,61 @@ public static partial class ProjectPackage
                     placement.Orientation.Reflected),
                 instance.DisplayName,
                 placement.SymbolVariantId);
-        }).ToArray();
+        }, cancellationToken);
         if (componentPlacements.Count != components.Length)
         {
             throw Invalid("package_domain_invalid", ("rule", "componentPlacement"));
         }
 
-        var nets = definition.Nets
-            .OrderBy(net => net.Id, StringComparer.Ordinal)
-            .Select(net => new Net(
-            new NetId(RequireOpaqueId(net.Id)),
-            net.Width,
-            [.. net.Terminals.Select(terminal =>
-                TranslateTerminal(definitionId, terminal))],
-            [.. net.JunctionIds.Select(id => new JunctionId(RequireOpaqueId(id)))]))
-            .ToArray();
-        var junctions = definition.Junctions
-            .OrderBy(junction => junction.Id, StringComparer.Ordinal)
-            .Select(junction => new Junction(
-            new JunctionId(RequireOpaqueId(junction.Id)),
-            new NetId(RequireOpaqueId(junction.NetId)),
-            ToPoint(junction.Position))).ToArray();
-        var geometries = definition.WireGeometry
-            .OrderBy(geometry => geometry.Id, StringComparer.Ordinal)
-            .Select(geometry => new WireGeometry(
-            new WireGeometryId(RequireOpaqueId(geometry.Id)),
-            new NetId(RequireOpaqueId(geometry.NetId)),
-            TranslateRoute(geometry.Route))).ToArray();
-        var annotations = definition.Presentation.Annotations.Select(annotation =>
-            new Annotation(
+        var nets = Map(
+            OrderedById(
+                definition.Nets,
+                item => item.Id,
+                cancellationToken),
+            net =>
+        {
+            var terminals = Map(
+                net.Terminals,
+                terminal => TranslateTerminal(
+                    definitionId,
+                    terminal),
+                cancellationToken);
+            var junctionIds = Map(
+                net.JunctionIds,
+                id => new JunctionId(RequireOpaqueId(id)),
+                cancellationToken);
+            return new Net(
+                new NetId(RequireOpaqueId(net.Id)),
+                net.Width,
+                terminals,
+                junctionIds);
+        }, cancellationToken);
+
+        var junctions = Map(
+            OrderedById(
+                definition.Junctions,
+                item => item.Id,
+                cancellationToken),
+            junction => new Junction(
+                new JunctionId(RequireOpaqueId(junction.Id)),
+                new NetId(RequireOpaqueId(junction.NetId)),
+                ToPoint(junction.Position)),
+            cancellationToken);
+
+        var geometries = Map(
+            OrderedById(
+                definition.WireGeometry,
+                item => item.Id,
+                cancellationToken),
+            geometry => new WireGeometry(
+                new WireGeometryId(RequireOpaqueId(geometry.Id)),
+                new NetId(RequireOpaqueId(geometry.NetId)),
+                TranslateRoute(geometry.Route, cancellationToken)),
+            cancellationToken);
+
+        var annotations = Map(
+            definition.Presentation.Annotations,
+            annotation => new Annotation(
                 new AnnotationId(RequireOpaqueId(annotation.Id)),
                 new AnnotationValue(
                     annotation.Text,
@@ -896,7 +1020,8 @@ public static partial class ProjectPackage
                         "center" => AnnotationAlignment.Center,
                         "end" => AnnotationAlignment.End,
                         _ => throw Invalid("package_json_invalid", ("rule", "annotationAlignment")),
-                    }))).ToArray();
+                    })),
+            cancellationToken);
         return new CircuitDefinition(
             definitionId,
             definition.DisplayName,
@@ -922,8 +1047,16 @@ public static partial class ProjectPackage
             _ => throw Invalid("package_unknown_discriminator"),
         };
 
+    private static ComponentParameterBinding[] TranslateParameters(
+        ParameterBindingDtoV1[] bindings,
+        CancellationToken cancellationToken) => Map(
+            bindings,
+            binding => TranslateParameter(binding, cancellationToken),
+            cancellationToken);
+
     private static ComponentParameterBinding TranslateParameter(
-        ParameterBindingDtoV1 binding)
+        ParameterBindingDtoV1 binding,
+        CancellationToken cancellationToken)
     {
         return new ComponentParameterBinding(
             RequireStableName(binding.ParameterId),
@@ -937,20 +1070,29 @@ public static partial class ProjectPackage
                 EnumParameterDtoV1 value =>
                     new ChoiceParameterValue(RequireStableName(value.Value)),
                 LogicVectorParameterDtoV1 value =>
-                    new LogicVectorParameterValue(ParseLogicVector(value.Bits)),
+                    new LogicVectorParameterValue(ParseLogicVector(
+                        value.Bits,
+                        cancellationToken)),
                 Unsigned32ListParameterDtoV1 value =>
                     new WidthsParameterValue(value.Values),
                 SliceListParameterDtoV1 value => new SlicesParameterValue(
-                    [.. value.Values.Select(slice => new BitSlice(
-                        slice.Offset,
-                        slice.Length))]),
+                    TranslateSlices(value.Values, cancellationToken)),
                 MemoryImageParameterDtoV1 value => new MemoryImageParameterValue(
                     new MemoryImageId(RequireOpaqueId(value.MemoryImageId))),
                 _ => throw Invalid("package_unknown_discriminator"),
             });
     }
 
-    private static LogicValue[] ParseLogicVector(string bits)
+    private static BitSlice[] TranslateSlices(
+        BitSliceDtoV1[] slices,
+        CancellationToken cancellationToken) => Map(
+            slices,
+            slice => new BitSlice(slice.Offset, slice.Length),
+            cancellationToken);
+
+    private static LogicValue[] ParseLogicVector(
+        string bits,
+        CancellationToken cancellationToken)
     {
         if (bits.Length == 0)
         {
@@ -960,6 +1102,11 @@ public static partial class ProjectPackage
         var values = new LogicValue[bits.Length];
         for (var index = 0; index < bits.Length; index++)
         {
+            if ((index & (CancellationInterval - 1)) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             values[bits.Length - 1 - index] = bits[index] switch
             {
                 '0' => LogicValue.Zero,
@@ -986,13 +1133,22 @@ public static partial class ProjectPackage
             _ => throw Invalid("package_unknown_discriminator"),
         };
 
-    private static WireRoute TranslateRoute(WireRouteDtoV1 route) => route switch
-    {
-        UnroutedWireRouteDtoV1 => new UnroutedWireRoute(),
-        OrthogonalWireRouteDtoV1 orthogonal => new OrthogonalWireRoute(
-            [.. orthogonal.Points.Select(ToPoint)]),
-        _ => throw Invalid("package_unknown_discriminator"),
-    };
+    private static WireRoute TranslateRoute(
+        WireRouteDtoV1 route,
+        CancellationToken cancellationToken) => route switch
+        {
+            UnroutedWireRouteDtoV1 => new UnroutedWireRoute(),
+            OrthogonalWireRouteDtoV1 orthogonal => new OrthogonalWireRoute(
+                TranslatePoints(orthogonal.Points, cancellationToken)),
+            _ => throw Invalid("package_unknown_discriminator"),
+        };
+
+    private static GridPoint[] TranslatePoints(
+        GridPointDtoV1[] points,
+        CancellationToken cancellationToken) => Map(
+            points,
+            ToPoint,
+            cancellationToken);
 
     private static GridPoint ToPoint(GridPointDtoV1 point) => new(point.X, point.Y);
 
@@ -1008,11 +1164,13 @@ public static partial class ProjectPackage
     private static Dictionary<string, T> UniqueBy<T>(
         IEnumerable<T> values,
         Func<T, string> selectId,
-        string entityKind)
+        string entityKind,
+        CancellationToken cancellationToken)
     {
         var result = new Dictionary<string, T>(StringComparer.Ordinal);
         foreach (var value in values)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var id = RequireOpaqueId(selectId(value));
             if (!result.TryAdd(id, value))
             {
@@ -1026,9 +1184,61 @@ public static partial class ProjectPackage
     private static void EnsureDistinct<T>(
         IEnumerable<T> values,
         Func<T, string> selectId,
-        string entityKind)
+        string entityKind,
+        CancellationToken cancellationToken)
     {
-        _ = UniqueBy(values, selectId, entityKind);
+        _ = UniqueBy(
+            values,
+            selectId,
+            entityKind,
+            cancellationToken);
+    }
+
+    private static HashSet<string> ToIdSet<T>(
+        IEnumerable<T> values,
+        Func<T, string> selectId,
+        CancellationToken cancellationToken)
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var value in values)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ids.Add(selectId(value));
+        }
+
+        return ids;
+    }
+
+    private static T[] OrderedById<T>(
+        IReadOnlyCollection<T> values,
+        Func<T, string> selectId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = values.ToArray();
+        cancellationToken.ThrowIfCancellationRequested();
+        Array.Sort(
+            result,
+            (left, right) => string.CompareOrdinal(selectId(left), selectId(right)));
+        cancellationToken.ThrowIfCancellationRequested();
+        return result;
+    }
+
+    private static TOutput[] Map<TInput, TOutput>(
+        IReadOnlyList<TInput> values,
+        Func<TInput, TOutput> transform,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = new TOutput[values.Count];
+        for (var index = 0; index < values.Count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            result[index] = transform(values[index]);
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        return result;
     }
 
     private static string RequireOpaqueId(string value)

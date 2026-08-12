@@ -9,8 +9,10 @@ public static partial class ProjectPackage
     private static void ValidateJson(
         ReadOnlySpan<byte> json,
         PackagePolicy policy,
-        ulong[] observations)
+        ulong[] observations,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var maximumDepth = policy.Maximum(PackageDimension.JsonDepth);
         var reader = new Utf8JsonReader(
             json,
@@ -23,10 +25,17 @@ public static partial class ProjectPackage
                     : int.MaxValue,
             });
         var containers = new List<JsonContainer>();
+        var tokensSinceCancellation = 0;
         try
         {
             while (reader.Read())
             {
+                if (++tokensSinceCancellation == CancellationInterval)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    tokensSinceCancellation = 0;
+                }
+
                 observations[(int)PackageDimension.JsonTokens] = SaturatingAdd(
                     observations[(int)PackageDimension.JsonTokens],
                     1);
@@ -69,7 +78,11 @@ public static partial class ProjectPackage
                         break;
                     case JsonTokenType.PropertyName:
                         {
-                            ObserveJsonString(reader.ValueSpan, policy, observations);
+                            ObserveJsonString(
+                                reader.ValueSpan,
+                                policy,
+                                observations,
+                                cancellationToken);
                             var propertyName = reader.GetString()
                                 ?? throw Invalid(
                                     "package_json_invalid",
@@ -86,13 +99,19 @@ public static partial class ProjectPackage
                             break;
                         }
                     case JsonTokenType.String:
-                        ObserveJsonString(reader.ValueSpan, policy, observations);
+                        ObserveJsonString(
+                            reader.ValueSpan,
+                            policy,
+                            observations,
+                            cancellationToken);
                         break;
                     case JsonTokenType.Number:
                         ValidateIntegerLexeme(reader.ValueSpan);
                         break;
                 }
             }
+
+            cancellationToken.ThrowIfCancellationRequested();
         }
         catch (JsonException)
         {
@@ -112,11 +131,19 @@ public static partial class ProjectPackage
     private static void ObserveJsonString(
         ReadOnlySpan<byte> encodedValue,
         PackagePolicy policy,
-        ulong[] observations)
+        ulong[] observations,
+        CancellationToken cancellationToken)
     {
         var index = 0;
+        var scalarsSinceCancellation = 0;
         while (index < encodedValue.Length)
         {
+            if (++scalarsSinceCancellation == CancellationInterval)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                scalarsSinceCancellation = 0;
+            }
+
             int utf8Length;
             if (encodedValue[index] != (byte)'\\')
             {
@@ -245,12 +272,17 @@ public static partial class ProjectPackage
         }
     }
 
-    private static void ValidateManifestMembers(byte[] json)
+    private static void ValidateManifestMembers(
+        byte[] json,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         using var document = JsonDocument.Parse(json);
+        cancellationToken.ThrowIfCancellationRequested();
         var root = document.RootElement;
         RequireMembers(
             root,
+            cancellationToken,
             "format",
             "schemaVersion",
             "projectPart",
@@ -258,13 +290,20 @@ public static partial class ProjectPackage
             "packageDigest");
         if (TryGetObject(root, "projectPart", out var projectPart))
         {
-            RequireMembers(projectPart, "path", "length", "sha256");
+            RequireMembers(
+                projectPart,
+                cancellationToken,
+                "path",
+                "length",
+                "sha256");
         }
 
         foreach (var memoryPart in ArrayElements(root, "memoryParts"))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             RequireMembers(
                 memoryPart,
+                cancellationToken,
                 "memoryImageId",
                 "path",
                 "length",
@@ -272,12 +311,17 @@ public static partial class ProjectPackage
         }
     }
 
-    private static void ValidateProjectMembers(byte[] json)
+    private static void ValidateProjectMembers(
+        byte[] json,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         using var document = JsonDocument.Parse(json);
+        cancellationToken.ThrowIfCancellationRequested();
         var root = document.RootElement;
         RequireMembers(
             root,
+            cancellationToken,
             "projectId",
             "displayName",
             "symbolProfile",
@@ -287,18 +331,31 @@ public static partial class ProjectPackage
             "memoryImages");
         if (TryGetObject(root, "symbolProfile", out var profile))
         {
-            RequireMembers(profile, "id", "version", "indicationConvention");
+            RequireMembers(
+                profile,
+                cancellationToken,
+                "id",
+                "version",
+                "indicationConvention");
         }
 
         foreach (var library in ArrayElements(root, "libraryReferences"))
         {
-            RequireMembers(library, "id", "version", "digest");
+            cancellationToken.ThrowIfCancellationRequested();
+            RequireMembers(
+                library,
+                cancellationToken,
+                "id",
+                "version",
+                "digest");
         }
 
         foreach (var memory in ArrayElements(root, "memoryImages"))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             RequireMembers(
                 memory,
+                cancellationToken,
                 "id",
                 "displayName",
                 "wordWidth",
@@ -308,14 +365,18 @@ public static partial class ProjectPackage
 
         foreach (var definition in ArrayElements(root, "circuitDefinitions"))
         {
-            ValidateDefinitionMembers(definition);
+            cancellationToken.ThrowIfCancellationRequested();
+            ValidateDefinitionMembers(definition, cancellationToken);
         }
     }
 
-    private static void ValidateDefinitionMembers(JsonElement definition)
+    private static void ValidateDefinitionMembers(
+        JsonElement definition,
+        CancellationToken cancellationToken)
     {
         RequireMembers(
             definition,
+            cancellationToken,
             "id",
             "displayName",
             "ports",
@@ -326,27 +387,48 @@ public static partial class ProjectPackage
             "presentation");
         foreach (var port in ArrayElements(definition, "ports"))
         {
-            RequireMembers(port, "id", "displayName", "direction", "width");
+            cancellationToken.ThrowIfCancellationRequested();
+            RequireMembers(
+                port,
+                cancellationToken,
+                "id",
+                "displayName",
+                "direction",
+                "width");
         }
 
         foreach (var instance in ArrayElements(definition, "componentInstances"))
         {
-            RequireMembers(instance, "id", "displayName", "target", "parameters");
+            cancellationToken.ThrowIfCancellationRequested();
+            RequireMembers(
+                instance,
+                cancellationToken,
+                "id",
+                "displayName",
+                "target",
+                "parameters");
             if (TryGetObject(instance, "target", out var target))
             {
                 ValidateDiscriminatedMembers(
                     target,
+                    cancellationToken,
                     ("libraryContract", ["kind", "libraryId", "contractId"]),
                     ("circuitDefinition", ["kind", "circuitDefinitionId"]));
             }
 
             foreach (var parameter in ArrayElements(instance, "parameters"))
             {
-                RequireMembers(parameter, "parameterId", "value");
+                cancellationToken.ThrowIfCancellationRequested();
+                RequireMembers(
+                    parameter,
+                    cancellationToken,
+                    "parameterId",
+                    "value");
                 if (TryGetObject(parameter, "value", out var value))
                 {
                     ValidateDiscriminatedMembers(
                         value,
+                        cancellationToken,
                         ("unsigned32", ["kind", "value"]),
                         ("unsigned64", ["kind", "decimal"]),
                         ("enum", ["kind", "value"]),
@@ -358,7 +440,12 @@ public static partial class ProjectPackage
                     {
                         foreach (var slice in ArrayElements(value, "values"))
                         {
-                            RequireMembers(slice, "offset", "length");
+                            cancellationToken.ThrowIfCancellationRequested();
+                            RequireMembers(
+                                slice,
+                                cancellationToken,
+                                "offset",
+                                "length");
                         }
                     }
                 }
@@ -367,11 +454,20 @@ public static partial class ProjectPackage
 
         foreach (var net in ArrayElements(definition, "nets"))
         {
-            RequireMembers(net, "id", "width", "terminals", "junctionIds");
+            cancellationToken.ThrowIfCancellationRequested();
+            RequireMembers(
+                net,
+                cancellationToken,
+                "id",
+                "width",
+                "terminals",
+                "junctionIds");
             foreach (var terminal in ArrayElements(net, "terminals"))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 ValidateDiscriminatedMembers(
                     terminal,
+                    cancellationToken,
                     ("definitionPort", ["kind", "portId"]),
                     ("instancePort", ["kind", "componentInstanceId", "portId"]));
             }
@@ -379,51 +475,74 @@ public static partial class ProjectPackage
 
         foreach (var junction in ArrayElements(definition, "junctions"))
         {
-            RequireMembers(junction, "id", "netId", "position");
-            ValidatePoint(junction, "position");
+            cancellationToken.ThrowIfCancellationRequested();
+            RequireMembers(
+                junction,
+                cancellationToken,
+                "id",
+                "netId",
+                "position");
+            ValidatePoint(junction, "position", cancellationToken);
         }
 
         foreach (var geometry in ArrayElements(definition, "wireGeometry"))
         {
-            RequireMembers(geometry, "id", "netId", "route");
+            cancellationToken.ThrowIfCancellationRequested();
+            RequireMembers(
+                geometry,
+                cancellationToken,
+                "id",
+                "netId",
+                "route");
             if (TryGetObject(geometry, "route", out var route))
             {
                 ValidateDiscriminatedMembers(
                     route,
+                    cancellationToken,
                     ("unrouted", ["kind"]),
                     ("orthogonal", ["kind", "points"]));
                 foreach (var point in ArrayElements(route, "points"))
                 {
-                    RequireMembers(point, "x", "y");
+                    cancellationToken.ThrowIfCancellationRequested();
+                    RequireMembers(point, cancellationToken, "x", "y");
                 }
             }
         }
 
         if (TryGetObject(definition, "presentation", out var presentation))
         {
-            ValidatePresentationMembers(presentation);
+            ValidatePresentationMembers(presentation, cancellationToken);
         }
     }
 
-    private static void ValidatePresentationMembers(JsonElement presentation)
+    private static void ValidatePresentationMembers(
+        JsonElement presentation,
+        CancellationToken cancellationToken)
     {
         RequireMembers(
             presentation,
+            cancellationToken,
             "componentPlacements",
             "definitionPortPlacements",
             "annotations");
         foreach (var placement in ArrayElements(presentation, "componentPlacements"))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             RequireMembers(
                 placement,
+                cancellationToken,
                 "componentInstanceId",
                 "origin",
                 "orientation",
                 "symbolVariantId");
-            ValidatePoint(placement, "origin");
+            ValidatePoint(placement, "origin", cancellationToken);
             if (TryGetObject(placement, "orientation", out var orientation))
             {
-                RequireMembers(orientation, "quarterTurnsClockwise", "reflected");
+                RequireMembers(
+                    orientation,
+                    cancellationToken,
+                    "quarterTurnsClockwise",
+                    "reflected");
             }
         }
 
@@ -431,27 +550,44 @@ public static partial class ProjectPackage
                      presentation,
                      "definitionPortPlacements"))
         {
-            RequireMembers(placement, "portId", "position", "facing");
-            ValidatePoint(placement, "position");
+            cancellationToken.ThrowIfCancellationRequested();
+            RequireMembers(
+                placement,
+                cancellationToken,
+                "portId",
+                "position",
+                "facing");
+            ValidatePoint(placement, "position", cancellationToken);
         }
 
         foreach (var annotation in ArrayElements(presentation, "annotations"))
         {
-            RequireMembers(annotation, "id", "text", "position", "alignment");
-            ValidatePoint(annotation, "position");
+            cancellationToken.ThrowIfCancellationRequested();
+            RequireMembers(
+                annotation,
+                cancellationToken,
+                "id",
+                "text",
+                "position",
+                "alignment");
+            ValidatePoint(annotation, "position", cancellationToken);
         }
     }
 
-    private static void ValidatePoint(JsonElement owner, string propertyName)
+    private static void ValidatePoint(
+        JsonElement owner,
+        string propertyName,
+        CancellationToken cancellationToken)
     {
         if (TryGetObject(owner, propertyName, out var point))
         {
-            RequireMembers(point, "x", "y");
+            RequireMembers(point, cancellationToken, "x", "y");
         }
     }
 
     private static void ValidateDiscriminatedMembers(
         JsonElement element,
+        CancellationToken cancellationToken,
         params (string Kind, string[] Members)[] variants)
     {
         var kind = TryGetString(element, "kind");
@@ -464,7 +600,7 @@ public static partial class ProjectPackage
         {
             if (string.Equals(kind, variant.Kind, StringComparison.Ordinal))
             {
-                RequireMembers(element, variant.Members);
+                RequireMembers(element, cancellationToken, variant.Members);
                 return;
             }
         }
@@ -472,7 +608,10 @@ public static partial class ProjectPackage
         throw Invalid("package_unknown_discriminator");
     }
 
-    private static void RequireMembers(JsonElement element, params string[] members)
+    private static void RequireMembers(
+        JsonElement element,
+        CancellationToken cancellationToken,
+        params string[] members)
     {
         if (element.ValueKind != JsonValueKind.Object)
         {
@@ -480,9 +619,13 @@ public static partial class ProjectPackage
         }
 
         var expected = members.ToHashSet(StringComparer.Ordinal);
-        if (element.EnumerateObject().Any(property => !expected.Contains(property.Name)))
+        foreach (var property in element.EnumerateObject())
         {
-            throw Invalid("package_unknown_member");
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!expected.Contains(property.Name))
+            {
+                throw Invalid("package_unknown_member");
+            }
         }
     }
 

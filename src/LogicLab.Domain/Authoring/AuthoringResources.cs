@@ -52,8 +52,10 @@ public sealed class MemoryImage
         string displayName,
         uint width,
         uint depth,
-        ReadOnlySpan<byte> packedCells)
+        ReadOnlySpan<byte> packedCells,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(displayName);
         ArgumentOutOfRangeException.ThrowIfZero(width);
@@ -79,7 +81,8 @@ public sealed class MemoryImage
         Width = width;
         Depth = depth;
         this.packedCells = packedCells.ToArray();
-        ValidatePackedCells(this.packedCells, cellCount);
+        cancellationToken.ThrowIfCancellationRequested();
+        ValidatePackedCells(this.packedCells, cellCount, cancellationToken);
         Words = new PackedMemoryImageWords(this);
     }
 
@@ -107,10 +110,18 @@ public sealed class MemoryImage
 
     internal ReadOnlySpan<byte> PackedCells => packedCells;
 
-    private static void ValidatePackedCells(byte[] packedCells, ulong cellCount)
+    private static void ValidatePackedCells(
+        byte[] packedCells,
+        ulong cellCount,
+        CancellationToken cancellationToken)
     {
         for (var index = 0; index < packedCells.Length; index++)
         {
+            if ((index & 4_095) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             var value = packedCells[index];
             if (index == packedCells.Length - 1
                 && cellCount % 4 is var usedFields and not 0)

@@ -503,7 +503,9 @@ public static partial class ProjectEditor
             ]));
     }
 
-    private static string? GetDisplayTextRule(string? value)
+    private static string? GetDisplayTextRule(
+        string? value,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(value))
         {
@@ -512,6 +514,11 @@ public static partial class ProjectEditor
 
         for (var index = 0; index < value.Length; index++)
         {
+            if ((index & 4_095) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             var character = value[index];
             if (character <= '\u001f')
             {
@@ -534,7 +541,9 @@ public static partial class ProjectEditor
             }
         }
 
-        return value.IsNormalized(NormalizationForm.FormC)
+        var isNormalized = value.IsNormalized(NormalizationForm.FormC);
+        cancellationToken.ThrowIfCancellationRequested();
+        return isNormalized
             ? null
             : "normalizationFormC";
     }

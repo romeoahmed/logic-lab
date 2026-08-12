@@ -172,6 +172,41 @@ internal sealed class ProjectPackageReaderTests
     }
 
     [Test]
+    public async Task ReadAsync_MemoryCellsBeyondPolicy_RejectsBeforePartIntegrity()
+    {
+        var revision = BeginProject("Memory cells", "Main");
+        revision = ((EditCommitted)ProjectEditor.Apply(
+            revision,
+            new CreateMemoryImageIntent(
+                "Program",
+                2,
+                1,
+                [new MemoryImageWord([LogicValue.Zero, LogicValue.One])]))).Revision;
+        await using var carrier = await WriteAsync(revision);
+        var entries = ReadEntries(carrier.Stream);
+        var memoryPath = entries.Keys.Single(path => path.StartsWith(
+            "memory/",
+            StringComparison.Ordinal));
+        entries[memoryPath][^1] ^= 1;
+        await using var tampered = WriteEntries(entries);
+        var policy = WithLimit(PackageDimension.MemoryCellCount, 1);
+
+        var outcome = await ProjectPackage.ReadAsync(
+            new ProjectPackageReadRequest(tampered, policy),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("package_limit_exceeded");
+            await Assert.That(rejected.Evidence.PolicyLimitBreach?.Dimension)
+                .IsEqualTo(PackageDimension.MemoryCellCount);
+            await Assert.That(rejected.Evidence.PolicyLimitBreach?.Observed)
+                .IsEqualTo(2UL);
+        }
+    }
+
+    [Test]
     public async Task ReadAsync_DuplicateManifestMember_RejectsStrictJson()
     {
         var revision = BeginProject("Strict JSON", "Main");
