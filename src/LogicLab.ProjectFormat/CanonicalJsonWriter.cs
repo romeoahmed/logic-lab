@@ -396,7 +396,7 @@ internal sealed class CanonicalJsonWriter
         }
 
         var observed = observations[(int)dimension];
-        if (observed > policy.Maximum(dimension))
+        if (observed > policy.GetMaximum(dimension))
         {
             throw new PackagePolicyLimitException(
                 new PackageDimensionObservation(dimension, observed));

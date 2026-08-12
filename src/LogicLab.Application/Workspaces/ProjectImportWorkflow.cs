@@ -13,8 +13,7 @@ public sealed class ProjectImportWorkflow
     {
         ArgumentNullException.ThrowIfNull(workspace);
         ArgumentNullException.ThrowIfNull(packagePolicy);
-        var maximum = packagePolicy.Limits[(int)PackageDimension.CarrierBytes]
-            .Maximum;
+        var maximum = packagePolicy.GetMaximum(PackageDimension.CarrierBytes);
         if (maximum > long.MaxValue)
         {
             throw new ArgumentOutOfRangeException(

@@ -55,11 +55,12 @@ public sealed class PackagePolicy
                 nameof(limits));
         }
 
-        this.limits = [.. limits];
+        var ownedLimits = limits.ToArray();
         for (var index = 0; index < dimensions.Length; index++)
         {
-            var limit = this.limits[index];
-            if (limit.Dimension != dimensions[index] || limit.Maximum == 0)
+            if (ownedLimits[index] is not { } limit
+                || limit.Dimension != dimensions[index]
+                || limit.Maximum == 0)
             {
                 throw new ArgumentException(
                     "Package policy limits must be positive and in canonical dimension order.",
@@ -67,6 +68,7 @@ public sealed class PackagePolicy
             }
         }
 
+        this.limits = ownedLimits;
         PolicyId = policyId;
         PolicyRevision = policyRevision;
         Limits = Array.AsReadOnly(this.limits);
@@ -96,8 +98,15 @@ public sealed class PackagePolicy
 
     public ReadOnlyCollection<PackageLimit> Limits { get; }
 
-    internal ulong Maximum(PackageDimension dimension) =>
-        limits[(int)dimension].Maximum;
+    public ulong GetMaximum(PackageDimension dimension)
+    {
+        if (!Enum.IsDefined(dimension))
+        {
+            throw new ArgumentOutOfRangeException(nameof(dimension));
+        }
+
+        return limits[(int)dimension].Maximum;
+    }
 
     private static bool IsStableToken(string value)
     {
@@ -170,26 +179,38 @@ public sealed class ProjectPackageReadRequest
 
 public sealed record PackagePolicyIdentity(string PolicyId, string PolicyRevision);
 
-public sealed record PackageDimensionObservation(
-    PackageDimension Dimension,
-    ulong Observed)
+public sealed record PackageDimensionObservation
 {
-    public string GetDimensionToken() => Dimension switch
+    public PackageDimensionObservation(
+        PackageDimension dimension,
+        ulong observed)
     {
-        PackageDimension.CarrierBytes => "carrier_bytes",
-        PackageDimension.EntryCount => "entry_count",
-        PackageDimension.PartBytes => "part_bytes",
-        PackageDimension.ExpandedBytes => "expanded_bytes",
-        PackageDimension.JsonDepth => "json_depth",
-        PackageDimension.JsonTokens => "json_tokens",
-        PackageDimension.StringScalarCount => "string_scalar_count",
-        PackageDimension.StringUtf8Bytes => "string_utf8_bytes",
-        PackageDimension.ArrayItems => "array_items",
-        PackageDimension.EntityCount => "entity_count",
-        PackageDimension.MemoryPartCount => "memory_part_count",
-        PackageDimension.MemoryCellCount => "memory_cell_count",
-        _ => throw new ArgumentOutOfRangeException(nameof(Dimension)),
-    };
+        DimensionToken = dimension switch
+        {
+            PackageDimension.CarrierBytes => "carrier_bytes",
+            PackageDimension.EntryCount => "entry_count",
+            PackageDimension.PartBytes => "part_bytes",
+            PackageDimension.ExpandedBytes => "expanded_bytes",
+            PackageDimension.JsonDepth => "json_depth",
+            PackageDimension.JsonTokens => "json_tokens",
+            PackageDimension.StringScalarCount => "string_scalar_count",
+            PackageDimension.StringUtf8Bytes => "string_utf8_bytes",
+            PackageDimension.ArrayItems => "array_items",
+            PackageDimension.EntityCount => "entity_count",
+            PackageDimension.MemoryPartCount => "memory_part_count",
+            PackageDimension.MemoryCellCount => "memory_cell_count",
+            _ => throw new ArgumentOutOfRangeException(nameof(dimension)),
+        };
+
+        Dimension = dimension;
+        Observed = observed;
+    }
+
+    public PackageDimension Dimension { get; }
+
+    public ulong Observed { get; }
+
+    public string DimensionToken { get; }
 }
 
 public sealed record PackageEvidence(

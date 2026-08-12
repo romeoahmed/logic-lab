@@ -240,11 +240,6 @@ public static partial class ProjectEditor
         }
 
         Ensure(junctionMembership.Count == junctions.Count);
-        foreach (var junctionId in junctions.Keys)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            Ensure(junctionMembership.Contains(junctionId));
-        }
         foreach (var junction in definition.Junctions)
         {
             cancellationToken.ThrowIfCancellationRequested();

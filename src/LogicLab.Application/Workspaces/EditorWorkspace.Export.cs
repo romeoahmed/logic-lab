@@ -238,7 +238,7 @@ internal sealed partial class EditorWorkspace
             policyEvidence = new PolicyEvidenceProjection(
                 rejected.Evidence.Policy.PolicyId,
                 rejected.Evidence.Policy.PolicyRevision,
-                breach.GetDimensionToken(),
+                breach.DimensionToken,
                 breach.Observed);
         }
 

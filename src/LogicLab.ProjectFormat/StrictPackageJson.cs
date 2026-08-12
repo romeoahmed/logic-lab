@@ -13,7 +13,7 @@ public static partial class ProjectPackage
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var maximumDepth = policy.Maximum(PackageDimension.JsonDepth);
+        var maximumDepth = policy.GetMaximum(PackageDimension.JsonDepth);
         var reader = new Utf8JsonReader(
             json,
             new JsonReaderOptions

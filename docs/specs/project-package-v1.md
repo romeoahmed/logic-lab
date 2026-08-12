@@ -153,12 +153,12 @@ bounded upload stream
   -> read and validate manifest
   -> stream, count, and hash every declared part
   -> validate strict JSON and memory headers/payloads
-  -> migrate exact DTO schema versions
+  -> require the exact V1 DTO schema version
   -> translate through Circuit Authoring-owned constructors into a complete Project Document candidate
   -> return Import Candidate to Application
 ```
 
-Project Format owns carrier, bounded decoding, strict DTO, migration, and integrity validation. It uses the Circuit Authoring invariant implementation exposed by Domain and does not maintain a second semantic validator. It neither invokes Project Editor or Compiler nor creates a Project Revision, Workspace, or Durable Project.
+Project Format owns carrier, bounded decoding, strict V1 DTO, and integrity validation. It uses the Circuit Authoring invariant implementation exposed by Domain and does not maintain a second semantic validator. It neither invokes Project Editor or Compiler nor creates a Project Revision, Workspace, or Durable Project.
 
 Application passes a successful Import Candidate to [`OpenAsync(ImportProject)`](../contracts/editor-workspace.md#3-editor-workspace-interface), which owns Project Genesis, Compilation, and atomic Workspace publication. Import preserves authored Project ID but allocates new Workspace and Project Revision identities; any later Durable Project receives its own Durable Project ID.
 

@@ -11,7 +11,7 @@ Begin(ProjectSeed) -> ProjectGenesisCommitted | ProjectGenesisRejected
 Apply(ProjectRevision, EditIntent) -> EditCommitted | EditRejected
 ```
 
-`ProjectSeed` is `NewProjectSeed` or `ImportedProjectSeed`. A new seed supplies the Project display name, exact Library Snapshot, Symbol Profile, and entry Circuit Definition display name. Project Editor allocates the authored Project ID, Project Revision ID, and one empty entry Circuit Definition ID; all other collections begin empty. An imported seed contains the complete validated Project Document from Project Format and preserves its authored IDs while receiving a new Project Revision ID. `Begin` rechecks Domain invariants; it does not save, compile, authorize, publish a Workspace, or mutate an existing history.
+`ProjectSeed` is `NewProjectSeed` or `ImportedProjectSeed`. A new seed supplies the Project display name, exact Library Snapshot, Symbol Profile, and entry Circuit Definition display name. Project Editor allocates the authored Project ID, Project Revision ID, and one empty entry Circuit Definition ID; all other collections begin empty. An imported seed carries the validated Project Document established by the Project Format Import Candidate, preserves its authored IDs, and receives a new Project Revision ID. `Begin` trusts that capability boundary; it does not repeat validation, save, compile, authorize, publish a Workspace, or mutate an existing history.
 
 `EditIntent` is one closed variant describing one user intention. An intent may affect several entities or Circuit Definitions when that is necessary to preserve invariants; it is not an arbitrary patch or list of smaller commands.
 
