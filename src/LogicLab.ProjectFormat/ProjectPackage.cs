@@ -598,6 +598,10 @@ public static partial class ProjectPackage
             part.Hash);
     }
 
+    private sealed record SpooledPackagePart(
+        PackagePartDigest Digest,
+        long Offset);
+
     private sealed class CountingWriteStream(Stream destination) : Stream
     {
         private readonly ArrayBufferWriter<byte> deferredSynchronousWrites = new();

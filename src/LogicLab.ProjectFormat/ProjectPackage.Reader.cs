@@ -127,6 +127,16 @@ public static partial class ProjectPackage
 
     private static FileStream CreateImportSpool()
     {
+        return CreateTemporaryFile("import");
+    }
+
+    private static FileStream CreateDecodedPartSpool()
+    {
+        return CreateTemporaryFile("parts");
+    }
+
+    private static FileStream CreateTemporaryFile(string purpose)
+    {
         var options = new FileStreamOptions
         {
             Mode = FileMode.CreateNew,
@@ -144,7 +154,7 @@ public static partial class ProjectPackage
 
         var path = Path.Combine(
             Path.GetTempPath(),
-            $"logiclab-import-{Guid.NewGuid():N}.tmp");
+            $"logiclab-{purpose}-{Guid.NewGuid():N}.tmp");
         return new FileStream(path, options);
     }
 
@@ -197,14 +207,17 @@ public static partial class ProjectPackage
                 PackageDimension.EntryCount);
         }
 
-        if (await ZipCentralDirectory.HasUnsupportedCompressionAsync(
+        var unsupportedFeature = await ZipCentralDirectory.FindUnsupportedFeatureAsync(
             spool,
             centralDirectory,
-            cancellationToken).ConfigureAwait(false))
+            cancellationToken).ConfigureAwait(false);
+        if (unsupportedFeature is not null)
         {
             throw Invalid(
                 "package_unsupported_feature",
-                ("feature", "compression"));
+                ("feature", unsupportedFeature == ZipUnsupportedFeature.Encryption
+                    ? "encryption"
+                    : "compression"));
         }
 
         spool.Position = 0;
@@ -248,37 +261,42 @@ public static partial class ProjectPackage
             observations,
             PackageDimension.MemoryPartCount);
 
-        var partDigests = new List<PackagePartDigest>(
+        await using var decodedParts = CreateDecodedPartSpool();
+        var spooledParts = new List<SpooledPackagePart>(
             checked(manifest.MemoryParts.Length + 1));
-        var projectPart = await ReadDeclaredPartDigestAsync(
+        var projectPart = await ReadDeclaredPartAsync(
             entries,
             manifest.ProjectPart.Path,
             memoryImageId: null,
+            decodedParts,
             policy,
             observations,
             cancellationToken).ConfigureAwait(false);
-        partDigests.Add(projectPart);
+        spooledParts.Add(projectPart);
         foreach (var memoryPart in manifest.MemoryParts)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            partDigests.Add(await ReadDeclaredPartDigestAsync(
+            spooledParts.Add(await ReadDeclaredPartAsync(
                 entries,
                 memoryPart.Path,
                 memoryPart.MemoryImageId,
+                decodedParts,
                 policy,
                 observations,
                 cancellationToken).ConfigureAwait(false));
         }
 
+        var partDigests = spooledParts.Select(part => part.Digest).ToArray();
+
         ValidatePartIntegrity(
-            projectPart,
+            projectPart.Digest,
             manifest.ProjectPart.Length,
             manifest.ProjectPart.Sha256,
             "project");
 
-        var projectBytes = await ReadValidatedPartBytesAsync(
-            entries[manifest.ProjectPart.Path],
-            manifest.ProjectPart.Length,
+        var projectBytes = await ReadSpooledPartBytesAsync(
+            decodedParts,
+            projectPart,
             cancellationToken).ConfigureAwait(false);
 
         ValidateJson(projectBytes, policy, observations, cancellationToken);
@@ -330,9 +348,9 @@ public static partial class ProjectPackage
         {
             cancellationToken.ThrowIfCancellationRequested();
             var memoryPart = manifest.MemoryParts[index];
-            var bytes = await ReadValidatedPartBytesAsync(
-                entries[memoryPart.Path],
-                memoryPart.Length,
+            var bytes = await ReadSpooledPartBytesAsync(
+                decodedParts,
+                spooledParts[index + 1],
                 cancellationToken).ConfigureAwait(false);
             memoryParts.Add(memoryPart.MemoryImageId, new PackagePart(
                 memoryPart.Path,
@@ -436,10 +454,11 @@ public static partial class ProjectPackage
         }
     }
 
-    private static async Task<PackagePartDigest> ReadDeclaredPartDigestAsync(
+    private static async Task<SpooledPackagePart> ReadDeclaredPartAsync(
         Dictionary<string, ZipArchiveEntry> entries,
         string path,
         string? memoryImageId,
+        FileStream destination,
         PackagePolicy policy,
         ulong[] observations,
         CancellationToken cancellationToken)
@@ -452,8 +471,9 @@ public static partial class ProjectPackage
                 ("check", "missing"));
         }
 
-        var part = await ReadEntryDigestAsync(
+        var part = await ReadEntryAsync(
             entry,
+            destination,
             policy,
             observations,
             cancellationToken).ConfigureAwait(false);
@@ -492,8 +512,9 @@ public static partial class ProjectPackage
         }
     }
 
-    private static async Task<PackagePartDigest> ReadEntryDigestAsync(
+    private static async Task<SpooledPackagePart> ReadEntryAsync(
         ZipArchiveEntry entry,
+        FileStream destination,
         PackagePolicy policy,
         ulong[] observations,
         CancellationToken cancellationToken)
@@ -504,6 +525,7 @@ public static partial class ProjectPackage
                 .ConfigureAwait(false);
             using var hashing = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             var buffer = new byte[ReadBufferSize];
+            var offset = destination.Position;
             ulong partBytes = 0;
             while (true)
             {
@@ -530,13 +552,15 @@ public static partial class ProjectPackage
                     observations,
                     PackageDimension.ExpandedBytes);
                 hashing.AppendData(buffer, 0, read);
+                await destination.WriteAsync(
+                    buffer.AsMemory(0, read),
+                    cancellationToken).ConfigureAwait(false);
             }
 
             var hash = hashing.GetHashAndReset();
-            return new PackagePartDigest(
-                entry.FullName,
-                partBytes,
-                hash);
+            return new SpooledPackagePart(
+                new PackagePartDigest(entry.FullName, partBytes, hash),
+                offset);
         }
         catch (InvalidDataException)
         {
@@ -608,41 +632,20 @@ public static partial class ProjectPackage
         }
     }
 
-    private static async Task<byte[]> ReadValidatedPartBytesAsync(
-        ZipArchiveEntry entry,
-        ulong validatedLength,
+    private static async Task<byte[]> ReadSpooledPartBytesAsync(
+        FileStream source,
+        SpooledPackagePart part,
         CancellationToken cancellationToken)
     {
-        if (validatedLength > int.MaxValue)
+        if (part.Digest.Length > int.MaxValue)
         {
             throw Invalid("package_illegal_entry", ("rule", "partLength"));
         }
 
-        try
-        {
-            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)validatedLength));
-            await using var source = await entry.OpenAsync(cancellationToken)
-                .ConfigureAwait(false);
-            await source.ReadExactlyAsync(bytes, cancellationToken).ConfigureAwait(false);
-            var extra = new byte[1];
-            if (await source.ReadAsync(extra, cancellationToken)
-                    .ConfigureAwait(false) != 0)
-            {
-                throw Invalid("package_integrity_mismatch", ("partKind", "part"), ("check", "length"));
-            }
-
-            return bytes;
-        }
-        catch (InvalidDataException)
-        {
-            throw Invalid("package_illegal_entry", ("rule", "corruptPart"));
-        }
-        catch (NotSupportedException)
-        {
-            throw Invalid(
-                "package_unsupported_feature",
-                ("feature", "compression"));
-        }
+        var bytes = GC.AllocateUninitializedArray<byte>(checked((int)part.Digest.Length));
+        source.Position = part.Offset;
+        await source.ReadExactlyAsync(bytes, cancellationToken).ConfigureAwait(false);
+        return bytes;
     }
 
     private static void ValidateManifest(
