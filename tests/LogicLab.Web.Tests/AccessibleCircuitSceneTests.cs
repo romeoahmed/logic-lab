@@ -228,7 +228,7 @@ internal sealed class AccessibleCircuitSceneTests
 
     private static BunitContext CreateContext()
     {
-        var context = new BunitContext();
+        var context = WebTestContext.CreateBunitContext();
         context.Services.AddFluentUIComponents();
         return context;
     }

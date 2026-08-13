@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Add" xml:space="preserve"><value>Add</value></data>
+  <data name="Arithmetic" xml:space="preserve"><value>Arithmetic</value></data>
+  <data name="AuthorCircuit" xml:space="preserve"><value>Author circuit</value></data>
+  <data name="Back" xml:space="preserve"><value>Back</value></data>
+  <data name="Build" xml:space="preserve"><value>Build</value></data>
+  <data name="BuildCommandAriaLabel" xml:space="preserve"><value>Build command</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="ChildOccurrencesAriaLabel" xml:space="preserve"><value>Child occurrences</value></data>
+  <data name="Circuit" xml:space="preserve"><value>Circuit</value></data>
+  <data name="CircuitComponentsAriaLabel" xml:space="preserve"><value>Circuit components</value></data>
+  <data name="CircuitDefinitionInstance" xml:space="preserve"><value>Circuit Definition instance</value></data>
+  <data name="CircuitDefinitionNavigationAriaLabel" xml:space="preserve"><value>Circuit Definition navigation</value></data>
+  <data name="CircuitDefinitionPortsAriaLabel" xml:space="preserve"><value>Circuit Definition ports</value></data>
+  <data name="CircuitSceneEyebrow" xml:space="preserve"><value>Circuit Canvas · semantic scene</value></data>
+  <data name="Commit" xml:space="preserve"><value>Commit</value></data>
+  <data name="Compilation" xml:space="preserve"><value>Compilation</value></data>
+  <data name="CompilationNotRequested" xml:space="preserve"><value>Not requested</value></data>
+  <data name="CompilationPublished" xml:space="preserve"><value>Published</value></data>
+  <data name="CompilationQueued" xml:space="preserve"><value>Queued</value></data>
+  <data name="CompilationRejected" xml:space="preserve"><value>Rejected</value></data>
+  <data name="CompilationRunning" xml:space="preserve"><value>Running</value></data>
+  <data name="CompilationSuperseded" xml:space="preserve"><value>Superseded</value></data>
+  <data name="Compile" xml:space="preserve"><value>Compile</value></data>
+  <data name="Connected" xml:space="preserve"><value>Connected</value></data>
+  <data name="Connecting" xml:space="preserve"><value>Connecting</value></data>
+  <data name="Connection" xml:space="preserve"><value>Connection</value></data>
+  <data name="Connections" xml:space="preserve"><value>Connections</value></data>
+  <data name="CreateSandbox" xml:space="preserve"><value>Create Sandbox Project</value></data>
+  <data name="CreateSandboxToBegin" xml:space="preserve"><value>Create a Sandbox Project to begin.</value></data>
+  <data name="CreateSession" xml:space="preserve"><value>Create Session</value></data>
+  <data name="DefinitionContext" xml:space="preserve"><value>Definition context</value></data>
+  <data name="DefinitionPorts" xml:space="preserve"><value>Definition ports</value></data>
+  <data name="DefinitionReady" xml:space="preserve"><value>The project is ready. Author the narrow input–NOT–output circuit.</value></data>
+  <data name="DefinitionView" xml:space="preserve"><value>Definition view</value></data>
+  <data name="Draft" xml:space="preserve"><value>Draft</value></data>
+  <data name="DurableProjectName" xml:space="preserve"><value>Durable project name</value></data>
+  <data name="ElectricalConnectionsAriaLabel" xml:space="preserve"><value>Electrical connections</value></data>
+  <data name="ElectricalMembershipAriaLabel" xml:space="preserve"><value>Electrical membership</value></data>
+  <data name="ElaboratedOccurrence" xml:space="preserve"><value>Elaborated occurrence</value></data>
+  <data name="EnterDefinition" xml:space="preserve"><value>Enter {0}</value></data>
+  <data name="Entry" xml:space="preserve"><value>Entry</value></data>
+  <data name="EntryCircuitDefinition" xml:space="preserve"><value>Entry Circuit Definition</value></data>
+  <data name="ExampleAuthoringCommandsAriaLabel" xml:space="preserve"><value>Example authoring commands</value></data>
+  <data name="Geometry" xml:space="preserve"><value>Geometry</value></data>
+  <data name="GeometryRule" xml:space="preserve"><value>Geometry never creates electrical membership.</value></data>
+  <data name="GridPosition" xml:space="preserve"><value>Grid {0}, {1}</value></data>
+  <data name="Hierarchy" xml:space="preserve"><value>Hierarchy</value></data>
+  <data name="HierarchyPathAriaLabel" xml:space="preserve"><value>Hierarchy path</value></data>
+  <data name="ImportAriaLabel" xml:space="preserve"><value>Import a .logiclab project package</value></data>
+  <data name="ImportProject" xml:space="preserve"><value>Import project</value></data>
+  <data name="InputsHigh" xml:space="preserve"><value>Inputs = 1</value></data>
+  <data name="InstrumentBay" xml:space="preserve"><value>Instrument Bay</value></data>
+  <data name="JunctionAtGrid" xml:space="preserve"><value>Junction at grid {0}, {1}</value></data>
+  <data name="JunctionEditingAriaLabel" xml:space="preserve"><value>Junction editing</value></data>
+  <data name="Junctions" xml:space="preserve"><value>Junctions</value></data>
+  <data name="KeepDurable" xml:space="preserve"><value>Keep as Durable Project</value></data>
+  <data name="LiveReadout" xml:space="preserve"><value>Live readout</value></data>
+  <data name="LogicalTime" xml:space="preserve"><value>Logical time</value></data>
+  <data name="Membership" xml:space="preserve"><value>Membership</value></data>
+  <data name="MergeNets" xml:space="preserve"><value>Merge Nets</value></data>
+  <data name="NoActiveSession" xml:space="preserve"><value>No active session.</value></data>
+  <data name="NoDefinitions" xml:space="preserve"><value>No Circuit Definitions are open.</value></data>
+  <data name="ObservedProbesAriaLabel" xml:space="preserve"><value>Observed probes</value></data>
+  <data name="OpenDefinitionsAriaLabel" xml:space="preserve"><value>Open Circuit Definitions</value></data>
+  <data name="Output" xml:space="preserve"><value>Output</value></data>
+  <data name="PortCount" xml:space="preserve"><value>{0} bit</value></data>
+  <data name="PortDirectionInput" xml:space="preserve"><value>Input</value></data>
+  <data name="PortDirectionOutput" xml:space="preserve"><value>Output</value></data>
+  <data name="PortsAriaLabel" xml:space="preserve"><value>{0} ports</value></data>
+  <data name="Prepare" xml:space="preserve"><value>Prepare</value></data>
+  <data name="PrepareExport" xml:space="preserve"><value>Prepare export</value></data>
+  <data name="Probe" xml:space="preserve"><value>Probe</value></data>
+  <data name="ProbeEmptyHelp" xml:space="preserve"><value>Compile the circuit, then create a simulation session.</value></data>
+  <data name="Project" xml:space="preserve"><value>Project</value></data>
+  <data name="ProjectCommandsAriaLabel" xml:space="preserve"><value>Project commands</value></data>
+  <data name="Quiescence" xml:space="preserve"><value>Quiescence</value></data>
+  <data name="Quiescent" xml:space="preserve"><value>Quiescent</value></data>
+  <data name="Remove" xml:space="preserve"><value>Remove</value></data>
+  <data name="Route" xml:space="preserve"><value>Route</value></data>
+  <data name="RouteDraftAriaLabel" xml:space="preserve"><value>Route draft</value></data>
+  <data name="RouteGeometryAriaLabel" xml:space="preserve"><value>Route geometry</value></data>
+  <data name="RoutePreview" xml:space="preserve"><value>Route preview: 0,0 → 0,2 → 8,2. Commit or cancel this local draft.</value></data>
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="SaveDurable" xml:space="preserve"><value>Save Durable Project</value></data>
+  <data name="SaveDurableChanged" xml:space="preserve"><value>Durable · changed · {0}</value></data>
+  <data name="SaveDurableClean" xml:space="preserve"><value>Durable · saved · {0}</value></data>
+  <data name="SaveDurableConflict" xml:space="preserve"><value>Durable · conflict · {0}</value></data>
+  <data name="SaveDurableUnavailable" xml:space="preserve"><value>Durable · status unavailable</value></data>
+  <data name="SaveSandbox" xml:space="preserve"><value>Sandbox · memory only</value></data>
+  <data name="SceneCount" xml:space="preserve"><value>{0} components · {1} nets</value></data>
+  <data name="SessionVersion" xml:space="preserve"><value>Session version</value></data>
+  <data name="SetAsEntry" xml:space="preserve"><value>Set as entry</value></data>
+  <data name="Simulation" xml:space="preserve"><value>Simulation</value></data>
+  <data name="SimulationCommandsAriaLabel" xml:space="preserve"><value>Simulation commands</value></data>
+  <data name="SplitNet" xml:space="preserve"><value>Split Net</value></data>
+  <data name="Steering" xml:space="preserve"><value>Steering</value></data>
+  <data name="Step" xml:space="preserve"><value>Step</value></data>
+  <data name="TabsHierarchyEntry" xml:space="preserve"><value>Tabs · hierarchy · entry</value></data>
+  <data name="Templates" xml:space="preserve"><value>Templates</value></data>
+  <data name="TopologyCommandsAriaLabel" xml:space="preserve"><value>Topology commands</value></data>
+  <data name="TopologyForNetAriaLabel" xml:space="preserve"><value>Topology for net {0}</value></data>
+  <data name="TopologyHeading" xml:space="preserve"><value>Net and route editing</value></data>
+  <data name="TopologyEyebrow" xml:space="preserve"><value>Explicit topology</value></data>
+  <data name="TraceRange" xml:space="preserve"><value>Trace range</value></data>
+  <data name="Unavailable" xml:space="preserve"><value>Unavailable</value></data>
+  <data name="Unroute" xml:space="preserve"><value>Unroute</value></data>
+  <data name="Unrouted" xml:space="preserve"><value>Unrouted</value></data>
+  <data name="WireOrthogonal" xml:space="preserve"><value>Orthogonal · {0}</value></data>
+  <data name="WorkbenchCommandsAriaLabel" xml:space="preserve"><value>Workbench commands</value></data>
+  <data name="WorkbenchStatusAriaLabel" xml:space="preserve"><value>Workbench status</value></data>
+  <data name="WorkbenchTelemetryAriaLabel" xml:space="preserve"><value>Workbench telemetry</value></data>
+  <data name="CircuitWorkbenchAriaLabel" xml:space="preserve"><value>Circuit workbench</value></data>
+  <data name="ConflictDescription" xml:space="preserve"><value>Your local revision is still available. Choose how to recover it.</value></data>
+  <data name="ConflictExportLocal" xml:space="preserve"><value>Export local</value></data>
+  <data name="ConflictKeepCopy" xml:space="preserve"><value>Keep as copy</value></data>
+  <data name="ConflictReloadRemote" xml:space="preserve"><value>Reload remote</value></data>
+  <data name="ConflictTitle" xml:space="preserve"><value>Durable Project changed remotely</value></data>
+  <data name="DownloadPackage" xml:space="preserve"><value>Download .logiclab package</value></data>
+  <data name="ErrorCodeLabel" xml:space="preserve"><value>Error code:</value></data>
+  <data name="FencedCommands" xml:space="preserve"><value>Fenced commands</value></data>
+  <data name="InteractiveServer" xml:space="preserve"><value>Interactive server</value></data>
+  <data name="ReloadLogicLab" xml:space="preserve"><value>Reload Logic Lab</value></data>
+  <data name="SemanticScene" xml:space="preserve"><value>Semantic scene</value></data>
+  <data name="StartNewSandbox" xml:space="preserve"><value>Start a new Sandbox</value></data>
+  <data name="ViewDurableProjects" xml:space="preserve"><value>View Durable Projects</value></data>
+  <data name="WorkbenchBrief" xml:space="preserve"><value>Workbench brief</value></data>
+  <data name="WorkbenchCapabilitiesAriaLabel" xml:space="preserve"><value>Workbench capabilities</value></data>
+  <data name="WorkspaceUnavailable" xml:space="preserve"><value>Workspace unavailable</value></data>
+  <data name="AttachmentRejected" xml:space="preserve"><value>Workspace attachment rejected: {0}.</value></data>
+  <data name="AuthenticationChanged" xml:space="preserve"><value>Authentication changed. Reload the Workspace to continue.</value></data>
+  <data name="AuthenticationMissingSubject" xml:space="preserve"><value>Authentication is missing a stable subject. Reload to continue.</value></data>
+  <data name="AuthoringRejected" xml:space="preserve"><value>Authoring rejected: {0}.</value></data>
+  <data name="CircuitAuthored" xml:space="preserve"><value>Circuit authored. Compile the current Project Revision.</value></data>
+  <data name="ClaimRejected" xml:space="preserve"><value>Claim rejected: {0}.</value></data>
+  <data name="ClaimSucceeded" xml:space="preserve"><value>Sandbox claimed as Durable Project “{0}”.</value></data>
+  <data name="CompilationAccepted" xml:space="preserve"><value>Compilation generation {0} accepted.</value></data>
+  <data name="CompilationArtifactPublished" xml:space="preserve"><value>Compilation Artifact published atomically.</value></data>
+  <data name="CompilationEndedUnknown" xml:space="preserve"><value>Compilation ended in an unknown state.</value></data>
+  <data name="CompilationRejectedStatus" xml:space="preserve"><value>Compilation rejected: {0}.</value></data>
+  <data name="CompilationStatusDetached" xml:space="preserve"><value>Compilation status is unavailable because the Workspace detached.</value></data>
+  <data name="CompilationStatusUnavailable" xml:space="preserve"><value>Compilation status unavailable: {0}.</value></data>
+  <data name="CompilationWasSuperseded" xml:space="preserve"><value>Compilation generation {0} was superseded.</value></data>
+  <data name="DescriptionDurable" xml:space="preserve"><value>Inspect the saved revision, compile it, and continue in an authorized workspace.</value></data>
+  <data name="DescriptionOpening" xml:space="preserve"><value>Re-establishing the attachment fence before any project data or commands are shown.</value></data>
+  <data name="DescriptionSandbox" xml:space="preserve"><value>Create Circuit Definitions, navigate occurrences, choose an entry, compile, and simulate.</value></data>
+  <data name="EyebrowDurable" xml:space="preserve"><value>Durable circuit workspace</value></data>
+  <data name="EyebrowOpening" xml:space="preserve"><value>Opening circuit workspace</value></data>
+  <data name="EyebrowSandbox" xml:space="preserve"><value>Interactive circuit sandbox</value></data>
+  <data name="ExportPrepared" xml:space="preserve"><value>Export prepared for {0} seconds.</value></data>
+  <data name="ExportRejected" xml:space="preserve"><value>Export preparation rejected: {0}.</value></data>
+  <data name="FailureAccessChangedDescription" xml:space="preserve"><value>Sign in with the project owner account and reopen it from Durable Projects.</value></data>
+  <data name="FailureAccessChangedTitle" xml:space="preserve"><value>Your access to this workspace changed.</value></data>
+  <data name="FailureGenericDescription" xml:space="preserve"><value>Return to your Durable Projects and try reopening it, or start a new Sandbox.</value></data>
+  <data name="FailureGenericTitle" xml:space="preserve"><value>We couldn't open this workspace.</value></data>
+  <data name="FailureStaleDescription" xml:space="preserve"><value>Continue in the tab that owns the active attachment, or reopen an authorized Durable Project.</value></data>
+  <data name="FailureStaleTitle" xml:space="preserve"><value>This workspace is attached elsewhere.</value></data>
+  <data name="FailureUnavailableDescription" xml:space="preserve"><value>It may have expired or been closed. Return to your Durable Projects, or start a new Sandbox.</value></data>
+  <data name="FailureUnavailableTitle" xml:space="preserve"><value>This workspace is no longer available.</value></data>
+  <data name="FailureUpdatedDescription" xml:space="preserve"><value>Reload the application before reopening this workspace.</value></data>
+  <data name="FailureUpdatedTitle" xml:space="preserve"><value>Logic Lab was updated.</value></data>
+  <data name="ImportCancelled" xml:space="preserve"><value>Import cancelled.</value></data>
+  <data name="ImportOpening" xml:space="preserve"><value>Import validated and compiled. Opening its independent Workspace…</value></data>
+  <data name="ImportRejected" xml:space="preserve"><value>Import rejected: {0}.</value></data>
+  <data name="OpeningCopy" xml:space="preserve"><value>Opening the local revision as an independent Sandbox…</value></data>
+  <data name="OpeningLatestDurable" xml:space="preserve"><value>Opening the latest Durable Project…</value></data>
+  <data name="OpeningRejected" xml:space="preserve"><value>Workspace opening rejected: {0}.</value></data>
+  <data name="ProjectCreationRejected" xml:space="preserve"><value>Project creation rejected: {0}.</value></data>
+  <data name="SaveConflictStatus" xml:space="preserve"><value>Save conflict: the Durable Project changed remotely.</value></data>
+  <data name="SaveRejected" xml:space="preserve"><value>Save rejected: {0}.</value></data>
+  <data name="SaveSucceeded" xml:space="preserve"><value>Durable Project saved at version {0}.</value></data>
+  <data name="ScenePolicyExceeded" xml:space="preserve"><value>The accessible Scene exceeds the active Port projection budget.</value></data>
+  <data name="SessionCreated" xml:space="preserve"><value>Simulation Session created at Logical Time 0.</value></data>
+  <data name="SessionCreatedNoInputs" xml:space="preserve"><value>Simulation Session created at Logical Time 0. This circuit has no programmable inputs, so stimulus is unavailable.</value></data>
+  <data name="SessionRejected" xml:space="preserve"><value>Session creation rejected: {0}.</value></data>
+  <data name="StatusConnecting" xml:space="preserve"><value>Connecting to the interactive workbench…</value></data>
+  <data name="StatusReady" xml:space="preserve"><value>Ready to create a Sandbox Project.</value></data>
+  <data name="StatusReopenedDurable" xml:space="preserve"><value>Durable Project reopened.</value></data>
+  <data name="StatusReopenedSandbox" xml:space="preserve"><value>Sandbox Workspace reopened.</value></data>
+  <data name="StatusSandboxCreated" xml:space="preserve"><value>Sandbox Project created. Author the sample circuit.</value></data>
+  <data name="StepCommitted" xml:space="preserve"><value>Step committed at Logical Time {0}.</value></data>
+  <data name="StepFailed" xml:space="preserve"><value>Step failed: {0}.</value></data>
+  <data name="StepRejected" xml:space="preserve"><value>Step rejected: {0}.</value></data>
+  <data name="StimulusRejected" xml:space="preserve"><value>Stimulus rejected: {0}.</value></data>
+  <data name="StimulusScheduled" xml:space="preserve"><value>Programmable inputs set to 1 at Logical Time {0}.</value></data>
+  <data name="TitleDurable" xml:space="preserve"><value>Durable Project Workbench</value></data>
+  <data name="TitleOpening" xml:space="preserve"><value>Workspace Workbench</value></data>
+  <data name="TitleSandbox" xml:space="preserve"><value>Sandbox Workbench</value></data>
+  <data name="WorkspaceClosed" xml:space="preserve"><value>Sandbox Workspace closed: {0}. Create a new Sandbox Project.</value></data>
+  <data name="FailureZeroTimeOscillation" xml:space="preserve"><value>zero-time oscillation</value></data>
+  <data name="FailureSimulationResourceLimit" xml:space="preserve"><value>simulation resource limit</value></data>
+  <data name="FailureSimulationCancelled" xml:space="preserve"><value>simulation cancelled</value></data>
+  <data name="FailureSimulationInfrastructure" xml:space="preserve"><value>simulation infrastructure failure</value></data>
+  <data name="FailureSimulationInternal" xml:space="preserve"><value>simulation internal defect</value></data>
+  <data name="ArithmeticGalleryAuthored" xml:space="preserve"><value>Arithmetic gallery authored with checked Ports. Compile the current Project Revision.</value></data>
+  <data name="EditingDefinition" xml:space="preserve"><value>Editing Circuit Definition {0}.</value></data>
+  <data name="EntryDefinitionChanged" xml:space="preserve"><value>{0} is now the entry Circuit Definition.</value></data>
+  <data name="HierarchyAuthored" xml:space="preserve"><value>Hierarchy authored. Navigate its occurrence or compile the entry definition.</value></data>
+  <data name="HierarchyObserving" xml:space="preserve"><value>Observing hierarchy occurrence {0}.</value></data>
+  <data name="HierarchyReturned" xml:space="preserve"><value>Returned to {0}.</value></data>
+  <data name="JunctionAdded" xml:space="preserve"><value>Explicit Junction added at grid 4, 2.</value></data>
+  <data name="JunctionRemoved" xml:space="preserve"><value>Junction removed without inferring connectivity from geometry.</value></data>
+  <data name="NetMerged" xml:space="preserve"><value>Nets merged into the canonical destination.</value></data>
+  <data name="NetSplit" xml:space="preserve"><value>Net split into two complete membership partitions.</value></data>
+  <data name="RouteCancelled" xml:space="preserve"><value>Route edit cancelled; no Workspace command was sent.</value></data>
+  <data name="RouteCommitted" xml:space="preserve"><value>Orthogonal route committed.</value></data>
+  <data name="RouteDraftPrepared" xml:space="preserve"><value>Route draft prepared locally. Commit or cancel it.</value></data>
+  <data name="RouteMarkedUnrouted" xml:space="preserve"><value>Wire Geometry marked explicitly unrouted.</value></data>
+  <data name="RouteRouted" xml:space="preserve"><value>Wire Geometry routed orthogonally.</value></data>
+  <data name="SteeringGalleryAuthored" xml:space="preserve"><value>Steering gallery authored with generated Ports. Compile the current Project Revision.</value></data>
+</root>

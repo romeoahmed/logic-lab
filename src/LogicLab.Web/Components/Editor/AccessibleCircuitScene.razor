@@ -1,52 +1,54 @@
+@inject IStringLocalizer<EditorText> Text
+
 <section class="scene" aria-labelledby="circuit-scene-heading">
     <div class="scene-heading">
         <div>
-            <p class="eyebrow">Circuit Canvas · semantic scene</p>
-            <h2 id="circuit-scene-heading">@(Scene?.DisplayName ?? "Circuit")</h2>
+            <p class="eyebrow">@Text["CircuitSceneEyebrow"]</p>
+            <h2 id="circuit-scene-heading">@(Scene?.DisplayName ?? Text["Circuit"])</h2>
         </div>
         @if (Scene is not null)
         {
-            <span class="scene-count">@Scene.Components.Count components · @Scene.Connections.Count nets</span>
+            <span class="scene-count">@Text["SceneCount", Scene.Components.Count, Scene.Connections.Count]</span>
         }
     </div>
 
     @if (Scene is null)
     {
-        <p class="empty-state" role="status">Create a Sandbox Project to begin.</p>
+        <p class="empty-state" role="status">@Text["CreateSandboxToBegin"]</p>
     }
     else if (Scene.Components.Count == 0
         && Scene.DefinitionPorts.Count == 0
         && Scene.Connections.Count == 0)
     {
-        <p class="empty-state" role="status">The project is ready. Author the narrow input–NOT–output circuit.</p>
+        <p class="empty-state" role="status">@Text["DefinitionReady"]</p>
     }
     else
     {
         @if (Scene.DefinitionPorts.Count != 0)
         {
-            <h3 class="definition-ports-heading">Definition ports</h3>
-            <ul class="definition-port-list" aria-label="Circuit Definition ports">
+            <h3 class="definition-ports-heading">@Text["DefinitionPorts"]</h3>
+            <ul class="definition-port-list" aria-label="@Text["CircuitDefinitionPortsAriaLabel"]">
                 @foreach (var port in Scene.DefinitionPorts)
                 {
                     <li @key="port.Source"
                         data-definition-port="@port.Source.DefinitionPortId.Value">
-                        <strong>@port.Label</strong> · @port.Direction · @port.Width bit
+                        <strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]
                     </li>
                 }
             </ul>
         }
 
-        <ol class="component-list" aria-label="Circuit components">
+        <ol class="component-list" aria-label="@Text["CircuitComponentsAriaLabel"]">
             @foreach (var component in Scene.Components)
             {
                 <li @key="component.Source" data-component="@component.Source.ComponentInstanceId.Value">
                     <article class="component-card">
                         <h3>@component.Label</h3>
-                        <p>Grid @component.Placement.Origin.X, @component.Placement.Origin.Y</p>
-                        <ul aria-label="@($"{component.Label} ports")">
+                        <p>@Text["GridPosition", component.Placement.Origin.X, component.Placement.Origin.Y]</p>
+                        <ul aria-label="@Text["PortsAriaLabel", component.Label]">
                             @foreach (var port in component.Ports)
                             {
-                                <li @key="port.Source"><strong>@port.Label</strong> · @port.Direction · @port.Width bit</li>
+                                <li @key="port.Source"><strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]</li>
                             }
                         </ul>
                     </article>
@@ -54,22 +56,22 @@
             }
         </ol>
 
-        <h3 class="connections-heading">Connections</h3>
-        <ol class="connection-list" aria-label="Electrical connections">
+        <h3 class="connections-heading">@Text["Connections"]</h3>
+        <ol class="connection-list" aria-label="@Text["ElectricalConnectionsAriaLabel"]">
             @foreach (var connection in Scene.Connections)
             {
                 <li @key="connection.Source" data-connection="@connection.Source.NetId.Value">
                     <div class="connection-summary">
                         <span>@TerminalPath(Scene, connection)</span>
-                        <small>@connection.Width bit</small>
+                        <small>@Text["PortCount", connection.Width]</small>
                     </div>
                     @if (connection.Junctions.Count != 0 || connection.WireGeometries.Count != 0)
                     {
-                        <ul class="topology-list" aria-label="@($"Topology for net {connection.Source.NetId.Value}")">
+                        <ul class="topology-list" aria-label="@Text["TopologyForNetAriaLabel", connection.Source.NetId.Value]">
                             @foreach (var junction in connection.Junctions)
                             {
                                 <li @key="junction.Source" data-junction="@junction.Source.JunctionId.Value">
-                                    Junction at grid @junction.Point.X, @junction.Point.Y
+                                    @Text["JunctionAtGrid", junction.Point.X, junction.Point.Y]
                                 </li>
                             }
                             @foreach (var geometry in connection.WireGeometries)
@@ -110,15 +112,25 @@
         }));
     }
 
-    private static string WireRouteLabel(WireRoute route)
+    private string WireRouteLabel(WireRoute route)
     {
         return route switch
         {
-            UnroutedWireRoute => "Unrouted",
-            OrthogonalWireRoute orthogonal => $"Orthogonal · {string.Join(
-                " → ",
-                orthogonal.Points.Select(point => $"{point.X},{point.Y}"))}",
+            UnroutedWireRoute => Text["Unrouted"],
+            OrthogonalWireRoute orthogonal => Text[
+                "WireOrthogonal",
+                string.Join(" → ", orthogonal.Points.Select(point => $"{point.X},{point.Y}"))],
             _ => throw new InvalidOperationException("The Wire Route variant is undefined."),
+        };
+    }
+
+    private string PortDirectionText(PortDirection direction)
+    {
+        return direction switch
+        {
+            PortDirection.Input => Text["PortDirectionInput"],
+            PortDirection.Output => Text["PortDirectionOutput"],
+            _ => throw new ArgumentOutOfRangeException(nameof(direction), direction, null),
         };
     }
 }

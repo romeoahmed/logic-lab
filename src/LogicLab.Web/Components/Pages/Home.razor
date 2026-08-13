@@ -1,4 +1,5 @@
 @page "/"
+@inject IStringLocalizer<SiteText> SiteText
 
 <PageTitle>Logic Lab</PageTitle>
 
@@ -8,20 +9,17 @@
                      Color="BadgeColor.Brand"
                      Shape="BadgeShape.Rounded"
                      Size="BadgeSize.Small"
-                     Content="Evidence-first circuit design" />
-        <h1 id="home-title">Build it. Compile it. Watch the signal move.</h1>
-        <p class="lede">
-            Logic Lab connects circuit authoring, deterministic compilation,
-            synchronous simulation, and an accessible semantic probe in one workbench.
-        </p>
+                     Content="@SiteText["HomeEyebrow"]" />
+        <h1 id="home-title">@SiteText["HomeTitle"]</h1>
+        <p class="lede">@SiteText["HomeDescription"]</p>
         <div class="hero-actions">
             <FluentAnchorButton class="primary-link"
                                 Href="/editor"
                                 Appearance="ButtonAppearance.Primary"
                                 Size="ButtonSize.Large">
-                Open the Sandbox Workbench <span class="hero-action-arrow" aria-hidden="true">→</span>
+                @SiteText["HomeOpenWorkbench"] <span class="hero-action-arrow" aria-hidden="true">→</span>
             </FluentAnchorButton>
-            <a class="secondary-link" href="#signal-path">Explore the signal path</a>
+            <a class="secondary-link" href="#signal-path">@SiteText["HomeExplore"]</a>
         </div>
     </div>
 
@@ -31,32 +29,32 @@
                 Width="100%">
         <div class="signal-path-heading" id="signal-path">
             <div>
-                <p class="eyebrow">Workbench sequence</p>
-                <h2>One circuit, four inspectable stages.</h2>
+                <p class="eyebrow">@SiteText["HomeSequenceEyebrow"]</p>
+                <h2>@SiteText["HomeSequenceTitle"]</h2>
             </div>
             <FluentBadge Appearance="BadgeAppearance.Tint"
                          Color="BadgeColor.Success"
                          Shape="BadgeShape.Rounded"
                          Size="BadgeSize.Small"
-                         Content="Ready" />
+                         Content="@SiteText["HomeReady"]" />
         </div>
         <FluentDivider Appearance="DividerAppearance.Subtle" />
         <ol class="signal-path-list">
             <li>
                 <span class="stage-index">01</span>
-                <div><h3>Author</h3><p>Shape definitions, ports, instances, and explicit electrical topology.</p></div>
+                <div><h3>@SiteText["HomeAuthorTitle"]</h3><p>@SiteText["HomeAuthorDescription"]</p></div>
             </li>
             <li>
                 <span class="stage-index">02</span>
-                <div><h3>Compile</h3><p>Resolve the document into a deterministic executable circuit.</p></div>
+                <div><h3>@SiteText["HomeCompileTitle"]</h3><p>@SiteText["HomeCompileDescription"]</p></div>
             </li>
             <li>
                 <span class="stage-index">03</span>
-                <div><h3>Simulate</h3><p>Advance logical time with fenced, synchronous commands.</p></div>
+                <div><h3>@SiteText["HomeSimulateTitle"]</h3><p>@SiteText["HomeSimulateDescription"]</p></div>
             </li>
             <li>
                 <span class="stage-index">04</span>
-                <div><h3>Inspect</h3><p>Read signal values and topology through a semantic scene.</p></div>
+                <div><h3>@SiteText["HomeInspectTitle"]</h3><p>@SiteText["HomeInspectDescription"]</p></div>
             </li>
         </ol>
     </FluentCard>

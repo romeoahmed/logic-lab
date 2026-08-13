@@ -60,7 +60,7 @@ public partial class Editor
                 nets[0].Id,
                 [.. nets.Skip(1).Select(net => net.Id)])))
         {
-            Status = "Nets merged into the canonical destination.";
+            Status = Text["NetMerged"];
         }
     }
 
@@ -81,7 +81,7 @@ public partial class Editor
 
         if (await Apply(new SplitNetIntent(Definition.Id, net.Id, partitions)))
         {
-            Status = "Net split into two complete membership partitions.";
+            Status = Text["NetSplit"];
         }
     }
 
@@ -154,7 +154,7 @@ public partial class Editor
                 [],
                 [])))
         {
-            Status = "Explicit Junction added at grid 4, 2.";
+            Status = Text["JunctionAdded"];
         }
     }
 
@@ -170,7 +170,7 @@ public partial class Editor
                 [],
                 [])))
         {
-            Status = "Junction removed without inferring connectivity from geometry.";
+            Status = Text["JunctionRemoved"];
         }
     }
 
@@ -182,7 +182,7 @@ public partial class Editor
         }
 
         RouteDraftActive = true;
-        Status = "Route draft prepared locally. Commit or cancel it.";
+        Status = Text["RouteDraftPrepared"];
     }
 
     private async Task CommitRoute()
@@ -199,7 +199,7 @@ public partial class Editor
         if (committed)
         {
             RouteDraftActive = false;
-            Status = "Orthogonal route committed.";
+            Status = Text["RouteCommitted"];
         }
     }
 
@@ -211,7 +211,7 @@ public partial class Editor
         }
 
         RouteDraftActive = false;
-        Status = "Route edit cancelled; no Workspace command was sent.";
+        Status = Text["RouteCancelled"];
     }
 
     private async Task RouteGeometry()
@@ -225,7 +225,7 @@ public partial class Editor
                 geometry.Id,
                 DefaultRoute())))
         {
-            Status = "Wire Geometry routed orthogonally.";
+            Status = Text["RouteRouted"];
         }
     }
 
@@ -240,7 +240,7 @@ public partial class Editor
                 geometry.Id,
                 new UnroutedWireRoute())))
         {
-            Status = "Wire Geometry marked explicitly unrouted.";
+            Status = Text["RouteMarkedUnrouted"];
         }
     }
 

@@ -1,35 +1,36 @@
 <script type="module" src="@Assets["Components/Layout/ReconnectModal.razor.js"]"></script>
+@inject IStringLocalizer<LayoutText> Text
 
 <dialog id="components-reconnect-modal"
         aria-labelledby="components-reconnect-title"
         data-nosnippet>
     <div class="components-reconnect-container">
-        <p class="components-reconnect-eyebrow">Connection state</p>
-        <h2 id="components-reconnect-title">Reconnecting the workbench</h2>
+        <p class="components-reconnect-eyebrow">@Text["ReconnectEyebrow"]</p>
+        <h2 id="components-reconnect-title">@Text["ReconnectTitle"]</h2>
         <div class="components-rejoining-animation" aria-hidden="true">
             <div></div>
             <div></div>
         </div>
         <p class="components-reconnect-first-attempt-visible">
-            Rejoining the server...
+            @Text["ReconnectRejoining"]
         </p>
         <p class="components-reconnect-repeated-attempt-visible">
-            Rejoin failed... trying again in <span id="components-seconds-to-next-attempt"></span> seconds.
+            @Text["ReconnectRetrying"] <span id="components-seconds-to-next-attempt"></span> @Text["ReconnectSeconds"]
         </p>
         <p class="components-reconnect-failed-visible">
-            Failed to rejoin.<br />Please retry or reload the page.
+            @Text["ReconnectFailed"]<br />@Text["ReconnectFailedHelp"]
         </p>
         <button id="components-reconnect-button" class="components-reconnect-failed-visible">
-            Retry
+            @Text["Retry"]
         </button>
         <p class="components-pause-visible">
-            The session has been paused by the server.
+            @Text["SessionPaused"]
         </p>
         <p class="components-resume-failed-visible">
-            Failed to resume the session.<br />Please retry or reload the page.
+            @Text["ResumeFailed"]<br />@Text["ReconnectFailedHelp"]
         </p>
         <button id="components-resume-button" class="components-pause-visible components-resume-failed-visible">
-            Resume
+            @Text["Resume"]
         </button>
     </div>
 </dialog>

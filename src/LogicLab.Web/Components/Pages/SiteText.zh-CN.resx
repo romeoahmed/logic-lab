@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="ErrorDescription" xml:space="preserve"><value>系统没有自动执行恢复操作。准备好后请返回首页并重试。</value></data>
+  <data name="ErrorEyebrow" xml:space="preserve"><value>请求已中断</value></data>
+  <data name="ErrorOpenSandbox" xml:space="preserve"><value>打开新沙盒</value></data>
+  <data name="ErrorPageTitle" xml:space="preserve"><value>错误</value></data>
+  <data name="ErrorRequestId" xml:space="preserve"><value>请求 ID</value></data>
+  <data name="ErrorReturnHome" xml:space="preserve"><value>返回首页</value></data>
+  <data name="ErrorTitle" xml:space="preserve"><value>工作台遇到意外故障。</value></data>
+  <data name="HelpDescriptionClaim" xml:space="preserve"><value>将沙盒保存为持久项目之前请先登录。持久项目可以从项目目录重新打开。</value></data>
+  <data name="HelpDescriptionStart" xml:space="preserve"><value>在工作台中创建沙盒项目、编辑电路、编译，然后运行确定性仿真。</value></data>
+  <data name="HelpEyebrow" xml:space="preserve"><value>Logic Lab 帮助</value></data>
+  <data name="HelpOpenWorkbench" xml:space="preserve"><value>打开工作台</value></data>
+  <data name="HelpPageTitle" xml:space="preserve"><value>帮助 · Logic Lab</value></data>
+  <data name="HelpTitle" xml:space="preserve"><value>快速入门</value></data>
+  <data name="HomeCompileDescription" xml:space="preserve"><value>将项目文档解析为确定性的可执行电路。</value></data>
+  <data name="HomeCompileTitle" xml:space="preserve"><value>编译</value></data>
+  <data name="HomeDescription" xml:space="preserve"><value>Logic Lab 在一个工作台中连接电路编辑、确定性编译、同步仿真和无障碍语义探针。</value></data>
+  <data name="HomeEyebrow" xml:space="preserve"><value>以证据为先的电路设计</value></data>
+  <data name="HomeExplore" xml:space="preserve"><value>探索信号路径</value></data>
+  <data name="HomeInspectDescription" xml:space="preserve"><value>通过语义场景读取信号值和拓扑。</value></data>
+  <data name="HomeInspectTitle" xml:space="preserve"><value>检查</value></data>
+  <data name="HomeOpenWorkbench" xml:space="preserve"><value>打开沙盒工作台</value></data>
+  <data name="HomeReady" xml:space="preserve"><value>就绪</value></data>
+  <data name="HomeSequenceEyebrow" xml:space="preserve"><value>工作台流程</value></data>
+  <data name="HomeSequenceTitle" xml:space="preserve"><value>一条电路，四个可检查阶段。</value></data>
+  <data name="HomeSimulateDescription" xml:space="preserve"><value>使用带 fence 的同步命令推进逻辑时间。</value></data>
+  <data name="HomeSimulateTitle" xml:space="preserve"><value>仿真</value></data>
+  <data name="HomeAuthorDescription" xml:space="preserve"><value>构建定义、端口、实例和显式电气拓扑。</value></data>
+  <data name="HomeAuthorTitle" xml:space="preserve"><value>编辑</value></data>
+  <data name="HomeTitle" xml:space="preserve"><value>构建、编译，观察信号流动。</value></data>
+  <data name="NotFoundDescription" xml:space="preserve"><value>该地址不对应 Logic Lab 的任何界面。请返回工作台或从首页开始。</value></data>
+  <data name="NotFoundEyebrow" xml:space="preserve"><value>页面不存在</value></data>
+  <data name="NotFoundOpenWorkbench" xml:space="preserve"><value>打开工作台</value></data>
+  <data name="NotFoundPageTitle" xml:space="preserve"><value>未找到页面</value></data>
+  <data name="NotFoundReturnHome" xml:space="preserve"><value>返回首页</value></data>
+  <data name="NotFoundTitle" xml:space="preserve"><value>这条路径到此为止。</value></data>
+</root>

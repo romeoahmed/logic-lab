@@ -12,12 +12,13 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityRedirectManager RedirectManager
+@inject IStringLocalizer<AccountText> Text
 
-<PageTitle>Register</PageTitle>
+<PageTitle>@Text["RegisterPageTitle"]</PageTitle>
 
-<AccountShell Eyebrow="Durable workspace"
-              Title="Save the work worth keeping."
-              Description="Create an account to own Durable Projects and reopen them across authenticated sessions.">
+<AccountShell Eyebrow="@Text["RegisterEyebrow"]"
+              Title="@Text["RegisterTitle"]"
+              Description="@Text["RegisterDescription"]">
     @if (errors is not null)
     {
         <div class="account-alert" role="alert">
@@ -37,7 +38,7 @@
         <DataAnnotationsValidator />
         <ValidationSummary class="validation-summary" />
         <div class="form-field">
-            <label for="register-email">Email</label>
+            <label for="register-email">@Text["Email"]</label>
             <InputText id="register-email"
                        aria-describedby="register-email-validation"
                        autocomplete="username"
@@ -50,7 +51,7 @@
             </div>
         </div>
         <div class="form-field">
-            <label for="register-password">Password</label>
+            <label for="register-password">@Text["Password"]</label>
             <InputText id="register-password"
                        aria-describedby="register-password-hint register-password-validation"
                        type="password"
@@ -58,7 +59,7 @@
                        maxlength="@AccountInputLimits.MaximumPasswordLength"
                        @bind-Value="Input.Password" />
             <p class="field-hint" id="register-password-hint">
-                Use at least 8 characters.
+                @Text["RegisterPasswordHint"]
             </p>
             <div class="field-validation"
                  id="register-password-validation"
@@ -67,7 +68,7 @@
             </div>
         </div>
         <div class="form-field">
-            <label for="register-confirm-password">Confirm password</label>
+            <label for="register-confirm-password">@Text["ConfirmPassword"]</label>
             <InputText id="register-confirm-password"
                        aria-describedby="register-confirm-password-validation"
                        type="password"
@@ -80,10 +81,10 @@
                 <ValidationMessage For="@(() => Input.ConfirmPassword)" />
             </div>
         </div>
-        <button class="primary-action" type="submit">Create secure account</button>
+        <button class="primary-action" type="submit">@Text["RegisterSubmit"]</button>
     </EditForm>
 
-    <p class="account-switch">Already registered? <a href="/account/login">Log in</a></p>
+    <p class="account-switch">@Text["RegisterAlreadyRegistered"] <a href="/account/login">@Text["RegisterLogIn"]</a></p>
 </AccountShell>
 
 @code {

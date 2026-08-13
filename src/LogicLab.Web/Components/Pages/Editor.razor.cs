@@ -9,6 +9,8 @@ using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.Extensions.Localization;
+using Microsoft.JSInterop;
 
 namespace LogicLab.Web.Components.Pages;
 
@@ -21,6 +23,7 @@ public sealed partial class Editor : IAsyncDisposable
     private readonly ProjectImportWorkflow projectImportWorkflow;
     private readonly TimeProvider timeProvider;
     private readonly CancellationTokenSource componentLifetime = new();
+    private WorkspaceAttachmentNavigation? attachmentNavigation;
     private int isDisposed;
 
     public Editor(
@@ -52,7 +55,13 @@ public sealed partial class Editor : IAsyncDisposable
 
     private bool StimulusIsScheduled { get; set; }
 
-    private string Status { get; set; } = "Connecting to the interactive workbench…";
+    private string? status;
+
+    private string Status
+    {
+        get => status ?? Text["StatusConnecting"];
+        set => status = value;
+    }
 
     private string? ActiveCommand { get; set; }
 
@@ -69,27 +78,24 @@ public sealed partial class Editor : IAsyncDisposable
 
     private string WorkbenchEyebrow => Projection?.Durability switch
     {
-        DurableWorkspaceDurabilityProjection => "Durable circuit workspace",
-        SandboxWorkspaceDurabilityProjection => "Interactive circuit sandbox",
-        _ when WorkspaceIdValue is not null => "Opening circuit workspace",
-        _ => "Interactive circuit sandbox",
+        DurableWorkspaceDurabilityProjection => Text["EyebrowDurable"],
+        SandboxWorkspaceDurabilityProjection => Text["EyebrowSandbox"],
+        _ when WorkspaceIdValue is not null => Text["EyebrowOpening"],
+        _ => Text["EyebrowSandbox"],
     };
 
     private string WorkbenchTitle => Projection?.Durability switch
     {
-        DurableWorkspaceDurabilityProjection => "Durable Project Workbench",
-        _ when WorkspaceIdValue is not null && Projection is null => "Workspace Workbench",
-        _ => "Sandbox Workbench",
+        DurableWorkspaceDurabilityProjection => Text["TitleDurable"],
+        _ when WorkspaceIdValue is not null && Projection is null => Text["TitleOpening"],
+        _ => Text["TitleSandbox"],
     };
 
     private string WorkbenchDescription => Projection?.Durability switch
     {
-        DurableWorkspaceDurabilityProjection =>
-            "Inspect the saved revision, compile it, and continue in an authorized workspace.",
-        _ when WorkspaceIdValue is not null && Projection is null =>
-            "Re-establishing the attachment fence before any project data or commands are shown.",
-        _ =>
-            "Create Circuit Definitions, navigate occurrences, choose an entry, compile, and simulate.",
+        DurableWorkspaceDurabilityProjection => Text["DescriptionDurable"],
+        _ when WorkspaceIdValue is not null && Projection is null => Text["DescriptionOpening"],
+        _ => Text["DescriptionSandbox"],
     };
 
     [Parameter]
@@ -100,6 +106,12 @@ public sealed partial class Editor : IAsyncDisposable
 
     [Inject]
     private NavigationManager Navigation { get; set; } = null!;
+
+    [Inject]
+    private IJSRuntime JS { get; set; } = null!;
+
+    [Inject]
+    private IStringLocalizer<EditorText> Text { get; set; } = null!;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -118,7 +130,7 @@ public sealed partial class Editor : IAsyncDisposable
             var invalidAttachment = Attachment;
             IsCallerAvailable = false;
             ShowAttachmentFailure(WorkspaceOutcomeReasons.AuthenticationRequired);
-            Status = "Authentication is missing a stable subject. Reload to continue.";
+            Status = Text["AuthenticationMissingSubject"];
             if (invalidAttachment is not null)
             {
                 _ = await workspace.DetachAsync(
@@ -153,7 +165,7 @@ public sealed partial class Editor : IAsyncDisposable
         }
 
         ShowAttachmentFailure("workspace_authorization_changed");
-        Status = "Authentication changed. Reload the Workspace to continue.";
+        Status = Text["AuthenticationChanged"];
         _ = await workspace.DetachAsync(
             new DetachRequest(
                 attachment.Projection.WorkspaceId,
@@ -245,6 +257,7 @@ public sealed partial class Editor : IAsyncDisposable
     {
         if (firstRender && RendererInfo.IsInteractive)
         {
+            attachmentNavigation = new WorkspaceAttachmentNavigation(JS);
             IsInteractive = true;
             if (!IsCallerAvailable)
             {
@@ -254,7 +267,7 @@ public sealed partial class Editor : IAsyncDisposable
 
             if (WorkspaceIdValue is null)
             {
-                Status = "Ready to create a Sandbox Project.";
+                Status = Text["StatusReady"];
             }
             else
             {
@@ -270,8 +283,13 @@ public sealed partial class Editor : IAsyncDisposable
         var caller = RequireCurrentCaller();
         var workspaceId = new LogicLab.Application.Workspaces.WorkspaceId(
             WorkspaceIdValue!);
+        var workspaceLocator = CreateWorkspaceLocator(workspaceId);
+        var browserHistoryEntryState = await (attachmentNavigation
+                ?? throw new InvalidOperationException(
+                    "Attachment navigation is unavailable before interactive rendering."))
+            .ReadHistoryEntryStateAsync(workspaceLocator, componentLifetime.Token);
         var hasPriorFence = WorkspaceAttachmentHistoryState.TryRead(
-            Navigation.HistoryEntryState,
+            browserHistoryEntryState ?? Navigation.HistoryEntryState,
             workspaceId,
             out var priorAttachmentId,
             out var priorGeneration);
@@ -321,18 +339,18 @@ public sealed partial class Editor : IAsyncDisposable
                 .EntryCircuitDefinitionId;
             HierarchyNavigation.Clear();
             ProjectScene();
-            PreserveAttachmentFence(attached);
+            await PreserveAttachmentFenceAsync(attached);
             Status = attached.Projection.Durability
                 is DurableWorkspaceDurabilityProjection
-                    ? "Durable Project reopened."
-                    : "Sandbox Workspace reopened.";
+                    ? Text["StatusReopenedDurable"]
+                    : Text["StatusReopenedSandbox"];
             return;
         }
 
         if (!IsCallerAvailable || caller != CurrentCaller)
         {
             ShowAttachmentFailure("workspace_authorization_changed");
-            Status = "Authentication changed. Reload the Workspace to continue.";
+            Status = Text["AuthenticationChanged"];
             return;
         }
 
@@ -343,7 +361,7 @@ public sealed partial class Editor : IAsyncDisposable
             _ => throw new UnreachableException(),
         };
         ShowAttachmentFailure(rejectionCode);
-        Status = $"Workspace attachment rejected: {rejectionCode}.";
+        Status = Text["AttachmentRejected", rejectionCode];
     }
 
     private async Task RunCommandAsync(
@@ -378,7 +396,9 @@ public sealed partial class Editor : IAsyncDisposable
             CancellationToken.None);
         if (outcome is not WorkspaceOpened opened)
         {
-            Status = $"Project creation rejected: {((WorkspaceOpenRejected)outcome).Code}.";
+            Status = Text[
+                "ProjectCreationRejected",
+                ((WorkspaceOpenRejected)outcome).Code];
             return;
         }
 
@@ -396,7 +416,7 @@ public sealed partial class Editor : IAsyncDisposable
                 Expired expired => expired.Code,
                 _ => throw new UnreachableException(),
             };
-            Status = $"Workspace attachment rejected: {code}.";
+            Status = Text["AttachmentRejected", code];
             return;
         }
 
@@ -413,8 +433,8 @@ public sealed partial class Editor : IAsyncDisposable
             .EntryCircuitDefinitionId;
         HierarchyNavigation.Clear();
         ProjectScene();
-        PreserveAttachmentFence(attached);
-        Status = "Sandbox Project created. Author the sample circuit.";
+        await PreserveAttachmentFenceAsync(attached);
+        Status = Text["StatusSandboxCreated"];
     }
 
     private void UpdateClaimDisplayName(string value)
@@ -432,10 +452,10 @@ public sealed partial class Editor : IAsyncDisposable
             ClaimDisplayName));
         Status = outcome switch
         {
-            DurableProjectClaimed claimed =>
-                $"Sandbox claimed as Durable Project “{claimed.DisplayName.Value}”.",
-            WorkspaceCommandRejected rejected =>
-                $"Claim rejected: {rejected.Code}.",
+            DurableProjectClaimed claimed => Text[
+                "ClaimSucceeded",
+                claimed.DisplayName.Value],
+            WorkspaceCommandRejected rejected => Text["ClaimRejected", rejected.Code],
             _ => throw new UnreachableException(),
         };
     }
@@ -453,12 +473,11 @@ public sealed partial class Editor : IAsyncDisposable
                 durability.ObservedDurableVersion)));
         Status = outcome switch
         {
-            DurableProjectSaved saved =>
-                $"Durable Project saved at version {saved.DurableVersion.Value}.",
-            DurableProjectSaveConflict =>
-                "Save conflict: the Durable Project changed remotely.",
-            WorkspaceCommandRejected rejected =>
-                $"Save rejected: {rejected.Code}.",
+            DurableProjectSaved saved => Text[
+                "SaveSucceeded",
+                saved.DurableVersion.Value],
+            DurableProjectSaveConflict => Text["SaveConflictStatus"],
+            WorkspaceCommandRejected rejected => Text["SaveRejected", rejected.Code],
             _ => throw new UnreachableException(),
         };
     }
@@ -469,7 +488,7 @@ public sealed partial class Editor : IAsyncDisposable
             ?? throw new InvalidOperationException("The Workspace is not durable.");
         await OpenIndependentWorkspace(
             new OpenDurable(durability.DurableProjectId, RequireCurrentCaller()),
-            "Opening the latest Durable Project…");
+            Text["OpeningLatestDurable"]);
     }
 
     private async Task KeepConflictAsCopy()
@@ -486,7 +505,7 @@ public sealed partial class Editor : IAsyncDisposable
                 projection.ProjectionVersion,
                 WorkspaceCopySaveTarget.DetachedSandbox,
                 RequireCurrentCaller()),
-            "Opening the local revision as an independent Sandbox…");
+            Text["OpeningCopy"]);
     }
 
     private async Task OpenIndependentWorkspace(
@@ -497,13 +516,13 @@ public sealed partial class Editor : IAsyncDisposable
         var outcome = await workspace.OpenAsync(request, componentLifetime.Token);
         if (outcome is WorkspaceOpenRejected rejected)
         {
-            Status = $"Workspace opening rejected: {rejected.Code}.";
+            Status = Text["OpeningRejected", rejected.Code];
             return;
         }
 
         var opened = (WorkspaceOpened)outcome;
         Navigation.NavigateTo(
-            $"/editor/{Uri.EscapeDataString(opened.WorkspaceId.Value)}",
+            CreateWorkspaceLocator(opened.WorkspaceId),
             new NavigationOptions
             {
                 ForceLoad = true,
@@ -572,7 +591,7 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
-        Status = "Circuit authored. Compile the current Project Revision.";
+        Status = Text["CircuitAuthored"];
     }
 
     private async Task Compile()
@@ -600,11 +619,15 @@ public sealed partial class Editor : IAsyncDisposable
 
         if (outcome is not CompilationAccepted accepted)
         {
-            Status = $"Compilation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+            Status = Text[
+                "CompilationRejectedStatus",
+                ((WorkspaceCommandRejected)outcome).Code];
             return;
         }
 
-        Status = $"Compilation generation {accepted.CompilationGeneration.Value} accepted.";
+        Status = Text[
+            "CompilationAccepted",
+            accepted.CompilationGeneration.Value];
         WorkspaceReadOutcome? observation;
         try
         {
@@ -620,21 +643,22 @@ public sealed partial class Editor : IAsyncDisposable
 
         if (observation is null)
         {
-            Status = "Compilation status is unavailable because the Workspace detached.";
+            Status = Text["CompilationStatusDetached"];
             return;
         }
 
         Status = observation switch
         {
             CompilationSnapshot { Compilation: CompilationPublishedProjection } =>
-                "Compilation Artifact published atomically.",
-            CompilationSnapshot { Compilation: CompilationSupersededProjection } =>
-                $"Compilation generation {accepted.CompilationGeneration.Value} was superseded.",
+                Text["CompilationArtifactPublished"],
+            CompilationSnapshot { Compilation: CompilationSupersededProjection } => Text[
+                "CompilationWasSuperseded",
+                accepted.CompilationGeneration.Value],
             CompilationSnapshot { Compilation: CompilationRejectedProjection rejected } =>
-                $"Compilation rejected: {rejected.RejectionCode}.",
+                Text["CompilationRejectedStatus", rejected.RejectionCode],
             WorkspaceReadRejected rejected =>
-                $"Compilation status unavailable: {rejected.Code}.",
-            _ => "Compilation ended in an unknown state.",
+                Text["CompilationStatusUnavailable", rejected.Code],
+            _ => Text["CompilationEndedUnknown"],
         };
     }
 
@@ -696,13 +720,15 @@ public sealed partial class Editor : IAsyncDisposable
         if (outcome is not ExportPrepared prepared)
         {
             PreparedExportUrl = null;
-            Status = $"Export preparation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+            Status = Text[
+                "ExportRejected",
+                ((WorkspaceCommandRejected)outcome).Code];
             return;
         }
 
         PreparedExportUrl =
             $"/downloads/{Uri.EscapeDataString(prepared.ExportTicket.Value)}";
-        Status = $"Export prepared for {prepared.ExpiresAfterSeconds} seconds.";
+        Status = Text["ExportPrepared", prepared.ExpiresAfterSeconds];
     }
 
     private async Task ImportProjectPackage(InputFileChangeEventArgs change)
@@ -726,14 +752,14 @@ public sealed partial class Editor : IAsyncDisposable
                 componentLifetime.Token);
             if (outcome is WorkspaceOpenRejected rejected)
             {
-                Status = $"Import rejected: {rejected.Code}.";
+                Status = Text["ImportRejected", rejected.Code];
                 return;
             }
 
             var imported = (WorkspaceOpened)outcome;
-            Status = "Import validated and compiled. Opening its independent Workspace…";
+            Status = Text["ImportOpening"];
             Navigation.NavigateTo(
-                $"/editor/{Uri.EscapeDataString(imported.WorkspaceId.Value)}",
+                CreateWorkspaceLocator(imported.WorkspaceId),
                 new NavigationOptions
                 {
                     ForceLoad = true,
@@ -743,11 +769,11 @@ public sealed partial class Editor : IAsyncDisposable
         catch (OperationCanceledException)
             when (componentLifetime.IsCancellationRequested)
         {
-            Status = "Import cancelled.";
+            Status = Text["ImportCancelled"];
         }
         catch (IOException)
         {
-            Status = "Import rejected: package_limit_exceeded.";
+            Status = Text["ImportRejected", "package_limit_exceeded"];
         }
         finally
         {
@@ -764,14 +790,15 @@ public sealed partial class Editor : IAsyncDisposable
         var outcome = await Execute(context => new CreateSession(context, precondition));
         if (outcome is not SimulationSessionCreated)
         {
-            Status = $"Session creation rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+            Status = Text[
+                "SessionRejected",
+                ((WorkspaceCommandRejected)outcome).Code];
             return;
         }
 
         Status = HasProgrammableInputs
-            ? "Simulation Session created at Logical Time 0."
-            : "Simulation Session created at Logical Time 0. "
-                + "This circuit has no programmable inputs, so stimulus is unavailable.";
+            ? Text["SessionCreated"]
+            : Text["SessionCreatedNoInputs"];
     }
 
     private async Task ScheduleStimulus()
@@ -790,8 +817,8 @@ public sealed partial class Editor : IAsyncDisposable
             assignments));
         StimulusIsScheduled = outcome is StimulusScheduled;
         Status = StimulusIsScheduled
-            ? $"Programmable inputs set to 1 at Logical Time {logicalTime}."
-            : $"Stimulus rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+            ? Text["StimulusScheduled", logicalTime]
+            : Text["StimulusRejected", ((WorkspaceCommandRejected)outcome).Code];
     }
 
     private async Task Step()
@@ -801,25 +828,28 @@ public sealed partial class Editor : IAsyncDisposable
         StimulusIsScheduled = false;
         Status = outcome switch
         {
-            SessionStepped stepped =>
-                $"Step committed at Logical Time {stepped.LogicalTime}.",
-            SessionAdvanceFailed failed =>
-                $"Step failed: {AdvanceFailureText(failed.Failure.Reason)}.",
-            WorkspaceCommandRejected rejected => $"Step rejected: {rejected.Code}.",
-            _ => "Step failed: workspace internal defect.",
+            SessionStepped stepped => Text["StepCommitted", stepped.LogicalTime],
+            SessionAdvanceFailed failed => Text[
+                "StepFailed",
+                AdvanceFailureText(failed.Failure.Reason)],
+            WorkspaceCommandRejected rejected => Text["StepRejected", rejected.Code],
+            _ => Text["StepFailed", Text["FailureSimulationInternal"]],
         };
     }
 
-    private static string AdvanceFailureText(AdvanceFailureReason reason)
+    private string AdvanceFailureText(AdvanceFailureReason reason)
     {
         return reason switch
         {
-            AdvanceFailureReason.ZeroTimeOscillation => "zero-time oscillation",
-            AdvanceFailureReason.SimulationResourceLimit => "simulation resource limit",
-            AdvanceFailureReason.SimulationCancelled => "simulation cancelled",
+            AdvanceFailureReason.ZeroTimeOscillation => Text["FailureZeroTimeOscillation"],
+            AdvanceFailureReason.SimulationResourceLimit =>
+                Text["FailureSimulationResourceLimit"],
+            AdvanceFailureReason.SimulationCancelled =>
+                Text["FailureSimulationCancelled"],
             AdvanceFailureReason.SimulationInfrastructureFailure =>
-                "simulation infrastructure failure",
-            AdvanceFailureReason.SimulationInternalDefect => "simulation internal defect",
+                Text["FailureSimulationInfrastructure"],
+            AdvanceFailureReason.SimulationInternalDefect =>
+                Text["FailureSimulationInternal"],
             _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null),
         };
     }
@@ -849,7 +879,7 @@ public sealed partial class Editor : IAsyncDisposable
             return false;
         }
 
-        Status = $"Authoring rejected: {((WorkspaceCommandRejected)outcome).Code}.";
+        Status = Text["AuthoringRejected", ((WorkspaceCommandRejected)outcome).Code];
         return false;
     }
 
@@ -908,19 +938,24 @@ public sealed partial class Editor : IAsyncDisposable
 
         Attachment = reattached;
         UpdateProjection(reattached.Projection);
-        PreserveAttachmentFence(reattached);
+        await PreserveAttachmentFenceAsync(reattached);
         return true;
     }
 
-    private void PreserveAttachmentFence(Attached attachment)
+    private async Task PreserveAttachmentFenceAsync(Attached attachment)
     {
-        Navigation.NavigateTo(
-            $"/editor/{Uri.EscapeDataString(attachment.Projection.WorkspaceId.Value)}",
-            new NavigationOptions
-            {
-                ReplaceHistoryEntry = true,
-                HistoryEntryState = WorkspaceAttachmentHistoryState.Serialize(attachment),
-            });
+        var navigation = attachmentNavigation
+            ?? throw new InvalidOperationException(
+                "Attachment navigation is unavailable before interactive rendering.");
+        await navigation.ReplaceHistoryEntryAsync(
+            CreateWorkspaceLocator(attachment.Projection.WorkspaceId),
+            WorkspaceAttachmentHistoryState.Serialize(attachment),
+            componentLifetime.Token);
+    }
+
+    private static string CreateWorkspaceLocator(WorkspaceId workspaceId)
+    {
+        return $"/editor/{Uri.EscapeDataString(workspaceId.Value)}";
     }
 
     private async Task<bool> CanPublishAttachmentAsync(
@@ -948,8 +983,8 @@ public sealed partial class Editor : IAsyncDisposable
                 : WorkspaceOutcomeReasons.AuthenticationRequired;
             ShowAttachmentFailure(code);
             Status = IsCallerAvailable
-                ? "Authentication changed. Reload the Workspace to continue."
-                : "Authentication is missing a stable subject. Reload to continue.";
+                ? Text["AuthenticationChanged"]
+                : Text["AuthenticationMissingSubject"];
         }
 
         _ = await workspace.DetachAsync(
@@ -1006,7 +1041,7 @@ public sealed partial class Editor : IAsyncDisposable
         }
 
         ClearWorkspaceState();
-        Status = $"Sandbox Workspace closed: {rejectionCode}. Create a new Sandbox Project.";
+        Status = Text["WorkspaceClosed", rejectionCode];
     }
 
     private void ClearWorkspaceState()
@@ -1024,7 +1059,7 @@ public sealed partial class Editor : IAsyncDisposable
     private void ShowAttachmentFailure(string code)
     {
         ClearWorkspaceState();
-        AttachmentFailure = WorkspaceAttachmentFailure.From(code);
+        AttachmentFailure = WorkspaceAttachmentFailure.From(code, Text);
     }
 
     private void ReloadApplication()
@@ -1069,7 +1104,17 @@ public sealed partial class Editor : IAsyncDisposable
         }
         finally
         {
-            componentLifetime.Dispose();
+            try
+            {
+                if (attachmentNavigation is not null)
+                {
+                    await attachmentNavigation.DisposeAsync();
+                }
+            }
+            finally
+            {
+                componentLifetime.Dispose();
+            }
         }
     }
 
@@ -1153,7 +1198,7 @@ public sealed partial class Editor : IAsyncDisposable
         }
 
         Scene = null;
-        Status = "The accessible Scene exceeds the active Port projection budget.";
+        Status = Text["ScenePolicyExceeded"];
     }
 
     private ComponentInstance Find(string contractId)
@@ -1208,32 +1253,35 @@ public sealed partial class Editor : IAsyncDisposable
         string Title,
         string Description)
     {
-        public static WorkspaceAttachmentFailure From(string code)
+        public static WorkspaceAttachmentFailure From(
+            string code,
+            IStringLocalizer<EditorText> text)
         {
             ArgumentException.ThrowIfNullOrEmpty(code);
+            ArgumentNullException.ThrowIfNull(text);
             return code switch
             {
                 WorkspaceOutcomeReasons.WorkspaceNotFound
                     or WorkspaceOutcomeReasons.WorkspaceExpired => new(
                     code,
-                    "This workspace is no longer available.",
-                    "It may have expired or been closed. Return to your Durable Projects, or start a new Sandbox."),
+                    text["FailureUnavailableTitle"],
+                    text["FailureUnavailableDescription"]),
                 "workspace_authorization_failed" or "workspace_authorization_changed" => new(
                     code,
-                    "Your access to this workspace changed.",
-                    "Sign in with the project owner account and reopen it from Durable Projects."),
+                    text["FailureAccessChangedTitle"],
+                    text["FailureAccessChangedDescription"]),
                 WorkspaceOutcomeReasons.StaleWorkspaceAttachment => new(
                     code,
-                    "This workspace is attached elsewhere.",
-                    "Continue in the tab that owns the active attachment, or reopen an authorized Durable Project."),
+                    text["FailureStaleTitle"],
+                    text["FailureStaleDescription"]),
                 WorkspaceOutcomeReasons.BuildFingerprintMismatch => new(
                     code,
-                    "Logic Lab was updated.",
-                    "Reload the application before reopening this workspace."),
+                    text["FailureUpdatedTitle"],
+                    text["FailureUpdatedDescription"]),
                 _ => new(
                     code,
-                    "We couldn't open this workspace.",
-                    "Return to your Durable Projects and try reopening it, or start a new Sandbox."),
+                    text["FailureGenericTitle"],
+                    text["FailureGenericDescription"]),
             };
         }
     }

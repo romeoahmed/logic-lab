@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="ErrorDescription" xml:space="preserve"><value>No recovery action was applied automatically. Return home and retry the operation when you are ready.</value></data>
+  <data name="ErrorEyebrow" xml:space="preserve"><value>Request interrupted</value></data>
+  <data name="ErrorOpenSandbox" xml:space="preserve"><value>Open a new Sandbox</value></data>
+  <data name="ErrorPageTitle" xml:space="preserve"><value>Error</value></data>
+  <data name="ErrorRequestId" xml:space="preserve"><value>Request ID</value></data>
+  <data name="ErrorReturnHome" xml:space="preserve"><value>Return home</value></data>
+  <data name="ErrorTitle" xml:space="preserve"><value>The workbench hit an unexpected fault.</value></data>
+  <data name="HelpDescriptionClaim" xml:space="preserve"><value>Sign in before claiming a Sandbox as a Durable Project. Durable Projects can be reopened from the Projects catalog.</value></data>
+  <data name="HelpDescriptionStart" xml:space="preserve"><value>Create a Sandbox Project in the Workbench, author a circuit, compile it, and then run a deterministic simulation.</value></data>
+  <data name="HelpEyebrow" xml:space="preserve"><value>Logic Lab help</value></data>
+  <data name="HelpOpenWorkbench" xml:space="preserve"><value>Open the Workbench</value></data>
+  <data name="HelpPageTitle" xml:space="preserve"><value>Help · Logic Lab</value></data>
+  <data name="HelpTitle" xml:space="preserve"><value>Getting started</value></data>
+  <data name="HomeCompileDescription" xml:space="preserve"><value>Resolve the document into a deterministic executable circuit.</value></data>
+  <data name="HomeCompileTitle" xml:space="preserve"><value>Compile</value></data>
+  <data name="HomeDescription" xml:space="preserve"><value>Logic Lab connects circuit authoring, deterministic compilation, synchronous simulation, and an accessible semantic probe in one workbench.</value></data>
+  <data name="HomeEyebrow" xml:space="preserve"><value>Evidence-first circuit design</value></data>
+  <data name="HomeExplore" xml:space="preserve"><value>Explore the signal path</value></data>
+  <data name="HomeInspectDescription" xml:space="preserve"><value>Read signal values and topology through a semantic scene.</value></data>
+  <data name="HomeInspectTitle" xml:space="preserve"><value>Inspect</value></data>
+  <data name="HomeOpenWorkbench" xml:space="preserve"><value>Open the Sandbox Workbench</value></data>
+  <data name="HomeReady" xml:space="preserve"><value>Ready</value></data>
+  <data name="HomeSequenceEyebrow" xml:space="preserve"><value>Workbench sequence</value></data>
+  <data name="HomeSequenceTitle" xml:space="preserve"><value>One circuit, four inspectable stages.</value></data>
+  <data name="HomeSimulateDescription" xml:space="preserve"><value>Advance logical time with fenced, synchronous commands.</value></data>
+  <data name="HomeSimulateTitle" xml:space="preserve"><value>Simulate</value></data>
+  <data name="HomeAuthorDescription" xml:space="preserve"><value>Shape definitions, ports, instances, and explicit electrical topology.</value></data>
+  <data name="HomeAuthorTitle" xml:space="preserve"><value>Author</value></data>
+  <data name="HomeTitle" xml:space="preserve"><value>Build it. Compile it. Watch the signal move.</value></data>
+  <data name="NotFoundDescription" xml:space="preserve"><value>The address does not match a Logic Lab surface. Return to the workbench or start from home.</value></data>
+  <data name="NotFoundEyebrow" xml:space="preserve"><value>Page not found</value></data>
+  <data name="NotFoundOpenWorkbench" xml:space="preserve"><value>Open Workbench</value></data>
+  <data name="NotFoundPageTitle" xml:space="preserve"><value>Not Found</value></data>
+  <data name="NotFoundReturnHome" xml:space="preserve"><value>Return home</value></data>
+  <data name="NotFoundTitle" xml:space="preserve"><value>This path ends here.</value></data>
+</root>

@@ -14,7 +14,7 @@
                         Appearance="CardAppearance.Outline"
                         Width="100%">
                 <span class="workspace-recovery-mark" aria-hidden="true">!</span>
-                <p class="eyebrow">Workspace unavailable</p>
+                <p class="eyebrow">@Text["WorkspaceUnavailable"]</p>
                 <h1 id="workspace-recovery-title">@AttachmentFailure.Title</h1>
                 <p class="workspace-recovery-description">@AttachmentFailure.Description</p>
                 <div class="workspace-recovery-actions">
@@ -22,19 +22,19 @@
                     {
                         <FluentButton data-recovery="reload"
                                       Appearance="ButtonAppearance.Primary"
-                                      OnClick="ReloadApplication">Reload Logic Lab</FluentButton>
+                                      OnClick="ReloadApplication">@Text["ReloadLogicLab"]</FluentButton>
                     }
                     else
                     {
                         <a class="recovery-primary"
                            data-recovery="projects"
-                           href="/projects">View Durable Projects</a>
+                           href="/projects">@Text["ViewDurableProjects"]</a>
                         <a class="recovery-secondary"
                            data-recovery="sandbox"
-                           href="/editor">Start a new Sandbox</a>
+                           href="/editor">@Text["StartNewSandbox"]</a>
                     }
                 </div>
-                <p class="workspace-error-code">Error code: <code>@AttachmentFailure.Code</code></p>
+                <p class="workspace-error-code">@Text["ErrorCodeLabel"] <code>@AttachmentFailure.Code</code></p>
             </FluentCard>
         </section>
     }
@@ -44,23 +44,23 @@
             <div class="workbench-identity">
                 <p class="eyebrow">@WorkbenchEyebrow</p>
                 <h1>@WorkbenchTitle</h1>
-                <div class="workbench-metadata" aria-label="Workbench capabilities">
+                <div class="workbench-metadata" aria-label="@Text["WorkbenchCapabilitiesAriaLabel"]">
                     <FluentBadge Appearance="BadgeAppearance.Tint"
                                  Color="BadgeColor.Brand"
                                  Shape="BadgeShape.Rounded"
                                  Size="BadgeSize.Small"
-                                 Content="Interactive server" />
-                    <span>Semantic scene</span>
-                    <span>Fenced commands</span>
+                                 Content="@Text["InteractiveServer"]" />
+                    <span>@Text["SemanticScene"]</span>
+                    <span>@Text["FencedCommands"]</span>
                 </div>
             </div>
             <div class="workbench-brief">
-                <span>Workbench brief</span>
+                <span>@Text["WorkbenchBrief"]</span>
                 <p>@WorkbenchDescription</p>
             </div>
         </header>
 
-        <section class="workbench-deck" aria-label="Circuit workbench">
+        <section class="workbench-deck" aria-label="@Text["CircuitWorkbenchAriaLabel"]">
             <div class="workbench-command-region">
                 <WorkbenchCommandBar CanCreate="CanCreate"
                                      CanAuthor="CanAuthor"
@@ -98,21 +98,21 @@
                     <section class="save-conflict"
                              data-save-conflict
                              aria-labelledby="save-conflict-title">
-                        <h2 id="save-conflict-title">Durable Project changed remotely</h2>
-                        <p>Your local revision is still available. Choose how to recover it.</p>
+                        <h2 id="save-conflict-title">@Text["ConflictTitle"]</h2>
+                        <p>@Text["ConflictDescription"]</p>
                         <div>
                             <FluentButton data-conflict-recovery="reload"
                                           Appearance="ButtonAppearance.Primary"
                                           Disabled="@(ActiveCommand is not null)"
-                                          OnClick="@(() => RunCommandAsync("conflict-reload", () => HasSaveConflict, ReloadDurableProject))">Reload remote</FluentButton>
+                                          OnClick="@(() => RunCommandAsync("conflict-reload", () => HasSaveConflict, ReloadDurableProject))">@Text["ConflictReloadRemote"]</FluentButton>
                             <FluentButton data-conflict-recovery="copy"
                                           Appearance="ButtonAppearance.Outline"
                                           Disabled="@(ActiveCommand is not null)"
-                                          OnClick="@(() => RunCommandAsync("conflict-copy", () => HasSaveConflict, KeepConflictAsCopy))">Keep as copy</FluentButton>
+                                          OnClick="@(() => RunCommandAsync("conflict-copy", () => HasSaveConflict, KeepConflictAsCopy))">@Text["ConflictKeepCopy"]</FluentButton>
                             <FluentButton data-conflict-recovery="export"
                                           Appearance="ButtonAppearance.Outline"
                                           Disabled="@(ActiveCommand is not null)"
-                                          OnClick="@(() => RunCommandAsync("conflict-export", () => HasSaveConflict, PrepareProjectExport))">Export local</FluentButton>
+                                          OnClick="@(() => RunCommandAsync("conflict-export", () => HasSaveConflict, PrepareProjectExport))">@Text["ConflictExportLocal"]</FluentButton>
                         </div>
                     </section>
                 }
@@ -121,7 +121,7 @@
                     <a class="export-download"
                        data-export-download
                        href="@PreparedExportUrl"
-                       download="logiclab-project.logiclab">Download .logiclab package</a>
+                       download="logiclab-project.logiclab">@Text["DownloadPackage"]</a>
                 }
             </div>
 

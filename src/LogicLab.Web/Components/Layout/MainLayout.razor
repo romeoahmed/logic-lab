@@ -1,48 +1,49 @@
 @inherits LayoutComponentBase
+@inject IStringLocalizer<LayoutText> Text
 
-<a class="skip-link" href="#main-content">Skip to content</a>
+<a class="skip-link" href="#main-content">@Text["SkipToContent"]</a>
 
 <header class="site-header">
     <div class="site-header-inner">
-        <a class="brand" href="/" aria-label="Logic Lab home">
+        <a class="brand" href="/" aria-label="@Text["HomeAriaLabel"]">
             <span class="brand-mark" aria-hidden="true">
                 <span>LL</span>
                 <i></i>
             </span>
             <span class="brand-copy">
                 <span class="brand-name">Logic Lab</span>
-                <small>Deterministic circuits</small>
+                <small>@Text["BrandTagline"]</small>
             </span>
         </a>
-        <nav class="primary-navigation" aria-label="Primary navigation">
-            <NavLink href="/editor">Workbench</NavLink>
-            <NavLink href="/help/getting-started">Help</NavLink>
+        <nav class="primary-navigation" aria-label="@Text["PrimaryNavigationAriaLabel"]">
+            <NavLink href="/editor">@Text["Workbench"]</NavLink>
+            <NavLink href="/help/getting-started">@Text["Help"]</NavLink>
             @if (IsHttps)
             {
-                <form class="culture-form" action="/culture" method="post">
+                <form class="culture-form" data-culture-form action="/culture" method="post">
                     <AntiforgeryToken />
                     <input type="hidden" name="returnUrl" value="@CurrentLocalUrl" />
                     <label>
-                        <span class="visually-hidden">Language</span>
+                        <span class="visually-hidden">@Text["Language"]</span>
                         <select name="culture">
                             <option value="@LogicLabCultures.English" selected="@(CultureInfo.CurrentUICulture.Name == LogicLabCultures.English)">English</option>
                             <option value="@LogicLabCultures.SimplifiedChinese" selected="@(CultureInfo.CurrentUICulture.Name == LogicLabCultures.SimplifiedChinese)">简体中文</option>
                         </select>
                     </label>
-                    <button class="navigation-button" type="submit">Apply</button>
+                    <button class="navigation-button" type="submit">@Text["Apply"]</button>
                 </form>
             }
             <AuthorizeView>
                 <Authorized>
-                    <NavLink href="/projects">Projects</NavLink>
+                    <NavLink href="/projects">@Text["Projects"]</NavLink>
                     <form class="logout-form" action="/account/logout" method="post">
                         <AntiforgeryToken />
-                        <button class="navigation-button" type="submit">Log out</button>
+                        <button class="navigation-button" type="submit">@Text["LogOut"]</button>
                     </form>
                 </Authorized>
                 <NotAuthorized>
-                    <NavLink href="/account/login">Log in</NavLink>
-                    <NavLink class="navigation-accent" href="/account/register">Register</NavLink>
+                    <NavLink href="/account/login">@Text["LogIn"]</NavLink>
+                    <NavLink class="navigation-accent" href="/account/register">@Text["Register"]</NavLink>
                 </NotAuthorized>
             </AuthorizeView>
         </nav>
@@ -54,10 +55,10 @@
 </main>
 
 <div id="blazor-error-ui" data-nosnippet>
-    <strong>Logic Lab needs attention.</strong>
-    <span>An unexpected client error interrupted this surface.</span>
-    <a href="." class="reload">Reload</a>
-    <button class="dismiss" type="button" aria-label="Dismiss error">×</button>
+    <strong>@Text["ErrorTitle"]</strong>
+    <span>@Text["ErrorMessage"]</span>
+    <a href="." class="reload">@Text["Reload"]</a>
+    <button class="dismiss" type="button" aria-label="@Text["DismissError"]">×</button>
 </div>
 
 @code {
