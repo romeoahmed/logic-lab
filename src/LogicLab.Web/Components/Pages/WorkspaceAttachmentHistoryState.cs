@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using LogicLab.Application.Workspaces;
 
 namespace LogicLab.Web.Components.Pages;
@@ -12,15 +13,19 @@ internal sealed record WorkspaceAttachmentHistoryState(
     private const int CurrentVersion = 1;
     private const int MaximumSerializedLength = 512;
     private const int MaximumIdentifierLength = 64;
+    private static readonly WorkspaceAttachmentHistoryStateJsonContext JsonContext = new(
+        new JsonSerializerOptions(JsonSerializerOptions.Strict));
 
     public static string Serialize(Attached attachment)
     {
         ArgumentNullException.ThrowIfNull(attachment);
-        return JsonSerializer.Serialize(new WorkspaceAttachmentHistoryState(
-            CurrentVersion,
-            attachment.Projection.WorkspaceId.Value,
-            attachment.AttachmentId.Value,
-            attachment.Generation));
+        return JsonSerializer.Serialize(
+            new WorkspaceAttachmentHistoryState(
+                CurrentVersion,
+                attachment.Projection.WorkspaceId.Value,
+                attachment.AttachmentId.Value,
+                attachment.Generation),
+            JsonContext.WorkspaceAttachmentHistoryState);
     }
 
     public static bool TryRead(
@@ -41,7 +46,9 @@ internal sealed record WorkspaceAttachmentHistoryState(
         WorkspaceAttachmentHistoryState? state;
         try
         {
-            state = JsonSerializer.Deserialize<WorkspaceAttachmentHistoryState>(serialized);
+            state = JsonSerializer.Deserialize(
+                serialized,
+                JsonContext.WorkspaceAttachmentHistoryState);
         }
         catch (JsonException)
         {
@@ -63,3 +70,7 @@ internal sealed record WorkspaceAttachmentHistoryState(
         return true;
     }
 }
+
+[JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata)]
+[JsonSerializable(typeof(WorkspaceAttachmentHistoryState))]
+internal sealed partial class WorkspaceAttachmentHistoryStateJsonContext : JsonSerializerContext;
