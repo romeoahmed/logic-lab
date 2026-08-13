@@ -152,7 +152,9 @@ These dimensions bound all V1 explanation, exact-cover, graph, mapping, and proo
 `SchedulingPolicy` dimensions are:
 
 ```text
+admission_requests_global
 admission_requests_per_subject
+admission_partition_count
 admission_window_milliseconds
 compilation_queue_items
 session_queue_items
@@ -164,7 +166,20 @@ analysis_worker_count
 analysis_result_retention_seconds
 ```
 
-The admission pair defines one fixed per-subject window. Queues reject rather than drop when full. Compilation remains newest-wins per Workspace, Session work remains FIFO and single-consumer per Session, and Analysis is FIFO within one subject plus round-robin across nonempty subject queues. An active Run retains one admitted Session scheduling item across its repeated Advances; continuations reuse that item and never bypass `session_queue_items`. Pause is bounded Run control and becomes effective at an atomic boundary without allocating another Session queue item. Worker counts bound concurrent executing calls, not the number of hidden ThreadPool threads. Admission windows and retention expiry use `TimeProvider`; result retention never extends authorization.
+The three admission capacities share one fixed window. The global request limit
+bounds aggregate scheduling attempts, the per-subject request limit preserves fairness,
+and the partition-count limit bounds retained caller identity state. Exhausting any
+one rejects before queue admission. Expired partitions are reclaimed with bounded
+amortized work rather than by scanning every identity on a new caller. Queues reject
+rather than drop when full. Compilation remains newest-wins per Workspace, Session
+work remains FIFO and single-consumer per Session, and Analysis is FIFO within one
+subject plus round-robin across nonempty subject queues. An active Run retains one
+admitted Session scheduling item across its repeated Advances; continuations reuse
+that item and never bypass `session_queue_items`. Pause is bounded Run control and
+becomes effective at an atomic boundary without allocating another Session queue
+item. Worker counts bound concurrent executing calls, not the number of hidden
+ThreadPool threads. Admission windows and retention expiry use monotonic timestamps
+from `TimeProvider`; result retention never extends authorization.
 
 ### Workspace Policy
 

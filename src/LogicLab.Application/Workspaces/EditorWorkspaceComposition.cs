@@ -221,7 +221,9 @@ public sealed record WorkspacePolicy
 
 public enum SchedulingDimension
 {
+    AdmissionRequestsGlobal,
     AdmissionRequestsPerSubject,
+    AdmissionPartitionCount,
     AdmissionWindowMilliseconds,
     CompilationQueueItems,
     SessionQueueItems,
@@ -298,7 +300,9 @@ public sealed class SchedulingPolicy
         "workbench-scheduling",
         "1",
         [
+            new(SchedulingDimension.AdmissionRequestsGlobal, 4_096),
             new(SchedulingDimension.AdmissionRequestsPerSubject, 256),
+            new(SchedulingDimension.AdmissionPartitionCount, 1_024),
             new(SchedulingDimension.AdmissionWindowMilliseconds, 1_000),
             new(SchedulingDimension.CompilationQueueItems, 16),
             new(SchedulingDimension.SessionQueueItems, 64),
@@ -335,8 +339,12 @@ public sealed class SchedulingPolicy
     {
         return dimension switch
         {
+            SchedulingDimension.AdmissionRequestsGlobal =>
+                "admission_requests_global",
             SchedulingDimension.AdmissionRequestsPerSubject =>
                 "admission_requests_per_subject",
+            SchedulingDimension.AdmissionPartitionCount =>
+                "admission_partition_count",
             SchedulingDimension.AdmissionWindowMilliseconds =>
                 "admission_window_milliseconds",
             SchedulingDimension.CompilationQueueItems => "compilation_queue_items",

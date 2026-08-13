@@ -255,6 +255,49 @@ internal sealed class OpenDurableWorkspaceTests
         }
     }
 
+    [Test, Timeout(30_000)]
+    public async Task DisposeAsync_BlockedDurableBootstrap_CancelsLaneBeforeDrainingOperations(
+        CancellationToken cancellationToken)
+    {
+        var revision = CreateCompleteRevision();
+        var loader = new RecordingLoader(new DurableProjectOpenFound(
+            ProjectId,
+            new DurableDisplayName("Blocked project"),
+            new DurableVersion("blocked-version"),
+            revision));
+        var compilationGate = new BlockingOperationGate();
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            Compile = (request, operationCancellationToken) =>
+            {
+                compilationGate.Block(operationCancellationToken);
+                return production.Compile(request, operationCancellationToken);
+            },
+        };
+        var workspace = TestEditorWorkspaceFactory.CreateForTesting(
+            operations,
+            workspacePolicy: SingleWorkspacePolicy(),
+            durableProjectLoader: loader);
+        try
+        {
+            var opening = StartOpen(workspace, CancellationToken.None);
+            await compilationGate.Started.WaitAsync(cancellationToken);
+
+            var disposal = workspace.DisposeAsync().AsTask();
+            await disposal.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+
+            var rejected = (await Assert.That(await opening.WaitAsync(cancellationToken))
+                .IsTypeOf<WorkspaceOpenRejected>())!;
+            await Assert.That(rejected.Code).IsEqualTo("workspace_cancelled");
+        }
+        finally
+        {
+            compilationGate.Release();
+            await workspace.DisposeAsync();
+        }
+    }
+
     [Test]
     [Arguments(CompilationFailure.Infrastructure, "workspace_infrastructure_failure")]
     [Arguments(CompilationFailure.Defect, "workspace_internal_defect")]

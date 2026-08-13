@@ -19,11 +19,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     private readonly HashSet<WorkspaceId> activeSessionWorkspaces = [];
     private readonly int sessionQueueCapacity;
     private readonly SchedulingPolicy policy;
-    private readonly TimeProvider timeProvider;
-    private readonly ulong admissionRequestsPerSubject;
-    private readonly TimeSpan admissionWindow;
+    private readonly SchedulingAdmission schedulingAdmission;
     private readonly ILogger<WorkCoordinator> logger;
-    private readonly Dictionary<WorkspaceCaller, AdmissionWindowState> admissionWindows = [];
     private readonly Dictionary<WorkspaceId, CompilationWorkItem> latestCompilations = [];
     private readonly Dictionary<WorkspaceId, CompilationWorkItem> pendingCompilations = [];
     private readonly Task[] compilationWorkers;
@@ -41,18 +38,14 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(logger);
 
         this.policy = policy;
-        this.timeProvider = timeProvider;
         this.logger = logger;
+        schedulingAdmission = new SchedulingAdmission(policy, timeProvider);
         compilationQueueCapacity = MaximumAsInt(
             policy,
             SchedulingDimension.CompilationQueueItems);
         sessionQueueCapacity = MaximumAsInt(
             policy,
             SchedulingDimension.SessionQueueItems);
-        admissionRequestsPerSubject = policy.GetMaximum(
-            SchedulingDimension.AdmissionRequestsPerSubject);
-        admissionWindow = TimeSpan.FromMilliseconds(checked((long)policy.GetMaximum(
-            SchedulingDimension.AdmissionWindowMilliseconds)));
         (compilationWorkers, sessionWorkers) = StartWorkers(
             MaximumAsInt(policy, SchedulingDimension.CompilationWorkerCount),
             MaximumAsInt(policy, SchedulingDimension.SessionWorkerCount));
@@ -398,6 +391,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             }
 
             isDisposed = true;
+            schedulingAdmission.ClearUnderLock();
             abandonedCompilations = [.. pendingCompilations.Values];
             pendingCompilations.Clear();
             compilationQueue.Clear();
@@ -459,50 +453,18 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         WorkspaceCaller caller,
         out SchedulingRejection? rejection)
     {
-        var nowTimestamp = timeProvider.GetTimestamp();
-        if (!admissionWindows.TryGetValue(caller, out var window))
+        if (!schedulingAdmission.TryAdmitUnderLock(
+                caller,
+                out var rejectionEvidence))
         {
-            PruneExpiredAdmissionWindowsUnderLock(nowTimestamp);
-            admissionWindows[caller] = new AdmissionWindowState(nowTimestamp, 1);
-            rejection = null;
-            return true;
-        }
-
-        if (timeProvider.GetElapsedTime(window.StartTimestamp, nowTimestamp)
-            >= admissionWindow)
-        {
-            admissionWindows[caller] = new AdmissionWindowState(nowTimestamp, 1);
-            rejection = null;
-            return true;
-        }
-
-        if (window.RequestCount >= admissionRequestsPerSubject)
-        {
-            var observed = window.RequestCount == ulong.MaxValue
-                ? ulong.MaxValue
-                : window.RequestCount + 1;
-            rejection = PolicyRejection(
-                SchedulingDimension.AdmissionRequestsPerSubject,
-                observed);
+            rejection = new SchedulingRejection(
+                WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
+                rejectionEvidence);
             return false;
         }
 
-        window.RequestCount++;
         rejection = null;
         return true;
-    }
-
-    private void PruneExpiredAdmissionWindowsUnderLock(long nowTimestamp)
-    {
-        foreach (var caller in admissionWindows
-            .Where(pair => timeProvider.GetElapsedTime(
-                    pair.Value.StartTimestamp,
-                    nowTimestamp) >= admissionWindow)
-            .Select(static pair => pair.Key)
-            .ToArray())
-        {
-            _ = admissionWindows.Remove(caller);
-        }
     }
 
     private SchedulingRejection PolicyRejection(
@@ -536,15 +498,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
     internal sealed record SchedulingRejection(
         string Code,
         PolicyEvidenceProjection? PolicyEvidence);
-
-    private sealed class AdmissionWindowState(
-        long startTimestamp,
-        ulong requestCount)
-    {
-        public long StartTimestamp { get; } = startTimestamp;
-
-        public ulong RequestCount { get; set; } = requestCount;
-    }
 
     private void RemoveQueuedCompilationUnderLock(CompilationWorkItem item)
     {
@@ -816,275 +769,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         string lane,
         string outcomeCode);
 
-    private abstract class WorkItem : IDisposable
-    {
-        private readonly Lock cancellationGate = new();
-        private CancellationTokenSource? cancellation;
-
-        protected WorkItem(
-            CancellationToken callerCancellationToken,
-            CancellationToken stoppingToken)
-            : this(
-                CancellationTokenSource.CreateLinkedTokenSource(
-                    callerCancellationToken,
-                    stoppingToken))
-        {
-        }
-
-        protected WorkItem(CancellationToken stoppingToken)
-            : this(
-                CancellationTokenSource.CreateLinkedTokenSource(stoppingToken))
-        {
-        }
-
-        private WorkItem(CancellationTokenSource ownedCancellation)
-        {
-            cancellation = ownedCancellation;
-            CancellationToken = cancellation.Token;
-            ParentActivityContext = Activity.Current?.Context;
-            Correlation = ApplicationCorrelation.CurrentOrCreate();
-        }
-
-        public CancellationToken CancellationToken { get; }
-
-        public ActivityContext? ParentActivityContext { get; }
-
-        public string Correlation { get; }
-
-        protected void Cancel()
-        {
-            lock (cancellationGate)
-            {
-                cancellation?.Cancel();
-            }
-        }
-
-        public void Dispose()
-        {
-            lock (cancellationGate)
-            {
-                cancellation?.Dispose();
-                cancellation = null;
-            }
-        }
-    }
-
-    private sealed class CompilationWorkItem(
-        WorkspaceId workspaceId,
-        Func<CompilationWorkContext, ValueTask> operation,
-        Action releaseOwnership,
-        CancellationToken operationCancellationToken,
-        CancellationToken stoppingToken)
-        : WorkItem(operationCancellationToken, stoppingToken)
-    {
-        private Action? ownershipRelease = releaseOwnership;
-
-        public WorkspaceId WorkspaceId { get; } = workspaceId;
-
-        public LinkedListNode<WorkspaceId>? QueueNode { get; private set; }
-
-        public Func<CompilationWorkContext, ValueTask> Operation { get; }
-            = operation;
-
-        public bool WasPublishedUnderLock { get; private set; }
-
-        public void MarkQueuedUnderLock(LinkedListNode<WorkspaceId> queueNode)
-        {
-            QueueNode = queueNode;
-        }
-
-        public void MarkRemovedUnderLock()
-        {
-            QueueNode = null;
-        }
-
-        public void CancelSuperseded()
-        {
-            Cancel();
-        }
-
-        public void Abandon()
-        {
-            try
-            {
-                Cancel();
-            }
-            finally
-            {
-                ReleaseOwnership();
-            }
-        }
-
-        public void ReleaseOwnership()
-        {
-            try
-            {
-                Interlocked.Exchange(ref ownershipRelease, null)?.Invoke();
-            }
-            finally
-            {
-                Dispose();
-            }
-        }
-
-        public void MarkPublishedUnderLock() => WasPublishedUnderLock = true;
-    }
-
-    private sealed class SessionWorkItem(
-        WorkspaceId workspaceId,
-        Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
-        SessionContinuation? continuation,
-        TaskCompletionSource<WorkspaceCommandOutcome>? completion,
-        CancellationToken callerCancellationToken,
-        CancellationToken stoppingToken)
-        : WorkItem(callerCancellationToken, stoppingToken)
-    {
-        public WorkspaceId WorkspaceId { get; } = workspaceId;
-
-        public LinkedListNode<SessionWorkItem>? QueueNode { get; private set; }
-
-        public Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> Operation { get; }
-            = operation;
-
-        public SessionContinuation? Continuation { get; } = continuation;
-
-        public TaskCompletionSource<WorkspaceCommandOutcome>? Completion { get; } = completion;
-
-        public void Complete(WorkspaceCommandOutcome outcome)
-        {
-            Completion?.TrySetResult(outcome);
-        }
-
-        public void MarkQueuedUnderLock(LinkedListNode<SessionWorkItem> queueNode)
-        {
-            QueueNode = queueNode;
-        }
-
-        public void MarkRemovedUnderLock()
-        {
-            QueueNode = null;
-        }
-
-        public bool IsQueuedUnderLock() => QueueNode is not null;
-
-        public void CancelScheduledWork()
-        {
-            Cancel();
-        }
-
-        public static SessionWorkItem CreateCommand(
-            WorkspaceId workspaceId,
-            Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
-            CancellationToken callerCancellationToken,
-            CancellationToken stoppingToken)
-        {
-            return new SessionWorkItem(
-                workspaceId,
-                operation,
-                continuation: null,
-                new TaskCompletionSource<WorkspaceCommandOutcome>(
-                    TaskCreationOptions.RunContinuationsAsynchronously),
-                callerCancellationToken,
-                stoppingToken);
-        }
-
-        public static SessionWorkItem CreateContinuation(
-            Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
-            SessionContinuation continuation,
-            CancellationToken stoppingToken)
-        {
-            return new SessionWorkItem(
-                continuation.WorkspaceId,
-                operation,
-                continuation,
-                completion: null,
-                CancellationToken.None,
-                stoppingToken);
-        }
-    }
-
-    internal sealed class ScheduledSessionWork
-    {
-        private readonly Action cancel;
-
-        internal ScheduledSessionWork(
-            Task<WorkspaceCommandOutcome> completion,
-            Action cancel)
-        {
-            Completion = completion;
-            this.cancel = cancel;
-        }
-
-        internal Task<WorkspaceCommandOutcome> Completion { get; }
-
-        internal void Cancel() => cancel();
-    }
-
-    internal sealed class ScheduledCompilationWork(Action cancel)
-    {
-        internal void Cancel() => cancel();
-    }
-
-    internal sealed class SessionContinuation(
-        WorkCoordinator owner,
-        WorkspaceId workspaceId)
-    {
-        private bool isExecuting;
-        private bool isQueued;
-        private bool isReserved = true;
-
-        internal WorkspaceId WorkspaceId { get; } = workspaceId;
-
-        internal bool TrySchedule(
-            Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation)
-        {
-            ArgumentNullException.ThrowIfNull(operation);
-            return owner.TryScheduleSessionContinuation(this, operation);
-        }
-
-        internal bool CanScheduleUnderLock()
-        {
-            return isReserved
-                && isExecuting
-                && !isQueued;
-        }
-
-        internal void MarkQueuedUnderLock()
-        {
-            isQueued = true;
-        }
-
-        internal void MarkExecutingUnderLock()
-        {
-            isQueued = false;
-            isExecuting = true;
-        }
-
-        internal bool CompleteExecutionUnderLock()
-        {
-            isExecuting = false;
-            if (isQueued)
-            {
-                return false;
-            }
-
-            isReserved = false;
-            return true;
-        }
-
-        internal bool AbandonUnderLock()
-        {
-            isExecuting = false;
-            isQueued = false;
-            if (!isReserved)
-            {
-                return false;
-            }
-
-            isReserved = false;
-            return true;
-        }
-    }
 }
 
 internal enum CompilationWorkCancellation

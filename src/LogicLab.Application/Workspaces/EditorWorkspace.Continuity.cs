@@ -15,6 +15,12 @@ internal sealed partial class EditorWorkspace
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        using var operation = TryEnterOperation();
+        if (operation is null)
+        {
+            return RejectAttach(WorkspaceOutcomeReasons.WorkspaceCancelled);
+        }
+
         if (cancellationToken.IsCancellationRequested)
         {
             return RejectAttach(WorkspaceOutcomeReasons.WorkspaceCancelled);
@@ -128,6 +134,12 @@ internal sealed partial class EditorWorkspace
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        using var operation = TryEnterOperation();
+        if (operation is null)
+        {
+            return new DetachRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
+        }
+
         if (cancellationToken.IsCancellationRequested)
         {
             return new DetachRejected(WorkspaceOutcomeReasons.WorkspaceCancelled);
@@ -512,7 +524,7 @@ internal sealed partial class EditorWorkspace
             return new ContextualIntentReplay(pending, waiter);
         }
 
-        return state.IsIdempotencyWindowClosed
+        return state.IsIdempotencyWindowClosed && command is not CloseWorkspace
             ? new ContextualIntentTerminal(
                 Reject(WorkspaceOutcomeReasons.IdempotencyWindowExpired))
             : new ContextualIntentAccepted(identity);

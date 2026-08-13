@@ -14,9 +14,11 @@ internal sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
 
     public void AdjustUtc(TimeSpan duration) => utcNow += duration;
 
+    public void AdvanceTimestamp(TimeSpan duration) => timestamp += duration.Ticks;
+
     public void Advance(TimeSpan duration)
     {
         AdjustUtc(duration);
-        timestamp += duration.Ticks;
+        AdvanceTimestamp(duration);
     }
 }
