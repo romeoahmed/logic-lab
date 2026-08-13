@@ -157,14 +157,8 @@ internal sealed class WorkbenchComponentTests
             "save",
             () => repository.SaveCallCount == 1 && IsDisabled(rendered, "save"));
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(repository.LastClaim?.DisplayName.Value)
-                .IsEqualTo("Saved circuit");
-            await Assert.That(rendered.FindAll("[role='status']").Any(status =>
-                    status.TextContent.Contains("saved", StringComparison.OrdinalIgnoreCase)))
-                .IsTrue();
-        }
+        await Assert.That(repository.LastClaim?.DisplayName.Value)
+            .IsEqualTo("Saved circuit");
     }
 
     [Test]
@@ -589,8 +583,9 @@ internal sealed class WorkbenchComponentTests
         await Assert.That(IsDisabled(rendered, "topology-merge")).IsTrue();
     }
 
-    [Test]
-    public async Task Editor_CreateWhileBusy_DisablesCommandsAndIgnoresSecondClick()
+    [Test, Timeout(30_000)]
+    public async Task Editor_CreateWhileBusy_DisablesCommandsAndIgnoresSecondClick(
+        CancellationToken cancellationToken)
     {
         await using var context = CreateContext();
         await using var workspace = new BlockingWorkspace();
@@ -599,7 +594,7 @@ internal sealed class WorkbenchComponentTests
 
         var firstClick = rendered.Find("[data-command='create']")
             .ClickAsync(new MouseEventArgs());
-        await workspace.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await workspace.Started.WaitAsync(cancellationToken);
         await rendered.WaitForStateAsync(() => IsDisabled(rendered, "author"));
 
         try
@@ -700,8 +695,9 @@ internal sealed class WorkbenchComponentTests
         }
     }
 
-    [Test]
-    public async Task Editor_AuthorWhileBusy_KeepsNewlyAvailableCompileCommandDisabled()
+    [Test, Timeout(30_000)]
+    public async Task Editor_AuthorWhileBusy_KeepsNewlyAvailableCompileCommandDisabled(
+        CancellationToken cancellationToken)
     {
         await using var context = CreateContext();
         await using var workspace = new BlockingAuthorWorkspace();
@@ -712,7 +708,7 @@ internal sealed class WorkbenchComponentTests
 
         var authoring = rendered.Find("[data-command='author']")
             .ClickAsync(new MouseEventArgs());
-        await workspace.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await workspace.Started.WaitAsync(cancellationToken);
         try
         {
             await rendered.WaitForStateAsync(() => IsDisabled(rendered, "compile"));

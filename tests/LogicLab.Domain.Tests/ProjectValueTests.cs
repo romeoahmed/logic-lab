@@ -47,6 +47,23 @@ internal sealed class ProjectValueTests
     }
 
     [Test, FsCheckProperty]
+    public Property LogicVectorParameterValue_NonemptyInputMutation_DoesNotChangeOwnedValues(
+        NonEmptyArray<LogicValue> generatedValues)
+    {
+        var values = generatedValues.Get.ToArray();
+        var parameter = new LogicVectorParameterValue(values);
+        var expected = parameter.Values.ToArray();
+
+        values[0] = values[0] == LogicValue.Zero
+            ? LogicValue.One
+            : LogicValue.Zero;
+
+        return parameter.Values.SequenceEqual(expected)
+            .Label("vector parameter owns its value sequence")
+            .Collect($"values={values.Length}");
+    }
+
+    [Test, FsCheckProperty]
     public Property SlicesParameterValue_NonemptyInputMutation_DoesNotChangeOwnedValues(
         NonEmptyArray<uint> generatedOffsets,
         NonEmptyArray<uint> generatedLengths)

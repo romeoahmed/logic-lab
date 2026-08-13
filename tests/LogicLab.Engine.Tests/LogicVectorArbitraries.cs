@@ -39,6 +39,14 @@ internal sealed record LogicVectorSetCase(LogicValue[][] Vectors)
         $"VectorSet(width={Width}, vectors={Vectors.Length})";
 }
 
+internal sealed record LogicVectorSequenceCase(LogicValue[][] Vectors)
+{
+    public int TotalWidth => Vectors.Sum(static values => values.Length);
+
+    public override string ToString() =>
+        $"VectorSequence(totalWidth={TotalWidth}, vectors={Vectors.Length})";
+}
+
 internal sealed record LogicVectorDriverCase(
     int Width,
     LogicValue[][] Drivers)
@@ -84,9 +92,8 @@ internal static class LogicVectorArbitraries
         var generator =
             from width in WidthGenerator
             from values in VectorValues(width)
-            from offset in Gen.Choose(0, width - 1)
-            from length in Gen.Choose(1, width - offset)
-            select new LogicVectorSliceCase(values, offset, length);
+            from range in SliceRange(width)
+            select new LogicVectorSliceCase(values, range.Offset, range.Length);
 
         return Arb.From(generator, ShrinkSlice);
     }
@@ -110,6 +117,20 @@ internal static class LogicVectorArbitraries
             select new LogicVectorSetCase(vectors);
 
         return Arb.From(generator, ShrinkSet);
+    }
+
+    public static Arbitrary<LogicVectorSequenceCase> LogicVectorSequence()
+    {
+        var generator =
+            from count in Gen.Choose(1, 5)
+            from vectors in Gen.CollectToArray(Enumerable.Repeat(
+                from width in WidthGenerator
+                from values in VectorValues(width)
+                select values,
+                count))
+            select new LogicVectorSequenceCase(vectors);
+
+        return Arb.From(generator, ShrinkSequence);
     }
 
     public static Arbitrary<LogicVectorDriverCase> LogicVectorDrivers()
@@ -138,7 +159,62 @@ internal static class LogicVectorArbitraries
     }
 
     private static Gen<LogicValue[]> VectorValues(int width) =>
-        LogicValueGenerator.ArrayOf(width);
+        Gen.Frequency(
+            (7, LogicValueGenerator.ArrayOf(width)),
+            (2, LogicValueGenerator.Select(value =>
+                Enumerable.Repeat(value, width).ToArray())),
+            (1, BoundaryVectorValues(width)));
+
+    private static Gen<LogicValue[]> BoundaryVectorValues(int width)
+    {
+        var boundaryIndices = new[] { 0, 63, 64, 127, 128, width - 1 }
+            .Where(index => index >= 0 && index < width)
+            .Distinct()
+            .ToArray();
+
+        return
+            from baseline in LogicValueGenerator
+            from boundaryValues in LogicValueGenerator.ArrayOf(boundaryIndices.Length)
+            select CreateBoundaryVector(width, baseline, boundaryIndices, boundaryValues);
+    }
+
+    private static LogicValue[] CreateBoundaryVector(
+        int width,
+        LogicValue baseline,
+        int[] boundaryIndices,
+        LogicValue[] boundaryValues)
+    {
+        var values = Enumerable.Repeat(baseline, width).ToArray();
+        for (var index = 0; index < boundaryIndices.Length; index++)
+        {
+            values[boundaryIndices[index]] = boundaryValues[index];
+        }
+
+        return values;
+    }
+
+    private static Gen<(int Offset, int Length)> SliceRange(int width)
+    {
+        var randomRange =
+            from offset in Gen.Choose(0, width - 1)
+            from length in Gen.Choose(1, width - offset)
+            select (offset, length);
+        var boundaryRanges = new[]
+        {
+            (Offset: 0, Length: width),
+            (Offset: width - 1, Length: 1),
+            (Offset: 63, Length: Math.Min(2, width - 63)),
+            (Offset: 127, Length: Math.Min(2, width - 127)),
+            (Offset: 61, Length: Math.Min(83, width - 61)),
+        }
+            .Where(range => range.Offset >= 0 && range.Offset < width && range.Length > 0)
+            .Distinct()
+            .ToArray();
+
+        return Gen.Frequency(
+            (7, randomRange),
+            (3, Gen.Elements(boundaryRanges)));
+    }
 
     private static Gen<LogicValue[][]> IndependentVectors(int width, int count) =>
         Gen.CollectToArray(Enumerable.Repeat(VectorValues(width), count));
@@ -222,6 +298,26 @@ internal static class LogicVectorArbitraries
         foreach (var vectors in ShrinkVectorValues(sample.Vectors))
         {
             yield return new LogicVectorSetCase(vectors);
+        }
+    }
+
+    private static IEnumerable<LogicVectorSequenceCase> ShrinkSequence(
+        LogicVectorSequenceCase sample)
+    {
+        for (var index = 0; index < sample.Vectors.Length && sample.Vectors.Length > 1; index++)
+        {
+            yield return new LogicVectorSequenceCase(
+                [.. sample.Vectors.Where((_, candidateIndex) => candidateIndex != index)]);
+        }
+
+        for (var index = 0; index < sample.Vectors.Length; index++)
+        {
+            foreach (var values in ShrinkValues(sample.Vectors[index]))
+            {
+                var candidate = (LogicValue[][])sample.Vectors.Clone();
+                candidate[index] = values;
+                yield return new LogicVectorSequenceCase(candidate);
+            }
         }
     }
 

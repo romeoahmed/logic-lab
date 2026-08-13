@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 using static LogicLab.ProjectFormat.Tests.ProjectPackageTestFixture;
 
 namespace LogicLab.ProjectFormat.Tests;
@@ -816,10 +817,13 @@ internal sealed class ProjectPackageReaderTests
         }
     }
 
-    [Test]
-    public async Task ReadAsync_ImportExportImport_PreservesCanonicalProjectMeaning()
+    [Test, FsCheckProperty(
+        MaxTest = 30,
+        Arbitrary = new[] { typeof(ProjectPackageArbitraries) })]
+    public async Task ReadAsync_GeneratedProject_ImportExportPreservesCanonicalMeaning(
+        PackageRoundTripCase sample)
     {
-        var original = BeginProject("Semantic round trip", "Main");
+        var original = sample.CreateRevision();
         await using var firstCarrier = await WriteAsync(original);
         var firstRead = (PackageReadSucceeded)await ReadAsync(firstCarrier.Stream);
         var imported = (ProjectGenesisCommitted)ProjectEditor.Begin(
@@ -839,6 +843,12 @@ internal sealed class ProjectPackageReaderTests
                     CollectionOrdering.Matching);
             await Assert.That(imported.Revision.RevisionId)
                 .IsNotEqualTo(original.RevisionId);
+            await Assert.That(imported.Revision.Document.DisplayName)
+                .IsEqualTo(sample.DisplayName);
+            await Assert.That(imported.Revision.Document.EntryCircuitDefinition.DisplayName)
+                .IsEqualTo(sample.EntryName);
+            await Assert.That(imported.Revision.Document.MemoryImages).Count()
+                .IsEqualTo(sample.HasMemory ? 1 : 0);
         }
     }
 

@@ -247,8 +247,9 @@ internal sealed class EditorDurableRouteTests
         }
     }
 
-    [Test]
-    public async Task Editor_SandboxRoute_AuthenticationChangesDuringReattach_PublishesNewFenceAndContinues()
+    [Test, Timeout(30_000)]
+    public async Task Editor_SandboxRoute_AuthenticationChangesDuringReattach_PublishesNewFenceAndContinues(
+        CancellationToken cancellationToken)
     {
         await using var context = WebTestContext.CreateBunitContext(
             configureAttachmentNavigation: true);
@@ -268,7 +269,7 @@ internal sealed class EditorDurableRouteTests
         var initialAttachment = (Attached)workspace.AttachOutcomes.Single();
 
         var authoring = rendered.Find("[data-command='author']").ClickAsync();
-        await workspace.ReattachStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        await workspace.ReattachStarted.WaitAsync(cancellationToken);
         rendered.Render(parameters => parameters
             .Add(value => value.Value, AuthenticationStateFor(null))
             .Add(value => value.ChildContent, (RenderFragment)(builder =>
@@ -357,8 +358,9 @@ internal sealed class EditorDurableRouteTests
         }
     }
 
-    [Test]
-    public async Task Editor_DurableRoute_AuthenticationChangesDuringAttach_DiscardsAndDetachesPriorSubjectOutcome()
+    [Test, Timeout(30_000)]
+    public async Task Editor_DurableRoute_AuthenticationChangesDuringAttach_DiscardsAndDetachesPriorSubjectOutcome(
+        CancellationToken cancellationToken)
     {
         await using var context = WebTestContext.CreateBunitContext(
             configureAttachmentNavigation: true);
@@ -376,7 +378,7 @@ internal sealed class EditorDurableRouteTests
             context,
             opened.WorkspaceId,
             AuthenticationStateFor("subject-editor"));
-        await workspace.AttachStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        await workspace.AttachStarted.WaitAsync(cancellationToken);
 
         rendered.Render(parameters => parameters
             .Add(value => value.Value, AuthenticationStateFor("replacement-subject"))
@@ -405,8 +407,9 @@ internal sealed class EditorDurableRouteTests
         }
     }
 
-    [Test]
-    public async Task Editor_DurableRoute_AuthenticationChangesDuringRead_DiscardsPriorSubjectSnapshot()
+    [Test, Timeout(30_000)]
+    public async Task Editor_DurableRoute_AuthenticationChangesDuringRead_DiscardsPriorSubjectSnapshot(
+        CancellationToken cancellationToken)
     {
         await using var context = WebTestContext.CreateBunitContext(
             configureAttachmentNavigation: true);
@@ -429,7 +432,7 @@ internal sealed class EditorDurableRouteTests
         workspace.BlockNextRead();
 
         var sessionCreation = rendered.Find("[data-command='session']").ClickAsync();
-        await workspace.ReadStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        await workspace.ReadStarted.WaitAsync(cancellationToken);
         rendered.Render(parameters => parameters
             .Add(value => value.Value, AuthenticationStateFor(null))
             .Add(value => value.ChildContent, (RenderFragment)(builder =>

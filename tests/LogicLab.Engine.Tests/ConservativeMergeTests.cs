@@ -1,41 +1,26 @@
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Domain;
+using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
 internal sealed class ConservativeMergeTests
 {
-    [Test]
-    [Arguments(LogicValue.Zero)]
-    [Arguments(LogicValue.One)]
-    [Arguments(LogicValue.X)]
-    [Arguments(LogicValue.Z)]
-    public async Task Merge_IdenticalValues_ReturnsSharedValue(LogicValue value)
+    [Test, FsCheckProperty]
+    public Property Merge_NonemptyValues_ReturnsSharedValueOrUnknown(
+        NonEmptyArray<LogicValue> generatedValues)
     {
-        var actual = ConservativeMerge.Merge([value, value, value]);
+        var values = generatedValues.Get;
+        var expected = values.All(value => value == values[0])
+            ? values[0]
+            : LogicValue.X;
+        var actual = ConservativeMerge.Merge(values);
 
-        await Assert.That(actual).IsEqualTo(value);
-    }
-
-    [Test]
-    [Arguments(LogicValue.Zero, LogicValue.One)]
-    [Arguments(LogicValue.Zero, LogicValue.X)]
-    [Arguments(LogicValue.Zero, LogicValue.Z)]
-    [Arguments(LogicValue.One, LogicValue.Zero)]
-    [Arguments(LogicValue.One, LogicValue.X)]
-    [Arguments(LogicValue.One, LogicValue.Z)]
-    [Arguments(LogicValue.X, LogicValue.Zero)]
-    [Arguments(LogicValue.X, LogicValue.One)]
-    [Arguments(LogicValue.X, LogicValue.Z)]
-    [Arguments(LogicValue.Z, LogicValue.Zero)]
-    [Arguments(LogicValue.Z, LogicValue.One)]
-    [Arguments(LogicValue.Z, LogicValue.X)]
-    public async Task Merge_DifferentValues_ReturnsUnknown(
-        LogicValue first,
-        LogicValue second)
-    {
-        var actual = ConservativeMerge.Merge([first, second]);
-
-        await Assert.That(actual).IsEqualTo(LogicValue.X);
+        return (actual == expected)
+            .Label($"expected={expected}; actual={actual}")
+            .Collect($"values={values.Length}")
+            .Classify(values.All(value => value == values[0]), "all equal");
     }
 
     [Test]

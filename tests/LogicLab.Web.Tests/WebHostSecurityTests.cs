@@ -184,8 +184,9 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         }
     }
 
-    [Test]
-    public async Task Connect_InteractiveServer_DoesNotNegotiateWebSocketCompression()
+    [Test, Timeout(30_000)]
+    public async Task Connect_InteractiveServer_DoesNotNegotiateWebSocketCompression(
+        CancellationToken cancellationToken)
     {
         var capture = new WebSocketHandshakeCapture();
         using var host = factory.WithWebHostBuilder(builder =>
@@ -198,10 +199,12 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         using var client = host.CreateClient();
         using var negotiate = await client.PostAsync(
             new Uri("/_blazor/negotiate?negotiateVersion=1", UriKind.Relative),
-            content: null);
+            content: null,
+            cancellationToken);
         negotiate.EnsureSuccessStatusCode();
         using var payload = await JsonDocument.ParseAsync(
-            await negotiate.Content.ReadAsStreamAsync());
+            await negotiate.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
         var connectionToken = payload.RootElement.GetProperty("connectionToken").GetString();
         await Assert.That(connectionToken).IsNotNull();
 
@@ -210,8 +213,8 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
             request.Headers.SecWebSocketExtensions = "permessage-deflate";
         using var socket = await webSocketClient.ConnectAsync(
             new Uri($"ws://localhost/_blazor?id={Uri.EscapeDataString(connectionToken!)}"),
-            CancellationToken.None);
-        var negotiatedExtensions = await capture.Extensions.WaitAsync(TimeSpan.FromSeconds(5));
+            cancellationToken);
+        var negotiatedExtensions = await capture.Extensions.WaitAsync(cancellationToken);
 
         await Assert.That(negotiatedExtensions).IsNullOrEmpty();
     }

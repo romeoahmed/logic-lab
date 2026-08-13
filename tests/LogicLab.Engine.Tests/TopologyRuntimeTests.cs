@@ -236,12 +236,15 @@ internal sealed class TopologyRuntimeTests
             concatenated[^1],
             checked((int)sample.ExtensionWidth - concatenated.Length))).ToArray();
         var expected = new[] { first, second, concatenated, zeroExtended, signExtended };
-        var matches = snapshot.Probes.Select(probe => ToValues(probe.Value))
-            .Zip(expected)
-            .All(pair => pair.First.AsSpan().SequenceEqual(pair.Second));
+        var actual = snapshot.Probes.Select(probe => ToValues(probe.Value)).ToArray();
+        var matches = actual.Length == expected.Length
+            && actual.Zip(expected)
+                .All(pair => pair.First.AsSpan().SequenceEqual(pair.Second));
 
         return matches
-            .Label("runtime split/concat/zero/sign extension matches scalar projection")
+            .Label(
+                "runtime publishes every requested probe and split/concat/zero/sign "
+                + "extension matches scalar projection")
             .Collect($"input-width={sample.Values.Length}")
             .Collect($"concat-width={concatenated.Length}")
             .Classify(
