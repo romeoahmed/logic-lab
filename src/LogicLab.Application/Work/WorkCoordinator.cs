@@ -40,15 +40,13 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         this.policy = policy;
         this.logger = logger;
         schedulingAdmission = new SchedulingAdmission(policy, timeProvider);
-        compilationQueueCapacity = MaximumAsInt(
-            policy,
+        compilationQueueCapacity = policy.GetInt32Maximum(
             SchedulingDimension.CompilationQueueItems);
-        sessionQueueCapacity = MaximumAsInt(
-            policy,
+        sessionQueueCapacity = policy.GetInt32Maximum(
             SchedulingDimension.SessionQueueItems);
         (compilationWorkers, sessionWorkers) = StartWorkers(
-            MaximumAsInt(policy, SchedulingDimension.CompilationWorkerCount),
-            MaximumAsInt(policy, SchedulingDimension.SessionWorkerCount));
+            policy.GetInt32Maximum(SchedulingDimension.CompilationWorkerCount),
+            policy.GetInt32Maximum(SchedulingDimension.SessionWorkerCount));
     }
 
     private (Task[] Compilation, Task[] Session) StartWorkers(
@@ -474,21 +472,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         return new SchedulingRejection(
             WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
             policy.Evidence(dimension, observed));
-    }
-
-    private static int MaximumAsInt(
-        SchedulingPolicy policy,
-        SchedulingDimension dimension)
-    {
-        var maximum = policy.GetMaximum(dimension);
-        if (maximum > int.MaxValue)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(policy),
-                $"The {SchedulingPolicy.DimensionToken(dimension)} limit must fit Int32.");
-        }
-
-        return checked((int)maximum);
     }
 
     private static SchedulingRejection CancelledRejection { get; } = new(

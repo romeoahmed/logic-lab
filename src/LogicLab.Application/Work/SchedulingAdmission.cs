@@ -29,8 +29,7 @@ internal sealed class SchedulingAdmission
             SchedulingDimension.AdmissionRequestsGlobal);
         subjectRequestLimit = policy.GetMaximum(
             SchedulingDimension.AdmissionRequestsPerSubject);
-        partitionLimit = MaximumAsInt(
-            policy,
+        partitionLimit = policy.GetInt32Maximum(
             SchedulingDimension.AdmissionPartitionCount);
         window = TimeSpan.FromMilliseconds(checked((long)policy.GetMaximum(
             SchedulingDimension.AdmissionWindowMilliseconds)));
@@ -142,21 +141,6 @@ internal sealed class SchedulingAdmission
     private static ulong ObservedAttempt(ulong admitted)
     {
         return admitted == ulong.MaxValue ? ulong.MaxValue : admitted + 1;
-    }
-
-    private static int MaximumAsInt(
-        SchedulingPolicy policy,
-        SchedulingDimension dimension)
-    {
-        var maximum = policy.GetMaximum(dimension);
-        if (maximum > int.MaxValue)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(policy),
-                $"The {SchedulingPolicy.DimensionToken(dimension)} limit must fit Int32.");
-        }
-
-        return checked((int)maximum);
     }
 
     private sealed class PartitionState(ulong generation)
