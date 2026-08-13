@@ -56,7 +56,7 @@ internal static class CultureEndpointRouteBuilderExtensions
 
         httpContext.Response.Cookies.Append(
             CookieRequestCultureProvider.DefaultCookieName,
-            CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(culture!)),
+            CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(culture)),
             new CookieOptions
             {
                 Expires = timeProvider.GetUtcNow().AddYears(1),
@@ -65,7 +65,7 @@ internal static class CultureEndpointRouteBuilderExtensions
                 SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax,
                 Secure = true,
             });
-        return Results.LocalRedirect(returnUrl!);
+        return Results.LocalRedirect(returnUrl);
     }
 
     private static string? SingleValue(IFormCollection form, string name)
