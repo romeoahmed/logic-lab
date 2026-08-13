@@ -18,12 +18,7 @@ client filename contributes to it. Web streams the complete staging object and
 never copies it through an interactive component. Every response from this
 download path, including `404` and `405`, carries the same cache prohibition so
 an unauthorized or malformed attempt cannot poison a later authorized request.
-The initial host policy admits at most eight concurrent export downloads
-globally and twenty download attempts per minute per identified caller, queues
-no excess request, and returns `429 export_download_rate_limit_exceeded` with
-the same cache prohibition. Both limiters run before redemption, so a rejected
-request never consumes the Export Ticket. These values are provisional
-deployment defaults and remain configuration, not package-format behavior.
+The [Web Host policy](../specs/web-host.md#6-http-files-and-errors) composes a global concurrency limiter with a per-caller request window, queues no excess request, and returns `429 export_download_rate_limit_exceeded` with the same cache prohibition. Both limiters run before redemption, so a rejected request never consumes the Export Ticket. Their provisional values remain host configuration, not transfer or package-format behavior.
 
 Application exposes this typed redemption seam to Web in addition to the closed
 five-method Editor Workspace interface:
@@ -69,17 +64,7 @@ PublishExport(staging, WorkspaceId, ExportTicket, WorkspaceCaller, lifetime)
    | ExportPublicationRejected { code: export_capacity_unavailable }
 ```
 
-The store flushes the store-created staging and measures its actual stream length; no
-caller declaration participates in capacity accounting. It atomically replaces
-the same Workspace's prior ticket and admits the candidate only when both
-global published-ticket and published-carrier-byte capacity remain available.
-The initial provisional bounds are 128 published
-tickets and 512 MiB of published carrier bytes. Capacity rejection does not
-take staging ownership or disturb the prior ticket; Application disposes the
-unpublished staging and returns the typed command rejection without exposing a
-download URL. Cancellation observed before the atomic commit also preserves
-the prior publication, while cancellation requested after commit does not undo
-the replacement.
+The store flushes the store-created staging and measures its actual stream length; no caller declaration participates in capacity accounting. It atomically replaces the same Workspace's prior ticket and admits the candidate only when both global published-ticket and published-carrier-byte capacity remain available. The [Web Host](../specs/web-host.md#6-http-files-and-errors) owns the provisional configuration values. Capacity rejection does not take staging ownership or disturb the prior ticket; Application disposes the unpublished staging and returns the typed command rejection without exposing a download URL. Cancellation observed before the atomic commit also preserves the prior publication, while cancellation requested after commit does not undo the replacement.
 
 HTTP adapters use RFC 9457 Problem Details:
 
@@ -130,10 +115,8 @@ authenticated principal without a stable subject, uses the exact code
 redirects to an account page. Account ingress rejection uses
 the exact code `authentication_rate_limit_exceeded`, maps to `429`, and includes
 `Retry-After` only when the limiter supplies an honest duration. An endpoint
-request body that exceeds its declared byte limit uses the exact code
-`request_body_too_large` and maps to `413`. The `/projects/open` form admits at
-most 4096 request-body bytes, inclusive, before antiforgery validation or form
-binding. A protected form request whose antiforgery verdict is invalid uses the
+request body that exceeds its declared [Web Host limit](../specs/web-host.md#6-http-files-and-errors) uses the exact code
+`request_body_too_large` and maps to `413`. A protected form request whose antiforgery verdict is invalid uses the
 exact code `antiforgery_validation_failed`, maps to `400`, and never enters form
 binding or application work.
 

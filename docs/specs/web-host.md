@@ -143,8 +143,7 @@ the submitted secret back into HTML.
 Authorized `/projects/open` requests use a separate fixed-window policy
 partitioned by authenticated subject. The initial policy admits at most twenty
 requests per minute per partition, queues no excess requests, and runs before
-Workspace or SQLite work. Its rejection publishes the endpoint-owned RFC 9457
-`429` response and does not consume either account ingress policy.
+Workspace or SQLite work. Its request body is independently bounded to 4096 bytes before antiforgery validation or form binding. Rate rejection publishes the endpoint-owned RFC 9457 `429` response, body rejection publishes `413`, and neither consumes an account ingress policy.
 
 Authorized HTTP failures use the exact RFC 9457 shape and status mapping in the [HTTP Transfer Contract](../contracts/http-transfer.md). `IProblemDetailsService` supplies the common adapter; titles and optional details are localized, while `type`, `status`, `code`, and correlation token remain stable. Unhandled exceptions expose only an opaque correlation. ASP.NET Core provides `IProblemDetailsService` for RFC 9457 responses ([error handling](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api?view=aspnetcore-10.0#problem-details-service)).
 

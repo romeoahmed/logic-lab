@@ -17,7 +17,7 @@ This preserves fast initial HTML and full ASP.NET Core access without forcing th
 
 ## 2. Render-mode evidence
 
-Microsoft documents Static SSR, Interactive Server, Interactive WebAssembly, and Interactive Auto as per-component render modes. Interactive modes prerender by default.
+Microsoft documents Static SSR, Interactive Server, Interactive WebAssembly, and Interactive Auto as per-component render modes; interactive modes prerender by default ([render modes](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/render-modes?view=aspnetcore-10.0)).
 
 | Mode | Relevant consequence for Logic Lab |
 |---|---|
@@ -32,7 +32,7 @@ The .NET Web Worker guidance for .NET 10 describes manual bridging and limitatio
 
 ## 3. Prerender and lifecycle
 
-Interactive prerender runs component initialization once for static output and again for the interactive instance. JavaScript is unavailable until interactive rendering and `OnAfterRenderAsync`.
+Interactive prerender runs component initialization once for static output and again for the interactive instance ([prerendered state](https://learn.microsoft.com/en-us/aspnet/core/blazor/state-management/prerendered-state-persistence?view=aspnetcore-10.0)). JavaScript is unavailable until interactive rendering and `OnAfterRenderAsync` ([component lifecycle](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/lifecycle?view=aspnetcore-10.0#after-component-render-onafterrenderasync)).
 
 A robust editor therefore:
 
@@ -64,7 +64,7 @@ These facts support one ownership rule: browser adapters own dense pixels, point
 
 ## 5. Workspace and background work
 
-Blazor scoped lifetime is per circuit, and circuits can disconnect or be replaced. A long-running analysis or durable edit history should therefore be Application-owned rather than component-owned.
+Blazor scoped lifetime is per circuit, and circuits can disconnect or be replaced ([state management](https://learn.microsoft.com/en-us/aspnet/core/blazor/state-management/?view=aspnetcore-10.0)). A long-running analysis or durable edit history should therefore be Application-owned rather than component-owned.
 
 The target Work Coordinator uses three typed execution lanes because their lifecycle differs:
 
@@ -72,17 +72,17 @@ The target Work Coordinator uses three typed execution lanes because their lifec
 - Session commands serialize per Session and expose Run/Pause control;
 - analysis queues under bounded global and per-identity fairness and outlives observers.
 
-At the research checkpoint, the implementation exercised only the bounded Compilation and Session lanes. [Development Readiness](../README.md#development-readiness) owns the maintained implementation boundary; the Analysis lane belongs to the Boolean Analysis slices.
+At the research checkpoint, the implementation exercised only the bounded Compilation and Session lanes. The [Implementation Plan](../implementation-plan.md#delivery-status) alone tracks later delivery; the Analysis lane belongs to the Boolean Analysis slices.
 
-ASP.NET Core hosted-service guidance requires creating an explicit service scope when background work consumes scoped dependencies. Razor event handlers should not create unbounded `Task.Run` work or secondary queues.
+ASP.NET Core [hosted-service guidance](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-10.0) requires creating an explicit service scope when background work consumes scoped dependencies. Razor event handlers should not create unbounded `Task.Run` work or secondary queues.
 
 A custom SignalR Hub is unnecessary while the Blazor circuit already carries low-rate commands and observations. It becomes justified only if Trace/live-follow requires a distinct connection lifetime, backpressure, or independent non-Blazor client.
 
 ## 6. Files and Project Format
 
-Blazor file upload guidance requires an explicit maximum on `OpenReadStream` and warns against reading an untrusted upload wholly into memory. Logic Lab streams into a bounded spool because ZIP validation needs seekable inspection.
+Blazor [file-upload guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/file-uploads?view=aspnetcore-10.0) requires an explicit maximum on `OpenReadStream` and warns against reading an untrusted upload wholly into memory. Logic Lab streams into a bounded spool because ZIP validation needs seekable inspection.
 
-ASP.NET Core and OWASP guidance align on:
+ASP.NET Core and the OWASP [File Upload Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html) align on:
 
 - allowlisted format and structure, not extension alone;
 - untrusted client filename, MIME, and claimed length;
@@ -93,13 +93,13 @@ ASP.NET Core and OWASP guidance align on:
 
 `System.IO.Compression.ZipArchive` is an archive parser, not a safe extraction policy. Project Format must enumerate all entries, reject duplicates and unsafe names, count bytes actually read, and never call `ExtractToDirectory`.
 
-`.NET 10 System.Text.Json` supports source generation, explicit polymorphism, unmapped-member rejection, `AllowDuplicateProperties = false`, and low-allocation token reading. Project Format still uses a bounded reader-level validation pass so low-level reader and custom-converter paths cannot bypass the complete strict-input policy. Transport DTOs remain separate from Domain entities.
+`.NET 10 System.Text.Json` supports source generation, explicit polymorphism, and [strict options](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/libraries#strict-json-serialization-options) that reject unmapped and duplicate properties. Project Format still uses a bounded reader-level validation pass so low-level reader and custom-converter paths cannot bypass the complete strict-input policy. Transport DTOs remain separate from Domain entities.
 
-Download guidance favors a normal authorized URL for server-generated files, avoiding a large file round-trip through JavaScript memory. The URL remains short-lived and action-authorized.
+Blazor [file-download guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/file-downloads?view=aspnetcore-10.0) favors a normal authorized URL for server-generated files, avoiding a large file round-trip through JavaScript memory. The URL remains short-lived and action-authorized.
 
 ## 7. EF Core and identity
 
-Microsoft's Blazor/EF guidance warns that a scoped `DbContext` can be inappropriate for a long-lived circuit and recommends one context per operation or `IDbContextFactory<T>`.
+Microsoft's [Blazor/EF guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/blazor-ef-core?view=aspnetcore-10.0) warns that a scoped `DbContext` can be inappropriate for a long-lived circuit and recommends one context per operation or `IDbContextFactory<T>`.
 
 The planned Infrastructure slice uses EF Core 10 with SQLite because the first deployment is one ASP.NET Core process. At the research checkpoint, that slice was not present. Its repository stores ownership, immutable Project Revision payloads, current pointers, and idempotency records—not a mutable row per gate and wire.
 
@@ -109,7 +109,7 @@ The target Web Host uses ASP.NET Core Identity for cookie authentication and acc
 
 ## 8. Security model
 
-The OWASP cheat sheets reinforce several design choices:
+The [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/) reinforces several design choices:
 
 - deny by default and validate permission on every request or message;
 - avoid object-level authorization based only on guessed IDs;
@@ -120,7 +120,7 @@ The OWASP cheat sheets reinforce several design choices:
 - maintain a Content Security Policy and contextual output encoding;
 - never execute uploaded code, scripts, plug-ins, or solver commands.
 
-Interactive Server compression can create side-channel risk when secrets and attacker-controlled content share a compressed response. Avoid rendering secrets into the editor stream and follow current Microsoft mitigation guidance before enabling response compression around sensitive interactive content.
+Interactive Server compression can create side-channel risk when secrets and attacker-controlled content share a compressed response. Avoid rendering secrets into the editor stream and follow Microsoft's [Interactive Server threat-mitigation guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/security/interactive-server-side-rendering?view=aspnetcore-10.0) before enabling response compression around sensitive interactive content.
 
 ## 9. Fluent UI Blazor v5
 
@@ -129,20 +129,3 @@ The [official NuGet version index](https://api.nuget.org/v3-flatcontainer/micros
 ## 10. Project handoff
 
 [Architecture](../../ARCHITECTURE.md#82-net-and-dependencies) owns package placement, [Architecture §10](../../ARCHITECTURE.md#10-constraints-and-evidence-triggered-seams) owns evidence-triggered alternatives, and [.NET Engineering Baseline](../specs/dotnet-engineering.md) owns language and execution rules. This note supplies only the Web-platform evidence behind those decisions.
-
-## 11. Primary official sources
-
-- [ASP.NET Core 10 overview](https://learn.microsoft.com/en-us/aspnet/core/overview?view=aspnetcore-10.0)
-- [Blazor](https://learn.microsoft.com/en-us/aspnet/core/blazor/?view=aspnetcore-10.0) and [render modes](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/render-modes?view=aspnetcore-10.0)
-- [Blazor prerendered state](https://learn.microsoft.com/en-us/aspnet/core/blazor/state-management/prerendered-state-persistence?view=aspnetcore-10.0)
-- [Blazor JavaScript interop](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0), including [DOM cleanup during disposal](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#dom-cleanup-tasks-during-component-disposal)
-- [Blazor rendering performance](https://learn.microsoft.com/en-us/aspnet/core/blazor/performance/rendering?view=aspnetcore-10.0)
-- [Blazor file uploads](https://learn.microsoft.com/en-us/aspnet/core/blazor/file-uploads?view=aspnetcore-10.0) and [downloads](https://learn.microsoft.com/en-us/aspnet/core/blazor/file-downloads?view=aspnetcore-10.0)
-- [Blazor with EF Core](https://learn.microsoft.com/en-us/aspnet/core/blazor/blazor-ef-core?view=aspnetcore-10.0)
-- [Blazor security](https://learn.microsoft.com/en-us/aspnet/core/blazor/security/?view=aspnetcore-10.0)
-- [Hosted services](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-10.0)
-- [SignalR overview](https://learn.microsoft.com/en-us/aspnet/core/signalr/introduction?view=aspnetcore-10.0)
-- [EF Core](https://learn.microsoft.com/en-us/ef/core/) and [efficient querying](https://learn.microsoft.com/en-us/ef/core/performance/efficient-querying)
-- [Fluent UI Blazor v5](https://v5.fluentui-blazor.net/)
-- [TUnit](https://tunit.dev/docs/intro/), [TUnit ASP.NET Core integration](https://tunit.dev/docs/examples/aspnet), [bUnit](https://github.com/bUnit-dev/bUnit), and [TUnit Playwright integration](https://tunit.dev/docs/examples/playwright)
-- [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/)

@@ -25,7 +25,7 @@ Conflating these states either blocks implementation on operational facts that c
 
 The original baseline found Logic Lab ready to begin narrow implementation slices. The dated 2026-08-02 addendum recorded Phase A items `01` through `06` as executable. That checkpoint is historical; the [Implementation Plan](../implementation-plan.md#delivery-status) is the only maintained completion ledger.
 
-The maintained area-by-area status is the [Development Readiness](../README.md#development-readiness) table. The checkpoint proved one deep path through the intended seams and established the repository gates. Its conclusion remains: implementation breadth and qualification evidence—not more general baseline architecture—separate the executable repository from V1 completion and a production-qualified deployment.
+The checkpoint proved one deep path through the intended seams and established the repository gates. Its conclusion remains: implementation breadth and qualification evidence—not more general baseline architecture—separate the executable repository from V1 completion and a production-qualified deployment. The [Implementation Plan](../implementation-plan.md#delivery-status) alone tracks subsequent delivery.
 
 ## 3. SDK, target framework, language, and analyzers
 
@@ -33,7 +33,7 @@ The maintained area-by-area status is the [Development Readiness](../README.md#d
 
 `net10.0` is the only appropriate target. Multi-targeting would multiply compatibility and test obligations without another consumer. C# 14 is the language associated with .NET 10; an explicit `14.0` makes the repository policy visible. `latest` and `preview` are unsuitable because their meaning changes with the installed SDK. Microsoft explicitly warns that selecting a language newer than the target framework is unsupported and can create runtime or reference-assembly mismatches ([C# language version configuration](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/configure-language-version)).
 
-The exact SDK pin and dependency lock graph are one reviewed unit. `global.json` requires a full SDK version and supports no wildcard or version range. Microsoft explicitly recommends `rollForward: disable` when package lock files are used so that the SDK and dependency graph remain in lockstep ([`global.json` roll-forward policies](https://learn.microsoft.com/en-us/dotnet/core/tools/global-json#rollforward)). The checked-in `10.0.302`, disabled roll-forward, and `allowPrerelease: false` are therefore the reproducible choice.
+The exact SDK pin and dependency lock graph are one reviewed unit. `global.json` requires a full SDK version and supports no wildcard or version range. Microsoft explicitly recommends `rollForward: disable` when package lock files are used so that the SDK and dependency graph remain in lockstep ([`global.json` roll-forward policies](https://learn.microsoft.com/en-us/dotnet/core/tools/global-json#rollforward)). At the 2026-07-31 checkpoint, the checked-in `10.0.302`, disabled roll-forward, and `allowPrerelease: false` were therefore the reproducible choice.
 
 Exact pinning does not mean ignoring servicing. .NET 10 is LTS through **2028-11-14**, and Microsoft requires systems to remain current on released patches to qualify for support ([.NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core)). A dependency-maintenance change should update the SDK pin, restore lock files, build, test, publish, and review the resulting artifacts together. A framework-dependent production host also consumes the installed runtime's current security patch independently of the build SDK.
 
@@ -222,67 +222,3 @@ The shortest route from the documentation baseline to a trustworthy project is:
 | invariant globalization | reject | incompatible with the localized Unicode product |
 | automatic production migration in Web startup | reject | mixes elevated schema mutation with application readiness and weakens review/recovery |
 | global test- or benchmark-parallelism disable | reject | isolate shared fixtures and cap only the constrained layer |
-
-## 13. Primary source index
-
-Unless a claim records a later date, sources were first accessed on 2026-07-30 and last checked on 2026-07-31.
-
-### SDK, language, analyzers, and support
-
-- [Select the .NET SDK with `global.json`](https://learn.microsoft.com/en-us/dotnet/core/tools/global-json)
-- [.NET target frameworks](https://learn.microsoft.com/en-us/dotnet/standard/frameworks)
-- [Configure the C# language version](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/configure-language-version)
-- [.NET SDK MSBuild properties](https://learn.microsoft.com/en-us/dotnet/core/project-sdk/msbuild-props)
-- [.NET and .NET Core support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core)
-- [.NET 10 runtime changes](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/runtime)
-- [.NET 10 libraries changes](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/libraries)
-- [.NET 10 SDK changes](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/sdk)
-
-### NuGet
-
-- [Central Package Management](https://learn.microsoft.com/en-us/nuget/consume-packages/central-package-management)
-- [PackageReference dependency locking and pruning](https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files)
-- [NuGet Audit](https://learn.microsoft.com/en-us/nuget/concepts/auditing-packages)
-- [Package Source Mapping](https://learn.microsoft.com/en-us/nuget/consume-packages/package-source-mapping)
-
-### Runtime libraries and execution
-
-- [System.Text.Json source generation](https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/source-generation)
-- [Options pattern](https://learn.microsoft.com/en-us/dotnet/core/extensions/options)
-- [Dependency injection guidelines](https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection-guidelines)
-- [Managed cancellation](https://learn.microsoft.com/en-us/dotnet/standard/threading/cancellation-in-managed-threads)
-- [TimeProvider](https://learn.microsoft.com/en-us/dotnet/standard/datetime/timeprovider-overview)
-- [Channels](https://learn.microsoft.com/en-us/dotnet/core/extensions/channels)
-- [GC runtime configuration](https://learn.microsoft.com/en-us/dotnet/core/runtime-config/garbage-collector)
-- [Globalization runtime configuration](https://learn.microsoft.com/en-us/dotnet/core/runtime-config/globalization)
-- [ThreadPool starvation diagnostics](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/debug-threadpool-starvation)
-
-### ASP.NET Core, publication, and observability
-
-- [ASP.NET Core request timeouts](https://learn.microsoft.com/en-us/aspnet/core/performance/timeouts?view=aspnetcore-10.0)
-- [ASP.NET Core Native AOT compatibility](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/native-aot?view=aspnetcore-10.0)
-- [.NET deployment overview](https://learn.microsoft.com/en-us/dotnet/core/deploying/)
-- [Trim self-contained deployments](https://learn.microsoft.com/en-us/dotnet/core/deploying/trimming/trim-self-contained)
-- [ReadyToRun](https://learn.microsoft.com/en-us/dotnet/core/deploying/ready-to-run)
-- [Single-file deployment](https://learn.microsoft.com/en-us/dotnet/core/deploying/single-file/overview)
-- [Native AOT](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/)
-- [.NET observability with OpenTelemetry](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/observability-with-otel)
-- [Distributed tracing instrumentation](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/distributed-tracing-instrumentation-walkthroughs)
-- [Metrics instrumentation](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/metrics-instrumentation)
-- [High-performance logging](https://learn.microsoft.com/en-us/dotnet/core/extensions/logging/high-performance-logging)
-
-### Persistence and testing
-
-- [EF Core SQLite limitations](https://learn.microsoft.com/en-us/ef/core/providers/sqlite/limitations)
-- [EF Core optimistic concurrency](https://learn.microsoft.com/en-us/ef/core/saving/concurrency)
-- [Applying EF Core migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)
-- [Microsoft Testing Platform overview](https://learn.microsoft.com/en-us/dotnet/core/testing/microsoft-testing-platform-intro)
-- [Testing with `dotnet test`](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-with-dotnet-test)
-- [`dotnet test` with MTP](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp)
-- [TUnit documentation index](https://tunit.dev/llms.txt)
-- [TUnit installation](https://tunit.dev/docs/getting-started/installation)
-- [TUnit engine modes](https://tunit.dev/docs/execution/engine-modes)
-- [TUnit parallel execution](https://tunit.dev/docs/execution/parallelism)
-- [TUnit xUnit migration](https://tunit.dev/docs/migration/xunit/)
-- [TUnit.FsCheck](https://tunit.dev/docs/examples/fscheck)
-- [BenchmarkDotNet good practices](https://benchmarkdotnet.org/articles/guides/good-practices.html)

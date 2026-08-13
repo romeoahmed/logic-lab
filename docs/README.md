@@ -1,6 +1,6 @@
 # Documentation Map
 
-Logic Lab has a closed V1 design baseline. Read each document according to its authority and subject; use the [Implementation Plan](./implementation-plan.md#delivery-status) for completion status and the readiness table below for executable evidence instead of inferring delivery from a normative specification.
+Logic Lab has a closed V1 design baseline. Read each document according to its authority and subject; use the [Implementation Plan](./implementation-plan.md#delivery-status) for completion status instead of inferring delivery from a normative specification.
 
 ## Authority by subject
 
@@ -56,21 +56,9 @@ Normative documents define the rules governing those files. Dated research may p
 - [Browser Adapters](./contracts/browser-adapters.md)
 - [HTTP Transfer](./contracts/http-transfer.md)
 
-## Development readiness
+## Delivery and verification
 
-The [Implementation Plan](./implementation-plan.md#delivery-status) is the only completion ledger. This section summarizes executable evidence and open gaps without redefining slice completion. The application is neither V1-complete nor production-qualified.
-
-| Area | Executable now | Not yet claimed |
-|---|---|---|
-| Circuit Authoring, Compiler, Simulation Runtime, and Project Format | immutable lineage and the closed V1 Edit Intent/Component Contract catalogs; explicit topology and hierarchy; deterministic flat, hierarchical, cyclic, sequential, and memory execution; structured diagnostics, bounded failure, rollback, scalar-oracle, packed differential, and property evidence; canonical bounded `.logiclab` import/export with strict JSON, ZIP, Memory Image, integrity, unsupported-schema, Domain-invariant, and normalized-digest evidence | Boolean Analysis, TeachingMixed Geometry Plans, and the cross-module conformance manifest |
-| Editor Workspace | Sandbox create/author/compile/session/stimulus/step/close workflow; attachment generation fencing, reattachment and expiry; bounded history with Undo/Redo and Redo truncation; Copy Workspace; stale preconditions and fail-closed Client Intent idempotency; bounded admission; accepted/running/published Compilation Generations with newest-wins coalescing; serialized Session work; Run Generation-fenced Run/Pause; compatible-state and Probe-aware Hot Swap; authenticated Claim and Save with explicit Durable conflict recovery; authorized Durable Project catalog and compiled `OpenDurable` publication; revision-fenced `PrepareExport` with unpublished staging and short-lived caller-bound tickets; `ImportProject` Genesis and Compilation before atomic independent-Workspace publication | Analysis lane |
-| Presentation and Web | accessible explicit-topology projection; selected-definition and Hierarchy Path navigation; generated-Port widths and arithmetic facts; bounded steering/arithmetic galleries; per-page Interactive Server host and security-header integration; ASP.NET Core Identity account entry; authorized Static SSR `/projects`, protected keyset cursors, antiforgery-protected open, and authenticated editor reattachment; fixed-name private one-time `.logiclab` download with authorization concealment; explicitly bounded Blazor `.logiclab` upload with closed failure status and independent-Workspace navigation | TeachingMixed geometry, Canvas/waveform adapters, complete browser workflows, localization/accessibility matrix, and load/security qualification |
-| .NET engineering and performance | executable production, test, and BenchmarkDotNet projects; application-root locks; locked restore; analyzers-as-errors; format, build, and whole-solution test gates | later slice projects and locks, CI publication, architecture automation, frozen corpus, calibrated thresholds, and provider qualification |
-| Production operations | development-host lifecycle and security-header evidence; SQLite Durable Project and Identity integration with reviewed migrations | concrete TLS/proxy, secrets, migration deployment, backup/restore, Data Protection key-store qualification, telemetry, alerting, and runbook evidence |
-
-The repository gates in the [.NET Engineering Baseline](./specs/dotnet-engineering.md#9-verification-and-completion-gate) reproduce build and test evidence. Routine verification snapshots belong in the change or CI record, not this maintained map. Passing those gates does not qualify the application for release while any remaining-evidence row is open.
-
-## Executable evidence
+The [Implementation Plan](./implementation-plan.md#delivery-status) is the sole completion ledger and names the current [dependency frontier](./implementation-plan.md#dependency-frontier). Each owning specification or contract defines its required evidence; the [.NET Engineering Baseline](./specs/dotnet-engineering.md#9-verification-and-completion-gate) defines reproducible repository gates. Routine verification snapshots belong in a change or CI record, not in maintained guidance. Passing those gates does not make the application V1-complete or production-qualified; the plan's Phase F slices own that qualification.
 
 [Engine Performance Benchmarks](../benchmarks/LogicLab.Engine.Benchmarks/README.md) records production-shaped kernel, Compilation, and initial-settlement comparisons. It is directional performance evidence, not a release threshold.
 
@@ -89,7 +77,7 @@ Research notes identify optional untracked standards copies by filename. When av
 - Add an ADR only for a genuine hard-to-reverse trade-off.
 - Classify every number as semantic, format, provisional policy, or measured threshold.
 - Cite primary sources at the claim; qualify secondary tutorials and Wikipedia as navigation only.
-- Keep delivery status only in the Implementation Plan, reproducible commands in the .NET Engineering Baseline, and routine verification snapshots in change or CI records.
+- Keep delivery status only in the Implementation Plan, required evidence in the owning specification or contract, reproducible commands in the .NET Engineering Baseline, and routine verification snapshots in change or CI records.
 - Read exact SDK/package versions and the current project graph from root configuration; repeat them only in an explicitly dated research checkpoint.
 - Frame time-sensitive implementation observations in research as dated checkpoint evidence, never as maintained current state.
 - Update links and supersession notes in the same change that moves authority.
