@@ -41,7 +41,7 @@ The first required product tracer is complete at item `06`. Infrastructure bread
 
 ## Delivery status
 
-Items `01` through `22` are complete at the Domain, Compiler, Runtime, Project Format, and applicable Application, Infrastructure, and Web seams promised below. The [Development Readiness](./README.md#development-readiness) table summarizes the current Web surface, executable evidence, and remaining qualification gaps.
+Items `01` through `22` are complete at the Domain, Compiler, Runtime, Project Format, and applicable Application, Infrastructure, and Web seams promised below. This is the sole completion ledger; owning specifications and contracts define the required evidence for each delivered behavior.
 
 ## Phase B — Authoring, Component Contracts, and Runtime breadth
 

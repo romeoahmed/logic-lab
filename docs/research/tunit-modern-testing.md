@@ -3,7 +3,7 @@
 > Verified 2026-07-31 (Asia/Shanghai)
 > Scope: migration from xUnit v3 to TUnit for Logic Lab, including execution, assertions, data, lifecycle, parallelism, reporting, AOT, and FsCheck
 > Authority: TUnit's official documentation, official GitHub repository, NuGet, and Microsoft Testing Platform documentation; normative project choices remain in the repository specifications
-> Snapshot boundary: migration counts and mappings describe the 2026-07-31 checkpoint and are not a maintained suite inventory. [Development Readiness](../README.md#development-readiness) summarizes current capability; CLI forwarding behavior was rechecked on 2026-08-05.
+> Snapshot boundary: migration counts and mappings describe the 2026-07-31 checkpoint and are not a maintained suite inventory. The [Implementation Plan](../implementation-plan.md#delivery-status) alone tracks current delivery; CLI forwarding behavior was rechecked on 2026-08-05.
 
 This note distinguishes **source fact** from **Logic Lab inference**. The investigation began from TUnit's official [`llms.txt`](https://tunit.dev/llms.txt) index and followed its links to first-party documentation and source. The official repository was inspected at commit [`d0c74ca21e191e02a8fe56a878d4922046ba7b19`](https://github.com/thomhurst/TUnit/tree/d0c74ca21e191e02a8fe56a878d4922046ba7b19), dated 2026-07-31. Package versions must still be resolved through the repository's normal qualification and lock-file process at implementation time.
 
@@ -391,71 +391,3 @@ The 2026-07-31 migration was accepted against the following criteria. Counts in 
 - **Coverlet and `Microsoft.NET.Test.Sdk` do not belong in this model.** Use the Microsoft Testing Platform extensions transitively supplied by TUnit ([installation](https://tunit.dev/docs/getting-started/installation)).
 - **IDE streaming is experimental in practice.** The official environment-variable page warns of runner crashes and leaves it disabled ([environment variables](https://tunit.dev/docs/reference/environment-variables#tunit_enable_ide_streaming)).
 - **Current TUnit documentation evolves quickly.** Pin a version, preserve lock files, and verify commands and analyzers against that exact package rather than assuming `main` documentation describes every older release.
-
-## 16. Primary official sources
-
-### TUnit overview, packages, and migration
-
-- [`llms.txt` documentation index](https://tunit.dev/llms.txt)
-- [TUnit introduction](https://tunit.dev/docs/intro)
-- [Installation](https://tunit.dev/docs/getting-started/installation)
-- [Running tests and IDE support](https://tunit.dev/docs/getting-started/running-your-tests)
-- [xUnit migration guide and code fixer](https://tunit.dev/docs/migration/xunit)
-- [TUnit 1.63.0 NuGet package](https://www.nuget.org/packages/TUnit/1.63.0)
-- [TUnit.FsCheck 1.63.0 NuGet package](https://www.nuget.org/packages/TUnit.FsCheck/1.63.0)
-- [NuGet live TUnit version index](https://api.nuget.org/v3-flatcontainer/tunit/index.json)
-- [NuGet live TUnit.FsCheck version index](https://api.nuget.org/v3-flatcontainer/tunit.fscheck/index.json)
-- [Official repository at inspected commit](https://github.com/thomhurst/TUnit/tree/d0c74ca21e191e02a8fe56a878d4922046ba7b19)
-- [Microsoft Testing Platform overview](https://learn.microsoft.com/en-us/dotnet/core/testing/microsoft-testing-platform-intro)
-
-### Assertions
-
-- [Awaiting assertions](https://tunit.dev/docs/assertions/awaiting)
-- [Assertion basics](https://tunit.dev/docs/assertions/getting-started)
-- [Combining assertions and scopes](https://tunit.dev/docs/assertions/combining-assertions)
-- [Exception assertions](https://tunit.dev/docs/assertions/exceptions)
-- [Task and async assertions](https://tunit.dev/docs/assertions/tasks-and-async)
-- [Compile-time type checking](https://tunit.dev/docs/assertions/type-checking)
-- [Source-generated custom assertions](https://tunit.dev/docs/assertions/extensibility/source-generator-assertions)
-
-### Data and generation
-
-- [Choosing a data approach](https://tunit.dev/docs/writing-tests/data-driven-overview)
-- [Arguments](https://tunit.dev/docs/writing-tests/arguments)
-- [Method data sources](https://tunit.dev/docs/writing-tests/method-data-source)
-- [Class data sources](https://tunit.dev/docs/writing-tests/class-data-source)
-- [Matrix tests](https://tunit.dev/docs/writing-tests/matrix-tests)
-- [Combined data sources](https://tunit.dev/docs/writing-tests/combined-data-source)
-- [Test data rows](https://tunit.dev/docs/writing-tests/test-data-row)
-- [Data-source generators](https://tunit.dev/docs/extending/data-source-generators)
-- [Deferred enumeration](https://tunit.dev/docs/writing-tests/defer-enumeration)
-- [Dynamic tests](https://tunit.dev/docs/extending/dynamic-tests)
-- [AOT and generic tests](https://tunit.dev/docs/writing-tests/aot)
-- [TUnit.FsCheck](https://tunit.dev/docs/examples/fscheck)
-
-### Scheduling and lifecycle
-
-- [Parallelism](https://tunit.dev/docs/execution/parallelism)
-- [Ordering and dependencies](https://tunit.dev/docs/writing-tests/ordering)
-- [Hooks](https://tunit.dev/docs/writing-tests/hooks)
-- [Complete lifecycle](https://tunit.dev/docs/writing-tests/lifecycle)
-- [Property injection](https://tunit.dev/docs/writing-tests/property-injection)
-- [Dependency injection](https://tunit.dev/docs/writing-tests/dependency-injection)
-- [Event receivers](https://tunit.dev/docs/writing-tests/event-subscribing)
-- [Timeouts](https://tunit.dev/docs/execution/timeouts)
-- [Retries](https://tunit.dev/docs/execution/retrying)
-- [Repeats](https://tunit.dev/docs/execution/repeating)
-
-### Metadata, execution, and evidence
-
-- [Engine modes](https://tunit.dev/docs/execution/engine-modes)
-- [Filters](https://tunit.dev/docs/execution/test-filters)
-- [Command flags](https://tunit.dev/docs/reference/command-line-flags)
-- [Programmatic configuration](https://tunit.dev/docs/reference/programmatic-configuration)
-- [Test context](https://tunit.dev/docs/writing-tests/test-context)
-- [Artifacts](https://tunit.dev/docs/writing-tests/artifacts)
-- [Built-in Testing Platform extensions](https://tunit.dev/docs/extending/built-in-extensions)
-- [Code coverage](https://tunit.dev/docs/extending/code-coverage)
-- [HTML reports](https://tunit.dev/docs/guides/html-report)
-- [CI reporting](https://tunit.dev/docs/execution/ci-cd-reporting)
-- [OpenTelemetry](https://tunit.dev/docs/examples/opentelemetry)

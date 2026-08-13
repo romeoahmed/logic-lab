@@ -1,46 +1,12 @@
----
-version: v1
-name: Logic Lab Instrument Enamel
-description: A quiet digital-logic laboratory bench that connects authored topology to observable time.
-colors:
-  primary: "#08788C"
-  bench: "#E7EEF1"
-  panel: "#F7FAFB"
-  canvas: "#FFFFFF"
-  ink: "#172A33"
-  muted: "#536871"
-  transition: "#A85D00"
-  unknown: "#7053A5"
-  danger: "#B4232C"
-typography:
-  ui:
-    fontFamily: Atkinson Hyperlegible Next
-    fontSize: 16px
-    fontWeight: 400
-    lineHeight: 1.5
-  data:
-    fontFamily: IBM Plex Mono
-    fontSize: 13px
-    fontWeight: 400
-    lineHeight: 1.4
-spacing:
-  base: 4px
-  major: 8px
-omitted:
-  - section: rounded
-    reason: Fluent UI owns chrome radii; schematic shapes are semantic geometry.
-  - section: components
-    reason: Component-level token overrides require visual qualification before adoption.
----
-
 # Logic Lab Workbench
 
 > Status: normative V1 visual and interaction contract
 > Platform: Blazor Web App with a per-page Interactive Server editor
+> Profile: Instrument Enamel V1 — a quiet digital-logic laboratory bench connecting authored topology to observable time
 
 This document owns the workbench experience. System ownership lives in [Architecture](./ARCHITECTURE.md), static schematic geometry in [Diagram Presentation](./docs/specs/diagram-presentation.md), browser records in the [Browser Adapter Contract](./docs/contracts/browser-adapters.md), and Canvas/input/resource behavior in [Browser Runtime](./docs/specs/browser-runtime.md).
 
-This is a target contract, not a delivery ledger. [Development Readiness](./docs/README.md#development-readiness) records the implemented Web surface and remaining gaps.
+This is a target contract, not a delivery ledger. The [Implementation Plan](./docs/implementation-plan.md#delivery-status) alone records delivery.
 
 ## Overview
 
@@ -56,19 +22,19 @@ The visual direction is **instrument enamel**: cool low-chroma framing surfaces,
 
 ## Colors
 
-The YAML color tokens are normative; implementation maps them to the CSS aliases below.
+The profile defines each color once; Web maps it to the corresponding CSS alias.
 
-| Token | CSS alias | Role |
-|---|---|---|
-| `colors.bench` | `--ll-bench` | application frame and inactive gutters |
-| `colors.panel` | `--ll-panel` | panels and Instrument Bay |
-| `colors.canvas` | `--ll-canvas` | schematic field |
-| `colors.ink` | `--ll-ink` | text, symbols, and inactive wires |
-| `colors.muted` | `--ll-muted` | secondary text and disabled ink |
-| `colors.primary` | `--ll-signal` | focus, selection, Probe family seed |
-| `colors.transition` | `--ll-transition` | committed time transition |
-| `colors.unknown` | `--ll-unknown` | `X` and indeterminate emphasis |
-| `colors.danger` | `--ll-danger` | error and destructive confirmation only |
+| Token | Value | CSS alias | Role |
+|---|---|---|---|
+| `colors.bench` | `#E7EEF1` | `--ll-bench` | application frame and inactive gutters |
+| `colors.panel` | `#F7FAFB` | `--ll-panel` | panels and Instrument Bay |
+| `colors.canvas` | `#FFFFFF` | `--ll-canvas` | schematic field |
+| `colors.ink` | `#172A33` | `--ll-ink` | text, symbols, and inactive wires |
+| `colors.muted` | `#536871` | `--ll-muted` | secondary text and disabled ink |
+| `colors.primary` | `#08788C` | `--ll-signal` | focus, selection, Probe family seed |
+| `colors.transition` | `#A85D00` | `--ll-transition` | committed time transition |
+| `colors.unknown` | `#7053A5` | `--ll-unknown` | `X` and indeterminate emphasis |
+| `colors.danger` | `#B4232C` | `--ll-danger` | error and destructive confirmation only |
 
 Logic Value recipes use redundant cues:
 
@@ -83,11 +49,11 @@ Selection uses an outer focus halo and never erases live-value encoding. Diagnos
 
 ## Typography
 
-| Role | Family | Size | Use |
-|---|---|---:|---|
-| UI and prose | Atkinson Hyperlegible Next; Noto Sans SC fallback | 16px / 1.5 | commands, forms, help, diagnostics |
-| dense data | IBM Plex Mono; Noto Sans Mono CJK fallback | 13px / 1.4 | logical time, vectors, addresses, codes |
-| IEEE symbol text | versioned Noto Sans subset | Geometry Plan metric | Geometry Plan labels and export |
+| Role | Family | Size / line height | Weight | Use |
+|---|---|---:|---:|---|
+| UI and prose | Atkinson Hyperlegible Next; Noto Sans SC fallback | 16px / 1.5 | 400 | commands, forms, help, diagnostics |
+| dense data | IBM Plex Mono; Noto Sans Mono CJK fallback | 13px / 1.4 | 400 | logical time, vectors, addresses, codes |
+| IEEE symbol text | versioned Noto Sans subset | Geometry Plan metric | — | Geometry Plan labels and export |
 
 Fonts are self-hosted, licensed, fingerprinted, and subset after localization coverage is known. Time and address columns use tabular numerals. UI density never changes IEEE symbol metrics.
 

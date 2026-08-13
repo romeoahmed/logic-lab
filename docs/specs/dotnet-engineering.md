@@ -159,4 +159,4 @@ Use stable low-cardinality `[Property]` metadata such as evidence owner or test 
 
 TUnit.Mocks is not a default substitute for the architecture's local adapters. Its source-generated mocks are allowed only when interaction verification at a real seam materially reduces test infrastructure and the mock does not invent a production interface. Prefer state/result assertions and small owned fakes for deterministic Modules.
 
-This baseline makes implementation reproducible; it does not make a production release qualified. Calibrated policies, provider configuration, migration/backup/restore, browser/security/load evidence, telemetry backend, alerts, and runbooks remain the explicit release work in the [Documentation Map](../README.md#development-readiness).
+This baseline makes implementation reproducible; it does not make a production release qualified. Calibrated policies, provider configuration, migration/backup/restore, browser/security/load evidence, telemetry backend, alerts, and runbooks remain the explicit [Phase F release work](../implementation-plan.md#phase-f--measurement-and-production-qualification).

@@ -7,7 +7,7 @@ Architecture owns system shape, dependency direction, Module seams, fact ownersh
 
 ## 1. Baseline and product scope
 
-This section defines the V1 target. The [Implementation Plan](./docs/implementation-plan.md#delivery-status) tracks delivery, and [Development Readiness](./docs/README.md#development-readiness) summarizes executable evidence and gaps.
+This section defines the V1 target. The [Implementation Plan](./docs/implementation-plan.md#delivery-status) alone tracks delivery and the current dependency frontier.
 
 V1 supports:
 
@@ -211,7 +211,7 @@ A UI test cannot prove Simulation semantics; a screenshot cannot prove interacti
 
 ## 10. Constraints and evidence-triggered seams
 
-The [Development Readiness](./docs/README.md#development-readiness) table owns current implementation and qualification gaps. Only measured evidence justifies revisiting these seams:
+The [Implementation Plan](./docs/implementation-plan.md#dependency-frontier) owns current delivery, while its Phase F slices own production-qualification gaps. Only measured evidence justifies revisiting these seams:
 
 | Measured evidence | Revisit |
 |---|---|

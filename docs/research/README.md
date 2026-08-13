@@ -15,3 +15,5 @@ Research records evidence, derivations, rejected alternatives, and dated qualifi
 | [.NET Performance Review](./performance-review.md) | dated implementation audit and BenchmarkDotNet decisions |
 
 Dates and version observations are part of a record's evidence boundary. Do not update them merely because the repository advances; add a new dated observation when later evidence changes a conclusion, and update the owning normative document only when the project decision changes.
+
+Cite each source at the claim it supports. Do not append a second link catalog when those sources are already cited inline; retain a closing bibliography only for whole-record primary material that cannot be attached to one claim.
