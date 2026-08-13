@@ -39,15 +39,9 @@ internal sealed record DurableProjectIngressPolicy
         }
 
         var partitionKey = $"subject:{subjectId}";
-        return RateLimitPartition.GetFixedWindowLimiter(
+        return IngressRateLimiting.FixedWindowPartition(
             partitionKey,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                AutoReplenishment = true,
-                PermitLimit = OpenPermitLimit,
-                QueueLimit = 0,
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                Window = OpenWindow,
-            });
+            OpenPermitLimit,
+            OpenWindow);
     }
 }

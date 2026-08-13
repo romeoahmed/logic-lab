@@ -31,8 +31,9 @@ var anonymousWorkspaceIngressPolicy = AnonymousWorkspaceIngressPolicy.Default;
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(workspacePolicy);
 builder.Services.AddSingleton(anonymousWorkspaceIngressPolicy);
-builder.Services.AddSingleton(services => new AnonymousWorkspaceIngressLimiter(
-    services.GetRequiredService<AnonymousWorkspaceIngressPolicy>()));
+builder.Services.AddSingleton<RateLimiter>(services => services
+    .GetRequiredService<AnonymousWorkspaceIngressPolicy>()
+    .CreateLimiter());
 builder.Services
     .AddOptions<ProjectExportOptions>()
     .BindConfiguration(

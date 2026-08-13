@@ -126,14 +126,14 @@ public sealed record WorkspacePolicy
         ArgumentNullException.ThrowIfNull(authoringLimits);
         ArgumentNullException.ThrowIfNull(durableDisplayNameLimits);
         ArgumentNullException.ThrowIfNull(durableProjectCatalogLimits);
-        if (!IsStableToken(policyId))
+        if (!StableToken.IsValid(policyId))
         {
             throw new ArgumentException(
                 "The Workspace Policy ID must be a Stable Token.",
                 nameof(policyId));
         }
 
-        if (!IsStableToken(policyRevision))
+        if (!StableToken.IsValid(policyRevision))
         {
             throw new ArgumentException(
                 "The Workspace Policy revision must be a Stable Token.",
@@ -215,21 +215,6 @@ public sealed record WorkspacePolicy
         hotSwapPeakBytes: 512UL * 1024UL * 1024UL,
         durableDisplayNameLimits: DurableDisplayNameLimits.Default,
         durableProjectCatalogLimits: DurableProjectCatalogLimits.Default);
-
-    private static bool IsStableToken(string value)
-    {
-        return value.Length <= 96
-            && IsAsciiLetterOrDigit(value[0])
-            && value.All(character =>
-                IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
-    }
-
-    private static bool IsAsciiLetterOrDigit(char value)
-    {
-        return value is >= 'A' and <= 'Z'
-            or >= 'a' and <= 'z'
-            or >= '0' and <= '9';
-    }
 }
 
 public enum SchedulingDimension
@@ -262,14 +247,14 @@ public sealed class SchedulingPolicy
         ArgumentException.ThrowIfNullOrEmpty(policyId);
         ArgumentException.ThrowIfNullOrEmpty(policyRevision);
         ArgumentNullException.ThrowIfNull(limits);
-        if (!IsStableToken(policyId))
+        if (!StableToken.IsValid(policyId))
         {
             throw new ArgumentException(
                 "The Scheduling Policy ID must be a Stable Token.",
                 nameof(policyId));
         }
 
-        if (!IsStableToken(policyRevision))
+        if (!StableToken.IsValid(policyRevision))
         {
             throw new ArgumentException(
                 "The Scheduling Policy revision must be a Stable Token.",
@@ -337,6 +322,19 @@ public sealed class SchedulingPolicy
         return limits[(int)dimension].Maximum;
     }
 
+    internal int GetInt32Maximum(SchedulingDimension dimension)
+    {
+        var maximum = GetMaximum(dimension);
+        if (maximum > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(dimension),
+                $"The {DimensionToken(dimension)} limit must fit Int32.");
+        }
+
+        return (int)maximum;
+    }
+
     internal PolicyEvidenceProjection Evidence(
         SchedulingDimension dimension,
         ulong observed)
@@ -373,8 +371,11 @@ public sealed class SchedulingPolicy
             _ => throw new ArgumentOutOfRangeException(nameof(dimension)),
         };
     }
+}
 
-    private static bool IsStableToken(string value)
+file static class StableToken
+{
+    public static bool IsValid(string value)
     {
         return value.Length <= 96
             && IsAsciiLetterOrDigit(value[0])

@@ -11,7 +11,7 @@ namespace LogicLab.Web.Transfers;
 internal sealed class AnonymousWorkspaceCallerMiddleware(
     RequestDelegate next,
     IDataProtectionProvider dataProtectionProvider,
-    AnonymousWorkspaceIngressLimiter ingressLimiter)
+    RateLimiter ingressLimiter)
 {
     internal const string CookieName = "__Host-LogicLab.AnonymousCaller";
 
@@ -24,7 +24,7 @@ internal sealed class AnonymousWorkspaceCallerMiddleware(
         (dataProtectionProvider
             ?? throw new ArgumentNullException(nameof(dataProtectionProvider)))
         .CreateProtector(ProtectionPurpose);
-    private readonly AnonymousWorkspaceIngressLimiter ingressLimiter =
+    private readonly RateLimiter ingressLimiter =
         ingressLimiter ?? throw new ArgumentNullException(nameof(ingressLimiter));
 
     public async Task InvokeAsync(HttpContext context)

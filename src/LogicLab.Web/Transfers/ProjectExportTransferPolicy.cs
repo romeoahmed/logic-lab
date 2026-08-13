@@ -48,7 +48,6 @@ internal sealed record ProjectExportTransferPolicy
                 {
                     PermitLimit = MaximumConcurrentDownloads,
                     QueueLimit = 0,
-                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 });
     }
 
@@ -64,16 +63,10 @@ internal sealed record ProjectExportTransferPolicy
                 $"browser:{anonymous.BrowserId.Value}",
             _ => "invalid-caller",
         };
-        return RateLimitPartition.GetFixedWindowLimiter(
+        return IngressRateLimiting.FixedWindowPartition(
             partitionKey,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                AutoReplenishment = true,
-                PermitLimit = DownloadPermitLimit,
-                QueueLimit = 0,
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                Window = DownloadWindow,
-            });
+            DownloadPermitLimit,
+            DownloadWindow);
     }
 }
 

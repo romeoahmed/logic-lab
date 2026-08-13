@@ -24,27 +24,7 @@ internal sealed record AnonymousWorkspaceIngressPolicy
     public static AnonymousWorkspaceIngressPolicy Default { get; } = new(
         issuancePermitLimit: 8,
         issuanceWindow: TimeSpan.FromMinutes(1));
-}
 
-internal sealed class AnonymousWorkspaceIngressLimiter : IAsyncDisposable
-{
-    private readonly FixedWindowRateLimiter limiter;
-
-    public AnonymousWorkspaceIngressLimiter(AnonymousWorkspaceIngressPolicy policy)
-    {
-        ArgumentNullException.ThrowIfNull(policy);
-        limiter = new FixedWindowRateLimiter(
-            new FixedWindowRateLimiterOptions
-            {
-                AutoReplenishment = true,
-                PermitLimit = policy.IssuancePermitLimit,
-                QueueLimit = 0,
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                Window = policy.IssuanceWindow,
-            });
-    }
-
-    public RateLimitLease AttemptAcquire() => limiter.AttemptAcquire();
-
-    public ValueTask DisposeAsync() => limiter.DisposeAsync();
+    public RateLimiter CreateLimiter() =>
+        IngressRateLimiting.FixedWindow(IssuancePermitLimit, IssuanceWindow);
 }

@@ -54,16 +54,10 @@ internal sealed record AccountIngressPolicy(
         }
 
         partitionKey ??= ClientPartitionKey(context);
-        return RateLimitPartition.GetFixedWindowLimiter(
+        return IngressRateLimiting.FixedWindowPartition(
             partitionKey,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                AutoReplenishment = true,
-                PermitLimit = permitLimit,
-                QueueLimit = 0,
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                Window = window,
-            });
+            permitLimit,
+            window);
     }
 
     private static string ClientPartitionKey(HttpContext context)
