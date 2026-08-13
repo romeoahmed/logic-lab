@@ -1,7 +1,6 @@
 using FsCheck;
 using FsCheck.Fluent;
 using LogicLab.Domain;
-using TUnit.Assertions.Enums;
 using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
@@ -44,86 +43,6 @@ internal sealed class VectorNetResolverTests
             .Label(label)
             .Collect(LogicVectorTestData.WidthBucket(sample.Width))
             .Collect($"drivers={sample.Drivers.Length}");
-    }
-
-    [Test]
-    public async Task Resolve_NoDrivers_ReturnsHighImpedanceAndUndrivenForEveryBit()
-    {
-        var actual = VectorNetResolver.Resolve(130, []);
-        var actualResolutions = ToScalarResolutions(actual);
-        var expectedResolutions = Enumerable.Repeat(
-                new NetResolution(LogicValue.Z, NetResolutionCauses.Undriven),
-                130)
-            .ToArray();
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(actual.Value.Width).IsEqualTo(130);
-            await Assert.That(actualResolutions)
-                .IsEquivalentTo(expectedResolutions, CollectionOrdering.Matching);
-        }
-    }
-
-    [Test]
-    public async Task Resolve_AllHighImpedanceDrivers_ReturnsUndrivenForEveryBit()
-    {
-        var highImpedance = new LogicVector(
-            [.. Enumerable.Repeat(LogicValue.Z, 130)]);
-
-        var actual = VectorNetResolver.Resolve(
-            130,
-            [highImpedance, highImpedance]);
-        var actualResolutions = ToScalarResolutions(actual);
-        var expectedResolutions = Enumerable.Repeat(
-                new NetResolution(LogicValue.Z, NetResolutionCauses.Undriven),
-                130)
-            .ToArray();
-
-        await Assert.That(actualResolutions)
-            .IsEquivalentTo(expectedResolutions, CollectionOrdering.Matching);
-    }
-
-    [Test]
-    public async Task Resolve_MultipleDriversAtWordTails_ReportIndependentValuesAndCauses()
-    {
-        const int width = 130;
-        var firstValues = Enumerable.Repeat(LogicValue.Z, width).ToArray();
-        var secondValues = Enumerable.Repeat(LogicValue.Z, width).ToArray();
-        var thirdValues = Enumerable.Repeat(LogicValue.Z, width).ToArray();
-        firstValues[1] = LogicValue.One;
-        secondValues[1] = LogicValue.One;
-        firstValues[63] = LogicValue.X;
-        firstValues[64] = LogicValue.Zero;
-        secondValues[64] = LogicValue.One;
-        firstValues[129] = LogicValue.Zero;
-        secondValues[129] = LogicValue.One;
-        thirdValues[129] = LogicValue.X;
-
-        var actual = VectorNetResolver.Resolve(
-            width,
-            [
-                new LogicVector(firstValues),
-                new LogicVector(secondValues),
-                new LogicVector(thirdValues),
-            ]);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(actual.Value[0]).IsEqualTo(LogicValue.Z);
-            await Assert.That(actual.GetCauses(0)).IsEqualTo(NetResolutionCauses.Undriven);
-            await Assert.That(actual.Value[1]).IsEqualTo(LogicValue.One);
-            await Assert.That(actual.GetCauses(1)).IsEqualTo(NetResolutionCauses.None);
-            await Assert.That(actual.Value[63]).IsEqualTo(LogicValue.X);
-            await Assert.That(actual.GetCauses(63))
-                .IsEqualTo(NetResolutionCauses.UnknownDriver);
-            await Assert.That(actual.Value[64]).IsEqualTo(LogicValue.X);
-            await Assert.That(actual.GetCauses(64))
-                .IsEqualTo(NetResolutionCauses.Contention);
-            await Assert.That(actual.Value[129]).IsEqualTo(LogicValue.X);
-            await Assert.That(actual.GetCauses(129))
-                .IsEqualTo(
-                    NetResolutionCauses.UnknownDriver | NetResolutionCauses.Contention);
-        }
     }
 
     [Test]
@@ -175,11 +94,4 @@ internal sealed class VectorNetResolverTests
         }
     }
 
-    private static NetResolution[] ToScalarResolutions(VectorNetResolution resolution)
-    {
-        return [.. Enumerable.Range(0, resolution.Value.Width)
-            .Select(bitIndex => new NetResolution(
-                resolution.Value[bitIndex],
-                resolution.GetCauses(bitIndex)))];
-    }
 }

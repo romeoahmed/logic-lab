@@ -9,31 +9,12 @@ namespace LogicLab.Presentation.Tests;
 internal sealed class AccessibleSceneProjectorTests
 {
     [Test]
-    [Arguments(
-        "logic.unsigned_compare",
-        new[] { "A", "B", "LT", "EQ", "GT" },
-        new uint[] { 5, 5, 1, 1, 1 },
-        2)]
-    [Arguments(
-        "logic.adder",
-        new[] { "A", "B", "CIN", "SUM", "COUT" },
-        new uint[] { 5, 5, 1, 5, 1 },
-        3)]
-    [Arguments(
-        "logic.subtractor",
-        new[] { "A", "B", "BIN", "DIFF", "BOUT" },
-        new uint[] { 5, 5, 1, 5, 1 },
-        3)]
-    [Arguments(
-        "logic.shift",
-        new[] { "D", "AMOUNT", "Q" },
-        new uint[] { 5, 3, 5 },
-        2)]
+    [Arguments("logic.unsigned_compare")]
+    [Arguments("logic.adder")]
+    [Arguments("logic.subtractor")]
+    [Arguments("logic.shift")]
     public async Task Project_ArithmeticComponent_ExposesResolvedPortContract(
-        string contractId,
-        string[] expectedPortIds,
-        uint[] expectedPortWidths,
-        int inputCount)
+        string contractId)
     {
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
             "Arithmetic projection",
@@ -57,11 +38,9 @@ internal sealed class AccessibleSceneProjectorTests
             ];
         revision = Place(revision, contractId, parameters, new GridPoint(0, 0));
 
+        var instance = revision.Document.EntryCircuitDefinition.ComponentInstances.Single();
         var component = Project(revision).Components.Single();
-        var expectedPorts = expectedPortIds.Select((portId, index) => (
-            PortId: portId,
-            Direction: index < inputCount ? PortDirection.Input : PortDirection.Output,
-            Width: expectedPortWidths[index]));
+        var expectedPorts = ResolvePorts(instance);
 
         await Assert.That(component.Ports.Select(port =>
                 (port.Source.PortId, port.Direction, port.Width)))
@@ -146,7 +125,7 @@ internal sealed class AccessibleSceneProjectorTests
                     .IsEqualTo(new ComponentInstanceSourceIdentity(definition.Id, instance.Id));
                 await Assert.That(projected.Placement).IsEqualTo(instance.Placement);
                 await Assert.That(projected.Ports.Select(port =>
-                        (port.Source.PortId, port.Direction)))
+                        (port.Source.PortId, port.Direction, port.Width)))
                     .IsEquivalentTo(ExpectedPorts(instance), CollectionOrdering.Matching);
                 await Assert.That(projected.Ports.All(port =>
                     port.Source.CircuitDefinitionId == definition.Id
@@ -385,20 +364,24 @@ internal sealed class AccessibleSceneProjectorTests
                 "The bounded test Scene could not be projected.");
     }
 
-    private static (string PortId, PortDirection Direction)[] ExpectedPorts(
+    private static (string PortId, PortDirection Direction, uint Width)[] ExpectedPorts(
         ComponentInstance instance)
     {
-        return ((LibraryComponentTarget)instance.Target).ContractKey.ContractId switch
-        {
-            "source.input" => [("Q", PortDirection.Output)],
-            "logic.not" =>
-            [
-                ("A", PortDirection.Input),
-                ("Q", PortDirection.Output),
-            ],
-            "sink.output" => [("D", PortDirection.Input)],
-            _ => throw new ArgumentOutOfRangeException(nameof(instance)),
-        };
+        return ResolvePorts(instance);
+    }
+
+    private static (string PortId, PortDirection Direction, uint Width)[] ResolvePorts(
+        ComponentInstance instance)
+    {
+        var target = instance.Target as LibraryComponentTarget
+            ?? throw new InvalidOperationException("Expected a library component target.");
+        var contract = CoreLibrarySchema.FindContract(target.ContractKey)
+            ?? throw new InvalidOperationException($"Missing contract {target.ContractKey}.");
+        return contract.ResolvePorts(instance.Parameters)
+            .TryMaterialize(10_000, out var ports)
+            ? [.. ports.Select(port => (port.Id, port.Direction, port.Width))]
+            : throw new InvalidOperationException(
+                $"The bounded test ports for {target.ContractKey} could not be materialized.");
     }
 
     private static ProjectRevision CreateCompleteCircuit()

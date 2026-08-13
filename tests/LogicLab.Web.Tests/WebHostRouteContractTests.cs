@@ -1,5 +1,9 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Resources;
+using LogicLab.Web.Components.Layout;
+using LogicLab.Web.Components.Pages;
 using Microsoft.AspNetCore.Mvc.Testing;
 using TUnit.AspNetCore;
 
@@ -130,9 +134,10 @@ internal sealed class WebHostRouteContractTests(LogicLabWebFactory factory)
         {
             await Assert.That(html.GetAttribute("lang")).IsEqualTo("zh-CN");
             await Assert.That(html.GetAttribute("dir")).IsEqualTo("ltr");
-            await Assert.That(navigation.TextContent).Contains("工作台");
+            await Assert.That(navigation.TextContent)
+                .Contains(Localized<LayoutText>("Workbench", "zh-CN"));
             await Assert.That(heading.TextContent)
-                .IsEqualTo("构建、编译，观察信号流动。");
+                .IsEqualTo(Localized<SiteText>("HomeTitle", "zh-CN"));
         }
     }
 
@@ -149,6 +154,15 @@ internal sealed class WebHostRouteContractTests(LogicLabWebFactory factory)
         var document = WebTestMarkup.Parse(await response.Content.ReadAsStringAsync());
 
         await Assert.That(WebTestMarkup.RequireElement(document, "h1").TextContent)
-            .IsEqualTo("快速入门");
+            .IsEqualTo(Localized<SiteText>("HelpTitle", "zh-CN"));
+    }
+
+    private static string Localized<TResource>(string key, string culture)
+    {
+        return new ResourceManager(typeof(TResource)).GetString(
+                key,
+                CultureInfo.GetCultureInfo(culture))
+            ?? throw new InvalidOperationException(
+                $"Missing {typeof(TResource).Name} resource '{key}' for '{culture}'.");
     }
 }

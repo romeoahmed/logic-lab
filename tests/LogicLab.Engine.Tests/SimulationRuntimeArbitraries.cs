@@ -23,8 +23,10 @@ internal static class SimulationRuntimeArbitraries
     {
         var generator =
             from count in Gen.Choose(1, MaximumStimulusCount)
-            from gaps in Gen.Choose(1, MaximumLogicalTimeGap).ArrayOf(count)
+            from firstGap in Gen.Choose(1, MaximumLogicalTimeGap)
+            from remainingGaps in Gen.Choose(0, MaximumLogicalTimeGap).ArrayOf(count - 1)
             from values in Gen.Elements(Enum.GetValues<LogicValue>()).ArrayOf(count)
+            let gaps = new[] { firstGap }.Concat(remainingGaps).ToArray()
             let chronological = Chronological(gaps, values)
             from insertionOrder in Gen.Shuffle(chronological)
             select new ScheduledStimuliCase(insertionOrder);
@@ -41,7 +43,10 @@ internal static class SimulationRuntimeArbitraries
         for (var index = 0; index < gaps.Length; index++)
         {
             logicalTime = checked(logicalTime + (ulong)gaps[index]);
-            stimuli[index] = new GeneratedStimulus(logicalTime, values[index]);
+            var value = index > 0 && gaps[index] == 0
+                ? stimuli[index - 1].Value
+                : values[index];
+            stimuli[index] = new GeneratedStimulus(logicalTime, value);
         }
 
         return stimuli;
@@ -66,14 +71,60 @@ internal static class SimulationRuntimeArbitraries
         for (var index = 0; index < sample.InsertionOrder.Length; index++)
         {
             var stimulus = sample.InsertionOrder[index];
+            foreach (var logicalTime in ShrinkLogicalTime(stimulus.LogicalTime))
+            {
+                if (sample.InsertionOrder.Where((_, candidateIndex) =>
+                        candidateIndex != index).Any(candidate =>
+                        candidate.LogicalTime == logicalTime
+                        && candidate.Value != stimulus.Value))
+                {
+                    continue;
+                }
+
+                var timeCandidate = (GeneratedStimulus[])sample.InsertionOrder.Clone();
+                timeCandidate[index] = stimulus with { LogicalTime = logicalTime };
+                yield return sample with { InsertionOrder = timeCandidate };
+            }
+
             if (stimulus.Value == LogicValue.Zero)
             {
                 continue;
             }
 
+            if (sample.InsertionOrder.Take(index).Any(candidate =>
+                candidate.LogicalTime == stimulus.LogicalTime))
+            {
+                continue;
+            }
+
             var stimuli = (GeneratedStimulus[])sample.InsertionOrder.Clone();
-            stimuli[index] = stimulus with { Value = LogicValue.Zero };
+            for (var candidateIndex = 0; candidateIndex < stimuli.Length; candidateIndex++)
+            {
+                if (stimuli[candidateIndex].LogicalTime == stimulus.LogicalTime)
+                {
+                    stimuli[candidateIndex] = stimuli[candidateIndex] with
+                    {
+                        Value = LogicValue.Zero,
+                    };
+                }
+            }
+
             yield return sample with { InsertionOrder = stimuli };
+        }
+    }
+
+    private static IEnumerable<ulong> ShrinkLogicalTime(ulong logicalTime)
+    {
+        if (logicalTime <= 1)
+        {
+            yield break;
+        }
+
+        yield return 1;
+        var half = logicalTime / 2;
+        if (half > 1)
+        {
+            yield return half;
         }
     }
 }

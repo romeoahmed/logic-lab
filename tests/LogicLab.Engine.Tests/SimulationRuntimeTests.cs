@@ -578,7 +578,7 @@ internal sealed class SimulationRuntimeTests
     [Test, FsCheckProperty(
         MaxTest = 50,
         Arbitrary = new[] { typeof(SimulationRuntimeArbitraries) })]
-    public async Task Execute_GeneratedStimuli_MatchStablePriorityQueueModel(
+    public async Task Execute_GeneratedStimuli_MatchStableTimeBucketModel(
         ScheduledStimuliCase sample)
     {
         var context = SimulationTestContext.Create();
@@ -614,11 +614,18 @@ internal sealed class SimulationRuntimeTests
             await Assert.That(beforeAdvance.TraceCursor).IsEqualTo(opened.TraceCursor);
         }
 
-        var expectedOrder = stimuli.OrderBy(stimulus => stimulus.LogicalTime).ToArray();
+        var expectedBuckets = stimuli
+            .Select((stimulus, insertionIndex) => (stimulus, insertionIndex))
+            .OrderBy(item => item.stimulus.LogicalTime)
+            .ThenBy(item => item.insertionIndex)
+            .GroupBy(item => item.stimulus.LogicalTime)
+            .Select(group => group.Select(item => item.stimulus).ToArray())
+            .ToArray();
         var previousProbeValue = LogicValue.One;
-        for (var index = 0; index < expectedOrder.Length; index++)
+        for (var index = 0; index < expectedBuckets.Length; index++)
         {
-            var (logicalTime, value) = expectedOrder[index];
+            var bucket = expectedBuckets[index];
+            var (logicalTime, value) = bucket[^1];
             var expectedProbeValue = ScalarLogic.Not(value);
             LogicValue[] expectedPatch = expectedProbeValue == previousProbeValue
                 ? []

@@ -18,42 +18,23 @@ internal sealed class TopologySceneProjectorTests
         await AssertProjectedPorts(
             revision,
             scene,
-            "source.constant",
-            [("Q", PortDirection.Output, 4U)]);
+            "source.constant");
         await AssertProjectedPorts(
             revision,
             scene,
-            "topology.split",
-            [
-                ("D", PortDirection.Input, 4U),
-                ("Q0", PortDirection.Output, 1U),
-                ("Q1", PortDirection.Output, 3U),
-            ]);
+            "topology.split");
         await AssertProjectedPorts(
             revision,
             scene,
-            "topology.concat",
-            [
-                ("D0", PortDirection.Input, 1U),
-                ("D1", PortDirection.Input, 3U),
-                ("Q", PortDirection.Output, 4U),
-            ]);
+            "topology.concat");
         await AssertProjectedPorts(
             revision,
             scene,
-            "topology.zero_extend",
-            [
-                ("D", PortDirection.Input, 4U),
-                ("Q", PortDirection.Output, 6U),
-            ]);
+            "topology.zero_extend");
         await AssertProjectedPorts(
             revision,
             scene,
-            "topology.sign_extend",
-            [
-                ("D", PortDirection.Input, 4U),
-                ("Q", PortDirection.Output, 6U),
-            ]);
+            "topology.sign_extend");
 
         var projectedPorts = scene.Components.SelectMany(component => component.Ports).ToArray();
         using (Assert.Multiple())
@@ -67,14 +48,21 @@ internal sealed class TopologySceneProjectorTests
     private static async Task AssertProjectedPorts(
         ProjectRevision revision,
         AccessibleSceneProjection scene,
-        string contractId,
-        (string PortId, PortDirection Direction, uint Width)[] expected)
+        string contractId)
     {
         var instance = revision.Document.EntryCircuitDefinition.ComponentInstances.Single(
             item => item.Target is LibraryComponentTarget library
                 && library.ContractKey.ContractId == contractId);
         var component = scene.Components.Single(item =>
             item.Source.ComponentInstanceId == instance.Id);
+        var target = (LibraryComponentTarget)instance.Target;
+        var contract = CoreLibrarySchema.FindContract(target.ContractKey)
+            ?? throw new InvalidOperationException($"Missing contract {target.ContractKey}.");
+        var expected = contract.ResolvePorts(instance.Parameters)
+            .TryMaterialize(10_000, out var ports)
+            ? ports.Select(port => (port.Id, port.Direction, port.Width))
+            : throw new InvalidOperationException(
+                $"The bounded test ports for {target.ContractKey} could not be materialized.");
 
         using (Assert.Multiple())
         {

@@ -246,10 +246,12 @@ internal sealed class WorkCoordinatorTests
         }
     }
 
-    [Test]
+    [Test, Timeout(30_000)]
     [Arguments("compilation")]
     [Arguments("session")]
-    public async Task Schedule_WorkItemFailure_UsesSchedulingTrace(string lane)
+    public async Task Schedule_WorkItemFailure_UsesSchedulingTrace(
+        string lane,
+        CancellationToken cancellationToken)
     {
         using var loggerFactory = new RecordingLoggerFactory();
         var coordinator = CreateUnderActivity(
@@ -275,10 +277,10 @@ internal sealed class WorkCoordinatorTests
                 AnonymousWorkspaceCaller.Instance,
                 _ => throw new InvalidOperationException("Compilation failed."),
                 () => released.TrySetResult(),
-                CancellationToken.None,
+                cancellationToken,
                 out rejection);
             await Assert.That(accepted).IsTrue();
-            await released.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await released.Task.WaitAsync(cancellationToken);
         }
         else
         {
@@ -286,11 +288,11 @@ internal sealed class WorkCoordinatorTests
                 new WorkspaceId("correlation-session"),
                 AnonymousWorkspaceCaller.Instance,
                 _ => throw new InvalidOperationException("Session failed."),
-                CancellationToken.None,
+                cancellationToken,
                 out var scheduled,
                 out rejection);
             await Assert.That(accepted).IsTrue();
-            _ = await scheduled!.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+            _ = await scheduled!.Completion.WaitAsync(cancellationToken);
         }
 
         var log = loggerFactory.Entries.Single(entry => entry.EventId.Id == 1001);

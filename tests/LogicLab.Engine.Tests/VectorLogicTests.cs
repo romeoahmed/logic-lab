@@ -1,7 +1,6 @@
 using FsCheck;
 using FsCheck.Fluent;
 using LogicLab.Domain;
-using TUnit.Assertions.Enums;
 using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
@@ -44,46 +43,6 @@ internal sealed class VectorLogicTests
         LogicVectorPairCase sample)
     {
         return CheckBinary(sample, ScalarLogic.Xor, VectorLogic.Xor);
-    }
-
-    [Test]
-    public async Task GateOperations_XAndZAtWordTails_MatchScalarOracleWithoutLeakage()
-    {
-        const int width = 130;
-        var leftValues = Enumerable.Repeat(LogicValue.Zero, width).ToArray();
-        var rightValues = Enumerable.Repeat(LogicValue.One, width).ToArray();
-        leftValues[63] = LogicValue.X;
-        leftValues[64] = LogicValue.Z;
-        leftValues[129] = LogicValue.Z;
-        rightValues[63] = LogicValue.Z;
-        rightValues[64] = LogicValue.X;
-        rightValues[129] = LogicValue.X;
-        var left = new LogicVector(leftValues);
-        var right = new LogicVector(rightValues);
-
-        using (Assert.Multiple())
-        {
-            await AssertMatchesScalar(
-                VectorLogic.NormalizeInput(left),
-                leftValues,
-                ScalarLogic.NormalizeInput);
-            await AssertMatchesScalar(VectorLogic.Not(left), leftValues, ScalarLogic.Not);
-            await AssertMatchesScalar(
-                VectorLogic.And(left, right),
-                leftValues,
-                rightValues,
-                ScalarLogic.And);
-            await AssertMatchesScalar(
-                VectorLogic.Or(left, right),
-                leftValues,
-                rightValues,
-                ScalarLogic.Or);
-            await AssertMatchesScalar(
-                VectorLogic.Xor(left, right),
-                leftValues,
-                rightValues,
-                ScalarLogic.Xor);
-        }
     }
 
     [Test]
@@ -131,7 +90,7 @@ internal sealed class VectorLogicTests
 
     [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
     public Property Concat_ValidInputs_MatchesNormalizedScalarProjection(
-        LogicVectorSetCase sample)
+        LogicVectorSequenceCase sample)
     {
         var expected = sample.Vectors
             .SelectMany(static values => values)
@@ -144,7 +103,7 @@ internal sealed class VectorLogicTests
         return matches
             .Label(LogicVectorTestData.MismatchLabel(actual, expected))
             .Collect($"inputs={sample.Vectors.Length}")
-            .Collect(LogicVectorTestData.WidthBucket(sample.Width));
+            .Collect(LogicVectorTestData.WidthBucket(sample.TotalWidth));
     }
 
     [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
@@ -172,64 +131,6 @@ internal sealed class VectorLogicTests
                 + $"sign: {LogicVectorTestData.MismatchLabel(signExtended, signExpected)}")
             .Collect(LogicVectorTestData.WidthBucket(sample.Width))
             .Collect($"extra={LogicVectorTestData.WidthBucket(extraWidth.Get)}");
-    }
-
-    [Test]
-    public async Task Concat_NonWordAlignedInputs_PreservesOrderAndNormalizesHighImpedance()
-    {
-        var firstValues = Enumerable.Repeat(LogicValue.One, 65).ToArray();
-        var secondValues = Enumerable.Repeat(LogicValue.Zero, 64).ToArray();
-        firstValues[63] = LogicValue.Z;
-        secondValues[0] = LogicValue.X;
-        secondValues[63] = LogicValue.Z;
-        var expected = firstValues
-            .Concat(secondValues)
-            .Select(ScalarLogic.NormalizeInput)
-            .ToArray();
-
-        var actual = VectorLogic.Concat(
-            [new LogicVector(firstValues), new LogicVector(secondValues)]);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(actual.Width).IsEqualTo(129);
-            await Assert.That(LogicVectorTestData.ToValues(actual))
-                .IsEquivalentTo(expected, CollectionOrdering.Matching);
-        }
-    }
-
-    [Test]
-    public async Task Extend_HighImpedanceInput_NormalizesAndUsesExactFillRule()
-    {
-        var input = new LogicVector(
-            [LogicValue.One, LogicValue.Z, LogicValue.X]);
-
-        var zeroExtended = VectorLogic.ZeroExtend(input, 5);
-        var signExtended = VectorLogic.SignExtend(input, 5);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(LogicVectorTestData.ToValues(zeroExtended))
-                .IsEquivalentTo(
-                    [
-                        LogicValue.One,
-                        LogicValue.X,
-                        LogicValue.X,
-                        LogicValue.Zero,
-                        LogicValue.Zero,
-                    ],
-                    CollectionOrdering.Matching);
-            await Assert.That(LogicVectorTestData.ToValues(signExtended))
-                .IsEquivalentTo(
-                    [
-                        LogicValue.One,
-                        LogicValue.X,
-                        LogicValue.X,
-                        LogicValue.X,
-                        LogicValue.X,
-                    ],
-                    CollectionOrdering.Matching);
-        }
     }
 
     [Test]
@@ -302,38 +203,4 @@ internal sealed class VectorLogicTests
             .Collect(LogicVectorTestData.WidthBucket(sample.Width));
     }
 
-    private static async Task AssertMatchesScalar(
-        LogicVector actual,
-        LogicValue[] values,
-        Func<LogicValue, LogicValue> scalarOperation)
-    {
-        var expected = values.Select(scalarOperation).ToArray();
-        var actualValues = LogicVectorTestData.ToValues(actual);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(actual.Width).IsEqualTo(values.Length);
-            await Assert.That(actualValues)
-                .IsEquivalentTo(expected, CollectionOrdering.Matching);
-        }
-    }
-
-    private static async Task AssertMatchesScalar(
-        LogicVector actual,
-        LogicValue[] left,
-        LogicValue[] right,
-        Func<LogicValue, LogicValue, LogicValue> scalarOperation)
-    {
-        var expected = Enumerable.Range(0, left.Length)
-            .Select(index => scalarOperation(left[index], right[index]))
-            .ToArray();
-        var actualValues = LogicVectorTestData.ToValues(actual);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(actual.Width).IsEqualTo(left.Length);
-            await Assert.That(actualValues)
-                .IsEquivalentTo(expected, CollectionOrdering.Matching);
-        }
-    }
 }

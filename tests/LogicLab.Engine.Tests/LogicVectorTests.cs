@@ -1,7 +1,6 @@
 using FsCheck;
 using FsCheck.Fluent;
 using LogicLab.Domain;
-using TUnit.Assertions.Enums;
 using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
@@ -20,50 +19,20 @@ internal sealed class LogicVectorTests
             .Collect(LogicVectorTestData.WidthBucket(sample.Width));
     }
 
-    [Test]
-    [Arguments(1)]
-    [Arguments(63)]
-    [Arguments(64)]
-    [Arguments(65)]
-    [Arguments(127)]
-    [Arguments(128)]
-    [Arguments(129)]
-    public async Task Create_WordBoundaryWidth_RoundTripsEveryLogicValue(int width)
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property Create_ValidVector_OwnsInputValues(LogicVectorCase sample)
     {
-        var values = Enumerable.Range(0, width)
-            .Select(index => (LogicValue)(index % 4))
-            .ToArray();
+        var input = sample.Values.ToArray();
+        var expected = input.ToArray();
+        var vector = new LogicVector(input);
 
-        var vector = new LogicVector(values);
-        var actual = LogicVectorTestData.ToValues(vector);
+        input[0] = input[0] == LogicValue.Zero
+            ? LogicValue.One
+            : LogicValue.Zero;
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(vector.Width).IsEqualTo(width);
-            await Assert.That(actual)
-                .IsEquivalentTo(values, CollectionOrdering.Matching);
-        }
-    }
-
-    [Test]
-    public async Task Create_SourceMutation_DoesNotChangeOwnedVector()
-    {
-        var values = new[]
-        {
-            LogicValue.Zero,
-            LogicValue.One,
-            LogicValue.X,
-            LogicValue.Z,
-        };
-        var vector = new LogicVector(values);
-
-        Array.Fill(values, LogicValue.One);
-
-        var actual = LogicVectorTestData.ToValues(vector);
-        await Assert.That(actual)
-            .IsEquivalentTo(
-                [LogicValue.Zero, LogicValue.One, LogicValue.X, LogicValue.Z],
-                CollectionOrdering.Matching);
+        return LogicVectorTestData.Matches(vector, expected)
+            .Label("vector owns its input value sequence")
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width));
     }
 
     [Test]

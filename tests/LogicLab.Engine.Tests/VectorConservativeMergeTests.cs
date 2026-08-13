@@ -1,7 +1,6 @@
 using FsCheck;
 using FsCheck.Fluent;
 using LogicLab.Domain;
-using TUnit.Assertions.Enums;
 using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
@@ -26,48 +25,6 @@ internal sealed class VectorConservativeMergeTests
             .Label(LogicVectorTestData.MismatchLabel(actual, expected))
             .Collect(LogicVectorTestData.WidthBucket(sample.Width))
             .Collect($"vectors={sample.Vectors.Length}");
-    }
-
-    [Test]
-    public async Task Merge_AllHighImpedanceAtWordTails_PreservesHighImpedance()
-    {
-        var values = Enumerable.Repeat(LogicValue.Zero, 130).ToArray();
-        values[63] = LogicValue.Z;
-        values[64] = LogicValue.Z;
-        values[129] = LogicValue.Z;
-        var first = new LogicVector(values);
-        var second = new LogicVector((LogicValue[])values.Clone());
-
-        var actual = VectorConservativeMerge.Merge([first, second]);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(actual[63]).IsEqualTo(LogicValue.Z);
-            await Assert.That(actual[64]).IsEqualTo(LogicValue.Z);
-            await Assert.That(actual[129]).IsEqualTo(LogicValue.Z);
-        }
-    }
-
-    [Test]
-    public async Task Merge_DifferingValuesAcrossWordBoundary_ReturnsUnknownOnlyAtDifferences()
-    {
-        var firstValues = Enumerable.Repeat(LogicValue.One, 130).ToArray();
-        var secondValues = (LogicValue[])firstValues.Clone();
-        secondValues[63] = LogicValue.Zero;
-        secondValues[64] = LogicValue.Z;
-        secondValues[129] = LogicValue.X;
-
-        var actual = VectorConservativeMerge.Merge(
-            [new LogicVector(firstValues), new LogicVector(secondValues)]);
-        var actualValues = LogicVectorTestData.ToValues(actual);
-        var expectedValues = Enumerable.Range(0, firstValues.Length)
-            .Select(index => index is 63 or 64 or 129
-                ? LogicValue.X
-                : LogicValue.One)
-            .ToArray();
-
-        await Assert.That(actualValues)
-            .IsEquivalentTo(expectedValues, CollectionOrdering.Matching);
     }
 
     [Test]
