@@ -137,6 +137,13 @@ binding. A protected form request whose antiforgery verdict is invalid uses the
 exact code `antiforgery_validation_failed`, maps to `400`, and never enters form
 binding or application work.
 
+Anonymous editor identity issuance rejection uses the exact code
+`anonymous_workspace_ingress_exceeded`, maps to `429`, carries
+`Cache-Control: private, no-store`, includes `Retry-After` only when the fixed-window
+limiter supplies an honest duration, and writes no anonymous caller Cookie. This gate
+applies before generating a new Browser ID and is independent of any Browser ID value;
+a valid existing identity and an authenticated principal do not consume its permits.
+
 Logout always clears the current browser's authentication cookie. If global
 security-stamp revocation cannot be confirmed, the endpoint uses the exact code
 `authentication_revocation_failed` and maps to `503`; a concurrency failure is

@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Threading.RateLimiting;
 using LogicLab.Application.Workspaces;
 using Microsoft.AspNetCore.Components.Endpoints;
 using Microsoft.AspNetCore.DataProtection;
@@ -8,7 +10,8 @@ namespace LogicLab.Web.Transfers;
 
 internal sealed class AnonymousWorkspaceCallerMiddleware(
     RequestDelegate next,
-    IDataProtectionProvider dataProtectionProvider)
+    IDataProtectionProvider dataProtectionProvider,
+    AnonymousWorkspaceIngressLimiter ingressLimiter)
 {
     internal const string CookieName = "__Host-LogicLab.AnonymousCaller";
 
@@ -21,6 +24,8 @@ internal sealed class AnonymousWorkspaceCallerMiddleware(
         (dataProtectionProvider
             ?? throw new ArgumentNullException(nameof(dataProtectionProvider)))
         .CreateProtector(ProtectionPurpose);
+    private readonly AnonymousWorkspaceIngressLimiter ingressLimiter =
+        ingressLimiter ?? throw new ArgumentNullException(nameof(ingressLimiter));
 
     public async Task InvokeAsync(HttpContext context)
     {
@@ -49,6 +54,25 @@ internal sealed class AnonymousWorkspaceCallerMiddleware(
             if (!isEditorBootstrap)
             {
                 await next(context);
+                return;
+            }
+
+            using var lease = ingressLimiter.AttemptAcquire();
+            if (!lease.IsAcquired)
+            {
+                if (lease.TryGetMetadata(
+                        MetadataName.RetryAfter,
+                        out var retryAfter))
+                {
+                    context.Response.Headers.RetryAfter = Math.Ceiling(
+                            retryAfter.TotalSeconds)
+                        .ToString(CultureInfo.InvariantCulture);
+                }
+
+                await LogicLabProblemDetails.Create(
+                    context,
+                    LogicLabProblemDetails.AnonymousWorkspaceIngressExceededCode)
+                    .ExecuteAsync(context);
                 return;
             }
 

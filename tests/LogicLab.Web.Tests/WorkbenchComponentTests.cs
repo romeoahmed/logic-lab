@@ -293,6 +293,7 @@ internal sealed class WorkbenchComponentTests
             policyId: "test-workspace",
             policyRevision: "1",
             globalWorkspaceLimit: 16,
+            anonymousWorkspaceLimit: 16,
             workspaceCountPerSubject: 16,
             sandboxRetention: TimeSpan.FromHours(1),
             authoringLimits: WorkspaceAuthoringLimits.Default,

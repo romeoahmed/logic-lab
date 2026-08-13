@@ -68,6 +68,43 @@ internal sealed class EditorWorkspaceLifecycleTests
     }
 
     [Test]
+    public async Task OpenAsync_AnonymousGlobalLimitReached_PreservesAuthenticatedCapacity()
+    {
+        var firstAnonymous = new AnonymousBrowserWorkspaceCaller(
+            new AnonymousBrowserId(new string('a', 64)));
+        var secondAnonymous = new AnonymousBrowserWorkspaceCaller(
+            new AnonymousBrowserId(new string('b', 64)));
+        var authenticated = new AuthenticatedWorkspaceCaller(
+            new AuthenticatedSubjectId("authenticated-subject"));
+        await using var workspace = TestEditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint,
+            Policy(
+                globalWorkspaceLimit: 2,
+                TimeSpan.FromHours(1),
+                anonymousWorkspaceLimit: 1));
+
+        var first = await Open(workspace, firstAnonymous);
+        var rejected = await Open(workspace, secondAnonymous);
+        var authenticatedOpen = await Open(workspace, authenticated);
+
+        var openRejection = (await Assert.That(rejected)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(first).IsTypeOf<WorkspaceOpened>();
+            await Assert.That(authenticatedOpen).IsTypeOf<WorkspaceOpened>();
+            await Assert.That(openRejection.Code)
+                .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(openRejection.PolicyEvidence)
+                .IsEqualTo(new PolicyEvidenceProjection(
+                    "test-workspace",
+                    "1",
+                    "anonymous_workspace_count_global",
+                    2));
+        }
+    }
+
+    [Test]
     public async Task ReadAsync_SandboxRetentionElapsed_ReturnsNotFound()
     {
         var timeProvider = new ManualTimeProvider(
@@ -283,12 +320,14 @@ internal sealed class EditorWorkspaceLifecycleTests
     private static WorkspacePolicy Policy(
         int globalWorkspaceLimit,
         TimeSpan sandboxRetention,
-        int? workspaceCountPerSubject = null)
+        int? workspaceCountPerSubject = null,
+        int? anonymousWorkspaceLimit = null)
     {
         return new WorkspacePolicy(
             "test-workspace",
             "1",
             globalWorkspaceLimit,
+            anonymousWorkspaceLimit ?? globalWorkspaceLimit,
             workspaceCountPerSubject ?? globalWorkspaceLimit,
             sandboxRetention,
             WorkspaceAuthoringLimits.Default,
