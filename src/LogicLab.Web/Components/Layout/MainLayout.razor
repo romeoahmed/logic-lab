@@ -16,6 +16,22 @@
         </a>
         <nav class="primary-navigation" aria-label="Primary navigation">
             <NavLink href="/editor">Workbench</NavLink>
+            <NavLink href="/help/getting-started">Help</NavLink>
+            @if (IsHttps)
+            {
+                <form class="culture-form" action="/culture" method="post">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="returnUrl" value="@CurrentLocalUrl" />
+                    <label>
+                        <span class="visually-hidden">Language</span>
+                        <select name="culture">
+                            <option value="@LogicLabCultures.English" selected="@(CultureInfo.CurrentUICulture.Name == LogicLabCultures.English)">English</option>
+                            <option value="@LogicLabCultures.SimplifiedChinese" selected="@(CultureInfo.CurrentUICulture.Name == LogicLabCultures.SimplifiedChinese)">简体中文</option>
+                        </select>
+                    </label>
+                    <button class="navigation-button" type="submit">Apply</button>
+                </form>
+            }
             <AuthorizeView>
                 <Authorized>
                     <NavLink href="/projects">Projects</NavLink>
@@ -43,3 +59,21 @@
     <a href="." class="reload">Reload</a>
     <button class="dismiss" type="button" aria-label="Dismiss error">×</button>
 </div>
+
+@code {
+    [Inject]
+    private NavigationManager Navigation { get; set; } = null!;
+
+    private string CurrentLocalUrl
+    {
+        get
+        {
+            var relative = Navigation.ToBaseRelativePath(Navigation.Uri);
+            return string.IsNullOrEmpty(relative) ? "/" : $"/{relative}";
+        }
+    }
+
+    private bool IsHttps => Navigation.Uri.StartsWith(
+        "https://",
+        StringComparison.OrdinalIgnoreCase);
+}

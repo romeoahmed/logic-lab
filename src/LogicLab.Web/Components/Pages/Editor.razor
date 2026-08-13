@@ -66,6 +66,11 @@
                                      CanAuthor="CanAuthor"
                                      CanImport="CanImport"
                                      CanPrepareExport="CanPrepareExport"
+                                     ShowClaim="ShowClaim"
+                                     CanClaim="CanClaim"
+                                     ShowSave="ShowSave"
+                                     CanSave="CanSave"
+                                     ClaimDisplayName="ClaimDisplayName"
                                      CanAuthorSteering="CanAuthorSteering"
                                      CanAuthorArithmetic="CanAuthorArithmetic"
                                      CanAuthorHierarchy="CanAuthorHierarchy"
@@ -78,6 +83,9 @@
                                      OnAuthor="@(() => RunCommandAsync("author", () => CanAuthor, AuthorCircuit))"
                                      OnImport="ImportProjectPackage"
                                      OnPrepareExport="@(() => RunCommandAsync("export", () => CanPrepareExport, PrepareProjectExport))"
+                                     ClaimDisplayNameChanged="UpdateClaimDisplayName"
+                                     OnClaim="@(() => RunCommandAsync("claim", () => CanClaim, ClaimSandboxProject))"
+                                     OnSave="@(() => RunCommandAsync("save", () => CanSave, SaveDurableProject))"
                                      OnAuthorSteering="@(() => RunCommandAsync("author-steering", () => CanAuthorSteering, AuthorSteeringGallery))"
                                      OnAuthorArithmetic="@(() => RunCommandAsync("author-arithmetic", () => CanAuthorArithmetic, AuthorArithmeticGallery))"
                                      OnAuthorHierarchy="@(() => RunCommandAsync("author-hierarchy", () => CanAuthorHierarchy, AuthorHierarchy))"
@@ -85,6 +93,29 @@
                                      OnCreateSession="@(() => RunCommandAsync("session", () => CanCreateSession, CreateSimulationSession))"
                                      OnScheduleStimulus="@(() => RunCommandAsync("stimulus", () => CanScheduleStimulus, ScheduleStimulus))"
                                      OnStep="@(() => RunCommandAsync("step", () => CanStep, Step))" />
+                @if (HasSaveConflict)
+                {
+                    <section class="save-conflict"
+                             data-save-conflict
+                             aria-labelledby="save-conflict-title">
+                        <h2 id="save-conflict-title">Durable Project changed remotely</h2>
+                        <p>Your local revision is still available. Choose how to recover it.</p>
+                        <div>
+                            <FluentButton data-conflict-recovery="reload"
+                                          Appearance="ButtonAppearance.Primary"
+                                          Disabled="@(ActiveCommand is not null)"
+                                          OnClick="@(() => RunCommandAsync("conflict-reload", () => HasSaveConflict, ReloadDurableProject))">Reload remote</FluentButton>
+                            <FluentButton data-conflict-recovery="copy"
+                                          Appearance="ButtonAppearance.Outline"
+                                          Disabled="@(ActiveCommand is not null)"
+                                          OnClick="@(() => RunCommandAsync("conflict-copy", () => HasSaveConflict, KeepConflictAsCopy))">Keep as copy</FluentButton>
+                            <FluentButton data-conflict-recovery="export"
+                                          Appearance="ButtonAppearance.Outline"
+                                          Disabled="@(ActiveCommand is not null)"
+                                          OnClick="@(() => RunCommandAsync("conflict-export", () => HasSaveConflict, PrepareProjectExport))">Export local</FluentButton>
+                        </div>
+                    </section>
+                }
                 @if (PreparedExportUrl is not null)
                 {
                     <a class="export-download"

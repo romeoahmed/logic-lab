@@ -107,6 +107,35 @@
   text-underline-offset: 0.2em;
 }
 
+.save-conflict {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0 1rem 1rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in oklab, var(--ll-danger) 35%, var(--ll-border));
+  border-radius: var(--ll-radius-small);
+  background: var(--ll-danger-soft);
+}
+
+.save-conflict h2,
+.save-conflict p {
+  margin: 0;
+}
+
+.save-conflict h2 {
+  font-size: 1rem;
+}
+
+.save-conflict p {
+  color: var(--ll-muted);
+}
+
+.save-conflict > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .workbench-body {
   display: grid;
   grid-template-columns: minmax(17rem, 20rem) minmax(0, 1fr);

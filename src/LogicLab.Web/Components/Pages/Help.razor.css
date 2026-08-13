@@ -1,0 +1,27 @@
+.content-page {
+  max-inline-size: 52rem;
+  margin-inline: auto;
+  padding: clamp(2rem, 7vw, 5rem) clamp(1rem, 4vw, 3rem);
+}
+
+.content-page h1 {
+  margin-block: 0 1.5rem;
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.content-page p {
+  max-inline-size: 46rem;
+  color: var(--ll-muted);
+  font-size: 1.05rem;
+  line-height: 1.75;
+}
+
+.content-page a {
+  display: inline-flex;
+  margin-block-start: 1rem;
+  color: var(--ll-signal-strong);
+  font-weight: 750;
+  text-underline-offset: 0.2em;
+}

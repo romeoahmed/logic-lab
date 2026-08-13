@@ -40,6 +40,31 @@
   text-transform: uppercase;
 }
 
+.claim-project-name {
+  display: grid;
+  gap: 0.2rem;
+  min-inline-size: 12rem;
+  color: var(--ll-subtle);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.claim-project-name input {
+  min-block-size: 2rem;
+  padding-inline: 0.55rem;
+  border: 1px solid var(--ll-border-strong);
+  border-radius: var(--ll-radius-small);
+  color: var(--ll-ink);
+  background: var(--ll-canvas);
+  font: inherit;
+}
+
+.claim-project-name input:focus-visible {
+  border-color: var(--ll-signal);
+  outline: 2px solid var(--ll-signal-soft);
+  outline-offset: 1px;
+}
+
 @media (max-width: 980px) {
   .command-bar {
     grid-template-columns: repeat(4, max-content);

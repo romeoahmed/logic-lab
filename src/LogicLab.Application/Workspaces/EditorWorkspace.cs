@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace LogicLab.Application.Workspaces;
 
-internal sealed partial class EditorWorkspace : IEditorWorkspace
+internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspaceReadiness
 {
     private readonly Lock gate = new();
     private readonly Lock operationAdmissionGate = new();
@@ -38,6 +38,17 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private Task? disposalTask;
     private bool operationAdmissionClosed;
     private bool isDisposed;
+
+    public bool IsReady
+    {
+        get
+        {
+            lock (operationAdmissionGate)
+            {
+                return !operationAdmissionClosed;
+            }
+        }
+    }
 
     public EditorWorkspace(
         SchedulingPolicy schedulingPolicy,

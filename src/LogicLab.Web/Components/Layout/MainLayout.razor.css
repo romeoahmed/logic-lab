@@ -130,6 +130,32 @@
   margin: 0;
 }
 
+.culture-form {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  margin: 0;
+}
+
+.culture-form select {
+  min-block-size: 2.4rem;
+  padding-inline: 0.55rem;
+  border: 1px solid var(--ll-border);
+  border-radius: var(--ll-radius-small);
+  color: var(--ll-muted);
+  background: var(--ll-canvas);
+  font: inherit;
+}
+
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .navigation-button {
   min-block-size: 2.4rem;
   padding-inline: 0.75rem;

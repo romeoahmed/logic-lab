@@ -58,6 +58,8 @@ public sealed partial class Editor : IAsyncDisposable
 
     private string? PreparedExportUrl { get; set; }
 
+    private string ClaimDisplayName { get; set; } = string.Empty;
+
     private WorkspaceCaller CurrentCaller { get; set; } =
         AnonymousWorkspaceCaller.Instance;
 
@@ -177,6 +179,28 @@ public sealed partial class Editor : IAsyncDisposable
 
     private bool CanPrepareExport => CommandsAvailable && Projection is not null;
 
+    private bool ShowClaim => CommandsAvailable
+        && CurrentCaller is AuthenticatedWorkspaceCaller
+        && Projection?.Durability is SandboxWorkspaceDurabilityProjection;
+
+    private bool CanClaim => ShowClaim && ClaimDisplayName.Length != 0;
+
+    private bool ShowSave => CommandsAvailable
+        && CurrentCaller is AuthenticatedWorkspaceCaller
+        && Projection?.Durability is DurableWorkspaceDurabilityProjection;
+
+    private bool CanSave => ShowSave
+        && Projection?.Durability is DurableWorkspaceDurabilityProjection
+        {
+            SaveStatus: DurableSaveStatus.Changed,
+        };
+
+    private bool HasSaveConflict => ShowSave
+        && Projection?.Durability is DurableWorkspaceDurabilityProjection
+        {
+            SaveStatus: DurableSaveStatus.Conflict,
+        };
+
     private bool CanImport => CommandsAvailable;
 
     private bool CanAuthorHierarchy => CanAuthor;
@@ -244,13 +268,28 @@ public sealed partial class Editor : IAsyncDisposable
     private async Task AttachOpenedWorkspaceAsync()
     {
         var caller = RequireCurrentCaller();
+        var workspaceId = new LogicLab.Application.Workspaces.WorkspaceId(
+            WorkspaceIdValue!);
+        var hasPriorFence = WorkspaceAttachmentHistoryState.TryRead(
+            Navigation.HistoryEntryState,
+            workspaceId,
+            out var priorAttachmentId,
+            out var priorGeneration);
         var attachOutcome = await workspace.AttachAsync(
-            new InitialAttach(
-                new LogicLab.Application.Workspaces.WorkspaceId(WorkspaceIdValue!),
-                LogicLabWebBuild.Fingerprint,
-                caller),
+            hasPriorFence
+                ? new Reattach(
+                    workspaceId,
+                    priorAttachmentId!,
+                    priorGeneration,
+                    LogicLabWebBuild.Fingerprint,
+                    caller)
+                : new InitialAttach(
+                    workspaceId,
+                    LogicLabWebBuild.Fingerprint,
+                    caller),
             componentLifetime.Token);
-        if (attachOutcome is AttachRejected
+        if (!hasPriorFence
+            && attachOutcome is AttachRejected
             {
                 Code: "stale_workspace_attachment",
                 RetryDisposition: RetryDisposition.Reattach,
@@ -277,10 +316,12 @@ public sealed partial class Editor : IAsyncDisposable
             Attachment = attached;
             AttachmentFailure = null;
             Projection = attached.Projection;
+            ClaimDisplayName = attached.Projection.ProjectRevision.Document.DisplayName;
             SelectedDefinitionId = attached.Projection.ProjectRevision.Document
                 .EntryCircuitDefinitionId;
             HierarchyNavigation.Clear();
             ProjectScene();
+            PreserveAttachmentFence(attached);
             Status = attached.Projection.Durability
                 is DurableWorkspaceDurabilityProjection
                     ? "Durable Project reopened."
@@ -367,11 +408,107 @@ public sealed partial class Editor : IAsyncDisposable
         Attachment = attached;
         AttachmentFailure = null;
         Projection = attached.Projection;
+        ClaimDisplayName = attached.Projection.ProjectRevision.Document.DisplayName;
         SelectedDefinitionId = attached.Projection.ProjectRevision.Document
             .EntryCircuitDefinitionId;
         HierarchyNavigation.Clear();
         ProjectScene();
+        PreserveAttachmentFence(attached);
         Status = "Sandbox Project created. Author the sample circuit.";
+    }
+
+    private void UpdateClaimDisplayName(string value)
+    {
+        ClaimDisplayName = value;
+    }
+
+    private async Task ClaimSandboxProject()
+    {
+        var projection = Projection
+            ?? throw new InvalidOperationException("A Workspace is not attached.");
+        var outcome = await Execute(context => new ClaimSandbox(
+            context,
+            new ClaimPrecondition(projection.ProjectRevision.RevisionId),
+            ClaimDisplayName));
+        Status = outcome switch
+        {
+            DurableProjectClaimed claimed =>
+                $"Sandbox claimed as Durable Project “{claimed.DisplayName.Value}”.",
+            WorkspaceCommandRejected rejected =>
+                $"Claim rejected: {rejected.Code}.",
+            _ => throw new UnreachableException(),
+        };
+    }
+
+    private async Task SaveDurableProject()
+    {
+        var projection = Projection
+            ?? throw new InvalidOperationException("A Workspace is not attached.");
+        var durability = projection.Durability as DurableWorkspaceDurabilityProjection
+            ?? throw new InvalidOperationException("The Workspace is not durable.");
+        var outcome = await Execute(context => new SaveDurable(
+            context,
+            new DurableSavePrecondition(
+                projection.ProjectRevision.RevisionId,
+                durability.ObservedDurableVersion)));
+        Status = outcome switch
+        {
+            DurableProjectSaved saved =>
+                $"Durable Project saved at version {saved.DurableVersion.Value}.",
+            DurableProjectSaveConflict =>
+                "Save conflict: the Durable Project changed remotely.",
+            WorkspaceCommandRejected rejected =>
+                $"Save rejected: {rejected.Code}.",
+            _ => throw new UnreachableException(),
+        };
+    }
+
+    private async Task ReloadDurableProject()
+    {
+        var durability = Projection?.Durability as DurableWorkspaceDurabilityProjection
+            ?? throw new InvalidOperationException("The Workspace is not durable.");
+        await OpenIndependentWorkspace(
+            new OpenDurable(durability.DurableProjectId, RequireCurrentCaller()),
+            "Opening the latest Durable Project…");
+    }
+
+    private async Task KeepConflictAsCopy()
+    {
+        var attachment = Attachment
+            ?? throw new InvalidOperationException("A Workspace is not attached.");
+        var projection = Projection
+            ?? throw new InvalidOperationException("A Workspace is not attached.");
+        await OpenIndependentWorkspace(
+            new CopyWorkspace(
+                projection.WorkspaceId,
+                attachment.AttachmentId,
+                attachment.Generation,
+                projection.ProjectionVersion,
+                WorkspaceCopySaveTarget.DetachedSandbox,
+                RequireCurrentCaller()),
+            "Opening the local revision as an independent Sandbox…");
+    }
+
+    private async Task OpenIndependentWorkspace(
+        OpenWorkspaceRequest request,
+        string openingStatus)
+    {
+        Status = openingStatus;
+        var outcome = await workspace.OpenAsync(request, componentLifetime.Token);
+        if (outcome is WorkspaceOpenRejected rejected)
+        {
+            Status = $"Workspace opening rejected: {rejected.Code}.";
+            return;
+        }
+
+        var opened = (WorkspaceOpened)outcome;
+        Navigation.NavigateTo(
+            $"/editor/{Uri.EscapeDataString(opened.WorkspaceId.Value)}",
+            new NavigationOptions
+            {
+                ForceLoad = true,
+                ReplaceHistoryEntry = true,
+            });
     }
 
     private async Task AuthorCircuit()
@@ -597,7 +734,11 @@ public sealed partial class Editor : IAsyncDisposable
             Status = "Import validated and compiled. Opening its independent Workspace…";
             Navigation.NavigateTo(
                 $"/editor/{Uri.EscapeDataString(imported.WorkspaceId.Value)}",
-                forceLoad: true);
+                new NavigationOptions
+                {
+                    ForceLoad = true,
+                    ReplaceHistoryEntry = true,
+                });
         }
         catch (OperationCanceledException)
             when (componentLifetime.IsCancellationRequested)
@@ -767,7 +908,19 @@ public sealed partial class Editor : IAsyncDisposable
 
         Attachment = reattached;
         UpdateProjection(reattached.Projection);
+        PreserveAttachmentFence(reattached);
         return true;
+    }
+
+    private void PreserveAttachmentFence(Attached attachment)
+    {
+        Navigation.NavigateTo(
+            $"/editor/{Uri.EscapeDataString(attachment.Projection.WorkspaceId.Value)}",
+            new NavigationOptions
+            {
+                ReplaceHistoryEntry = true,
+                HistoryEntryState = WorkspaceAttachmentHistoryState.Serialize(attachment),
+            });
     }
 
     private async Task<bool> CanPublishAttachmentAsync(
