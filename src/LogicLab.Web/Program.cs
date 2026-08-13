@@ -7,14 +7,18 @@ using LogicLab.ProjectFormat;
 using LogicLab.Web;
 using LogicLab.Web.Components;
 using LogicLab.Web.Data;
+using LogicLab.Web.Health;
 using LogicLab.Web.Identity;
 using LogicLab.Web.Projects;
 using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Microsoft.FluentUI.AspNetCore.Components;
 
@@ -110,6 +114,28 @@ builder.Services.AddAntiforgery(options =>
 });
 builder.Services.AddAuthorization();
 builder.Services.AddProblemDetails();
+builder.Services.AddLocalization();
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    var supportedCultures = LogicLabCultures.Supported.ToArray();
+    options.DefaultRequestCulture = new RequestCulture(LogicLabCultures.English);
+    options.SupportedCultures = supportedCultures;
+    options.SupportedUICultures = supportedCultures;
+    options.RequestCultureProviders =
+    [
+        new CookieRequestCultureProvider(),
+        new AcceptLanguageHeaderRequestCultureProvider(),
+    ];
+});
+builder.Services.AddSingleton<LogicLabReadinessHealthCheck>(services => new(
+    services.GetRequiredService<IEditorWorkspaceReadiness>(),
+    services.GetRequiredService<ILogicLabPersistenceReadiness>(),
+    services.GetRequiredService<IServiceScopeFactory>(),
+    services.GetRequiredService<IHostApplicationLifetime>()));
+builder.Services.AddHealthChecks()
+    .AddCheck<LogicLabReadinessHealthCheck>(
+        "required_dependencies",
+        tags: ["ready"]);
 builder.Services.AddRateLimiter();
 builder.Services.AddOptions<RateLimiterOptions>()
     .Configure<ProjectExportTransferPolicy>((options, projectExportTransferPolicy) =>
@@ -203,6 +229,8 @@ builder.Services.AddSingleton<IEditorWorkspace>(services =>
         projectExportPreparationPolicy:
             services.GetRequiredService<ProjectExportPreparationPolicy>(),
         buildFingerprint: LogicLabWebBuild.Fingerprint));
+builder.Services.AddSingleton<IEditorWorkspaceReadiness>(services =>
+    (IEditorWorkspaceReadiness)services.GetRequiredService<IEditorWorkspace>());
 builder.Services.AddFluentUIComponents();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -220,6 +248,7 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 app.UseRouting();
+app.UseRequestLocalization();
 app.UseMiddleware<RequestBodyLimitProblemDetailsMiddleware>();
 app.UseAuthentication();
 app.UseMiddleware<AnonymousWorkspaceCallerMiddleware>();
@@ -232,9 +261,27 @@ app.MapStaticAssets();
 app.MapLogicLabAccountEndpoints();
 app.MapDurableProjectEndpoints();
 app.MapProjectExportEndpoints();
+app.MapLogicLabCultureEndpoint();
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = static _ => false,
+    ResponseWriter = WriteHealthStatus,
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = static registration => registration.Tags.Contains("ready"),
+    ResponseWriter = WriteHealthStatus,
+});
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode(options =>
         options.DisableWebSocketCompression = true)
     .AddDurableProjectCatalogPageAdapter();
 
 app.Run();
+
+static Task WriteHealthStatus(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "text/plain; charset=utf-8";
+    return context.Response.WriteAsync(
+        report.Status == HealthStatus.Healthy ? "Healthy" : "Unhealthy");
+}

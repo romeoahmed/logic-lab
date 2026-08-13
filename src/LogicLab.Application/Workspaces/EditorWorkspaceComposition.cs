@@ -31,6 +31,11 @@ public interface IEditorWorkspace : IAsyncDisposable
         CancellationToken cancellationToken);
 }
 
+public interface IEditorWorkspaceReadiness
+{
+    bool IsReady { get; }
+}
+
 public sealed record WorkspaceAuthoringLimits
 {
     public WorkspaceAuthoringLimits(

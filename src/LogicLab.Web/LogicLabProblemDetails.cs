@@ -27,6 +27,8 @@ internal static class LogicLabProblemDetails
     internal const string AntiforgeryValidationFailedCode =
         "antiforgery_validation_failed";
     internal const string RequestBodyTooLargeCode = "request_body_too_large";
+    internal const string CultureRequestInvalidCode =
+        CultureEndpointRouteBuilderExtensions.RequestInvalidCode;
     internal const string ForbiddenCode = "forbidden";
 
     public static IResult Create(HttpContext httpContext, string code)
@@ -107,6 +109,9 @@ internal static class LogicLabProblemDetails
             RequestBodyTooLargeCode => (
                 StatusCodes.Status413PayloadTooLarge,
                 "The request body is too large"),
+            CultureRequestInvalidCode => (
+                StatusCodes.Status400BadRequest,
+                "The culture request is invalid"),
             AuthenticationRequiredCode => (
                 StatusCodes.Status401Unauthorized,
                 "Authentication is required"),

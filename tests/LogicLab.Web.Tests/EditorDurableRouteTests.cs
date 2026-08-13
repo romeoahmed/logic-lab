@@ -499,31 +499,29 @@ internal sealed class EditorDurableRouteTests
 
         var second = RenderEditor(context, opened.WorkspaceId, authenticationState);
         await second.WaitForElementAsync("[data-command='session']:not([disabled])");
-        await second.WaitForStateAsync(() => workspace.AttachRequests.Length == 3);
+        await second.WaitForStateAsync(() => workspace.AttachRequests.Length == 2);
 
         await first.Find("[data-command='session']").ClickAsync();
         await first.WaitForStateAsync(() => workspace.LastCommandOutcome is not null);
 
         var stale = (await Assert.That(workspace.LastCommandOutcome)
             .IsTypeOf<WorkspaceCommandRejected>())!;
-        var recover = (RecoverAttach)workspace.AttachRequests[2];
+        var reattach = (Reattach)workspace.AttachRequests[1];
         using (Assert.Multiple())
         {
             await Assert.That(workspace.AttachRequests[0]).IsTypeOf<InitialAttach>();
-            await Assert.That(workspace.AttachRequests[1]).IsTypeOf<InitialAttach>();
-            await Assert.That(workspace.AttachRequests[2]).IsTypeOf<RecoverAttach>();
+            await Assert.That(workspace.AttachRequests[1]).IsTypeOf<Reattach>();
             await Assert.That(workspace.AttachOutcomes[1])
-                .IsTypeOf<AttachRejected>();
-            await Assert.That(((AttachRejected)workspace.AttachOutcomes[1]).Code)
-                .IsEqualTo("stale_workspace_attachment");
-            await Assert.That(((AttachRejected)workspace.AttachOutcomes[1])
-                    .RetryDisposition)
-                .IsEqualTo(RetryDisposition.Reattach);
-            await Assert.That(((Attached)workspace.AttachOutcomes[2]).Generation)
+                .IsTypeOf<Attached>();
+            await Assert.That(((Attached)workspace.AttachOutcomes[1]).Generation)
                 .IsEqualTo(((Attached)workspace.AttachOutcomes[0]).Generation + 1);
-            await Assert.That(((Attached)workspace.AttachOutcomes[2]).AttachmentId)
+            await Assert.That(((Attached)workspace.AttachOutcomes[1]).AttachmentId)
                 .IsNotEqualTo(((Attached)workspace.AttachOutcomes[0]).AttachmentId);
-            await Assert.That(((AuthenticatedWorkspaceCaller)recover.Caller)
+            await Assert.That(reattach.PriorAttachmentId)
+                .IsEqualTo(((Attached)workspace.AttachOutcomes[0]).AttachmentId);
+            await Assert.That(reattach.PriorGeneration)
+                .IsEqualTo(((Attached)workspace.AttachOutcomes[0]).Generation);
+            await Assert.That(((AuthenticatedWorkspaceCaller)reattach.Caller)
                     .SubjectId.Value)
                 .IsEqualTo("subject-editor");
             await Assert.That(stale.Code).IsEqualTo("stale_workspace_attachment");

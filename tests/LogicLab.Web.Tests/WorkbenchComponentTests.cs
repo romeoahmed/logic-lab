@@ -72,6 +72,7 @@ internal sealed class WorkbenchComponentTests
             rendered,
             "create",
             () => !IsDisabled(rendered, "author"));
+        var currentWorkspaceUri = navigation.Uri;
 
         rendered.FindComponent<InputFile>().UploadFiles(
             InputFileContent.CreateFromText(
@@ -85,10 +86,135 @@ internal sealed class WorkbenchComponentTests
                 StringComparison.Ordinal)));
         using (Assert.Multiple())
         {
-            await Assert.That(navigation.Uri).IsEqualTo("http://localhost/");
+            await Assert.That(navigation.Uri).IsEqualTo(currentWorkspaceUri);
             await Assert.That(IsDisabled(rendered, "create")).IsTrue();
             await Assert.That(IsDisabled(rendered, "author")).IsFalse();
             await Assert.That(IsDisabled(rendered, "export")).IsFalse();
+        }
+    }
+
+    [Test]
+    public async Task Editor_CreateSandbox_ReplacesLocatorAndReattachesWithPreservedFence()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new RecordingAttachmentWorkspace();
+        var rendered = RenderEditor(context, workspace);
+        var navigation = (BunitNavigationManager)context.Services
+            .GetRequiredService<NavigationManager>();
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+
+        await rendered.Find("[data-command='create']").ClickAsync();
+        await rendered.WaitForStateAsync(() => workspace.Attachments.Count == 1);
+        var firstAttachment = workspace.Attachments[0];
+        var workspaceId = firstAttachment.Projection.WorkspaceId;
+        await rendered.WaitForStateAsync(() => navigation.Uri.EndsWith(
+            $"/editor/{workspaceId.Value}",
+            StringComparison.Ordinal));
+
+        var reloaded = context.Render<Editor>(parameters => parameters
+            .Add(component => component.WorkspaceIdValue, workspaceId.Value));
+        _ = await reloaded.WaitForElementAsync("[data-command='author']:not([disabled])");
+        var request = (await Assert.That(workspace.AttachRequests.Last())
+            .IsTypeOf<Reattach>())!;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(navigation.History).Count().IsEqualTo(1);
+            await Assert.That(navigation.History.Single().Options.ReplaceHistoryEntry)
+                .IsTrue();
+            await Assert.That(navigation.History.Single().Options.HistoryEntryState)
+                .IsNotNull();
+            await Assert.That(request.WorkspaceId).IsEqualTo(workspaceId);
+            await Assert.That(request.PriorAttachmentId)
+                .IsEqualTo(firstAttachment.AttachmentId);
+            await Assert.That(request.PriorGeneration)
+                .IsEqualTo(firstAttachment.Generation);
+        }
+    }
+
+    [Test]
+    public async Task Editor_AuthenticatedSandbox_ClaimsChangesAndSavesDurableProject()
+    {
+        await using var context = CreateContext();
+        var repository = new InMemoryDurableProjectRepository();
+        await using var workspace = new DurableWorkflowWorkspace(repository);
+        var rendered = RenderAuthenticatedEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "claim"));
+
+        await rendered.Find("[data-claim-name]").InputAsync(
+            new ChangeEventArgs { Value = "Saved circuit" });
+        await ClickAndWaitForState(
+            rendered,
+            "claim",
+            () => repository.ClaimCallCount == 1 && !IsDisabled(rendered, "author"));
+        await ClickAndWaitForState(
+            rendered,
+            "author",
+            () => !IsDisabled(rendered, "save"));
+        await ClickAndWaitForState(
+            rendered,
+            "save",
+            () => repository.SaveCallCount == 1 && IsDisabled(rendered, "save"));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(repository.LastClaim?.DisplayName.Value)
+                .IsEqualTo("Saved circuit");
+            await Assert.That(rendered.FindAll("[role='status']").Any(status =>
+                    status.TextContent.Contains("saved", StringComparison.OrdinalIgnoreCase)))
+                .IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task Editor_SaveConflict_OffersReloadCopyAndExportRecovery()
+    {
+        await using var context = CreateContext();
+        var repository = new InMemoryDurableProjectRepository
+        {
+            ConflictOnSave = true,
+        };
+        await using var workspace = new DurableWorkflowWorkspace(repository);
+        var rendered = RenderAuthenticatedEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "claim"));
+        await ClickAndWaitForState(
+            rendered,
+            "claim",
+            () => !IsDisabled(rendered, "author"));
+        await ClickAndWaitForState(
+            rendered,
+            "author",
+            () => !IsDisabled(rendered, "save"));
+        await rendered.Find("[data-command='save']").ClickAsync();
+        var recovery = await rendered.WaitForElementAsync("[data-save-conflict]");
+        await recovery.QuerySelector("[data-conflict-recovery='copy']")!
+            .ClickAsync();
+        await rendered.WaitForStateAsync(() => workspace.OpenRequests
+            .Any(static request => request is CopyWorkspace));
+        var navigation = (BunitNavigationManager)context.Services
+            .GetRequiredService<NavigationManager>();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(recovery.QuerySelector("[data-conflict-recovery='reload']"))
+                .IsNotNull();
+            await Assert.That(recovery.QuerySelector("[data-conflict-recovery='copy']"))
+                .IsNotNull();
+            await Assert.That(recovery.QuerySelector("[data-conflict-recovery='export']"))
+                .IsNotNull();
+            await Assert.That(IsDisabled(rendered, "save")).IsTrue();
+            await Assert.That(workspace.OpenRequests.Last()).IsTypeOf<CopyWorkspace>();
+            await Assert.That(navigation.History.Last().Options.ForceLoad).IsTrue();
+            await Assert.That(navigation.History.Last().Options.ReplaceHistoryEntry)
+                .IsTrue();
         }
     }
 
@@ -829,6 +955,24 @@ internal sealed class WorkbenchComponentTests
         return context.Render<Editor>();
     }
 
+    private static IRenderedComponent<Editor> RenderAuthenticatedEditor(
+        BunitContext context,
+        IEditorWorkspace workspace)
+    {
+        context.Services.AddSingleton(workspace);
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var authenticationState = Task.FromResult(new AuthenticationState(
+            new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.NameIdentifier, "component-user"),
+            ], "test"))));
+        var host = context.Render<CascadingValue<Task<AuthenticationState>>>(parameters =>
+            parameters
+                .Add(value => value.Value, authenticationState)
+                .AddChildContent<Editor>());
+        return host.FindComponent<Editor>();
+    }
+
     private static async Task<IRenderedComponent<Editor>> RenderAuthoredEditor(
         BunitContext context,
         IEditorWorkspace workspace)
@@ -879,6 +1023,112 @@ internal sealed class WorkbenchComponentTests
 
     private sealed class PassthroughWorkspace : DelegatingEditorWorkspace
     {
+    }
+
+    private sealed class RecordingAttachmentWorkspace : DelegatingEditorWorkspace
+    {
+        public List<AttachRequest> AttachRequests { get; } = [];
+
+        public List<Attached> Attachments { get; } = [];
+
+        public override async Task<WorkspaceAttachOutcome> AttachAsync(
+            AttachRequest request,
+            CancellationToken cancellationToken)
+        {
+            AttachRequests.Add(request);
+            var outcome = await base.AttachAsync(request, cancellationToken);
+            if (outcome is Attached attached)
+            {
+                Attachments.Add(attached);
+            }
+
+            return outcome;
+        }
+    }
+
+    private sealed class DurableWorkflowWorkspace(IDurableProjectRepository repository)
+        : DelegatingEditorWorkspace(durableProjectRepository: repository)
+    {
+        public List<OpenWorkspaceRequest> OpenRequests { get; } = [];
+
+        public override Task<WorkspaceOpenOutcome> OpenAsync(
+            OpenWorkspaceRequest request,
+            CancellationToken cancellationToken)
+        {
+            OpenRequests.Add(request);
+            return base.OpenAsync(request, cancellationToken);
+        }
+    }
+
+    private sealed class InMemoryDurableProjectRepository : IDurableProjectRepository
+    {
+        private DurableVersion? currentVersion;
+
+        public bool ConflictOnSave { get; init; }
+
+        public int ClaimCallCount { get; private set; }
+
+        public int SaveCallCount { get; private set; }
+
+        public DurableProjectClaimRequest? LastClaim { get; private set; }
+
+        public Task<DurableProjectClaimRepositoryOutcome> ClaimAsync(
+            DurableProjectClaimRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ClaimCallCount++;
+            LastClaim = request;
+            currentVersion = request.InitialDurableVersion;
+            return Task.FromResult<DurableProjectClaimRepositoryOutcome>(
+                new DurableProjectClaimStored(
+                    request.DurableProjectId,
+                    request.InitialDurableVersion,
+                    request.ProjectRevision.RevisionId,
+                    request.DisplayName));
+        }
+
+        public Task<DurableProjectClaimRepositoryOutcome?> TryReadClaimReceiptAsync(
+            DurableProjectClaimRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<DurableProjectClaimRepositoryOutcome?>(null);
+        }
+
+        public Task<DurableProjectSaveRepositoryOutcome> SaveAsync(
+            DurableProjectSaveRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            SaveCallCount++;
+            if (ConflictOnSave)
+            {
+                return Task.FromResult<DurableProjectSaveRepositoryOutcome>(
+                    new DurableProjectSaveRepositoryConflict(
+                        request.ExpectedDurableVersion,
+                        request.NextDurableVersion));
+            }
+
+            if (request.ExpectedDurableVersion != currentVersion)
+            {
+                throw new InvalidOperationException("Unexpected durable version.");
+            }
+
+            currentVersion = request.NextDurableVersion;
+            return Task.FromResult<DurableProjectSaveRepositoryOutcome>(
+                new DurableProjectSaveStored(
+                    request.NextDurableVersion,
+                    request.ProjectRevision.RevisionId));
+        }
+
+        public Task<DurableProjectSaveRepositoryOutcome?> TryReadSaveReceiptAsync(
+            DurableProjectSaveRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<DurableProjectSaveRepositoryOutcome?>(null);
+        }
     }
 
     private sealed class BlockingWorkspace : DelegatingEditorWorkspace

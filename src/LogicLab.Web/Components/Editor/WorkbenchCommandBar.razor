@@ -35,6 +35,30 @@
                           Disabled="@(!CanPrepareExport || IsBusy)"
                           Loading="@(ActiveCommand is "export")"
                           OnClick="OnPrepareExport">Prepare export</FluentButton>
+            @if (ShowClaim)
+            {
+                <label class="claim-project-name">
+                    <span>Durable project name</span>
+                    <input data-claim-name
+                           value="@ClaimDisplayName"
+                           maxlength="256"
+                           autocomplete="off"
+                           @oninput="ChangeClaimDisplayName" />
+                </label>
+                <FluentButton data-command="claim"
+                              Appearance="ButtonAppearance.Primary"
+                              Disabled="@(!CanClaim || IsBusy)"
+                              Loading="@(ActiveCommand is "claim")"
+                              OnClick="OnClaim">Keep as Durable Project</FluentButton>
+            }
+            @if (ShowSave)
+            {
+                <FluentButton data-command="save"
+                              Appearance="@(CanSave ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
+                              Disabled="@(!CanSave || IsBusy)"
+                              Loading="@(ActiveCommand is "save")"
+                              OnClick="OnSave">Save Durable Project</FluentButton>
+            }
         </div>
     </div>
     <div class="command-cluster" role="group" aria-label="Example authoring commands">
@@ -103,6 +127,21 @@
     public bool CanPrepareExport { get; set; }
 
     [Parameter]
+    public bool ShowClaim { get; set; }
+
+    [Parameter]
+    public bool CanClaim { get; set; }
+
+    [Parameter]
+    public bool ShowSave { get; set; }
+
+    [Parameter]
+    public bool CanSave { get; set; }
+
+    [Parameter]
+    public string ClaimDisplayName { get; set; } = string.Empty;
+
+    [Parameter]
     public bool CanAuthorSteering { get; set; }
 
     [Parameter]
@@ -139,6 +178,15 @@
     public EventCallback OnPrepareExport { get; set; }
 
     [Parameter]
+    public EventCallback<string> ClaimDisplayNameChanged { get; set; }
+
+    [Parameter]
+    public EventCallback OnClaim { get; set; }
+
+    [Parameter]
+    public EventCallback OnSave { get; set; }
+
+    [Parameter]
     public EventCallback OnAuthorSteering { get; set; }
 
     [Parameter]
@@ -160,4 +208,9 @@
     public EventCallback OnStep { get; set; }
 
     private bool IsBusy => ActiveCommand is not null;
+
+    private Task ChangeClaimDisplayName(ChangeEventArgs args)
+    {
+        return ClaimDisplayNameChanged.InvokeAsync(args.Value?.ToString() ?? string.Empty);
+    }
 }
