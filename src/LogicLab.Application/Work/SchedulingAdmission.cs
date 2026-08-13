@@ -10,11 +10,10 @@ internal sealed class SchedulingAdmission
     private readonly ulong subjectRequestLimit;
     private readonly int partitionLimit;
     private readonly TimeSpan window;
-    private readonly Dictionary<WorkspaceCaller, PartitionState> partitions = [];
+    private readonly Dictionary<WorkspaceCaller, ulong> partitions = [];
     private readonly Queue<PartitionExpiry> expirations = [];
     private long globalWindowStartTimestamp;
     private ulong globalRequestCount;
-    private ulong nextGeneration;
     private bool hasGlobalWindow;
 
     public SchedulingAdmission(
@@ -53,12 +52,12 @@ internal sealed class SchedulingAdmission
         globalRequestCount++;
         PruneExpired(nowTimestamp);
 
-        var hasPartition = partitions.TryGetValue(caller, out var partition);
-        if (hasPartition && partition!.RequestCount >= subjectRequestLimit)
+        var hasPartition = partitions.TryGetValue(caller, out var requestCount);
+        if (hasPartition && requestCount >= subjectRequestLimit)
         {
             rejectionEvidence = policy.Evidence(
                 SchedulingDimension.AdmissionRequestsPerSubject,
-                ObservedAttempt(partition.RequestCount));
+                ObservedAttempt(requestCount));
             return false;
         }
 
@@ -72,18 +71,14 @@ internal sealed class SchedulingAdmission
 
         if (hasPartition)
         {
-            partition!.RequestCount++;
+            partitions[caller] = requestCount + 1;
         }
         else
         {
-            var generation = NextGeneration();
-            partitions.Add(
-                caller,
-                new PartitionState(generation));
+            partitions.Add(caller, 1);
             expirations.Enqueue(new PartitionExpiry(
                 caller,
-                nowTimestamp,
-                generation));
+                nowTimestamp));
         }
 
         rejectionEvidence = null;
@@ -104,11 +99,7 @@ internal sealed class SchedulingAdmission
             && HasWindowElapsed(expiry.StartTimestamp, nowTimestamp))
         {
             _ = expirations.Dequeue();
-            if (partitions.TryGetValue(expiry.Caller, out var partition)
-                && partition.Generation == expiry.Generation)
-            {
-                _ = partitions.Remove(expiry.Caller);
-            }
+            _ = partitions.Remove(expiry.Caller);
         }
     }
 
@@ -130,28 +121,12 @@ internal sealed class SchedulingAdmission
         return timeProvider.GetElapsedTime(startTimestamp, nowTimestamp) >= window;
     }
 
-    private ulong NextGeneration()
-    {
-        nextGeneration = nextGeneration == ulong.MaxValue
-            ? 1
-            : nextGeneration + 1;
-        return nextGeneration;
-    }
-
     private static ulong ObservedAttempt(ulong admitted)
     {
         return admitted == ulong.MaxValue ? ulong.MaxValue : admitted + 1;
     }
 
-    private sealed class PartitionState(ulong generation)
-    {
-        public ulong Generation { get; } = generation;
-
-        public ulong RequestCount { get; set; } = 1;
-    }
-
     private sealed record PartitionExpiry(
         WorkspaceCaller Caller,
-        long StartTimestamp,
-        ulong Generation);
+        long StartTimestamp);
 }
