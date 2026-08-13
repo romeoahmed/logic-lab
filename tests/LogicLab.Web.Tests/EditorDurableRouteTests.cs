@@ -17,7 +17,8 @@ internal sealed class EditorDurableRouteTests
     [Test]
     public async Task Editor_BuildMismatch_OffersHardReloadRecovery()
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext(
+            configureAttachmentNavigation: true);
         await using var workspace = new RecordingAttachWorkspace(
             buildFingerprint: "previous-build");
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
@@ -49,7 +50,8 @@ internal sealed class EditorDurableRouteTests
     [Test]
     public async Task Editor_MissingWorkspace_RendersRecoveryStateInsteadOfSandboxWorkbench()
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext(
+            configureAttachmentNavigation: true);
         await using var workspace = new RecordingAttachWorkspace();
         Configure(context, workspace);
 
@@ -77,7 +79,8 @@ internal sealed class EditorDurableRouteTests
     [Test]
     public async Task Editor_AuthenticatedPrincipalWithoutSubject_FailsClosedBeforeAttachment()
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext(
+            configureAttachmentNavigation: true);
         await using var workspace = new RecordingAttachWorkspace();
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Malformed identity project", "Main", AnonymousWorkspaceCaller.Instance),
@@ -110,7 +113,8 @@ internal sealed class EditorDurableRouteTests
     public async Task Editor_SandboxRoute_AuthenticationSubjectChanges_PreservesAttachmentAndUsesCurrentCaller(
         string? replacementSubject)
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext(
+            configureAttachmentNavigation: true);
         await using var workspace = new RecordingAttachWorkspace();
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Reopened project", "Main", AnonymousWorkspaceCaller.Instance),
@@ -196,7 +200,8 @@ internal sealed class EditorDurableRouteTests
     [Test]
     public async Task Editor_ClaimedSandbox_AuthenticationExpires_ClearsProjectionAndDetaches()
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext(
+            configureAttachmentNavigation: true);
         await using var workspace = new RecordingAttachWorkspace();
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Claimed project", "Main", AnonymousWorkspaceCaller.Instance),
@@ -245,7 +250,8 @@ internal sealed class EditorDurableRouteTests
     [Test]
     public async Task Editor_SandboxRoute_AuthenticationChangesDuringReattach_PublishesNewFenceAndContinues()
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext(
+            configureAttachmentNavigation: true);
         await using var workspace = new RecordingAttachWorkspace(
             blockFirstReattach: true,
             rejectFirstDispatchWithReattach: true);
@@ -308,7 +314,8 @@ internal sealed class EditorDurableRouteTests
     public async Task Editor_DurableRoute_AuthenticationSubjectChanges_ClearsProjectionAndDetachesAsPriorSubject(
         string? replacementSubject)
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext(
+            configureAttachmentNavigation: true);
         var owner = new AuthenticatedWorkspaceCaller(
             new AuthenticatedSubjectId("subject-editor"));
         var projectId = new DurableProjectId("durable-auth-change");
@@ -353,7 +360,8 @@ internal sealed class EditorDurableRouteTests
     [Test]
     public async Task Editor_DurableRoute_AuthenticationChangesDuringAttach_DiscardsAndDetachesPriorSubjectOutcome()
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext(
+            configureAttachmentNavigation: true);
         var owner = new AuthenticatedWorkspaceCaller(
             new AuthenticatedSubjectId("subject-editor"));
         var projectId = new DurableProjectId("durable-auth-attach-race");
@@ -400,7 +408,8 @@ internal sealed class EditorDurableRouteTests
     [Test]
     public async Task Editor_DurableRoute_AuthenticationChangesDuringRead_DiscardsPriorSubjectSnapshot()
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext(
+            configureAttachmentNavigation: true);
         var owner = new AuthenticatedWorkspaceCaller(
             new AuthenticatedSubjectId("subject-editor"));
         var projectId = new DurableProjectId("durable-auth-read-race");
@@ -453,7 +462,8 @@ internal sealed class EditorDurableRouteTests
     [Test]
     public async Task Editor_DurableRoute_ReportsObservedDurableVersion()
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext(
+            configureAttachmentNavigation: true);
         var owner = new AuthenticatedWorkspaceCaller(
             new AuthenticatedSubjectId("subject-editor"));
         var projectId = new DurableProjectId("durable-save-status");
@@ -477,7 +487,8 @@ internal sealed class EditorDurableRouteTests
     [Test]
     public async Task Editor_DurableRoute_FreshComponentRecoversAttachmentAndFencesPriorComponent()
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext(
+            out var attachmentNavigation);
         var owner = new AuthenticatedWorkspaceCaller(
             new AuthenticatedSubjectId("subject-editor"));
         var projectId = new DurableProjectId("durable-editor-route");
@@ -496,6 +507,12 @@ internal sealed class EditorDurableRouteTests
         var authenticationState = AuthenticationStateFor("subject-editor");
         var first = RenderEditor(context, opened.WorkspaceId, authenticationState);
         await first.WaitForElementAsync("[data-command='session']:not([disabled])");
+        var firstAttachment = (Attached)workspace.AttachOutcomes.Single();
+        attachmentNavigation
+            .Setup<string?>(
+                WorkspaceAttachmentNavigation.ReadHistoryEntryStateMethod,
+                _ => true)
+            .SetResult(WorkspaceAttachmentHistoryState.Serialize(firstAttachment));
 
         var second = RenderEditor(context, opened.WorkspaceId, authenticationState);
         await second.WaitForElementAsync("[data-command='session']:not([disabled])");
@@ -531,7 +548,8 @@ internal sealed class EditorDurableRouteTests
     [Test]
     public async Task Editor_DurableRoute_UsesCurrentSubjectForAttachmentLifetime()
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext(
+            configureAttachmentNavigation: true);
         await using var workspace = new RecordingAttachWorkspace();
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Reopened project", "Main", AnonymousWorkspaceCaller.Instance),

@@ -1,19 +1,20 @@
 @page "/not-found"
 @layout MainLayout
+@inject IStringLocalizer<SiteText> SiteText
 
-<PageTitle>Not Found</PageTitle>
+<PageTitle>@SiteText["NotFoundPageTitle"]</PageTitle>
 
 <section class="not-found" aria-labelledby="not-found-title">
     <FluentCard class="not-found-card" Appearance="CardAppearance.Outline" Width="100%">
         <span class="error-coordinate" aria-hidden="true">404</span>
-        <p class="eyebrow">Page not found</p>
-        <h1 id="not-found-title">This path ends here.</h1>
-        <p>The address does not match a Logic Lab surface. Return to the workbench or start from home.</p>
+        <p class="eyebrow">@SiteText["NotFoundEyebrow"]</p>
+        <h1 id="not-found-title">@SiteText["NotFoundTitle"]</h1>
+        <p>@SiteText["NotFoundDescription"]</p>
         <div class="recovery-actions">
             <FluentAnchorButton class="recovery-link"
                                 Href="/editor"
-                                Appearance="ButtonAppearance.Primary">Open Workbench</FluentAnchorButton>
-            <a class="recovery-secondary" href="/">Return home</a>
+                                Appearance="ButtonAppearance.Primary">@SiteText["NotFoundOpenWorkbench"]</FluentAnchorButton>
+            <a class="recovery-secondary" href="/">@SiteText["NotFoundReturnHome"]</a>
         </div>
     </FluentCard>
 </section>

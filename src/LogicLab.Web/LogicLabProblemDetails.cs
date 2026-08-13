@@ -3,6 +3,7 @@ using LogicLab.Application.Workspaces;
 using LogicLab.Engine.Compilation;
 using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Localization;
 
 namespace LogicLab.Web;
 
@@ -66,7 +67,9 @@ internal static class LogicLabProblemDetails
         ArgumentException.ThrowIfNullOrEmpty(code);
         ArgumentException.ThrowIfNullOrEmpty(correlationToken);
 
-        var (status, title) = Describe(code);
+        var text = httpContext.RequestServices
+            .GetRequiredService<IStringLocalizer<ProblemDetailsText>>();
+        var (status, title) = Describe(code, text);
         var problem = new ProblemDetails
         {
             Type = $"{ProblemTypeBase}{code}",
@@ -87,95 +90,97 @@ internal static class LogicLabProblemDetails
         return Results.Problem(problem);
     }
 
-    private static (int Status, string Title) Describe(string code)
+    private static (int Status, string Title) Describe(
+        string code,
+        IStringLocalizer<ProblemDetailsText> text)
     {
         return code switch
         {
             ProjectOpenRequestInvalidCode => (
                 StatusCodes.Status400BadRequest,
-                "The project open request is invalid"),
+                text["ProjectOpenRequest"]),
             ProjectOpenMethodNotAllowedCode => (
                 StatusCodes.Status405MethodNotAllowed,
-                "The request method is not supported for project opening"),
+                text["ProjectOpenMethod"]),
             ProjectExportEndpointRouteBuilderExtensions.MethodNotAllowedCode => (
                 StatusCodes.Status405MethodNotAllowed,
-                "The request method is not supported for export download"),
+                text["ExportMethod"]),
             ProjectExportEndpointRouteBuilderExtensions.RateLimitExceededCode => (
                 StatusCodes.Status429TooManyRequests,
-                "Too many export download requests"),
+                text["ExportRateLimited"]),
             AntiforgeryValidationFailedCode => (
                 StatusCodes.Status400BadRequest,
-                "Antiforgery validation failed"),
+                text["AntiforgeryFailed"]),
             RequestBodyTooLargeCode => (
                 StatusCodes.Status413PayloadTooLarge,
-                "The request body is too large"),
+                text["RequestBodyTooLarge"]),
             CultureRequestInvalidCode => (
                 StatusCodes.Status400BadRequest,
-                "The culture request is invalid"),
+                text["CultureRequest"]),
             AuthenticationRequiredCode => (
                 StatusCodes.Status401Unauthorized,
-                "Authentication is required"),
+                text["AuthenticationRequired"]),
             WorkspaceOutcomeReasons.WorkspaceNotFound or ForbiddenCode =>
-                (StatusCodes.Status404NotFound, "The requested resource was not found"),
+                (StatusCodes.Status404NotFound, text["NotFound"]),
             WorkspaceOutcomeReasons.ExportExpired =>
-                (StatusCodes.Status404NotFound, "The export is unavailable"),
+                (StatusCodes.Status404NotFound, text["ExportUnavailable"]),
             DurableProjectCatalogOutcomeReasons.RequestInvalid => (
                 StatusCodes.Status422UnprocessableEntity,
-                "The project catalog request is invalid"),
+                text["ProjectCatalogRequest"]),
             DurableProjectCatalogOutcomeReasons.CursorInvalid => (
                 StatusCodes.Status422UnprocessableEntity,
-                "The project catalog cursor is invalid"),
+                text["ProjectCatalogCursor"]),
             CompilationOutcomeReasons.Invalid => (
                 StatusCodes.Status422UnprocessableEntity,
-                "The project revision is invalid"),
+                text["CompilationInvalid"]),
             CompilationOutcomeReasons.PolicyExhausted => (
                 StatusCodes.Status422UnprocessableEntity,
-                "The project exceeds compilation policy"),
+                text["CompilationPolicy"]),
             WorkspaceOutcomeReasons.WorkspaceAdmissionRejected => (
                 StatusCodes.Status429TooManyRequests,
-                "Workspace capacity is unavailable"),
+                text["WorkspaceAdmission"]),
             ProjectOpenRateLimitExceededCode => (
                 StatusCodes.Status429TooManyRequests,
-                "Too many project open requests"),
+                text["ProjectOpenRateLimited"]),
             AuthenticationRateLimitExceededCode => (
                 StatusCodes.Status429TooManyRequests,
-                "Too many authentication requests"),
+                text["AuthenticationRateLimited"]),
             AnonymousWorkspaceIngressExceededCode => (
                 StatusCodes.Status429TooManyRequests,
-                "Anonymous Workspace admission is temporarily unavailable"),
+                text["AnonymousIngressUnavailable"]),
             AuthenticationRevocationFailedCode => (
                 StatusCodes.Status503ServiceUnavailable,
-                "The authentication session could not be revoked"),
+                text["AuthenticationRevocationFailed"]),
             WorkspaceOutcomeReasons.WorkspaceCancelled => (
                 StatusCodes.Status503ServiceUnavailable,
-                "Workspace opening was cancelled"),
+                text["WorkspaceCancelled"]),
             WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure => (
                 StatusCodes.Status503ServiceUnavailable,
-                "The Workspace service is unavailable"),
+                text["WorkspaceInfrastructure"]),
             CompilationOutcomeReasons.Cancelled => (
                 StatusCodes.Status503ServiceUnavailable,
-                "Project compilation was cancelled"),
+                text["CompilationCancelled"]),
             CompilationOutcomeReasons.InfrastructureFailure => (
                 StatusCodes.Status503ServiceUnavailable,
-                "The Compiler service is unavailable"),
+                text["CompilationInfrastructure"]),
             DurableProjectCatalogOutcomeReasons.Cancelled => (
                 StatusCodes.Status503ServiceUnavailable,
-                "Project catalog loading was cancelled"),
+                text["ProjectCatalogCancelled"]),
             DurableProjectCatalogOutcomeReasons.InfrastructureFailure => (
                 StatusCodes.Status503ServiceUnavailable,
-                "The project catalog is unavailable"),
+                text["ProjectCatalogInfrastructure"]),
             WorkspaceOutcomeReasons.WorkspaceInternalDefect => (
                 StatusCodes.Status500InternalServerError,
-                "The Workspace could not be opened"),
+                text["WorkspaceInternal"]),
             CompilationOutcomeReasons.InternalDefect => (
                 StatusCodes.Status500InternalServerError,
-                "The project could not be compiled"),
+                text["CompilationInternal"]),
             DurableProjectCatalogOutcomeReasons.InternalDefect => (
                 StatusCodes.Status500InternalServerError,
-                "The project catalog could not be loaded"),
+                text["ProjectCatalogInternal"]),
             _ => (
                 StatusCodes.Status500InternalServerError,
-                "The request could not be completed"),
+                text["Generic"]),
         };
     }
 

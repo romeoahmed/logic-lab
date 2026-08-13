@@ -1,36 +1,38 @@
+@inject IStringLocalizer<EditorText> Text
+
 <aside class="probe-panel" aria-labelledby="probe-panel-heading">
     <header class="probe-heading">
         <div>
-            <p class="eyebrow">Instrument Bay</p>
-            <h2 id="probe-panel-heading">Probe</h2>
+            <p class="eyebrow">@Text["InstrumentBay"]</p>
+            <h2 id="probe-panel-heading">@Text["Probe"]</h2>
         </div>
-        <span>Live readout</span>
+        <span>@Text["LiveReadout"]</span>
     </header>
     @if (Simulation is null)
     {
         <div class="probe-empty" role="status">
             <span aria-hidden="true"></span>
-            <p>No active session.</p>
-            <small>Compile the circuit, then create a simulation session.</small>
+            <p>@Text["NoActiveSession"]</p>
+            <small>@Text["ProbeEmptyHelp"]</small>
         </div>
     }
     else
     {
         <dl>
             <div>
-                <dt>Logical time</dt>
+                <dt>@Text["LogicalTime"]</dt>
                 <dd>@Simulation.LogicalTime</dd>
             </div>
             <div>
-                <dt>Session version</dt>
+                <dt>@Text["SessionVersion"]</dt>
                 <dd>@Simulation.SessionVersion</dd>
             </div>
         </dl>
-        <ul aria-label="Observed probes">
+        <ul aria-label="@Text["ObservedProbesAriaLabel"]">
             @foreach (var probe in Simulation.Probes)
             {
                 <li @key="probe.ProbeId" data-probe="@probe.ProbeId.Value">
-                    <span>Output</span>
+                    <span>@Text["Output"]</span>
                     <strong>@Format(probe.Value)</strong>
                 </li>
             }

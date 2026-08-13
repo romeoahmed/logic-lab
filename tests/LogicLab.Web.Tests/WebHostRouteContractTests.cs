@@ -123,11 +123,32 @@ internal sealed class WebHostRouteContractTests(LogicLabWebFactory factory)
         response.EnsureSuccessStatusCode();
         var document = WebTestMarkup.Parse(await response.Content.ReadAsStringAsync());
         var html = WebTestMarkup.RequireElement(document, "html");
+        var navigation = WebTestMarkup.RequireElement(document, ".primary-navigation");
+        var heading = WebTestMarkup.RequireElement(document, "#home-title");
 
         using (Assert.Multiple())
         {
             await Assert.That(html.GetAttribute("lang")).IsEqualTo("zh-CN");
             await Assert.That(html.GetAttribute("dir")).IsEqualTo("ltr");
+            await Assert.That(navigation.TextContent).Contains("工作台");
+            await Assert.That(heading.TextContent)
+                .IsEqualTo("构建、编译，观察信号流动。");
         }
+    }
+
+    [Test]
+    public async Task Get_HelpWithSupportedCulture_ProjectsLocalizedContent()
+    {
+        using var client = factory.CreateHttpsClient();
+        client.DefaultRequestHeaders.AcceptLanguage.Add(
+            new StringWithQualityHeaderValue("zh-CN"));
+
+        using var response = await client.GetAsync(
+            new Uri("/help/getting-started", UriKind.Relative));
+        response.EnsureSuccessStatusCode();
+        var document = WebTestMarkup.Parse(await response.Content.ReadAsStringAsync());
+
+        await Assert.That(WebTestMarkup.RequireElement(document, "h1").TextContent)
+            .IsEqualTo("快速入门");
     }
 }

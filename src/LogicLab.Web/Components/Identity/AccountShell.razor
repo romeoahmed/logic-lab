@@ -1,12 +1,14 @@
+@inject IStringLocalizer<AccountText> Text
+
 <section class="account-shell" aria-labelledby="account-title">
     <div class="account-introduction">
         <p class="account-eyebrow">@Eyebrow</p>
         <h1 id="account-title">@Title</h1>
         <p>@Description</p>
-        <ul class="account-assurances" aria-label="Account protections">
-            <li><span aria-hidden="true">✓</span>Private Durable Project catalog</li>
-            <li><span aria-hidden="true">✓</span>Fenced editor attachments</li>
-            <li><span aria-hidden="true">✓</span>Secure, non-sliding sessions</li>
+        <ul class="account-assurances" aria-label="@Text["AccountProtectionsAriaLabel"]">
+            <li><span aria-hidden="true">✓</span>@Text["AssuranceCatalog"]</li>
+            <li><span aria-hidden="true">✓</span>@Text["AssuranceAttachments"]</li>
+            <li><span aria-hidden="true">✓</span>@Text["AssuranceSessions"]</li>
         </ul>
     </div>
 
@@ -18,8 +20,8 @@
                          Color="BadgeColor.Brand"
                          Shape="BadgeShape.Rounded"
                          Size="BadgeSize.Small"
-                         Content="Secure account access" />
-            <span>Protected server-rendered form</span>
+                         Content="@Text["SecureAccess"]" />
+            <span>@Text["ProtectedForm"]</span>
         </div>
         <FluentDivider Appearance="DividerAppearance.Subtle" />
         <div class="account-card-content">

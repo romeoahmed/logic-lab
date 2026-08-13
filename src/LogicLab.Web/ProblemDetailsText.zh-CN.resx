@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="AnonymousIngressUnavailable" xml:space="preserve"><value>匿名工作区准入暂时不可用</value></data>
+  <data name="AntiforgeryFailed" xml:space="preserve"><value>防伪验证失败</value></data>
+  <data name="AuthenticationRateLimited" xml:space="preserve"><value>认证请求过多</value></data>
+  <data name="AuthenticationRequired" xml:space="preserve"><value>需要认证</value></data>
+  <data name="AuthenticationRevocationFailed" xml:space="preserve"><value>无法撤销认证会话</value></data>
+  <data name="CompilationCancelled" xml:space="preserve"><value>项目编译已取消</value></data>
+  <data name="CompilationInfrastructure" xml:space="preserve"><value>编译器服务不可用</value></data>
+  <data name="CompilationInternal" xml:space="preserve"><value>无法编译项目</value></data>
+  <data name="CompilationInvalid" xml:space="preserve"><value>项目修订无效</value></data>
+  <data name="CompilationPolicy" xml:space="preserve"><value>项目超出编译策略</value></data>
+  <data name="ExportMethod" xml:space="preserve"><value>导出下载不支持该请求方法</value></data>
+  <data name="ExportRateLimited" xml:space="preserve"><value>导出下载请求过多</value></data>
+  <data name="ExportUnavailable" xml:space="preserve"><value>导出不可用</value></data>
+  <data name="Generic" xml:space="preserve"><value>无法完成请求</value></data>
+  <data name="NotFound" xml:space="preserve"><value>未找到请求的资源</value></data>
+  <data name="ProjectCatalogCancelled" xml:space="preserve"><value>项目目录加载已取消</value></data>
+  <data name="ProjectCatalogCursor" xml:space="preserve"><value>项目目录游标无效</value></data>
+  <data name="ProjectCatalogInfrastructure" xml:space="preserve"><value>项目目录不可用</value></data>
+  <data name="ProjectCatalogInternal" xml:space="preserve"><value>无法加载项目目录</value></data>
+  <data name="ProjectCatalogRequest" xml:space="preserve"><value>项目目录请求无效</value></data>
+  <data name="ProjectOpenMethod" xml:space="preserve"><value>项目打开不支持该请求方法</value></data>
+  <data name="ProjectOpenRateLimited" xml:space="preserve"><value>项目打开请求过多</value></data>
+  <data name="ProjectOpenRequest" xml:space="preserve"><value>项目打开请求无效</value></data>
+  <data name="RequestBodyTooLarge" xml:space="preserve"><value>请求正文过大</value></data>
+  <data name="CultureRequest" xml:space="preserve"><value>文化请求无效</value></data>
+  <data name="WorkspaceAdmission" xml:space="preserve"><value>工作区容量不可用</value></data>
+  <data name="WorkspaceCancelled" xml:space="preserve"><value>工作区打开已取消</value></data>
+  <data name="WorkspaceInfrastructure" xml:space="preserve"><value>工作区服务不可用</value></data>
+  <data name="WorkspaceInternal" xml:space="preserve"><value>无法打开工作区</value></data>
+</root>

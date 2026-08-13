@@ -2,7 +2,8 @@
 @attribute [Authorize]
 @attribute [ExcludeFromInteractiveRouting]
 @inject LogicLab.Web.Projects.DurableProjectCatalogPageState PageState
-<PageTitle>Durable Projects</PageTitle>
+@inject IStringLocalizer<ProjectCatalogText> Text
+<PageTitle>@Text["PageTitle"]</PageTitle>
 
 <section class="projects-shell" aria-labelledby="projects-title">
     <header class="projects-heading">
@@ -11,10 +12,10 @@
                          Color="BadgeColor.Brand"
                          Shape="BadgeShape.Rounded"
                          Size="BadgeSize.Small"
-                         Content="Private workspace catalog" />
-            <h1 id="projects-title">Durable Projects</h1>
+                         Content="@Text["PrivateCatalog"]" />
+            <h1 id="projects-title">@Text["PageTitle"]</h1>
         </div>
-        <p>Reopen saved circuit revisions in a fenced editor workspace.</p>
+        <p>@Text["Description"]</p>
     </header>
 
     <FluentCard class="catalog-card"
@@ -22,8 +23,8 @@
                 Width="100%">
         <div class="catalog-card-heading">
             <div>
-                <p class="projects-eyebrow">Saved revisions</p>
-                <h2>Your project index</h2>
+                <p class="projects-eyebrow">@Text["Eyebrow"]</p>
+                <h2>@Text["IndexTitle"]</h2>
             </div>
             <FluentBadge Appearance="BadgeAppearance.Outline"
                          Color="BadgeColor.Brand"
@@ -36,14 +37,14 @@
         {
             <div class="catalog-empty" data-catalog-empty role="status">
                 <span class="catalog-empty-mark" aria-hidden="true">◇</span>
-                <h2>No Durable Projects yet</h2>
-                <p>Start in the Sandbox, then keep the work that deserves a durable home.</p>
-                <a class="catalog-action" href="/editor">Open the Sandbox Workbench</a>
+                <h2>@Text["EmptyTitle"]</h2>
+                <p>@Text["EmptyDescription"]</p>
+                <a class="catalog-action" href="/editor">@Text["EmptyOpenWorkbench"]</a>
             </div>
         }
         else
         {
-            <ul class="project-catalog" aria-label="Durable Projects">
+            <ul class="project-catalog" aria-label="@Text["CatalogAriaLabel"]">
                 @foreach (var item in Page.Items)
                 {
                     <li data-project-id="@item.DurableProjectId.Value">
@@ -55,8 +56,8 @@
                                    name="durableProjectId"
                                    value="@item.DurableProjectId.Value" />
                             <button type="submit"
-                                    aria-label="Open @item.DisplayName.Value">
-                                Open project <span aria-hidden="true">→</span>
+                                    aria-label="@Text["OpenProjectAriaLabel", item.DisplayName.Value]">
+                                @Text["OpenProject"] <span aria-hidden="true">→</span>
                             </button>
                         </form>
                     </li>
@@ -67,11 +68,11 @@
 
     @if (Page.Next is not null)
     {
-        <nav class="catalog-pagination" aria-label="Project catalog pages">
+        <nav class="catalog-pagination" aria-label="@Text["PaginationAriaLabel"]">
             <FluentAnchorButton data-projects-next
                                 Href="@NextPage(Page.Next)"
                                 Appearance="ButtonAppearance.Outline">
-                Next page <span aria-hidden="true">→</span>
+                @Text["NextPage"] <span aria-hidden="true">→</span>
             </FluentAnchorButton>
         </nav>
     }
@@ -83,8 +84,8 @@
             "The Durable Project Catalog page was not loaded before rendering.");
 
     private string VisibleProjectCount => Page.Items.Count == 1
-        ? "1 project"
-        : $"{Page.Items.Count} projects";
+        ? Text["ProjectCountOne"]
+        : Text["ProjectCountOther", Page.Items.Count];
 
     private static string NextPage(ProjectCatalogCursor cursor)
     {

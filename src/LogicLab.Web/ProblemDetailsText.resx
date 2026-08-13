@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="AnonymousIngressUnavailable" xml:space="preserve"><value>Anonymous Workspace admission is temporarily unavailable</value></data>
+  <data name="AntiforgeryFailed" xml:space="preserve"><value>Antiforgery validation failed</value></data>
+  <data name="AuthenticationRateLimited" xml:space="preserve"><value>Too many authentication requests</value></data>
+  <data name="AuthenticationRequired" xml:space="preserve"><value>Authentication is required</value></data>
+  <data name="AuthenticationRevocationFailed" xml:space="preserve"><value>The authentication session could not be revoked</value></data>
+  <data name="CompilationCancelled" xml:space="preserve"><value>Project compilation was cancelled</value></data>
+  <data name="CompilationInfrastructure" xml:space="preserve"><value>The Compiler service is unavailable</value></data>
+  <data name="CompilationInternal" xml:space="preserve"><value>The project could not be compiled</value></data>
+  <data name="CompilationInvalid" xml:space="preserve"><value>The project revision is invalid</value></data>
+  <data name="CompilationPolicy" xml:space="preserve"><value>The project exceeds compilation policy</value></data>
+  <data name="ExportMethod" xml:space="preserve"><value>The request method is not supported for export download</value></data>
+  <data name="ExportRateLimited" xml:space="preserve"><value>Too many export download requests</value></data>
+  <data name="ExportUnavailable" xml:space="preserve"><value>The export is unavailable</value></data>
+  <data name="Generic" xml:space="preserve"><value>The request could not be completed</value></data>
+  <data name="NotFound" xml:space="preserve"><value>The requested resource was not found</value></data>
+  <data name="ProjectCatalogCancelled" xml:space="preserve"><value>Project catalog loading was cancelled</value></data>
+  <data name="ProjectCatalogCursor" xml:space="preserve"><value>The project catalog cursor is invalid</value></data>
+  <data name="ProjectCatalogInfrastructure" xml:space="preserve"><value>The project catalog is unavailable</value></data>
+  <data name="ProjectCatalogInternal" xml:space="preserve"><value>The project catalog could not be loaded</value></data>
+  <data name="ProjectCatalogRequest" xml:space="preserve"><value>The project catalog request is invalid</value></data>
+  <data name="ProjectOpenMethod" xml:space="preserve"><value>The request method is not supported for project opening</value></data>
+  <data name="ProjectOpenRateLimited" xml:space="preserve"><value>Too many project open requests</value></data>
+  <data name="ProjectOpenRequest" xml:space="preserve"><value>The project open request is invalid</value></data>
+  <data name="RequestBodyTooLarge" xml:space="preserve"><value>The request body is too large</value></data>
+  <data name="CultureRequest" xml:space="preserve"><value>The culture request is invalid</value></data>
+  <data name="WorkspaceAdmission" xml:space="preserve"><value>Workspace capacity is unavailable</value></data>
+  <data name="WorkspaceCancelled" xml:space="preserve"><value>Workspace opening was cancelled</value></data>
+  <data name="WorkspaceInfrastructure" xml:space="preserve"><value>The Workspace service is unavailable</value></data>
+  <data name="WorkspaceInternal" xml:space="preserve"><value>The Workspace could not be opened</value></data>
+</root>

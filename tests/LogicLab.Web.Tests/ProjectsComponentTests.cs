@@ -13,7 +13,7 @@ internal sealed class ProjectsComponentTests
     [Test]
     public async Task Projects_AuthenticatedPage_RendersProjectionAndAuthorizedOpenForms()
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext();
         var page = new DurableProjectPage(
             [
                 new DurableProjectSummaryV1(
@@ -69,7 +69,7 @@ internal sealed class ProjectsComponentTests
     [Test]
     public async Task Projects_EmptyCatalog_OffersIntentionalSandboxRecovery()
     {
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext();
         context.Services.AddAuthorizationCore();
         context.Services.AddAntiforgery();
         context.Services.AddFluentUIComponents();
@@ -95,7 +95,7 @@ internal sealed class ProjectsComponentTests
     public async Task Projects_UserAuthoredBidirectionalName_RendersInIsolationBoundary()
     {
         const string displayName = "LTR مشروع \u202eABC";
-        await using var context = new BunitContext();
+        await using var context = WebTestContext.CreateBunitContext();
         context.Services.AddAuthorizationCore();
         context.Services.AddAntiforgery();
         context.Services.AddFluentUIComponents();

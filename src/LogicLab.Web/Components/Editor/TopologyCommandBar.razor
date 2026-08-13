@@ -1,63 +1,65 @@
+@inject IStringLocalizer<EditorText> Text
+
 <section class="topology-command-panel" aria-labelledby="topology-command-heading">
     <div class="topology-command-heading">
         <div>
-            <p class="topology-eyebrow">Explicit topology</p>
-            <h2 id="topology-command-heading">Net and route editing</h2>
+            <p class="topology-eyebrow">@Text["TopologyEyebrow"]</p>
+            <h2 id="topology-command-heading">@Text["TopologyHeading"]</h2>
         </div>
-        <small>Geometry never creates electrical membership.</small>
+        <small>@Text["GeometryRule"]</small>
     </div>
-    <div class="topology-command-bar" role="group" aria-label="Topology commands">
-        <div class="topology-command-group" role="group" aria-label="Electrical membership">
-            <span>Membership</span>
+    <div class="topology-command-bar" role="group" aria-label="@Text["TopologyCommandsAriaLabel"]">
+        <div class="topology-command-group" role="group" aria-label="@Text["ElectricalMembershipAriaLabel"]">
+            <span>@Text["Membership"]</span>
             <div>
                 <FluentButton data-command="topology-merge"
                               Appearance="ButtonAppearance.Outline"
                               Disabled="@(!CanMerge || BlocksCommittedCommands)"
                               Loading="@(ActiveCommand is "topology-merge")"
-                              OnClick="OnMerge">Merge Nets</FluentButton>
+                              OnClick="OnMerge">@Text["MergeNets"]</FluentButton>
                 <FluentButton data-command="topology-split"
                               Appearance="ButtonAppearance.Outline"
                               Disabled="@(!CanSplit || BlocksCommittedCommands)"
                               Loading="@(ActiveCommand is "topology-split")"
-                              OnClick="OnSplit">Split Net</FluentButton>
+                              OnClick="OnSplit">@Text["SplitNet"]</FluentButton>
             </div>
         </div>
-        <div class="topology-command-group" role="group" aria-label="Junction editing">
-            <span>Junctions</span>
+        <div class="topology-command-group" role="group" aria-label="@Text["JunctionEditingAriaLabel"]">
+            <span>@Text["Junctions"]</span>
             <div>
                 <FluentButton data-command="topology-add-junction"
                               Appearance="ButtonAppearance.Subtle"
                               Disabled="@(!CanAddJunction || BlocksCommittedCommands)"
                               Loading="@(ActiveCommand is "topology-add-junction")"
-                              OnClick="OnAddJunction">Add</FluentButton>
+                              OnClick="OnAddJunction">@Text["Add"]</FluentButton>
                 <FluentButton data-command="topology-remove-junction"
                               Appearance="ButtonAppearance.Subtle"
                               Disabled="@(!CanRemoveJunction || BlocksCommittedCommands)"
                               Loading="@(ActiveCommand is "topology-remove-junction")"
-                              OnClick="OnRemoveJunction">Remove</FluentButton>
+                              OnClick="OnRemoveJunction">@Text["Remove"]</FluentButton>
             </div>
         </div>
-        <div class="topology-command-group" role="group" aria-label="Route geometry">
-            <span>Geometry</span>
+        <div class="topology-command-group" role="group" aria-label="@Text["RouteGeometryAriaLabel"]">
+            <span>@Text["Geometry"]</span>
             <div>
                 <FluentButton data-command="topology-prepare-route"
                               Appearance="ButtonAppearance.Outline"
                               Disabled="@(!CanPrepareRoute || BlocksCommittedCommands)"
-                              OnClick="OnPrepareRoute">Prepare</FluentButton>
+                              OnClick="OnPrepareRoute">@Text["Prepare"]</FluentButton>
                 <FluentButton data-command="topology-unroute"
                               Appearance="ButtonAppearance.Subtle"
                               Disabled="@(!CanUnroute || BlocksCommittedCommands)"
                               Loading="@(ActiveCommand is "topology-unroute")"
-                              OnClick="OnUnroute">Unroute</FluentButton>
+                              OnClick="OnUnroute">@Text["Unroute"]</FluentButton>
                 <FluentButton data-command="topology-route"
                               Appearance="ButtonAppearance.Outline"
                               Disabled="@(!CanRoute || BlocksCommittedCommands)"
                               Loading="@(ActiveCommand is "topology-route")"
-                              OnClick="OnRoute">Route</FluentButton>
+                              OnClick="OnRoute">@Text["Route"]</FluentButton>
             </div>
         </div>
-        <div class="topology-command-group" role="group" aria-label="Route draft">
-            <span>Draft</span>
+        <div class="topology-command-group" role="group" aria-label="@Text["RouteDraftAriaLabel"]">
+            <span>@Text["Draft"]</span>
             <div>
                 <FluentButton data-command="topology-commit-route"
                               Appearance="@(RouteDraftActive
@@ -65,18 +67,18 @@
                                   : ButtonAppearance.Outline)"
                               Disabled="@(!RouteDraftActive || IsBusy)"
                               Loading="@(ActiveCommand is "topology-commit-route")"
-                              OnClick="OnCommitRoute">Commit</FluentButton>
+                              OnClick="OnCommitRoute">@Text["Commit"]</FluentButton>
                 <FluentButton data-command="topology-cancel-route"
                               Appearance="ButtonAppearance.Subtle"
                               Disabled="@(!RouteDraftActive || IsBusy)"
-                              OnClick="OnCancelRoute">Cancel</FluentButton>
+                              OnClick="OnCancelRoute">@Text["Cancel"]</FluentButton>
             </div>
         </div>
     </div>
     @if (RouteDraftActive)
     {
         <p class="route-draft" data-route-draft role="status">
-            Route preview: 0,0 → 0,2 → 8,2. Commit or cancel this local draft.
+            @Text["RoutePreview"]
         </p>
     }
 </section>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Apply" xml:space="preserve"><value>Apply</value></data>
+  <data name="BrandTagline" xml:space="preserve"><value>Deterministic circuits</value></data>
+  <data name="DismissError" xml:space="preserve"><value>Dismiss error</value></data>
+  <data name="ErrorMessage" xml:space="preserve"><value>An unexpected client error interrupted this surface.</value></data>
+  <data name="ErrorTitle" xml:space="preserve"><value>Logic Lab needs attention.</value></data>
+  <data name="Help" xml:space="preserve"><value>Help</value></data>
+  <data name="HomeAriaLabel" xml:space="preserve"><value>Logic Lab home</value></data>
+  <data name="Language" xml:space="preserve"><value>Language</value></data>
+  <data name="LogIn" xml:space="preserve"><value>Log in</value></data>
+  <data name="LogOut" xml:space="preserve"><value>Log out</value></data>
+  <data name="PrimaryNavigationAriaLabel" xml:space="preserve"><value>Primary navigation</value></data>
+  <data name="Projects" xml:space="preserve"><value>Projects</value></data>
+  <data name="ReconnectEyebrow" xml:space="preserve"><value>Connection state</value></data>
+  <data name="ReconnectFailed" xml:space="preserve"><value>Failed to rejoin.</value></data>
+  <data name="ReconnectFailedHelp" xml:space="preserve"><value>Please retry or reload the page.</value></data>
+  <data name="ReconnectRetrying" xml:space="preserve"><value>Rejoin failed... trying again in</value></data>
+  <data name="ReconnectRejoining" xml:space="preserve"><value>Rejoining the server…</value></data>
+  <data name="ReconnectSeconds" xml:space="preserve"><value>seconds.</value></data>
+  <data name="ReconnectTitle" xml:space="preserve"><value>Reconnecting the workbench</value></data>
+  <data name="Register" xml:space="preserve"><value>Register</value></data>
+  <data name="Resume" xml:space="preserve"><value>Resume</value></data>
+  <data name="Reload" xml:space="preserve"><value>Reload</value></data>
+  <data name="ResumeFailed" xml:space="preserve"><value>Failed to resume the session.</value></data>
+  <data name="SkipToContent" xml:space="preserve"><value>Skip to content</value></data>
+  <data name="Retry" xml:space="preserve"><value>Retry</value></data>
+  <data name="SessionPaused" xml:space="preserve"><value>The session has been paused by the server.</value></data>
+  <data name="Workbench" xml:space="preserve"><value>Workbench</value></data>
+</root>

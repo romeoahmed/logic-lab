@@ -1,21 +1,23 @@
+@inject IStringLocalizer<EditorText> Text
+
 <div class="command-bar"
      role="group"
-     aria-label="Workbench commands"
+     aria-label="@Text["WorkbenchCommandsAriaLabel"]"
      aria-busy="@(IsBusy ? "true" : "false")"
      data-active-command="@ActiveCommand">
-    <div class="command-cluster" role="group" aria-label="Project commands">
-        <span class="command-cluster-label">Project</span>
+    <div class="command-cluster" role="group" aria-label="@Text["ProjectCommandsAriaLabel"]">
+        <span class="command-cluster-label">@Text["Project"]</span>
         <div>
             <FluentButton data-command="create"
                           Appearance="@(CanAuthor ? ButtonAppearance.Outline : ButtonAppearance.Primary)"
                           Disabled="@(!CanCreate || IsBusy)"
                           Loading="@(ActiveCommand is "create")"
-                          OnClick="OnCreate">Create Sandbox Project</FluentButton>
+                          OnClick="OnCreate">@Text["CreateSandbox"]</FluentButton>
             <FluentButton data-command="author"
                           Appearance="ButtonAppearance.Outline"
                           Disabled="@(!CanAuthor || IsBusy)"
                           Loading="@(ActiveCommand is "author")"
-                          OnClick="OnAuthor">Author circuit</FluentButton>
+                          OnClick="OnAuthor">@Text["AuthorCircuit"]</FluentButton>
             <FluentInputFile Id="logiclab-import-picker"
                              AnchorId="logiclab-import-trigger"
                              Accept=".logiclab,application/vnd.logiclab+zip"
@@ -26,19 +28,19 @@
                              OnInputFileChange="OnImport" />
             <FluentButton Id="logiclab-import-trigger"
                           data-command="import"
-                          aria-label="Import a .logiclab project package"
+                          aria-label="@Text["ImportAriaLabel"]"
                           Appearance="ButtonAppearance.Outline"
                           Disabled="@(!CanImport || IsBusy)"
-                          Loading="@(ActiveCommand is "import")">Import project</FluentButton>
+                          Loading="@(ActiveCommand is "import")">@Text["ImportProject"]</FluentButton>
             <FluentButton data-command="export"
                           Appearance="ButtonAppearance.Outline"
                           Disabled="@(!CanPrepareExport || IsBusy)"
                           Loading="@(ActiveCommand is "export")"
-                          OnClick="OnPrepareExport">Prepare export</FluentButton>
+                          OnClick="OnPrepareExport">@Text["PrepareExport"]</FluentButton>
             @if (ShowClaim)
             {
                 <label class="claim-project-name">
-                    <span>Durable project name</span>
+                    <span>@Text["DurableProjectName"]</span>
                     <input data-claim-name
                            value="@ClaimDisplayName"
                            maxlength="256"
@@ -49,7 +51,7 @@
                               Appearance="ButtonAppearance.Primary"
                               Disabled="@(!CanClaim || IsBusy)"
                               Loading="@(ActiveCommand is "claim")"
-                              OnClick="OnClaim">Keep as Durable Project</FluentButton>
+                              OnClick="OnClaim">@Text["KeepDurable"]</FluentButton>
             }
             @if (ShowSave)
             {
@@ -57,58 +59,58 @@
                               Appearance="@(CanSave ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
                               Disabled="@(!CanSave || IsBusy)"
                               Loading="@(ActiveCommand is "save")"
-                              OnClick="OnSave">Save Durable Project</FluentButton>
+                              OnClick="OnSave">@Text["SaveDurable"]</FluentButton>
             }
         </div>
     </div>
-    <div class="command-cluster" role="group" aria-label="Example authoring commands">
-        <span class="command-cluster-label">Templates</span>
+    <div class="command-cluster" role="group" aria-label="@Text["ExampleAuthoringCommandsAriaLabel"]">
+        <span class="command-cluster-label">@Text["Templates"]</span>
         <div>
             <FluentButton data-command="author-steering"
                           Appearance="ButtonAppearance.Subtle"
                           Disabled="@(!CanAuthorSteering || IsBusy)"
                           Loading="@(ActiveCommand is "author-steering")"
-                          OnClick="OnAuthorSteering">Steering</FluentButton>
+                          OnClick="OnAuthorSteering">@Text["Steering"]</FluentButton>
             <FluentButton data-command="author-arithmetic"
                           Appearance="ButtonAppearance.Subtle"
                           Disabled="@(!CanAuthorArithmetic || IsBusy)"
                           Loading="@(ActiveCommand is "author-arithmetic")"
-                          OnClick="OnAuthorArithmetic">Arithmetic</FluentButton>
+                          OnClick="OnAuthorArithmetic">@Text["Arithmetic"]</FluentButton>
             <FluentButton data-command="author-hierarchy"
                           Appearance="ButtonAppearance.Subtle"
                           Disabled="@(!CanAuthorHierarchy || IsBusy)"
                           Loading="@(ActiveCommand is "author-hierarchy")"
-                          OnClick="OnAuthorHierarchy">Hierarchy</FluentButton>
+                          OnClick="OnAuthorHierarchy">@Text["Hierarchy"]</FluentButton>
         </div>
     </div>
-    <div class="command-cluster" role="group" aria-label="Build command">
-        <span class="command-cluster-label">Build</span>
+    <div class="command-cluster" role="group" aria-label="@Text["BuildCommandAriaLabel"]">
+        <span class="command-cluster-label">@Text["Build"]</span>
         <div>
             <FluentButton data-command="compile"
                           Appearance="ButtonAppearance.Outline"
                           Disabled="@(!CanCompile || IsBusy)"
                           Loading="@(ActiveCommand is "compile")"
-                          OnClick="OnCompile">Compile</FluentButton>
+                          OnClick="OnCompile">@Text["Compile"]</FluentButton>
         </div>
     </div>
-    <div class="command-cluster" role="group" aria-label="Simulation commands">
-        <span class="command-cluster-label">Simulation</span>
+    <div class="command-cluster" role="group" aria-label="@Text["SimulationCommandsAriaLabel"]">
+        <span class="command-cluster-label">@Text["Simulation"]</span>
         <div>
             <FluentButton data-command="session"
                           Appearance="ButtonAppearance.Outline"
                           Disabled="@(!CanCreateSession || IsBusy)"
                           Loading="@(ActiveCommand is "session")"
-                          OnClick="OnCreateSession">Create Session</FluentButton>
+                          OnClick="OnCreateSession">@Text["CreateSession"]</FluentButton>
             <FluentButton data-command="stimulus"
                           Appearance="ButtonAppearance.Outline"
                           Disabled="@(!CanScheduleStimulus || IsBusy)"
                           Loading="@(ActiveCommand is "stimulus")"
-                          OnClick="OnScheduleStimulus">Inputs = 1</FluentButton>
+                          OnClick="OnScheduleStimulus">@Text["InputsHigh"]</FluentButton>
             <FluentButton data-command="step"
                           Appearance="@(CanStep ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
                           Disabled="@(!CanStep || IsBusy)"
                           Loading="@(ActiveCommand is "step")"
-                          OnClick="OnStep">Step</FluentButton>
+                          OnClick="OnStep">@Text["Step"]</FluentButton>
         </div>
     </div>
 </div>

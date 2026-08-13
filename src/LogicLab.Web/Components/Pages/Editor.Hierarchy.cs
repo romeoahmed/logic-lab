@@ -149,7 +149,7 @@ public partial class Editor
         SelectedDefinitionId = mainId;
         HierarchyNavigation.Clear();
         ProjectScene();
-        Status = "Hierarchy authored. Navigate its occurrence or compile the entry definition.";
+        Status = Text["HierarchyAuthored"];
     }
 
     private void SelectDefinition(CircuitDefinitionId definitionId)
@@ -162,7 +162,7 @@ public partial class Editor
         SelectedDefinitionId = definitionId;
         HierarchyNavigation.Clear();
         ProjectScene();
-        Status = $"Editing Circuit Definition {Scene!.DisplayName}.";
+        Status = Text["EditingDefinition", Scene!.DisplayName];
     }
 
     private Task SetEntryDefinition(CircuitDefinitionId definitionId)
@@ -183,7 +183,7 @@ public partial class Editor
             SelectedDefinitionId = definitionId;
             HierarchyNavigation.Clear();
             ProjectScene();
-            Status = $"{Scene!.DisplayName} is now the entry Circuit Definition.";
+            Status = Text["EntryDefinitionChanged", Scene!.DisplayName];
         }
     }
 
@@ -217,9 +217,9 @@ public partial class Editor
             instance.DisplayName ?? targetDefinition.DisplayName));
         SelectedDefinitionId = targetDefinition.Id;
         ProjectScene();
-        Status = $"Observing hierarchy occurrence {string.Join(
-            " / ",
-            Breadcrumbs.Select(item => item.Label))}.";
+        Status = Text[
+            "HierarchyObserving",
+            string.Join(" / ", Breadcrumbs.Select(item => item.Label))];
     }
 
     private void LeaveDefinitionInstance()
@@ -233,7 +233,7 @@ public partial class Editor
         HierarchyNavigation.RemoveAt(HierarchyNavigation.Count - 1);
         SelectedDefinitionId = last.ContainingCircuitDefinitionId;
         ProjectScene();
-        Status = $"Returned to {Scene!.DisplayName}.";
+        Status = Text["HierarchyReturned", Scene!.DisplayName];
     }
 
     private static ComponentInstance FindLibrary(

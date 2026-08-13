@@ -1,13 +1,14 @@
 @page "/help/{**Path}"
+@inject IStringLocalizer<SiteText> SiteText
 
-<PageTitle>Help · Logic Lab</PageTitle>
+<PageTitle>@SiteText["HelpPageTitle"]</PageTitle>
 
 <article class="content-page">
-    <p class="eyebrow">Logic Lab help</p>
-    <h1>Getting started</h1>
-    <p>Create a Sandbox Project in the Workbench, author a circuit, compile it, and then run a deterministic simulation.</p>
-    <p>Sign in before claiming a Sandbox as a Durable Project. Durable Projects can be reopened from the Projects catalog.</p>
-    <a href="/editor">Open the Workbench</a>
+    <p class="eyebrow">@SiteText["HelpEyebrow"]</p>
+    <h1>@SiteText["HelpTitle"]</h1>
+    <p>@SiteText["HelpDescriptionStart"]</p>
+    <p>@SiteText["HelpDescriptionClaim"]</p>
+    <a href="/editor">@SiteText["HelpOpenWorkbench"]</a>
 </article>
 
 @code {

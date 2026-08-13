@@ -12,14 +12,14 @@ public partial class Editor
     {
         return AuthorGallery(
             SteeringGalleryComponents(),
-            "Steering gallery authored with generated Ports. Compile the current Project Revision.");
+            Text["SteeringGalleryAuthored"]);
     }
 
     private Task AuthorArithmeticGallery()
     {
         return AuthorGallery(
             ArithmeticGalleryComponents(),
-            "Arithmetic gallery authored with checked Ports. Compile the current Project Revision.");
+            Text["ArithmeticGalleryAuthored"]);
     }
 
     private async Task AuthorGallery(

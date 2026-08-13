@@ -1,23 +1,24 @@
 @page "/Error"
+@inject IStringLocalizer<SiteText> SiteText
 @using System.Diagnostics
 
-<PageTitle>Error</PageTitle>
+<PageTitle>@SiteText["ErrorPageTitle"]</PageTitle>
 
 <section class="error-page" aria-labelledby="error-title">
     <FluentCard class="error-card" Appearance="CardAppearance.Outline" Width="100%">
         <span class="error-mark" aria-hidden="true">!</span>
-        <p class="eyebrow">Request interrupted</p>
-        <h1 id="error-title">The workbench hit an unexpected fault.</h1>
-        <p class="error-description">No recovery action was applied automatically. Return home and retry the operation when you are ready.</p>
+        <p class="eyebrow">@SiteText["ErrorEyebrow"]</p>
+        <h1 id="error-title">@SiteText["ErrorTitle"]</h1>
+        <p class="error-description">@SiteText["ErrorDescription"]</p>
         @if (ShowRequestId)
         {
-            <p class="request-id"><strong>Request ID</strong><code>@RequestId</code></p>
+            <p class="request-id"><strong>@SiteText["ErrorRequestId"]</strong><code>@RequestId</code></p>
         }
         <div class="error-actions">
             <FluentAnchorButton class="error-primary"
                                 Href="/"
-                                Appearance="ButtonAppearance.Primary">Return home</FluentAnchorButton>
-            <a href="/editor">Open a new Sandbox</a>
+                                Appearance="ButtonAppearance.Primary">@SiteText["ErrorReturnHome"]</FluentAnchorButton>
+            <a href="/editor">@SiteText["ErrorOpenSandbox"]</a>
         </div>
     </FluentCard>
 </section>

@@ -94,9 +94,9 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task Editor_CreateSandbox_ReplacesLocatorAndReattachesWithPreservedFence()
+    public async Task Editor_CreateSandbox_AtomicallyReplacesLocatorAndFenceWithoutNavigation()
     {
-        await using var context = CreateContext();
+        await using var context = CreateContext(out var attachmentNavigation);
         await using var workspace = new RecordingAttachmentWorkspace();
         var rendered = RenderEditor(context, workspace);
         var navigation = (BunitNavigationManager)context.Services
@@ -107,27 +107,24 @@ internal sealed class WorkbenchComponentTests
         await rendered.WaitForStateAsync(() => workspace.Attachments.Count == 1);
         var firstAttachment = workspace.Attachments[0];
         var workspaceId = firstAttachment.Projection.WorkspaceId;
-        await rendered.WaitForStateAsync(() => navigation.Uri.EndsWith(
-            $"/editor/{workspaceId.Value}",
-            StringComparison.Ordinal));
-
-        var reloaded = context.Render<Editor>(parameters => parameters
-            .Add(component => component.WorkspaceIdValue, workspaceId.Value));
-        _ = await reloaded.WaitForElementAsync("[data-command='author']:not([disabled])");
-        var request = (await Assert.That(workspace.AttachRequests.Last())
-            .IsTypeOf<Reattach>())!;
+        var invocation = attachmentNavigation.VerifyInvoke(
+            "replaceHistoryEntry");
+        var serializedFence = invocation.Arguments[1] as string;
+        var hasFence = WorkspaceAttachmentHistoryState.TryRead(
+            serializedFence,
+            workspaceId,
+            out var attachmentId,
+            out var generation);
 
         using (Assert.Multiple())
         {
-            await Assert.That(navigation.History).Count().IsEqualTo(1);
-            await Assert.That(navigation.History.Single().Options.ReplaceHistoryEntry)
-                .IsTrue();
-            await Assert.That(navigation.History.Single().Options.HistoryEntryState)
-                .IsNotNull();
-            await Assert.That(request.WorkspaceId).IsEqualTo(workspaceId);
-            await Assert.That(request.PriorAttachmentId)
+            await Assert.That(navigation.History).IsEmpty();
+            await Assert.That(invocation.Arguments[0] as string)
+                .IsEqualTo($"/editor/{workspaceId.Value}");
+            await Assert.That(hasFence).IsTrue();
+            await Assert.That(attachmentId)
                 .IsEqualTo(firstAttachment.AttachmentId);
-            await Assert.That(request.PriorGeneration)
+            await Assert.That(generation)
                 .IsEqualTo(firstAttachment.Generation);
         }
     }
@@ -901,7 +898,13 @@ internal sealed class WorkbenchComponentTests
 
     private static BunitContext CreateContext()
     {
-        var context = new BunitContext();
+        return CreateContext(out _);
+    }
+
+    private static BunitContext CreateContext(
+        out BunitJSModuleInterop attachmentNavigation)
+    {
+        var context = WebTestContext.CreateBunitContext();
         context.JSInterop
             .SetupModule(
                 "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/InputFile/FluentInputFile.razor.js")
@@ -910,6 +913,9 @@ internal sealed class WorkbenchComponentTests
             .SetupModule(
                 "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/KeyCode/FluentKeyCode.razor.js")
             .Mode = JSRuntimeMode.Loose;
+        attachmentNavigation = context.JSInterop.SetupModule(
+            "./Components/Pages/Editor.razor.js");
+        attachmentNavigation.Mode = JSRuntimeMode.Loose;
         context.Services.AddFluentUIComponents();
         context.Services.AddSingleton(TimeProvider.System);
         context.Services.AddSingleton(PackagePolicy.Development);

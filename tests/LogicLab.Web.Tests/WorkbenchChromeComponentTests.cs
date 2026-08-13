@@ -119,7 +119,7 @@ internal sealed class WorkbenchChromeComponentTests
 
     private static BunitContext CreateContext()
     {
-        var context = new BunitContext();
+        var context = WebTestContext.CreateBunitContext();
         context.JSInterop
             .SetupModule(
                 "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/InputFile/FluentInputFile.razor.js")
