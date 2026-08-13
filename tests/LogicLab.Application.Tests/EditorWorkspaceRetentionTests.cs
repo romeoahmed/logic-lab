@@ -376,6 +376,7 @@ internal sealed class EditorWorkspaceRetentionTests
             "test-workspace",
             "1",
             globalWorkspaceLimit,
+            anonymousWorkspaceLimit: globalWorkspaceLimit,
             workspaceCountPerSubject: globalWorkspaceLimit,
             sandboxRetention ?? TimeSpan.FromHours(1),
             WorkspaceAuthoringLimits.Default,

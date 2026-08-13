@@ -577,6 +577,7 @@ internal sealed class OpenDurableWorkspaceTests
             "open-durable-tests",
             "1",
             globalWorkspaceLimit,
+            anonymousWorkspaceLimit: globalWorkspaceLimit,
             workspaceCountPerSubject: globalWorkspaceLimit,
             sandboxRetention: TimeSpan.FromMinutes(1),
             authoringLimits: WorkspaceAuthoringLimits.Default,

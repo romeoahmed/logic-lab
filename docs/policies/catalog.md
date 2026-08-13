@@ -187,6 +187,7 @@ from `TimeProvider`; result retention never extends authorization.
 
 ```text
 global_workspace_count
+anonymous_workspace_count_global
 workspace_count_per_subject
 authoring_definition_count
 authoring_entity_count
@@ -202,10 +203,13 @@ catalog_page_items
 catalog_cursor_bytes
 ```
 
-`global_workspace_count` is the process-wide hard bound on retained Workspace state; the
-per-subject dimension is an additional fairness bound and never replaces it. Admission and
-expiry reclamation share one atomic directory decision, so concurrent opens cannot overshoot
-either limit. `authoring_command_item_count` bounds the complete nested shape of one Edit
+`global_workspace_count` is the process-wide hard bound on retained Workspace state.
+`anonymous_workspace_count_global` is an additional process-wide bound across every
+anonymous caller identity; it counts live, reserved, and pending-transfer ownership so
+rotating a browser identity cannot consume the capacity reserved for authenticated callers.
+The per-subject dimension remains an additional fairness bound and never replaces either
+global bound. Admission and expiry reclamation share one atomic directory decision, so
+concurrent opens cannot overshoot any limit. `authoring_command_item_count` bounds the complete nested shape of one Edit
 Intent before Project Editor execution. Command-shape and candidate-document accounting both
 stop as soon as their remaining budget is exhausted. The definition and entity dimensions
 validate the candidate Project Document before publication, using the same authored entity
@@ -219,11 +223,13 @@ the same idempotency count bounds newest-first Durable Project repository receip
 pruning shares the command transaction. These limits never make a valid edit or save partially
 commit. Time-based retention uses `TimeProvider`.
 
-The trusted `WorkspaceCaller` on every open request defines the per-subject partition. A
-Sandbox Claim reserves the authenticated target partition before persistence begins, retains
-that reservation while commit acknowledgement is uncertain, and atomically transfers the live
-Workspace from its prior partition only when Claim succeeds. A definitive failure releases the
-target reservation; close or retention cleanup releases both the live and any pending transfer.
+The trusted `WorkspaceCaller` on every open request defines the per-subject partition. Anonymous
+browser IDs remain useful continuity locators, but are not treated as an unresettable person or
+network identity. A Sandbox Claim reserves the authenticated target partition before persistence
+begins, retains that reservation while commit acknowledgement is uncertain, and atomically
+transfers the live Workspace from its prior partition only when Claim succeeds. A definitive
+failure releases the target reservation; close or retention cleanup releases both the live and
+any pending transfer.
 
 `hot_swap_peak_bytes` is declared owned-buffer accounting, not a promise about total process
 RSS. The accounting uses fixed logical byte units: eight bytes per owned reference or index

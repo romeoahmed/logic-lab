@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Claims;
 using System.Text.Json;
 using LogicLab.Web.Identity;
 using LogicLab.Web.Transfers;
@@ -82,6 +83,74 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
             await Assert.That(editorCallerCookies.FirstOrDefault() ?? string.Empty)
                 .Contains("secure; samesite=lax; httponly", StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    [Test]
+    public async Task Get_AnonymousBootstrapCookieRotation_RejectsBeforeIssuingAnotherIdentity()
+    {
+        var policy = new AnonymousWorkspaceIngressPolicy(
+            issuancePermitLimit: 2,
+            issuanceWindow: TimeSpan.FromMinutes(1));
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<AnonymousWorkspaceIngressPolicy>();
+                services.AddSingleton(policy);
+                services.TryAddEnumerable(ServiceDescriptor.Singleton<
+                    IStartupFilter,
+                    AuthenticatedRequestStartupFilter>());
+            }));
+        using var firstJar = host.CreateHttpsClient();
+        using var secondJar = host.CreateHttpsClient();
+        using var discardedCookieJar = host.CreateHttpsClient();
+
+        using var first = await firstJar.GetAsync(new Uri("/editor", UriKind.Relative));
+        var callerCookie = SetCookies(first).Single(IsAnonymousCallerCookie)
+            .Split(';', StringSplitOptions.TrimEntries)[0];
+        using var existingIdentityRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            new Uri("/editor", UriKind.Relative));
+        existingIdentityRequest.Headers.Add("Cookie", callerCookie);
+        using var existingIdentity = await firstJar.SendAsync(existingIdentityRequest);
+        using var second = await secondJar.GetAsync(new Uri("/editor", UriKind.Relative));
+        using var authenticatedRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            new Uri("/editor", UriKind.Relative));
+        authenticatedRequest.Headers.Add(
+            AuthenticatedRequestStartupFilter.HeaderName,
+            "true");
+        using var authenticated = await discardedCookieJar.SendAsync(authenticatedRequest);
+        using var rejected = await discardedCookieJar.GetAsync(
+            new Uri("/editor", UriKind.Relative));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(first.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(existingIdentity.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(second.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(authenticated.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(SetCookies(first).Count(IsAnonymousCallerCookie))
+                .IsEqualTo(1);
+            await Assert.That(SetCookies(existingIdentity).Any(IsAnonymousCallerCookie))
+                .IsFalse();
+            await Assert.That(SetCookies(second).Count(IsAnonymousCallerCookie))
+                .IsEqualTo(1);
+            await Assert.That(SetCookies(authenticated).Any(IsAnonymousCallerCookie))
+                .IsFalse();
+            await Assert.That(SetCookies(rejected).Any(IsAnonymousCallerCookie))
+                .IsFalse();
+            await Assert.That(rejected.Headers.CacheControl?.Private).IsTrue();
+            await Assert.That(rejected.Headers.CacheControl?.NoStore).IsTrue();
+        }
+
+        await WebTestHttp.AssertProblemDetailsAsync(
+            rejected,
+            HttpStatusCode.TooManyRequests,
+            "anonymous_workspace_ingress_exceeded");
+        var retryAfter = rejected.Headers.RetryAfter?.Delta;
+        await Assert.That(retryAfter).IsNotNull();
+        await Assert.That(retryAfter.GetValueOrDefault())
+            .IsGreaterThan(TimeSpan.Zero);
     }
 
     [Test]
@@ -303,6 +372,10 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
             : [];
     }
 
+    private static bool IsAnonymousCallerCookie(string value) => value.StartsWith(
+        $"{AnonymousWorkspaceCallerMiddleware.CookieName}=",
+        StringComparison.Ordinal);
+
     private static async Task<HttpResponseMessage> PostInvalidIdentityFormAsync(
         HttpClient client,
         string path,
@@ -410,6 +483,30 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         public Task<string?> Extensions => extensions.Task;
 
         public void Capture(string? value) => extensions.TrySetResult(value);
+    }
+
+    private sealed class AuthenticatedRequestStartupFilter : IStartupFilter
+    {
+        public const string HeaderName = "X-LogicLab-Test-Authenticated";
+
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
+        {
+            return app =>
+            {
+                app.Use(async (context, nextMiddleware) =>
+                {
+                    if (context.Request.Headers.ContainsKey(HeaderName))
+                    {
+                        context.User = new ClaimsPrincipal(new ClaimsIdentity(
+                            [new Claim(ClaimTypes.NameIdentifier, "test-subject")],
+                            authenticationType: "test"));
+                    }
+
+                    await nextMiddleware();
+                });
+                next(app);
+            };
+        }
     }
 
     private sealed class HandshakeCaptureStartupFilter(WebSocketHandshakeCapture capture)

@@ -184,6 +184,15 @@ internal sealed partial class EditorWorkspace
                 return WorkspaceOutcomeReasons.WorkspaceAdmissionRejected;
             }
 
+            if (IsAnonymous(caller)
+                && anonymousWorkspaceCount >= workspacePolicy.AnonymousWorkspaceLimit)
+            {
+                policyEvidence = WorkspacePolicyEvidence(
+                    "anonymous_workspace_count_global",
+                    (ulong)anonymousWorkspaceCount + 1);
+                return WorkspaceOutcomeReasons.WorkspaceAdmissionRejected;
+            }
+
             _ = workspaceCountsByCaller.TryGetValue(caller, out var subjectCount);
             if (subjectCount >= workspacePolicy.WorkspaceCountPerSubject)
             {
@@ -194,7 +203,7 @@ internal sealed partial class EditorWorkspace
             }
 
             workspaceReservations++;
-            workspaceCountsByCaller[caller] = subjectCount + 1;
+            IncrementWorkspaceCountUnderLock(caller, subjectCount);
             return null;
         }
     }
@@ -273,6 +282,15 @@ internal sealed partial class EditorWorkspace
             }
 
             _ = workspaceCountsByCaller.TryGetValue(targetCaller, out var subjectCount);
+            if (IsAnonymous(targetCaller)
+                && anonymousWorkspaceCount >= workspacePolicy.AnonymousWorkspaceLimit)
+            {
+                policyEvidence = WorkspacePolicyEvidence(
+                    "anonymous_workspace_count_global",
+                    (ulong)anonymousWorkspaceCount + 1);
+                return false;
+            }
+
             if (subjectCount >= workspacePolicy.WorkspaceCountPerSubject)
             {
                 policyEvidence = WorkspacePolicyEvidence(
@@ -281,7 +299,7 @@ internal sealed partial class EditorWorkspace
                 return false;
             }
 
-            workspaceCountsByCaller[targetCaller] = subjectCount + 1;
+            IncrementWorkspaceCountUnderLock(targetCaller, subjectCount);
             state.PendingAdmissionCaller = targetCaller;
             return true;
         }
@@ -318,6 +336,11 @@ internal sealed partial class EditorWorkspace
 
     private void DecrementWorkspaceCountUnderLock(WorkspaceCaller caller)
     {
+        if (IsAnonymous(caller))
+        {
+            anonymousWorkspaceCount--;
+        }
+
         var remaining = workspaceCountsByCaller[caller] - 1;
         if (remaining == 0)
         {
@@ -328,6 +351,20 @@ internal sealed partial class EditorWorkspace
             workspaceCountsByCaller[caller] = remaining;
         }
     }
+
+    private void IncrementWorkspaceCountUnderLock(
+        WorkspaceCaller caller,
+        int currentCallerCount)
+    {
+        workspaceCountsByCaller[caller] = currentCallerCount + 1;
+        if (IsAnonymous(caller))
+        {
+            anonymousWorkspaceCount++;
+        }
+    }
+
+    private static bool IsAnonymous(WorkspaceCaller caller) =>
+        caller is not AuthenticatedWorkspaceCaller;
 
     private PolicyEvidenceProjection WorkspacePolicyEvidence(
         string dimension,

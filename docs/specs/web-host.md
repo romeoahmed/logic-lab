@@ -105,6 +105,16 @@ Protection-protected `__Host-` session cookie marked Secure, HttpOnly, and
 SameSite=Lax. The same typed identity crosses the Interactive Server circuit and
 the separate download request; different anonymous browsers never share export
 authority, and an authenticated principal without a stable subject fails closed.
+Issuing a new anonymous identity is guarded before the Cookie is written by one
+process-wide fixed window with no attacker-selected partition and no queue. Existing
+valid anonymous identities and authenticated callers do not consume issuance permits.
+The initial provisional policy issues at most eight new identities per minute; exhaustion
+returns `429 anonymous_workspace_ingress_exceeded`, includes an honest `Retry-After`,
+and writes no identity Cookie. A separate Workspace Policy anonymous-global bound
+preserves authenticated capacity after ingress, so this host control is not asked to
+turn a resettable Cookie or client address into durable identity. This avoids the
+user-input partition cardinality risk called out by Microsoft's
+[rate-limiting guidance](https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit?view=aspnetcore-10.0#testing-endpoints-with-rate-limiting).
 The protected value follows ASP.NET Core's
 [`IDataProtector` consumer pattern](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/consumer-apis/overview?view=aspnetcore-10.0),
 and the browser restrictions use the documented
@@ -168,6 +178,7 @@ Activities span authenticated route handling, Workspace calls, repository operat
 - WebSocket hosting verification plus an explicit test that the editor's WebSocket compression is disabled;
 - `en-US`/`zh-CN`, cookie, reload, `lang`, direction, resource-key parity, long-label, and bidirectional-content scenarios;
 - authentication, authorization concealment, antiforgery, local-return-URL, CSP, upload, download, rate, and Problem Details tests;
+- multi-client anonymous identity issuance tests that deliberately omit or discard the caller Cookie and prove rejection occurs before another identity is written;
 - short-lived `DbContext`, application-managed Durable Version conflict mapping, reviewed migration/abandoned-lock recovery, migration-before-readiness, and process-shutdown integration tests;
 - liveness/readiness redaction and dependency-failure tests; and
 - browser/load traces on the versioned corpus before any circuit, buffer, timeout, or rate value becomes an acceptance threshold.

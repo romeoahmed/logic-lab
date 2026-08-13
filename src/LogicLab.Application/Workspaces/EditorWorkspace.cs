@@ -32,6 +32,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private readonly ILogger<EditorWorkspace> logger;
     private int activeProjectExportPreparations;
     private int workspaceReservations;
+    private int anonymousWorkspaceCount;
     private int activeOperations;
     private TaskCompletionSource? operationsDrained;
     private Task? disposalTask;

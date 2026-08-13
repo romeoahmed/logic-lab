@@ -110,6 +110,7 @@ public sealed record WorkspacePolicy
         string policyId,
         string policyRevision,
         int globalWorkspaceLimit,
+        int anonymousWorkspaceLimit,
         int workspaceCountPerSubject,
         TimeSpan sandboxRetention,
         WorkspaceAuthoringLimits authoringLimits,
@@ -140,6 +141,14 @@ public sealed record WorkspacePolicy
         }
 
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(globalWorkspaceLimit);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(anonymousWorkspaceLimit);
+        if (anonymousWorkspaceLimit > globalWorkspaceLimit)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(anonymousWorkspaceLimit),
+                "The anonymous Workspace limit cannot exceed the global limit.");
+        }
+
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(workspaceCountPerSubject);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
             sandboxRetention,
@@ -154,6 +163,7 @@ public sealed record WorkspacePolicy
         PolicyId = policyId;
         PolicyRevision = policyRevision;
         GlobalWorkspaceLimit = globalWorkspaceLimit;
+        AnonymousWorkspaceLimit = anonymousWorkspaceLimit;
         WorkspaceCountPerSubject = workspaceCountPerSubject;
         SandboxRetention = sandboxRetention;
         AuthoringLimits = authoringLimits;
@@ -170,6 +180,8 @@ public sealed record WorkspacePolicy
     public string PolicyRevision { get; }
 
     public int GlobalWorkspaceLimit { get; }
+
+    public int AnonymousWorkspaceLimit { get; }
 
     public int WorkspaceCountPerSubject { get; }
 
@@ -191,8 +203,9 @@ public sealed record WorkspacePolicy
 
     public static WorkspacePolicy Default { get; } = new(
         policyId: "workbench-workspace",
-        policyRevision: "1",
+        policyRevision: "2",
         globalWorkspaceLimit: 128,
+        anonymousWorkspaceLimit: 64,
         workspaceCountPerSubject: 8,
         sandboxRetention: TimeSpan.FromMinutes(30),
         authoringLimits: WorkspaceAuthoringLimits.Default,

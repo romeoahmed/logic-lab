@@ -74,6 +74,7 @@ internal sealed class WorkspaceContractTests
                 "valid",
                 "1",
                 globalWorkspaceLimit: 1,
+                anonymousWorkspaceLimit: 1,
                 workspaceCountPerSubject: 1,
                 sandboxRetention: TimeSpan.FromMinutes(1),
                 authoringLimits: null!,
@@ -84,6 +85,29 @@ internal sealed class WorkspaceContractTests
                 durableDisplayNameLimits: DurableDisplayNameLimits.Default,
                 durableProjectCatalogLimits: DurableProjectCatalogLimits.Default))
             .ThrowsExactly<ArgumentNullException>();
+    }
+
+    [Test]
+    [Arguments(0)]
+    [Arguments(2)]
+    public async Task WorkspacePolicy_InvalidAnonymousLimit_ThrowsArgumentOutOfRangeException(
+        int anonymousWorkspaceLimit)
+    {
+        await Assert.That(() => new WorkspacePolicy(
+                "valid",
+                "1",
+                globalWorkspaceLimit: 1,
+                anonymousWorkspaceLimit,
+                workspaceCountPerSubject: 1,
+                sandboxRetention: TimeSpan.FromMinutes(1),
+                authoringLimits: WorkspaceAuthoringLimits.Default,
+                historyRevisionCount: 1,
+                idempotencyRecordCount: 1,
+                detachedRetention: TimeSpan.FromMinutes(1),
+                hotSwapPeakBytes: 1,
+                durableDisplayNameLimits: DurableDisplayNameLimits.Default,
+                durableProjectCatalogLimits: DurableProjectCatalogLimits.Default))
+            .ThrowsExactly<ArgumentOutOfRangeException>();
     }
 
     [Test]
@@ -192,6 +216,7 @@ internal sealed class WorkspaceContractTests
             policyId,
             policyRevision,
             globalWorkspaceLimit: 1,
+            anonymousWorkspaceLimit: 1,
             workspaceCountPerSubject: 1,
             sandboxRetention: TimeSpan.FromMinutes(1),
             authoringLimits: WorkspaceAuthoringLimits.Default,

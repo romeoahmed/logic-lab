@@ -291,6 +291,7 @@ internal sealed class ImportProjectWorkspaceTests
             "import-tests",
             "1",
             workspaceLimit,
+            anonymousWorkspaceLimit: workspaceLimit,
             workspaceCountPerSubject: workspaceLimit,
             sandboxRetention: TimeSpan.FromMinutes(1),
             authoringLimits: authoringLimits ?? WorkspaceAuthoringLimits.Default,

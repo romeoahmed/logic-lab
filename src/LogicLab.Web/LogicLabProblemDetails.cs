@@ -20,6 +20,8 @@ internal static class LogicLabProblemDetails
         WorkspaceOutcomeReasons.AuthenticationRequired;
     internal const string AuthenticationRateLimitExceededCode =
         "authentication_rate_limit_exceeded";
+    internal const string AnonymousWorkspaceIngressExceededCode =
+        "anonymous_workspace_ingress_exceeded";
     internal const string AuthenticationRevocationFailedCode =
         "authentication_revocation_failed";
     internal const string AntiforgeryValidationFailedCode =
@@ -133,6 +135,9 @@ internal static class LogicLabProblemDetails
             AuthenticationRateLimitExceededCode => (
                 StatusCodes.Status429TooManyRequests,
                 "Too many authentication requests"),
+            AnonymousWorkspaceIngressExceededCode => (
+                StatusCodes.Status429TooManyRequests,
+                "Anonymous Workspace admission is temporarily unavailable"),
             AuthenticationRevocationFailedCode => (
                 StatusCodes.Status503ServiceUnavailable,
                 "The authentication session could not be revoked"),

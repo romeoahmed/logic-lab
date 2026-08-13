@@ -163,6 +163,7 @@ internal sealed class EditorWorkspaceAdmissionTests
                 policyId: "test-workspace",
                 policyRevision: "1",
                 globalWorkspaceLimit: 128,
+                anonymousWorkspaceLimit: 128,
                 workspaceCountPerSubject: 128,
                 sandboxRetention: TimeSpan.FromMinutes(30),
                 authoringLimits: limits,

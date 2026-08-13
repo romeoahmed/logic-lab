@@ -17,6 +17,7 @@ internal sealed partial class DurableWorkspaceTests
         await using var workspace = CreateWorkspace(
             repository,
             globalWorkspaceLimit: 3,
+            anonymousWorkspaceLimit: 1,
             workspaceCountPerSubject: 1);
         var (opened, attached) = await OpenAttached(workspace);
 
@@ -50,6 +51,7 @@ internal sealed partial class DurableWorkspaceTests
         await using var workspace = CreateWorkspace(
             repository,
             globalWorkspaceLimit: 2,
+            anonymousWorkspaceLimit: 1,
             workspaceCountPerSubject: 1);
         _ = await workspace.OpenAsync(
             new CreateSandbox("Owned project", "Main", AuthenticatedCaller),
@@ -85,20 +87,32 @@ internal sealed partial class DurableWorkspaceTests
         await using var workspace = CreateWorkspace(
             repository,
             globalWorkspaceLimit: 2,
+            anonymousWorkspaceLimit: 1,
             workspaceCountPerSubject: 1);
         var (opened, attached) = await OpenAttached(workspace);
 
         var outcome = await Claim(workspace, opened, attached, "Failed claim");
+        var rejectedForAnonymous = await workspace.OpenAsync(
+            new CreateSandbox(
+                "Another anonymous project",
+                "Main",
+                new AnonymousBrowserWorkspaceCaller(
+                    new AnonymousBrowserId(new string('c', 64)))),
+            CancellationToken.None);
         var replacement = await workspace.OpenAsync(
             new CreateSandbox("Replacement", "Main", AuthenticatedCaller),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome)
             .IsTypeOf<WorkspaceCommandRejected>())!;
+        var anonymousRejection = (await Assert.That(rejectedForAnonymous)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Code)
                 .IsEqualTo("workspace_infrastructure_failure");
+            await Assert.That(anonymousRejection.PolicyEvidence?.Dimension)
+                .IsEqualTo("anonymous_workspace_count_global");
             await Assert.That(replacement).IsTypeOf<WorkspaceOpened>();
             await Assert.That(repository.ClaimCallCount).IsEqualTo(1);
         }
@@ -121,6 +135,7 @@ internal sealed partial class DurableWorkspaceTests
         await using var workspace = CreateWorkspace(
             repository,
             globalWorkspaceLimit: 2,
+            anonymousWorkspaceLimit: 1,
             workspaceCountPerSubject: 1,
             timeProvider: timeProvider,
             sandboxRetention: TimeSpan.FromMinutes(1));
@@ -129,6 +144,13 @@ internal sealed partial class DurableWorkspaceTests
         var claim = await Claim(workspace, opened, attached, "Uncertain claim");
         var blockedByPendingReservation = await workspace.OpenAsync(
             new CreateSandbox("Blocked", "Main", AuthenticatedCaller),
+            CancellationToken.None);
+        var anonymousBlockedWhilePending = await workspace.OpenAsync(
+            new CreateSandbox(
+                "Anonymous blocked while pending",
+                "Main",
+                new AnonymousBrowserWorkspaceCaller(
+                    new AnonymousBrowserId(new string('d', 64)))),
             CancellationToken.None);
         WorkspaceCommandOutcome? close = null;
         if (expireInsteadOfClose)
@@ -159,12 +181,17 @@ internal sealed partial class DurableWorkspaceTests
             .IsTypeOf<WorkspaceCommandRejected>())!;
         var capacityRejected = (await Assert.That(blockedByPendingReservation)
             .IsTypeOf<WorkspaceOpenRejected>())!;
+        var anonymousCapacityRejected = (await Assert.That(
+                anonymousBlockedWhilePending)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
         using (Assert.Multiple())
         {
             await Assert.That(claimRejected.Code)
                 .IsEqualTo("idempotency_window_expired");
             await Assert.That(capacityRejected.PolicyEvidence?.Dimension)
                 .IsEqualTo("workspace_count_per_subject");
+            await Assert.That(anonymousCapacityRejected.PolicyEvidence?.Dimension)
+                .IsEqualTo("anonymous_workspace_count_global");
             if (close is not null)
             {
                 await Assert.That(close).IsTypeOf<WorkspaceClosed>();
@@ -1021,6 +1048,7 @@ internal sealed partial class DurableWorkspaceTests
         IDurableProjectRepository repository,
         DurableDisplayNameLimits? displayNameLimits = null,
         int? globalWorkspaceLimit = null,
+        int? anonymousWorkspaceLimit = null,
         int? workspaceCountPerSubject = null,
         TimeProvider? timeProvider = null,
         TimeSpan? sandboxRetention = null)
@@ -1029,6 +1057,7 @@ internal sealed partial class DurableWorkspaceTests
             buildFingerprint: BuildFingerprint,
             workspacePolicy: displayNameLimits is null
                 && globalWorkspaceLimit is null
+                && anonymousWorkspaceLimit is null
                 && workspaceCountPerSubject is null
                 && sandboxRetention is null
                 ? null
@@ -1036,6 +1065,8 @@ internal sealed partial class DurableWorkspaceTests
                     policyId: "durable-tests",
                     policyRevision: "1",
                     globalWorkspaceLimit: globalWorkspaceLimit ?? 16,
+                    anonymousWorkspaceLimit:
+                        anonymousWorkspaceLimit ?? globalWorkspaceLimit ?? 16,
                     workspaceCountPerSubject:
                         workspaceCountPerSubject ?? globalWorkspaceLimit ?? 16,
                     sandboxRetention: sandboxRetention ?? TimeSpan.FromHours(1),
