@@ -103,7 +103,11 @@ public sealed record CompilationPolicyReference(
 
 public sealed record ObservedProjectScaleDimension(
     ProjectScaleDimension Dimension,
-    ulong Observed);
+    ulong Observed)
+{
+    public string DimensionToken { get; } =
+        ProjectScaleDimensionVocabulary.Token(Dimension);
+}
 
 public sealed class CompilationEvidence
 {
@@ -223,5 +227,21 @@ internal static class PolicyIdentity
                 $"The {policyName} Policy revision must be a Stable Token.",
                 nameof(policyRevision));
         }
+    }
+}
+
+internal static class ProjectScaleDimensionVocabulary
+{
+    public static string Token(ProjectScaleDimension dimension)
+    {
+        return dimension switch
+        {
+            ProjectScaleDimension.DefinitionCount => "definition_count",
+            ProjectScaleDimension.EntityCount => "entity_count",
+            ProjectScaleDimension.HierarchyDepth => "hierarchy_depth",
+            ProjectScaleDimension.ElaboratedSlotCount => "elaborated_slot_count",
+            ProjectScaleDimension.MemoryCellCount => "memory_cell_count",
+            _ => throw new ArgumentOutOfRangeException(nameof(dimension)),
+        };
     }
 }

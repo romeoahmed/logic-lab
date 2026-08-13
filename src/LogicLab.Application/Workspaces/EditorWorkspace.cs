@@ -15,6 +15,7 @@ namespace LogicLab.Application.Workspaces;
 internal sealed partial class EditorWorkspace : IEditorWorkspace
 {
     private readonly Lock gate = new();
+    private readonly Lock operationAdmissionGate = new();
     private readonly Lock projectExportPreparationAdmissionGate = new();
     private readonly Dictionary<WorkspaceId, WorkspaceState> workspaces = [];
     private readonly Dictionary<WorkspaceCaller, int> workspaceCountsByCaller = [];
@@ -31,6 +32,10 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     private readonly ILogger<EditorWorkspace> logger;
     private int activeProjectExportPreparations;
     private int workspaceReservations;
+    private int activeOperations;
+    private TaskCompletionSource? operationsDrained;
+    private Task? disposalTask;
+    private bool operationAdmissionClosed;
     private bool isDisposed;
 
     public EditorWorkspace(
@@ -76,11 +81,24 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         this.logger = logger;
     }
 
-    public Task<WorkspaceOpenOutcome> OpenAsync(
+    public async Task<WorkspaceOpenOutcome> OpenAsync(
         OpenWorkspaceRequest request,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        using var operation = TryEnterOperation();
+        if (operation is null)
+        {
+            return RejectOpen(WorkspaceOutcomeReasons.WorkspaceCancelled);
+        }
+
+        return await OpenCoreAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    private Task<WorkspaceOpenOutcome> OpenCoreAsync(
+        OpenWorkspaceRequest request,
+        CancellationToken cancellationToken)
+    {
         if (cancellationToken.IsCancellationRequested)
         {
             return Task.FromResult<WorkspaceOpenOutcome>(
@@ -176,6 +194,12 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+        using var operation = TryEnterOperation();
+        if (operation is null)
+        {
+            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
+        }
+
         if (cancellationToken.IsCancellationRequested)
         {
             return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
@@ -239,6 +263,12 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(query);
+        using var operation = TryEnterOperation();
+        if (operation is null)
+        {
+            return RejectRead(WorkspaceOutcomeReasons.WorkspaceCancelled);
+        }
+
         if (cancellationToken.IsCancellationRequested)
         {
             return RejectRead(WorkspaceOutcomeReasons.WorkspaceCancelled);
@@ -951,22 +981,10 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace
             return null;
         }
 
-        var dimension = breach.Dimension switch
-        {
-            ProjectScaleDimension.DefinitionCount => "definition_count",
-            ProjectScaleDimension.EntityCount => "entity_count",
-            ProjectScaleDimension.HierarchyDepth => "hierarchy_depth",
-            ProjectScaleDimension.ElaboratedSlotCount => "elaborated_slot_count",
-            ProjectScaleDimension.MemoryCellCount => "memory_cell_count",
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(evidence),
-                breach.Dimension,
-                "The Project Scale dimension is undefined."),
-        };
         return new PolicyEvidenceProjection(
             evidence.Policy.PolicyId,
             evidence.Policy.PolicyRevision,
-            dimension,
+            breach.DimensionToken,
             breach.Observed);
     }
 

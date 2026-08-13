@@ -13,7 +13,9 @@ internal static class TestEditorWorkspaceFactory
             "test-scheduling",
             "1",
             [
+                new(SchedulingDimension.AdmissionRequestsGlobal, 100_000),
                 new(SchedulingDimension.AdmissionRequestsPerSubject, 10_000),
+                new(SchedulingDimension.AdmissionPartitionCount, 10_000),
                 new(SchedulingDimension.AdmissionWindowMilliseconds, 1_000),
                 new(SchedulingDimension.CompilationQueueItems, compilationQueueItems),
                 new(SchedulingDimension.SessionQueueItems, sessionQueueItems),

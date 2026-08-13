@@ -44,6 +44,187 @@ internal sealed partial class DurableWorkspaceTests
     }
 
     [Test]
+    public async Task DispatchAsync_ClaimTargetAtCapacity_RejectsBeforeRepository()
+    {
+        var repository = new RecordingDurableProjectRepository();
+        await using var workspace = CreateWorkspace(
+            repository,
+            globalWorkspaceLimit: 2,
+            workspaceCountPerSubject: 1);
+        _ = await workspace.OpenAsync(
+            new CreateSandbox("Owned project", "Main", AuthenticatedCaller),
+            CancellationToken.None);
+        var (opened, attached) = await OpenAttached(workspace);
+
+        var outcome = await Claim(workspace, opened, attached, "Capacity rejected");
+
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code)
+                .IsEqualTo("workspace_admission_rejected");
+            await Assert.That(rejected.PolicyEvidence)
+                .IsEqualTo(new PolicyEvidenceProjection(
+                    "durable-tests",
+                    "1",
+                    "workspace_count_per_subject",
+                    2));
+            await Assert.That(repository.ClaimCallCount).IsEqualTo(0);
+        }
+    }
+
+    [Test]
+    public async Task DispatchAsync_DefiniteClaimFailure_ReleasesTargetCapacity()
+    {
+        var repository = new RecordingDurableProjectRepository
+        {
+            ClaimPreCommitFailure = static _ =>
+                new IOException("Durable persistence failed."),
+        };
+        await using var workspace = CreateWorkspace(
+            repository,
+            globalWorkspaceLimit: 2,
+            workspaceCountPerSubject: 1);
+        var (opened, attached) = await OpenAttached(workspace);
+
+        var outcome = await Claim(workspace, opened, attached, "Failed claim");
+        var replacement = await workspace.OpenAsync(
+            new CreateSandbox("Replacement", "Main", AuthenticatedCaller),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code)
+                .IsEqualTo("workspace_infrastructure_failure");
+            await Assert.That(replacement).IsTypeOf<WorkspaceOpened>();
+            await Assert.That(repository.ClaimCallCount).IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task DispatchAsync_UncertainClaimCleanup_ReleasesLiveAndPendingCapacity(
+        bool expireInsteadOfClose)
+    {
+        var repository = new RecordingDurableProjectRepository
+        {
+            ClaimPostCommitFailure = static _ =>
+                new IOException("Commit acknowledgement failed."),
+            ReceiptReadFailure = new IOException("Receipt verification failed."),
+        };
+        var timeProvider = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 13, 0, 0, 0, TimeSpan.Zero));
+        await using var workspace = CreateWorkspace(
+            repository,
+            globalWorkspaceLimit: 2,
+            workspaceCountPerSubject: 1,
+            timeProvider: timeProvider,
+            sandboxRetention: TimeSpan.FromMinutes(1));
+        var (opened, attached) = await OpenAttached(workspace);
+
+        var claim = await Claim(workspace, opened, attached, "Uncertain claim");
+        var blockedByPendingReservation = await workspace.OpenAsync(
+            new CreateSandbox("Blocked", "Main", AuthenticatedCaller),
+            CancellationToken.None);
+        WorkspaceCommandOutcome? close = null;
+        if (expireInsteadOfClose)
+        {
+            timeProvider.AdvanceTimestamp(TimeSpan.FromMinutes(1));
+        }
+        else
+        {
+            close = await workspace.DispatchAsync(
+                new CloseWorkspace(Command(
+                    opened,
+                    attached,
+                    AuthenticatedCaller)),
+                CancellationToken.None);
+        }
+
+        var authenticatedReplacement = await workspace.OpenAsync(
+            new CreateSandbox("Authenticated", "Main", AuthenticatedCaller),
+            CancellationToken.None);
+        var anonymousReplacement = await workspace.OpenAsync(
+            new CreateSandbox(
+                "Anonymous",
+                "Main",
+                AnonymousWorkspaceCaller.Instance),
+            CancellationToken.None);
+
+        var claimRejected = (await Assert.That(claim)
+            .IsTypeOf<WorkspaceCommandRejected>())!;
+        var capacityRejected = (await Assert.That(blockedByPendingReservation)
+            .IsTypeOf<WorkspaceOpenRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(claimRejected.Code)
+                .IsEqualTo("idempotency_window_expired");
+            await Assert.That(capacityRejected.PolicyEvidence?.Dimension)
+                .IsEqualTo("workspace_count_per_subject");
+            if (close is not null)
+            {
+                await Assert.That(close).IsTypeOf<WorkspaceClosed>();
+            }
+
+            await Assert.That(authenticatedReplacement).IsTypeOf<WorkspaceOpened>();
+            await Assert.That(anonymousReplacement).IsTypeOf<WorkspaceOpened>();
+            await Assert.That(repository.ClaimCallCount).IsEqualTo(1);
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task DisposeAsync_InFlightRepositoryOperation_DrainsOnce(
+        CancellationToken cancellationToken)
+    {
+        var claimRelease = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var repository = new RecordingDurableProjectRepository
+        {
+            ClaimRelease = claimRelease,
+        };
+        var workspace = CreateWorkspace(repository);
+        try
+        {
+            var (opened, attached) = await OpenAttached(workspace);
+            var claim = Claim(workspace, opened, attached, "Disposal drain");
+            await repository.ClaimStarted.Task.WaitAsync(cancellationToken);
+
+            var firstDisposal = workspace.DisposeAsync().AsTask();
+            var secondDisposal = workspace.DisposeAsync().AsTask();
+            var rejectedDuringDisposal = await workspace.OpenAsync(
+                new CreateSandbox(
+                    "Rejected during disposal",
+                    "Main",
+                    AnonymousWorkspaceCaller.Instance),
+                CancellationToken.None);
+
+            var openRejected = (await Assert.That(rejectedDuringDisposal)
+                .IsTypeOf<WorkspaceOpenRejected>())!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(firstDisposal.IsCompleted).IsFalse();
+                await Assert.That(ReferenceEquals(firstDisposal, secondDisposal)).IsTrue();
+                await Assert.That(openRejected.Code).IsEqualTo("workspace_cancelled");
+            }
+
+            claimRelease.TrySetResult(true);
+            await Assert.That(await claim.WaitAsync(cancellationToken))
+                .IsTypeOf<DurableProjectClaimed>();
+            await Task.WhenAll(firstDisposal, secondDisposal)
+                .WaitAsync(cancellationToken);
+        }
+        finally
+        {
+            claimRelease.TrySetResult(true);
+            await workspace.DisposeAsync();
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_AnonymousClaim_RejectsBeforeWorkspaceLookupAndRepository()
     {
         var repository = new RecordingDurableProjectRepository();

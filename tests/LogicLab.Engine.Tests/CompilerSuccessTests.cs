@@ -48,6 +48,17 @@ internal sealed class CompilerSuccessTests
                         ProjectScaleDimension.MemoryCellCount,
                     ],
                     CollectionOrdering.Matching);
+            await Assert.That(succeeded.Evidence.ObservedDimensions.Select(
+                    row => row.DimensionToken))
+                .IsEquivalentTo(
+                    [
+                        "definition_count",
+                        "elaborated_slot_count",
+                        "entity_count",
+                        "hierarchy_depth",
+                        "memory_cell_count",
+                    ],
+                    CollectionOrdering.Matching);
             await Assert.That(succeeded.Evidence.ObservedDimensions.Select(row => row.Observed))
                 .IsEquivalentTo(
                     [1UL, 9UL, 5UL, 1UL, 0UL],

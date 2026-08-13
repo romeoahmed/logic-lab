@@ -8,27 +8,101 @@ namespace LogicLab.Application.Workspaces;
 
 internal sealed partial class EditorWorkspace
 {
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        WorkspaceState[] retired;
-        lock (gate)
+        Task completion;
+        Task? drainToRun = null;
+        TaskCompletionSource? completionToRun = null;
+        lock (operationAdmissionGate)
         {
-            if (isDisposed)
+            if (disposalTask is null)
             {
-                return;
+                operationAdmissionClosed = true;
+                drainToRun = activeOperations == 0
+                    ? Task.CompletedTask
+                    : (operationsDrained ??= new TaskCompletionSource(
+                        TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+                completionToRun = new TaskCompletionSource(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                disposalTask = completionToRun.Task;
             }
 
-            isDisposed = true;
-            retired = [.. workspaces.Values];
-            workspaces.Clear();
-            foreach (var state in retired)
+            completion = disposalTask;
+        }
+
+        if (completionToRun is not null)
+        {
+            _ = CompleteDisposalAsync(drainToRun!, completionToRun);
+        }
+
+        return new ValueTask(completion);
+    }
+
+    private async Task CompleteDisposalAsync(
+        Task operationDrain,
+        TaskCompletionSource completion)
+    {
+        try
+        {
+            lock (gate)
             {
-                state.IsRetired = true;
+                isDisposed = true;
+            }
+
+            var laneDrain = workCoordinator.DisposeAsync().AsTask();
+            await Task.WhenAll(operationDrain, laneDrain).ConfigureAwait(false);
+
+            WorkspaceState[] retired;
+            lock (gate)
+            {
+                retired = [.. workspaces.Values];
+                workspaces.Clear();
+                foreach (var state in retired)
+                {
+                    state.IsRetired = true;
+                }
+            }
+
+            RetireAll(retired);
+            completion.TrySetResult();
+        }
+        catch (OperationCanceledException exception)
+        {
+            completion.TrySetCanceled(exception.CancellationToken);
+        }
+        catch (Exception exception)
+        {
+            completion.TrySetException(exception);
+        }
+    }
+
+    private WorkspaceOperationLease? TryEnterOperation()
+    {
+        lock (operationAdmissionGate)
+        {
+            if (operationAdmissionClosed)
+            {
+                return null;
+            }
+
+            activeOperations++;
+            return new WorkspaceOperationLease(ExitOperation);
+        }
+    }
+
+    private void ExitOperation()
+    {
+        TaskCompletionSource? drained = null;
+        lock (operationAdmissionGate)
+        {
+            activeOperations--;
+            if (operationAdmissionClosed && activeOperations == 0)
+            {
+                drained = operationsDrained;
             }
         }
 
-        await workCoordinator.DisposeAsync().ConfigureAwait(false);
-        RetireAll(retired);
+        drained?.TrySetResult();
     }
 
     private WorkspaceCommandOutcome Close(
@@ -628,5 +702,15 @@ internal sealed partial class EditorWorkspace
 
         public static WorkspaceAcquisition Rejected(string reason)
             => new(null, null, reason);
+    }
+
+    private sealed class WorkspaceOperationLease(Action release) : IDisposable
+    {
+        private Action? releaseReference = release;
+
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref releaseReference, null)?.Invoke();
+        }
     }
 }

@@ -314,7 +314,7 @@ public static partial class Compiler
                     new CompilerStableTokenValue(request.Policy.PolicyRevision)),
                 new CompilerDiagnosticArgument(
                     "dimension",
-                    new CompilerStableTokenValue(DimensionToken(dimension))),
+                    new CompilerStableTokenValue(breach.DimensionToken)),
                 new CompilerDiagnosticArgument(
                     "observed",
                     new CompilerUnsignedDecimalValue(observed)),
@@ -1308,24 +1308,10 @@ public static partial class Compiler
                 request.Policy.PolicyRevision),
             [.. observations
                 .OrderBy(
-                    row => DimensionToken(row.Key),
+                    row => ProjectScaleDimensionVocabulary.Token(row.Key),
                     StringComparer.Ordinal)
                 .Select(row => new ObservedProjectScaleDimension(row.Key, row.Value))],
             breach);
-    }
-
-    private static string DimensionToken(ProjectScaleDimension dimension)
-    {
-        return dimension switch
-        {
-            ProjectScaleDimension.DefinitionCount => "definition_count",
-            ProjectScaleDimension.EntityCount => "entity_count",
-            ProjectScaleDimension.HierarchyDepth => "hierarchy_depth",
-            ProjectScaleDimension.ElaboratedSlotCount => "elaborated_slot_count",
-            ProjectScaleDimension.MemoryCellCount => "memory_cell_count",
-            _ => throw new InvalidOperationException(
-                "The Project Scale Dimension variant is undefined."),
-        };
     }
 
     private static bool HasHierarchy(ProjectDocument document)
