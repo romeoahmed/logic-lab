@@ -380,7 +380,7 @@ internal static class BasicGateGeometryBuilder
         int inputY) => recipe switch
         {
             BasicOutlineRecipe.Or => CubicXAtY(OrInputCurve(body), inputY),
-            BasicOutlineRecipe.Xor => CubicXAtY(XorRearCurve(body), inputY),
+            BasicOutlineRecipe.Xor => CubicXAtY(OrInputCurve(body), inputY),
             _ => body.Left,
         };
 
