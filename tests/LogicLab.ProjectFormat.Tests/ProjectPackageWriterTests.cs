@@ -469,7 +469,7 @@ internal sealed class ProjectPackageWriterTests
     private static ProjectRevision Commit(EditOutcome outcome) =>
         ((EditCommitted)outcome).Revision;
 
-    private static ProjectRevision CreateFullyPopulatedRevision()
+    internal static ProjectRevision CreateFullyPopulatedRevision()
     {
         var revision = BeginProject("Complete project", "Main");
         revision = Commit(ProjectEditor.Apply(

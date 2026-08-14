@@ -2,7 +2,9 @@ using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using FsCheck;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using TUnit.Assertions.Enums;
@@ -580,40 +582,6 @@ internal sealed class ProjectPackageReaderTests
     }
 
     [Test]
-    public async Task ReadAsync_TargetDiscriminatorAfterDataMember_AcceptsLegalMemberOrder()
-    {
-        var revision = BeginProject("Reordered discriminator", "Main");
-        revision = ((EditCommitted)ProjectEditor.Apply(
-            revision,
-            new PlaceComponentInstanceIntent(
-                revision.Document.EntryCircuitDefinitionId,
-                new LogicLab.Domain.Components.ComponentContractKey(
-                    LogicLab.Domain.Components.CoreLibrarySchema.LibraryId,
-                    "logic.not"),
-                [new ComponentParameterBinding(
-                    "width",
-                    new Unsigned32ParameterValue(1))],
-                new ComponentPlacement(new GridPoint(0, 0))))).Revision;
-        await using var carrier = await WriteAsync(revision);
-        var written = (PackageWriteSucceeded)carrier.Outcome;
-        var entries = ReadEntries(carrier.Stream);
-        entries["project.json"] = Encoding.UTF8.GetBytes(
-            Encoding.UTF8.GetString(entries["project.json"])
-                .Replace(
-                    "\"kind\":\"libraryContract\",\"libraryId\":\"logiclab.core\"",
-                    "\"libraryId\":\"logiclab.core\",\"kind\":\"libraryContract\"",
-                    StringComparison.Ordinal));
-        RefreshIntegrity(entries);
-        await using var reordered = WriteEntries(entries);
-
-        var outcome = await ReadAsync(reordered);
-
-        var succeeded = (await Assert.That(outcome).IsTypeOf<PackageReadSucceeded>())!;
-        await Assert.That(succeeded.ProjectContentDigest)
-            .IsEqualTo(written.ProjectContentDigest);
-    }
-
-    [Test]
     public async Task ReadAsync_EntityLimitBelowMinimalProject_RejectsProjectRoot()
     {
         var revision = BeginProject("Entity limit", "Main");
@@ -770,30 +738,51 @@ internal sealed class ProjectPackageReaderTests
         }
     }
 
-    [Test]
-    public async Task ReadAsync_NonCanonicalWhitespace_NormalizesProjectContentDigest()
+    [Test, FsCheckProperty(MaxTest = 30)]
+    public async Task ReadAsync_LegalJsonPermutations_ProduceIdenticalCanonicalBytes(
+        NonNegativeInt permutationSeed)
     {
-        var revision = BeginProject("Whitespace", "Main");
-        await using var carrier = await WriteAsync(revision);
-        var written = (PackageWriteSucceeded)carrier.Outcome;
-        var entries = ReadEntries(carrier.Stream);
-        entries["project.json"] = [
+        var revision = ProjectPackageWriterTests.CreateFullyPopulatedRevision();
+        await using var canonicalCarrier = await WriteAsync(revision);
+        var canonicalWrite = (PackageWriteSucceeded)canonicalCarrier.Outcome;
+        var canonicalEntries = ReadEntries(canonicalCarrier.Stream);
+        var project = JsonNode.Parse(canonicalEntries["project.json"])
+            ?? throw new InvalidOperationException("The writer produced empty project JSON.");
+        var permuted = PermuteJson(
+            project,
+            propertyName: null,
+            random: new Random(permutationSeed.Get));
+        canonicalEntries["project.json"] =
+        [
             .. " \n\t"u8,
-            .. entries["project.json"],
+            .. Encoding.UTF8.GetBytes(permuted.ToJsonString(new JsonSerializerOptions
+            {
+                WriteIndented = true,
+            })),
             .. " \r\n"u8,
         ];
-        RefreshIntegrity(entries);
-        await using var nonCanonical = WriteEntries(entries);
+        RefreshIntegrity(canonicalEntries);
+        await using var permutedCarrier = WriteEntries(canonicalEntries);
 
-        var outcome = await ReadAsync(nonCanonical);
+        var read = await ReadAsync(permutedCarrier);
+        ThrowIfRejected(read);
+        var succeeded = (PackageReadSucceeded)read;
+        var imported = (ProjectGenesisCommitted)ProjectEditor.Begin(
+            new ImportedProjectSeed(succeeded.ImportCandidate));
+        await using var normalizedCarrier = await WriteAsync(imported.Revision);
+        var normalizedWrite = (PackageWriteSucceeded)normalizedCarrier.Outcome;
+        var normalizedEntries = ReadEntries(normalizedCarrier.Stream);
 
-        var succeeded = (await Assert.That(outcome).IsTypeOf<PackageReadSucceeded>())!;
         using (Assert.Multiple())
         {
             await Assert.That(succeeded.ProjectContentDigest)
-                .IsEqualTo(written.ProjectContentDigest);
-            await Assert.That(succeeded.PackageDigest)
-                .IsNotEqualTo(written.PackageDigest);
+                .IsEqualTo(canonicalWrite.ProjectContentDigest);
+            await Assert.That(normalizedWrite.ProjectContentDigest)
+                .IsEqualTo(canonicalWrite.ProjectContentDigest);
+            await Assert.That(normalizedEntries["project.json"])
+                .IsEquivalentTo(
+                    ReadEntries(canonicalCarrier.Stream)["project.json"],
+                    CollectionOrdering.Matching);
         }
     }
 
@@ -863,6 +852,56 @@ internal sealed class ProjectPackageReaderTests
                 1,
                 1,
                 [new MemoryImageWord([LogicValue.Zero])]))).Revision;
+    }
+
+    private static JsonNode PermuteJson(
+        JsonNode node,
+        string? propertyName,
+        Random random)
+    {
+        if (node is JsonObject sourceObject)
+        {
+            var members = sourceObject
+                .Select(member => new KeyValuePair<string, JsonNode?>(
+                    member.Key,
+                    member.Value is null
+                        ? null
+                        : PermuteJson(member.Value, member.Key, random)))
+                .ToArray();
+            random.Shuffle(members);
+            var result = new JsonObject();
+            foreach (var member in members)
+            {
+                result.Add(member.Key, member.Value);
+            }
+
+            return result;
+        }
+
+        if (node is JsonArray sourceArray)
+        {
+            var items = sourceArray
+                .Select(item => item is null
+                    ? null
+                    : PermuteJson(item, propertyName: null, random: random))
+                .ToArray();
+            if (propertyName is "libraryReferences"
+                or "circuitDefinitions"
+                or "memoryImages"
+                or "componentInstances"
+                or "nets"
+                or "junctions"
+                or "wireGeometry"
+                or "componentPlacements"
+                or "definitionPortPlacements")
+            {
+                random.Shuffle(items);
+            }
+
+            return new JsonArray(items);
+        }
+
+        return node.DeepClone();
     }
 
     private static byte[] CreateSingleCellMemoryPart()
