@@ -748,10 +748,12 @@ internal sealed class ProjectPackageReaderTests
         var canonicalEntries = ReadEntries(canonicalCarrier.Stream);
         var project = JsonNode.Parse(canonicalEntries["project.json"])
             ?? throw new InvalidOperationException("The writer produced empty project JSON.");
+        var reorderedArrayProperties = new HashSet<string>(StringComparer.Ordinal);
         var permuted = PermuteJson(
             project,
             propertyName: null,
-            random: new Random(permutationSeed.Get));
+            random: new Random(permutationSeed.Get),
+            reorderedArrayProperties);
         canonicalEntries["project.json"] =
         [
             .. " \n\t"u8,
@@ -762,6 +764,7 @@ internal sealed class ProjectPackageReaderTests
             .. " \r\n"u8,
         ];
         RefreshIntegrity(canonicalEntries);
+        var permutedPackageDigest = ComputePackageDigest(canonicalEntries);
         await using var permutedCarrier = WriteEntries(canonicalEntries);
 
         var read = await ReadAsync(permutedCarrier);
@@ -777,12 +780,19 @@ internal sealed class ProjectPackageReaderTests
         {
             await Assert.That(succeeded.ProjectContentDigest)
                 .IsEqualTo(canonicalWrite.ProjectContentDigest);
+            await Assert.That(succeeded.PackageDigest)
+                .IsEqualTo(permutedPackageDigest);
+            await Assert.That(succeeded.PackageDigest)
+                .IsNotEqualTo(canonicalWrite.PackageDigest);
             await Assert.That(normalizedWrite.ProjectContentDigest)
                 .IsEqualTo(canonicalWrite.ProjectContentDigest);
             await Assert.That(normalizedEntries["project.json"])
                 .IsEquivalentTo(
                     ReadEntries(canonicalCarrier.Stream)["project.json"],
                     CollectionOrdering.Matching);
+            await Assert.That(reorderedArrayProperties).Contains("memoryImages");
+            await Assert.That(reorderedArrayProperties).Contains("junctions");
+            await Assert.That(reorderedArrayProperties).Contains("wireGeometry");
         }
     }
 
@@ -857,7 +867,8 @@ internal sealed class ProjectPackageReaderTests
     private static JsonNode PermuteJson(
         JsonNode node,
         string? propertyName,
-        Random random)
+        Random random,
+        ISet<string> reorderedArrayProperties)
     {
         if (node is JsonObject sourceObject)
         {
@@ -866,7 +877,11 @@ internal sealed class ProjectPackageReaderTests
                     member.Key,
                     member.Value is null
                         ? null
-                        : PermuteJson(member.Value, member.Key, random)))
+                        : PermuteJson(
+                            member.Value,
+                            member.Key,
+                            random,
+                            reorderedArrayProperties)))
                 .ToArray();
             random.Shuffle(members);
             var result = new JsonObject();
@@ -883,7 +898,11 @@ internal sealed class ProjectPackageReaderTests
             var items = sourceArray
                 .Select(item => item is null
                     ? null
-                    : PermuteJson(item, propertyName: null, random: random))
+                    : PermuteJson(
+                        item,
+                        propertyName: null,
+                        random,
+                        reorderedArrayProperties))
                 .ToArray();
             if (propertyName is "libraryReferences"
                 or "circuitDefinitions"
@@ -895,7 +914,11 @@ internal sealed class ProjectPackageReaderTests
                 or "componentPlacements"
                 or "definitionPortPlacements")
             {
-                random.Shuffle(items);
+                Array.Reverse(items);
+                if (items.Length > 1)
+                {
+                    reorderedArrayProperties.Add(propertyName);
+                }
             }
 
             return new JsonArray(items);

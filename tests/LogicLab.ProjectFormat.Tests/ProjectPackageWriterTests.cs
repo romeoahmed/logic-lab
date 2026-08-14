@@ -120,6 +120,9 @@ internal sealed class ProjectPackageWriterTests
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToArray();
+        var programImage = project.RootElement.GetProperty("memoryImages")
+            .EnumerateArray()
+            .Single(image => image.GetProperty("displayName").GetString() == "Program");
         var digestParts = entries
             .Where(entry => entry.Key != "manifest.json")
             .Select(entry => (
@@ -154,8 +157,7 @@ internal sealed class ProjectPackageWriterTests
             await Assert.That(terminalKinds).IsEquivalentTo(
                 ["definitionPort", "instancePort"],
                 CollectionOrdering.Matching);
-            await Assert.That(project.RootElement.GetProperty("memoryImages")[0]
-                    .GetProperty("depth").GetString())
+            await Assert.That(programImage.GetProperty("depth").GetString())
                 .IsEqualTo("2");
             await Assert.That(definitions
                     .SelectMany(definition => definition.GetProperty("presentation")
@@ -482,7 +484,15 @@ internal sealed class ProjectPackageWriterTests
                     new MemoryImageWord([LogicValue.Zero, LogicValue.One]),
                     new MemoryImageWord([LogicValue.X, LogicValue.Zero]),
                 ])));
-        var imageId = revision.Document.MemoryImages.Single().Id;
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new CreateMemoryImageIntent(
+                "Scratch",
+                1,
+                1,
+                [new MemoryImageWord([LogicValue.X])])));
+        var imageId = revision.Document.MemoryImages.Single(image =>
+            image.DisplayName == "Program").Id;
 
         revision = Commit(ProjectEditor.Apply(
             revision,
@@ -580,6 +590,16 @@ internal sealed class ProjectPackageWriterTests
                         [new GridPoint(0, 0), new GridPoint(4, 0), new GridPoint(4, 2)]),
                 ],
                 routeReplacements: [])));
+        var mainNetId = revision.Document.EntryCircuitDefinition.Nets.Single().Id;
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new AddJunctionIntent(
+                mainId,
+                mainNetId,
+                new GridPoint(6, 1),
+                [new UnroutedWireRoute()],
+                routeReplacements: [],
+                routeRemovals: [])));
 
         revision = PlaceLibrary(
             revision,
