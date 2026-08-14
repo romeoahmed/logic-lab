@@ -102,7 +102,7 @@ internal static class BasicGateGeometryBuilder
                 body,
                 inputYs[index]);
             operations.Add(Stroke(
-                OpenPath(
+                Path(
                     new MoveToV1(new PointV1(planInset, inputYs[index])),
                     new LineToV1(new PointV1(inputEdgeX, inputYs[index]))),
                 StrokeRoleV1.Outline,
@@ -122,7 +122,7 @@ internal static class BasicGateGeometryBuilder
         }
 
         operations.Add(Stroke(
-            OpenPath(
+            Path(
                 new MoveToV1(new PointV1(outputLeadStart, centerY)),
                 new LineToV1(new PointV1(outputAnchorX, centerY))),
             StrokeRoleV1.Outline,
@@ -283,7 +283,7 @@ internal static class BasicGateGeometryBuilder
         var curve = checked(radius * 552 / 1000);
         var straightRight = checked(body.Right - radius);
         var centerY = checked(body.Top + radius);
-        return ClosedPath(
+        return Path(
             new MoveToV1(new PointV1(body.Left, body.Top)),
             new LineToV1(new PointV1(straightRight, body.Top)),
             new CubicToV1(
@@ -304,7 +304,7 @@ internal static class BasicGateGeometryBuilder
         var leftTip = checked(body.Left + quarterWidth);
         var centerY = checked(body.Top + (body.Height / 2));
         var rear = OrInputCurve(body);
-        return ClosedPath(
+        return Path(
             new MoveToV1(new PointV1(leftTip, body.Top)),
             new CubicToV1(
                 new PointV1(checked(body.Left + (body.Width / 2)), body.Top),
@@ -324,7 +324,7 @@ internal static class BasicGateGeometryBuilder
     private static PathV1 XorInputCurve(RectV1 body)
     {
         var curve = XorRearCurve(body);
-        return OpenPath(
+        return Path(
             new MoveToV1(curve.Start),
             new CubicToV1(curve.Control1, curve.Control2, curve.End));
     }
@@ -412,14 +412,14 @@ internal static class BasicGateGeometryBuilder
     private static PathV1 TriangleOutline(RectV1 body)
     {
         var centerY = checked(body.Top + (body.Height / 2));
-        return ClosedPath(
+        return Path(
             new MoveToV1(new PointV1(body.Left, body.Top)),
             new LineToV1(new PointV1(body.Right, centerY)),
             new LineToV1(new PointV1(body.Left, body.Bottom)),
             new ClosePathV1());
     }
 
-    private static PathV1 RectangleOutline(RectV1 body) => ClosedPath(
+    private static PathV1 RectangleOutline(RectV1 body) => Path(
         new MoveToV1(new PointV1(body.Left, body.Top)),
         new LineToV1(new PointV1(body.Right, body.Top)),
         new LineToV1(new PointV1(body.Right, body.Bottom)),
@@ -442,7 +442,7 @@ internal static class BasicGateGeometryBuilder
                 StrokeRoleV1.Qualifier,
                 metric.QualifierStrokeWidth),
             IndicationConvention.DirectPolarity => Stroke(
-                ClosedPath(
+                Path(
                     new MoveToV1(new PointV1(bodyRight, checked(centerY - (h / 2)))),
                     new LineToV1(new PointV1(checked(bodyRight + h), centerY)),
                     new LineToV1(new PointV1(bodyRight, checked(centerY + (h / 2)))),
@@ -456,7 +456,7 @@ internal static class BasicGateGeometryBuilder
     private static PathV1 CirclePath(PointV1 center, int radius)
     {
         var curve = checked(radius * 552 / 1000);
-        return ClosedPath(
+        return Path(
             new MoveToV1(new PointV1(checked(center.X + radius), center.Y)),
             new CubicToV1(
                 new PointV1(checked(center.X + radius), checked(center.Y + curve)),
@@ -529,9 +529,7 @@ internal static class BasicGateGeometryBuilder
             LineCapV1.Butt,
             MiterJoin);
 
-    private static PathV1 OpenPath(params PathCommandV1[] commands) => new(commands);
-
-    private static PathV1 ClosedPath(params PathCommandV1[] commands) => new(commands);
+    private static PathV1 Path(params PathCommandV1[] commands) => new(commands);
 
     private readonly record struct CubicSegment(
         PointV1 Start,
