@@ -553,7 +553,7 @@ public static partial class ProjectEditor
         List<AuthoringDiagnostic> diagnostics)
     {
         if (symbolProfile is not null
-            && SymbolProfileCatalog.Contains(symbolProfile))
+            && SymbolProfileRegistry.IsRegistered(symbolProfile))
         {
             return;
         }

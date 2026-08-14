@@ -16,10 +16,11 @@ public sealed record SymbolProfileReference(
     string Version,
     IndicationConvention IndicationConvention);
 
-internal static class SymbolProfileCatalog
+public static class SymbolProfileRegistry
 {
-    public static bool Contains(SymbolProfileReference reference)
+    public static bool IsRegistered(SymbolProfileReference reference)
     {
+        ArgumentNullException.ThrowIfNull(reference);
         return string.Equals(reference.Id, "TeachingMixed", StringComparison.Ordinal)
             && string.Equals(reference.Version, "1.0.0", StringComparison.Ordinal)
             && Enum.IsDefined(reference.IndicationConvention);
