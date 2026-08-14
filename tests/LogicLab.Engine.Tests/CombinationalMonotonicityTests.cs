@@ -4,6 +4,7 @@ using LogicLab.Domain;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
 using TUnit.FsCheck;
+using static LogicLab.Engine.Tests.FourStateTestData;
 
 namespace LogicLab.Engine.Tests;
 
@@ -20,24 +21,13 @@ internal sealed record InformationOrderedVectorCase(
 
 internal static class InformationOrderArbitraries
 {
-    private static readonly (LogicValue Lower, LogicValue Upper)[] ComparableValues =
-    [
-        (LogicValue.X, LogicValue.X),
-        (LogicValue.X, LogicValue.Zero),
-        (LogicValue.X, LogicValue.One),
-        (LogicValue.X, LogicValue.Z),
-        (LogicValue.Zero, LogicValue.Zero),
-        (LogicValue.One, LogicValue.One),
-        (LogicValue.Z, LogicValue.Z),
-    ];
-
     private static readonly int[] BoundaryWidths = [1, 63, 64, 65, 129];
 
     public static Arbitrary<InformationOrderedVectorCase> InformationOrderedVectors()
     {
         var generator =
             from width in Gen.Elements(BoundaryWidths)
-            from pairs in Gen.Elements(ComparableValues).ArrayOf(checked(width * 2))
+            from pairs in Gen.Elements(InformationOrderedPairs).ArrayOf(checked(width * 2))
             select Create(width, pairs);
 
         return Arb.From(generator, Shrink);
@@ -97,22 +87,16 @@ internal static class InformationOrderArbitraries
     {
         var lower = left ? sample.LowerLeft[bit] : sample.LowerRight[bit];
         var upper = left ? sample.UpperLeft[bit] : sample.UpperRight[bit];
-        if (lower != LogicValue.X)
+        if (lower != LogicValue.X || upper != LogicValue.X)
         {
-            yield return ReplacePair(sample, bit, left, LogicValue.X, LogicValue.X);
-        }
-        else if (upper != LogicValue.X)
-        {
-            yield return ReplacePair(sample, bit, left, LogicValue.X, LogicValue.X);
+            yield return ReplacePair(sample, bit, left);
         }
     }
 
     private static InformationOrderedVectorCase ReplacePair(
         InformationOrderedVectorCase sample,
         int bit,
-        bool left,
-        LogicValue lower,
-        LogicValue upper)
+        bool left)
     {
         var lowerValues = (LogicValue[])(left
             ? sample.LowerLeft
@@ -120,8 +104,8 @@ internal static class InformationOrderArbitraries
         var upperValues = (LogicValue[])(left
             ? sample.UpperLeft
             : sample.UpperRight).Clone();
-        lowerValues[bit] = lower;
-        upperValues[bit] = upper;
+        lowerValues[bit] = LogicValue.X;
+        upperValues[bit] = LogicValue.X;
 
         return left
             ? sample with { LowerLeft = lowerValues, UpperLeft = upperValues }
@@ -131,17 +115,6 @@ internal static class InformationOrderArbitraries
 
 internal sealed class CombinationalMonotonicityTests
 {
-    private static readonly (LogicValue Lower, LogicValue Upper)[] ComparableValues =
-    [
-        (LogicValue.X, LogicValue.X),
-        (LogicValue.X, LogicValue.Zero),
-        (LogicValue.X, LogicValue.One),
-        (LogicValue.X, LogicValue.Z),
-        (LogicValue.Zero, LogicValue.Zero),
-        (LogicValue.One, LogicValue.One),
-        (LogicValue.Z, LogicValue.Z),
-    ];
-
     private static readonly SimulationEvaluatorKind[] GateKinds =
     [
         SimulationEvaluatorKind.LogicAnd,
@@ -480,7 +453,7 @@ internal sealed class CombinationalMonotonicityTests
                 yield break;
             }
 
-            foreach (var pair in ComparableValues)
+            foreach (var pair in InformationOrderedPairs)
             {
                 lower[index] = pair.Lower;
                 upper[index] = pair.Upper;

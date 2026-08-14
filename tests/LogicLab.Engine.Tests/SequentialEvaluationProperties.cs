@@ -23,7 +23,7 @@ internal sealed record SequentialVectorCase(
 
 internal static class SequentialEvaluationArbitraries
 {
-    private static readonly int[] Widths = [1, 7, 8, 9, 63, 64, 65];
+    private static readonly int[] BoundaryWidthValues = [1, 7, 8, 9, 63, 64, 65];
 
     private static readonly Gen<LogicValue> StoredValue = Gen.Elements(
         LogicValue.Zero,
@@ -33,10 +33,12 @@ internal static class SequentialEvaluationArbitraries
     private static readonly Gen<LogicValue> InputValue =
         Gen.Elements(Enum.GetValues<LogicValue>());
 
+    public static ReadOnlySpan<int> BoundaryWidths => BoundaryWidthValues;
+
     public static Arbitrary<SequentialVectorCase> SequentialVectors()
     {
         var generator =
-            from width in Gen.Elements(Widths)
+            from width in Gen.Elements(BoundaryWidthValues)
             from current in StoredValue.ArrayOf(width)
             from parallel in InputValue.ArrayOf(width)
             from serial in InputValue
@@ -51,7 +53,7 @@ internal static class SequentialEvaluationArbitraries
 
     private static IEnumerable<SequentialVectorCase> Shrink(SequentialVectorCase sample)
     {
-        foreach (var width in Widths.Where(width => width < sample.Width))
+        foreach (var width in BoundaryWidthValues.Where(width => width < sample.Width))
         {
             yield return sample with
             {
@@ -109,8 +111,6 @@ internal static class SequentialEvaluationArbitraries
 
 internal sealed class SequentialEvaluationProperties
 {
-    private static readonly int[] PackedBoundaryWidths = [1, 7, 8, 9, 63, 64, 65];
-
     [Test, FsCheckProperty(
         MaxTest = 100,
         Arbitrary = new[] { typeof(SequentialEvaluationArbitraries) })]
@@ -169,7 +169,7 @@ internal sealed class SequentialEvaluationProperties
     public async Task Counter_PackedBoundaryWidths_WrapModuloWidth()
     {
         var violations = new List<int>();
-        foreach (var width in PackedBoundaryWidths)
+        foreach (var width in SequentialEvaluationArbitraries.BoundaryWidths)
         {
             var ones = new LogicVector(
                 [.. Enumerable.Repeat(LogicValue.One, width)]);
