@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 using LogicLab.Domain.Authoring;
 using LogicLab.Presentation.Geometry;
@@ -35,8 +36,8 @@ internal sealed record ResolvedBasicSymbolDefinition(
 
 internal static class TeachingMixedBasicSymbolRegistry
 {
-    private static readonly Dictionary<string, BasicSymbolDefinition> Definitions =
-        new Dictionary<string, BasicSymbolDefinition>(StringComparer.Ordinal)
+    private static readonly FrozenDictionary<string, BasicSymbolDefinition> Definitions =
+        new Dictionary<string, BasicSymbolDefinition>
         {
             ["logic.and"] = Definition(
                 "logic.and",
@@ -86,7 +87,7 @@ internal static class TeachingMixedBasicSymbolRegistry
                 hasOutputQualifier: true,
                 "5.1-13",
                 "1"),
-        };
+        }.ToFrozenDictionary(StringComparer.Ordinal);
 
     public static bool TryResolve(
         string contractId,
