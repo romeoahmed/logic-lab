@@ -7,13 +7,26 @@ using LogicLab.Domain.Components;
 
 namespace LogicLab.Presentation.Geometry;
 
-public sealed class SymbolMetricSetV1
+public sealed record SymbolMetricSetV1
 {
     public SymbolMetricSetV1(string id, string version, int unitsPerH)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentException.ThrowIfNullOrEmpty(version);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(unitsPerH);
+        if (!PresentationDiagnosticLexemes.IsStableToken(id))
+        {
+            throw new ArgumentException(
+                "The Metric Set ID must be a stable token.",
+                nameof(id));
+        }
+
+        if (!PresentationDiagnosticLexemes.IsStableToken(version))
+        {
+            throw new ArgumentException(
+                "The Metric Set version must be a stable token.",
+                nameof(version));
+        }
 
         Id = id;
         Version = version;

@@ -167,20 +167,19 @@ internal sealed class TeachingMixedGeometryPlannerTests
     }
 
     [Test]
-    [Arguments("logic.and", 2U, "&", "5.1-3", false)]
-    [Arguments("logic.nand", 2U, "&", "5.1-17", true)]
-    [Arguments("logic.or", 2U, "\u22651", "5.1-1", false)]
-    [Arguments("logic.nor", 2U, "\u22651", "5.1-18", true)]
-    [Arguments("logic.xor", 2U, "=1", "5.1-11", false)]
-    [Arguments("logic.xnor", 2U, "=1", "5.1-11", true)]
-    [Arguments("logic.buffer", 1U, "1", "5.1-12", false)]
-    [Arguments("logic.not", 1U, "1", "5.1-13", true)]
+    [Arguments("logic.and", 2U, "&", "5.1-3")]
+    [Arguments("logic.nand", 2U, "&", "5.1-17|3.1.1|3.1-2")]
+    [Arguments("logic.or", 2U, "\u22651", "5.1-1")]
+    [Arguments("logic.nor", 2U, "\u22651", "5.1-1|3.1.1|3.1-2")]
+    [Arguments("logic.xor", 2U, "=1", "5.1-11")]
+    [Arguments("logic.xnor", 2U, "=1", "5.1-11|3.1.1|3.1-2")]
+    [Arguments("logic.buffer", 1U, "1", "5.1-12")]
+    [Arguments("logic.not", 1U, "1", "5.1-13|3.1.1|3.1-2")]
     public async Task Plan_RectangularOverride_PreservesPortsAndStandardEvidence(
         string contractId,
         uint fanIn,
         string expectedFunctionText,
-        string expectedPrimaryClause,
-        bool expectsOutputQualifier)
+        string expectedClauses)
     {
         var distinctive = Plan(Request(contractId, fanIn));
         var rectangular = Plan(Request(
@@ -189,10 +188,6 @@ internal sealed class TeachingMixedGeometryPlannerTests
             symbolVariantId: SymbolVariantCatalog.RectangularId));
         var standard = await Assert.That(rectangular.Conformance.StandardReferences)
             .HasSingleItem();
-        var expectedClauses = expectsOutputQualifier
-            ? new[] { expectedPrimaryClause, "3.1.1" }
-            : [expectedPrimaryClause];
-
         using (Assert.Multiple())
         {
             await Assert.That(rectangular.Key.SymbolVariantId)
@@ -208,7 +203,9 @@ internal sealed class TeachingMixedGeometryPlannerTests
             await Assert.That(rectangular.Conformance.Claim)
                 .IsEqualTo(ConformanceClaimV1.Standardized91A);
             await Assert.That(standard.ClauseIds)
-                .IsEquivalentTo(expectedClauses, CollectionOrdering.Matching);
+                .IsEquivalentTo(
+                    expectedClauses.Split('|'),
+                    CollectionOrdering.Matching);
         }
     }
 
@@ -265,7 +262,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
         using (Assert.Multiple())
         {
             await Assert.That(first.Key).IsEqualTo(repeated.Key);
-            await Assert.That(first.Key.SymbolDefinitionVersion).IsEqualTo("1.1.0");
+            await Assert.That(first.Key.SymbolDefinitionVersion).IsEqualTo("1.2.0");
             await Assert.That(first.Key.MetricSetVersion).IsEqualTo("1.1.0");
             await Assert.That(first.Key.MetricFingerprint)
                 .IsEqualTo(TeachingMixedMetricSets.AnnexA100.Fingerprint);
@@ -280,16 +277,16 @@ internal sealed class TeachingMixedGeometryPlannerTests
 
     [Test]
     [Arguments("logic.and", "5.1-3")]
-    [Arguments("logic.nand", "5.1-17")]
+    [Arguments("logic.nand", "5.1-17|3.1.1|3.1-2")]
     [Arguments("logic.or", "5.1-1")]
-    [Arguments("logic.nor", "5.1-18")]
+    [Arguments("logic.nor", "5.1-1|3.1.1|3.1-2")]
     [Arguments("logic.xor", "5.1-11")]
-    [Arguments("logic.xnor", "5.1-11")]
+    [Arguments("logic.xnor", "5.1-11|3.1.1|3.1-2")]
     [Arguments("logic.buffer", "5.1-12")]
-    [Arguments("logic.not", "5.1-13")]
+    [Arguments("logic.not", "5.1-13|3.1.1|3.1-2")]
     public async Task Plan_BasicGate_EmitsExpectedConformanceEvidence(
         string contractId,
-        string expectedClause)
+        string expectedClauses)
     {
         var plan = Plan(Request(contractId, contractId is "logic.buffer" or "logic.not" ? 1U : 2U));
         var standard = await Assert.That(plan.Conformance.StandardReferences)
@@ -301,7 +298,10 @@ internal sealed class TeachingMixedGeometryPlannerTests
                 .IsEqualTo(ConformanceClaimV1.PermittedDistinctive91A);
             await Assert.That(standard.PublicationId).IsEqualTo("IEEE-91A");
             await Assert.That(standard.Edition).IsEqualTo("1991");
-            await Assert.That(standard.ClauseIds).Contains(expectedClause);
+            await Assert.That(standard.ClauseIds)
+                .IsEquivalentTo(
+                    expectedClauses.Split('|'),
+                    CollectionOrdering.Matching);
             await Assert.That(plan.Conformance.Deviations).IsEmpty();
             await Assert.That(plan.Conformance.AnnexA).IsEqualTo(AnnexAStatusV1.Pass);
         }
@@ -563,13 +563,31 @@ internal sealed class TeachingMixedGeometryPlannerTests
     }
 
     [Test]
-    [Arguments(1)]
-    [Arguments(96)]
-    public async Task Plan_PositiveMetricScale_ProducesGeometry(int unitsPerH)
+    [Arguments("metric\nother", "1.0.0")]
+    [Arguments("metric", "1.0.0\nother")]
+    public async Task MetricSet_NonStableIdentity_RejectsAtValueBoundary(
+        string id,
+        string version)
+    {
+        await Assert.That(() => new SymbolMetricSetV1(id, version, 100))
+            .ThrowsExactly<ArgumentException>();
+    }
+
+    [Test]
+    [Arguments("logic.and", 2U, 1, AnnexAStatusV1.Adjusted)]
+    [Arguments("logic.not", 1U, 1, AnnexAStatusV1.Adjusted)]
+    [Arguments("logic.not", 1U, 96, AnnexAStatusV1.Adjusted)]
+    [Arguments("logic.and", 2U, 100, AnnexAStatusV1.Pass)]
+    [Arguments("logic.not", 1U, 100, AnnexAStatusV1.Pass)]
+    public async Task Plan_PositiveMetricScale_ReportsAnnexAQuantization(
+        string contractId,
+        uint fanIn,
+        int unitsPerH,
+        AnnexAStatusV1 expectedAnnexA)
     {
         var metricSet = new SymbolMetricSetV1("metric", "1.0.0", unitsPerH);
         var plan = Plan(
-            Request("logic.not", 1, metricSet: metricSet),
+            Request(contractId, fanIn, metricSet: metricSet),
             new StubTextMeasurer(DefaultFontFingerprint, metricSet: metricSet));
 
         using (Assert.Multiple())
@@ -578,6 +596,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
                 .IsEqualTo(metricSet.Fingerprint);
             await Assert.That(plan.Bounds.Width).IsGreaterThan(0);
             await Assert.That(plan.Bounds.Height).IsGreaterThan(0);
+            await Assert.That(plan.Conformance.AnnexA).IsEqualTo(expectedAnnexA);
         }
     }
 
@@ -672,12 +691,23 @@ internal sealed class TeachingMixedGeometryPlannerTests
     }
 
     [Test]
-    public async Task Plan_DirectPolarity_UsesPolarityQualifierAndInverterReference()
+    [Arguments("logic.nand", 2U, SymbolFacingV1.East, "5.1-3", "3.1-6")]
+    [Arguments("logic.nor", 2U, SymbolFacingV1.East, "5.1-18", "3.1-6")]
+    [Arguments("logic.xnor", 2U, SymbolFacingV1.East, "5.1-11", "3.1-6")]
+    [Arguments("logic.not", 1U, SymbolFacingV1.East, "5.1-14", "3.1-6")]
+    [Arguments("logic.not", 1U, SymbolFacingV1.West, "5.1-14", "3.1-7")]
+    public async Task Plan_DirectPolarity_CitesQualifierTypeAndDirection(
+        string contractId,
+        uint fanIn,
+        SymbolFacingV1 facing,
+        string expectedPrimaryClause,
+        string expectedQualifierClause)
     {
-        var negation = Plan(Request("logic.not", 1));
+        var negation = Plan(Request(contractId, fanIn, facing: facing));
         var directPolarity = Plan(Request(
-            "logic.not",
-            1,
+            contractId,
+            fanIn,
+            facing: facing,
             profile: new SymbolProfileReference(
                 "TeachingMixed",
                 "1.0.0",
@@ -688,6 +718,8 @@ internal sealed class TeachingMixedGeometryPlannerTests
         var polarityQualifier = await Assert.That(directPolarity.Operations
             .OfType<StrokePathV1>())
             .HasSingleItem(operation => operation.Role == StrokeRoleV1.Qualifier);
+        var standard = await Assert.That(directPolarity.Conformance.StandardReferences)
+            .HasSingleItem();
 
         using (Assert.Multiple())
         {
@@ -697,10 +729,13 @@ internal sealed class TeachingMixedGeometryPlannerTests
                 .IsEmpty();
             await Assert.That(polarityQualifier.Path.Commands.OfType<LineToV1>())
                 .Count().IsEqualTo(2);
-            await Assert.That(directPolarity.Conformance.StandardReferences[0].ClauseIds)
-                .Contains("5.1-14");
+            await Assert.That(standard.ClauseIds)
+                .IsEquivalentTo(
+                    [expectedPrimaryClause, "3.1.1", expectedQualifierClause],
+                    CollectionOrdering.Matching);
             await Assert.That(directPolarity.Key.IndicationConvention)
                 .IsEqualTo(IndicationConvention.DirectPolarity);
+            await Assert.That(directPolarity.Key.Facing).IsEqualTo(facing);
         }
     }
 

@@ -15,6 +15,11 @@ internal sealed record GeometryPlanDraft(
 internal static class BasicGateGeometryBuilder
 {
     private static readonly LineJoinV1 MiterJoin = new(LineJoinKindV1.Miter, 4);
+    private static readonly AnnexAProportion OutlineStroke = new(1, 10);
+    private static readonly AnnexAProportion BasicBodyHeight = new(13, 2);
+    private static readonly AnnexAProportion BasicBodyWidth = new(8, 1);
+    private static readonly AnnexAProportion TriangleBodyHeight = new(45, 4);
+    private static readonly AnnexAProportion TriangleBodyWidth = new(39, 4);
 
     public static GeometryPlanDraft Build(
         BasicSymbolRequestV1 request,
@@ -32,7 +37,7 @@ internal static class BasicGateGeometryBuilder
         var textEnvelope = textMeasurement?.InkAndAdvanceBounds(
             textAlignment,
             request.BaseDirection);
-        var standardBodyHeight = ScaleUp(h, 13, 2);
+        var standardBodyHeight = BasicBodyHeight.ScaleUp(h);
         var requestedBodyHeight = inputs.Length == 1
             ? standardBodyHeight
             : checked((inputs.Length - 1) * metrics.MinimumPortPitch + ScaleUp(h, 2));
@@ -49,14 +54,17 @@ internal static class BasicGateGeometryBuilder
         var minimumTextBodyHeight = swapsAxes
             ? minimumHorizontalTextSize
             : minimumVerticalTextSize;
+        var standardRecipeBodyHeight = definition.Recipe == BasicOutlineRecipe.Triangle
+            ? TriangleBodyHeight.ScaleUp(h)
+            : standardBodyHeight;
         var bodyHeight = definition.Recipe == BasicOutlineRecipe.Triangle
-            ? ScaleUp(h, 45, 4)
+            ? standardRecipeBodyHeight
             : Math.Max(
                 Math.Max(standardBodyHeight, requestedBodyHeight),
                 minimumTextBodyHeight);
         var standardBodyWidth = definition.Recipe == BasicOutlineRecipe.Triangle
-            ? ScaleUp(h, 39, 4)
-            : ScaleUp(h, 8);
+            ? TriangleBodyWidth.ScaleUp(h)
+            : BasicBodyWidth.ScaleUp(h);
         var minimumRecipeWidth = definition.Recipe == BasicOutlineRecipe.And
             ? bodyHeight / 2
             : 0;
@@ -203,17 +211,18 @@ internal static class BasicGateGeometryBuilder
                 ]));
         }
 
-        var clauses = definition.HasOutputQualifier
-            ? new[] { definition.PrimaryClause, "3.1.1" }.Distinct(StringComparer.Ordinal).ToArray()
-            : [definition.PrimaryClause];
         var annexA = definition.AnnexA == AnnexAStatusV1.Pass
-            && definition.Recipe != BasicOutlineRecipe.Triangle
-            && bodyHeight != standardBodyHeight
+            && (bodyWidth != standardBodyWidth
+                || bodyHeight != standardRecipeBodyHeight
+                || !PreservesAnnexAProportions(definition.Recipe, h))
                 ? AnnexAStatusV1.Adjusted
                 : definition.AnnexA;
         var conformance = new ConformanceEvidenceV1(
             definition.Claim,
-            [new StandardReferenceV1("IEEE-91A", "1991", clauses)],
+            [new StandardReferenceV1(
+                "IEEE-91A",
+                "1991",
+                definition.StandardClauses)],
             [],
             annexA);
         return new GeometryPlanDraft(
@@ -543,6 +552,16 @@ internal static class BasicGateGeometryBuilder
     private static int ScaleDown(int value, int numerator, int denominator) =>
         checked((int)(((long)value * numerator) / denominator));
 
+    private static bool PreservesAnnexAProportions(
+        BasicOutlineRecipe recipe,
+        int unitsPerH) =>
+        OutlineStroke.IsExactlyRepresentable(unitsPerH)
+        && (recipe != BasicOutlineRecipe.Triangle
+            ? BasicBodyHeight.IsExactlyRepresentable(unitsPerH)
+                && BasicBodyWidth.IsExactlyRepresentable(unitsPerH)
+            : TriangleBodyHeight.IsExactlyRepresentable(unitsPerH)
+                && TriangleBodyWidth.IsExactlyRepresentable(unitsPerH));
+
     private static StrokePathV1 Stroke(
         PathV1 path,
         StrokeRoleV1 role,
@@ -562,6 +581,15 @@ internal static class BasicGateGeometryBuilder
         PointV1 Control2,
         PointV1 End);
 
+    private readonly record struct AnnexAProportion(int Numerator, int Denominator)
+    {
+        public int ScaleUp(int unitsPerH) =>
+            BasicGateGeometryBuilder.ScaleUp(unitsPerH, Numerator, Denominator);
+
+        public bool IsExactlyRepresentable(int unitsPerH) =>
+            ((long)unitsPerH * Numerator) % Denominator == 0;
+    }
+
     private readonly record struct BasicGateMetrics(
         int UnitsPerH,
         int OutlineStrokeWidth,
@@ -574,7 +602,7 @@ internal static class BasicGateGeometryBuilder
         public static BasicGateMetrics From(SymbolMetricSetV1 metricSet)
         {
             var unitsPerH = metricSet.UnitsPerH;
-            var outlineStrokeWidth = ScaleUp(unitsPerH, 1, 10);
+            var outlineStrokeWidth = OutlineStroke.ScaleUp(unitsPerH);
             var minimumPortPitch = Math.Max(3, ScaleUp(unitsPerH, 2));
             return new BasicGateMetrics(
                 unitsPerH,
