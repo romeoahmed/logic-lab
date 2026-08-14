@@ -38,65 +38,66 @@ internal sealed record ResolvedBasicSymbolDefinition(
 internal static class TeachingMixedBasicSymbolRegistry
 {
     private static readonly FrozenDictionary<string, BasicSymbolDefinition> Definitions =
-        new Dictionary<string, BasicSymbolDefinition>
-        {
-            ["logic.and"] = Definition(
+        new Dictionary<string, BasicSymbolDefinition>(
+        [
+            Definition(
                 "logic.and",
                 BasicOutlineRecipe.And,
                 hasOutputQualifier: false,
                 "5.1-3",
                 "5.1-3",
                 "&"),
-            ["logic.nand"] = Definition(
+            Definition(
                 "logic.nand",
                 BasicOutlineRecipe.And,
                 hasOutputQualifier: true,
                 "5.1-17",
                 "5.1-3",
                 "&"),
-            ["logic.or"] = Definition(
+            Definition(
                 "logic.or",
                 BasicOutlineRecipe.Or,
                 hasOutputQualifier: false,
                 "5.1-1",
                 "5.1-1",
                 "\u22651"),
-            ["logic.nor"] = Definition(
+            Definition(
                 "logic.nor",
                 BasicOutlineRecipe.Or,
                 hasOutputQualifier: true,
                 "5.1-1",
                 "5.1-18",
                 "\u22651"),
-            ["logic.xor"] = Definition(
+            Definition(
                 "logic.xor",
                 BasicOutlineRecipe.Xor,
                 hasOutputQualifier: false,
                 "5.1-11",
                 "5.1-11",
                 "=1"),
-            ["logic.xnor"] = Definition(
+            Definition(
                 "logic.xnor",
                 BasicOutlineRecipe.Xor,
                 hasOutputQualifier: true,
                 "5.1-11",
                 "5.1-11",
                 "=1"),
-            ["logic.buffer"] = Definition(
+            Definition(
                 "logic.buffer",
                 BasicOutlineRecipe.Triangle,
                 hasOutputQualifier: false,
                 "5.1-12",
                 "5.1-12",
                 "1"),
-            ["logic.not"] = Definition(
+            Definition(
                 "logic.not",
                 BasicOutlineRecipe.Triangle,
                 hasOutputQualifier: true,
                 "5.1-13",
                 "5.1-14",
                 "1"),
-        }.ToFrozenDictionary(StringComparer.Ordinal);
+        ],
+        StringComparer.Ordinal).ToFrozenDictionary(StringComparer.Ordinal);
 
     public static bool TryResolve(
         string contractId,
@@ -179,19 +180,21 @@ internal static class TeachingMixedBasicSymbolRegistry
         return true;
     }
 
-    private static BasicSymbolDefinition Definition(
+    private static KeyValuePair<string, BasicSymbolDefinition> Definition(
         string contractId,
         BasicOutlineRecipe recipe,
         bool hasOutputQualifier,
         string negationPrimaryClause,
         string directPolarityPrimaryClause,
-        string rectangularFunction) => new(
-            $"logiclab.teachingmixed.{contractId}",
-            "1.2.0",
-            recipe,
-            hasOutputQualifier,
-            negationPrimaryClause,
-            directPolarityPrimaryClause,
-            rectangularFunction,
-            $"presentation.symbol.{contractId}");
+        string rectangularFunction) => KeyValuePair.Create(
+            contractId,
+            new BasicSymbolDefinition(
+                $"logiclab.teachingmixed.{contractId}",
+                "1.2.0",
+                recipe,
+                hasOutputQualifier,
+                negationPrimaryClause,
+                directPolarityPrimaryClause,
+                rectangularFunction,
+                $"presentation.symbol.{contractId}"));
 }
