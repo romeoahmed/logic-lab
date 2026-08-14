@@ -409,8 +409,8 @@ internal static class GeometryPlanValidator
         path.Commands.SelectMany(command => command switch
         {
             MoveToV1 move => new[] { move.Point },
-            LineToV1 line => new[] { line.Point },
-            CubicToV1 cubic => new[] { cubic.Control1, cubic.Control2, cubic.End },
+            LineToV1 line => [line.Point],
+            CubicToV1 cubic => [cubic.Control1, cubic.Control2, cubic.End],
             ClosePathV1 => [],
             _ => throw new InvalidOperationException(
                 "The Geometry Plan path command variant is undefined."),

@@ -611,11 +611,11 @@ public static partial class ProjectPackage
             return;
         }
 
-        foreach (var variant in variants)
+        foreach (var (variantKind, members) in variants)
         {
-            if (string.Equals(kind, variant.Kind, StringComparison.Ordinal))
+            if (string.Equals(kind, variantKind, StringComparison.Ordinal))
             {
-                RequireMembers(element, cancellationToken, variant.Members);
+                RequireMembers(element, cancellationToken, members);
                 return;
             }
         }

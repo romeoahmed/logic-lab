@@ -207,15 +207,10 @@ public static class TeachingMixedGeometryPlanner
             or BadImageFormatException;
 }
 
-internal sealed class LayoutInvalidException : Exception
+internal sealed class LayoutInvalidException(LayoutConstraintV1 constraint) :
+    Exception("A Geometry Plan request violated a closed layout rule.")
 {
-    public LayoutInvalidException(LayoutConstraintV1 constraint)
-        : base("A Geometry Plan request violated a closed layout rule.")
-    {
-        Constraint = constraint;
-    }
-
-    public LayoutConstraintV1 Constraint { get; }
+    public LayoutConstraintV1 Constraint { get; } = constraint;
 }
 
 internal static class GeometryRequestFingerprint

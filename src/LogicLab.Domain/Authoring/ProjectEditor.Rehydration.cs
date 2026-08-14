@@ -329,12 +329,8 @@ public static partial class ProjectEditor
                 document.MemoryImages,
                 static image => image.Id,
                 cancellationToken);
-            instances = new Dictionary<
-                CircuitDefinitionId,
-                Dictionary<ComponentInstanceId, ComponentInstance>>();
-            ports = new Dictionary<
-                CircuitDefinitionId,
-                Dictionary<string, DefinitionPort>>();
+            instances = [];
+            ports = [];
             foreach (var definition in document.CircuitDefinitions)
             {
                 cancellationToken.ThrowIfCancellationRequested();

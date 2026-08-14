@@ -1280,8 +1280,8 @@ internal sealed class TeachingMixedGeometryPlannerTests
         path.Commands.SelectMany(command => command switch
         {
             MoveToV1 move => new[] { move.Point },
-            LineToV1 line => new[] { line.Point },
-            CubicToV1 cubic => new[] { cubic.Control1, cubic.Control2, cubic.End },
+            LineToV1 line => [line.Point],
+            CubicToV1 cubic => [cubic.Control1, cubic.Control2, cubic.End],
             ClosePathV1 => [],
             _ => throw new InvalidOperationException("Unexpected path command."),
         });
@@ -1378,25 +1378,19 @@ internal sealed class TeachingMixedGeometryPlannerTests
         PointV1 Start,
         CubicToV1 Cubic);
 
-    private sealed class StubTextMeasurer : ISymbolTextMeasurerV1
+    private sealed class StubTextMeasurer(
+        FontFingerprintV1 fontFingerprint,
+        SymbolTextMeasurementV1? measurement = null,
+        SymbolMetricSetV1? metricSet = null) : ISymbolTextMeasurerV1
     {
-        private readonly SymbolTextMeasurementV1 measurement;
-
-        public StubTextMeasurer(
-            FontFingerprintV1 fontFingerprint,
-            SymbolTextMeasurementV1? measurement = null,
-            SymbolMetricSetV1? metricSet = null)
-        {
-            FontFingerprint = fontFingerprint;
-            MetricSet = metricSet ?? TeachingMixedMetricSets.AnnexA100;
-            this.measurement = measurement ?? new SymbolTextMeasurementV1(
+        private readonly SymbolTextMeasurementV1 textMeasurement = measurement
+            ?? new SymbolTextMeasurementV1(
                 300,
                 new RectV1(-150, -80, 150, 40));
-        }
 
-        public FontFingerprintV1 FontFingerprint { get; }
+        public FontFingerprintV1 FontFingerprint { get; } = fontFingerprint;
 
-        public SymbolMetricSetV1 MetricSet { get; }
+        public SymbolMetricSetV1 MetricSet { get; } = metricSet ?? TeachingMixedMetricSets.AnnexA100;
 
         public SymbolTextMeasurementV1 Measure(
             SymbolTextMeasurementRequestV1 request,
@@ -1413,7 +1407,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
                     "The measurement request does not match the bound Metric Set.");
             }
 
-            return measurement;
+            return textMeasurement;
         }
     }
 

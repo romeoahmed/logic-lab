@@ -665,7 +665,7 @@ internal sealed class EditorDurableRouteTests
             durableProjectLoader: durableProjectLoader,
             buildFingerprint: buildFingerprint)
     {
-        private readonly object gate = new();
+        private readonly Lock gate = new();
         private readonly List<AttachRequest> attachRequests = [];
         private readonly List<WorkspaceAttachOutcome> attachOutcomes = [];
         private readonly TaskCompletionSource attachStarted = new(
