@@ -173,7 +173,6 @@ internal sealed class SqliteDurableProjectCatalogRepositoryTests : IAsyncDisposa
 
     public ValueTask DisposeAsync()
     {
-        SqliteConnection.ClearAllPools();
         DeleteIfPresent(databasePath);
         DeleteIfPresent($"{databasePath}-shm");
         DeleteIfPresent($"{databasePath}-wal");

@@ -740,7 +740,6 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        SqliteConnection.ClearAllPools();
         DeleteIfPresent(databasePath);
         DeleteIfPresent($"{databasePath}-shm");
         DeleteIfPresent($"{databasePath}-wal");
