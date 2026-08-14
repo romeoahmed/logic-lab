@@ -144,11 +144,11 @@ internal sealed class TeachingMixedGeometryPlannerTests
     [Test]
     [Arguments("logic.or")]
     [Arguments("logic.xor")]
-    public async Task Plan_CurvedInputGate_StopsInputLeadsOnRearCurve(
+    public async Task Plan_CurvedInputGate_StopsInputLeadsOnBodyRearCurve(
         string contractId)
     {
         var plan = Plan(Request(contractId, 2));
-        var rearCurve = RearInputCurve(plan, contractId == "logic.xor");
+        var rearCurve = RearInputCurve(plan);
 
         foreach (var input in plan.PortAnchors.Where(anchor =>
                      anchor.OutwardDirection == PlanDirectionV1.West))
@@ -1301,21 +1301,8 @@ internal sealed class TeachingMixedGeometryPlannerTests
             points.Max(point => point.Y));
     }
 
-    private static TestCubicSegment RearInputCurve(
-        GeometryPlanV1 plan,
-        bool hasSeparateXorCurve)
+    private static TestCubicSegment RearInputCurve(GeometryPlanV1 plan)
     {
-        if (hasSeparateXorCurve)
-        {
-            var curvePath = plan.Operations
-                .OfType<StrokePathV1>()
-                .Single(operation => operation.Path.Commands is
-                    [MoveToV1, CubicToV1]);
-            return new TestCubicSegment(
-                ((MoveToV1)curvePath.Path.Commands[0]).Point,
-                (CubicToV1)curvePath.Path.Commands[1]);
-        }
-
         var bodyPath = plan.Operations
             .OfType<StrokePathV1>()
             .Single(operation =>
