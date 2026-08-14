@@ -28,7 +28,7 @@ public sealed class SymbolMetricSetV1
         QualifierStrokeWidth = OutlineStrokeWidth;
         PortLeadLength = checked(unitsPerH * 2);
         MinimumPortPitch = checked(unitsPerH * 2);
-        PortHitRadius = unitsPerH;
+        PortHitRadius = checked((MinimumPortPitch - OutlineStrokeWidth) / 2);
         BodyHitPadding = unitsPerH / 2;
         Fingerprint = ComputeFingerprint();
     }
@@ -74,7 +74,7 @@ public static class TeachingMixedMetricSets
 {
     public static SymbolMetricSetV1 AnnexA100 { get; } = new(
         "ieee-91a-annex-a",
-        "1.0.0",
+        "1.1.0",
         100);
 }
 
@@ -411,12 +411,31 @@ internal static class GeometryPlanValidator
     private static bool IsWithinBounds(DrawOperationV1 operation, RectV1 bounds) =>
         operation switch
         {
-            StrokePathV1 stroke => PathPoints(stroke.Path).All(bounds.Contains),
+            StrokePathV1 stroke => Contains(bounds, StrokeEnvelope(stroke)),
             FillPathV1 fill => PathPoints(fill.Path).All(bounds.Contains),
             DrawTextV1 text => bounds.Contains(text.Origin)
                 && Contains(bounds, text.Bounds),
             _ => false,
         };
+
+    internal static int ConservativeStrokeMargin(int width, LineJoinV1 lineJoin)
+    {
+        var halfWidth = checked((width + 1) / 2);
+        return lineJoin.Kind == LineJoinKindV1.Miter
+            ? checked(halfWidth * lineJoin.MiterLimitRatio)
+            : halfWidth;
+    }
+
+    private static RectV1 StrokeEnvelope(StrokePathV1 stroke)
+    {
+        var pathBounds = RectV1.Enclose([.. PathPoints(stroke.Path)]);
+        var margin = ConservativeStrokeMargin(stroke.Width, stroke.LineJoin);
+        return new RectV1(
+            checked(pathBounds.Left - margin),
+            checked(pathBounds.Top - margin),
+            checked(pathBounds.Right + margin),
+            checked(pathBounds.Bottom + margin));
+    }
 
     private static IEnumerable<PointV1> PathPoints(PathV1 path) =>
         path.Commands.SelectMany(command => command switch

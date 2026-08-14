@@ -159,6 +159,16 @@ internal static class PresentationDiagnosticsV1
                 Digest("actual", actual),
             ]);
 
+    public static LayoutDiagnosticV1 MetricFingerprintMismatch(
+        string expected,
+        string actual) => new(
+            PresentationDiagnosticSchema.MetricFingerprintMismatch,
+            LayoutDiagnosticSeverityV1.Error,
+            [
+                Digest("expected", expected),
+                Digest("actual", actual),
+            ]);
+
     public static LayoutDiagnosticV1 InternalInvariant() => new(
         PresentationDiagnosticSchema.InternalInvariant,
         LayoutDiagnosticSeverityV1.Error,
@@ -172,7 +182,10 @@ internal static class PresentationDiagnosticsV1
     private static LayoutDiagnosticArgumentV1 Digest(
         string name,
         FontFingerprintV1 fingerprint) =>
-        new(name, new LayoutDigestValueV1(fingerprint.Digest));
+        Digest(name, fingerprint.Digest);
+
+    private static LayoutDiagnosticArgumentV1 Digest(string name, string digest) =>
+        new(name, new LayoutDigestValueV1(digest));
 
     private static string SafeToken(string value) =>
         PresentationDiagnosticLexemes.IsStableToken(value) ? value : "unregistered";
@@ -196,6 +209,7 @@ internal static class PresentationDiagnosticSchema
     public const string ConstraintUnsatisfied = "presentation_constraint_unsatisfied";
     public const string UnverifiedFallback = "presentation_unverified_fallback";
     public const string FontFingerprintMismatch = "presentation_font_fingerprint_mismatch";
+    public const string MetricFingerprintMismatch = "presentation_metric_fingerprint_mismatch";
     public const string InternalInvariant = "presentation_internal_invariant";
 
     public static void Validate(
@@ -215,6 +229,9 @@ internal static class PresentationDiagnosticSchema
                 LayoutDiagnosticSeverityV1.Warning,
                 new[] { ("contractKey", typeof(LayoutContractKeyValueV1)) }),
             FontFingerprintMismatch => (
+                LayoutDiagnosticSeverityV1.Error,
+                new[] { ("expected", typeof(LayoutDigestValueV1)), ("actual", typeof(LayoutDigestValueV1)) }),
+            MetricFingerprintMismatch => (
                 LayoutDiagnosticSeverityV1.Error,
                 new[] { ("expected", typeof(LayoutDigestValueV1)), ("actual", typeof(LayoutDigestValueV1)) }),
             InternalInvariant => (

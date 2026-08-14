@@ -25,7 +25,7 @@ The implication is structural: outline, Port groups, labels, qualifiers, depende
 
 ## 3. Distinctive and rectangular outlines
 
-Chapter 5 permits several traditional distinctive basic-gate outlines. Symbols 5.1-1 and 5.1-3 show OR and AND alternatives. Their notes say distinctive shapes are not preferred in the related IEC standard but are not contradictory, and discourage composing them into complex symbols. Clause 2.3.1 similarly discourages distinctive shapes in embedded or abutted complex elements.
+Chapter 5 permits several traditional distinctive basic-gate outlines. The same numbered entries 5.1-1 and 5.1-3 each show both the rectangular and distinctive OR or AND alternative, so changing between those outlines does not change the primary symbol reference. Their notes say distinctive shapes are not preferred in the related IEC standard but are not contradictory, and discourage composing them into complex symbols. Clause 2.3.1 similarly discourages distinctive shapes in embedded or abutted complex elements.
 
 Symbol 5.1-11 is specifically a two-input exclusive-OR. For three or more inputs, the odd/even rectangular functions in 5.1-9 and 5.1-10 avoid misrepresenting “exactly one input” as arbitrary parity.
 
@@ -141,7 +141,7 @@ Route preview and scene indexing remain evidence-gated implementation choices. O
 
 ## 13. Primary sources
 
-- IEEE Std 91-1984 with IEEE 91A-1991.
+- [IEEE/ANSI 91a-1991 official standard record](https://standards.ieee.org/standard/91a-1991.html) and the licensed combined IEEE Std 91-1984 with IEEE 91A-1991 local reference.
 - [SVG 2 interaction](https://www.w3.org/TR/SVG2/interact.html#pointer-processing) and [descriptive elements](https://www.w3.org/TR/SVG2/struct.html#DescriptionAndTitleElements).
 - [WAI-ARIA Graphics Module](https://www.w3.org/TR/graphics-aria-1.0/).
 - [HTML Canvas](https://html.spec.whatwg.org/multipage/canvas.html#the-canvas-element).

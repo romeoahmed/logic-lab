@@ -66,27 +66,44 @@ internal static class BasicGateGeometryBuilder
         var bodyWidth = Math.Max(
             standardBodyWidth,
             Math.Max(minimumRecipeWidth, minimumTextBodyWidth));
-        var bodyLeft = metric.PortLeadLength;
+        var strokeMargin = GeometryPlanValidator.ConservativeStrokeMargin(
+            metric.OutlineStrokeWidth,
+            MiterJoin);
+        var planInset = Math.Max(strokeMargin, metric.PortHitRadius);
+        var bodyLeft = checked(planInset + metric.PortLeadLength);
         var bodyRight = checked(bodyLeft + bodyWidth);
-        var body = new RectV1(bodyLeft, 0, bodyRight, bodyHeight);
-        var centerY = bodyHeight / 2;
+        var body = new RectV1(
+            bodyLeft,
+            planInset,
+            bodyRight,
+            checked(planInset + bodyHeight));
+        var centerY = checked(body.Top + (bodyHeight / 2));
         var qualifierExtent = definition.HasOutputQualifier ? h : 0;
         var outputAnchorX = checked(bodyRight + qualifierExtent + metric.PortLeadLength);
-        var bounds = new RectV1(0, 0, outputAnchorX, bodyHeight);
+        var bounds = new RectV1(
+            0,
+            0,
+            checked(outputAnchorX + planInset),
+            checked(body.Bottom + planInset));
         var operations = new List<DrawOperationV1>();
 
         cancellationToken.ThrowIfCancellationRequested();
         AddOutline(operations, definition, body, textEnvelope, request);
-        var inputYs = InputRows(inputs.Length, bodyHeight, metric.MinimumPortPitch);
-        var inputEdgeX = definition.Recipe is BasicOutlineRecipe.Or or BasicOutlineRecipe.Xor
-            ? checked(bodyLeft + (bodyWidth / 4))
-            : bodyLeft;
+        var inputYs = InputRows(
+            inputs.Length,
+            body.Top,
+            bodyHeight,
+            metric.MinimumPortPitch);
         for (var index = 0; index < inputs.Length; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var inputEdgeX = InputConnectionX(
+                definition.Recipe,
+                body,
+                inputYs[index]);
             operations.Add(Stroke(
                 OpenPath(
-                    new MoveToV1(new PointV1(0, inputYs[index])),
+                    new MoveToV1(new PointV1(planInset, inputYs[index])),
                     new LineToV1(new PointV1(inputEdgeX, inputYs[index]))),
                 StrokeRoleV1.Outline,
                 metric.OutlineStrokeWidth));
@@ -138,7 +155,7 @@ internal static class BasicGateGeometryBuilder
         {
             cancellationToken.ThrowIfCancellationRequested();
             var point = port.Direction == PortDirection.Input
-                ? new PointV1(0, inputYs[inputIndex++])
+                ? new PointV1(planInset, inputYs[inputIndex++])
                 : new PointV1(outputAnchorX, centerY);
             var direction = port.Direction == PortDirection.Input
                 ? PlanDirectionV1.West
@@ -286,7 +303,7 @@ internal static class BasicGateGeometryBuilder
         var quarterWidth = body.Width / 4;
         var leftTip = checked(body.Left + quarterWidth);
         var centerY = checked(body.Top + (body.Height / 2));
-        var verticalControl = body.Height / 3;
+        var rear = OrInputCurve(body);
         return ClosedPath(
             new MoveToV1(new PointV1(leftTip, body.Top)),
             new CubicToV1(
@@ -298,27 +315,98 @@ internal static class BasicGateGeometryBuilder
                 new PointV1(checked(body.Left + (body.Width / 2)), body.Bottom),
                 new PointV1(leftTip, body.Bottom)),
             new CubicToV1(
-                new PointV1(
-                    checked(body.Left + (body.Width / 8)),
-                    checked(body.Bottom - verticalControl)),
-                new PointV1(
-                    checked(body.Left + (body.Width / 8)),
-                    checked(body.Top + verticalControl)),
-                new PointV1(leftTip, body.Top)),
+                rear.Control1,
+                rear.Control2,
+                rear.End),
             new ClosePathV1());
     }
 
     private static PathV1 XorInputCurve(RectV1 body)
     {
-        var offset = body.Width / 8;
-        var x = checked(body.Left + offset);
-        var control = body.Height / 3;
+        var curve = XorRearCurve(body);
         return OpenPath(
-            new MoveToV1(new PointV1(x, body.Top)),
-            new CubicToV1(
-                new PointV1(body.Left, checked(body.Top + control)),
-                new PointV1(body.Left, checked(body.Bottom - control)),
-                new PointV1(x, body.Bottom)));
+            new MoveToV1(curve.Start),
+            new CubicToV1(curve.Control1, curve.Control2, curve.End));
+    }
+
+    private static CubicSegment OrInputCurve(RectV1 body)
+    {
+        var leftTip = checked(body.Left + (body.Width / 4));
+        var controlX = checked(body.Left + (body.Width / 8));
+        var verticalControl = body.Height / 3;
+        return new CubicSegment(
+            new PointV1(leftTip, body.Bottom),
+            new PointV1(controlX, checked(body.Bottom - verticalControl)),
+            new PointV1(controlX, checked(body.Top + verticalControl)),
+            new PointV1(leftTip, body.Top));
+    }
+
+    private static CubicSegment XorRearCurve(RectV1 body)
+    {
+        var x = checked(body.Left + (body.Width / 8));
+        var verticalControl = body.Height / 3;
+        return new CubicSegment(
+            new PointV1(x, body.Top),
+            new PointV1(body.Left, checked(body.Top + verticalControl)),
+            new PointV1(body.Left, checked(body.Bottom - verticalControl)),
+            new PointV1(x, body.Bottom));
+    }
+
+    private static int InputConnectionX(
+        BasicOutlineRecipe recipe,
+        RectV1 body,
+        int inputY) => recipe switch
+        {
+            BasicOutlineRecipe.Or => CubicXAtY(OrInputCurve(body), inputY),
+            BasicOutlineRecipe.Xor => CubicXAtY(XorRearCurve(body), inputY),
+            _ => body.Left,
+        };
+
+    private static int CubicXAtY(CubicSegment curve, int targetY)
+    {
+        decimal low = 0;
+        decimal high = 1;
+        var increasing = curve.End.Y > curve.Start.Y;
+        for (var iteration = 0; iteration < 64; iteration++)
+        {
+            var middle = (low + high) / 2;
+            var y = CubicCoordinate(
+                curve.Start.Y,
+                curve.Control1.Y,
+                curve.Control2.Y,
+                curve.End.Y,
+                middle);
+            if ((increasing && y < targetY) || (!increasing && y > targetY))
+            {
+                low = middle;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        var parameter = (low + high) / 2;
+        return checked((int)decimal.Floor(CubicCoordinate(
+            curve.Start.X,
+            curve.Control1.X,
+            curve.Control2.X,
+            curve.End.X,
+            parameter)));
+    }
+
+    private static decimal CubicCoordinate(
+        int start,
+        int control1,
+        int control2,
+        int end,
+        decimal parameter)
+    {
+        var inverse = 1 - parameter;
+        return (inverse * inverse * inverse * start)
+            + (3 * inverse * inverse * parameter * control1)
+            + (3 * inverse * parameter * parameter * control2)
+            + (parameter * parameter * parameter * end);
     }
 
     private static PathV1 TriangleOutline(RectV1 body)
@@ -389,15 +477,19 @@ internal static class BasicGateGeometryBuilder
             new ClosePathV1());
     }
 
-    private static int[] InputRows(int inputCount, int bodyHeight, int pitch)
+    private static int[] InputRows(
+        int inputCount,
+        int bodyTop,
+        int bodyHeight,
+        int pitch)
     {
         if (inputCount == 1)
         {
-            return [bodyHeight / 2];
+            return [checked(bodyTop + (bodyHeight / 2))];
         }
 
         var span = checked((inputCount - 1) * pitch);
-        var first = checked((bodyHeight - span) / 2);
+        var first = checked(bodyTop + ((bodyHeight - span) / 2));
         var rows = new int[inputCount];
         for (var index = 0; index < rows.Length; index++)
         {
@@ -440,4 +532,10 @@ internal static class BasicGateGeometryBuilder
     private static PathV1 OpenPath(params PathCommandV1[] commands) => new(commands);
 
     private static PathV1 ClosedPath(params PathCommandV1[] commands) => new(commands);
+
+    private readonly record struct CubicSegment(
+        PointV1 Start,
+        PointV1 Control1,
+        PointV1 Control2,
+        PointV1 End);
 }

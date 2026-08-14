@@ -85,45 +85,131 @@ internal sealed class TeachingMixedGeometryPlannerTests
     [Arguments(8U)]
     [Arguments(9U)]
     [Arguments(63U)]
-    public async Task Plan_AndAcrossFanInRange_EnclosesEveryPathCoordinate(uint fanIn)
+    public async Task Plan_AndAcrossFanInRange_EnclosesEveryStrokeEnvelope(uint fanIn)
     {
         var plan = Plan(Request("logic.and", fanIn));
-        var pathPoints = plan.Operations
-            .OfType<StrokePathV1>()
-            .SelectMany(operation => operation.Path.Commands)
-            .SelectMany(command => command switch
-            {
-                MoveToV1 move => new[] { move.Point },
-                LineToV1 line => new[] { line.Point },
-                CubicToV1 cubic => new[] { cubic.Control1, cubic.Control2, cubic.End },
-                ClosePathV1 => [],
-                _ => throw new InvalidOperationException("Unexpected path command."),
-            });
 
-        await Assert.That(pathPoints.All(plan.Bounds.Contains)).IsTrue();
+        foreach (var stroke in plan.Operations.OfType<StrokePathV1>())
+        {
+            var points = PathPoints(stroke.Path).ToArray();
+            var halfWidth = checked((stroke.Width + 1) / 2);
+            var margin = stroke.LineJoin.Kind == LineJoinKindV1.Miter
+                ? checked(halfWidth * stroke.LineJoin.MiterLimitRatio)
+                : halfWidth;
+            var envelope = new RectV1(
+                checked(points.Min(point => point.X) - margin),
+                checked(points.Min(point => point.Y) - margin),
+                checked(points.Max(point => point.X) + margin),
+                checked(points.Max(point => point.Y) + margin));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(plan.Bounds.Contains(
+                    new PointV1(envelope.Left, envelope.Top))).IsTrue();
+                await Assert.That(plan.Bounds.Contains(
+                    new PointV1(envelope.Right, envelope.Bottom))).IsTrue();
+            }
+        }
     }
 
     [Test]
-    public async Task Plan_RectangularOverride_PreservesResolvedPorts()
+    [Arguments("logic.or", 132)]
+    [Arguments("logic.xor", 32)]
+    public async Task Plan_CurvedInputGate_StopsInputLeadsAtRearCurve(
+        string contractId,
+        int expectedOffsetFromBodyLeft)
     {
-        var distinctive = Plan(Request("logic.and", 4));
+        var plan = Plan(Request(contractId, 2));
+        var bodyShape = (await Assert.That(plan.HitRegions)
+            .HasSingleItem(region => region.Kind == HitRegionKindV1.Body)).Shape;
+        var body = (await Assert.That(bodyShape).IsTypeOf<RectHitShapeV1>())!.Rect;
+
+        foreach (var input in plan.PortAnchors.Where(anchor =>
+                     anchor.OutwardDirection == PlanDirectionV1.West))
+        {
+            var lead = await Assert.That(plan.Operations.OfType<StrokePathV1>())
+                .HasSingleItem(operation => operation.Path.Commands is
+                    [MoveToV1 move, LineToV1] && move.Point == input.Point);
+            var endpoint = ((LineToV1)lead.Path.Commands[1]).Point;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(endpoint.Y).IsEqualTo(input.Point.Y);
+                await Assert.That(endpoint.X)
+                    .IsEqualTo(checked(body.Left + expectedOffsetFromBodyLeft));
+            }
+        }
+    }
+
+    [Test]
+    [Arguments(2U)]
+    [Arguments(3U)]
+    [Arguments(63U)]
+    public async Task Plan_AcrossFanInRange_PortHitRegionsArePairwiseDisjoint(uint fanIn)
+    {
+        var plan = Plan(Request("logic.and", fanIn));
+        var circles = plan.HitRegions
+            .Where(region => region.Kind == HitRegionKindV1.Port)
+            .Select(region => (CircleHitShapeV1)region.Shape)
+            .ToArray();
+
+        for (var first = 0; first < circles.Length; first++)
+        {
+            for (var second = first + 1; second < circles.Length; second++)
+            {
+                var deltaX = (long)circles[first].Center.X - circles[second].Center.X;
+                var deltaY = (long)circles[first].Center.Y - circles[second].Center.Y;
+                var radiusSum = (long)circles[first].Radius + circles[second].Radius;
+
+                await Assert.That((deltaX * deltaX) + (deltaY * deltaY))
+                    .IsGreaterThan(radiusSum * radiusSum);
+            }
+        }
+    }
+
+    [Test]
+    [Arguments("logic.and", 2U, "&", "5.1-3", false)]
+    [Arguments("logic.nand", 2U, "&", "5.1-17", true)]
+    [Arguments("logic.or", 2U, "\u22651", "5.1-1", false)]
+    [Arguments("logic.nor", 2U, "\u22651", "5.1-18", true)]
+    [Arguments("logic.xor", 2U, "=1", "5.1-11", false)]
+    [Arguments("logic.xnor", 2U, "=1", "5.1-11", true)]
+    [Arguments("logic.buffer", 1U, "1", "5.1-12", false)]
+    [Arguments("logic.not", 1U, "1", "5.1-13", true)]
+    public async Task Plan_RectangularOverride_PreservesPortsAndStandardEvidence(
+        string contractId,
+        uint fanIn,
+        string expectedFunctionText,
+        string expectedPrimaryClause,
+        bool expectsOutputQualifier)
+    {
+        var distinctive = Plan(Request(contractId, fanIn));
         var rectangular = Plan(Request(
-            "logic.and",
-            4,
+            contractId,
+            fanIn,
             symbolVariantId: SymbolVariantCatalog.RectangularId));
+        var standard = await Assert.That(rectangular.Conformance.StandardReferences)
+            .HasSingleItem();
+        var expectedClauses = expectsOutputQualifier
+            ? new[] { expectedPrimaryClause, "3.1.1" }
+            : [expectedPrimaryClause];
 
         using (Assert.Multiple())
         {
             await Assert.That(rectangular.Key.SymbolVariantId)
                 .IsEqualTo(SymbolVariantCatalog.RectangularId);
             await Assert.That(rectangular.Operations.OfType<DrawTextV1>()
-                .Any(operation => operation.Text == "&")).IsTrue();
+                .Any(operation => operation.Text == expectedFunctionText)).IsTrue();
             await Assert.That(rectangular.PortAnchors.Select(anchor =>
                     (anchor.PortId, anchor.OutwardDirection)))
                 .IsEquivalentTo(
                     distinctive.PortAnchors.Select(anchor =>
                         (anchor.PortId, anchor.OutwardDirection)),
                     CollectionOrdering.Matching);
+            await Assert.That(rectangular.Conformance.Claim)
+                .IsEqualTo(ConformanceClaimV1.Standardized91A);
+            await Assert.That(standard.ClauseIds)
+                .IsEquivalentTo(expectedClauses, CollectionOrdering.Matching);
         }
     }
 
@@ -203,10 +289,15 @@ internal sealed class TeachingMixedGeometryPlannerTests
     {
         var first = Plan(Request("logic.and", 2));
         var repeated = Plan(Request("logic.and", 2));
-        var metricChanged = Plan(Request(
-            "logic.and",
-            2,
-            metricSet: new SymbolMetricSetV1("annex-a", "2.0.0", 200)));
+        var alternateMetricSet = new SymbolMetricSetV1("annex-a", "2.0.0", 200);
+        var metricChanged = Plan(
+            Request(
+                "logic.and",
+                2,
+                metricSet: alternateMetricSet),
+            new StubTextMeasurer(
+                DefaultFontFingerprint,
+                metricSet: alternateMetricSet));
         var fontChanged = Plan(Request(
             "logic.and",
             2,
@@ -216,6 +307,8 @@ internal sealed class TeachingMixedGeometryPlannerTests
         using (Assert.Multiple())
         {
             await Assert.That(first.Key).IsEqualTo(repeated.Key);
+            await Assert.That(first.Key.SymbolDefinitionVersion).IsEqualTo("1.1.0");
+            await Assert.That(first.Key.MetricSetVersion).IsEqualTo("1.1.0");
             await Assert.That(first.Key.MetricFingerprint)
                 .IsEqualTo(TeachingMixedMetricSets.AnnexA100.Fingerprint);
             await Assert.That(metricChanged.Key.MetricFingerprint)
@@ -374,6 +467,36 @@ internal sealed class TeachingMixedGeometryPlannerTests
                 .IsEqualTo("presentation_font_fingerprint_mismatch");
             await Assert.That(expected.Value).IsEqualTo(DefaultFontFingerprint.Digest);
             await Assert.That(actual.Value).IsEqualTo(AlternateFontFingerprint.Digest);
+        }
+    }
+
+    [Test]
+    public async Task Plan_MetricFingerprintMismatch_PublishesTypedDigestEvidence()
+    {
+        var alternateMetricSet = new SymbolMetricSetV1("annex-a", "2.0.0", 200);
+        var outcome = TeachingMixedGeometryPlanner.Plan(
+            Request("logic.xor", 3),
+            64,
+            new StubTextMeasurer(
+                DefaultFontFingerprint,
+                metricSet: alternateMetricSet));
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<GeometryPlanRejectedV1>())!;
+        var diagnostic = await Assert.That(rejected.Diagnostics).HasSingleItem();
+        var expected = (await Assert.That(diagnostic.Arguments[0].Value)
+            .IsTypeOf<LayoutDigestValueV1>())!;
+        var actual = (await Assert.That(diagnostic.Arguments[1].Value)
+            .IsTypeOf<LayoutDigestValueV1>())!;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason)
+                .IsEqualTo(LayoutRejectionReasonV1.LayoutInvalid);
+            await Assert.That(diagnostic.Code)
+                .IsEqualTo("presentation_metric_fingerprint_mismatch");
+            await Assert.That(expected.Value)
+                .IsEqualTo(TeachingMixedMetricSets.AnnexA100.Fingerprint);
+            await Assert.That(actual.Value).IsEqualTo(alternateMetricSet.Fingerprint);
         }
     }
 
@@ -656,15 +779,27 @@ internal sealed class TeachingMixedGeometryPlannerTests
         "1.0.0",
         IndicationConvention.Negation);
 
+    private static IEnumerable<PointV1> PathPoints(PathV1 path) =>
+        path.Commands.SelectMany(command => command switch
+        {
+            MoveToV1 move => new[] { move.Point },
+            LineToV1 line => new[] { line.Point },
+            CubicToV1 cubic => new[] { cubic.Control1, cubic.Control2, cubic.End },
+            ClosePathV1 => [],
+            _ => throw new InvalidOperationException("Unexpected path command."),
+        });
+
     private sealed class StubTextMeasurer : ISymbolTextMeasurerV1
     {
         private readonly SymbolTextMeasurementV1 measurement;
 
         public StubTextMeasurer(
             FontFingerprintV1 fontFingerprint,
-            SymbolTextMeasurementV1? measurement = null)
+            SymbolTextMeasurementV1? measurement = null,
+            SymbolMetricSetV1? metricSet = null)
         {
             FontFingerprint = fontFingerprint;
+            MetricSet = metricSet ?? TeachingMixedMetricSets.AnnexA100;
             this.measurement = measurement ?? new SymbolTextMeasurementV1(
                 300,
                 new RectV1(-150, -80, 150, 40));
@@ -672,12 +807,23 @@ internal sealed class TeachingMixedGeometryPlannerTests
 
         public FontFingerprintV1 FontFingerprint { get; }
 
+        public SymbolMetricSetV1 MetricSet { get; }
+
         public SymbolTextMeasurementV1 Measure(
             SymbolTextMeasurementRequestV1 request,
             CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(request);
             cancellationToken.ThrowIfCancellationRequested();
+            if (!string.Equals(
+                    request.MetricSet.Fingerprint,
+                    MetricSet.Fingerprint,
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "The measurement request does not match the bound Metric Set.");
+            }
+
             return measurement;
         }
     }
@@ -686,6 +832,8 @@ internal sealed class TeachingMixedGeometryPlannerTests
         : ISymbolTextMeasurerV1
     {
         public FontFingerprintV1 FontFingerprint { get; } = fontFingerprint;
+
+        public SymbolMetricSetV1 MetricSet { get; } = TeachingMixedMetricSets.AnnexA100;
 
         public SymbolTextMeasurementV1 Measure(
             SymbolTextMeasurementRequestV1 request,
@@ -699,6 +847,8 @@ internal sealed class TeachingMixedGeometryPlannerTests
         : ISymbolTextMeasurerV1
     {
         public FontFingerprintV1 FontFingerprint { get; } = fontFingerprint;
+
+        public SymbolMetricSetV1 MetricSet { get; } = TeachingMixedMetricSets.AnnexA100;
 
         public SymbolTextMeasurementV1 Measure(
             SymbolTextMeasurementRequestV1 request,

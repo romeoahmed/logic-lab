@@ -33,10 +33,12 @@ public sealed record SymbolTextMeasurementRequestV1
         string text,
         FontRoleV1 fontRole,
         TextAlignmentV1 alignment,
+        SymbolMetricSetV1 metricSet,
         string localeId,
         BaseDirectionV1 baseDirection)
     {
         ArgumentException.ThrowIfNullOrEmpty(text);
+        ArgumentNullException.ThrowIfNull(metricSet);
         ArgumentException.ThrowIfNullOrEmpty(localeId);
         if (!text.IsNormalized(NormalizationForm.FormC))
         {
@@ -61,6 +63,7 @@ public sealed record SymbolTextMeasurementRequestV1
         Text = text;
         FontRole = fontRole;
         Alignment = alignment;
+        MetricSet = metricSet;
         LocaleId = localeId;
         BaseDirection = baseDirection;
     }
@@ -70,6 +73,8 @@ public sealed record SymbolTextMeasurementRequestV1
     public FontRoleV1 FontRole { get; }
 
     public TextAlignmentV1 Alignment { get; }
+
+    public SymbolMetricSetV1 MetricSet { get; }
 
     public string LocaleId { get; }
 
@@ -139,6 +144,8 @@ public sealed record SymbolTextMeasurementV1
 public interface ISymbolTextMeasurerV1
 {
     FontFingerprintV1 FontFingerprint { get; }
+
+    SymbolMetricSetV1 MetricSet { get; }
 
     // Advance and ink bounds are separate because glyph overhang can exceed advance width.
     // Source: https://html.spec.whatwg.org/multipage/canvas.html#textmetrics
