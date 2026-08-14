@@ -1,0 +1,123 @@
+using FsCheck;
+using FsCheck.Fluent;
+using LogicLab.Domain.Authoring;
+using LogicLab.Presentation.Geometry;
+using LogicLab.Presentation.TeachingMixed;
+
+namespace LogicLab.Presentation.Tests;
+
+internal sealed record BasicSymbolPlanCase(
+    string ContractId,
+    uint Width,
+    uint FanIn,
+    string? SymbolVariantId,
+    SymbolFacingV1 Facing,
+    bool IsReflected,
+    IndicationConvention IndicationConvention,
+    PresentationLocaleIdV1 LocaleId,
+    BaseDirectionV1 BaseDirection)
+{
+    public bool IsUnary => ContractId is "logic.buffer" or "logic.not";
+
+    public override string ToString() =>
+        $"{ContractId}(width={Width}, fanIn={FanIn}, variant={SymbolVariantId ?? "default"}, " +
+        $"facing={Facing}, reflected={IsReflected}, indication={IndicationConvention}, " +
+        $"locale={LocaleId}, direction={BaseDirection})";
+}
+
+internal static class PresentationGeometryArbitraries
+{
+    private static readonly string[] ContractIds =
+    [
+        "logic.and",
+        "logic.nand",
+        "logic.or",
+        "logic.nor",
+        "logic.xor",
+        "logic.xnor",
+        "logic.buffer",
+        "logic.not",
+    ];
+
+    public static Arbitrary<BasicSymbolPlanCase> BasicSymbolPlan()
+    {
+        var generator =
+            from contractId in Gen.Elements(ContractIds)
+            from width in Gen.Elements(1U, 8U, 63U, 64U, 65U, 257U)
+            from fanIn in contractId is "logic.buffer" or "logic.not"
+                ? Gen.Constant(1U)
+                : Gen.Elements(2U, 3U, 8U, 9U, 63U)
+            from variant in Gen.Elements<string?>(
+                null,
+                SymbolVariantCatalog.RectangularId)
+            from facing in Gen.Elements(Enum.GetValues<SymbolFacingV1>())
+            from isReflected in ArbMap.Default.GeneratorFor<bool>()
+            from indication in Gen.Elements(Enum.GetValues<IndicationConvention>())
+            from locale in Gen.Elements(
+                PresentationLocaleIdV1.EnglishUnitedStates,
+                PresentationLocaleIdV1.SimplifiedChineseChina)
+            from baseDirection in Gen.Elements(Enum.GetValues<BaseDirectionV1>())
+            select new BasicSymbolPlanCase(
+                contractId,
+                width,
+                fanIn,
+                variant,
+                facing,
+                isReflected,
+                indication,
+                locale,
+                baseDirection);
+
+        return Arb.From(generator, Shrink);
+    }
+
+    private static IEnumerable<BasicSymbolPlanCase> Shrink(BasicSymbolPlanCase sample)
+    {
+        if (sample.Width != 1)
+        {
+            yield return sample with { Width = 1 };
+        }
+
+        var minimumFanIn = sample.IsUnary ? 1U : 2U;
+        if (sample.FanIn != minimumFanIn)
+        {
+            yield return sample with { FanIn = minimumFanIn };
+        }
+
+        if (sample.SymbolVariantId is not null)
+        {
+            yield return sample with { SymbolVariantId = null };
+        }
+
+        if (sample.Facing != SymbolFacingV1.East)
+        {
+            yield return sample with { Facing = SymbolFacingV1.East };
+        }
+
+        if (sample.IsReflected)
+        {
+            yield return sample with { IsReflected = false };
+        }
+
+        if (sample.IndicationConvention != IndicationConvention.Negation)
+        {
+            yield return sample with
+            {
+                IndicationConvention = IndicationConvention.Negation,
+            };
+        }
+
+        if (sample.LocaleId != PresentationLocaleIdV1.EnglishUnitedStates)
+        {
+            yield return sample with
+            {
+                LocaleId = PresentationLocaleIdV1.EnglishUnitedStates,
+            };
+        }
+
+        if (sample.BaseDirection != BaseDirectionV1.LeftToRight)
+        {
+            yield return sample with { BaseDirection = BaseDirectionV1.LeftToRight };
+        }
+    }
+}

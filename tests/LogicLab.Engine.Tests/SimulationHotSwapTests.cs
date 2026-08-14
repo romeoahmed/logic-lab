@@ -180,34 +180,18 @@ internal sealed class SimulationHotSwapTests
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
         var acceptedBefore = Snapshot(acceptedSession);
-        var rejectedBefore = Snapshot(rejectedSession);
         circuit.Apply(new MoveComponentInstancesIntent(
             circuit.Revision.Document.EntryCircuitDefinitionId,
             [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
         var replacementArtifact = circuit.Compile();
 
-        var accepted = SimulationRuntime.Execute(
-            acceptedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
-            CancellationToken.None);
-        var rejected = SimulationRuntime.Execute(
-            rejectedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
-            CancellationToken.None);
-        var rejectedAfter = Snapshot(rejectedSession);
+        var committed = await AssertExactBudgetBoundary(
+            acceptedSession,
+            rejectedSession,
+            replacementArtifact,
+            exactPeakOwnedBufferBytes);
 
-        var committed = (await Assert.That(accepted).IsTypeOf<HotSwapCommitted>())!;
-        var resourceLimit = (await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
-        using (Assert.Multiple())
-        {
-            await Assert.That(committed.TraceCursor)
-                .IsEqualTo(acceptedBefore.TraceCursor);
-            await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
-                .IsEqualTo(exactPeakOwnedBufferBytes);
-        }
-
-        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+        await Assert.That(committed.TraceCursor).IsEqualTo(acceptedBefore.TraceCursor);
     }
 
     [Test]
@@ -236,30 +220,13 @@ internal sealed class SimulationHotSwapTests
             ownedBytesPerObservedProbeBit: sizeof(byte));
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        var rejectedBefore = Snapshot(rejectedSession);
 
-        var accepted = SimulationRuntime.Execute(
-            acceptedSession.Handle,
-            new HotSwapTo(
-                replacementArtifact,
-                exactPeakOwnedBufferBytes,
-                consumerBuffers),
-            CancellationToken.None);
-        var rejected = SimulationRuntime.Execute(
-            rejectedSession.Handle,
-            new HotSwapTo(
-                replacementArtifact,
-                exactPeakOwnedBufferBytes - 1UL,
-                consumerBuffers),
-            CancellationToken.None);
-        var rejectedAfter = Snapshot(rejectedSession);
-
-        await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = (await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
-        await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
-            .IsEqualTo(exactPeakOwnedBufferBytes);
-        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+        _ = await AssertExactBudgetBoundary(
+            acceptedSession,
+            rejectedSession,
+            replacementArtifact,
+            exactPeakOwnedBufferBytes,
+            consumerBuffers);
     }
 
     [Test]
@@ -283,28 +250,16 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        var rejectedBefore = Snapshot(rejectedSession);
         circuit.Apply(new MoveComponentInstancesIntent(
             circuit.Revision.Document.EntryCircuitDefinitionId,
             [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
         var replacementArtifact = circuit.Compile();
 
-        var accepted = SimulationRuntime.Execute(
-            acceptedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
-            CancellationToken.None);
-        var rejected = SimulationRuntime.Execute(
-            rejectedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
-            CancellationToken.None);
-        var rejectedAfter = Snapshot(rejectedSession);
-
-        await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = (await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
-        await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
-            .IsEqualTo(exactPeakOwnedBufferBytes);
-        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+        _ = await AssertExactBudgetBoundary(
+            acceptedSession,
+            rejectedSession,
+            replacementArtifact,
+            exactPeakOwnedBufferBytes);
     }
 
     [Test]
@@ -330,34 +285,19 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        var rejectedBefore = Snapshot(rejectedSession);
         circuit.Apply(new MoveComponentInstancesIntent(
             circuit.Revision.Document.EntryCircuitDefinitionId,
             [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
         var replacementArtifact = circuit.Compile();
 
-        var accepted = SimulationRuntime.Execute(
-            acceptedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
-            CancellationToken.None);
-        var rejected = SimulationRuntime.Execute(
-            rejectedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
-            CancellationToken.None);
-        var rejectedAfter = Snapshot(rejectedSession);
+        var committed = await AssertExactBudgetBoundary(
+            acceptedSession,
+            rejectedSession,
+            replacementArtifact,
+            exactPeakOwnedBufferBytes);
 
-        var committed = (await Assert.That(accepted).IsTypeOf<HotSwapCommitted>())!;
-        var resourceLimit = (await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
-        using (Assert.Multiple())
-        {
-            await Assert.That(committed.Diagnostics.Select(item => item.Code))
-                .IsEquivalentTo(["simulation_net_undriven"]);
-            await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
-                .IsEqualTo(exactPeakOwnedBufferBytes);
-        }
-
-        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+        await Assert.That(committed.Diagnostics.Select(item => item.Code))
+            .IsEquivalentTo(["simulation_net_undriven"]);
     }
 
     [Test]
@@ -378,33 +318,18 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        var rejectedBefore = Snapshot(rejectedSession);
         circuit.Apply(new MoveComponentInstancesIntent(
             circuit.Revision.Document.EntryCircuitDefinitionId,
             [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
         var replacementArtifact = circuit.Compile();
 
-        var accepted = SimulationRuntime.Execute(
-            acceptedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
-            CancellationToken.None);
-        var rejected = SimulationRuntime.Execute(
-            rejectedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
-            CancellationToken.None);
-        var rejectedAfter = Snapshot(rejectedSession);
+        var committed = await AssertExactBudgetBoundary(
+            acceptedSession,
+            rejectedSession,
+            replacementArtifact,
+            exactPeakOwnedBufferBytes);
 
-        var committed = (await Assert.That(accepted).IsTypeOf<HotSwapCommitted>())!;
-        var resourceLimit = (await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
-        using (Assert.Multiple())
-        {
-            await Assert.That(committed.Diagnostics.Single().Arguments).Count().IsEqualTo(3);
-            await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
-                .IsEqualTo(exactPeakOwnedBufferBytes);
-        }
-
-        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+        await Assert.That(committed.Diagnostics.Single().Arguments).Count().IsEqualTo(3);
     }
 
     [Test]
@@ -421,7 +346,6 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        var rejectedBefore = Snapshot(rejectedSession);
 
         circuit.Apply(new SetInstanceParametersIntent(
             circuit.Revision.Document.EntryCircuitDefinitionId,
@@ -434,30 +358,19 @@ internal sealed class SimulationHotSwapTests
         _ = circuit.Connect((wideInput, "Q"), (wideSink, "D"));
         var replacementArtifact = circuit.Compile();
 
-        var accepted = SimulationRuntime.Execute(
-            acceptedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
-            CancellationToken.None);
-        var rejected = SimulationRuntime.Execute(
-            rejectedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
-            CancellationToken.None);
-        var rejectedAfter = Snapshot(rejectedSession);
+        var committed = await AssertExactBudgetBoundary(
+            acceptedSession,
+            rejectedSession,
+            replacementArtifact,
+            exactPeakOwnedBufferBytes);
 
-        var committed = (await Assert.That(accepted).IsTypeOf<HotSwapCommitted>())!;
-        var resourceLimit = (await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
         using (Assert.Multiple())
         {
             await Assert.That(committed.TraceCursor.LatestSequence)
                 .IsEqualTo(2UL);
             await Assert.That(committed.ObservedProbes.Single().Value[0])
                 .IsEqualTo(LogicValue.One);
-            await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
-                .IsEqualTo(exactPeakOwnedBufferBytes);
         }
-
-        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
     }
 
     [Test]
@@ -489,28 +402,16 @@ internal sealed class SimulationHotSwapTests
             rejectedSession.Handle,
             schedule,
             CancellationToken.None);
-        var rejectedBefore = Snapshot(rejectedSession);
         circuit.Apply(new MoveComponentInstancesIntent(
             circuit.Revision.Document.EntryCircuitDefinitionId,
             [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
         var replacementArtifact = circuit.Compile();
 
-        var accepted = SimulationRuntime.Execute(
-            acceptedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
-            CancellationToken.None);
-        var rejected = SimulationRuntime.Execute(
-            rejectedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
-            CancellationToken.None);
-        var rejectedAfter = Snapshot(rejectedSession);
-
-        await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = (await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
-        await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
-            .IsEqualTo(exactPeakOwnedBufferBytes);
-        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+        _ = await AssertExactBudgetBoundary(
+            acceptedSession,
+            rejectedSession,
+            replacementArtifact,
+            exactPeakOwnedBufferBytes);
     }
 
     [Test]
@@ -526,28 +427,16 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        var rejectedBefore = Snapshot(rejectedSession);
         circuit.Apply(new MoveComponentInstancesIntent(
             circuit.Revision.Document.EntryCircuitDefinitionId,
             [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
         var replacementArtifact = circuit.Compile();
 
-        var accepted = SimulationRuntime.Execute(
-            acceptedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
-            CancellationToken.None);
-        var rejected = SimulationRuntime.Execute(
-            rejectedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
-            CancellationToken.None);
-        var rejectedAfter = Snapshot(rejectedSession);
-
-        await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = (await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
-        await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
-            .IsEqualTo(exactPeakOwnedBufferBytes);
-        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+        _ = await AssertExactBudgetBoundary(
+            acceptedSession,
+            rejectedSession,
+            replacementArtifact,
+            exactPeakOwnedBufferBytes);
     }
 
     [Test]
@@ -747,27 +636,14 @@ internal sealed class SimulationHotSwapTests
         _ = circuit.Connect((address, "Q"), (rom, "A"));
         var replacementArtifact = ((CompilationSucceeded)circuit.Compile(policy)).Artifact;
 
-        var accepted = SimulationRuntime.Execute(
-            acceptedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
-            CancellationToken.None);
-        var rejected = SimulationRuntime.Execute(
-            rejectedSession.Handle,
-            HotSwap(
-                replacementArtifact,
-                exactPeakOwnedBufferBytes - 1UL),
-            CancellationToken.None);
+        var committed = await AssertExactBudgetBoundary(
+            acceptedSession,
+            rejectedSession,
+            replacementArtifact,
+            exactPeakOwnedBufferBytes);
 
-        var committed = (await Assert.That(accepted).IsTypeOf<HotSwapCommitted>())!;
-        var resourceLimit = (await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
-        using (Assert.Multiple())
-        {
-            await Assert.That(committed.CompilationArtifactKey)
-                .IsEqualTo(replacementArtifact.Key);
-            await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
-                .IsEqualTo(exactPeakOwnedBufferBytes);
-        }
+        await Assert.That(committed.CompilationArtifactKey)
+            .IsEqualTo(replacementArtifact.Key);
     }
 
     [Test]
@@ -790,28 +666,16 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        var rejectedBefore = Snapshot(rejectedSession);
         circuit.Apply(new MoveComponentInstancesIntent(
             circuit.Revision.Document.EntryCircuitDefinitionId,
             [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(20, 3)))]));
         var replacementArtifact = circuit.Compile();
 
-        var accepted = SimulationRuntime.Execute(
-            acceptedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
-            CancellationToken.None);
-        var rejected = SimulationRuntime.Execute(
-            rejectedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes - 1UL),
-            CancellationToken.None);
-        var rejectedAfter = Snapshot(rejectedSession);
-
-        await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = (await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
-        await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
-            .IsEqualTo(exactPeakOwnedBufferBytes);
-        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+        _ = await AssertExactBudgetBoundary(
+            acceptedSession,
+            rejectedSession,
+            replacementArtifact,
+            exactPeakOwnedBufferBytes);
     }
 
     [Test]
@@ -834,30 +698,80 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        var rejectedBefore = Snapshot(rejectedSession);
         circuit.Apply(new MoveComponentInstancesIntent(
             circuit.Revision.Document.EntryCircuitDefinitionId,
             [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(20, 3)))]));
         var replacementArtifact = circuit.Compile();
 
-        var accepted = SimulationRuntime.Execute(
-            acceptedSession.Handle,
-            HotSwap(replacementArtifact, exactPeakOwnedBufferBytes),
-            CancellationToken.None);
-        var rejected = SimulationRuntime.Execute(
-            rejectedSession.Handle,
-            HotSwap(
-                replacementArtifact,
-                exactPeakOwnedBufferBytes - 1UL),
-            CancellationToken.None);
-        var rejectedAfter = Snapshot(rejectedSession);
+        _ = await AssertExactBudgetBoundary(
+            acceptedSession,
+            rejectedSession,
+            replacementArtifact,
+            exactPeakOwnedBufferBytes);
+    }
 
-        await Assert.That(accepted).IsTypeOf<HotSwapCommitted>();
-        var resourceLimit = (await Assert.That(rejected)
-            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
-        await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
-            .IsEqualTo(exactPeakOwnedBufferBytes);
-        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+    [Test]
+    public async Task Execute_WiderDemux_ChargesOnlyUniqueFinalOutputPlanes()
+    {
+        var originalCircuit = SequentialTestCircuit.Create();
+        var input = originalCircuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.Zero));
+        var sink = originalCircuit.Place("sink.output", SequentialTestCircuit.Sink());
+        _ = originalCircuit.Connect((input, "Q"), (sink, "D"));
+        var originalArtifact = originalCircuit.Compile();
+
+        var twoOutputPeak = ObserveCandidatePeak(
+            originalArtifact,
+            CreateDemuxArtifact(selectorWidth: 1));
+        var eightOutputPeak = ObserveCandidatePeak(
+            originalArtifact,
+            CreateDemuxArtifact(selectorWidth: 3));
+
+        // Six additional output Drivers require six candidate Driver references,
+        // six superseded initial-Z planes, and six evaluator-result references.
+        // Final Demux values still share selected-data and zero planes.
+        await Assert.That(eightOutputPeak - twoOutputPeak).IsEqualTo(192UL);
+    }
+
+    [Test]
+    public async Task Execute_RecomputedWideNet_AccountsForOverlappingResolutionPlanes()
+    {
+        // The 464-byte replacement candidate includes 80 bytes of settlement scratch:
+        // two value planes and three cause planes overlap the previous 65-bit Net.
+        // Publishing the settled replacement requires one additional 32-byte Trace fork.
+        const ulong exactPeakOwnedBufferBytes = 496;
+        var originalCircuit = SequentialTestCircuit.Create();
+        var originalInput = originalCircuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.Zero));
+        var originalSink = originalCircuit.Place(
+            "sink.output",
+            SequentialTestCircuit.Sink());
+        _ = originalCircuit.Connect((originalInput, "Q"), (originalSink, "D"));
+        var originalArtifact = originalCircuit.Compile();
+
+        var replacementCircuit = SequentialTestCircuit.Create();
+        var input = replacementCircuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.Zero, width: 65));
+        var buffer = replacementCircuit.Place(
+            "logic.buffer",
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(65)));
+        var sink = replacementCircuit.Place(
+            "sink.output",
+            SequentialTestCircuit.Sink(width: 65));
+        _ = replacementCircuit.Connect((input, "Q"), (buffer, "A"));
+        _ = replacementCircuit.Connect((buffer, "Q"), (sink, "D"));
+        var replacementArtifact = replacementCircuit.Compile();
+        var acceptedSession = Open(originalArtifact);
+        var rejectedSession = Open(originalArtifact);
+
+        _ = await AssertExactBudgetBoundary(
+            acceptedSession,
+            rejectedSession,
+            replacementArtifact,
+            exactPeakOwnedBufferBytes);
     }
 
     private static SimulationOpened Open(
@@ -870,6 +784,75 @@ internal sealed class SimulationHotSwapTests
                 SimulationTestContext.PermissiveSimulationPolicy(),
                 [.. outputNets.Select(net => SequentialTestCircuit.NetSource(artifact, net))]),
             CancellationToken.None);
+    }
+
+    private static ulong ObserveCandidatePeak(
+        CompilationArtifact original,
+        CompilationArtifact replacement)
+    {
+        var opened = Open(original);
+        var outcome = SimulationRuntime.Execute(
+            opened.Handle,
+            HotSwap(replacement, maximumPeakOwnedBufferBytes: 1),
+            CancellationToken.None);
+        return outcome is HotSwapResourceLimitExceeded resourceLimit
+            ? resourceLimit.ObservedPeakOwnedBufferBytes
+            : throw new InvalidOperationException(
+                "The one-byte Hot Swap limit unexpectedly admitted the replacement.");
+    }
+
+    private static async Task<HotSwapCommitted> AssertExactBudgetBoundary(
+        SimulationOpened acceptedSession,
+        SimulationOpened rejectedSession,
+        CompilationArtifact replacement,
+        ulong exactPeakOwnedBufferBytes,
+        HotSwapConsumerBufferRequirements? consumerBuffers = null)
+    {
+        consumerBuffers ??= HotSwapConsumerBufferRequirements.None;
+        var rejectedBefore = Snapshot(rejectedSession);
+        var accepted = SimulationRuntime.Execute(
+            acceptedSession.Handle,
+            new HotSwapTo(
+                replacement,
+                exactPeakOwnedBufferBytes,
+                consumerBuffers),
+            CancellationToken.None);
+        var rejected = SimulationRuntime.Execute(
+            rejectedSession.Handle,
+            new HotSwapTo(
+                replacement,
+                exactPeakOwnedBufferBytes - 1,
+                consumerBuffers),
+            CancellationToken.None);
+        var rejectedAfter = Snapshot(rejectedSession);
+
+        var committed = (await Assert.That(accepted).IsTypeOf<HotSwapCommitted>())!;
+        var resourceLimit = (await Assert.That(rejected)
+            .IsTypeOf<HotSwapResourceLimitExceeded>())!;
+        await Assert.That(resourceLimit.ObservedPeakOwnedBufferBytes)
+            .IsEqualTo(exactPeakOwnedBufferBytes);
+        await AssertSnapshotsEquivalent(rejectedBefore, rejectedAfter);
+        return committed;
+    }
+
+    private static CompilationArtifact CreateDemuxArtifact(uint selectorWidth)
+    {
+        var circuit = SequentialTestCircuit.Create();
+        var data = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.One));
+        var selector = circuit.Place(
+            "source.input",
+            SequentialTestCircuit.Input(LogicValue.Zero, selectorWidth));
+        var demux = circuit.Place(
+            "logic.demux",
+            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+            new ComponentParameterBinding(
+                "selectorWidth",
+                new Unsigned32ParameterValue(selectorWidth)));
+        _ = circuit.Connect((data, "Q"), (demux, "D"));
+        _ = circuit.Connect((selector, "Q"), (demux, "S"));
+        return circuit.Compile();
     }
 
     private static HotSwapTo HotSwap(

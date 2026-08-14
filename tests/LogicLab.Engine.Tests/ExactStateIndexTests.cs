@@ -1,42 +1,40 @@
-using FsCheck;
-using FsCheck.Fluent;
 using LogicLab.Engine.Simulation;
-using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
 internal sealed class ExactStateIndexTests
 {
-    [Test, FsCheckProperty]
-    public Property Contains_AnyHashCollision_UsesExactStateEquality(
-        NonNull<string> retainedState,
-        NonNull<string> candidateState)
+    [Test]
+    [Arguments("retained", "retained", true)]
+    [Arguments("retained", "distinct", false)]
+    public async Task Contains_ForcedHashCollision_UsesExactStateEquality(
+        string retainedState,
+        string candidateState,
+        bool expected)
     {
         var index = new ExactStateIndex<string, int>(
             (_, _) => 0,
             (left, right, _) => string.Equals(left, right, StringComparison.Ordinal));
-        index.Add(0, retainedState.Get);
+        index.Add(0, retainedState);
 
         var containsCandidate = index.Contains(
-            candidateState.Get,
+            candidateState,
             out var fingerprint,
             CancellationToken.None);
-        var expected = string.Equals(
-            retainedState.Get,
-            candidateState.Get,
-            StringComparison.Ordinal);
         if (!containsCandidate)
         {
-            index.Add(fingerprint, candidateState.Get);
+            index.Add(fingerprint, candidateState);
         }
 
         var containsRepeat = index.Contains(
-            candidateState.Get,
+            candidateState,
             out _,
             CancellationToken.None);
 
-        return (containsCandidate == expected && containsRepeat)
-            .Label("forced fingerprint collisions use exact equality")
-            .Collect(expected ? "equal states" : "distinct collision");
+        using (Assert.Multiple())
+        {
+            await Assert.That(containsCandidate).IsEqualTo(expected);
+            await Assert.That(containsRepeat).IsTrue();
+        }
     }
 }

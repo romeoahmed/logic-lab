@@ -96,7 +96,7 @@ internal sealed class ComponentContractSchemaTests
         SplitPortCase sample)
     {
         var contract = RequireCoreContract("topology.split");
-        var resolution = contract.ResolvePorts(
+        ComponentParameterBinding[] parameters =
         [
             new ComponentParameterBinding(
                 "width",
@@ -104,8 +104,10 @@ internal sealed class ComponentContractSchemaTests
             new ComponentParameterBinding(
                 "slices",
                 new SlicesParameterValue(sample.Slices)),
-        ]);
-        var actual = Materialize(resolution)
+        ];
+        var resolution = contract.ResolvePorts(parameters);
+        var materialized = Materialize(resolution);
+        var actual = materialized
             .Select(static port => (port.Id, port.Direction, port.Width));
         var expected = new[]
         {
@@ -115,7 +117,14 @@ internal sealed class ComponentContractSchemaTests
 
         return (resolution.TryGetPortCount(out var portCount)
                 && portCount == checked((ulong)sample.Slices.Length + 1)
-                && actual.SequenceEqual(expected))
+                && actual.SequenceEqual(expected)
+                && LookupMatchesMaterialized(contract, parameters, materialized)
+                && InvalidLookupsFail(
+                    contract,
+                    parameters,
+                    $"Q{sample.Slices.Length}",
+                    "Q00",
+                    "unknown"))
             .Label("Split Ports match the ordered slice model")
             .Collect($"slices={sample.Slices.Length}")
             .Collect($"width={sample.Width}");
@@ -126,13 +135,15 @@ internal sealed class ComponentContractSchemaTests
         ConcatPortCase sample)
     {
         var contract = RequireCoreContract("topology.concat");
-        var resolution = contract.ResolvePorts(
+        ComponentParameterBinding[] parameters =
         [
             new ComponentParameterBinding(
                 "inputWidths",
                 new WidthsParameterValue(sample.Widths)),
-        ]);
-        var actual = Materialize(resolution)
+        ];
+        var resolution = contract.ResolvePorts(parameters);
+        var materialized = Materialize(resolution);
+        var actual = materialized
             .Select(static port => (port.Id, port.Direction, port.Width));
         var expected = sample.Widths.Select((width, index) =>
                 ($"D{index}", PortDirection.Input, width))
@@ -142,7 +153,14 @@ internal sealed class ComponentContractSchemaTests
 
         return (resolution.TryGetPortCount(out var portCount)
                 && portCount == checked((ulong)sample.Widths.Length + 1)
-                && actual.SequenceEqual(expected))
+                && actual.SequenceEqual(expected)
+                && LookupMatchesMaterialized(contract, parameters, materialized)
+                && InvalidLookupsFail(
+                    contract,
+                    parameters,
+                    $"D{sample.Widths.Length}",
+                    "D00",
+                    "unknown"))
             .Label("Concat Ports match the ordered width model")
             .Collect($"inputs={sample.Widths.Length}")
             .Collect($"width={sample.Widths.Aggregate(
@@ -283,4 +301,20 @@ internal sealed class ComponentContractSchemaTests
             : throw new InvalidOperationException(
                 "The bounded test Port resolution could not be materialized.");
     }
+
+    private static bool LookupMatchesMaterialized(
+        ComponentContractSchema contract,
+        IReadOnlyList<ComponentParameterBinding> parameters,
+        IReadOnlyList<ResolvedComponentPortSchema> materialized) =>
+        materialized.All(expected =>
+            contract.TryResolvePort(parameters, expected.Id, out var actual)
+            && actual is not null
+            && (actual.Id, actual.Direction, actual.Width)
+                == (expected.Id, expected.Direction, expected.Width));
+
+    private static bool InvalidLookupsFail(
+        ComponentContractSchema contract,
+        IReadOnlyList<ComponentParameterBinding> parameters,
+        params string[] portIds) =>
+        portIds.All(portId => !contract.TryResolvePort(parameters, portId, out _));
 }
