@@ -49,6 +49,14 @@ internal static class TopologyRuntimeArbitraries
 
     private static IEnumerable<TopologyRuntimeCase> Shrink(TopologyRuntimeCase sample)
     {
+        var requiredWidth = checked((int)Math.Max(
+            sample.FirstSlice.Offset + sample.FirstSlice.Length,
+            sample.SecondSlice.Offset + sample.SecondSlice.Length));
+        if (requiredWidth < sample.Values.Length)
+        {
+            yield return sample with { Values = sample.Values[..requiredWidth] };
+        }
+
         for (var index = 0; index < sample.Values.Length; index++)
         {
             if (sample.Values[index] == LogicValue.Zero)
