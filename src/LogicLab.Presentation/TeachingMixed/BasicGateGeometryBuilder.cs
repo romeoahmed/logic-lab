@@ -20,33 +20,63 @@ internal static class BasicGateGeometryBuilder
         BasicSymbolRequestV1 request,
         ResolvedBasicSymbolDefinition definition,
         IReadOnlyList<ResolvedComponentPortSchema> ports,
+        SymbolTextMeasurementV1? textMeasurement,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var inputs = ports.Where(port => port.Direction == PortDirection.Input).ToArray();
         var output = ports.Single(port => port.Direction == PortDirection.Output);
         var metric = request.MetricSet;
         var h = metric.UnitsPerH;
+        var textAlignment = TextAlignmentV1.Center;
+        var textEnvelope = textMeasurement?.InkAndAdvanceBounds(
+            textAlignment,
+            request.BaseDirection);
         var standardBodyHeight = checked(h * 13 / 2);
         var requestedBodyHeight = inputs.Length == 1
             ? standardBodyHeight
             : checked((inputs.Length - 1) * metric.MinimumPortPitch + (2 * h));
+        var minimumHorizontalTextSize = textEnvelope is { } measuredText
+            ? RequiredCenteredSize(
+                measuredText.Left,
+                measuredText.Right,
+                checked(2 * h))
+            : 0;
+        var minimumVerticalTextSize = textEnvelope is { } verticalText
+            ? RequiredCenteredSize(verticalText.Top, verticalText.Bottom, h)
+            : 0;
+        var swapsAxes = request.Facing is SymbolFacingV1.North or SymbolFacingV1.South;
+        var minimumTextBodyHeight = swapsAxes
+            ? minimumHorizontalTextSize
+            : minimumVerticalTextSize;
         var bodyHeight = definition.Recipe == BasicOutlineRecipe.Triangle
             ? checked(h * 45 / 4)
-            : Math.Max(standardBodyHeight, requestedBodyHeight);
-        var bodyWidth = definition.Recipe == BasicOutlineRecipe.Triangle
+            : Math.Max(
+                Math.Max(standardBodyHeight, requestedBodyHeight),
+                minimumTextBodyHeight);
+        var standardBodyWidth = definition.Recipe == BasicOutlineRecipe.Triangle
             ? checked(h * 39 / 4)
             : checked(h * 8);
+        var minimumRecipeWidth = definition.Recipe == BasicOutlineRecipe.And
+            ? bodyHeight / 2
+            : 0;
+        var minimumTextBodyWidth = swapsAxes
+            ? minimumVerticalTextSize
+            : minimumHorizontalTextSize;
+        var bodyWidth = Math.Max(
+            standardBodyWidth,
+            Math.Max(minimumRecipeWidth, minimumTextBodyWidth));
         var bodyLeft = metric.PortLeadLength;
         var bodyRight = checked(bodyLeft + bodyWidth);
         var body = new RectV1(bodyLeft, 0, bodyRight, bodyHeight);
         var centerY = bodyHeight / 2;
-        var qualifierExtent = definition.Definition.HasOutputQualifier ? h : 0;
+        var qualifierExtent = definition.HasOutputQualifier ? h : 0;
         var outputAnchorX = checked(bodyRight + qualifierExtent + metric.PortLeadLength);
         var bounds = new RectV1(0, 0, outputAnchorX, bodyHeight);
         var operations = new List<DrawOperationV1>();
 
         cancellationToken.ThrowIfCancellationRequested();
-        AddOutline(operations, definition, body, request);
+        AddOutline(operations, definition, body, textEnvelope, request);
         var inputYs = InputRows(inputs.Length, bodyHeight, metric.MinimumPortPitch);
         var inputEdgeX = definition.Recipe is BasicOutlineRecipe.Or or BasicOutlineRecipe.Xor
             ? checked(bodyLeft + (bodyWidth / 4))
@@ -63,7 +93,7 @@ internal static class BasicGateGeometryBuilder
         }
 
         var outputLeadStart = bodyRight;
-        if (definition.Definition.HasOutputQualifier)
+        if (definition.HasOutputQualifier)
         {
             operations.Add(OutputQualifier(
                 bodyRight,
@@ -144,7 +174,7 @@ internal static class BasicGateGeometryBuilder
                 ]));
         }
 
-        var clauses = definition.Definition.HasOutputQualifier
+        var clauses = definition.HasOutputQualifier
             ? new[] { definition.PrimaryClause, "3.1.1" }.Distinct(StringComparer.Ordinal).ToArray()
             : [definition.PrimaryClause];
         var annexA = definition.AnnexA == AnnexAStatusV1.Pass
@@ -170,6 +200,7 @@ internal static class BasicGateGeometryBuilder
         List<DrawOperationV1> operations,
         ResolvedBasicSymbolDefinition definition,
         RectV1 body,
+        RectV1? textEnvelope,
         BasicSymbolRequestV1 request)
     {
         var metric = request.MetricSet;
@@ -208,26 +239,24 @@ internal static class BasicGateGeometryBuilder
                     RectangleOutline(body),
                     StrokeRoleV1.Outline,
                     metric.OutlineStrokeWidth));
-                var h = metric.UnitsPerH;
                 var center = new PointV1(
                     checked(body.Left + (body.Width / 2)),
                     checked(body.Top + (body.Height / 2)));
+                var measuredBounds = textEnvelope
+                    ?? throw new InvalidOperationException(
+                        "A rectangular Symbol Definition requires measured text.");
                 operations.Add(new DrawTextV1(
                     definition.FunctionText,
                     FontRoleV1.Symbol,
                     center,
-                    new RectV1(
-                        checked(body.Left + (2 * h)),
-                        checked(center.Y - h),
-                        checked(body.Right - (2 * h)),
-                        checked(center.Y + h)),
+                    Translate(measuredBounds, center),
                     TextAlignmentV1.Center,
                     TextOrientationV1.UprightReading,
                     request.BaseDirection,
                     request.LocaleId));
                 break;
             default:
-                throw new LayoutInvalidException("layout_outline_recipe_unknown");
+                throw new LayoutInvalidException(LayoutConstraintV1.OutlineRecipe);
         }
     }
 
@@ -332,7 +361,7 @@ internal static class BasicGateGeometryBuilder
                     new ClosePathV1()),
                 StrokeRoleV1.Qualifier,
                 metric.QualifierStrokeWidth),
-            _ => throw new LayoutInvalidException("layout_indication_convention_unknown"),
+            _ => throw new LayoutInvalidException(LayoutConstraintV1.IndicationConvention),
         };
     }
 
@@ -377,6 +406,19 @@ internal static class BasicGateGeometryBuilder
 
         return rows;
     }
+
+    private static int RequiredCenteredSize(int start, int end, int clearance)
+    {
+        var leadingExtent = checked(-Math.Min(start, 0));
+        var trailingExtent = Math.Max(end, 0);
+        return checked(2 * (clearance + Math.Max(leadingExtent, trailingExtent)));
+    }
+
+    private static RectV1 Translate(RectV1 bounds, PointV1 origin) => new(
+        checked(bounds.Left + origin.X),
+        checked(bounds.Top + origin.Y),
+        checked(bounds.Right + origin.X),
+        checked(bounds.Bottom + origin.Y));
 
     private static RectV1 CircleBounds(PointV1 center, int radius) => new(
         checked(center.X - radius),

@@ -88,7 +88,7 @@ public sealed class BasicSymbolRequestV1
         SymbolFacingV1 facing,
         bool isReflected,
         SymbolMetricSetV1 metricSet,
-        string fontFingerprint,
+        FontFingerprintV1 fontFingerprint,
         string localeId,
         BaseDirectionV1 baseDirection)
     {
@@ -96,7 +96,7 @@ public sealed class BasicSymbolRequestV1
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(metricSet);
-        ArgumentException.ThrowIfNullOrEmpty(fontFingerprint);
+        ArgumentNullException.ThrowIfNull(fontFingerprint);
         ArgumentException.ThrowIfNullOrEmpty(localeId);
         if (!Enum.IsDefined(facing))
         {
@@ -134,7 +134,7 @@ public sealed class BasicSymbolRequestV1
 
     public SymbolMetricSetV1 MetricSet { get; }
 
-    public string FontFingerprint { get; }
+    public FontFingerprintV1 FontFingerprint { get; }
 
     public string LocaleId { get; }
 
@@ -155,7 +155,7 @@ public sealed record GeometryPlanKeyV1(
     string MetricSetId,
     string MetricSetVersion,
     string MetricFingerprint,
-    string FontFingerprint);
+    FontFingerprintV1 FontFingerprint);
 
 public sealed record PortAnchorV1(
     string PortId,
@@ -320,25 +320,6 @@ public enum LayoutRejectionReasonV1
     LayoutInternalDefect,
 }
 
-public sealed record LayoutDiagnosticArgumentV1(string Name, string Value);
-
-public sealed record LayoutDiagnosticV1
-{
-    public LayoutDiagnosticV1(
-        string code,
-        IReadOnlyList<LayoutDiagnosticArgumentV1> arguments)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(code);
-        ArgumentNullException.ThrowIfNull(arguments);
-        Code = code;
-        Arguments = Array.AsReadOnly(arguments.ToArray());
-    }
-
-    public string Code { get; }
-
-    public ReadOnlyCollection<LayoutDiagnosticArgumentV1> Arguments { get; }
-}
-
 public abstract record GeometryPlanOutcomeV1
 {
     private protected GeometryPlanOutcomeV1()
@@ -419,7 +400,40 @@ internal static class GeometryPlanValidator
                     "A Port anchor cross-reference is missing or ambiguous.");
             }
         }
+
+        if (plan.Operations.Any(operation => !IsWithinBounds(operation, plan.Bounds)))
+        {
+            throw new InvalidOperationException(
+                "A Geometry Plan drawing operation exceeds its published bounds.");
+        }
     }
+
+    private static bool IsWithinBounds(DrawOperationV1 operation, RectV1 bounds) =>
+        operation switch
+        {
+            StrokePathV1 stroke => PathPoints(stroke.Path).All(bounds.Contains),
+            FillPathV1 fill => PathPoints(fill.Path).All(bounds.Contains),
+            DrawTextV1 text => bounds.Contains(text.Origin)
+                && Contains(bounds, text.Bounds),
+            _ => false,
+        };
+
+    private static IEnumerable<PointV1> PathPoints(PathV1 path) =>
+        path.Commands.SelectMany(command => command switch
+        {
+            MoveToV1 move => new[] { move.Point },
+            LineToV1 line => new[] { line.Point },
+            CubicToV1 cubic => new[] { cubic.Control1, cubic.Control2, cubic.End },
+            ClosePathV1 => [],
+            _ => throw new InvalidOperationException(
+                "The Geometry Plan path command variant is undefined."),
+        });
+
+    private static bool Contains(RectV1 outer, RectV1 inner) =>
+        inner.Left >= outer.Left
+        && inner.Top >= outer.Top
+        && inner.Right <= outer.Right
+        && inner.Bottom <= outer.Bottom;
 
     private static bool HasDuplicates(IEnumerable<string> values)
     {
