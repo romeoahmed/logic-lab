@@ -124,6 +124,136 @@ public sealed class BasicSymbolRequestV1
     public BaseDirectionV1 BaseDirection { get; }
 }
 
+public sealed class ComplexSymbolRequestV1
+{
+    public ComplexSymbolRequestV1(
+        ComponentContractSchema contract,
+        IReadOnlyList<ComponentParameterBinding> parameters,
+        SymbolProfileReference profile,
+        string? symbolVariantId,
+        SymbolFacingV1 facing,
+        bool isReflected,
+        SymbolMetricSetV1 metricSet,
+        FontFingerprintV1 fontFingerprint,
+        PresentationLocaleIdV1 localeId,
+        BaseDirectionV1 baseDirection)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(metricSet);
+        ArgumentNullException.ThrowIfNull(fontFingerprint);
+        ArgumentNullException.ThrowIfNull(localeId);
+        if (!Enum.IsDefined(facing))
+        {
+            throw new ArgumentOutOfRangeException(nameof(facing));
+        }
+
+        if (!Enum.IsDefined(baseDirection))
+        {
+            throw new ArgumentOutOfRangeException(nameof(baseDirection));
+        }
+
+        Contract = contract;
+        Parameters = Array.AsReadOnly(parameters.ToArray());
+        Profile = profile;
+        SymbolVariantId = symbolVariantId;
+        Facing = facing;
+        IsReflected = isReflected;
+        MetricSet = metricSet;
+        FontFingerprint = fontFingerprint;
+        LocaleId = localeId;
+        BaseDirection = baseDirection;
+    }
+
+    public ComponentContractSchema Contract { get; }
+
+    public ReadOnlyCollection<ComponentParameterBinding> Parameters { get; }
+
+    public SymbolProfileReference Profile { get; }
+
+    public string? SymbolVariantId { get; }
+
+    public SymbolFacingV1 Facing { get; }
+
+    public bool IsReflected { get; }
+
+    public SymbolMetricSetV1 MetricSet { get; }
+
+    public FontFingerprintV1 FontFingerprint { get; }
+
+    public PresentationLocaleIdV1 LocaleId { get; }
+
+    public BaseDirectionV1 BaseDirection { get; }
+}
+
+public sealed class CircuitDefinitionSymbolRequestV1
+{
+    public CircuitDefinitionSymbolRequestV1(
+        CircuitDefinition definition,
+        SymbolProfileReference profile,
+        string? symbolVariantId,
+        SymbolFacingV1 facing,
+        bool isReflected,
+        SymbolMetricSetV1 metricSet,
+        FontFingerprintV1 fontFingerprint,
+        PresentationLocaleIdV1 localeId,
+        BaseDirectionV1 baseDirection,
+        string? displayName = null)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(metricSet);
+        ArgumentNullException.ThrowIfNull(fontFingerprint);
+        ArgumentNullException.ThrowIfNull(localeId);
+        if (!Enum.IsDefined(facing))
+        {
+            throw new ArgumentOutOfRangeException(nameof(facing));
+        }
+
+        if (!Enum.IsDefined(baseDirection))
+        {
+            throw new ArgumentOutOfRangeException(nameof(baseDirection));
+        }
+
+        if (displayName is not null && string.IsNullOrWhiteSpace(displayName))
+        {
+            throw new ArgumentException("The display name override cannot be blank.", nameof(displayName));
+        }
+
+        Definition = definition;
+        Profile = profile;
+        SymbolVariantId = symbolVariantId;
+        Facing = facing;
+        IsReflected = isReflected;
+        MetricSet = metricSet;
+        FontFingerprint = fontFingerprint;
+        LocaleId = localeId;
+        BaseDirection = baseDirection;
+        DisplayName = displayName ?? definition.DisplayName;
+    }
+
+    public CircuitDefinition Definition { get; }
+
+    public SymbolProfileReference Profile { get; }
+
+    public string? SymbolVariantId { get; }
+
+    public SymbolFacingV1 Facing { get; }
+
+    public bool IsReflected { get; }
+
+    public SymbolMetricSetV1 MetricSet { get; }
+
+    public FontFingerprintV1 FontFingerprint { get; }
+
+    public PresentationLocaleIdV1 LocaleId { get; }
+
+    public BaseDirectionV1 BaseDirection { get; }
+
+    public string DisplayName { get; }
+}
+
 public sealed record GeometryPlanKeyV1(
     string SymbolDefinitionId,
     string SymbolDefinitionVersion,
