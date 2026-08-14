@@ -664,7 +664,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
             AccessibilityGroup("cycle-b", "cycle-a", 0, plan.Bounds),
         ]).ToArray();
 
-        await Assert.That(() => RebuildPlan(plan, nodes))
+        await Assert.That(() => RebuildPlan(plan, accessibilityNodes: nodes))
             .ThrowsExactly<InvalidOperationException>();
     }
 
@@ -680,8 +680,93 @@ internal sealed class TeachingMixedGeometryPlannerTests
             firstPort.ChildOrder,
             plan.Bounds)).ToArray();
 
-        await Assert.That(() => RebuildPlan(plan, nodes))
+        await Assert.That(() => RebuildPlan(plan, accessibilityNodes: nodes))
             .ThrowsExactly<InvalidOperationException>();
+    }
+
+    [Test]
+    public async Task GeometryPlan_UnreferencedPortInteractionRecord_RejectsAtBoundary()
+    {
+        var plan = Plan(Request("logic.and", 2));
+        var firstAnchor = plan.PortAnchors[0];
+        var firstHitRegion = plan.HitRegions.Single(region =>
+            region.LocalId == firstAnchor.HitRegionId);
+        var extraHitRegion = new HitRegionV1(
+            $"{firstHitRegion.LocalId}-duplicate",
+            HitRegionKindV1.Port,
+            firstAnchor.PortId,
+            firstHitRegion.Shape);
+
+        await Assert.That(() => RebuildPlan(
+            plan,
+            hitRegions: [.. plan.HitRegions, extraHitRegion]))
+            .ThrowsExactly<InvalidOperationException>();
+
+        var firstNode = plan.AccessibilityNodes.Single(node =>
+            node.LocalId == firstAnchor.AccessibilityNodeId);
+        var extraNode = new AccessibilityNodeV1(
+            $"{firstNode.LocalId}-duplicate",
+            AccessibilityNodeKindV1.Port,
+            firstNode.ParentId,
+            plan.AccessibilityNodes.Max(node => node.ChildOrder) + 1,
+            firstNode.Bounds,
+            firstNode.LocalizationKey,
+            firstNode.Arguments,
+            firstNode.Actions);
+
+        await Assert.That(() => RebuildPlan(
+            plan,
+            accessibilityNodes: [.. plan.AccessibilityNodes, extraNode]))
+            .ThrowsExactly<InvalidOperationException>();
+    }
+
+    [Test]
+    public async Task GeometryPlan_PortHitShapeExcludingAnchor_RejectsEveryClosedVariantAtBoundary()
+    {
+        var plan = Plan(Request("logic.and", 2));
+        var anchor = plan.PortAnchors[0];
+        var hitRegion = plan.HitRegions.Single(region =>
+            region.LocalId == anchor.HitRegionId);
+        var circle = (CircleHitShapeV1)hitRegion.Shape;
+        var outsideX = checked(anchor.Point.X + circle.Radius + 1);
+        HitShapeV1[] excludedShapes =
+        [
+            new CircleHitShapeV1(
+                new PointV1(outsideX, anchor.Point.Y),
+                circle.Radius),
+            new RectHitShapeV1(new RectV1(
+                outsideX,
+                checked(anchor.Point.Y - circle.Radius),
+                checked(outsideX + (2 * circle.Radius)),
+                checked(anchor.Point.Y + circle.Radius))),
+            new PolygonHitShapeV1(
+            [
+                new PointV1(outsideX, anchor.Point.Y),
+                new PointV1(
+                    checked(outsideX + circle.Radius),
+                    checked(anchor.Point.Y - circle.Radius)),
+                new PointV1(
+                    checked(outsideX + circle.Radius),
+                    checked(anchor.Point.Y + circle.Radius)),
+            ]),
+        ];
+
+        foreach (var shape in excludedShapes)
+        {
+            var displacedRegion = new HitRegionV1(
+                hitRegion.LocalId,
+                hitRegion.Kind,
+                hitRegion.SourcePortId,
+                shape);
+            var hitRegions = plan.HitRegions
+                .Select(region => region.LocalId == hitRegion.LocalId
+                    ? displacedRegion
+                    : region)
+                .ToArray();
+
+            await Assert.That(() => RebuildPlan(plan, hitRegions: hitRegions))
+                .ThrowsExactly<InvalidOperationException>();
+        }
     }
 
     [Test]
@@ -1178,13 +1263,14 @@ internal sealed class TeachingMixedGeometryPlannerTests
 
     private static GeometryPlanV1 RebuildPlan(
         GeometryPlanV1 plan,
-        IReadOnlyList<AccessibilityNodeV1> accessibilityNodes) => new(
+        IReadOnlyList<HitRegionV1>? hitRegions = null,
+        IReadOnlyList<AccessibilityNodeV1>? accessibilityNodes = null) => new(
         plan.Key,
         plan.Bounds,
         plan.Operations,
         plan.PortAnchors,
-        plan.HitRegions,
-        accessibilityNodes,
+        hitRegions ?? plan.HitRegions,
+        accessibilityNodes ?? plan.AccessibilityNodes,
         plan.Conformance);
 
     private static AccessibilityNodeV1 AccessibilityGroup(

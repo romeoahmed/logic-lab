@@ -352,27 +352,52 @@ internal static class GeometryPlanValidator
         }
 
         ValidateAccessibilityTree(plan.AccessibilityNodes);
-
-        foreach (var anchor in plan.PortAnchors)
-        {
-            var hitRegions = plan.HitRegions.Where(region =>
-                region.LocalId == anchor.HitRegionId
-                && region.Kind == HitRegionKindV1.Port
-                && region.SourcePortId == anchor.PortId);
-            var nodes = plan.AccessibilityNodes.Where(node =>
-                node.LocalId == anchor.AccessibilityNodeId
-                && node.Kind == AccessibilityNodeKindV1.Port);
-            if (hitRegions.Count() != 1 || nodes.Count() != 1)
-            {
-                throw new InvalidOperationException(
-                    "A Port anchor cross-reference is missing or ambiguous.");
-            }
-        }
+        ValidatePortBindings(plan);
 
         if (plan.Operations.Any(operation => !IsWithinBounds(operation, plan.Bounds)))
         {
             throw new InvalidOperationException(
                 "A Geometry Plan drawing operation exceeds its published bounds.");
+        }
+    }
+
+    private static void ValidatePortBindings(GeometryPlanV1 plan)
+    {
+        var portHitRegionsById = plan.HitRegions
+            .Where(region => region.Kind == HitRegionKindV1.Port)
+            .ToDictionary(
+            region => region.LocalId,
+            StringComparer.Ordinal);
+        var portAccessibilityNodesById = plan.AccessibilityNodes
+            .Where(node => node.Kind == AccessibilityNodeKindV1.Port)
+            .ToDictionary(
+            node => node.LocalId,
+            StringComparer.Ordinal);
+        var referencedHitRegionIds = plan.PortAnchors
+            .Select(anchor => anchor.HitRegionId)
+            .ToHashSet(StringComparer.Ordinal);
+        var referencedAccessibilityNodeIds = plan.PortAnchors
+            .Select(anchor => anchor.AccessibilityNodeId)
+            .ToHashSet(StringComparer.Ordinal);
+        if (referencedHitRegionIds.Count != plan.PortAnchors.Count
+            || referencedAccessibilityNodeIds.Count != plan.PortAnchors.Count
+            || !referencedHitRegionIds.SetEquals(portHitRegionsById.Keys)
+            || !referencedAccessibilityNodeIds.SetEquals(portAccessibilityNodesById.Keys))
+        {
+            throw new InvalidOperationException(
+                "Port anchors, hit regions, and accessibility nodes must form one-to-one bindings.");
+        }
+
+        foreach (var anchor in plan.PortAnchors)
+        {
+            if (!portHitRegionsById.TryGetValue(anchor.HitRegionId, out var hitRegion)
+                || hitRegion.SourcePortId != anchor.PortId
+                || !hitRegion.Shape.Contains(anchor.Point)
+                || !portAccessibilityNodesById.ContainsKey(anchor.AccessibilityNodeId))
+            {
+                throw new InvalidOperationException(
+                    "A Port interaction record is inconsistent with its anchor.");
+            }
         }
     }
 

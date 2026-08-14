@@ -440,9 +440,14 @@ public abstract record HitShapeV1
     private protected HitShapeV1()
     {
     }
+
+    internal abstract bool Contains(PointV1 point);
 }
 
-public sealed record RectHitShapeV1(RectV1 Rect) : HitShapeV1;
+public sealed record RectHitShapeV1(RectV1 Rect) : HitShapeV1
+{
+    internal override bool Contains(PointV1 point) => Rect.Contains(point);
+}
 
 public sealed record CircleHitShapeV1 : HitShapeV1
 {
@@ -457,6 +462,14 @@ public sealed record CircleHitShapeV1 : HitShapeV1
     public PointV1 Center { get; }
 
     public int Radius { get; }
+
+    internal override bool Contains(PointV1 point)
+    {
+        var deltaX = (Int128)point.X - Center.X;
+        var deltaY = (Int128)point.Y - Center.Y;
+        var radius = (Int128)Radius;
+        return (deltaX * deltaX) + (deltaY * deltaY) <= radius * radius;
+    }
 }
 
 public sealed record PolygonHitShapeV1 : HitShapeV1
@@ -480,6 +493,35 @@ public sealed record PolygonHitShapeV1 : HitShapeV1
     }
 
     public ReadOnlyCollection<PointV1> Points { get; }
+
+    internal override bool Contains(PointV1 point)
+    {
+        var windingNumber = 0;
+        for (var index = 0; index < Points.Count; index++)
+        {
+            var start = Points[index];
+            var end = Points[(index + 1) % Points.Count];
+            var side = Orientation(start, end, point);
+            if (side == 0 && IsOnSegment(start, point, end))
+            {
+                return true;
+            }
+
+            if (start.Y <= point.Y)
+            {
+                if (end.Y > point.Y && side > 0)
+                {
+                    windingNumber++;
+                }
+            }
+            else if (end.Y <= point.Y && side < 0)
+            {
+                windingNumber--;
+            }
+        }
+
+        return windingNumber != 0;
+    }
 
     private static Int128 SignedAreaTwice(PointV1[] points)
     {
