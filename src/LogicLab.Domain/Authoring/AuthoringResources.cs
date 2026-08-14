@@ -252,7 +252,7 @@ public static class SymbolVariantCatalog
         IReadOnlyList<ComponentParameterBinding> parameters,
         string variantId)
     {
-        if (!SymbolProfileCatalog.Contains(profile))
+        if (!SymbolProfileRegistry.IsRegistered(profile))
         {
             return false;
         }

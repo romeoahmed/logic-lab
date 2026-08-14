@@ -26,7 +26,7 @@ public static class TeachingMixedGeometryPlanner
 
         try
         {
-            if (!IsSupportedProfile(request.Profile))
+            if (!SymbolProfileRegistry.IsRegistered(request.Profile))
             {
                 return Invalid(PresentationDiagnosticsV1.VariantUnresolved(
                     request.Profile.Id,
@@ -173,11 +173,6 @@ public static class TeachingMixedGeometryPlanner
             return InternalDefect();
         }
     }
-
-    private static bool IsSupportedProfile(SymbolProfileReference profile) =>
-        string.Equals(profile.Id, "TeachingMixed", StringComparison.Ordinal)
-        && string.Equals(profile.Version, "1.0.0", StringComparison.Ordinal)
-        && Enum.IsDefined(profile.IndicationConvention);
 
     private static void ValidateBasicPorts(
         ReadOnlyCollection<ResolvedComponentPortSchema> ports)

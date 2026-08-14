@@ -25,7 +25,7 @@ public static partial class ProjectEditor
         Ensure(HasValue(document.ProjectId.Value));
         Ensure(GetDisplayTextRule(document.DisplayName, cancellationToken) is null);
         Ensure(IsCurrentLibrary(document.LibrarySnapshot));
-        Ensure(SymbolProfileCatalog.Contains(document.SymbolProfile));
+        Ensure(SymbolProfileRegistry.IsRegistered(document.SymbolProfile));
         Ensure(document.CircuitDefinitions.Count > 0);
         Ensure(HasDistinctIds(
             document.CircuitDefinitions,
