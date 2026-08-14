@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using LogicLab.Domain.Authoring;
 using LogicLab.Presentation.Geometry;
@@ -20,7 +21,8 @@ internal sealed record BasicSymbolDefinition(
     string DefinitionVersion,
     BasicOutlineRecipe DistinctiveRecipe,
     bool HasOutputQualifier,
-    string PrimaryClause,
+    string NegationPrimaryClause,
+    string DirectPolarityPrimaryClause,
     string RectangularFunction,
     string AccessibilityKey);
 
@@ -31,7 +33,7 @@ internal sealed record ResolvedBasicSymbolDefinition(
     string FunctionText,
     bool HasOutputQualifier,
     ConformanceClaimV1 Claim,
-    string PrimaryClause,
+    ReadOnlyCollection<string> StandardClauses,
     AnnexAStatusV1 AnnexA);
 
 internal static class TeachingMixedBasicSymbolRegistry
@@ -44,23 +46,27 @@ internal static class TeachingMixedBasicSymbolRegistry
                 BasicOutlineRecipe.And,
                 hasOutputQualifier: false,
                 "5.1-3",
+                "5.1-3",
                 "&"),
             ["logic.nand"] = Definition(
                 "logic.nand",
                 BasicOutlineRecipe.And,
                 hasOutputQualifier: true,
                 "5.1-17",
+                "5.1-3",
                 "&"),
             ["logic.or"] = Definition(
                 "logic.or",
                 BasicOutlineRecipe.Or,
                 hasOutputQualifier: false,
                 "5.1-1",
+                "5.1-1",
                 "\u22651"),
             ["logic.nor"] = Definition(
                 "logic.nor",
                 BasicOutlineRecipe.Or,
                 hasOutputQualifier: true,
+                "5.1-1",
                 "5.1-18",
                 "\u22651"),
             ["logic.xor"] = Definition(
@@ -68,11 +74,13 @@ internal static class TeachingMixedBasicSymbolRegistry
                 BasicOutlineRecipe.Xor,
                 hasOutputQualifier: false,
                 "5.1-11",
+                "5.1-11",
                 "=1"),
             ["logic.xnor"] = Definition(
                 "logic.xnor",
                 BasicOutlineRecipe.Xor,
                 hasOutputQualifier: true,
+                "5.1-11",
                 "5.1-11",
                 "=1"),
             ["logic.buffer"] = Definition(
@@ -80,12 +88,14 @@ internal static class TeachingMixedBasicSymbolRegistry
                 BasicOutlineRecipe.Triangle,
                 hasOutputQualifier: false,
                 "5.1-12",
+                "5.1-12",
                 "1"),
             ["logic.not"] = Definition(
                 "logic.not",
                 BasicOutlineRecipe.Triangle,
                 hasOutputQualifier: true,
                 "5.1-13",
+                "5.1-14",
                 "1"),
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
@@ -94,6 +104,7 @@ internal static class TeachingMixedBasicSymbolRegistry
         int inputCount,
         string? requestedVariantId,
         IndicationConvention indicationConvention,
+        SymbolFacingV1 facing,
         [NotNullWhen(true)] out ResolvedBasicSymbolDefinition? resolved)
     {
         if (!Definitions.TryGetValue(contractId, out var definition))
@@ -125,7 +136,9 @@ internal static class TeachingMixedBasicSymbolRegistry
             ? BasicOutlineRecipe.Rectangle
             : definition.DistinctiveRecipe;
         var functionText = definition.RectangularFunction;
-        var clause = definition.PrimaryClause;
+        var primaryClause = indicationConvention == IndicationConvention.Negation
+            ? definition.NegationPrimaryClause
+            : definition.DirectPolarityPrimaryClause;
         var usesParityFunction = recipe == BasicOutlineRecipe.Rectangle
             && definition.DistinctiveRecipe == BasicOutlineRecipe.Xor
             && inputCount > 2;
@@ -133,13 +146,22 @@ internal static class TeachingMixedBasicSymbolRegistry
         {
             var oddParity = !definition.HasOutputQualifier;
             functionText = oddParity ? "2k+1" : "2k";
-            clause = oddParity ? "5.1-9" : "5.1-10";
+            primaryClause = oddParity ? "5.1-9" : "5.1-10";
         }
 
-        if (indicationConvention == IndicationConvention.DirectPolarity
-            && definition.ContractId == "logic.not")
+        var hasOutputQualifier = definition.HasOutputQualifier && !usesParityFunction;
+        var standardClauses = new List<string> { primaryClause };
+        if (hasOutputQualifier)
         {
-            clause = "5.1-14";
+            standardClauses.Add("3.1.1");
+            standardClauses.Add(indicationConvention switch
+            {
+                IndicationConvention.Negation => "3.1-2",
+                IndicationConvention.DirectPolarity when facing == SymbolFacingV1.West =>
+                    "3.1-7",
+                IndicationConvention.DirectPolarity => "3.1-6",
+                _ => throw new ArgumentOutOfRangeException(nameof(indicationConvention)),
+            });
         }
 
         resolved = new ResolvedBasicSymbolDefinition(
@@ -147,11 +169,11 @@ internal static class TeachingMixedBasicSymbolRegistry
             recipe,
             variantId,
             functionText,
-            definition.HasOutputQualifier && !usesParityFunction,
+            hasOutputQualifier,
             recipe == BasicOutlineRecipe.Rectangle
                 ? ConformanceClaimV1.Standardized91A
                 : ConformanceClaimV1.PermittedDistinctive91A,
-            clause,
+            Array.AsReadOnly(standardClauses.ToArray()),
             recipe == BasicOutlineRecipe.Rectangle
                 ? AnnexAStatusV1.NotEvaluated
                 : AnnexAStatusV1.Pass);
@@ -162,14 +184,16 @@ internal static class TeachingMixedBasicSymbolRegistry
         string contractId,
         BasicOutlineRecipe recipe,
         bool hasOutputQualifier,
-        string primaryClause,
+        string negationPrimaryClause,
+        string directPolarityPrimaryClause,
         string rectangularFunction) => new(
             contractId,
             $"logiclab.teachingmixed.{contractId}",
-            "1.1.0",
+            "1.2.0",
             recipe,
             hasOutputQualifier,
-            primaryClause,
+            negationPrimaryClause,
+            directPolarityPrimaryClause,
             rectangularFunction,
             $"presentation.symbol.{contractId}");
 }

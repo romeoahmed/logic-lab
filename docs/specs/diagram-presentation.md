@@ -79,6 +79,7 @@ Port groups declare edge, role, stable order, pitch, clearance, grouping, and la
 Qualifier and dependency composition is structured:
 
 - negation and direct-polarity indication are diagram-wide alternatives and are not mixed;
+- output-qualifier evidence cites diagram convention rule 3.1.1 plus the defining symbol: 3.1-2 for negation, 3.1-6 for direct-polarity output, or 3.1-7 for right-to-left direct-polarity output;
 - dynamic, active-low, three-state, bit-grouping, common-control, and common-output marks bind to explicit Ports or groups;
 - dependency notation records type, identifier, affecting endpoint, affected endpoints, and application order;
 - input and output qualifier sequences follow IEEE 91A clauses 4.4.3 and 4.4.4;
@@ -166,7 +167,7 @@ GeometryPlanKeyV1
 
 The key contains no Component Instance ID, selection, live value, or Workspace state, so a plan can be reused safely. `semantic contract digest` covers either one Component Contract or one Circuit Definition public Port contract.
 
-All coordinates and widths are checked signed 32-bit integers in **plan units**. The versioned Metric Set declares a positive integer `unitsPerH`; adapters scale plan units to device or print coordinates only at the final projection. `PointV1` is `(x,y)`, and `RectV1` is `(left,top,right,bottom)` with nonnegative extent. No `double`, device pixel, CSS length, DOM measurement, or renderer transform is stored in the plan.
+All coordinates and widths are checked signed 32-bit integers in **plan units**. The versioned Metric Set declares stable-token ID and version values plus a positive integer `unitsPerH`; a stable token is 1 to 96 ASCII characters, starts with an ASCII letter or digit, and otherwise contains only ASCII letters, digits, `.`, `_`, or `-`. Adapters scale plan units to device or print coordinates only at the final projection. Metric identity comparison covers ID, version, `unitsPerH`, and the canonical fingerprint rather than treating a digest match as complete identity. `PointV1` is `(x,y)`, and `RectV1` is `(left,top,right,bottom)` with nonnegative extent. No `double`, device pixel, CSS length, DOM measurement, or renderer transform is stored in the plan.
 
 `DrawOperationV1` is this closed, back-to-front union:
 
@@ -255,7 +256,7 @@ Each generated symbol carries one claim:
 | `TeachingExtension` | useful teaching or interaction notation not claimed as IEEE 91A |
 | `UnverifiedFallback` | safe rectangular fallback with no conformance claim |
 
-Annex A proportions are informative and recorded separately as `Pass`, `Adjusted`, or `NotEvaluated`. No product-wide “IEEE compliant” claim is made from a mixture of individual claims.
+Annex A proportions are informative and recorded separately as `Pass`, `Adjusted`, or `NotEvaluated`. `Pass` requires every registered rational proportion to be exactly representable in the Metric Set's integer plan units and the final layout to retain the registered body dimensions; quantization or constraint-driven enlargement reports `Adjusted`. No product-wide “IEEE compliant” claim is made from a mixture of individual claims.
 
 Strict export rejects a Teaching Extension or requires an explicit user-visible standardized fallback. TeachingMixed export includes a manifest of Component Instance, variant, claim, deviations, and exact standard references.
 

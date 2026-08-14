@@ -41,15 +41,12 @@ public static class TeachingMixedGeometryPlanner
                     measuredFontFingerprint));
             }
 
-            var measuredMetricFingerprint = textMeasurer.MetricSet.Fingerprint;
-            if (!string.Equals(
-                    measuredMetricFingerprint,
-                    request.MetricSet.Fingerprint,
-                    StringComparison.Ordinal))
+            var measuredMetricSet = textMeasurer.MetricSet;
+            if (measuredMetricSet != request.MetricSet)
             {
                 return Invalid(PresentationDiagnosticsV1.MetricFingerprintMismatch(
                     request.MetricSet.Fingerprint,
-                    measuredMetricFingerprint));
+                    measuredMetricSet.Fingerprint));
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -82,6 +79,7 @@ public static class TeachingMixedGeometryPlanner
                     inputCount,
                     request.SymbolVariantId,
                     request.Profile.IndicationConvention,
+                    request.Facing,
                     out var definition))
             {
                 return Invalid(PresentationDiagnosticsV1.VariantUnresolved(
