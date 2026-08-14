@@ -49,7 +49,7 @@ internal sealed class RecordingLoggerFactory : ILoggerFactory
                 ? values
                     .Where(pair => pair.Key != "{OriginalFormat}")
                     .ToDictionary(pair => pair.Key, pair => pair.Value)
-                : new Dictionary<string, object?>();
+                : [];
             entries.Enqueue(new RecordedLog(
                 category,
                 logLevel,
