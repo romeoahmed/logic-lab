@@ -13,9 +13,11 @@ public static class TeachingMixedGeometryPlanner
     public static GeometryPlanOutcomeV1 Plan(
         BasicSymbolRequestV1 request,
         ulong maximumPortCount,
+        ISymbolTextMeasurerV1 textMeasurer,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(textMeasurer);
         ArgumentOutOfRangeException.ThrowIfZero(maximumPortCount);
         if (cancellationToken.IsCancellationRequested)
         {
@@ -24,20 +26,42 @@ public static class TeachingMixedGeometryPlanner
 
         try
         {
-            ValidateProfile(request.Profile);
-            cancellationToken.ThrowIfCancellationRequested();
-            var resolution = request.Contract.ResolvePorts(
-                request.Parameters,
-                cancellationToken);
-            if (!resolution.TryMaterialize(
-                    maximumPortCount,
-                    out var ports,
-                    cancellationToken))
+            if (!IsSupportedProfile(request.Profile))
             {
-                return Invalid(
-                    "layout_port_budget_exceeded",
-                    ("maximumPortCount", maximumPortCount.ToString(
-                        CultureInfo.InvariantCulture)));
+                return Invalid(PresentationDiagnosticsV1.VariantUnresolved(
+                    request.Profile.Id,
+                    request.SymbolVariantId ?? "default"));
+            }
+
+            var measuredFontFingerprint = textMeasurer.FontFingerprint;
+            if (measuredFontFingerprint != request.FontFingerprint)
+            {
+                return Invalid(PresentationDiagnosticsV1.FontFingerprintMismatch(
+                    request.FontFingerprint,
+                    measuredFontFingerprint));
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            ReadOnlyCollection<ResolvedComponentPortSchema> ports;
+            try
+            {
+                var resolution = request.Contract.ResolvePorts(
+                    request.Parameters,
+                    cancellationToken);
+                if (!resolution.TryMaterialize(
+                        maximumPortCount,
+                        out ports,
+                        cancellationToken))
+                {
+                    return Invalid(
+                        PresentationDiagnosticsV1.ConstraintUnsatisfied(
+                            LayoutConstraintV1.PortBudget));
+                }
+            }
+            catch (ArgumentException)
+            {
+                return Invalid(PresentationDiagnosticsV1.ConstraintUnsatisfied(
+                    LayoutConstraintV1.Request));
             }
 
             ValidateBasicPorts(ports);
@@ -47,21 +71,48 @@ public static class TeachingMixedGeometryPlanner
                     inputCount,
                     request.SymbolVariantId,
                     request.Profile.IndicationConvention,
-                    out var definition,
-                    out var diagnosticCode))
+                    out var definition))
             {
-                return Invalid(
-                    diagnosticCode!,
-                    ("contractId", request.Contract.Key.ContractId));
+                return Invalid(PresentationDiagnosticsV1.VariantUnresolved(
+                    request.Profile.Id,
+                    request.SymbolVariantId ?? request.Contract.Key.ContractId));
             }
 
             var resolvedDefinition = definition
                 ?? throw new InvalidOperationException(
                     "A successful Symbol Definition lookup returned no definition.");
+            SymbolTextMeasurementV1? textMeasurement = null;
+            if (resolvedDefinition.Recipe == BasicOutlineRecipe.Rectangle)
+            {
+                try
+                {
+                    textMeasurement = textMeasurer.Measure(
+                        new SymbolTextMeasurementRequestV1(
+                            resolvedDefinition.FunctionText,
+                            FontRoleV1.Symbol,
+                            TextAlignmentV1.Center,
+                            request.LocaleId,
+                            request.BaseDirection),
+                        cancellationToken)
+                        ?? throw new InvalidOperationException(
+                            "The Symbol Text Measurer returned no measurement.");
+                }
+                catch (OperationCanceledException exception)
+                    when (IsCooperativeCancellation(exception, cancellationToken))
+                {
+                    throw;
+                }
+                catch (Exception exception) when (!IsFatal(exception))
+                {
+                    return InternalDefect();
+                }
+            }
+
             var draft = BasicGateGeometryBuilder.Build(
                 request,
                 resolvedDefinition,
                 ports,
+                textMeasurement,
                 cancellationToken);
             var transformed = GeometryPlanTransform.Apply(
                 draft,
@@ -102,33 +153,24 @@ public static class TeachingMixedGeometryPlanner
         }
         catch (LayoutInvalidException exception)
         {
-            return Invalid(exception.DiagnosticCode);
-        }
-        catch (ArgumentException)
-        {
-            return Invalid("layout_request_invalid");
+            return Invalid(PresentationDiagnosticsV1.ConstraintUnsatisfied(
+                exception.Constraint));
         }
         catch (OverflowException)
         {
-            return Invalid("layout_coordinate_overflow");
+            return Invalid(PresentationDiagnosticsV1.ConstraintUnsatisfied(
+                LayoutConstraintV1.CoordinateRange));
         }
         catch (Exception exception) when (!IsFatal(exception))
         {
-            return new GeometryPlanRejectedV1(
-                LayoutRejectionReasonV1.LayoutInternalDefect,
-                [new LayoutDiagnosticV1("layout_internal_defect", [])]);
+            return InternalDefect();
         }
     }
 
-    private static void ValidateProfile(SymbolProfileReference profile)
-    {
-        if (!string.Equals(profile.Id, "TeachingMixed", StringComparison.Ordinal)
-            || !string.Equals(profile.Version, "1.0.0", StringComparison.Ordinal)
-            || !Enum.IsDefined(profile.IndicationConvention))
-        {
-            throw new LayoutInvalidException("layout_symbol_profile_unknown");
-        }
-    }
+    private static bool IsSupportedProfile(SymbolProfileReference profile) =>
+        string.Equals(profile.Id, "TeachingMixed", StringComparison.Ordinal)
+        && string.Equals(profile.Version, "1.0.0", StringComparison.Ordinal)
+        && Enum.IsDefined(profile.IndicationConvention);
 
     private static void ValidateBasicPorts(
         ReadOnlyCollection<ResolvedComponentPortSchema> ports)
@@ -139,25 +181,21 @@ public static class TeachingMixedGeometryPlanner
             || outputCount != 1
             || inputCount + outputCount != ports.Count)
         {
-            throw new LayoutInvalidException("layout_basic_port_contract_invalid");
+            throw new LayoutInvalidException(LayoutConstraintV1.BasicPortContract);
         }
     }
 
-    private static GeometryPlanRejectedV1 Invalid(
-        string diagnosticCode,
-        params (string Name, string Value)[] arguments) => new(
-            LayoutRejectionReasonV1.LayoutInvalid,
-            [
-                new LayoutDiagnosticV1(
-                    diagnosticCode,
-                    [.. arguments.Select(argument => new LayoutDiagnosticArgumentV1(
-                        argument.Name,
-                        argument.Value))]),
-            ]);
+    private static GeometryPlanRejectedV1 Invalid(LayoutDiagnosticV1 diagnostic) => new(
+        LayoutRejectionReasonV1.LayoutInvalid,
+        [diagnostic]);
 
     private static GeometryPlanRejectedV1 Cancelled() => new(
         LayoutRejectionReasonV1.LayoutCancelled,
         []);
+
+    private static GeometryPlanRejectedV1 InternalDefect() => new(
+        LayoutRejectionReasonV1.LayoutInternalDefect,
+        [PresentationDiagnosticsV1.InternalInvariant()]);
 
     private static bool IsCooperativeCancellation(
         OperationCanceledException exception,
@@ -175,13 +213,13 @@ public static class TeachingMixedGeometryPlanner
 
 internal sealed class LayoutInvalidException : Exception
 {
-    public LayoutInvalidException(string diagnosticCode)
+    public LayoutInvalidException(LayoutConstraintV1 constraint)
         : base("A Geometry Plan request violated a closed layout rule.")
     {
-        DiagnosticCode = diagnosticCode;
+        Constraint = constraint;
     }
 
-    public string DiagnosticCode { get; }
+    public LayoutConstraintV1 Constraint { get; }
 }
 
 internal static class GeometryRequestFingerprint
@@ -228,7 +266,7 @@ internal static class GeometryRequestFingerprint
                 "u64:",
                 unsigned64.Value.ToString(CultureInfo.InvariantCulture)),
             ChoiceParameterValue choice => string.Concat("choice:", choice.Value),
-            _ => throw new LayoutInvalidException("layout_parameter_kind_unsupported"),
+            _ => throw new LayoutInvalidException(LayoutConstraintV1.ParameterKind),
         };
     }
 }

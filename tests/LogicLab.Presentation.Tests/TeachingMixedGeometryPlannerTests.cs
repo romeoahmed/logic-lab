@@ -9,6 +9,10 @@ namespace LogicLab.Presentation.Tests;
 internal sealed class TeachingMixedGeometryPlannerTests
 {
     private static readonly string[] TwoInputGatePortIds = ["A0", "A1", "Q"];
+    private static readonly FontFingerprintV1 DefaultFontFingerprint = new(new string('1', 64));
+    private static readonly FontFingerprintV1 AlternateFontFingerprint = new(new string('2', 64));
+    private static readonly ISymbolTextMeasurerV1 DefaultTextMeasurer =
+        new StubTextMeasurer(DefaultFontFingerprint);
 
     [Test]
     [Arguments("logic.and", 2U, 2, false)]
@@ -69,7 +73,34 @@ internal sealed class TeachingMixedGeometryPlannerTests
                 .IsEqualTo(SymbolVariantCatalog.RectangularId);
             await Assert.That(evenParity.Operations.OfType<DrawTextV1>()
                 .Any(operation => operation.Text == "2k")).IsTrue();
+            await Assert.That(evenParity.Operations.OfType<StrokePathV1>()
+                .Any(operation => operation.Role == StrokeRoleV1.Qualifier)).IsFalse();
+            await Assert.That(evenParity.Conformance.StandardReferences[0].ClauseIds)
+                .IsEquivalentTo(["5.1-10"], CollectionOrdering.Matching);
         }
+    }
+
+    [Test]
+    [Arguments(2U)]
+    [Arguments(8U)]
+    [Arguments(9U)]
+    [Arguments(63U)]
+    public async Task Plan_AndAcrossFanInRange_EnclosesEveryPathCoordinate(uint fanIn)
+    {
+        var plan = Plan(Request("logic.and", fanIn));
+        var pathPoints = plan.Operations
+            .OfType<StrokePathV1>()
+            .SelectMany(operation => operation.Path.Commands)
+            .SelectMany(command => command switch
+            {
+                MoveToV1 move => new[] { move.Point },
+                LineToV1 line => new[] { line.Point },
+                CubicToV1 cubic => new[] { cubic.Control1, cubic.Control2, cubic.End },
+                ClosePathV1 => [],
+                _ => throw new InvalidOperationException("Unexpected path command."),
+            });
+
+        await Assert.That(pathPoints.All(plan.Bounds.Contains)).IsTrue();
     }
 
     [Test]
@@ -93,6 +124,36 @@ internal sealed class TeachingMixedGeometryPlannerTests
                     distinctive.PortAnchors.Select(anchor =>
                         (anchor.PortId, anchor.OutwardDirection)),
                     CollectionOrdering.Matching);
+        }
+    }
+
+    [Test]
+    [Arguments(SymbolFacingV1.East)]
+    [Arguments(SymbolFacingV1.South)]
+    public async Task Plan_RectangularSymbol_UsesMeasuredInkAndAdvanceEnvelope(
+        SymbolFacingV1 facing)
+    {
+        var measurement = new SymbolTextMeasurementV1(
+            1000,
+            new RectV1(-550, -100, 600, 100));
+        var plan = Plan(
+            Request("logic.xor", 3, facing: facing),
+            new StubTextMeasurer(DefaultFontFingerprint, measurement));
+        var text = await Assert.That(plan.Operations.OfType<DrawTextV1>())
+            .HasSingleItem();
+        var body = (await Assert.That(plan.HitRegions)
+            .HasSingleItem(region => region.Kind == HitRegionKindV1.Body)).Shape;
+        var bodyBounds = (await Assert.That(body).IsTypeOf<RectHitShapeV1>())!.Rect;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(text.Bounds.Width).IsEqualTo(1150);
+            await Assert.That(text.Bounds.Height).IsEqualTo(200);
+            await Assert.That(bodyBounds.Width).IsGreaterThan(800);
+            await Assert.That(bodyBounds.Contains(
+                new PointV1(text.Bounds.Left, text.Bounds.Top))).IsTrue();
+            await Assert.That(bodyBounds.Contains(
+                new PointV1(text.Bounds.Right, text.Bounds.Bottom))).IsTrue();
         }
     }
 
@@ -149,7 +210,8 @@ internal sealed class TeachingMixedGeometryPlannerTests
         var fontChanged = Plan(Request(
             "logic.and",
             2,
-            fontFingerprint: "font:test:2"));
+            fontFingerprint: AlternateFontFingerprint),
+            new StubTextMeasurer(AlternateFontFingerprint));
 
         using (Assert.Multiple())
         {
@@ -160,7 +222,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
                 .IsNotEqualTo(first.Key.MetricFingerprint);
             await Assert.That(metricChanged.Key).IsNotEqualTo(first.Key);
             await Assert.That(fontChanged.Key.FontFingerprint)
-                .IsEqualTo("font:test:2");
+                .IsEqualTo(AlternateFontFingerprint);
             await Assert.That(fontChanged.Key).IsNotEqualTo(first.Key);
         }
     }
@@ -226,13 +288,26 @@ internal sealed class TeachingMixedGeometryPlannerTests
     }
 
     [Test]
-    [Arguments("unsupported", LayoutRejectionReasonV1.LayoutInvalid)]
-    [Arguments("variant", LayoutRejectionReasonV1.LayoutInvalid)]
-    [Arguments("budget", LayoutRejectionReasonV1.LayoutInvalid)]
-    [Arguments("profile", LayoutRejectionReasonV1.LayoutInvalid)]
+    [Arguments(
+        "unsupported",
+        LayoutRejectionReasonV1.LayoutInvalid,
+        "presentation_variant_unresolved")]
+    [Arguments(
+        "variant",
+        LayoutRejectionReasonV1.LayoutInvalid,
+        "presentation_variant_unresolved")]
+    [Arguments(
+        "budget",
+        LayoutRejectionReasonV1.LayoutInvalid,
+        "presentation_constraint_unsatisfied")]
+    [Arguments(
+        "profile",
+        LayoutRejectionReasonV1.LayoutInvalid,
+        "presentation_variant_unresolved")]
     public async Task Plan_RejectedRequest_PublishesNoGeometryPlan(
         string scenario,
-        LayoutRejectionReasonV1 expectedReason)
+        LayoutRejectionReasonV1 expectedReason,
+        string expectedDiagnosticCode)
     {
         var request = scenario switch
         {
@@ -249,14 +324,80 @@ internal sealed class TeachingMixedGeometryPlannerTests
         };
         var maximumPortCount = scenario == "budget" ? 2UL : 64UL;
 
-        var outcome = TeachingMixedGeometryPlanner.Plan(request, maximumPortCount);
+        var outcome = TeachingMixedGeometryPlanner.Plan(
+            request,
+            maximumPortCount,
+            DefaultTextMeasurer);
         var rejected = (await Assert.That(outcome)
             .IsTypeOf<GeometryPlanRejectedV1>())!;
+        var diagnostic = await Assert.That(rejected.Diagnostics).HasSingleItem();
+        string[] expectedArgumentNames = expectedDiagnosticCode ==
+            "presentation_variant_unresolved"
+                ? ["profileId", "variantId"]
+                : ["constraint"];
 
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason).IsEqualTo(expectedReason);
-            await Assert.That(rejected.Diagnostics).IsNotEmpty();
+            await Assert.That(diagnostic.Code).IsEqualTo(expectedDiagnosticCode);
+            await Assert.That(diagnostic.Severity)
+                .IsEqualTo(LayoutDiagnosticSeverityV1.Error);
+            await Assert.That(diagnostic.Arguments.Select(argument => argument.Name))
+                .IsEquivalentTo(
+                    expectedArgumentNames,
+                    CollectionOrdering.Matching);
+            await Assert.That(diagnostic.Arguments.All(argument =>
+                argument.Value is LayoutStableTokenValueV1)).IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task Plan_FontFingerprintMismatch_PublishesTypedDigestEvidence()
+    {
+        var outcome = TeachingMixedGeometryPlanner.Plan(
+            Request("logic.and", 2),
+            64,
+            new StubTextMeasurer(AlternateFontFingerprint));
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<GeometryPlanRejectedV1>())!;
+        var diagnostic = await Assert.That(rejected.Diagnostics).HasSingleItem();
+        var expected = (await Assert.That(diagnostic.Arguments[0].Value)
+            .IsTypeOf<LayoutDigestValueV1>())!;
+        var actual = (await Assert.That(diagnostic.Arguments[1].Value)
+            .IsTypeOf<LayoutDigestValueV1>())!;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason)
+                .IsEqualTo(LayoutRejectionReasonV1.LayoutInvalid);
+            await Assert.That(diagnostic.Code)
+                .IsEqualTo("presentation_font_fingerprint_mismatch");
+            await Assert.That(expected.Value).IsEqualTo(DefaultFontFingerprint.Digest);
+            await Assert.That(actual.Value).IsEqualTo(AlternateFontFingerprint.Digest);
+        }
+    }
+
+    [Test]
+    public async Task Plan_TextMeasurerDefect_PublishesInternalCorrelation()
+    {
+        var outcome = TeachingMixedGeometryPlanner.Plan(
+            Request("logic.xor", 3),
+            64,
+            new ThrowingTextMeasurer(DefaultFontFingerprint));
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<GeometryPlanRejectedV1>())!;
+        var diagnostic = await Assert.That(rejected.Diagnostics).HasSingleItem();
+        var correlation = (await Assert.That(diagnostic.Arguments[0].Value)
+            .IsTypeOf<LayoutCorrelationTokenValueV1>())!;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason)
+                .IsEqualTo(LayoutRejectionReasonV1.LayoutInternalDefect);
+            await Assert.That(diagnostic.Code)
+                .IsEqualTo("presentation_internal_invariant");
+            await Assert.That(diagnostic.Arguments[0].Name).IsEqualTo("correlation");
+            await Assert.That(correlation.Value.Length).IsEqualTo(32);
         }
     }
 
@@ -269,6 +410,27 @@ internal sealed class TeachingMixedGeometryPlannerTests
         var outcome = TeachingMixedGeometryPlanner.Plan(
             Request("logic.and", 2),
             64,
+            DefaultTextMeasurer,
+            cancellation.Token);
+        var rejected = (await Assert.That(outcome)
+            .IsTypeOf<GeometryPlanRejectedV1>())!;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason)
+                .IsEqualTo(LayoutRejectionReasonV1.LayoutCancelled);
+            await Assert.That(rejected.Diagnostics).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task Plan_TextMeasurementObservesCancellation_ReturnsCancelled()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var outcome = TeachingMixedGeometryPlanner.Plan(
+            Request("logic.xor", 3),
+            64,
+            new CancellingTextMeasurer(DefaultFontFingerprint, cancellation),
             cancellation.Token);
         var rejected = (await Assert.That(outcome)
             .IsTypeOf<GeometryPlanRejectedV1>())!;
@@ -425,9 +587,14 @@ internal sealed class TeachingMixedGeometryPlannerTests
         }
     }
 
-    private static GeometryPlanV1 Plan(BasicSymbolRequestV1 request)
+    private static GeometryPlanV1 Plan(
+        BasicSymbolRequestV1 request,
+        ISymbolTextMeasurerV1? textMeasurer = null)
     {
-        return TeachingMixedGeometryPlanner.Plan(request, 64) is GeometryPlanSucceededV1 success
+        return TeachingMixedGeometryPlanner.Plan(
+            request,
+            64,
+            textMeasurer ?? DefaultTextMeasurer) is GeometryPlanSucceededV1 success
             ? success.Plan
             : throw new InvalidOperationException("The bounded basic symbol request was rejected.");
     }
@@ -440,7 +607,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
         SymbolFacingV1 facing = SymbolFacingV1.East,
         bool isReflected = false,
         SymbolMetricSetV1? metricSet = null,
-        string fontFingerprint = "font:test:1",
+        FontFingerprintV1? fontFingerprint = null,
         ComponentParameterBinding[]? parameters = null)
     {
         var contract = CoreLibrarySchema.FindContract(new ComponentContractKey(
@@ -465,7 +632,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
             facing,
             isReflected,
             metricSet ?? TeachingMixedMetricSets.AnnexA100,
-            fontFingerprint,
+            fontFingerprint ?? DefaultFontFingerprint,
             "en-US",
             BaseDirectionV1.LeftToRight);
     }
@@ -488,4 +655,59 @@ internal sealed class TeachingMixedGeometryPlannerTests
         "TeachingMixed",
         "1.0.0",
         IndicationConvention.Negation);
+
+    private sealed class StubTextMeasurer : ISymbolTextMeasurerV1
+    {
+        private readonly SymbolTextMeasurementV1 measurement;
+
+        public StubTextMeasurer(
+            FontFingerprintV1 fontFingerprint,
+            SymbolTextMeasurementV1? measurement = null)
+        {
+            FontFingerprint = fontFingerprint;
+            this.measurement = measurement ?? new SymbolTextMeasurementV1(
+                300,
+                new RectV1(-150, -80, 150, 40));
+        }
+
+        public FontFingerprintV1 FontFingerprint { get; }
+
+        public SymbolTextMeasurementV1 Measure(
+            SymbolTextMeasurementRequestV1 request,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            cancellationToken.ThrowIfCancellationRequested();
+            return measurement;
+        }
+    }
+
+    private sealed class ThrowingTextMeasurer(FontFingerprintV1 fontFingerprint)
+        : ISymbolTextMeasurerV1
+    {
+        public FontFingerprintV1 FontFingerprint { get; } = fontFingerprint;
+
+        public SymbolTextMeasurementV1 Measure(
+            SymbolTextMeasurementRequestV1 request,
+            CancellationToken cancellationToken = default) =>
+            throw new ArgumentException("Synthetic text measurement defect.", nameof(request));
+    }
+
+    private sealed class CancellingTextMeasurer(
+        FontFingerprintV1 fontFingerprint,
+        CancellationTokenSource cancellation)
+        : ISymbolTextMeasurerV1
+    {
+        public FontFingerprintV1 FontFingerprint { get; } = fontFingerprint;
+
+        public SymbolTextMeasurementV1 Measure(
+            SymbolTextMeasurementRequestV1 request,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            cancellation.Cancel();
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new InvalidOperationException("Cancellation was not observed.");
+        }
+    }
 }

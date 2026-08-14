@@ -27,6 +27,7 @@ internal sealed record ResolvedBasicSymbolDefinition(
     BasicOutlineRecipe Recipe,
     string VariantId,
     string FunctionText,
+    bool HasOutputQualifier,
     ConformanceClaimV1 Claim,
     string PrimaryClause,
     AnnexAStatusV1 AnnexA);
@@ -91,13 +92,11 @@ internal static class TeachingMixedBasicSymbolRegistry
         int inputCount,
         string? requestedVariantId,
         IndicationConvention indicationConvention,
-        out ResolvedBasicSymbolDefinition? resolved,
-        out string? diagnosticCode)
+        out ResolvedBasicSymbolDefinition? resolved)
     {
         if (!Definitions.TryGetValue(contractId, out var definition))
         {
             resolved = null;
-            diagnosticCode = "layout_symbol_unsupported";
             return false;
         }
 
@@ -111,14 +110,12 @@ internal static class TeachingMixedBasicSymbolRegistry
             or SymbolVariantCatalog.RectangularId))
         {
             resolved = null;
-            diagnosticCode = "layout_symbol_variant_unknown";
             return false;
         }
 
         if (variantId == SymbolVariantCatalog.DistinctiveId && defaultRectangle)
         {
             resolved = null;
-            diagnosticCode = "layout_symbol_variant_incompatible";
             return false;
         }
 
@@ -127,9 +124,10 @@ internal static class TeachingMixedBasicSymbolRegistry
             : definition.DistinctiveRecipe;
         var functionText = definition.RectangularFunction;
         var clause = definition.DistinctiveClause;
-        if (recipe == BasicOutlineRecipe.Rectangle
+        var usesParityFunction = recipe == BasicOutlineRecipe.Rectangle
             && definition.DistinctiveRecipe == BasicOutlineRecipe.Xor
-            && inputCount > 2)
+            && inputCount > 2;
+        if (usesParityFunction)
         {
             var oddParity = !definition.HasOutputQualifier;
             functionText = oddParity ? "2k+1" : "2k";
@@ -147,6 +145,7 @@ internal static class TeachingMixedBasicSymbolRegistry
             recipe,
             variantId,
             functionText,
+            definition.HasOutputQualifier && !usesParityFunction,
             recipe == BasicOutlineRecipe.Rectangle
                 ? ConformanceClaimV1.Standardized91A
                 : ConformanceClaimV1.PermittedDistinctive91A,
@@ -154,7 +153,6 @@ internal static class TeachingMixedBasicSymbolRegistry
             recipe == BasicOutlineRecipe.Rectangle
                 ? AnnexAStatusV1.NotEvaluated
                 : AnnexAStatusV1.Pass);
-        diagnosticCode = null;
         return true;
     }
 

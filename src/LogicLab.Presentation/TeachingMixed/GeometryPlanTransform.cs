@@ -64,18 +64,27 @@ internal static class GeometryPlanTransform
                     Apply(fill.Path),
                     fill.Role,
                     fill.FillRule),
-                DrawTextV1 text => new DrawTextV1(
-                    text.Text,
-                    text.FontRole,
-                    Apply(text.Origin),
-                    Apply(text.Bounds),
-                    text.Alignment,
-                    text.Orientation,
-                    text.BaseDirection,
-                    text.LocaleId),
+                DrawTextV1 text => ApplyText(text),
                 _ => throw new InvalidOperationException(
                     "The Geometry Plan operation variant is undefined."),
             };
+        }
+
+        private DrawTextV1 ApplyText(DrawTextV1 text)
+        {
+            var origin = Apply(text.Origin);
+            var bounds = text.Orientation == TextOrientationV1.UprightReading
+                ? TranslateRelative(text.Bounds, text.Origin, origin)
+                : Apply(text.Bounds);
+            return new DrawTextV1(
+                text.Text,
+                text.FontRole,
+                origin,
+                bounds,
+                text.Alignment,
+                text.Orientation,
+                text.BaseDirection,
+                text.LocaleId);
         }
 
         public PortAnchorV1 Apply(PortAnchorV1 anchor) => new(
@@ -142,6 +151,15 @@ internal static class GeometryPlanTransform
                 Apply(new PointV1(rect.Left, rect.Bottom)),
             ]);
         }
+
+        private static RectV1 TranslateRelative(
+            RectV1 bounds,
+            PointV1 sourceOrigin,
+            PointV1 targetOrigin) => new(
+                checked(targetOrigin.X + (bounds.Left - sourceOrigin.X)),
+                checked(targetOrigin.Y + (bounds.Top - sourceOrigin.Y)),
+                checked(targetOrigin.X + (bounds.Right - sourceOrigin.X)),
+                checked(targetOrigin.Y + (bounds.Bottom - sourceOrigin.Y)));
 
         private PointV1 Apply(PointV1 source)
         {
