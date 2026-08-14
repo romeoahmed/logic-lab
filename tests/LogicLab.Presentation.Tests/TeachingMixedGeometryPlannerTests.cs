@@ -600,6 +600,31 @@ internal sealed class TeachingMixedGeometryPlannerTests
     }
 
     [Test]
+    public async Task LocaleId_UnregisteredValue_RejectsAtValueBoundary()
+    {
+        await Assert.That(() => new PresentationLocaleIdV1("not a locale\n"))
+            .ThrowsExactly<ArgumentException>();
+    }
+
+    [Test]
+    public async Task StrokePath_DefaultLineJoin_RejectsAtValueBoundary()
+    {
+        var path = new PathV1(
+        [
+            new MoveToV1(new PointV1(0, 0)),
+            new LineToV1(new PointV1(10, 10)),
+        ]);
+
+        await Assert.That(() => new StrokePathV1(
+            path,
+            StrokeRoleV1.Outline,
+            1,
+            [],
+            LineCapV1.Butt,
+            default!)).ThrowsExactly<ArgumentNullException>();
+    }
+
+    [Test]
     public async Task Polygon_NonSimpleOrDegenerate_RejectsAtValueBoundary()
     {
         await Assert.That(() => new PolygonHitShapeV1(
@@ -756,7 +781,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
             isReflected,
             metricSet ?? TeachingMixedMetricSets.AnnexA100,
             fontFingerprint ?? DefaultFontFingerprint,
-            "en-US",
+            PresentationLocaleIdV1.EnglishUnitedStates,
             BaseDirectionV1.LeftToRight);
     }
 

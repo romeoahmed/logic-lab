@@ -34,12 +34,12 @@ public sealed record SymbolTextMeasurementRequestV1
         FontRoleV1 fontRole,
         TextAlignmentV1 alignment,
         SymbolMetricSetV1 metricSet,
-        string localeId,
+        PresentationLocaleIdV1 localeId,
         BaseDirectionV1 baseDirection)
     {
         ArgumentException.ThrowIfNullOrEmpty(text);
         ArgumentNullException.ThrowIfNull(metricSet);
-        ArgumentException.ThrowIfNullOrEmpty(localeId);
+        ArgumentNullException.ThrowIfNull(localeId);
         if (!text.IsNormalized(NormalizationForm.FormC))
         {
             throw new ArgumentException("Display text must use NFC normalization.", nameof(text));
@@ -76,7 +76,7 @@ public sealed record SymbolTextMeasurementRequestV1
 
     public SymbolMetricSetV1 MetricSet { get; }
 
-    public string LocaleId { get; }
+    public PresentationLocaleIdV1 LocaleId { get; }
 
     public BaseDirectionV1 BaseDirection { get; }
 }

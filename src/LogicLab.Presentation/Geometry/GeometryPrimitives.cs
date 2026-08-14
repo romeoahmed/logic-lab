@@ -221,7 +221,7 @@ public enum LineJoinKindV1
     Bevel,
 }
 
-public readonly record struct LineJoinV1
+public sealed record LineJoinV1
 {
     public LineJoinV1(LineJoinKindV1 kind, int miterLimitRatio)
     {
@@ -270,6 +270,7 @@ public sealed record StrokePathV1 : DrawOperationV1
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(dashPattern);
+        ArgumentNullException.ThrowIfNull(lineJoin);
         if (!Enum.IsDefined(role))
         {
             throw new ArgumentOutOfRangeException(nameof(role));
@@ -375,10 +376,10 @@ public sealed record DrawTextV1 : DrawOperationV1
         TextAlignmentV1 alignment,
         TextOrientationV1 orientation,
         BaseDirectionV1 baseDirection,
-        string localeId)
+        PresentationLocaleIdV1 localeId)
     {
         ArgumentException.ThrowIfNullOrEmpty(text);
-        ArgumentException.ThrowIfNullOrEmpty(localeId);
+        ArgumentNullException.ThrowIfNull(localeId);
         if (!text.IsNormalized(NormalizationForm.FormC))
         {
             throw new ArgumentException("Display text must use NFC normalization.", nameof(text));
@@ -428,7 +429,7 @@ public sealed record DrawTextV1 : DrawOperationV1
 
     public BaseDirectionV1 BaseDirection { get; }
 
-    public string LocaleId { get; }
+    public PresentationLocaleIdV1 LocaleId { get; }
 }
 
 public abstract record HitShapeV1
