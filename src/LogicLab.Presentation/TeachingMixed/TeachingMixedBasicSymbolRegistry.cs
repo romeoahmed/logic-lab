@@ -16,7 +16,6 @@ internal enum BasicOutlineRecipe
 }
 
 internal sealed record BasicSymbolDefinition(
-    string ContractId,
     string DefinitionId,
     string DefinitionVersion,
     BasicOutlineRecipe DistinctiveRecipe,
@@ -187,7 +186,6 @@ internal static class TeachingMixedBasicSymbolRegistry
         string negationPrimaryClause,
         string directPolarityPrimaryClause,
         string rectangularFunction) => new(
-            contractId,
             $"logiclab.teachingmixed.{contractId}",
             "1.2.0",
             recipe,
