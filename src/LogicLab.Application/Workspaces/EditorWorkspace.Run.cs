@@ -127,7 +127,7 @@ internal sealed partial class EditorWorkspace
         if (!TryRetainWorkspace(state, out var retentionRejectionCode))
         {
             return new WorkCoordinator.SchedulingRejection(
-                retentionRejectionCode!,
+                retentionRejectionCode,
                 PolicyEvidence: null);
         }
 

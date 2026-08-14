@@ -75,14 +75,14 @@ internal sealed partial class EditorWorkspace
             {
                 DisposeUnpublishedWorkspace(state);
                 return RejectOpen(
-                    schedulingRejection!.Code,
+                    schedulingRejection.Code,
                     policyEvidence: schedulingRejection.PolicyEvidence);
             }
 
             stage = "compilation";
             using (cancellationToken.Register(
                 static state => ((WorkCoordinator.ScheduledCompilationWork)state!).Cancel(),
-                scheduledCompilation!))
+                scheduledCompilation))
             {
                 await compilationCompleted.Task.ConfigureAwait(false);
             }

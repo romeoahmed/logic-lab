@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LogicLab.Engine.Compilation;
 
 namespace LogicLab.Engine.Simulation;
@@ -236,7 +237,7 @@ public static partial class SimulationRuntime
     private static bool TryGetReplacementEvaluator(
         CompilationArtifact replacement,
         CompilationSource source,
-        out SimulationEvaluator evaluator)
+        [NotNullWhen(true)] out SimulationEvaluator? evaluator)
     {
         if (replacement.SourceMap.TryGetEvaluatorOrdinal(source, out var ordinal))
         {
@@ -244,7 +245,7 @@ public static partial class SimulationRuntime
             return true;
         }
 
-        evaluator = null!;
+        evaluator = null;
         return false;
     }
 

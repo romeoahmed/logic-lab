@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using LogicLab.Domain.Authoring;
 
 namespace LogicLab.Domain.Components;
@@ -73,7 +74,7 @@ public sealed class ComponentContractSchema
     public bool TryResolvePort(
         IReadOnlyList<ComponentParameterBinding> parameters,
         string portId,
-        out ResolvedComponentPortSchema? port,
+        [NotNullWhen(true)] out ResolvedComponentPortSchema? port,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parameters);

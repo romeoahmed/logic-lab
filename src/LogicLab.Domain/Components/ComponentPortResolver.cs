@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
 using LogicLab.Domain.Authoring;
@@ -50,7 +51,7 @@ internal static class ComponentPortResolver
         ReadOnlyCollection<ComponentPortSchema> ports,
         ReadOnlyCollection<ComponentParameterBinding> parameters,
         string portId,
-        out ResolvedComponentPortSchema? resolved,
+        [NotNullWhen(true)] out ResolvedComponentPortSchema? resolved,
         CancellationToken cancellationToken)
     {
         foreach (var port in ports)

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LogicLab.Application.Work;
 using LogicLab.Domain.Authoring;
 using LogicLab.Engine.Compilation;
@@ -270,7 +271,7 @@ internal sealed partial class EditorWorkspace
     private bool TryReserveWorkspaceAdmissionTransfer(
         WorkspaceState state,
         WorkspaceCaller targetCaller,
-        out PolicyEvidenceProjection? policyEvidence)
+        [NotNullWhen(false)] out PolicyEvidenceProjection? policyEvidence)
     {
         policyEvidence = null;
         lock (gate)
@@ -435,7 +436,7 @@ internal sealed partial class EditorWorkspace
 
     private bool TryRetainWorkspace(
         WorkspaceState state,
-        out string? rejectionCode)
+        [NotNullWhen(false)] out string? rejectionCode)
     {
         lock (gate)
         {
@@ -727,9 +728,16 @@ internal sealed partial class EditorWorkspace
 
         public string? RejectionReason { get; }
 
+        [MemberNotNullWhen(true, nameof(State))]
+        [MemberNotNullWhen(false, nameof(RejectionReason))]
+        public bool IsAcquired => State is not null;
+
         public void Dispose()
         {
-            Interlocked.Exchange(ref owner, null)?.Release(State!);
+            if (IsAcquired)
+            {
+                Interlocked.Exchange(ref owner, null)?.Release(State);
+            }
         }
 
         public static WorkspaceAcquisition Acquired(

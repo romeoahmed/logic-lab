@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using LogicLab.Application.Workspaces;
@@ -31,7 +32,7 @@ internal sealed record WorkspaceAttachmentHistoryState(
     public static bool TryRead(
         string? serialized,
         WorkspaceId expectedWorkspaceId,
-        out WorkspaceAttachmentId? attachmentId,
+        [NotNullWhen(true)] out WorkspaceAttachmentId? attachmentId,
         out ulong generation)
     {
         ArgumentNullException.ThrowIfNull(expectedWorkspaceId);
