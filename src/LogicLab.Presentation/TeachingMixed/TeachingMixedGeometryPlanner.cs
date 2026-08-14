@@ -41,6 +41,17 @@ public static class TeachingMixedGeometryPlanner
                     measuredFontFingerprint));
             }
 
+            var measuredMetricFingerprint = textMeasurer.MetricSet.Fingerprint;
+            if (!string.Equals(
+                    measuredMetricFingerprint,
+                    request.MetricSet.Fingerprint,
+                    StringComparison.Ordinal))
+            {
+                return Invalid(PresentationDiagnosticsV1.MetricFingerprintMismatch(
+                    request.MetricSet.Fingerprint,
+                    measuredMetricFingerprint));
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
             ReadOnlyCollection<ResolvedComponentPortSchema> ports;
             try
@@ -91,6 +102,7 @@ public static class TeachingMixedGeometryPlanner
                             resolvedDefinition.FunctionText,
                             FontRoleV1.Symbol,
                             TextAlignmentV1.Center,
+                            request.MetricSet,
                             request.LocaleId,
                             request.BaseDirection),
                         cancellationToken)

@@ -18,7 +18,7 @@ internal sealed record BasicSymbolDefinition(
     string DefinitionVersion,
     BasicOutlineRecipe DistinctiveRecipe,
     bool HasOutputQualifier,
-    string DistinctiveClause,
+    string PrimaryClause,
     string RectangularFunction,
     string AccessibilityKey);
 
@@ -123,7 +123,7 @@ internal static class TeachingMixedBasicSymbolRegistry
             ? BasicOutlineRecipe.Rectangle
             : definition.DistinctiveRecipe;
         var functionText = definition.RectangularFunction;
-        var clause = definition.DistinctiveClause;
+        var clause = definition.PrimaryClause;
         var usesParityFunction = recipe == BasicOutlineRecipe.Rectangle
             && definition.DistinctiveRecipe == BasicOutlineRecipe.Xor
             && inputCount > 2;
@@ -160,14 +160,14 @@ internal static class TeachingMixedBasicSymbolRegistry
         string contractId,
         BasicOutlineRecipe recipe,
         bool hasOutputQualifier,
-        string distinctiveClause,
+        string primaryClause,
         string rectangularFunction) => new(
             contractId,
             $"logiclab.teachingmixed.{contractId}",
-            "1.0.0",
+            "1.1.0",
             recipe,
             hasOutputQualifier,
-            distinctiveClause,
+            primaryClause,
             rectangularFunction,
             $"presentation.symbol.{contractId}");
 }

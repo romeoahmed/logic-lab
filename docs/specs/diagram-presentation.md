@@ -84,7 +84,7 @@ Qualifier and dependency composition is structured:
 - input and output qualifier sequences follow IEEE 91A clauses 4.4.3 and 4.4.4;
 - orientation distinguishes glyphs relative to signal flow from text relative to reading direction.
 
-Text measurement uses a versioned font fingerprint. The planning seam receives a Symbol Text Measurer whose fingerprint must equal the Symbol Request fingerprint; a mismatch returns `presentation_font_fingerprint_mismatch` and publishes no plan. Symbol geometry and application chrome typography are separate. A font change invalidates derived Geometry Plans but not Project semantics.
+Text measurement uses a versioned font fingerprint and Metric Set. The planning seam receives a Symbol Text Measurer whose font and Metric Set fingerprints must equal the Symbol Request fingerprints; a mismatch returns `presentation_font_fingerprint_mismatch` or `presentation_metric_fingerprint_mismatch` and publishes no plan. Each measurement request carries the matched Metric Set so the result is expressed at the requested `unitsPerH` scale. Symbol geometry and application chrome typography are separate. A font or Metric Set change invalidates derived Geometry Plans but not Project semantics.
 
 ## 4. Projection value contracts
 
@@ -158,7 +158,7 @@ GeometryPlanKeyV1
   normalized parameter and label digest
   facing, reflection, and indication convention
   locale ID and base direction
-  Metric Set ID and version
+  Metric Set ID, version, and fingerprint
   font fingerprint
 ```
 
@@ -179,7 +179,7 @@ PathCommandV1 =
 
 A path is nonempty. Each contour starts with `MoveTo`, contains at least one segment, and may end with one `Close`; after `Close`, only a new `MoveTo` may follow. Every Fill Path contour is closed. Stroke roles are `outline`, `qualifier`, `dependency`, or `extensionMark`. Fill roles are `foreground`, `background`, or `extensionMark`. Stroke width is a positive plan-unit integer. Dash patterns are empty for solid or contain an even count of positive plan-unit lengths. `lineCap` is `Butt | Round | Square`; `lineJoin` is `Miter(positive integer limit ratio) | Round | Bevel`; and `fillRule` is `NonZero | EvenOdd`. No adapter default supplies these values.
 
-Text is authorized NFC display text. `fontRole` is `Symbol | PortLabel | Dependency | ExtensionMark`, alignment is `Start | Center | End`, orientation is `FollowFacing | UprightReading`, base direction is `LeftToRight | RightToLeft`, and `localeId` is a registered stable localization token. The Symbol Text Measurer returns advance width and ink bounds in plan units relative to the requested alignment point and baseline; the generator unions both into the published bounds and solves body dimensions before drawing. The recorded font fingerprint determines shaping and measurement; an adapter rejects a fingerprint mismatch instead of remeasuring with a substitute. `UprightReading` text keeps its measured orientation and envelope after symbol facing/reflection transforms. Color, antialiasing, and device-pixel snapping belong to the adapter and visual design tokens, not Geometry Plan.
+Text is authorized NFC display text. `fontRole` is `Symbol | PortLabel | Dependency | ExtensionMark`, alignment is `Start | Center | End`, orientation is `FollowFacing | UprightReading`, base direction is `LeftToRight | RightToLeft`, and `localeId` is a registered stable localization token. The Symbol Text Measurer is bound to one font fingerprint and one Metric Set fingerprint; the measurement request carries that Metric Set, and the result returns advance width and ink bounds in its plan units relative to the requested alignment point and baseline. The generator unions both into the published bounds and solves body dimensions before drawing. A fingerprint mismatch is rejected instead of accepting substitute shaping or scale. `UprightReading` text keeps its measured orientation and envelope after symbol facing/reflection transforms. Color, antialiasing, and device-pixel snapping belong to the adapter and visual design tokens, not Geometry Plan.
 
 Port anchors are sorted by Component Contract or Circuit Definition Port order:
 

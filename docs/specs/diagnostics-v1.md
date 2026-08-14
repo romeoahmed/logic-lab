@@ -159,6 +159,7 @@ Raw illegal entry names, JSON values, and Memory Image bytes are never arguments
 | `presentation_constraint_unsatisfied` | Error | `constraint:StableToken` |
 | `presentation_unverified_fallback` | Warning | `contractKey:ContractKey` |
 | `presentation_font_fingerprint_mismatch` | Error | `expected:Digest`, `actual:Digest` |
+| `presentation_metric_fingerprint_mismatch` | Error | `expected:Digest`, `actual:Digest` |
 | `presentation_internal_invariant` | Error | `correlation:CorrelationToken` |
 
 `TeachingProjectionUnavailable`, `Inconclusive`, and `NoImprovement` remain Boolean Analysis outcome variants, not warning Diagnostics. Workspace alone wraps exact Compiler ineligibility or teaching-projection unavailability as `NotApplicable`; it is not a Boolean Analysis outcome. A Verifier Disagreement is a defect outcome and no replacement crosses the seam.
