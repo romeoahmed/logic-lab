@@ -474,13 +474,13 @@ internal sealed class TeachingMixedGeometryPlannerTests
     }
 
     [Test]
-    public async Task Plan_TextMeasurementObservesCancellation_ReturnsCancelled()
+    public async Task Plan_LinkedTextMeasurementObservesCallerCancellation_ReturnsCancelled()
     {
         using var cancellation = new CancellationTokenSource();
         var outcome = TeachingMixedGeometryPlanner.Plan(
             Request("logic.xor", 3),
             64,
-            new CancellingTextMeasurer(DefaultFontFingerprint, cancellation),
+            new LinkedCancellingTextMeasurer(DefaultFontFingerprint, cancellation),
             cancellation.Token);
         var rejected = (await Assert.That(outcome)
             .IsTypeOf<GeometryPlanRejectedV1>())!;
@@ -598,6 +598,26 @@ internal sealed class TeachingMixedGeometryPlannerTests
             await Assert.That(plan.Bounds.Height).IsGreaterThan(0);
             await Assert.That(plan.Conformance.AnnexA).IsEqualTo(expectedAnnexA);
         }
+    }
+
+    [Test]
+    public async Task Plan_OddMetricScale_OutputLeadStartsAtQuantizedQualifierEdge()
+    {
+        var metricSet = new SymbolMetricSetV1("metric", "1.0.0", 1);
+        var plan = Plan(
+            Request("logic.not", 1, metricSet: metricSet),
+            new StubTextMeasurer(DefaultFontFingerprint, metricSet: metricSet));
+        var qualifier = await Assert.That(plan.Operations.OfType<StrokePathV1>())
+            .HasSingleItem(operation => operation.Role == StrokeRoleV1.Qualifier);
+        var outputAnchor = plan.PortAnchors.Single(anchor => anchor.PortId == "Q");
+        var outputLead = await Assert.That(plan.Operations.OfType<StrokePathV1>())
+            .HasSingleItem(operation => operation.Path.Commands is
+                [MoveToV1, LineToV1 line]
+                && line.Point == outputAnchor.Point);
+        var leadStart = (MoveToV1)outputLead.Path.Commands[0];
+
+        await Assert.That(leadStart.Point.X)
+            .IsEqualTo(PathPoints(qualifier.Path).Max(point => point.X));
     }
 
     [Test]
@@ -1410,7 +1430,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
             throw new ArgumentException("Synthetic text measurement defect.", nameof(request));
     }
 
-    private sealed class CancellingTextMeasurer(
+    private sealed class LinkedCancellingTextMeasurer(
         FontFingerprintV1 fontFingerprint,
         CancellationTokenSource cancellation)
         : ISymbolTextMeasurerV1
@@ -1424,8 +1444,12 @@ internal sealed class TeachingMixedGeometryPlannerTests
             CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(request);
+            using var internalCancellation = new CancellationTokenSource();
+            using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                internalCancellation.Token);
             cancellation.Cancel();
-            cancellationToken.ThrowIfCancellationRequested();
+            linkedCancellation.Token.ThrowIfCancellationRequested();
             throw new InvalidOperationException("Cancellation was not observed.");
         }
     }
