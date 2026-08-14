@@ -6,6 +6,18 @@ internal static class FourStateTestData
 {
     private static readonly LogicValue[] Values = Enum.GetValues<LogicValue>();
 
+    public static IEnumerable<(LogicValue Lower, LogicValue Upper)> InformationOrderedPairs { get; } =
+        Array.AsReadOnly<(LogicValue Lower, LogicValue Upper)>(
+        [
+            (LogicValue.X, LogicValue.X),
+            (LogicValue.X, LogicValue.Zero),
+            (LogicValue.X, LogicValue.One),
+            (LogicValue.X, LogicValue.Z),
+            (LogicValue.Zero, LogicValue.Zero),
+            (LogicValue.One, LogicValue.One),
+            (LogicValue.Z, LogicValue.Z),
+        ]);
+
     public static IEnumerable<LogicValue[]> Tuples(int arity)
     {
         var values = new LogicValue[arity];
