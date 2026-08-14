@@ -30,7 +30,6 @@ internal static class BasicGateGeometryBuilder
     {
         cancellationToken.ThrowIfCancellationRequested();
         var inputs = ports.Where(port => port.Direction == PortDirection.Input).ToArray();
-        var output = ports.Single(port => port.Direction == PortDirection.Output);
         var metrics = BasicGateMetrics.From(request.MetricSet);
         var h = metrics.UnitsPerH;
         var textAlignment = TextAlignmentV1.Center;
@@ -41,15 +40,14 @@ internal static class BasicGateGeometryBuilder
         var requestedBodyHeight = inputs.Length == 1
             ? standardBodyHeight
             : checked((inputs.Length - 1) * metrics.MinimumPortPitch + ScaleUp(h, 2));
-        var minimumHorizontalTextSize = textEnvelope is { } measuredText
-            ? RequiredCenteredSize(
-                measuredText.Left,
-                measuredText.Right,
-                ScaleUp(h, 2))
-            : 0;
-        var minimumVerticalTextSize = textEnvelope is { } verticalText
-            ? RequiredCenteredSize(verticalText.Top, verticalText.Bottom, h)
-            : 0;
+        var (minimumHorizontalTextSize, minimumVerticalTextSize) = textEnvelope is { } measuredText
+            ? (
+                RequiredCenteredSize(
+                    measuredText.Left,
+                    measuredText.Right,
+                    ScaleUp(h, 2)),
+                RequiredCenteredSize(measuredText.Top, measuredText.Bottom, h))
+            : (0, 0);
         var swapsAxes = request.Facing is SymbolFacingV1.North or SymbolFacingV1.South;
         var minimumTextBodyHeight = swapsAxes
             ? minimumHorizontalTextSize
@@ -243,59 +241,44 @@ internal static class BasicGateGeometryBuilder
         BasicSymbolRequestV1 request,
         int outlineStrokeWidth)
     {
-        switch (definition.Recipe)
+        var outline = definition.Recipe switch
         {
-            case BasicOutlineRecipe.And:
-                operations.Add(Stroke(
-                    AndOutline(body),
-                    StrokeRoleV1.Outline,
-                    outlineStrokeWidth));
-                break;
-            case BasicOutlineRecipe.Or:
-                operations.Add(Stroke(
-                    OrOutline(body),
-                    StrokeRoleV1.Outline,
-                    outlineStrokeWidth));
-                break;
-            case BasicOutlineRecipe.Xor:
-                operations.Add(Stroke(
-                    OrOutline(body),
-                    StrokeRoleV1.Outline,
-                    outlineStrokeWidth));
-                operations.Add(Stroke(
-                    XorInputCurve(body),
-                    StrokeRoleV1.Outline,
-                    outlineStrokeWidth));
-                break;
-            case BasicOutlineRecipe.Triangle:
-                operations.Add(Stroke(
-                    TriangleOutline(body),
-                    StrokeRoleV1.Outline,
-                    outlineStrokeWidth));
-                break;
-            case BasicOutlineRecipe.Rectangle:
-                operations.Add(Stroke(
-                    RectangleOutline(body),
-                    StrokeRoleV1.Outline,
-                    outlineStrokeWidth));
-                var center = new PointV1(
-                    checked(body.Left + (body.Width / 2)),
-                    checked(body.Top + (body.Height / 2)));
-                var measuredBounds = textEnvelope
-                    ?? throw new InvalidOperationException(
-                        "A rectangular Symbol Definition requires measured text.");
-                operations.Add(new DrawTextV1(
-                    definition.FunctionText,
-                    FontRoleV1.Symbol,
-                    center,
-                    Translate(measuredBounds, center),
-                    TextAlignmentV1.Center,
-                    TextOrientationV1.UprightReading,
-                    request.BaseDirection,
-                    request.LocaleId));
-                break;
-            default:
-                throw new LayoutInvalidException(LayoutConstraintV1.OutlineRecipe);
+            BasicOutlineRecipe.And => AndOutline(body),
+            BasicOutlineRecipe.Or or BasicOutlineRecipe.Xor => OrOutline(body),
+            BasicOutlineRecipe.Triangle => TriangleOutline(body),
+            BasicOutlineRecipe.Rectangle => RectangleOutline(body),
+            _ => throw new LayoutInvalidException(LayoutConstraintV1.OutlineRecipe),
+        };
+        operations.Add(Stroke(
+            outline,
+            StrokeRoleV1.Outline,
+            outlineStrokeWidth));
+
+        if (definition.Recipe == BasicOutlineRecipe.Xor)
+        {
+            operations.Add(Stroke(
+                XorInputCurve(body),
+                StrokeRoleV1.Outline,
+                outlineStrokeWidth));
+        }
+
+        if (definition.Recipe == BasicOutlineRecipe.Rectangle)
+        {
+            var center = new PointV1(
+                checked(body.Left + (body.Width / 2)),
+                checked(body.Top + (body.Height / 2)));
+            var measuredBounds = textEnvelope
+                ?? throw new InvalidOperationException(
+                    "A rectangular Symbol Definition requires measured text.");
+            operations.Add(new DrawTextV1(
+                definition.FunctionText,
+                FontRoleV1.Symbol,
+                center,
+                Translate(measuredBounds, center),
+                TextAlignmentV1.Center,
+                TextOrientationV1.UprightReading,
+                request.BaseDirection,
+                request.LocaleId));
         }
     }
 
@@ -377,12 +360,9 @@ internal static class BasicGateGeometryBuilder
     private static int InputConnectionX(
         BasicOutlineRecipe recipe,
         RectV1 body,
-        int inputY) => recipe switch
-        {
-            BasicOutlineRecipe.Or => CubicXAtY(OrInputCurve(body), inputY),
-            BasicOutlineRecipe.Xor => CubicXAtY(OrInputCurve(body), inputY),
-            _ => body.Left,
-        };
+        int inputY) => recipe is BasicOutlineRecipe.Or or BasicOutlineRecipe.Xor
+            ? CubicXAtY(OrInputCurve(body), inputY)
+            : body.Left;
 
     private static int CubicXAtY(CubicSegment curve, int targetY)
     {

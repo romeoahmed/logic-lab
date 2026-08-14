@@ -120,16 +120,15 @@ public sealed class PathV1
     {
         ArgumentNullException.ThrowIfNull(commands);
         var owned = commands.ToArray();
-        Validate(owned);
+        EveryContourClosed = Validate(owned);
         Commands = Array.AsReadOnly(owned);
-        EveryContourClosed = ComputeEveryContourClosed(owned);
     }
 
     public ReadOnlyCollection<PathCommandV1> Commands { get; }
 
     internal bool EveryContourClosed { get; }
 
-    private static void Validate(PathCommandV1[] commands)
+    private static bool Validate(PathCommandV1[] commands)
     {
         if (commands.Length == 0 || commands[0] is not MoveToV1)
         {
@@ -140,6 +139,7 @@ public sealed class PathV1
 
         var contourOpen = false;
         var contourHasSegment = false;
+        var openContourCount = 0;
         foreach (var command in commands)
         {
             ArgumentNullException.ThrowIfNull(command);
@@ -152,6 +152,7 @@ public sealed class PathV1
                 case MoveToV1:
                     contourOpen = true;
                     contourHasSegment = false;
+                    openContourCount++;
                     break;
                 case LineToV1 or CubicToV1 when contourOpen:
                     contourHasSegment = true;
@@ -159,6 +160,7 @@ public sealed class PathV1
                 case ClosePathV1 when contourOpen && contourHasSegment:
                     contourOpen = false;
                     contourHasSegment = false;
+                    openContourCount--;
                     break;
                 default:
                     throw new ArgumentException(
@@ -173,25 +175,8 @@ public sealed class PathV1
                 "Every path contour must contain at least one segment.",
                 nameof(commands));
         }
-    }
 
-    private static bool ComputeEveryContourClosed(PathCommandV1[] commands)
-    {
-        var openContours = 0;
-        foreach (var command in commands)
-        {
-            switch (command)
-            {
-                case MoveToV1:
-                    openContours++;
-                    break;
-                case ClosePathV1:
-                    openContours--;
-                    break;
-            }
-        }
-
-        return openContours == 0;
+        return openContourCount == 0;
     }
 }
 

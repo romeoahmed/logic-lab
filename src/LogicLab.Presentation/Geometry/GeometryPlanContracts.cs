@@ -368,11 +368,10 @@ internal static class GeometryPlanValidator
             .ToDictionary(
             region => region.LocalId,
             StringComparer.Ordinal);
-        var portAccessibilityNodesById = plan.AccessibilityNodes
+        var portAccessibilityNodeIds = plan.AccessibilityNodes
             .Where(node => node.Kind == AccessibilityNodeKindV1.Port)
-            .ToDictionary(
-            node => node.LocalId,
-            StringComparer.Ordinal);
+            .Select(node => node.LocalId)
+            .ToHashSet(StringComparer.Ordinal);
         var referencedHitRegionIds = plan.PortAnchors
             .Select(anchor => anchor.HitRegionId)
             .ToHashSet(StringComparer.Ordinal);
@@ -382,7 +381,7 @@ internal static class GeometryPlanValidator
         if (referencedHitRegionIds.Count != plan.PortAnchors.Count
             || referencedAccessibilityNodeIds.Count != plan.PortAnchors.Count
             || !referencedHitRegionIds.SetEquals(portHitRegionsById.Keys)
-            || !referencedAccessibilityNodeIds.SetEquals(portAccessibilityNodesById.Keys))
+            || !referencedAccessibilityNodeIds.SetEquals(portAccessibilityNodeIds))
         {
             throw new InvalidOperationException(
                 "Port anchors, hit regions, and accessibility nodes must form one-to-one bindings.");
@@ -390,10 +389,9 @@ internal static class GeometryPlanValidator
 
         foreach (var anchor in plan.PortAnchors)
         {
-            if (!portHitRegionsById.TryGetValue(anchor.HitRegionId, out var hitRegion)
-                || hitRegion.SourcePortId != anchor.PortId
-                || !hitRegion.Shape.Contains(anchor.Point)
-                || !portAccessibilityNodesById.ContainsKey(anchor.AccessibilityNodeId))
+            var hitRegion = portHitRegionsById[anchor.HitRegionId];
+            if (hitRegion.SourcePortId != anchor.PortId
+                || !hitRegion.Shape.Contains(anchor.Point))
             {
                 throw new InvalidOperationException(
                     "A Port interaction record is inconsistent with its anchor.");
