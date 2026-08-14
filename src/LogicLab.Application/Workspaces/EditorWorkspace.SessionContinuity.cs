@@ -51,7 +51,7 @@ internal sealed partial class EditorWorkspace
                             state,
                             pendingIntent,
                             Reject(
-                                schedulingRejection!.Code,
+                                schedulingRejection.Code,
                                 policyEvidence: schedulingRejection.PolicyEvidence));
                     }
 

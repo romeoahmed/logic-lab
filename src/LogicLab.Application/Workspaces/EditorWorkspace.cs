@@ -224,7 +224,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
         }
 
         using var acquisition = AcquireWorkspace(command.WorkspaceId);
-        if (acquisition.State is null)
+        if (!acquisition.IsAcquired)
         {
             if (command is CloseWorkspace
                 && acquisition.RejectionReason is WorkspaceOutcomeReasons.WorkspaceNotFound)
@@ -232,7 +232,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
                 return new WorkspaceClosed(command.WorkspaceId);
             }
 
-            return Reject(acquisition.RejectionReason!);
+            return Reject(acquisition.RejectionReason);
         }
 
         var state = acquisition.State;
@@ -287,9 +287,9 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
         }
 
         using var acquisition = AcquireWorkspace(context.WorkspaceId);
-        if (acquisition.State is null)
+        if (!acquisition.IsAcquired)
         {
-            return RejectRead(acquisition.RejectionReason!);
+            return RejectRead(acquisition.RejectionReason);
         }
 
         var state = acquisition.State;
@@ -453,7 +453,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
                             projectionVersion);
                         if (!TryRetainWorkspace(state, out var retentionRejectionCode))
                         {
-                            var rejected = Reject(retentionRejectionCode!);
+                            var rejected = Reject(retentionRejectionCode);
                             RecordIdempotencyUnderLock(
                                 state,
                                 command.Context.ClientIntentId,
@@ -476,7 +476,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
                         {
                             Release(state);
                             var rejected = Reject(
-                                schedulingRejection!.Code,
+                                schedulingRejection.Code,
                                 policyEvidence: schedulingRejection.PolicyEvidence);
                             RecordIdempotencyUnderLock(
                                 state,

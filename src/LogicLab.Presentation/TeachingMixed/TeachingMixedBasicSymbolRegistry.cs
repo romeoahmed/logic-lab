@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LogicLab.Domain.Authoring;
 using LogicLab.Presentation.Geometry;
 
@@ -92,7 +93,7 @@ internal static class TeachingMixedBasicSymbolRegistry
         int inputCount,
         string? requestedVariantId,
         IndicationConvention indicationConvention,
-        out ResolvedBasicSymbolDefinition? resolved)
+        [NotNullWhen(true)] out ResolvedBasicSymbolDefinition? resolved)
     {
         if (!Definitions.TryGetValue(contractId, out var definition))
         {

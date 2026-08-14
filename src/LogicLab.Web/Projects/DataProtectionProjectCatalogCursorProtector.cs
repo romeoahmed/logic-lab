@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text.Json;
 using LogicLab.Application.Workspaces;
@@ -35,7 +36,7 @@ internal sealed class DataProtectionProjectCatalogCursorProtector
 
     public bool TryUnprotect(
         ProjectCatalogCursor cursor,
-        out ProjectCatalogCursorState? state)
+        [NotNullWhen(true)] out ProjectCatalogCursorState? state)
     {
         ArgumentNullException.ThrowIfNull(cursor);
 

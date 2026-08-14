@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using LogicLab.Application.Workspaces;
 using Microsoft.Extensions.Logging;
 
@@ -81,7 +82,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         Func<CompilationWorkContext, ValueTask> operation,
         Action releaseOwnership,
         CancellationToken admissionCancellationToken,
-        out SchedulingRejection? rejection)
+        [NotNullWhen(false)] out SchedulingRejection? rejection)
     {
         return TryScheduleCompilation(
             workspaceId,
@@ -101,8 +102,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         Action releaseOwnership,
         CompilationWorkCancellation cancellationBehavior,
         CancellationToken admissionCancellationToken,
-        out ScheduledCompilationWork? scheduledWork,
-        out SchedulingRejection? rejection)
+        [NotNullWhen(true)] out ScheduledCompilationWork? scheduledWork,
+        [NotNullWhen(false)] out SchedulingRejection? rejection)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(caller);
@@ -219,8 +220,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         WorkspaceCaller caller,
         Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
         CancellationToken cancellationToken,
-        out ScheduledSessionWork? scheduledWork,
-        out SchedulingRejection? rejection)
+        [NotNullWhen(true)] out ScheduledSessionWork? scheduledWork,
+        [NotNullWhen(false)] out SchedulingRejection? rejection)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(caller);
@@ -305,7 +306,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         WorkspaceId workspaceId,
         Func<SessionContinuation, CancellationToken, ValueTask<WorkspaceCommandOutcome>>
             operation,
-        out SchedulingRejection? rejection)
+        [NotNullWhen(false)] out SchedulingRejection? rejection)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(operation);
@@ -449,7 +450,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
     private bool TryAdmitSchedulingUnderLock(
         WorkspaceCaller caller,
-        out SchedulingRejection? rejection)
+        [NotNullWhen(false)] out SchedulingRejection? rejection)
     {
         if (!schedulingAdmission.TryAdmitUnderLock(
                 caller,

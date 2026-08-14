@@ -27,11 +27,11 @@ internal sealed partial class EditorWorkspace
         }
 
         using var acquisition = AcquireWorkspace(request.WorkspaceId);
-        if (acquisition.State is null)
+        if (!acquisition.IsAcquired)
         {
             return CreateUnavailableAttachOutcome(
                 request,
-                acquisition.RejectionReason!);
+                acquisition.RejectionReason);
         }
 
         var state = acquisition.State;
@@ -146,9 +146,9 @@ internal sealed partial class EditorWorkspace
         }
 
         using var acquisition = AcquireWorkspace(request.WorkspaceId);
-        if (acquisition.State is null)
+        if (!acquisition.IsAcquired)
         {
-            return new DetachRejected(acquisition.RejectionReason!);
+            return new DetachRejected(acquisition.RejectionReason);
         }
 
         var state = acquisition.State;
@@ -268,9 +268,9 @@ internal sealed partial class EditorWorkspace
         CancellationToken cancellationToken)
     {
         using var acquisition = AcquireWorkspace(request.SourceWorkspaceId);
-        if (acquisition.State is null)
+        if (!acquisition.IsAcquired)
         {
-            return RejectOpen(acquisition.RejectionReason!);
+            return RejectOpen(acquisition.RejectionReason);
         }
 
         var source = acquisition.State;

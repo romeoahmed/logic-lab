@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using LogicLab.Application.Workspaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -424,7 +425,7 @@ internal sealed class DurableProjectCatalogTests
 
         public bool TryUnprotect(
             ProjectCatalogCursor cursor,
-            out ProjectCatalogCursorState? state)
+            [NotNullWhen(true)] out ProjectCatalogCursorState? state)
         {
             UnprotectCallCount++;
             state = unprotectedState;

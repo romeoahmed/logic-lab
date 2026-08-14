@@ -89,17 +89,14 @@ public static class TeachingMixedGeometryPlanner
                     request.SymbolVariantId ?? request.Contract.Key.ContractId));
             }
 
-            var resolvedDefinition = definition
-                ?? throw new InvalidOperationException(
-                    "A successful Symbol Definition lookup returned no definition.");
             SymbolTextMeasurementV1? textMeasurement = null;
-            if (resolvedDefinition.Recipe == BasicOutlineRecipe.Rectangle)
+            if (definition.Recipe == BasicOutlineRecipe.Rectangle)
             {
                 try
                 {
                     textMeasurement = textMeasurer.Measure(
                         new SymbolTextMeasurementRequestV1(
-                            resolvedDefinition.FunctionText,
+                            definition.FunctionText,
                             FontRoleV1.Symbol,
                             TextAlignmentV1.Center,
                             request.MetricSet,
@@ -122,7 +119,7 @@ public static class TeachingMixedGeometryPlanner
 
             var draft = BasicGateGeometryBuilder.Build(
                 request,
-                resolvedDefinition,
+                definition,
                 ports,
                 textMeasurement,
                 cancellationToken);
@@ -133,10 +130,10 @@ public static class TeachingMixedGeometryPlanner
             cancellationToken.ThrowIfCancellationRequested();
 
             var key = new GeometryPlanKeyV1(
-                resolvedDefinition.Definition.DefinitionId,
-                resolvedDefinition.Definition.DefinitionVersion,
+                definition.Definition.DefinitionId,
+                definition.Definition.DefinitionVersion,
                 request.Contract.SchemaDigest,
-                resolvedDefinition.VariantId,
+                definition.VariantId,
                 GeometryRequestFingerprint.Compute(request, ports),
                 request.Facing,
                 request.IsReflected,

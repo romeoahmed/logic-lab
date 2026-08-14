@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 using LogicLab.Application.Work;
@@ -447,8 +448,8 @@ internal sealed partial class EditorWorkspace
 
     private bool TryCreateDurableDisplayName(
         string value,
-        out DurableDisplayName? displayName,
-        out WorkspaceCommandRejected rejection)
+        [NotNullWhen(true)] out DurableDisplayName? displayName,
+        [NotNullWhen(false)] out WorkspaceCommandRejected? rejection)
     {
         displayName = null;
         if (!DurableDisplayName.IsValid(value))
@@ -480,7 +481,7 @@ internal sealed partial class EditorWorkspace
         }
 
         displayName = new DurableDisplayName(value);
-        rejection = null!;
+        rejection = null;
         return true;
     }
 

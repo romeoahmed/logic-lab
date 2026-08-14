@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Microsoft.Extensions.Logging;
 
@@ -147,7 +148,7 @@ public interface IProjectCatalogCursorProtector
 
     bool TryUnprotect(
         ProjectCatalogCursor cursor,
-        out ProjectCatalogCursorState? state);
+        [NotNullWhen(true)] out ProjectCatalogCursorState? state);
 }
 
 public sealed record DurableProjectCatalogRepositoryRequest

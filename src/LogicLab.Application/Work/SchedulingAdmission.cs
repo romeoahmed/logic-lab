@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LogicLab.Application.Workspaces;
 
 namespace LogicLab.Application.Work;
@@ -36,7 +37,7 @@ internal sealed class SchedulingAdmission
 
     public bool TryAdmitUnderLock(
         WorkspaceCaller caller,
-        out PolicyEvidenceProjection? rejectionEvidence)
+        [NotNullWhen(false)] out PolicyEvidenceProjection? rejectionEvidence)
     {
         ArgumentNullException.ThrowIfNull(caller);
         var nowTimestamp = timeProvider.GetTimestamp();
