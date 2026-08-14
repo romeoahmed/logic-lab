@@ -1,231 +1,125 @@
 using LogicLab.Domain;
 using LogicLab.Engine.Simulation;
-using TUnit.Assertions.Enums;
+using static LogicLab.Engine.Tests.FourStateTestData;
 
 namespace LogicLab.Engine.Tests;
 
 internal sealed class SequentialEvaluationTests
 {
     [Test]
-    [Arguments(LogicValue.Zero, LogicValue.Zero, LogicValue.Zero, LogicValue.Zero, false)]
-    [Arguments(LogicValue.One, LogicValue.Zero, LogicValue.Zero, LogicValue.One, false)]
-    [Arguments(LogicValue.Zero, LogicValue.One, LogicValue.One, LogicValue.Zero, false)]
-    [Arguments(LogicValue.One, LogicValue.One, LogicValue.Zero, LogicValue.X, true)]
-    public async Task SrLatch_DefiniteControls_ImplementsTruthTable(
-        LogicValue set,
-        LogicValue reset,
-        LogicValue current,
+    public async Task SrLatch_EveryFourStateInput_MatchesReachableControlWorlds()
+    {
+        var violations = new List<string>();
+        foreach (var inputs in Tuples(3))
+        {
+            var actual = SequentialEvaluation.SrLatch(
+                inputs[0], inputs[1], inputs[2]);
+            var expected = Merge(BinaryWorlds(inputs).Select(world =>
+                world[1] && world[2]
+                    ? LogicValue.X
+                    : Boolean(world[1] || (!world[2] && world[0]))));
+            Check("SR", inputs, expected, actual.State[0], violations);
+            if (actual.HasControlConflict !=
+                (inputs[1] == LogicValue.One && inputs[2] == LogicValue.One))
+            {
+                violations.Add($"SR conflict({Format(inputs)}) was incorrect");
+            }
+        }
+
+        await Assert.That(violations).IsEmpty();
+    }
+
+    [Test]
+    public async Task JkFlipFlop_EveryFourStateInput_MatchesReachableControlWorlds()
+    {
+        var violations = new List<string>();
+        foreach (var inputs in Tuples(3))
+        {
+            var actual = SequentialEvaluation.JkFlipFlop(
+                inputs[0], inputs[1], inputs[2]);
+            var expected = Merge(BinaryWorlds(inputs).Select(world => Boolean(
+                (world[1], world[2]) switch
+                {
+                    (false, false) => world[0],
+                    (true, false) => true,
+                    (false, true) => false,
+                    (true, true) => !world[0],
+                })));
+            Check("JK", inputs, expected, actual[0], violations);
+        }
+
+        await Assert.That(violations).IsEmpty();
+    }
+
+    [Test]
+    public async Task TFlipFlop_EveryFourStateInput_MatchesReachableControlWorlds()
+    {
+        var violations = new List<string>();
+        foreach (var inputs in Tuples(2))
+        {
+            var actual = SequentialEvaluation.TFlipFlop(inputs[0], inputs[1]);
+            var expected = Merge(BinaryWorlds(inputs).Select(world =>
+                Boolean(world[1] ? !world[0] : world[0])));
+            Check("T", inputs, expected, actual[0], violations);
+        }
+
+        await Assert.That(violations).IsEmpty();
+    }
+
+    [Test]
+    public async Task EdgeClassification_EveryFourStateTransition_MatchesContract()
+    {
+        var violations = new List<string>();
+        foreach (var values in Tuples(2))
+        {
+            var previous = values[0];
+            var current = values[1];
+            CheckBoolean(
+                $"rising({Format(values)})",
+                previous == LogicValue.Zero && current == LogicValue.One,
+                SequentialEvaluation.IsConfiguredDefiniteEdge(previous, current, rising: true),
+                violations);
+            CheckBoolean(
+                $"falling({Format(values)})",
+                previous == LogicValue.One && current == LogicValue.Zero,
+                SequentialEvaluation.IsConfiguredDefiniteEdge(previous, current, rising: false),
+                violations);
+            CheckBoolean(
+                $"indefinite({Format(values)})",
+                previous != current
+                    && (previous is LogicValue.X or LogicValue.Z
+                        || current is LogicValue.X or LogicValue.Z),
+                SequentialEvaluation.IsIndefiniteTransition(previous, current),
+                violations);
+        }
+
+        await Assert.That(violations).IsEmpty();
+    }
+
+    private static void Check(
+        string operation,
+        LogicValue[] inputs,
         LogicValue expected,
-        bool expectedConflict)
+        LogicValue actual,
+        List<string> violations)
     {
-        var result = SequentialEvaluation.SrLatch(current, set, reset);
-
-        using (Assert.Multiple())
+        if (expected != actual)
         {
-            await Assert.That(result.State[0]).IsEqualTo(expected);
-            await Assert.That(result.HasControlConflict).IsEqualTo(expectedConflict);
+            violations.Add(
+                $"{operation}({Format(inputs)}): expected {expected}, actual {actual}");
         }
     }
 
-    [Test]
-    public async Task SrLatch_UnknownSet_MergesHoldAndSetCases()
+    private static void CheckBoolean(
+        string scenario,
+        bool expected,
+        bool actual,
+        List<string> violations)
     {
-        var result = SequentialEvaluation.SrLatch(
-            LogicValue.Zero,
-            LogicValue.X,
-            LogicValue.Zero);
-
-        using (Assert.Multiple())
+        if (expected != actual)
         {
-            await Assert.That(result.State[0]).IsEqualTo(LogicValue.X);
-            await Assert.That(result.HasControlConflict).IsFalse();
+            violations.Add($"{scenario}: expected {expected}, actual {actual}");
         }
     }
 
-    [Test]
-    [Arguments(LogicValue.Zero, LogicValue.Zero, LogicValue.Zero, LogicValue.Zero)]
-    [Arguments(LogicValue.One, LogicValue.Zero, LogicValue.Zero, LogicValue.One)]
-    [Arguments(LogicValue.Zero, LogicValue.One, LogicValue.One, LogicValue.Zero)]
-    [Arguments(LogicValue.One, LogicValue.One, LogicValue.Zero, LogicValue.One)]
-    [Arguments(LogicValue.One, LogicValue.One, LogicValue.One, LogicValue.Zero)]
-    public async Task JkFlipFlop_DefiniteControls_ImplementsTruthTable(
-        LogicValue j,
-        LogicValue k,
-        LogicValue current,
-        LogicValue expected)
-    {
-        var result = SequentialEvaluation.JkFlipFlop(current, j, k);
-
-        await Assert.That(result[0]).IsEqualTo(expected);
-    }
-
-    [Test]
-    public async Task JkFlipFlop_UnknownControls_MergesEveryReachableTransition()
-    {
-        var result = SequentialEvaluation.JkFlipFlop(
-            LogicValue.Zero,
-            LogicValue.X,
-            LogicValue.X);
-
-        await Assert.That(result[0]).IsEqualTo(LogicValue.X);
-    }
-
-    [Test]
-    public async Task TFlipFlop_UnknownControl_MergesHoldAndToggleCases()
-    {
-        var result = SequentialEvaluation.TFlipFlop(
-            LogicValue.Zero,
-            LogicValue.X);
-
-        await Assert.That(result[0]).IsEqualTo(LogicValue.X);
-    }
-
-    [Test]
-    public async Task ShiftRegister_Directions_EnterAndRemoveOppositeEndBits()
-    {
-        var current = Vector(LogicValue.One, LogicValue.Zero, LogicValue.Zero);
-
-        var towardHigh = SequentialEvaluation.ShiftRegister(
-            current,
-            Vector(LogicValue.Zero, LogicValue.Zero, LogicValue.Zero),
-            LogicValue.Zero,
-            LogicValue.Zero,
-            LogicValue.One,
-            towardHigh: true);
-        var towardLow = SequentialEvaluation.ShiftRegister(
-            current,
-            Vector(LogicValue.Zero, LogicValue.Zero, LogicValue.Zero),
-            LogicValue.Zero,
-            LogicValue.Zero,
-            LogicValue.One,
-            towardHigh: false);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(Bits(towardHigh)).IsEquivalentTo(
-                [LogicValue.Zero, LogicValue.One, LogicValue.Zero],
-                CollectionOrdering.Matching);
-            await Assert.That(Bits(towardLow)).IsEquivalentTo(
-                [LogicValue.Zero, LogicValue.Zero, LogicValue.Zero],
-                CollectionOrdering.Matching);
-            await Assert.That(SequentialEvaluation.ShiftSerialOutput(current, true))
-                .IsEqualTo(LogicValue.Zero);
-            await Assert.That(SequentialEvaluation.ShiftSerialOutput(current, false))
-                .IsEqualTo(LogicValue.One);
-        }
-    }
-
-    [Test]
-    public async Task ShiftRegister_UnknownLoadAndEnable_MergesAllReachableCases()
-    {
-        var result = SequentialEvaluation.ShiftRegister(
-            Vector(LogicValue.Zero, LogicValue.Zero),
-            Vector(LogicValue.One, LogicValue.One),
-            LogicValue.One,
-            LogicValue.X,
-            LogicValue.X,
-            towardHigh: true);
-
-        await Assert.That(Bits(result)).IsEquivalentTo(
-            [LogicValue.X, LogicValue.X],
-            CollectionOrdering.Matching);
-    }
-
-    [Test]
-    public async Task ShiftRegister_LoadAndEnableActive_LoadTakesPriorityOverShift()
-    {
-        var result = SequentialEvaluation.ShiftRegister(
-            Vector(LogicValue.Zero, LogicValue.Zero),
-            Vector(LogicValue.One, LogicValue.One),
-            LogicValue.Zero,
-            LogicValue.One,
-            LogicValue.One,
-            towardHigh: true);
-
-        await Assert.That(Bits(result)).IsEquivalentTo(
-            [LogicValue.One, LogicValue.One],
-            CollectionOrdering.Matching);
-    }
-
-    [Test]
-    public async Task Counter_KnownState_CountsModuloWidthInBothDirections()
-    {
-        var up = SequentialEvaluation.Counter(
-            Vector(LogicValue.One, LogicValue.One),
-            Vector(LogicValue.Zero, LogicValue.Zero),
-            LogicValue.Zero,
-            LogicValue.One,
-            countUp: true);
-        var down = SequentialEvaluation.Counter(
-            Vector(LogicValue.Zero, LogicValue.Zero),
-            Vector(LogicValue.Zero, LogicValue.Zero),
-            LogicValue.Zero,
-            LogicValue.One,
-            countUp: false);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(Bits(up)).IsEquivalentTo(
-                [LogicValue.Zero, LogicValue.Zero],
-                CollectionOrdering.Matching);
-            await Assert.That(Bits(down)).IsEquivalentTo(
-                [LogicValue.One, LogicValue.One],
-                CollectionOrdering.Matching);
-        }
-    }
-
-    [Test]
-    public async Task Counter_UnknownLoadAndEnable_MergesLoadCountAndHoldCases()
-    {
-        var result = SequentialEvaluation.Counter(
-            Vector(LogicValue.Zero, LogicValue.Zero),
-            Vector(LogicValue.One, LogicValue.One),
-            LogicValue.X,
-            LogicValue.X,
-            countUp: true);
-
-        await Assert.That(Bits(result)).IsEquivalentTo(
-            [LogicValue.X, LogicValue.X],
-            CollectionOrdering.Matching);
-    }
-
-    [Test]
-    public async Task Counter_LoadAndEnableActive_LoadTakesPriorityOverCount()
-    {
-        var result = SequentialEvaluation.Counter(
-            Vector(LogicValue.Zero, LogicValue.Zero),
-            Vector(LogicValue.Zero, LogicValue.One),
-            LogicValue.One,
-            LogicValue.One,
-            countUp: true);
-
-        await Assert.That(Bits(result)).IsEquivalentTo(
-            [LogicValue.Zero, LogicValue.One],
-            CollectionOrdering.Matching);
-    }
-
-    [Test]
-    public async Task CounterTerminal_UnknownState_ReturnsOnlyProvableResult()
-    {
-        using (Assert.Multiple())
-        {
-            await Assert.That(SequentialEvaluation.CounterTerminal(
-                    Vector(LogicValue.One, LogicValue.One),
-                    countUp: true))
-                .IsEqualTo(LogicValue.One);
-            await Assert.That(SequentialEvaluation.CounterTerminal(
-                    Vector(LogicValue.Zero, LogicValue.X),
-                    countUp: true))
-                .IsEqualTo(LogicValue.Zero);
-            await Assert.That(SequentialEvaluation.CounterTerminal(
-                    Vector(LogicValue.One, LogicValue.X),
-                    countUp: true))
-                .IsEqualTo(LogicValue.X);
-        }
-    }
-
-    private static LogicVector Vector(params LogicValue[] values) => new(values);
-
-    private static LogicValue[] Bits(LogicVector value) =>
-        [.. Enumerable.Range(0, value.Width).Select(bit => value[bit])];
 }
