@@ -26,21 +26,21 @@ internal static class BasicGateGeometryBuilder
         cancellationToken.ThrowIfCancellationRequested();
         var inputs = ports.Where(port => port.Direction == PortDirection.Input).ToArray();
         var output = ports.Single(port => port.Direction == PortDirection.Output);
-        var metric = request.MetricSet;
-        var h = metric.UnitsPerH;
+        var metrics = BasicGateMetrics.From(request.MetricSet);
+        var h = metrics.UnitsPerH;
         var textAlignment = TextAlignmentV1.Center;
         var textEnvelope = textMeasurement?.InkAndAdvanceBounds(
             textAlignment,
             request.BaseDirection);
-        var standardBodyHeight = checked(h * 13 / 2);
+        var standardBodyHeight = ScaleUp(h, 13, 2);
         var requestedBodyHeight = inputs.Length == 1
             ? standardBodyHeight
-            : checked((inputs.Length - 1) * metric.MinimumPortPitch + (2 * h));
+            : checked((inputs.Length - 1) * metrics.MinimumPortPitch + ScaleUp(h, 2));
         var minimumHorizontalTextSize = textEnvelope is { } measuredText
             ? RequiredCenteredSize(
                 measuredText.Left,
                 measuredText.Right,
-                checked(2 * h))
+                ScaleUp(h, 2))
             : 0;
         var minimumVerticalTextSize = textEnvelope is { } verticalText
             ? RequiredCenteredSize(verticalText.Top, verticalText.Bottom, h)
@@ -50,13 +50,13 @@ internal static class BasicGateGeometryBuilder
             ? minimumHorizontalTextSize
             : minimumVerticalTextSize;
         var bodyHeight = definition.Recipe == BasicOutlineRecipe.Triangle
-            ? checked(h * 45 / 4)
+            ? ScaleUp(h, 45, 4)
             : Math.Max(
                 Math.Max(standardBodyHeight, requestedBodyHeight),
                 minimumTextBodyHeight);
         var standardBodyWidth = definition.Recipe == BasicOutlineRecipe.Triangle
-            ? checked(h * 39 / 4)
-            : checked(h * 8);
+            ? ScaleUp(h, 39, 4)
+            : ScaleUp(h, 8);
         var minimumRecipeWidth = definition.Recipe == BasicOutlineRecipe.And
             ? bodyHeight / 2
             : 0;
@@ -67,10 +67,12 @@ internal static class BasicGateGeometryBuilder
             standardBodyWidth,
             Math.Max(minimumRecipeWidth, minimumTextBodyWidth));
         var strokeMargin = GeometryPlanValidator.ConservativeStrokeMargin(
-            metric.OutlineStrokeWidth,
+            metrics.OutlineStrokeWidth,
             MiterJoin);
-        var planInset = Math.Max(strokeMargin, metric.PortHitRadius);
-        var bodyLeft = checked(planInset + metric.PortLeadLength);
+        var planInset = Math.Max(
+            Math.Max(strokeMargin, metrics.PortHitRadius),
+            metrics.BodyHitPadding);
+        var bodyLeft = checked(planInset + metrics.PortLeadLength);
         var bodyRight = checked(bodyLeft + bodyWidth);
         var body = new RectV1(
             bodyLeft,
@@ -79,7 +81,7 @@ internal static class BasicGateGeometryBuilder
             checked(planInset + bodyHeight));
         var centerY = checked(body.Top + (bodyHeight / 2));
         var qualifierExtent = definition.HasOutputQualifier ? h : 0;
-        var outputAnchorX = checked(bodyRight + qualifierExtent + metric.PortLeadLength);
+        var outputAnchorX = checked(bodyRight + qualifierExtent + metrics.PortLeadLength);
         var bounds = new RectV1(
             0,
             0,
@@ -88,12 +90,18 @@ internal static class BasicGateGeometryBuilder
         var operations = new List<DrawOperationV1>();
 
         cancellationToken.ThrowIfCancellationRequested();
-        AddOutline(operations, definition, body, textEnvelope, request);
+        AddOutline(
+            operations,
+            definition,
+            body,
+            textEnvelope,
+            request,
+            metrics.OutlineStrokeWidth);
         var inputYs = InputRows(
             inputs.Length,
             body.Top,
             bodyHeight,
-            metric.MinimumPortPitch);
+            metrics.MinimumPortPitch);
         for (var index = 0; index < inputs.Length; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -106,7 +114,7 @@ internal static class BasicGateGeometryBuilder
                     new MoveToV1(new PointV1(planInset, inputYs[index])),
                     new LineToV1(new PointV1(inputEdgeX, inputYs[index]))),
                 StrokeRoleV1.Outline,
-                metric.OutlineStrokeWidth));
+                metrics.OutlineStrokeWidth));
         }
 
         var outputLeadStart = bodyRight;
@@ -117,7 +125,7 @@ internal static class BasicGateGeometryBuilder
                 centerY,
                 h,
                 request.Profile.IndicationConvention,
-                metric));
+                metrics.QualifierStrokeWidth));
             outputLeadStart = checked(bodyRight + qualifierExtent);
         }
 
@@ -126,12 +134,16 @@ internal static class BasicGateGeometryBuilder
                 new MoveToV1(new PointV1(outputLeadStart, centerY)),
                 new LineToV1(new PointV1(outputAnchorX, centerY))),
             StrokeRoleV1.Outline,
-            metric.OutlineStrokeWidth));
+            metrics.OutlineStrokeWidth));
 
         var anchors = new List<PortAnchorV1>(ports.Count);
         var hitRegions = new List<HitRegionV1>(ports.Count + 1)
         {
-            new("body", HitRegionKindV1.Body, null, new RectHitShapeV1(body)),
+            new(
+                "body",
+                HitRegionKindV1.Body,
+                null,
+                new RectHitShapeV1(Inflate(body, metrics.BodyHitPadding))),
         };
         var accessibilityNodes = new List<AccessibilityNodeV1>(ports.Count + 1)
         {
@@ -172,13 +184,13 @@ internal static class BasicGateGeometryBuilder
                 hitRegionId,
                 HitRegionKindV1.Port,
                 port.Id,
-                new CircleHitShapeV1(point, metric.PortHitRadius)));
+                new CircleHitShapeV1(point, metrics.PortHitRadius)));
             accessibilityNodes.Add(new AccessibilityNodeV1(
                 accessibilityNodeId,
                 AccessibilityNodeKindV1.Port,
                 "symbol",
                 accessibilityNodes.Count,
-                CircleBounds(point, metric.PortHitRadius),
+                CircleBounds(point, metrics.PortHitRadius),
                 "presentation.port",
                 [
                     new TextLocalizationArgumentV1("portId", port.Id),
@@ -218,44 +230,44 @@ internal static class BasicGateGeometryBuilder
         ResolvedBasicSymbolDefinition definition,
         RectV1 body,
         RectV1? textEnvelope,
-        BasicSymbolRequestV1 request)
+        BasicSymbolRequestV1 request,
+        int outlineStrokeWidth)
     {
-        var metric = request.MetricSet;
         switch (definition.Recipe)
         {
             case BasicOutlineRecipe.And:
                 operations.Add(Stroke(
                     AndOutline(body),
                     StrokeRoleV1.Outline,
-                    metric.OutlineStrokeWidth));
+                    outlineStrokeWidth));
                 break;
             case BasicOutlineRecipe.Or:
                 operations.Add(Stroke(
                     OrOutline(body),
                     StrokeRoleV1.Outline,
-                    metric.OutlineStrokeWidth));
+                    outlineStrokeWidth));
                 break;
             case BasicOutlineRecipe.Xor:
                 operations.Add(Stroke(
                     OrOutline(body),
                     StrokeRoleV1.Outline,
-                    metric.OutlineStrokeWidth));
+                    outlineStrokeWidth));
                 operations.Add(Stroke(
                     XorInputCurve(body),
                     StrokeRoleV1.Outline,
-                    metric.OutlineStrokeWidth));
+                    outlineStrokeWidth));
                 break;
             case BasicOutlineRecipe.Triangle:
                 operations.Add(Stroke(
                     TriangleOutline(body),
                     StrokeRoleV1.Outline,
-                    metric.OutlineStrokeWidth));
+                    outlineStrokeWidth));
                 break;
             case BasicOutlineRecipe.Rectangle:
                 operations.Add(Stroke(
                     RectangleOutline(body),
                     StrokeRoleV1.Outline,
-                    metric.OutlineStrokeWidth));
+                    outlineStrokeWidth));
                 var center = new PointV1(
                     checked(body.Left + (body.Width / 2)),
                     checked(body.Top + (body.Height / 2)));
@@ -431,31 +443,32 @@ internal static class BasicGateGeometryBuilder
         int centerY,
         int h,
         IndicationConvention convention,
-        SymbolMetricSetV1 metric)
+        int qualifierStrokeWidth)
     {
+        var halfH = ScaleUp(h, 1, 2);
         return convention switch
         {
             IndicationConvention.Negation => Stroke(
                 CirclePath(
-                    new PointV1(checked(bodyRight + (h / 2)), centerY),
-                    h / 2),
+                    new PointV1(checked(bodyRight + halfH), centerY),
+                    halfH),
                 StrokeRoleV1.Qualifier,
-                metric.QualifierStrokeWidth),
+                qualifierStrokeWidth),
             IndicationConvention.DirectPolarity => Stroke(
                 Path(
-                    new MoveToV1(new PointV1(bodyRight, checked(centerY - (h / 2)))),
+                    new MoveToV1(new PointV1(bodyRight, checked(centerY - halfH))),
                     new LineToV1(new PointV1(checked(bodyRight + h), centerY)),
-                    new LineToV1(new PointV1(bodyRight, checked(centerY + (h / 2)))),
+                    new LineToV1(new PointV1(bodyRight, checked(centerY + halfH))),
                     new ClosePathV1()),
                 StrokeRoleV1.Qualifier,
-                metric.QualifierStrokeWidth),
+                qualifierStrokeWidth),
             _ => throw new LayoutInvalidException(LayoutConstraintV1.IndicationConvention),
         };
     }
 
     private static PathV1 CirclePath(PointV1 center, int radius)
     {
-        var curve = checked(radius * 552 / 1000);
+        var curve = Math.Max(1, ScaleDown(radius, 552, 1000));
         return Path(
             new MoveToV1(new PointV1(checked(center.X + radius), center.Y)),
             new CubicToV1(
@@ -518,6 +531,18 @@ internal static class BasicGateGeometryBuilder
         checked(center.X + radius),
         checked(center.Y + radius));
 
+    private static RectV1 Inflate(RectV1 bounds, int padding) => new(
+        checked(bounds.Left - padding),
+        checked(bounds.Top - padding),
+        checked(bounds.Right + padding),
+        checked(bounds.Bottom + padding));
+
+    private static int ScaleUp(int value, int numerator, int denominator = 1) =>
+        checked((int)((((long)value * numerator) + denominator - 1) / denominator));
+
+    private static int ScaleDown(int value, int numerator, int denominator) =>
+        checked((int)(((long)value * numerator) / denominator));
+
     private static StrokePathV1 Stroke(
         PathV1 path,
         StrokeRoleV1 role,
@@ -536,4 +561,29 @@ internal static class BasicGateGeometryBuilder
         PointV1 Control1,
         PointV1 Control2,
         PointV1 End);
+
+    private readonly record struct BasicGateMetrics(
+        int UnitsPerH,
+        int OutlineStrokeWidth,
+        int QualifierStrokeWidth,
+        int PortLeadLength,
+        int MinimumPortPitch,
+        int PortHitRadius,
+        int BodyHitPadding)
+    {
+        public static BasicGateMetrics From(SymbolMetricSetV1 metricSet)
+        {
+            var unitsPerH = metricSet.UnitsPerH;
+            var outlineStrokeWidth = ScaleUp(unitsPerH, 1, 10);
+            var minimumPortPitch = Math.Max(3, ScaleUp(unitsPerH, 2));
+            return new BasicGateMetrics(
+                unitsPerH,
+                outlineStrokeWidth,
+                outlineStrokeWidth,
+                ScaleUp(unitsPerH, 2),
+                minimumPortPitch,
+                Math.Max(1, (minimumPortPitch - outlineStrokeWidth) / 2),
+                ScaleUp(unitsPerH, 1, 2));
+        }
+    }
 }

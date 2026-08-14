@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using LogicLab.Domain.Authoring;
@@ -12,24 +13,11 @@ public sealed class SymbolMetricSetV1
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentException.ThrowIfNullOrEmpty(version);
-        if (unitsPerH <= 0
-            || unitsPerH % 20 != 0
-            || unitsPerH > int.MaxValue / 20)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(unitsPerH),
-                "Metric units per H must be a positive multiple of 20 within the plan range.");
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(unitsPerH);
 
         Id = id;
         Version = version;
         UnitsPerH = unitsPerH;
-        OutlineStrokeWidth = Math.Max(1, unitsPerH / 10);
-        QualifierStrokeWidth = OutlineStrokeWidth;
-        PortLeadLength = checked(unitsPerH * 2);
-        MinimumPortPitch = checked(unitsPerH * 2);
-        PortHitRadius = checked((MinimumPortPitch - OutlineStrokeWidth) / 2);
-        BodyHitPadding = unitsPerH / 2;
         Fingerprint = ComputeFingerprint();
     }
 
@@ -39,18 +27,6 @@ public sealed class SymbolMetricSetV1
 
     public int UnitsPerH { get; }
 
-    public int OutlineStrokeWidth { get; }
-
-    public int QualifierStrokeWidth { get; }
-
-    public int PortLeadLength { get; }
-
-    public int MinimumPortPitch { get; }
-
-    public int PortHitRadius { get; }
-
-    public int BodyHitPadding { get; }
-
     public string Fingerprint { get; }
 
     private string ComputeFingerprint()
@@ -59,13 +35,7 @@ public sealed class SymbolMetricSetV1
             '\n',
             Id,
             Version,
-            UnitsPerH,
-            OutlineStrokeWidth,
-            QualifierStrokeWidth,
-            PortLeadLength,
-            MinimumPortPitch,
-            PortHitRadius,
-            BodyHitPadding);
+            UnitsPerH.ToString(CultureInfo.InvariantCulture));
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
     }
 }
@@ -368,22 +338,7 @@ internal static class GeometryPlanValidator
             throw new InvalidOperationException("The Geometry Plan has invalid bounds or IDs.");
         }
 
-        var roots = plan.AccessibilityNodes.Count(node => node.ParentId is null);
-        if (roots != 1)
-        {
-            throw new InvalidOperationException(
-                "A Geometry Plan accessibility tree requires exactly one root.");
-        }
-
-        foreach (var node in plan.AccessibilityNodes)
-        {
-            if (node.ParentId is not null
-                && !plan.AccessibilityNodes.Any(parent => parent.LocalId == node.ParentId))
-            {
-                throw new InvalidOperationException(
-                    "A Geometry Plan accessibility parent is unresolved.");
-            }
-        }
+        ValidateAccessibilityTree(plan.AccessibilityNodes);
 
         foreach (var anchor in plan.PortAnchors)
         {
@@ -453,6 +408,68 @@ internal static class GeometryPlanValidator
         && inner.Top >= outer.Top
         && inner.Right <= outer.Right
         && inner.Bottom <= outer.Bottom;
+
+    private static void ValidateAccessibilityTree(
+        ReadOnlyCollection<AccessibilityNodeV1> nodes)
+    {
+        var roots = nodes.Where(node => node.ParentId is null).ToArray();
+        if (roots.Length != 1)
+        {
+            throw new InvalidOperationException(
+                "A Geometry Plan accessibility tree requires exactly one root.");
+        }
+
+        var nodesById = nodes.ToDictionary(
+            node => node.LocalId,
+            StringComparer.Ordinal);
+        foreach (var node in nodes)
+        {
+            if (node.ParentId is not null
+                && !nodesById.ContainsKey(node.ParentId))
+            {
+                throw new InvalidOperationException(
+                    "A Geometry Plan accessibility parent is unresolved.");
+            }
+        }
+
+        if (nodes
+            .Where(node => node.ParentId is not null)
+            .GroupBy(node => node.ParentId!, StringComparer.Ordinal)
+            .Any(HasDuplicateChildOrder))
+        {
+            throw new InvalidOperationException(
+                "Accessibility siblings require unique child orders.");
+        }
+
+        var childrenByParent = nodes
+            .Where(node => node.ParentId is not null)
+            .ToLookup(node => node.ParentId!, StringComparer.Ordinal);
+        var reachableIds = new HashSet<string>(StringComparer.Ordinal);
+        var pending = new Stack<AccessibilityNodeV1>();
+        pending.Push(roots[0]);
+        while (pending.TryPop(out var node))
+        {
+            reachableIds.Add(node.LocalId);
+
+            foreach (var child in childrenByParent[node.LocalId])
+            {
+                pending.Push(child);
+            }
+        }
+
+        if (reachableIds.Count != nodes.Count)
+        {
+            throw new InvalidOperationException(
+                "Every accessibility node must be reachable from the root; disconnected cycles are invalid.");
+        }
+    }
+
+    private static bool HasDuplicateChildOrder(
+        IEnumerable<AccessibilityNodeV1> siblings)
+    {
+        var childOrders = new HashSet<int>();
+        return siblings.Any(node => !childOrders.Add(node.ChildOrder));
+    }
 
     private static bool HasDuplicates(IEnumerable<string> values)
     {

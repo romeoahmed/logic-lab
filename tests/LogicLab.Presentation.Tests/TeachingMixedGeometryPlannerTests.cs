@@ -142,16 +142,13 @@ internal sealed class TeachingMixedGeometryPlannerTests
     }
 
     [Test]
-    [Arguments("logic.or", 132)]
-    [Arguments("logic.xor", 32)]
-    public async Task Plan_CurvedInputGate_StopsInputLeadsAtRearCurve(
-        string contractId,
-        int expectedOffsetFromBodyLeft)
+    [Arguments("logic.or")]
+    [Arguments("logic.xor")]
+    public async Task Plan_CurvedInputGate_StopsInputLeadsOnRearCurve(
+        string contractId)
     {
         var plan = Plan(Request(contractId, 2));
-        var bodyShape = (await Assert.That(plan.HitRegions)
-            .HasSingleItem(region => region.Kind == HitRegionKindV1.Body)).Shape;
-        var body = (await Assert.That(bodyShape).IsTypeOf<RectHitShapeV1>())!.Rect;
+        var rearCurve = RearInputCurve(plan, contractId == "logic.xor");
 
         foreach (var input in plan.PortAnchors.Where(anchor =>
                      anchor.OutwardDirection == PlanDirectionV1.West))
@@ -164,8 +161,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
             using (Assert.Multiple())
             {
                 await Assert.That(endpoint.Y).IsEqualTo(input.Point.Y);
-                await Assert.That(endpoint.X)
-                    .IsEqualTo(checked(body.Left + expectedOffsetFromBodyLeft));
+                await Assert.That(IsOnCurveAtY(endpoint, rearCurve)).IsTrue();
             }
         }
     }
@@ -556,6 +552,100 @@ internal sealed class TeachingMixedGeometryPlannerTests
     }
 
     [Test]
+    [Arguments(1)]
+    [Arguments(96)]
+    [Arguments(int.MaxValue)]
+    public async Task MetricSet_PositiveUnitsPerH_AcceptsPlanUnitScale(int unitsPerH)
+    {
+        var metricSet = new SymbolMetricSetV1("metric", "1.0.0", unitsPerH);
+
+        await Assert.That(metricSet.UnitsPerH).IsEqualTo(unitsPerH);
+    }
+
+    [Test]
+    [Arguments(1)]
+    [Arguments(96)]
+    public async Task Plan_PositiveMetricScale_ProducesGeometry(int unitsPerH)
+    {
+        var metricSet = new SymbolMetricSetV1("metric", "1.0.0", unitsPerH);
+        var plan = Plan(
+            Request("logic.not", 1, metricSet: metricSet),
+            new StubTextMeasurer(DefaultFontFingerprint, metricSet: metricSet));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Key.MetricFingerprint)
+                .IsEqualTo(metricSet.Fingerprint);
+            await Assert.That(plan.Bounds.Width).IsGreaterThan(0);
+            await Assert.That(plan.Bounds.Height).IsGreaterThan(0);
+        }
+    }
+
+    [Test]
+    public async Task Rect_UnrepresentableExtent_RejectsAtValueBoundary()
+    {
+        await Assert.That(() => new RectV1(int.MinValue, 0, int.MaxValue, 1))
+            .ThrowsExactly<OverflowException>();
+        await Assert.That(() => new RectV1(0, int.MinValue, 1, int.MaxValue))
+            .ThrowsExactly<OverflowException>();
+    }
+
+    [Test]
+    public async Task Plan_BodyHitRegion_ContainsVisibleOutlineStroke()
+    {
+        var plan = Plan(Request("logic.and", 2));
+        var outline = await Assert.That(plan.Operations.OfType<StrokePathV1>())
+            .HasSingleItem(operation =>
+                operation.Role == StrokeRoleV1.Outline
+                && operation.Path.Commands[^1] is ClosePathV1);
+        var points = PathPoints(outline.Path).ToArray();
+        var halfWidth = checked((outline.Width + 1) / 2);
+        var margin = outline.LineJoin.Kind == LineJoinKindV1.Miter
+            ? checked(halfWidth * outline.LineJoin.MiterLimitRatio)
+            : halfWidth;
+        var visibleEnvelope = new RectV1(
+            checked(points.Min(point => point.X) - margin),
+            checked(points.Min(point => point.Y) - margin),
+            checked(points.Max(point => point.X) + margin),
+            checked(points.Max(point => point.Y) + margin));
+        var bodyShape = (await Assert.That(plan.HitRegions)
+            .HasSingleItem(region => region.Kind == HitRegionKindV1.Body)).Shape;
+        var bodyHit = (await Assert.That(bodyShape).IsTypeOf<RectHitShapeV1>())!.Rect;
+
+        await Assert.That(Contains(bodyHit, visibleEnvelope)).IsTrue();
+    }
+
+    [Test]
+    public async Task GeometryPlan_DisconnectedAccessibilityCycle_RejectsAtBoundary()
+    {
+        var plan = Plan(Request("logic.and", 2));
+        var nodes = plan.AccessibilityNodes.Concat(
+        [
+            AccessibilityGroup("cycle-a", "cycle-b", 0, plan.Bounds),
+            AccessibilityGroup("cycle-b", "cycle-a", 0, plan.Bounds),
+        ]).ToArray();
+
+        await Assert.That(() => RebuildPlan(plan, nodes))
+            .ThrowsExactly<InvalidOperationException>();
+    }
+
+    [Test]
+    public async Task GeometryPlan_DuplicateSiblingOrder_RejectsAtBoundary()
+    {
+        var plan = Plan(Request("logic.and", 2));
+        var firstPort = plan.AccessibilityNodes.First(node =>
+            node.Kind == AccessibilityNodeKindV1.Port);
+        var nodes = plan.AccessibilityNodes.Append(AccessibilityGroup(
+            "ambiguous-order",
+            firstPort.ParentId!,
+            firstPort.ChildOrder,
+            plan.Bounds)).ToArray();
+
+        await Assert.That(() => RebuildPlan(plan, nodes))
+            .ThrowsExactly<InvalidOperationException>();
+    }
+
+    [Test]
     public async Task Polygon_NonSimpleOrDegenerate_RejectsAtValueBoundary()
     {
         await Assert.That(() => new PolygonHitShapeV1(
@@ -619,19 +709,15 @@ internal sealed class TeachingMixedGeometryPlannerTests
     {
         var andPlan = Plan(Request("logic.and", 2));
         var bufferPlan = Plan(Request("logic.buffer", 1));
-        var andBody = (await Assert.That(andPlan.HitRegions)
-            .HasSingleItem(region => region.Kind == HitRegionKindV1.Body)).Shape;
-        var bufferBody = (await Assert.That(bufferPlan.HitRegions)
-            .HasSingleItem(region => region.Kind == HitRegionKindV1.Body)).Shape;
-        var andRect = (await Assert.That(andBody).IsTypeOf<RectHitShapeV1>())!.Rect;
-        var bufferRect = (await Assert.That(bufferBody).IsTypeOf<RectHitShapeV1>())!.Rect;
+        var andBody = VisibleBodyBounds(andPlan);
+        var bufferBody = VisibleBodyBounds(bufferPlan);
 
         using (Assert.Multiple())
         {
-            await Assert.That(andRect.Width).IsEqualTo(800);
-            await Assert.That(andRect.Height).IsEqualTo(650);
-            await Assert.That(bufferRect.Width).IsEqualTo(975);
-            await Assert.That(bufferRect.Height).IsEqualTo(1125);
+            await Assert.That(andBody.Width).IsEqualTo(800);
+            await Assert.That(andBody.Height).IsEqualTo(650);
+            await Assert.That(bufferBody.Width).IsEqualTo(975);
+            await Assert.That(bufferBody.Height).IsEqualTo(1125);
             await Assert.That(andPlan.Conformance.AnnexA).IsEqualTo(AnnexAStatusV1.Pass);
             await Assert.That(bufferPlan.Conformance.AnnexA)
                 .IsEqualTo(AnnexAStatusV1.Pass);
@@ -1035,6 +1121,31 @@ internal sealed class TeachingMixedGeometryPlannerTests
             : throw new InvalidOperationException("The bounded basic symbol request was rejected.");
     }
 
+    private static GeometryPlanV1 RebuildPlan(
+        GeometryPlanV1 plan,
+        IReadOnlyList<AccessibilityNodeV1> accessibilityNodes) => new(
+        plan.Key,
+        plan.Bounds,
+        plan.Operations,
+        plan.PortAnchors,
+        plan.HitRegions,
+        accessibilityNodes,
+        plan.Conformance);
+
+    private static AccessibilityNodeV1 AccessibilityGroup(
+        string localId,
+        string parentId,
+        int childOrder,
+        RectV1 bounds) => new(
+        localId,
+        AccessibilityNodeKindV1.Group,
+        parentId,
+        childOrder,
+        bounds,
+        "presentation.group",
+        [],
+        []);
+
     private static BasicSymbolRequestV1 Request(BasicSymbolPlanCase sample) => Request(
         sample.ContractId,
         sample.FanIn,
@@ -1119,6 +1230,98 @@ internal sealed class TeachingMixedGeometryPlannerTests
             ClosePathV1 => [],
             _ => throw new InvalidOperationException("Unexpected path command."),
         });
+
+    private static RectV1 VisibleBodyBounds(GeometryPlanV1 plan)
+    {
+        var outline = plan.Operations
+            .OfType<StrokePathV1>()
+            .Single(operation =>
+                operation.Role == StrokeRoleV1.Outline
+                && operation.Path.Commands[^1] is ClosePathV1);
+        var points = PathPoints(outline.Path).ToArray();
+        return new RectV1(
+            points.Min(point => point.X),
+            points.Min(point => point.Y),
+            points.Max(point => point.X),
+            points.Max(point => point.Y));
+    }
+
+    private static TestCubicSegment RearInputCurve(
+        GeometryPlanV1 plan,
+        bool hasSeparateXorCurve)
+    {
+        if (hasSeparateXorCurve)
+        {
+            var curvePath = plan.Operations
+                .OfType<StrokePathV1>()
+                .Single(operation => operation.Path.Commands is
+                    [MoveToV1, CubicToV1]);
+            return new TestCubicSegment(
+                ((MoveToV1)curvePath.Path.Commands[0]).Point,
+                (CubicToV1)curvePath.Path.Commands[1]);
+        }
+
+        var bodyPath = plan.Operations
+            .OfType<StrokePathV1>()
+            .Single(operation =>
+                operation.Role == StrokeRoleV1.Outline
+                && operation.Path.Commands[^1] is ClosePathV1)
+            .Path;
+        var curves = bodyPath.Commands.OfType<CubicToV1>().ToArray();
+        return new TestCubicSegment(curves[^2].End, curves[^1]);
+    }
+
+    private static bool IsOnCurveAtY(PointV1 point, TestCubicSegment curve)
+    {
+        double low = 0;
+        double high = 1;
+        var increasing = curve.Cubic.End.Y > curve.Start.Y;
+        for (var iteration = 0; iteration < 64; iteration++)
+        {
+            var middle = (low + high) / 2;
+            var y = CubicCoordinate(
+                curve.Start.Y,
+                curve.Cubic.Control1.Y,
+                curve.Cubic.Control2.Y,
+                curve.Cubic.End.Y,
+                middle);
+            if ((increasing && y < point.Y) || (!increasing && y > point.Y))
+            {
+                low = middle;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        var parameter = (low + high) / 2;
+        var x = CubicCoordinate(
+            curve.Start.X,
+            curve.Cubic.Control1.X,
+            curve.Cubic.Control2.X,
+            curve.Cubic.End.X,
+            parameter);
+        return Math.Abs(x - point.X) < 1;
+    }
+
+    private static double CubicCoordinate(
+        int start,
+        int control1,
+        int control2,
+        int end,
+        double parameter)
+    {
+        var inverse = 1 - parameter;
+        return (inverse * inverse * inverse * start)
+            + (3 * inverse * inverse * parameter * control1)
+            + (3 * inverse * parameter * parameter * control2)
+            + (parameter * parameter * parameter * end);
+    }
+
+    private readonly record struct TestCubicSegment(
+        PointV1 Start,
+        CubicToV1 Cubic);
 
     private sealed class StubTextMeasurer : ISymbolTextMeasurerV1
     {

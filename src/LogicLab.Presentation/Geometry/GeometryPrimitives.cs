@@ -23,6 +23,9 @@ public readonly record struct RectV1
                 "A rectangle bottom coordinate cannot precede its top coordinate.");
         }
 
+        _ = checked(right - left);
+        _ = checked(bottom - top);
+
         Left = left;
         Top = top;
         Right = right;
