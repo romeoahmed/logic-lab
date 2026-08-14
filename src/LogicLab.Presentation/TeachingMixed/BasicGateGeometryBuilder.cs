@@ -88,8 +88,16 @@ internal static class BasicGateGeometryBuilder
             bodyRight,
             checked(planInset + bodyHeight));
         var centerY = checked(body.Top + (bodyHeight / 2));
-        var qualifierExtent = definition.HasOutputQualifier ? h : 0;
-        var outputAnchorX = checked(bodyRight + qualifierExtent + metrics.PortLeadLength);
+        OutputQualifierGeometry? outputQualifier = definition.HasOutputQualifier
+            ? BuildOutputQualifier(
+                bodyRight,
+                centerY,
+                h,
+                request.Profile.IndicationConvention,
+                metrics.QualifierStrokeWidth)
+            : null;
+        var outputLeadStart = outputQualifier?.ConnectionX ?? bodyRight;
+        var outputAnchorX = checked(outputLeadStart + metrics.PortLeadLength);
         var bounds = new RectV1(
             0,
             0,
@@ -125,16 +133,9 @@ internal static class BasicGateGeometryBuilder
                 metrics.OutlineStrokeWidth));
         }
 
-        var outputLeadStart = bodyRight;
-        if (definition.HasOutputQualifier)
+        if (outputQualifier is { } qualifier)
         {
-            operations.Add(OutputQualifier(
-                bodyRight,
-                centerY,
-                h,
-                request.Profile.IndicationConvention,
-                metrics.QualifierStrokeWidth));
-            outputLeadStart = checked(bodyRight + qualifierExtent);
+            operations.Add(qualifier.Operation);
         }
 
         operations.Add(Stroke(
@@ -447,7 +448,7 @@ internal static class BasicGateGeometryBuilder
         new LineToV1(new PointV1(body.Left, body.Bottom)),
         new ClosePathV1());
 
-    private static StrokePathV1 OutputQualifier(
+    private static OutputQualifierGeometry BuildOutputQualifier(
         int bodyRight,
         int centerY,
         int h,
@@ -457,20 +458,24 @@ internal static class BasicGateGeometryBuilder
         var halfH = ScaleUp(h, 1, 2);
         return convention switch
         {
-            IndicationConvention.Negation => Stroke(
-                CirclePath(
-                    new PointV1(checked(bodyRight + halfH), centerY),
-                    halfH),
-                StrokeRoleV1.Qualifier,
-                qualifierStrokeWidth),
-            IndicationConvention.DirectPolarity => Stroke(
-                Path(
-                    new MoveToV1(new PointV1(bodyRight, checked(centerY - halfH))),
-                    new LineToV1(new PointV1(checked(bodyRight + h), centerY)),
-                    new LineToV1(new PointV1(bodyRight, checked(centerY + halfH))),
-                    new ClosePathV1()),
-                StrokeRoleV1.Qualifier,
-                qualifierStrokeWidth),
+            IndicationConvention.Negation => new OutputQualifierGeometry(
+                Stroke(
+                    CirclePath(
+                        new PointV1(checked(bodyRight + halfH), centerY),
+                        halfH),
+                    StrokeRoleV1.Qualifier,
+                    qualifierStrokeWidth),
+                checked(bodyRight + (2 * halfH))),
+            IndicationConvention.DirectPolarity => new OutputQualifierGeometry(
+                Stroke(
+                    Path(
+                        new MoveToV1(new PointV1(bodyRight, checked(centerY - halfH))),
+                        new LineToV1(new PointV1(checked(bodyRight + h), centerY)),
+                        new LineToV1(new PointV1(bodyRight, checked(centerY + halfH))),
+                        new ClosePathV1()),
+                    StrokeRoleV1.Qualifier,
+                    qualifierStrokeWidth),
+                checked(bodyRight + h)),
             _ => throw new LayoutInvalidException(LayoutConstraintV1.IndicationConvention),
         };
     }
@@ -580,6 +585,10 @@ internal static class BasicGateGeometryBuilder
         PointV1 Control1,
         PointV1 Control2,
         PointV1 End);
+
+    private readonly record struct OutputQualifierGeometry(
+        StrokePathV1 Operation,
+        int ConnectionX);
 
     private readonly record struct AnnexAProportion(int Numerator, int Denominator)
     {

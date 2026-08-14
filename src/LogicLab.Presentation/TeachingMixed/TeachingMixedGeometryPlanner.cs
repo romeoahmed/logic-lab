@@ -104,8 +104,8 @@ public static class TeachingMixedGeometryPlanner
                         ?? throw new InvalidOperationException(
                             "The Symbol Text Measurer returned no measurement.");
                 }
-                catch (OperationCanceledException exception)
-                    when (IsCooperativeCancellation(exception, cancellationToken))
+                catch (OperationCanceledException)
+                    when (cancellationToken.IsCancellationRequested)
                 {
                     throw;
                 }
@@ -153,8 +153,8 @@ public static class TeachingMixedGeometryPlanner
             cancellationToken.ThrowIfCancellationRequested();
             return new GeometryPlanSucceededV1(plan);
         }
-        catch (OperationCanceledException exception)
-            when (IsCooperativeCancellation(exception, cancellationToken))
+        catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
         {
             return Cancelled();
         }
@@ -203,12 +203,6 @@ public static class TeachingMixedGeometryPlanner
     private static GeometryPlanRejectedV1 InternalDefect() => new(
         LayoutRejectionReasonV1.LayoutInternalDefect,
         [PresentationDiagnosticsV1.InternalInvariant()]);
-
-    private static bool IsCooperativeCancellation(
-        OperationCanceledException exception,
-        CancellationToken cancellationToken) =>
-        cancellationToken.IsCancellationRequested
-        && exception.CancellationToken == cancellationToken;
 
     private static bool IsFatal(Exception exception) =>
         exception is OutOfMemoryException
