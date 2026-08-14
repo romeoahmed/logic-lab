@@ -158,19 +158,11 @@ internal static class DurableProjectEndpointRouteBuilderExtensions
         try
         {
             request.Body.Position = 0;
-            var length = 0;
-            while (length < readCapacity)
-            {
-                var read = await request.Body.ReadAsync(
-                    buffer.AsMemory(length, readCapacity - length),
-                    cancellationToken);
-                if (read == 0)
-                {
-                    break;
-                }
-
-                length += read;
-            }
+            var length = await request.Body.ReadAtLeastAsync(
+                buffer.AsMemory(0, readCapacity),
+                readCapacity,
+                throwOnEndOfStream: false,
+                cancellationToken: cancellationToken);
 
             if (length > MaximumOpenRequestBodyBytes)
             {
