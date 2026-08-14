@@ -41,7 +41,7 @@ The first required product tracer is complete at item `06`. Infrastructure bread
 
 ## Delivery status
 
-Items `01` through `22` are complete at the Domain, Compiler, Runtime, Project Format, and applicable Application, Infrastructure, and Web seams promised below. This is the sole completion ledger; owning specifications and contracts define the required evidence for each delivered behavior.
+Items `01` through `23` are complete at the Domain, Compiler, Runtime, Project Format, Presentation, and applicable Application, Infrastructure, and Web seams promised below. This is the sole completion ledger; owning specifications and contracts define the required evidence for each delivered behavior.
 
 ## Phase B — Authoring, Component Contracts, and Runtime breadth
 
@@ -113,9 +113,9 @@ Only item `43` authorizes describing the selected deployment profile as producti
 
 ## Dependency frontier
 
-With items `01` through `22` complete, the current frontier is `23` and `28`:
+With items `01` through `23` complete, the current frontier is `24` and `28`:
 
-- TeachingMixed presentation (`23`–`25`); and
+- TeachingMixed presentation (`24`–`25`); and
 - Boolean explanation and proof-gated simplification (`28`–`32`).
 
 Persistence and export do not wait for Runtime breadth that they do not consume. Strict import waits for the complete V1 catalog it must validate. Qualification work begins only after its required behavior and evidence exist; policy calibration and provider selection never block the first product tracer.
