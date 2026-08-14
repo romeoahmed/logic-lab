@@ -32,9 +32,8 @@ internal static class BasicGateGeometryBuilder
         var inputs = ports.Where(port => port.Direction == PortDirection.Input).ToArray();
         var metrics = BasicGateMetrics.From(request.MetricSet);
         var h = metrics.UnitsPerH;
-        var textAlignment = TextAlignmentV1.Center;
         var textEnvelope = textMeasurement?.InkAndAdvanceBounds(
-            textAlignment,
+            TextAlignmentV1.Center,
             request.BaseDirection);
         var standardBodyHeight = BasicBodyHeight.ScaleUp(h);
         var requestedBodyHeight = inputs.Length == 1
