@@ -89,7 +89,7 @@ public sealed class BasicSymbolRequestV1
         bool isReflected,
         SymbolMetricSetV1 metricSet,
         FontFingerprintV1 fontFingerprint,
-        string localeId,
+        PresentationLocaleIdV1 localeId,
         BaseDirectionV1 baseDirection)
     {
         ArgumentNullException.ThrowIfNull(contract);
@@ -97,7 +97,7 @@ public sealed class BasicSymbolRequestV1
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(metricSet);
         ArgumentNullException.ThrowIfNull(fontFingerprint);
-        ArgumentException.ThrowIfNullOrEmpty(localeId);
+        ArgumentNullException.ThrowIfNull(localeId);
         if (!Enum.IsDefined(facing))
         {
             throw new ArgumentOutOfRangeException(nameof(facing));
@@ -136,7 +136,7 @@ public sealed class BasicSymbolRequestV1
 
     public FontFingerprintV1 FontFingerprint { get; }
 
-    public string LocaleId { get; }
+    public PresentationLocaleIdV1 LocaleId { get; }
 
     public BaseDirectionV1 BaseDirection { get; }
 }
@@ -150,7 +150,7 @@ public sealed record GeometryPlanKeyV1(
     SymbolFacingV1 Facing,
     bool IsReflected,
     IndicationConvention IndicationConvention,
-    string LocaleId,
+    PresentationLocaleIdV1 LocaleId,
     BaseDirectionV1 BaseDirection,
     string MetricSetId,
     string MetricSetVersion,
