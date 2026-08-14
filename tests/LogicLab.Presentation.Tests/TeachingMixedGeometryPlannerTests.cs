@@ -1,8 +1,11 @@
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Geometry;
 using LogicLab.Presentation.TeachingMixed;
 using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Presentation.Tests;
 
@@ -80,36 +83,62 @@ internal sealed class TeachingMixedGeometryPlannerTests
         }
     }
 
-    [Test]
-    [Arguments(2U)]
-    [Arguments(8U)]
-    [Arguments(9U)]
-    [Arguments(63U)]
-    public async Task Plan_AndAcrossFanInRange_EnclosesEveryStrokeEnvelope(uint fanIn)
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(PresentationGeometryArbitraries) })]
+    public Property Plan_ValidBasicGateMatrix_PreservesGeometryContract(
+        BasicSymbolPlanCase sample)
     {
-        var plan = Plan(Request("logic.and", fanIn));
-
-        foreach (var stroke in plan.Operations.OfType<StrokePathV1>())
-        {
-            var points = PathPoints(stroke.Path).ToArray();
-            var halfWidth = checked((stroke.Width + 1) / 2);
-            var margin = stroke.LineJoin.Kind == LineJoinKindV1.Miter
-                ? checked(halfWidth * stroke.LineJoin.MiterLimitRatio)
-                : halfWidth;
-            var envelope = new RectV1(
-                checked(points.Min(point => point.X) - margin),
-                checked(points.Min(point => point.Y) - margin),
-                checked(points.Max(point => point.X) + margin),
-                checked(points.Max(point => point.Y) + margin));
-
-            using (Assert.Multiple())
+        var plan = Plan(Request(sample));
+        var repeated = Plan(Request(sample));
+        var canonical = Plan(Request(
+            sample with
             {
-                await Assert.That(plan.Bounds.Contains(
-                    new PointV1(envelope.Left, envelope.Top))).IsTrue();
-                await Assert.That(plan.Bounds.Contains(
-                    new PointV1(envelope.Right, envelope.Bottom))).IsTrue();
-            }
-        }
+                Facing = SymbolFacingV1.East,
+                IsReflected = false,
+            }));
+        var scalar = Plan(Request(sample with { Width = 1 }));
+        var expectedPortIds = sample.IsUnary
+            ? new[] { "A", "Q" }
+            : [.. Enumerable.Range(0, checked((int)sample.FanIn))
+                .Select(index => $"A{index}")
+                .Append("Q")];
+        var violations = new List<string>();
+
+        Check(plan.Key == repeated.Key, "repeated plan key changed", violations);
+        Check(
+            PlansShareGeometry(plan, repeated),
+            "repeated geometry changed",
+            violations);
+        Check(
+            plan.Key.SymbolVariantId == SymbolVariantCatalog.RectangularId
+                || PlanGeometryMatchesTransform(
+                    canonical,
+                    plan,
+                    sample.Facing,
+                    sample.IsReflected),
+            "orthogonal transform is not exact",
+            violations);
+        Check(
+            plan.PortAnchors.Select(anchor => anchor.PortId).SequenceEqual(expectedPortIds),
+            "Port order or count differs from the Component Contract",
+            violations);
+        Check(HasCompleteCrossReferences(plan), "cross-reference graph is incomplete", violations);
+        Check(AllGeometryIsInsideBounds(plan), "published geometry escapes Bounds", violations);
+        Check(PortHitRegionsAreDisjoint(plan), "Port hit regions overlap", violations);
+        Check(
+            PlansShareGeometry(plan, scalar),
+            "vector width changed symbol geometry",
+            violations);
+        Check(
+            sample.Width == 1
+                || plan.Key.NormalizedRequestDigest != scalar.Key.NormalizedRequestDigest,
+            "vector width did not change the semantic request key",
+            violations);
+        Check(
+            AccessibilityWidthsMatch(plan, sample.Width),
+            "accessibility Port width differs from the request",
+            violations);
+
+        return (violations.Count == 0).Label(string.Join("; ", violations));
     }
 
     [Test]
@@ -137,32 +166,6 @@ internal sealed class TeachingMixedGeometryPlannerTests
                 await Assert.That(endpoint.Y).IsEqualTo(input.Point.Y);
                 await Assert.That(endpoint.X)
                     .IsEqualTo(checked(body.Left + expectedOffsetFromBodyLeft));
-            }
-        }
-    }
-
-    [Test]
-    [Arguments(2U)]
-    [Arguments(3U)]
-    [Arguments(63U)]
-    public async Task Plan_AcrossFanInRange_PortHitRegionsArePairwiseDisjoint(uint fanIn)
-    {
-        var plan = Plan(Request("logic.and", fanIn));
-        var circles = plan.HitRegions
-            .Where(region => region.Kind == HitRegionKindV1.Port)
-            .Select(region => (CircleHitShapeV1)region.Shape)
-            .ToArray();
-
-        for (var first = 0; first < circles.Length; first++)
-        {
-            for (var second = first + 1; second < circles.Length; second++)
-            {
-                var deltaX = (long)circles[first].Center.X - circles[second].Center.X;
-                var deltaY = (long)circles[first].Center.Y - circles[second].Center.Y;
-                var radiusSum = (long)circles[first].Radius + circles[second].Radius;
-
-                await Assert.That((deltaX * deltaX) + (deltaY * deltaY))
-                    .IsGreaterThan(radiusSum * radiusSum);
             }
         }
     }
@@ -244,47 +247,6 @@ internal sealed class TeachingMixedGeometryPlannerTests
     }
 
     [Test]
-    public async Task Plan_BasicGate_ProducesCompleteRendererNeutralContract()
-    {
-        var plan = Plan(Request("logic.and", 3));
-        var root = await Assert.That(plan.AccessibilityNodes)
-            .HasSingleItem(node => node.ParentId is null);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(plan.Bounds.Width).IsGreaterThan(0);
-            await Assert.That(plan.Bounds.Height).IsGreaterThan(0);
-            await Assert.That(root.Kind).IsEqualTo(AccessibilityNodeKindV1.Symbol);
-            await Assert.That(root.Actions)
-                .Contains(AccessibilityActionV1.Select);
-            await Assert.That(plan.PortAnchors.Select(anchor => anchor.PortId).Distinct())
-                .Count().IsEqualTo(plan.PortAnchors.Count);
-            await Assert.That(plan.HitRegions.Select(region => region.LocalId).Distinct())
-                .Count().IsEqualTo(plan.HitRegions.Count);
-            await Assert.That(plan.AccessibilityNodes.Select(node => node.LocalId).Distinct())
-                .Count().IsEqualTo(plan.AccessibilityNodes.Count);
-        }
-
-        foreach (var anchor in plan.PortAnchors)
-        {
-            var hitRegion = await Assert.That(plan.HitRegions)
-                .HasSingleItem(region => region.LocalId == anchor.HitRegionId);
-            var accessibilityNode = await Assert.That(plan.AccessibilityNodes)
-                .HasSingleItem(node => node.LocalId == anchor.AccessibilityNodeId);
-
-            using (Assert.Multiple())
-            {
-                await Assert.That(hitRegion.Kind).IsEqualTo(HitRegionKindV1.Port);
-                await Assert.That(hitRegion.SourcePortId).IsEqualTo(anchor.PortId);
-                await Assert.That(accessibilityNode.Kind)
-                    .IsEqualTo(AccessibilityNodeKindV1.Port);
-                await Assert.That(accessibilityNode.ParentId).IsEqualTo(root.LocalId);
-                await Assert.That(plan.Bounds.Contains(anchor.Point)).IsTrue();
-            }
-        }
-    }
-
-    [Test]
     public async Task Plan_FingerprintInputsChange_KeyChangesDeterministically()
     {
         var first = Plan(Request("logic.and", 2));
@@ -346,37 +308,6 @@ internal sealed class TeachingMixedGeometryPlannerTests
             await Assert.That(standard.ClauseIds).Contains(expectedClause);
             await Assert.That(plan.Conformance.Deviations).IsEmpty();
             await Assert.That(plan.Conformance.AnnexA).IsEqualTo(AnnexAStatusV1.Pass);
-        }
-    }
-
-    [Test]
-    [Arguments(SymbolFacingV1.East, PlanDirectionV1.West, PlanDirectionV1.East)]
-    [Arguments(SymbolFacingV1.South, PlanDirectionV1.North, PlanDirectionV1.South)]
-    [Arguments(SymbolFacingV1.West, PlanDirectionV1.East, PlanDirectionV1.West)]
-    [Arguments(SymbolFacingV1.North, PlanDirectionV1.South, PlanDirectionV1.North)]
-    public async Task Plan_FacingAndReflection_TransformsAnchorsWithoutChangingPortOrder(
-        SymbolFacingV1 facing,
-        PlanDirectionV1 expectedInputDirection,
-        PlanDirectionV1 expectedOutputDirection)
-    {
-        var unreflected = Plan(Request("logic.and", 3, facing: facing));
-        var reflected = Plan(Request("logic.and", 3, facing: facing, isReflected: true));
-        var expectedOrder = new[] { "A0", "A1", "A2", "Q" };
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(unreflected.PortAnchors.Select(anchor => anchor.PortId))
-                .IsEquivalentTo(expectedOrder, CollectionOrdering.Matching);
-            await Assert.That(reflected.PortAnchors.Select(anchor => anchor.PortId))
-                .IsEquivalentTo(expectedOrder, CollectionOrdering.Matching);
-            await Assert.That(unreflected.PortAnchors.Take(3)
-                .All(anchor => anchor.OutwardDirection == expectedInputDirection)).IsTrue();
-            await Assert.That(unreflected.PortAnchors[^1].OutwardDirection)
-                .IsEqualTo(expectedOutputDirection);
-            await Assert.That(reflected.PortAnchors.Select(anchor => anchor.Point))
-                .IsNotEquivalentTo(
-                    unreflected.PortAnchors.Select(anchor => anchor.Point),
-                    CollectionOrdering.Matching);
         }
     }
 
@@ -707,33 +638,390 @@ internal sealed class TeachingMixedGeometryPlannerTests
         }
     }
 
-    [Test]
-    public async Task Plan_VectorWidthChanges_SemanticKeyChangesButGeometryDoesNot()
+    private static void Check(
+        bool condition,
+        string message,
+        List<string> violations)
     {
-        var scalar = Plan(Request(
-            "logic.and",
-            parameters: GateParameters(width: 1, fanIn: 2)));
-        var vector = Plan(Request(
-            "logic.and",
-            parameters: GateParameters(width: 8, fanIn: 2)));
-        var vectorPortNode = await Assert.That(vector.AccessibilityNodes)
-            .HasSingleItem(node => node.LocalId == "port-A0");
-        var widthArgument = await Assert.That(vectorPortNode.Arguments)
-            .HasSingleItem(argument => argument.Name == "width");
-        var width = (await Assert.That(widthArgument)
-            .IsTypeOf<UnsignedLocalizationArgumentV1>())!;
-
-        using (Assert.Multiple())
+        if (!condition)
         {
-            await Assert.That(vector.Key.NormalizedRequestDigest)
-                .IsNotEqualTo(scalar.Key.NormalizedRequestDigest);
-            await Assert.That(vector.PortAnchors.Select(anchor => anchor.Point))
-                .IsEquivalentTo(
-                    scalar.PortAnchors.Select(anchor => anchor.Point),
-                    CollectionOrdering.Matching);
-            await Assert.That(width.Value).IsEqualTo(8U);
+            violations.Add(message);
         }
     }
+
+    private static bool HasCompleteCrossReferences(GeometryPlanV1 plan)
+    {
+        var roots = plan.AccessibilityNodes
+            .Where(node => node.ParentId is null)
+            .ToArray();
+        if (roots is not [{ Kind: AccessibilityNodeKindV1.Symbol }]
+            || !roots[0].Actions.Contains(AccessibilityActionV1.Select)
+            || plan.PortAnchors.Select(anchor => anchor.PortId).Distinct().Count()
+                != plan.PortAnchors.Count
+            || plan.HitRegions.Select(region => region.LocalId).Distinct().Count()
+                != plan.HitRegions.Count
+            || plan.AccessibilityNodes.Select(node => node.LocalId).Distinct().Count()
+                != plan.AccessibilityNodes.Count)
+        {
+            return false;
+        }
+
+        return plan.PortAnchors.All(anchor =>
+        {
+            var hitRegions = plan.HitRegions
+                .Where(region => region.LocalId == anchor.HitRegionId)
+                .ToArray();
+            var nodes = plan.AccessibilityNodes
+                .Where(node => node.LocalId == anchor.AccessibilityNodeId)
+                .ToArray();
+            return hitRegions is
+                [{ Kind: HitRegionKindV1.Port, SourcePortId: not null }]
+                && hitRegions[0].SourcePortId == anchor.PortId
+                && nodes is [{ Kind: AccessibilityNodeKindV1.Port }]
+                && nodes[0].ParentId == roots[0].LocalId;
+        });
+    }
+
+    private static bool AccessibilityWidthsMatch(GeometryPlanV1 plan, uint width) =>
+        plan.PortAnchors.All(anchor =>
+        {
+            var node = plan.AccessibilityNodes.Single(candidate =>
+                candidate.LocalId == anchor.AccessibilityNodeId);
+            return node.Arguments.SingleOrDefault(argument => argument.Name == "width")
+                is UnsignedLocalizationArgumentV1 argument
+                && argument.Value == width;
+        });
+
+    private static bool AllGeometryIsInsideBounds(GeometryPlanV1 plan)
+    {
+        if (plan.Bounds.Width <= 0 || plan.Bounds.Height <= 0
+            || plan.PortAnchors.Any(anchor => !plan.Bounds.Contains(anchor.Point))
+            || plan.AccessibilityNodes.Any(node => !Contains(plan.Bounds, node.Bounds)))
+        {
+            return false;
+        }
+
+        foreach (var operation in plan.Operations)
+        {
+            switch (operation)
+            {
+                case StrokePathV1 stroke:
+                    {
+                        var points = PathPoints(stroke.Path).ToArray();
+                        var halfWidth = checked((stroke.Width + 1) / 2);
+                        var margin = stroke.LineJoin.Kind == LineJoinKindV1.Miter
+                            ? checked(halfWidth * stroke.LineJoin.MiterLimitRatio)
+                            : halfWidth;
+                        var envelope = new RectV1(
+                            checked(points.Min(point => point.X) - margin),
+                            checked(points.Min(point => point.Y) - margin),
+                            checked(points.Max(point => point.X) + margin),
+                            checked(points.Max(point => point.Y) + margin));
+                        if (!Contains(plan.Bounds, envelope))
+                        {
+                            return false;
+                        }
+
+                        break;
+                    }
+
+                case FillPathV1 fill when PathPoints(fill.Path)
+                    .Any(point => !plan.Bounds.Contains(point)):
+                    return false;
+                case DrawTextV1 text when !Contains(plan.Bounds, text.Bounds):
+                    return false;
+            }
+        }
+
+        return plan.HitRegions.All(region => region.Shape switch
+        {
+            RectHitShapeV1 rect => Contains(plan.Bounds, rect.Rect),
+            CircleHitShapeV1 circle => Contains(
+                plan.Bounds,
+                new RectV1(
+                    checked(circle.Center.X - circle.Radius),
+                    checked(circle.Center.Y - circle.Radius),
+                    checked(circle.Center.X + circle.Radius),
+                    checked(circle.Center.Y + circle.Radius))),
+            PolygonHitShapeV1 polygon => polygon.Points.All(plan.Bounds.Contains),
+            _ => false,
+        });
+    }
+
+    private static bool PortHitRegionsAreDisjoint(GeometryPlanV1 plan)
+    {
+        var circles = plan.HitRegions
+            .Where(region => region.Kind == HitRegionKindV1.Port)
+            .Select(region => region.Shape)
+            .OfType<CircleHitShapeV1>()
+            .ToArray();
+        if (circles.Length != plan.PortAnchors.Count)
+        {
+            return false;
+        }
+
+        for (var first = 0; first < circles.Length; first++)
+        {
+            for (var second = first + 1; second < circles.Length; second++)
+            {
+                var deltaX = (long)circles[first].Center.X - circles[second].Center.X;
+                var deltaY = (long)circles[first].Center.Y - circles[second].Center.Y;
+                var radiusSum = (long)circles[first].Radius + circles[second].Radius;
+                if ((deltaX * deltaX) + (deltaY * deltaY) <= radiusSum * radiusSum)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static bool PlansShareGeometry(GeometryPlanV1 expected, GeometryPlanV1 actual) =>
+        PlanGeometryMatchesTransform(
+            expected,
+            actual,
+            SymbolFacingV1.East,
+            isReflected: false);
+
+    private static bool PlanGeometryMatchesTransform(
+        GeometryPlanV1 source,
+        GeometryPlanV1 actual,
+        SymbolFacingV1 facing,
+        bool isReflected)
+    {
+        var expectedBounds = facing is SymbolFacingV1.North or SymbolFacingV1.South
+            ? new RectV1(0, 0, source.Bounds.Height, source.Bounds.Width)
+            : source.Bounds;
+        return actual.Bounds == expectedBounds
+            && source.Operations.Count == actual.Operations.Count
+            && source.Operations.Zip(actual.Operations).All(pair =>
+                OperationMatches(
+                    pair.First,
+                    pair.Second,
+                    source.Bounds,
+                    facing,
+                    isReflected))
+            && source.PortAnchors.Count == actual.PortAnchors.Count
+            && source.PortAnchors.Zip(actual.PortAnchors).All(pair =>
+                pair.First.PortId == pair.Second.PortId
+                && Transform(pair.First.Point, source.Bounds, facing, isReflected)
+                    == pair.Second.Point
+                && Transform(pair.First.OutwardDirection, facing, isReflected)
+                    == pair.Second.OutwardDirection
+                && pair.First.HitRegionId == pair.Second.HitRegionId
+                && pair.First.AccessibilityNodeId == pair.Second.AccessibilityNodeId)
+            && source.HitRegions.Count == actual.HitRegions.Count
+            && source.HitRegions.Zip(actual.HitRegions).All(pair =>
+                pair.First.LocalId == pair.Second.LocalId
+                && pair.First.Kind == pair.Second.Kind
+                && pair.First.SourcePortId == pair.Second.SourcePortId
+                && ShapeMatches(
+                    pair.First.Shape,
+                    pair.Second.Shape,
+                    source.Bounds,
+                    facing,
+                    isReflected))
+            && source.AccessibilityNodes.Count == actual.AccessibilityNodes.Count
+            && source.AccessibilityNodes.Zip(actual.AccessibilityNodes).All(pair =>
+                pair.First.LocalId == pair.Second.LocalId
+                && pair.First.Kind == pair.Second.Kind
+                && pair.First.ParentId == pair.Second.ParentId
+                && pair.First.ChildOrder == pair.Second.ChildOrder
+                && Transform(pair.First.Bounds, source.Bounds, facing, isReflected)
+                    == pair.Second.Bounds
+                && pair.First.LocalizationKey == pair.Second.LocalizationKey
+                && pair.First.Actions.SequenceEqual(pair.Second.Actions));
+    }
+
+    private static bool OperationMatches(
+        DrawOperationV1 source,
+        DrawOperationV1 actual,
+        RectV1 sourceBounds,
+        SymbolFacingV1 facing,
+        bool isReflected) => (source, actual) switch
+        {
+            (StrokePathV1 expected, StrokePathV1 candidate) =>
+                expected.Role == candidate.Role
+                && expected.Width == candidate.Width
+                && expected.DashPattern.SequenceEqual(candidate.DashPattern)
+                && expected.LineCap == candidate.LineCap
+                && expected.LineJoin == candidate.LineJoin
+                && PathMatches(
+                    expected.Path,
+                    candidate.Path,
+                    sourceBounds,
+                    facing,
+                    isReflected),
+            (FillPathV1 expected, FillPathV1 candidate) =>
+                expected.Role == candidate.Role
+                && expected.FillRule == candidate.FillRule
+                && PathMatches(
+                    expected.Path,
+                    candidate.Path,
+                    sourceBounds,
+                    facing,
+                    isReflected),
+            (DrawTextV1 expected, DrawTextV1 candidate) =>
+                TextMatches(expected, candidate, sourceBounds, facing, isReflected),
+            _ => false,
+        };
+
+    private static bool TextMatches(
+        DrawTextV1 source,
+        DrawTextV1 actual,
+        RectV1 sourceBounds,
+        SymbolFacingV1 facing,
+        bool isReflected)
+    {
+        var origin = Transform(source.Origin, sourceBounds, facing, isReflected);
+        var bounds = source.Orientation == TextOrientationV1.UprightReading
+            ? new RectV1(
+                checked(origin.X + source.Bounds.Left - source.Origin.X),
+                checked(origin.Y + source.Bounds.Top - source.Origin.Y),
+                checked(origin.X + source.Bounds.Right - source.Origin.X),
+                checked(origin.Y + source.Bounds.Bottom - source.Origin.Y))
+            : Transform(source.Bounds, sourceBounds, facing, isReflected);
+        return source.Text == actual.Text
+            && source.FontRole == actual.FontRole
+            && origin == actual.Origin
+            && bounds == actual.Bounds
+            && source.Alignment == actual.Alignment
+            && source.Orientation == actual.Orientation
+            && source.BaseDirection == actual.BaseDirection
+            && source.LocaleId == actual.LocaleId;
+    }
+
+    private static bool PathMatches(
+        PathV1 source,
+        PathV1 actual,
+        RectV1 sourceBounds,
+        SymbolFacingV1 facing,
+        bool isReflected) =>
+        source.Commands.Count == actual.Commands.Count
+        && source.Commands.Zip(actual.Commands).All(pair =>
+            (pair.First, pair.Second) switch
+            {
+                (MoveToV1 expected, MoveToV1 candidate) =>
+                    Transform(expected.Point, sourceBounds, facing, isReflected)
+                        == candidate.Point,
+                (LineToV1 expected, LineToV1 candidate) =>
+                    Transform(expected.Point, sourceBounds, facing, isReflected)
+                        == candidate.Point,
+                (CubicToV1 expected, CubicToV1 candidate) =>
+                    Transform(expected.Control1, sourceBounds, facing, isReflected)
+                        == candidate.Control1
+                    && Transform(expected.Control2, sourceBounds, facing, isReflected)
+                        == candidate.Control2
+                    && Transform(expected.End, sourceBounds, facing, isReflected)
+                        == candidate.End,
+                (ClosePathV1, ClosePathV1) => true,
+                _ => false,
+            });
+
+    private static bool ShapeMatches(
+        HitShapeV1 source,
+        HitShapeV1 actual,
+        RectV1 sourceBounds,
+        SymbolFacingV1 facing,
+        bool isReflected) => (source, actual) switch
+        {
+            (RectHitShapeV1 expected, RectHitShapeV1 candidate) =>
+                Transform(expected.Rect, sourceBounds, facing, isReflected) == candidate.Rect,
+            (CircleHitShapeV1 expected, CircleHitShapeV1 candidate) =>
+                Transform(expected.Center, sourceBounds, facing, isReflected) == candidate.Center
+                && expected.Radius == candidate.Radius,
+            (PolygonHitShapeV1 expected, PolygonHitShapeV1 candidate) =>
+                expected.Points.Count == candidate.Points.Count
+                && expected.Points.Zip(candidate.Points).All(pair =>
+                    Transform(pair.First, sourceBounds, facing, isReflected) == pair.Second),
+            _ => false,
+        };
+
+    private static RectV1 Transform(
+        RectV1 source,
+        RectV1 sourceBounds,
+        SymbolFacingV1 facing,
+        bool isReflected)
+    {
+        var points = new[]
+        {
+            Transform(new PointV1(source.Left, source.Top), sourceBounds, facing, isReflected),
+            Transform(new PointV1(source.Right, source.Top), sourceBounds, facing, isReflected),
+            Transform(new PointV1(source.Right, source.Bottom), sourceBounds, facing, isReflected),
+            Transform(new PointV1(source.Left, source.Bottom), sourceBounds, facing, isReflected),
+        };
+        return new RectV1(
+            points.Min(point => point.X),
+            points.Min(point => point.Y),
+            points.Max(point => point.X),
+            points.Max(point => point.Y));
+    }
+
+    private static PointV1 Transform(
+        PointV1 source,
+        RectV1 sourceBounds,
+        SymbolFacingV1 facing,
+        bool isReflected)
+    {
+        var reflectedY = isReflected
+            ? checked(sourceBounds.Height - source.Y)
+            : source.Y;
+        return facing switch
+        {
+            SymbolFacingV1.East => new PointV1(source.X, reflectedY),
+            SymbolFacingV1.South => new PointV1(
+                checked(sourceBounds.Height - reflectedY),
+                source.X),
+            SymbolFacingV1.West => new PointV1(
+                checked(sourceBounds.Width - source.X),
+                checked(sourceBounds.Height - reflectedY)),
+            SymbolFacingV1.North => new PointV1(
+                reflectedY,
+                checked(sourceBounds.Width - source.X)),
+            _ => throw new ArgumentOutOfRangeException(nameof(facing)),
+        };
+    }
+
+    private static PlanDirectionV1 Transform(
+        PlanDirectionV1 source,
+        SymbolFacingV1 facing,
+        bool isReflected)
+    {
+        var reflected = isReflected
+            ? source switch
+            {
+                PlanDirectionV1.North => PlanDirectionV1.South,
+                PlanDirectionV1.South => PlanDirectionV1.North,
+                _ => source,
+            }
+            : source;
+        var quarterTurns = facing switch
+        {
+            SymbolFacingV1.East => 0,
+            SymbolFacingV1.South => 1,
+            SymbolFacingV1.West => 2,
+            SymbolFacingV1.North => 3,
+            _ => throw new ArgumentOutOfRangeException(nameof(facing)),
+        };
+        for (var index = 0; index < quarterTurns; index++)
+        {
+            reflected = reflected switch
+            {
+                PlanDirectionV1.North => PlanDirectionV1.East,
+                PlanDirectionV1.East => PlanDirectionV1.South,
+                PlanDirectionV1.South => PlanDirectionV1.West,
+                PlanDirectionV1.West => PlanDirectionV1.North,
+                _ => throw new ArgumentOutOfRangeException(nameof(source)),
+            };
+        }
+
+        return reflected;
+    }
+
+    private static bool Contains(RectV1 outer, RectV1 inner) =>
+        outer.Contains(new PointV1(inner.Left, inner.Top))
+        && outer.Contains(new PointV1(inner.Right, inner.Bottom));
 
     private static GeometryPlanV1 Plan(
         BasicSymbolRequestV1 request,
@@ -747,6 +1035,22 @@ internal sealed class TeachingMixedGeometryPlannerTests
             : throw new InvalidOperationException("The bounded basic symbol request was rejected.");
     }
 
+    private static BasicSymbolRequestV1 Request(BasicSymbolPlanCase sample) => Request(
+        sample.ContractId,
+        sample.FanIn,
+        sample.SymbolVariantId,
+        new SymbolProfileReference(
+            "TeachingMixed",
+            "1.0.0",
+            sample.IndicationConvention),
+        sample.Facing,
+        sample.IsReflected,
+        parameters: sample.IsUnary
+            ? UnaryParameters(sample.Width)
+            : GateParameters(sample.Width, sample.FanIn),
+        localeId: sample.LocaleId,
+        baseDirection: sample.BaseDirection);
+
     private static BasicSymbolRequestV1 Request(
         string contractId,
         uint fanIn = 2,
@@ -756,7 +1060,9 @@ internal sealed class TeachingMixedGeometryPlannerTests
         bool isReflected = false,
         SymbolMetricSetV1? metricSet = null,
         FontFingerprintV1? fontFingerprint = null,
-        ComponentParameterBinding[]? parameters = null)
+        ComponentParameterBinding[]? parameters = null,
+        PresentationLocaleIdV1? localeId = null,
+        BaseDirectionV1 baseDirection = BaseDirectionV1.LeftToRight)
     {
         var contract = CoreLibrarySchema.FindContract(new ComponentContractKey(
             CoreLibrarySchema.LibraryId,
@@ -781,13 +1087,13 @@ internal sealed class TeachingMixedGeometryPlannerTests
             isReflected,
             metricSet ?? TeachingMixedMetricSets.AnnexA100,
             fontFingerprint ?? DefaultFontFingerprint,
-            PresentationLocaleIdV1.EnglishUnitedStates,
-            BaseDirectionV1.LeftToRight);
+            localeId ?? PresentationLocaleIdV1.EnglishUnitedStates,
+            baseDirection);
     }
 
-    private static ComponentParameterBinding[] UnaryParameters() =>
+    private static ComponentParameterBinding[] UnaryParameters(uint width = 1) =>
     [
-        new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+        new ComponentParameterBinding("width", new Unsigned32ParameterValue(width)),
     ];
 
     private static ComponentParameterBinding[] GateParameters(uint fanIn) =>

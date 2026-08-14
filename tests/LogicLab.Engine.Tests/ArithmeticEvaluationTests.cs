@@ -67,12 +67,20 @@ internal sealed class ArithmeticEvaluationTests
     [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
     public Property LogicalShift_FourStateAmount_MatchesScalarOracle(
         LogicVectorCase sample,
-        byte encodedAmount,
-        byte unknownMask,
+        uint encodedAmount,
+        uint unknownMask,
         byte amountWidthSeed,
         bool shiftLeft)
     {
-        var amountWidth = 1 + amountWidthSeed % 8;
+        var amountWidth = (amountWidthSeed % 6) switch
+        {
+            0 => 1,
+            1 => 7,
+            2 => 8,
+            3 => 9,
+            4 => 31,
+            _ => 32,
+        };
         var amount = CreateShiftAmount(encodedAmount, unknownMask, amountWidth);
         var direction = shiftLeft
             ? LogicalShiftDirection.Left
@@ -95,10 +103,10 @@ internal sealed class ArithmeticEvaluationTests
     }
 
     [Test]
-    public async Task LogicalShift_KnownThirtyTwoBitAmount_EvaluatesItsSingleReachableCase()
+    public async Task LogicalShift_KnownBitThirtyOne_EvaluatesItsSingleReachableCase()
     {
         var amount = Enumerable.Repeat(LogicValue.Zero, 32).ToArray();
-        amount[0] = LogicValue.One;
+        amount[31] = LogicValue.One;
 
         var result = ArithmeticEvaluation.LogicalShift(
             Vector(LogicValue.One),
@@ -138,19 +146,36 @@ internal sealed class ArithmeticEvaluationTests
     }
 
     private static LogicValue[] CreateShiftAmount(
-        byte encodedAmount,
-        byte unknownMask,
+        uint encodedAmount,
+        uint unknownMask,
         int width)
     {
-        return [.. Enumerable.Range(0, width).Select(bit => (
-            Unknown: ((unknownMask >> bit) & 1) != 0,
-            One: ((encodedAmount >> bit) & 1) != 0) switch
+        const int maximumUnknownBits = 8;
+        var amount = new LogicValue[width];
+        for (var bit = 0; bit < width; bit++)
         {
-            (false, false) => LogicValue.Zero,
-            (false, true) => LogicValue.One,
-            (true, false) => LogicValue.X,
-            (true, true) => LogicValue.Z,
-        })];
+            amount[bit] = ((encodedAmount >> bit) & 1U) != 0
+                ? LogicValue.One
+                : LogicValue.Zero;
+        }
+
+        var scanStart = checked((int)(unknownMask % (uint)width));
+        var unknownCount = 0;
+        for (var offset = 0; offset < width && unknownCount < maximumUnknownBits; offset++)
+        {
+            var bit = (scanStart + offset) % width;
+            if (((unknownMask >> bit) & 1U) == 0)
+            {
+                continue;
+            }
+
+            amount[bit] = amount[bit] == LogicValue.One
+                ? LogicValue.Z
+                : LogicValue.X;
+            unknownCount++;
+        }
+
+        return amount;
     }
 
     private static LogicValue[] ScalarShiftOracle(
@@ -163,22 +188,28 @@ internal sealed class ArithmeticEvaluationTests
             .ToArray();
         var knownAmount = Enumerable.Range(0, amount.Length)
             .Where(index => ScalarLogic.NormalizeInput(amount[index]) == LogicValue.One)
-            .Aggregate(0, (value, index) => value | (1 << index));
+            .Aggregate(0UL, (value, index) => value | (1UL << index));
         var possible = Enumerable.Range(0, 1 << unknownBits.Length)
             .Select(combination =>
             {
                 var shift = knownAmount;
                 for (var index = 0; index < unknownBits.Length; index++)
                 {
-                    shift |= ((combination >> index) & 1) << unknownBits[index];
+                    shift |= (ulong)((combination >> index) & 1) << unknownBits[index];
                 }
 
                 return new LogicVector([.. Enumerable.Range(0, data.Length)
                     .Select(outputBit =>
                     {
+                        if (shift >= (ulong)data.Length)
+                        {
+                            return LogicValue.Zero;
+                        }
+
+                        var boundedShift = checked((int)shift);
                         var sourceBit = direction == LogicalShiftDirection.Left
-                            ? outputBit - shift
-                            : outputBit + shift;
+                            ? outputBit - boundedShift
+                            : outputBit + boundedShift;
                         return sourceBit >= 0 && sourceBit < data.Length
                             ? ScalarLogic.NormalizeInput(data[sourceBit])
                             : LogicValue.Zero;
