@@ -6,6 +6,8 @@ namespace LogicLab.Engine.Tests;
 
 internal sealed class SteeringLogicTests
 {
+    private static readonly int[] PackedWidths = [1, 63, 64, 65];
+
     private static readonly SimulationEvaluatorKind[] GateKinds =
     [
         SimulationEvaluatorKind.LogicAnd,
@@ -39,7 +41,7 @@ internal sealed class SteeringLogicTests
     }
 
     [Test]
-    public async Task TriState_EveryDataEnableAndPolarity_MatchesPossibleWorlds()
+    public async Task TriState_EveryDataEnableAndPolarity_MatchesPossibleWorldsAcrossPackedWidths()
     {
         var violations = new List<string>();
         foreach (var inputs in Tuples(2))
@@ -56,11 +58,33 @@ internal sealed class SteeringLogicTests
             }
         }
 
+        foreach (var width in PackedWidths)
+        {
+            var data = PatternVector(width, offset: 0);
+            foreach (var enable in Enum.GetValues<LogicValue>())
+            {
+                foreach (var activeHigh in new[] { false, true })
+                {
+                    var actual = CombinationalEvaluation.TriState(
+                        data,
+                        enable,
+                        activeHigh);
+                    CheckMany(
+                        $"packed tri-state(width={width}, enable={enable}, "
+                            + $"activeHigh={activeHigh})",
+                        [.. Enumerable.Range(0, width).Select(bit =>
+                            TriStateOracle(data[bit], enable, activeHigh))],
+                        Values(actual),
+                        violations);
+                }
+            }
+        }
+
         await Assert.That(violations).IsEmpty();
     }
 
     [Test]
-    public async Task MuxAndDemux_TwoBitSelector_MatchEveryPossibleBinaryWorld()
+    public async Task MuxAndDemux_TwoBitSelector_MatchPossibleWorldsAcrossPackedWidths()
     {
         var violations = new List<string>();
         foreach (var inputs in Tuples(6))
@@ -84,6 +108,47 @@ internal sealed class SteeringLogicTests
                 DemuxOracle(inputs),
                 [.. actual.Select(output => output[0])],
                 violations);
+        }
+
+        foreach (var width in PackedWidths)
+        {
+            var muxInputs = Enumerable.Range(0, 4)
+                .Select(offset => PatternVector(width, offset))
+                .ToArray();
+            var demuxInput = PatternVector(width, offset: 0);
+            foreach (var selector in Tuples(2))
+            {
+                var selectorVector = Vector(selector);
+                var mux = CombinationalEvaluation.Mux(muxInputs, selectorVector);
+                CheckMany(
+                    $"packed mux(width={width}, selector={Format(selector)})",
+                    [.. Enumerable.Range(0, width).Select(bit => MuxOracle(
+                        [
+                            muxInputs[0][bit],
+                            muxInputs[1][bit],
+                            muxInputs[2][bit],
+                            muxInputs[3][bit],
+                            selector[0],
+                            selector[1],
+                        ]))],
+                    Values(mux),
+                    violations);
+
+                var demux = CombinationalEvaluation.Demux(demuxInput, selectorVector);
+                var expectedOutputs = Enumerable.Range(0, width)
+                    .Select(bit => DemuxOracle(
+                        [demuxInput[bit], selector[0], selector[1]]))
+                    .ToArray();
+                for (var output = 0; output < demux.Length; output++)
+                {
+                    CheckMany(
+                        $"packed demux(width={width}, selector={Format(selector)}, "
+                            + $"output={output})",
+                        [.. expectedOutputs.Select(expected => expected[output])],
+                        Values(demux[output]),
+                        violations);
+                }
+            }
         }
 
         await Assert.That(violations).IsEmpty();
@@ -257,6 +322,14 @@ internal sealed class SteeringLogicTests
     }
 
     private static LogicVector Vector(params LogicValue[] values) => new(values);
+
+    private static LogicVector PatternVector(int width, int offset)
+    {
+        var values = Enum.GetValues<LogicValue>();
+        return new LogicVector(
+            [.. Enumerable.Range(0, width).Select(bit =>
+                values[(bit + offset) % values.Length])]);
+    }
 
     private static LogicValue[] Values(LogicVector vector) =>
         [.. Enumerable.Range(0, vector.Width).Select(index => vector[index])];
