@@ -108,15 +108,21 @@ internal static class TeachingMixedRectangularSymbolRegistry
             deviations.Add(new ConformanceDeviationV1(functionDeviationCode, []));
         }
 
-        if (contractId == "logic.priority_encoder"
-            && Choice(parameters, "priority") == "lowestIndex")
+        if (contractId == "logic.priority_encoder")
         {
-            functionText = "[LPRI/BIN]";
+            var priority = Choice(parameters, "priority");
+            functionText = priority == "highestIndex" ? "[HPRI/BIN]" : "[LPRI/BIN]";
             functionFontRole = FontRoleV1.ExtensionMark;
-            claim = ConformanceClaimV1.StandardBaseWithNonstandardInfo;
+            claim = ConformanceClaimV1.TeachingExtension;
             deviations.Add(new ConformanceDeviationV1(
-                "teachingmixed-lowest-priority-encoder",
+                "teachingmixed-unmodeled-priority-encoder",
                 [.. ports.Select(port => port.Id)]));
+            if (priority == "lowestIndex")
+            {
+                deviations.Add(new ConformanceDeviationV1(
+                    "teachingmixed-lowest-priority-encoder",
+                    [.. ports.Select(port => port.Id)]));
+            }
         }
 
         var aggregatePorts = ports
@@ -125,10 +131,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
             .ToArray();
         if (aggregatePorts.Length > 0)
         {
-            if (claim == ConformanceClaimV1.Standardized91A)
-            {
-                claim = ConformanceClaimV1.StandardBaseWithNonstandardInfo;
-            }
+            claim = ConformanceClaimV1.TeachingExtension;
 
             deviations.Add(new ConformanceDeviationV1(
                 "teachingmixed-aggregate-multibit-port",

@@ -17,19 +17,19 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     [Arguments("source.input", "[IN]", ConformanceClaimV1.TeachingExtension)]
     [Arguments("source.constant", "[CONST]", ConformanceClaimV1.TeachingExtension)]
     [Arguments("sink.output", "[OUT]", ConformanceClaimV1.TeachingExtension)]
-    [Arguments("topology.split", "[SPLIT]", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
-    [Arguments("topology.concat", "[CONCAT]", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
-    [Arguments("topology.zero_extend", "[ZERO EXT]", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
-    [Arguments("topology.sign_extend", "[SIGN EXT]", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
-    [Arguments("logic.tristate", "1", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
-    [Arguments("logic.mux", "MUX", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
-    [Arguments("logic.demux", "DX", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
-    [Arguments("logic.decoder", "BIN/4", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
-    [Arguments("logic.priority_encoder", "HPRI/BIN", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
-    [Arguments("logic.unsigned_compare", "COMP", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
-    [Arguments("logic.adder", "Σ", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
-    [Arguments("logic.subtractor", "P-Q", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
-    [Arguments("logic.shift", "[SHL]", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
+    [Arguments("topology.split", "[SPLIT]", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("topology.concat", "[CONCAT]", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("topology.zero_extend", "[ZERO EXT]", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("topology.sign_extend", "[SIGN EXT]", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("logic.tristate", "1", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("logic.mux", "MUX", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("logic.demux", "DX", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("logic.decoder", "BIN/4", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("logic.priority_encoder", "[HPRI/BIN]", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("logic.unsigned_compare", "COMP", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("logic.adder", "Σ", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("logic.subtractor", "P-Q", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("logic.shift", "[SHL]", ConformanceClaimV1.TeachingExtension)]
     public async Task Plan_Item24LibraryContract_EmitsParameterizedRectangleAndExactPorts(
         string contractId,
         string expectedFunction,
@@ -129,7 +129,7 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     }
 
     [Test]
-    public async Task Plan_MultiBitAdder_PublishesAggregatePortDeviationWithoutSliceLabels()
+    public async Task Plan_MultiBitAdder_PublishesTeachingExtensionAndAggregateDeviation()
     {
         var plan = Plan(Request("logic.adder"));
         var deviation = plan.Conformance.Deviations.Single(candidate =>
@@ -138,12 +138,46 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
         using (Assert.Multiple())
         {
             await Assert.That(plan.Conformance.Claim)
-                .IsEqualTo(ConformanceClaimV1.StandardBaseWithNonstandardInfo);
+                .IsEqualTo(ConformanceClaimV1.TeachingExtension);
             await Assert.That(deviation.AffectedPortIds)
                 .IsEquivalentTo(["A", "B", "SUM"], CollectionOrdering.Matching);
             await Assert.That(plan.Operations.OfType<DrawTextV1>()
                 .Any(operation => operation.Text.Contains('[', StringComparison.Ordinal)))
                 .IsFalse();
+        }
+    }
+
+    [Test]
+    public async Task Plan_TwoInputHighestPriorityEncoder_DowngradesUnmodeledStandardNotation()
+    {
+        var template = Request("logic.priority_encoder");
+        var request = new ComplexSymbolRequestV1(
+            template.Contract,
+            [U32("inputCount", 2), Choice("priority", "highestIndex")],
+            template.Profile,
+            template.SymbolVariantId,
+            template.Facing,
+            template.IsReflected,
+            template.MetricSet,
+            template.FontFingerprint,
+            template.LocaleId,
+            template.BaseDirection);
+
+        var plan = Plan(request);
+        var deviation = plan.Conformance.Deviations.Single(candidate =>
+            candidate.DeviationCode == "teachingmixed-unmodeled-priority-encoder");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Conformance.Claim)
+                .IsEqualTo(ConformanceClaimV1.TeachingExtension);
+            await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
+                operation.Text == "[HPRI/BIN]"
+                && operation.FontRole == FontRoleV1.ExtensionMark)).IsTrue();
+            await Assert.That(plan.Operations.OfType<DrawTextV1>()
+                .Any(operation => operation.Text == "HPRI/BIN")).IsFalse();
+            await Assert.That(deviation.AffectedPortIds)
+                .IsEquivalentTo(["A0", "A1", "Q", "VALID"], CollectionOrdering.Matching);
         }
     }
 
@@ -173,7 +207,7 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
                 .Any(operation => operation.Text == "[LPRI/BIN]"
                     && operation.FontRole == FontRoleV1.ExtensionMark)).IsTrue();
             await Assert.That(plan.Conformance.Claim)
-                .IsEqualTo(ConformanceClaimV1.StandardBaseWithNonstandardInfo);
+                .IsEqualTo(ConformanceClaimV1.TeachingExtension);
             await Assert.That(plan.Conformance.Deviations.Any(deviation =>
                 deviation.DeviationCode == "teachingmixed-lowest-priority-encoder"))
                 .IsTrue();
