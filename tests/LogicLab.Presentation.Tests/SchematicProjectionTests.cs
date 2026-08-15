@@ -62,7 +62,12 @@ internal sealed class SchematicProjectionTests
         {
             await Assert.That(topology.TerminalAnchors).Count().IsEqualTo(2);
             await Assert.That(topology.JunctionIds).Count().IsEqualTo(1);
-            await Assert.That(topology.WireGeometryIds).Count().IsEqualTo(2);
+            await Assert.That(topology.WireGeometryIds)
+                .IsEquivalentTo(
+                    fixture.Definition.WireGeometries
+                        .OrderBy(wire => wire.Id.Value, StringComparer.Ordinal)
+                        .Select(wire => wire.Id),
+                    CollectionOrdering.Matching);
             await Assert.That(topology.ProbeAnchor).IsTypeOf<AvailableProbeAnchorV1>();
         }
     }
@@ -178,6 +183,39 @@ internal sealed class SchematicProjectionTests
             await Assert.That(revisionKey).IsNotEqualTo(baseline.Key);
             await Assert.That(definitionKey).IsNotEqualTo(baseline.Key);
             await Assert.That(profileKey).IsNotEqualTo(baseline.Key);
+        }
+    }
+
+    [Test]
+    public async Task Project_EmptyAnnotation_PublishesSelectableItemWithoutVisibleGeometry()
+    {
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "Empty annotation projection",
+            LibrarySnapshot.Core,
+            TeachingMixedProfile,
+            "Main"))).Revision;
+        var definition = revision.Document.EntryCircuitDefinition;
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new CreateAnnotationIntent(
+                definition.Id,
+                new AnnotationValue(
+                    string.Empty,
+                    new GridPoint(4, 6),
+                    AnnotationAlignment.Center))));
+
+        var projection = Project(revision, definition.Id, Fingerprint());
+        var annotation = projection.Items.OfType<AnnotationItemV1>().Single();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(annotation.Operations).IsEmpty();
+            await Assert.That(annotation.HitRegions).HasSingleItem();
+            await Assert.That(annotation.AccessibilityNodes).HasSingleItem();
+            await Assert.That(annotation.AccessibilityNodes[0].Arguments
+                    .OfType<TextLocalizationArgumentV1>()
+                    .Single(argument => argument.Name == "text").Value)
+                .IsEqualTo(string.Empty);
         }
     }
 

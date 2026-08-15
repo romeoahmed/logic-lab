@@ -160,7 +160,10 @@ public static class TeachingMixedSchematicProjector
                     cancellationToken,
                     out var itemBounds);
                 annotationItems.Add(item);
-                bounds.Add(itemBounds);
+                if (itemBounds is { } visibleBounds)
+                {
+                    bounds.Add(visibleBounds);
+                }
             }
 
             var junctionItems = new List<JunctionItemV1>(definition.Junctions.Count);
@@ -175,7 +178,10 @@ public static class TeachingMixedSchematicProjector
                 bounds.Add(itemBounds);
             }
 
-            var wireById = wireItems.ToDictionary(item => item.WireGeometryId);
+            // ToLookup preserves source order within each group, so the preceding
+            // canonical Wire Geometry ID order remains observable in every Net.
+            // Source: https://learn.microsoft.com/dotnet/api/system.linq.enumerable.tolookup?view=net-10.0
+            var wiresByNet = wireItems.ToLookup(item => item.NetId);
             var junctionById = junctionItems.ToDictionary(item => item.JunctionId);
             var netIds = definition.Nets.Select(net => net.Id).ToHashSet();
             if (wireItems.Any(wire => !netIds.Contains(wire.NetId))
@@ -193,19 +199,21 @@ public static class TeachingMixedSchematicProjector
                     definitionAnchors,
                     instanceAnchors);
                 var junctionIds = net.JunctionIds.ToArray();
-                var netWires = wireItems
-                    .Where(item => item.NetId == net.Id)
-                    .OrderBy(item => item.WireGeometryId.Value, StringComparer.Ordinal)
-                    .ToArray();
-                if (junctionIds.Any(id => !junctionById.ContainsKey(id))
-                    || netWires.Any(wire => !wireById.ContainsKey(wire.WireGeometryId)))
+                var netWires = wiresByNet[net.Id].ToArray();
+                var junctionPoints = new PointV1[junctionIds.Length];
+                for (var index = 0; index < junctionIds.Length; index++)
                 {
-                    return Invalid(LayoutConstraintV1.Request);
+                    if (!junctionById.TryGetValue(junctionIds[index], out var junction))
+                    {
+                        return Invalid(LayoutConstraintV1.Request);
+                    }
+
+                    junctionPoints[index] = junction.Point;
                 }
 
                 var probe = SchematicProbeAnchorSelector.Select(
                     terminalAnchors,
-                    [.. junctionIds.Select(id => junctionById[id].Point)],
+                    junctionPoints,
                     [.. netWires.Select(wire => new ProbeWireCandidateV1(
                         wire.WireGeometryId.Value,
                         wire.Route))]);
@@ -608,7 +616,7 @@ public static class TeachingMixedSchematicProjector
         PresentationFingerprintV1 fingerprint,
         ISymbolTextMeasurerV1 textMeasurer,
         CancellationToken cancellationToken,
-        out RectV1 bounds)
+        out RectV1? bounds)
     {
         var alignment = annotation.Alignment switch
         {
@@ -618,6 +626,30 @@ public static class TeachingMixedSchematicProjector
             _ => throw new InvalidOperationException("The Annotation alignment is undefined."),
         };
         var origin = Convert(annotation.Position, fingerprint);
+        if (annotation.Text.Length == 0)
+        {
+            bounds = null;
+            var interactionRadius = Math.Max(1, fingerprint.MetricSet.UnitsPerH / 2);
+            var interactionBounds = CircleBounds(origin, interactionRadius);
+            return new AnnotationItemV1(
+                annotation.Id,
+                [],
+                [new HitRegionV1(
+                    "annotation",
+                    HitRegionKindV1.Label,
+                    null,
+                    new RectHitShapeV1(interactionBounds))],
+                [new AccessibilityNodeV1(
+                    "annotation",
+                    AccessibilityNodeKindV1.Label,
+                    null,
+                    0,
+                    interactionBounds,
+                    "presentation.annotation",
+                    [new TextLocalizationArgumentV1("text", annotation.Text)],
+                    [AccessibilityActionV1.Focus, AccessibilityActionV1.Select])]);
+        }
+
         var measurement = textMeasurer.Measure(
             new SymbolTextMeasurementRequestV1(
                 annotation.Text,
@@ -628,16 +660,17 @@ public static class TeachingMixedSchematicProjector
                 fingerprint.BaseDirection),
             cancellationToken) ?? throw new InvalidOperationException(
                 "The Symbol Text Measurer returned no measurement.");
-        bounds = Translate(
+        var visibleBounds = Translate(
             measurement.InkAndAdvanceBounds(alignment, fingerprint.BaseDirection),
             origin);
+        bounds = visibleBounds;
         return new AnnotationItemV1(
             annotation.Id,
             [new DrawTextV1(
                 annotation.Text,
                 FontRoleV1.Symbol,
                 origin,
-                bounds,
+                visibleBounds,
                 alignment,
                 TextOrientationV1.UprightReading,
                 fingerprint.BaseDirection,
@@ -646,13 +679,13 @@ public static class TeachingMixedSchematicProjector
                 "annotation",
                 HitRegionKindV1.Label,
                 null,
-                new RectHitShapeV1(bounds))],
+                new RectHitShapeV1(visibleBounds))],
             [new AccessibilityNodeV1(
                 "annotation",
                 AccessibilityNodeKindV1.Label,
                 null,
                 0,
-                bounds,
+                visibleBounds,
                 "presentation.annotation",
                 [new TextLocalizationArgumentV1("text", annotation.Text)],
                 [AccessibilityActionV1.Focus, AccessibilityActionV1.Select])]);

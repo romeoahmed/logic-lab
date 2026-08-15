@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Geometry;
@@ -10,11 +12,15 @@ internal sealed record RectangularSymbolPort(
     PortDirection Direction,
     uint Width);
 
+internal sealed record RectangularSymbolPortLabel(
+    string Text,
+    FontRoleV1 FontRole);
+
 internal sealed record RectangularSymbolLayoutRequest(
     string FunctionText,
     FontRoleV1 FunctionFontRole,
     string AccessibilityKey,
-    string? DependencyText,
+    ReadOnlyCollection<RectangularSymbolDependency> Dependencies,
     SymbolMetricSetV1 MetricSet,
     PresentationLocaleIdV1 LocaleId,
     BaseDirectionV1 BaseDirection,
@@ -69,15 +75,12 @@ internal static class RectangularSymbolGeometryBuilder
         var functionEnvelope = functionMeasurement.InkAndAdvanceBounds(
             TextAlignmentV1.Center,
             request.BaseDirection);
-        var labels = ports.ToDictionary(
-            port => port.Id,
-            port => PortLabel(port),
-            StringComparer.Ordinal);
+        var labels = CreatePortLabels(ports, request.Dependencies);
         var labelMeasurements = labels.ToDictionary(
             pair => pair.Key,
             pair => Measure(
-                pair.Value,
-                FontRoleV1.PortLabel,
+                pair.Value.Text,
+                pair.Value.FontRole,
                 TextAlignmentV1.Center,
                 request,
                 textMeasurer,
@@ -85,18 +88,6 @@ internal static class RectangularSymbolGeometryBuilder
             StringComparer.Ordinal);
         var maximumInputWidth = MaximumLabelWidth(inputs, labelMeasurements, request.BaseDirection);
         var maximumOutputWidth = MaximumLabelWidth(outputs, labelMeasurements, request.BaseDirection);
-        var dependencyMeasurement = request.DependencyText is { } dependency
-            ? Measure(
-                dependency,
-                FontRoleV1.Dependency,
-                TextAlignmentV1.Center,
-                request,
-                textMeasurer,
-                cancellationToken)
-            : null;
-        var dependencyEnvelope = dependencyMeasurement?.InkAndAdvanceBounds(
-            TextAlignmentV1.Center,
-            request.BaseDirection);
 
         var bodyWidth = Math.Max(
             ScaleUp(h, 8),
@@ -107,17 +98,11 @@ internal static class RectangularSymbolGeometryBuilder
         var sideCount = Math.Max(inputs.Length, outputs.Length);
         var widestUprightText = Math.Max(
             Math.Max(maximumInputWidth, maximumOutputWidth),
-            Math.Max(functionEnvelope.Width, dependencyEnvelope?.Width ?? 0));
+            functionEnvelope.Width);
         var rotationTextMargin = checked((widestUprightText / 2) + h);
         var bodyHeight = Math.Max(
             ScaleUp(h, 13, 2),
             checked(Math.Max(0, sideCount - 1) * portPitch + (2 * rotationTextMargin)));
-        if (dependencyEnvelope is { } dependencyBounds)
-        {
-            bodyHeight = Math.Max(
-                bodyHeight,
-                checked(functionEnvelope.Height + dependencyBounds.Height + ScaleUp(h, 4)));
-        }
 
         var bodyLeft = checked(inset + leadLength);
         var body = new RectV1(
@@ -147,7 +132,7 @@ internal static class RectangularSymbolGeometryBuilder
         };
         var center = new PointV1(
             checked(body.Left + (body.Width / 2)),
-            checked(body.Top + (body.Height / 2) - (request.DependencyText is null ? 0 : h)));
+            checked(body.Top + (body.Height / 2)));
         operations.Add(Text(
             request.FunctionText,
             functionRole,
@@ -155,18 +140,6 @@ internal static class RectangularSymbolGeometryBuilder
             functionEnvelope,
             TextAlignmentV1.Center,
             request));
-        if (request.DependencyText is { } dependencyText
-            && dependencyEnvelope is { } measuredDependency)
-        {
-            var dependencyOrigin = new PointV1(center.X, checked(center.Y + ScaleUp(h, 2)));
-            operations.Add(Text(
-                dependencyText,
-                FontRoleV1.Dependency,
-                dependencyOrigin,
-                measuredDependency,
-                TextAlignmentV1.Center,
-                request));
-        }
 
         var inputRows = Rows(inputs.Length, body.Top, body.Height, portPitch);
         var outputRows = Rows(outputs.Length, body.Top, body.Height, portPitch);
@@ -244,9 +217,10 @@ internal static class RectangularSymbolGeometryBuilder
             var labelEnvelope = labelMeasurements[port.Id].InkAndAdvanceBounds(
                 TextAlignmentV1.Center,
                 request.BaseDirection);
+            var label = labels[port.Id];
             operations.Add(Text(
-                labels[port.Id],
-                FontRoleV1.PortLabel,
+                label.Text,
+                label.FontRole,
                 labelOrigin,
                 labelEnvelope,
                 TextAlignmentV1.Center,
@@ -316,6 +290,170 @@ internal static class RectangularSymbolGeometryBuilder
             accessibilityNodes,
             request.Conformance);
     }
+
+    private static Dictionary<string, RectangularSymbolPortLabel> CreatePortLabels(
+        IReadOnlyList<RectangularSymbolPort> ports,
+        ReadOnlyCollection<RectangularSymbolDependency> dependencies)
+    {
+        ArgumentNullException.ThrowIfNull(dependencies);
+        var portIds = ports.Select(port => port.Id).ToHashSet(StringComparer.Ordinal);
+        if (portIds.Count != ports.Count
+            || dependencies.GroupBy(dependency => dependency.Identifier, StringComparer.Ordinal)
+                .Any(group => group.Select(dependency => dependency.Kind).Distinct().Count() > 1))
+        {
+            throw new LayoutInvalidException(LayoutConstraintV1.Request);
+        }
+
+        var relationKeys = new HashSet<(
+            RectangularSymbolDependencyKind Kind,
+            string Identifier,
+            string AffectingPortId,
+            string AffectedPortId)>();
+        var dependencyKeys = new HashSet<(
+            RectangularSymbolDependencyKind Kind,
+            string Identifier,
+            string AffectingPortId)>();
+        var affectedRelationships = new Dictionary<
+            string,
+            List<(RectangularSymbolDependency Dependency, int ApplicationOrder)>>(
+                StringComparer.Ordinal);
+        foreach (var dependency in dependencies)
+        {
+            if (!portIds.Contains(dependency.AffectingPortId)
+                || !dependencyKeys.Add((
+                    dependency.Kind,
+                    dependency.Identifier,
+                    dependency.AffectingPortId)))
+            {
+                throw new LayoutInvalidException(LayoutConstraintV1.Request);
+            }
+
+            foreach (var endpoint in dependency.AffectedEndpoints)
+            {
+                if (!portIds.Contains(endpoint.PortId)
+                    || !relationKeys.Add((
+                        dependency.Kind,
+                        dependency.Identifier,
+                        dependency.AffectingPortId,
+                        endpoint.PortId)))
+                {
+                    throw new LayoutInvalidException(LayoutConstraintV1.Request);
+                }
+
+                if (!affectedRelationships.TryGetValue(endpoint.PortId, out var relationships))
+                {
+                    relationships = [];
+                    affectedRelationships.Add(endpoint.PortId, relationships);
+                }
+
+                relationships.Add((dependency, endpoint.ApplicationOrder));
+            }
+        }
+
+        foreach (var relationships in affectedRelationships.Values)
+        {
+            var orders = relationships
+                .Select(relationship => relationship.ApplicationOrder)
+                .Order()
+                .ToArray();
+            if (!orders.SequenceEqual(Enumerable.Range(0, orders.Length)))
+            {
+                throw new LayoutInvalidException(LayoutConstraintV1.Request);
+            }
+        }
+
+        var affectingRelationships = dependencies.ToLookup(
+            dependency => dependency.AffectingPortId,
+            StringComparer.Ordinal);
+        return ports.ToDictionary(
+            port => port.Id,
+            port =>
+            {
+                var affecting = affectingRelationships[port.Id].ToArray();
+                affectedRelationships.TryGetValue(port.Id, out var affected);
+                var affectedNotation = affected is null
+                    ? string.Empty
+                    : string.Join(
+                        ',',
+                        affected.OrderBy(relationship => relationship.ApplicationOrder)
+                            .Select(relationship => relationship.Dependency.Identifier));
+                var affectingNotation = AffectingNotation(affecting);
+                var functionLabel = PortLabel(port);
+                var omitFunctionLabel = affecting.Length > 0
+                    && affecting.Select(dependency => dependency.Kind).Distinct().Count() == 1
+                    && functionLabel == DependencyLetter(affecting[0].Kind);
+                var text = string.Concat(
+                    affectedNotation,
+                    affectingNotation,
+                    omitFunctionLabel ? string.Empty : functionLabel);
+                return new RectangularSymbolPortLabel(
+                    text,
+                    affectedNotation.Length > 0 || affectingNotation.Length > 0
+                        ? FontRoleV1.Dependency
+                        : FontRoleV1.PortLabel);
+            },
+            StringComparer.Ordinal);
+    }
+
+    private static string AffectingNotation(
+        IReadOnlyList<RectangularSymbolDependency> dependencies) => string.Join(
+            ',',
+            dependencies.GroupBy(dependency => dependency.Kind)
+                .OrderBy(group => group.Key)
+                .Select(FormatAffectingGroup));
+
+    private static string FormatAffectingGroup(
+        IGrouping<RectangularSymbolDependencyKind, RectangularSymbolDependency> group)
+    {
+        var identifiers = group.Select(dependency => dependency.Identifier).ToArray();
+        if (identifiers.Length == 1)
+        {
+            return string.Concat(DependencyLetter(group.Key), identifiers[0]);
+        }
+
+        var numericIdentifiers = new uint[identifiers.Length];
+        for (var index = 0; index < identifiers.Length; index++)
+        {
+            if (!uint.TryParse(
+                    identifiers[index],
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out numericIdentifiers[index]))
+            {
+                return string.Join(
+                    ',',
+                    identifiers.Select(identifier => string.Concat(
+                        DependencyLetter(group.Key),
+                        identifier)));
+            }
+        }
+
+        Array.Sort(numericIdentifiers);
+        for (var index = 1; index < numericIdentifiers.Length; index++)
+        {
+            if (numericIdentifiers[index] != checked(numericIdentifiers[index - 1] + 1))
+            {
+                return string.Join(
+                    ',',
+                    numericIdentifiers.Select(identifier => string.Concat(
+                        DependencyLetter(group.Key),
+                        identifier.ToString(CultureInfo.InvariantCulture))));
+            }
+        }
+
+        return string.Concat(
+            DependencyLetter(group.Key),
+            numericIdentifiers[0].ToString(CultureInfo.InvariantCulture),
+            '/',
+            numericIdentifiers[^1].ToString(CultureInfo.InvariantCulture));
+    }
+
+    private static string DependencyLetter(RectangularSymbolDependencyKind kind) => kind switch
+    {
+        RectangularSymbolDependencyKind.And => "G",
+        RectangularSymbolDependencyKind.Enable => "EN",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
 
     private static int MaximumLabelWidth(
         RectangularSymbolPort[] ports,
