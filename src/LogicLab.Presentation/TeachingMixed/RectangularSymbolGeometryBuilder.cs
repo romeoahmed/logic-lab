@@ -33,6 +33,8 @@ internal sealed record RectangularSymbolLayoutRequest(
     SymbolMetricSetV1 MetricSet,
     PresentationLocaleIdV1 LocaleId,
     BaseDirectionV1 BaseDirection,
+    SymbolFacingV1 Facing,
+    bool IsReflected,
     IndicationConvention IndicationConvention,
     ReadOnlyCollection<RectangularSymbolInputQualifier> InputQualifiers,
     bool HasThreeStateOutput,
@@ -66,9 +68,9 @@ internal static class RectangularSymbolGeometryBuilder
 
         var h = request.MetricSet.UnitsPerH;
         var outlineWidth = ScaleUp(h, 1, 10);
-        var portPitch = ScaleUp(h, 2);
+        var basePortPitch = ScaleUp(h, 2);
         var leadLength = ScaleUp(h, 2);
-        var portHitRadius = Math.Max(1, (portPitch - outlineWidth) / 2);
+        var portHitRadius = Math.Max(1, (basePortPitch - outlineWidth) / 2);
         var bodyHitPadding = ScaleUp(h, 1, 2);
         var inset = Math.Max(
             GeometryPlanValidator.ConservativeStrokeMargin(outlineWidth, MiterJoin),
@@ -101,6 +103,13 @@ internal static class RectangularSymbolGeometryBuilder
             StringComparer.Ordinal);
         var maximumInputWidth = MaximumLabelWidth(inputs, labelMeasurements, request.BaseDirection);
         var maximumOutputWidth = MaximumLabelWidth(outputs, labelMeasurements, request.BaseDirection);
+        var portPitch = RequiredPortPitch(
+            inputs,
+            outputs,
+            labelMeasurements,
+            request,
+            basePortPitch,
+            Math.Max(1, h / 2));
 
         var functionLeftExtent = checked(-functionEnvelope.Left);
         var functionRightExtent = functionEnvelope.Right;
@@ -485,6 +494,70 @@ internal static class RectangularSymbolGeometryBuilder
             ? 0
             : ports.Max(port => measurements[port.Id]
                 .InkAndAdvanceBounds(TextAlignmentV1.Center, baseDirection).Width);
+
+    private static int RequiredPortPitch(
+        IReadOnlyList<RectangularSymbolPort> inputs,
+        IReadOnlyList<RectangularSymbolPort> outputs,
+        IReadOnlyDictionary<string, SymbolTextMeasurementV1> measurements,
+        RectangularSymbolLayoutRequest request,
+        int minimumPitch,
+        int clearance)
+    {
+        var horizontal = request.Facing is SymbolFacingV1.North or SymbolFacingV1.South;
+        var rowOrderIncreases = request.Facing switch
+        {
+            SymbolFacingV1.East or SymbolFacingV1.North => !request.IsReflected,
+            SymbolFacingV1.South or SymbolFacingV1.West => request.IsReflected,
+            _ => throw new LayoutInvalidException(LayoutConstraintV1.Request),
+        };
+        var required = RequiredPortPitch(
+            inputs,
+            measurements,
+            request.BaseDirection,
+            horizontal,
+            rowOrderIncreases,
+            minimumPitch,
+            clearance);
+        return RequiredPortPitch(
+            outputs,
+            measurements,
+            request.BaseDirection,
+            horizontal,
+            rowOrderIncreases,
+            required,
+            clearance);
+    }
+
+    private static int RequiredPortPitch(
+        IReadOnlyList<RectangularSymbolPort> ports,
+        IReadOnlyDictionary<string, SymbolTextMeasurementV1> measurements,
+        BaseDirectionV1 baseDirection,
+        bool horizontal,
+        bool rowOrderIncreases,
+        int minimumPitch,
+        int clearance)
+    {
+        var required = minimumPitch;
+        for (var index = 1; index < ports.Count; index++)
+        {
+            var previous = measurements[ports[index - 1].Id].InkAndAdvanceBounds(
+                TextAlignmentV1.Center,
+                baseDirection);
+            var current = measurements[ports[index].Id].InkAndAdvanceBounds(
+                TextAlignmentV1.Center,
+                baseDirection);
+            var previousStart = horizontal ? previous.Left : previous.Top;
+            var previousEnd = horizontal ? previous.Right : previous.Bottom;
+            var currentStart = horizontal ? current.Left : current.Top;
+            var currentEnd = horizontal ? current.Right : current.Bottom;
+            var adjacentRequirement = rowOrderIncreases
+                ? checked(previousEnd - currentStart + clearance)
+                : checked(currentEnd - previousStart + clearance);
+            required = Math.Max(required, adjacentRequirement);
+        }
+
+        return required;
+    }
 
     private static string PortLabel(RectangularSymbolPort port) => port.DisplayName;
 

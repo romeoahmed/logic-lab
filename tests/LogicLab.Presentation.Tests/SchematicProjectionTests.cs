@@ -102,6 +102,10 @@ internal sealed class SchematicProjectionTests
                 && segmentHitBounds[index].Contains(route.Points[index + 1]))).IsTrue();
             await Assert.That(segmentHitBounds.Any(rect =>
                 rect.Contains(new PointV1(300, 400)))).IsFalse();
+            await Assert.That(segmentHitBounds.All(rect =>
+                Contains(projection.Bounds, rect))).IsTrue();
+            await Assert.That(routedWire.AccessibilityNodes.All(node =>
+                Contains(projection.Bounds, node.Bounds))).IsTrue();
         }
     }
 
@@ -239,6 +243,8 @@ internal sealed class SchematicProjectionTests
 
         var projection = Project(revision, definition.Id, Fingerprint());
         var annotation = projection.Items.OfType<AnnotationItemV1>().Single();
+        var hitBounds = ((RectHitShapeV1)annotation.HitRegions.Single().Shape).Rect;
+        var accessibilityBounds = annotation.AccessibilityNodes.Single().Bounds;
 
         using (Assert.Multiple())
         {
@@ -249,6 +255,43 @@ internal sealed class SchematicProjectionTests
                     .OfType<TextLocalizationArgumentV1>()
                     .Single(argument => argument.Name == "text").Value)
                 .IsEqualTo(string.Empty);
+            await Assert.That(Contains(projection.Bounds, hitBounds)).IsTrue();
+            await Assert.That(Contains(projection.Bounds, accessibilityBounds)).IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task Project_MultilineAnnotation_UsesVerticalBearingsForBaselineSpacing()
+    {
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "Annotation bearing projection",
+            LibrarySnapshot.Core,
+            TeachingMixedProfile,
+            "Main"))).Revision;
+        var definition = revision.Document.EntryCircuitDefinition;
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new CreateAnnotationIntent(
+                definition.Id,
+                new AnnotationValue(
+                    "First\nSecond",
+                    new GridPoint(4, 6),
+                    AnnotationAlignment.Start))));
+
+        var projection = Project(
+            revision,
+            definition.Id,
+            Fingerprint(),
+            new MixedBearingTextMeasurer(FontFingerprint));
+        var lines = projection.Items.OfType<AnnotationItemV1>().Single()
+            .Operations.OfType<DrawTextV1>()
+            .ToArray();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(lines).Count().IsEqualTo(2);
+            await Assert.That(lines[1].Bounds.Top)
+                .IsGreaterThan(lines[0].Bounds.Bottom);
         }
     }
 
@@ -525,6 +568,12 @@ internal sealed class SchematicProjectionTests
     private static ProjectRevision Commit(EditOutcome outcome) =>
         ((EditCommitted)outcome).Revision;
 
+    private static bool Contains(RectV1 outer, RectV1 inner) =>
+        inner.Left >= outer.Left
+        && inner.Top >= outer.Top
+        && inner.Right <= outer.Right
+        && inner.Bottom <= outer.Bottom;
+
     private static SymbolProfileReference TeachingMixedProfile { get; } = new(
         "TeachingMixed",
         "1.0.0",
@@ -563,6 +612,31 @@ internal sealed class SchematicProjectionTests
             SymbolTextMeasurementRequestV1 request,
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("Synthetic text shaping defect.");
+    }
+
+    private sealed class MixedBearingTextMeasurer(FontFingerprintV1 fingerprint)
+        : ISymbolTextMeasurerV1
+    {
+        public FontFingerprintV1 FontFingerprint { get; } = fingerprint;
+
+        public SymbolMetricSetV1 MetricSet { get; } = TeachingMixedMetricSets.AnnexA100;
+
+        public SymbolTextMeasurementV1 Measure(
+            SymbolTextMeasurementRequestV1 request,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return request.Text switch
+            {
+                "First" => new SymbolTextMeasurementV1(
+                    350,
+                    new RectV1(0, -10, 350, 190)),
+                "Second" => new SymbolTextMeasurementV1(
+                    420,
+                    new RectV1(0, -190, 420, 10)),
+                _ => throw new InvalidOperationException("Unexpected annotation line."),
+            };
+        }
     }
 
     private sealed record ProjectionFixture(

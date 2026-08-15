@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace LogicLab.Presentation.Geometry;
 
 public sealed record FontFingerprintV1
@@ -37,12 +35,13 @@ public sealed record SymbolTextMeasurementRequestV1
         PresentationLocaleIdV1 localeId,
         BaseDirectionV1 baseDirection)
     {
-        ArgumentException.ThrowIfNullOrEmpty(text);
         ArgumentNullException.ThrowIfNull(metricSet);
         ArgumentNullException.ThrowIfNull(localeId);
-        if (!text.IsNormalized(NormalizationForm.FormC))
+        if (!DisplayTextLexemes.IsValid(text))
         {
-            throw new ArgumentException("Display text must use NFC normalization.", nameof(text));
+            throw new ArgumentException(
+                "Text must be authorized DisplayText.",
+                nameof(text));
         }
 
         if (!Enum.IsDefined(fontRole))

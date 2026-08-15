@@ -87,7 +87,6 @@ public static class TeachingMixedSchematicProjector
             var componentItems = new List<ComponentSymbolItemV1>(
                 definition.ComponentInstances.Count);
             var instanceAnchors = new Dictionary<(ComponentInstanceId, string), PointV1>();
-            var bounds = new List<RectV1>();
             foreach (var instance in definition.ComponentInstances
                 .OrderBy(item => item.Id.Value, StringComparer.Ordinal))
             {
@@ -109,7 +108,6 @@ public static class TeachingMixedSchematicProjector
                 var plan = ((GeometryPlanSucceededV1)planOutcome).Plan;
                 var origin = Convert(instance.Placement.Origin, presentationFingerprint);
                 componentItems.Add(new ComponentSymbolItemV1(instance.Id, origin, plan));
-                bounds.Add(Translate(plan.Bounds, origin));
                 foreach (var anchor in plan.PortAnchors)
                 {
                     instanceAnchors.Add(
@@ -127,11 +125,9 @@ public static class TeachingMixedSchematicProjector
                     port,
                     presentationFingerprint,
                     textMeasurer,
-                    cancellationToken,
-                    out var itemBounds);
+                    cancellationToken);
                 definitionPortItems.Add(item);
                 definitionAnchors.Add(port.Id, item.Anchor.Point);
-                bounds.Add(itemBounds);
             }
 
             var wireItems = new List<WireGeometryItemV1>(definition.WireGeometries.Count);
@@ -139,14 +135,7 @@ public static class TeachingMixedSchematicProjector
                 .OrderBy(wire => wire.Id.Value, StringComparer.Ordinal))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                wireItems.Add(ProjectWire(
-                    wire,
-                    presentationFingerprint,
-                    out var itemBounds));
-                if (itemBounds is { } visibleBounds)
-                {
-                    bounds.Add(visibleBounds);
-                }
+                wireItems.Add(ProjectWire(wire, presentationFingerprint));
             }
 
             var annotationItems = new List<AnnotationItemV1>(definition.Annotations.Count);
@@ -157,13 +146,8 @@ public static class TeachingMixedSchematicProjector
                     annotation,
                     presentationFingerprint,
                     textMeasurer,
-                    cancellationToken,
-                    out var itemBounds);
+                    cancellationToken);
                 annotationItems.Add(item);
-                if (itemBounds is { } visibleBounds)
-                {
-                    bounds.Add(visibleBounds);
-                }
             }
 
             var junctionItems = new List<JunctionItemV1>(definition.Junctions.Count);
@@ -171,11 +155,7 @@ public static class TeachingMixedSchematicProjector
                 .OrderBy(junction => junction.Id.Value, StringComparer.Ordinal))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                junctionItems.Add(ProjectJunction(
-                    junction,
-                    presentationFingerprint,
-                    out var itemBounds));
-                bounds.Add(itemBounds);
+                junctionItems.Add(ProjectJunction(junction, presentationFingerprint));
             }
 
             // ToLookup preserves source order within each group, so the preceding
@@ -250,7 +230,7 @@ public static class TeachingMixedSchematicProjector
                     revision.Document.SymbolProfile.Id,
                     revision.Document.SymbolProfile.Version,
                     presentationFingerprint.Digest),
-                Enclose(bounds),
+                ProjectionBounds(items),
                 presentationFingerprint.GridStepPlanUnits,
                 presentationFingerprint.SnapStepGridUnits,
                 items);
@@ -461,8 +441,7 @@ public static class TeachingMixedSchematicProjector
         DefinitionPort port,
         PresentationFingerprintV1 fingerprint,
         ISymbolTextMeasurerV1 textMeasurer,
-        CancellationToken cancellationToken,
-        out RectV1 bounds)
+        CancellationToken cancellationToken)
     {
         var point = Convert(port.Placement.Position, fingerprint);
         var h = fingerprint.MetricSet.UnitsPerH;
@@ -523,7 +502,6 @@ public static class TeachingMixedSchematicProjector
                 ],
                 [AccessibilityActionV1.Focus, AccessibilityActionV1.BeginConnection]),
         };
-        bounds = Union(CircleBounds(point, radius), labelBounds);
         return new DefinitionPortItemV1(
             port.Id,
             operations,
@@ -534,14 +512,12 @@ public static class TeachingMixedSchematicProjector
 
     private static WireGeometryItemV1 ProjectWire(
         WireGeometry wire,
-        PresentationFingerprintV1 fingerprint,
-        out RectV1? bounds)
+        PresentationFingerprintV1 fingerprint)
     {
         var width = Math.Max(1, fingerprint.MetricSet.UnitsPerH / 10);
         switch (wire.Route)
         {
             case UnroutedWireRoute:
-                bounds = null;
                 return new WireGeometryItemV1(
                     wire.Id,
                     wire.NetId,
@@ -566,7 +542,6 @@ public static class TeachingMixedSchematicProjector
                             hitPadding)));
                 }
 
-                bounds = pathBounds;
                 return new WireGeometryItemV1(
                     wire.Id,
                     wire.NetId,
@@ -589,12 +564,11 @@ public static class TeachingMixedSchematicProjector
 
     private static JunctionItemV1 ProjectJunction(
         Junction junction,
-        PresentationFingerprintV1 fingerprint,
-        out RectV1 bounds)
+        PresentationFingerprintV1 fingerprint)
     {
         var point = Convert(junction.Position, fingerprint);
         var radius = Math.Max(1, fingerprint.MetricSet.UnitsPerH / 3);
-        bounds = CircleBounds(point, radius);
+        var bounds = CircleBounds(point, radius);
         var path = new PathV1(
         [
             new MoveToV1(new PointV1(point.X, checked(point.Y - radius))),
@@ -628,8 +602,7 @@ public static class TeachingMixedSchematicProjector
         Annotation annotation,
         PresentationFingerprintV1 fingerprint,
         ISymbolTextMeasurerV1 textMeasurer,
-        CancellationToken cancellationToken,
-        out RectV1? bounds)
+        CancellationToken cancellationToken)
     {
         var alignment = annotation.Alignment switch
         {
@@ -673,7 +646,6 @@ public static class TeachingMixedSchematicProjector
 
         if (visibleLines.Count == 0)
         {
-            bounds = null;
             var interactionRadius = Math.Max(1, fingerprint.MetricSet.UnitsPerH / 2);
             var interactionBounds = CircleBounds(origin, interactionRadius);
             return new AnnotationItemV1(
@@ -696,7 +668,8 @@ public static class TeachingMixedSchematicProjector
         }
 
         var linePitch = checked(
-            visibleLines.Max(line => line.Envelope.Height)
+            visibleLines.Max(line => line.Envelope.Bottom)
+            - visibleLines.Min(line => line.Envelope.Top)
             + Math.Max(1, fingerprint.MetricSet.UnitsPerH / 2));
         var operations = new DrawOperationV1[visibleLines.Count];
         RectV1? visibleBounds = null;
@@ -723,7 +696,6 @@ public static class TeachingMixedSchematicProjector
 
         var projectedBounds = visibleBounds ?? throw new InvalidOperationException(
             "A visible Annotation line did not produce bounds.");
-        bounds = projectedBounds;
         return new AnnotationItemV1(
             annotation.Id,
             operations,
@@ -843,6 +815,99 @@ public static class TeachingMixedSchematicProjector
             LineCapV1.Round,
             RoundJoin);
     }
+
+    private static RectV1 ProjectionBounds(IReadOnlyList<SchematicItemV1> items)
+    {
+        var bounds = new List<RectV1>();
+        foreach (var item in items)
+        {
+            switch (item)
+            {
+                case ComponentSymbolItemV1 component:
+                    bounds.Add(Translate(component.Plan.Bounds, component.Origin));
+                    break;
+                case DefinitionPortItemV1 port:
+                    AddStaticBounds(
+                        bounds,
+                        port.Operations,
+                        port.HitRegions,
+                        port.AccessibilityNodes);
+                    break;
+                case WireGeometryItemV1 wire:
+                    AddStaticBounds(
+                        bounds,
+                        wire.Operations,
+                        wire.HitRegions,
+                        wire.AccessibilityNodes);
+                    break;
+                case JunctionItemV1 junction:
+                    AddStaticBounds(
+                        bounds,
+                        junction.Operations,
+                        junction.HitRegions,
+                        junction.AccessibilityNodes);
+                    break;
+                case AnnotationItemV1 annotation:
+                    AddStaticBounds(
+                        bounds,
+                        annotation.Operations,
+                        annotation.HitRegions,
+                        annotation.AccessibilityNodes);
+                    break;
+                case NetTopologyItemV1:
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        "The Schematic item variant is undefined.");
+            }
+        }
+
+        return Enclose(bounds);
+    }
+
+    private static void AddStaticBounds(
+        List<RectV1> bounds,
+        IReadOnlyList<DrawOperationV1> operations,
+        IReadOnlyList<HitRegionV1> hitRegions,
+        IReadOnlyList<AccessibilityNodeV1> accessibilityNodes)
+    {
+        bounds.AddRange(operations.Select(OperationBounds));
+        bounds.AddRange(hitRegions.Select(HitBounds));
+        bounds.AddRange(accessibilityNodes.Select(node => node.Bounds));
+    }
+
+    private static RectV1 OperationBounds(DrawOperationV1 operation) => operation switch
+    {
+        StrokePathV1 stroke => Inflate(
+            RectV1.Enclose([.. PathPoints(stroke.Path)]),
+            GeometryPlanValidator.ConservativeStrokeMargin(
+                stroke.Width,
+                stroke.LineJoin)),
+        FillPathV1 fill => RectV1.Enclose([.. PathPoints(fill.Path)]),
+        DrawTextV1 text => text.Bounds,
+        _ => throw new InvalidOperationException(
+            "The Schematic draw operation variant is undefined."),
+    };
+
+    private static RectV1 HitBounds(HitRegionV1 hitRegion) => hitRegion.Shape switch
+    {
+        RectHitShapeV1 rect => rect.Rect,
+        CircleHitShapeV1 circle => CircleBounds(circle.Center, circle.Radius),
+        PolygonHitShapeV1 polygon => RectV1.Enclose(polygon.Points),
+        _ => throw new InvalidOperationException(
+            "The Schematic hit shape variant is undefined."),
+    };
+
+    private static IEnumerable<PointV1> PathPoints(PathV1 path) =>
+        path.Commands.SelectMany(command => command switch
+        {
+            MoveToV1 move => new[] { move.Point },
+            LineToV1 line => [line.Point],
+            CubicToV1 cubic => [cubic.Control1, cubic.Control2, cubic.End],
+            ClosePathV1 => [],
+            _ => throw new InvalidOperationException(
+                "The Schematic path command variant is undefined."),
+        });
 
     private static RectV1 Enclose(List<RectV1> bounds)
     {

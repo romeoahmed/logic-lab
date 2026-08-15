@@ -216,9 +216,11 @@ public sealed class CircuitDefinitionSymbolRequestV1
             throw new ArgumentOutOfRangeException(nameof(baseDirection));
         }
 
-        if (displayName is not null && string.IsNullOrWhiteSpace(displayName))
+        if (displayName is not null && !DisplayTextLexemes.IsValid(displayName))
         {
-            throw new ArgumentException("The display name override cannot be blank.", nameof(displayName));
+            throw new ArgumentException(
+                "The display name override must be authorized DisplayText.",
+                nameof(displayName));
         }
 
         Definition = definition;
