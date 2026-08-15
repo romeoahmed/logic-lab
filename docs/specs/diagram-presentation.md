@@ -23,7 +23,7 @@ V1 ships one project-level, versioned `TeachingMixed` Symbol Profile based on IE
 
 The two-input XOR outline is never stretched into a different multi-input parity meaning. Distinctive shapes are not composed into complex symbols.
 
-`HPRI/BIN` is used only for the `highestIndex` Priority Encoder parameter. The `lowestIndex` parameter uses the visible TeachingMixed extension `[LPRI/BIN]`, publishes `StandardBaseWithNonstandardInfo`, and records the `teachingmixed-lowest-priority-encoder` deviation for its Ports.
+V1 does not publish the unqualified `HPRI/BIN` standard mark for either Priority Encoder parameter because structured input weights and priority composition are not yet modeled. `highestIndex` uses the visible TeachingMixed extension `[HPRI/BIN]`; `lowestIndex` uses `[LPRI/BIN]`. Both publish `TeachingExtension` and record `teachingmixed-unmodeled-priority-encoder` for their Ports; `lowestIndex` additionally records `teachingmixed-lowest-priority-encoder`.
 
 The project stores Symbol Profile ID and version. Opening an old project never silently adopts a newer default. A Component Instance may store only a registered `SymbolVariantId` override that preserves the same Component Contract, Port identities, widths, and diagram-wide indication convention. Arbitrary SVG, path data, or per-instance polarity convention is invalid.
 
