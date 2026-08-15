@@ -300,6 +300,37 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     }
 
     [Test]
+    [Arguments(SymbolFacingV1.North, false)]
+    [Arguments(SymbolFacingV1.North, true)]
+    [Arguments(SymbolFacingV1.South, false)]
+    [Arguments(SymbolFacingV1.South, true)]
+    public async Task Plan_RotatedMux_SpacesUprightPortLabels(
+        SymbolFacingV1 facing,
+        bool isReflected)
+    {
+        var template = Request("logic.mux");
+        var plan = Plan(new ComplexSymbolRequestV1(
+            template.Contract,
+            template.Parameters,
+            template.Profile,
+            template.SymbolVariantId,
+            facing,
+            isReflected,
+            template.MetricSet,
+            template.FontFingerprint,
+            template.LocaleId,
+            template.BaseDirection));
+        var dataLabels = plan.Operations.OfType<DrawTextV1>()
+            .Where(operation => operation.Text is "0D0" or "1D1" or "2D2" or "3D3")
+            .OrderBy(operation => operation.Bounds.Left)
+            .ToArray();
+
+        await Assert.That(dataLabels).Count().IsEqualTo(4);
+        await Assert.That(Enumerable.Range(1, dataLabels.Length - 1).All(index =>
+            dataLabels[index - 1].Bounds.Right <= dataLabels[index].Bounds.Left)).IsTrue();
+    }
+
+    [Test]
     public async Task Plan_ActiveLowControl_UsesOneDiagramIndicationConvention()
     {
         var template = Request("logic.tristate");
@@ -427,6 +458,28 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
                     argument.Value == port.DisplayName);
             })).IsTrue();
         }
+    }
+
+    [Test]
+    [Arguments(" ")]
+    [Arguments("\u00a0")]
+    public async Task Plan_CircuitDefinitionWhitespaceDisplayName_PreservesAuthorizedText(
+        string displayName)
+    {
+        var plan = Plan(new CircuitDefinitionSymbolRequestV1(
+            CreateChildDefinition(),
+            TeachingMixedProfile,
+            symbolVariantId: null,
+            SymbolFacingV1.East,
+            isReflected: false,
+            TeachingMixedMetricSets.AnnexA100,
+            FontFingerprint,
+            PresentationLocaleIdV1.EnglishUnitedStates,
+            BaseDirectionV1.LeftToRight,
+            displayName));
+
+        await Assert.That(plan.Operations.OfType<DrawTextV1>()
+            .Any(operation => operation.Text == displayName)).IsTrue();
     }
 
     [Test]

@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Text;
-
 namespace LogicLab.Presentation.Geometry;
 
 public readonly record struct PointV1(int X, int Y);
@@ -366,11 +364,12 @@ public sealed record DrawTextV1 : DrawOperationV1
         BaseDirectionV1 baseDirection,
         PresentationLocaleIdV1 localeId)
     {
-        ArgumentException.ThrowIfNullOrEmpty(text);
         ArgumentNullException.ThrowIfNull(localeId);
-        if (!text.IsNormalized(NormalizationForm.FormC))
+        if (!DisplayTextLexemes.IsValid(text))
         {
-            throw new ArgumentException("Display text must use NFC normalization.", nameof(text));
+            throw new ArgumentException(
+                "Text must be authorized DisplayText.",
+                nameof(text));
         }
 
         if (!Enum.IsDefined(fontRole))
