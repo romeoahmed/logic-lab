@@ -518,7 +518,7 @@ public static class TeachingMixedSchematicProjector
                 CircleBounds(point, radius),
                 "presentation.definitionPort",
                 [
-                    new TextLocalizationArgumentV1("portId", port.Id.Value),
+                    new TextLocalizationArgumentV1("label", port.DisplayName),
                     new UnsignedLocalizationArgumentV1("width", port.Width),
                 ],
                 [AccessibilityActionV1.Focus, AccessibilityActionV1.BeginConnection]),
@@ -553,17 +553,26 @@ public static class TeachingMixedSchematicProjector
                 var points = orthogonal.Points.Select(point => Convert(point, fingerprint)).ToArray();
                 var route = new ProjectedOrthogonalWireRouteV1(points);
                 var pathBounds = Inflate(RectV1.Enclose(points), Math.Max(1, width));
+                var hitPadding = Math.Max(1, fingerprint.MetricSet.UnitsPerH / 2);
+                var hitRegions = new HitRegionV1[points.Length - 1];
+                for (var index = 0; index < hitRegions.Length; index++)
+                {
+                    hitRegions[index] = new HitRegionV1(
+                        $"wire-segment-{index}",
+                        HitRegionKindV1.Body,
+                        null,
+                        new RectHitShapeV1(Inflate(
+                            RectV1.Enclose([points[index], points[index + 1]]),
+                            hitPadding)));
+                }
+
                 bounds = pathBounds;
                 return new WireGeometryItemV1(
                     wire.Id,
                     wire.NetId,
                     route,
                     [Stroke(points, StrokeRoleV1.Outline, width)],
-                    [new HitRegionV1(
-                        "wire",
-                        HitRegionKindV1.Body,
-                        null,
-                        new RectHitShapeV1(Inflate(pathBounds, fingerprint.MetricSet.UnitsPerH / 2)))],
+                    hitRegions,
                     [new AccessibilityNodeV1(
                         "wire",
                         AccessibilityNodeKindV1.Group,
@@ -630,7 +639,39 @@ public static class TeachingMixedSchematicProjector
             _ => throw new InvalidOperationException("The Annotation alignment is undefined."),
         };
         var origin = Convert(annotation.Position, fingerprint);
-        if (annotation.Text.Length == 0)
+        // StringSplitOptions.None preserves empty logical lines, including leading,
+        // adjacent, and trailing LF delimiters.
+        // Source: https://learn.microsoft.com/en-us/dotnet/api/system.string.split?view=net-10.0
+        var lines = annotation.Text.Split('\n', StringSplitOptions.None);
+        var visibleLines = new List<(
+            int Index,
+            string Text,
+            RectV1 Envelope)>(lines.Length);
+        for (var index = 0; index < lines.Length; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (lines[index].Length == 0)
+            {
+                continue;
+            }
+
+            var measurement = textMeasurer.Measure(
+                new SymbolTextMeasurementRequestV1(
+                    lines[index],
+                    FontRoleV1.Symbol,
+                    alignment,
+                    fingerprint.MetricSet,
+                    fingerprint.LocaleId,
+                    fingerprint.BaseDirection),
+                cancellationToken) ?? throw new InvalidOperationException(
+                    "The Symbol Text Measurer returned no measurement.");
+            visibleLines.Add((
+                index,
+                lines[index],
+                measurement.InkAndAdvanceBounds(alignment, fingerprint.BaseDirection)));
+        }
+
+        if (visibleLines.Count == 0)
         {
             bounds = null;
             var interactionRadius = Math.Max(1, fingerprint.MetricSet.UnitsPerH / 2);
@@ -654,42 +695,49 @@ public static class TeachingMixedSchematicProjector
                     [AccessibilityActionV1.Focus, AccessibilityActionV1.Select])]);
         }
 
-        var measurement = textMeasurer.Measure(
-            new SymbolTextMeasurementRequestV1(
-                annotation.Text,
+        var linePitch = checked(
+            visibleLines.Max(line => line.Envelope.Height)
+            + Math.Max(1, fingerprint.MetricSet.UnitsPerH / 2));
+        var operations = new DrawOperationV1[visibleLines.Count];
+        RectV1? visibleBounds = null;
+        for (var index = 0; index < visibleLines.Count; index++)
+        {
+            var line = visibleLines[index];
+            var lineOrigin = new PointV1(
+                origin.X,
+                checked(origin.Y + (line.Index * linePitch)));
+            var lineBounds = Translate(line.Envelope, lineOrigin);
+            operations[index] = new DrawTextV1(
+                line.Text,
                 FontRoleV1.Symbol,
-                alignment,
-                fingerprint.MetricSet,
-                fingerprint.LocaleId,
-                fingerprint.BaseDirection),
-            cancellationToken) ?? throw new InvalidOperationException(
-                "The Symbol Text Measurer returned no measurement.");
-        var visibleBounds = Translate(
-            measurement.InkAndAdvanceBounds(alignment, fingerprint.BaseDirection),
-            origin);
-        bounds = visibleBounds;
-        return new AnnotationItemV1(
-            annotation.Id,
-            [new DrawTextV1(
-                annotation.Text,
-                FontRoleV1.Symbol,
-                origin,
-                visibleBounds,
+                lineOrigin,
+                lineBounds,
                 alignment,
                 TextOrientationV1.UprightReading,
                 fingerprint.BaseDirection,
-                fingerprint.LocaleId)],
+                fingerprint.LocaleId);
+            visibleBounds = visibleBounds is null
+                ? lineBounds
+                : Union(visibleBounds.Value, lineBounds);
+        }
+
+        var projectedBounds = visibleBounds ?? throw new InvalidOperationException(
+            "A visible Annotation line did not produce bounds.");
+        bounds = projectedBounds;
+        return new AnnotationItemV1(
+            annotation.Id,
+            operations,
             [new HitRegionV1(
                 "annotation",
                 HitRegionKindV1.Label,
                 null,
-                new RectHitShapeV1(visibleBounds))],
+                new RectHitShapeV1(projectedBounds))],
             [new AccessibilityNodeV1(
                 "annotation",
                 AccessibilityNodeKindV1.Label,
                 null,
                 0,
-                visibleBounds,
+                projectedBounds,
                 "presentation.annotation",
                 [new TextLocalizationArgumentV1("text", annotation.Text)],
                 [AccessibilityActionV1.Focus, AccessibilityActionV1.Select])]);

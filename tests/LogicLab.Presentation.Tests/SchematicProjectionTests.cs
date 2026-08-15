@@ -55,6 +55,16 @@ internal sealed class SchematicProjectionTests
                 .IsEquivalentTo(
                     fixture.Definition.Ports.Select(port => port.Id),
                     CollectionOrdering.Matching);
+            await Assert.That(projection.Items.OfType<DefinitionPortItemV1>().All(item =>
+            {
+                var port = fixture.Definition.Ports.Single(candidate => candidate.Id == item.PortId);
+                var textArguments = item.AccessibilityNodes.Single().Arguments
+                    .OfType<TextLocalizationArgumentV1>()
+                    .ToArray();
+                return textArguments.Any(argument =>
+                        argument.Name == "label" && argument.Value == port.DisplayName)
+                    && textArguments.All(argument => argument.Value != port.Id.Value);
+            })).IsTrue();
         }
 
         var topology = projection.Items.OfType<NetTopologyItemV1>().Single();
@@ -69,6 +79,29 @@ internal sealed class SchematicProjectionTests
                         .Select(wire => wire.Id),
                     CollectionOrdering.Matching);
             await Assert.That(topology.ProbeAnchor).IsTypeOf<AvailableProbeAnchorV1>();
+        }
+    }
+
+    [Test]
+    public async Task Project_LShapedWire_PublishesOneNarrowHitRegionPerSegment()
+    {
+        var fixture = CreateCompleteDefinition();
+        var projection = Project(fixture.Revision, fixture.Definition.Id, Fingerprint());
+        var routedWire = projection.Items.OfType<WireGeometryItemV1>()
+            .Single(item => item.Route is ProjectedOrthogonalWireRouteV1);
+        var route = (ProjectedOrthogonalWireRouteV1)routedWire.Route;
+        var segmentHitBounds = routedWire.HitRegions
+            .Select(region => ((RectHitShapeV1)region.Shape).Rect)
+            .ToArray();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(segmentHitBounds).Count().IsEqualTo(route.Points.Count - 1);
+            await Assert.That(Enumerable.Range(0, route.Points.Count - 1).All(index =>
+                segmentHitBounds[index].Contains(route.Points[index])
+                && segmentHitBounds[index].Contains(route.Points[index + 1]))).IsTrue();
+            await Assert.That(segmentHitBounds.Any(rect =>
+                rect.Contains(new PointV1(300, 400)))).IsFalse();
         }
     }
 
@@ -216,6 +249,62 @@ internal sealed class SchematicProjectionTests
                     .OfType<TextLocalizationArgumentV1>()
                     .Single(argument => argument.Name == "text").Value)
                 .IsEqualTo(string.Empty);
+        }
+    }
+
+    [Test]
+    public async Task Project_LfAnnotations_PublishExplicitVisibleLinesAndNoInkGeometry()
+    {
+        const string multilineText = "First\n\nSecond";
+        const string noInkText = "\n";
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "LF annotation projection",
+            LibrarySnapshot.Core,
+            TeachingMixedProfile,
+            "Main"))).Revision;
+        var definition = revision.Document.EntryCircuitDefinition;
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new CreateAnnotationIntent(
+                definition.Id,
+                new AnnotationValue(
+                    multilineText,
+                    new GridPoint(4, 6),
+                    AnnotationAlignment.Start))));
+        var multilineId = revision.Document.EntryCircuitDefinition.Annotations.Single().Id;
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new CreateAnnotationIntent(
+                definition.Id,
+                new AnnotationValue(
+                    noInkText,
+                    new GridPoint(8, 6),
+                    AnnotationAlignment.Center))));
+        var noInkId = revision.Document.EntryCircuitDefinition.Annotations.Single(annotation =>
+            annotation.Text == noInkText).Id;
+
+        var projection = Project(revision, definition.Id, Fingerprint());
+        var multiline = projection.Items.OfType<AnnotationItemV1>().Single(item =>
+            item.AnnotationId == multilineId);
+        var noInk = projection.Items.OfType<AnnotationItemV1>().Single(item =>
+            item.AnnotationId == noInkId);
+        var visibleLines = multiline.Operations.OfType<DrawTextV1>().ToArray();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(visibleLines.Select(line => line.Text))
+                .IsEquivalentTo(["First", "Second"], CollectionOrdering.Matching);
+            await Assert.That(visibleLines.All(line =>
+                !line.Text.Contains('\n'))).IsTrue();
+            await Assert.That(visibleLines[1].Origin.Y).IsGreaterThan(visibleLines[0].Origin.Y);
+            await Assert.That(noInk.Operations).IsEmpty();
+            await Assert.That(noInk.HitRegions).HasSingleItem();
+            await Assert.That(multiline.AccessibilityNodes.Single().Arguments
+                    .OfType<TextLocalizationArgumentV1>().Single().Value)
+                .IsEqualTo(multilineText);
+            await Assert.That(noInk.AccessibilityNodes.Single().Arguments
+                    .OfType<TextLocalizationArgumentV1>().Single().Value)
+                .IsEqualTo(noInkText);
         }
     }
 
@@ -377,7 +466,7 @@ internal sealed class SchematicProjectionTests
                 new GridPoint(6, 2),
                 [
                     new OrthogonalWireRoute(
-                        [new GridPoint(2, 2), new GridPoint(6, 2), new GridPoint(9, 2)]),
+                        [new GridPoint(2, 2), new GridPoint(6, 2), new GridPoint(6, 5)]),
                     new UnroutedWireRoute(),
                 ],
                 [],
