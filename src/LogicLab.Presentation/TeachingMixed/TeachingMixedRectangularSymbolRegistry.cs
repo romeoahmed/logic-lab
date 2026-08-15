@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
 using LogicLab.Presentation.Geometry;
 
 namespace LogicLab.Presentation.TeachingMixed;
@@ -15,7 +16,7 @@ internal sealed record RectangularSymbolDefinition(
     ConformanceClaimV1 Claim,
     ReadOnlyCollection<string> StandardClauses,
     string? DeviationCode,
-    string? DependencyText);
+    RectangularSymbolDependencyRecipe DependencyRecipe);
 
 internal sealed record ResolvedRectangularSymbolDefinition(
     string DefinitionId,
@@ -26,7 +27,7 @@ internal sealed record ResolvedRectangularSymbolDefinition(
     ConformanceClaimV1 Claim,
     ReadOnlyCollection<string> StandardClauses,
     string? DeviationCode,
-    string? DependencyText);
+    ReadOnlyCollection<RectangularSymbolDependency> Dependencies);
 
 internal static class TeachingMixedRectangularSymbolRegistry
 {
@@ -40,28 +41,39 @@ internal static class TeachingMixedRectangularSymbolRegistry
             Extension("topology.concat", "[CONCAT]"),
             Extension("topology.zero_extend", "[ZERO EXT]"),
             Extension("topology.sign_extend", "[SIGN EXT]"),
-            Standard("logic.tristate", "1", ["3.3-8", "3.3-12", "4.3.9", "5.2-4"], "EN"),
-            Standard("logic.mux", "MUX", ["4.3.6", "5.6-1"], "SEL"),
-            Standard("logic.demux", "DX", ["4.3.6", "5.6-2"], "SEL"),
+            Standard(
+                "logic.tristate",
+                "1",
+                ["3.3-8", "3.3-12", "4.3.9", "5.2-4"],
+                RectangularSymbolDependencyRecipe.EnableOutputs),
+            Standard(
+                "logic.mux",
+                "MUX",
+                ["4.3.2", "4.4.2", "5.6-1"],
+                RectangularSymbolDependencyRecipe.SelectDataInputs),
+            Standard(
+                "logic.demux",
+                "DX",
+                ["4.3.2", "4.4.2", "5.6-2"],
+                RectangularSymbolDependencyRecipe.SelectDataOutputs),
             DynamicStandard(
                 "logic.decoder",
                 parameters => string.Concat(
                     "BIN/",
-                    CheckedPowerOfTwo(U32(parameters, "selectorWidth")).ToString(
-                        CultureInfo.InvariantCulture)),
-                ["5.4-1", "5.4-4"],
-                "EN"),
-            Standard("logic.priority_encoder", "HPRI/BIN", ["5.4.1.2", "5.4-6"], "PRI"),
+                        CheckedPowerOfTwo(U32(parameters, "selectorWidth")).ToString(
+                            CultureInfo.InvariantCulture)),
+                ["4.3.9", "5.4-1", "5.4-4"],
+                RectangularSymbolDependencyRecipe.EnableOutputs),
+            Standard("logic.priority_encoder", "HPRI/BIN", ["5.4.1.2", "5.4-6"]),
             Standard(
                 "logic.unsigned_compare",
                 "COMP",
                 ["3.3-31", "3.3-32", "3.3-33", "5.7-1", "5.7-11"]),
-            Standard("logic.adder", "Σ", ["3.3-25", "3.3-26", "5.7-1", "5.7-5"], "Σ"),
+            Standard("logic.adder", "Σ", ["3.3-25", "3.3-26", "5.7-1", "5.7-5"]),
             Standard(
                 "logic.subtractor",
                 "P-Q",
-                ["3.3-25", "3.3-26", "5.7-1", "5.7-6"],
-                "BORROW"),
+                ["3.3-25", "3.3-26", "5.7-1", "5.7-6"]),
             DynamicExtension(
                 "logic.shift",
                 parameters => Choice(parameters, "direction") == "left" ? "[SHL]" : "[SHR]"),
@@ -71,10 +83,12 @@ internal static class TeachingMixedRectangularSymbolRegistry
     public static bool TryResolve(
         string contractId,
         IReadOnlyList<ComponentParameterBinding> parameters,
+        IReadOnlyList<ResolvedComponentPortSchema> ports,
         string? requestedVariantId,
         [NotNullWhen(true)] out ResolvedRectangularSymbolDefinition? resolved)
     {
         ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(ports);
         if (!Definitions.TryGetValue(contractId, out var definition)
             || requestedVariantId is not (null or SymbolVariantCatalog.RectangularId))
         {
@@ -91,7 +105,9 @@ internal static class TeachingMixedRectangularSymbolRegistry
             definition.Claim,
             definition.StandardClauses,
             definition.DeviationCode,
-            definition.DependencyText);
+            RectangularSymbolDependencyResolver.Resolve(
+                definition.DependencyRecipe,
+                ports));
         return true;
     }
 
@@ -99,23 +115,25 @@ internal static class TeachingMixedRectangularSymbolRegistry
         string contractId,
         string functionText,
         IReadOnlyList<string> clauses,
-        string? dependencyText = null) => DynamicStandard(
+        RectangularSymbolDependencyRecipe dependencyRecipe =
+            RectangularSymbolDependencyRecipe.None) => DynamicStandard(
             contractId,
             _ => functionText,
             clauses,
-            dependencyText);
+            dependencyRecipe);
 
     private static KeyValuePair<string, RectangularSymbolDefinition> DynamicStandard(
         string contractId,
         Func<IReadOnlyList<ComponentParameterBinding>, string> functionText,
         IReadOnlyList<string> clauses,
-        string? dependencyText = null) => Definition(
+        RectangularSymbolDependencyRecipe dependencyRecipe =
+            RectangularSymbolDependencyRecipe.None) => Definition(
             contractId,
             functionText,
             ConformanceClaimV1.Standardized91A,
             clauses,
             deviationCode: null,
-            dependencyText);
+            dependencyRecipe);
 
     private static KeyValuePair<string, RectangularSymbolDefinition> Extension(
         string contractId,
@@ -132,7 +150,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
             claim,
             ["2.1.2", "2.2"],
             $"teachingmixed-{contractId.Replace(".", "-", StringComparison.Ordinal)}",
-            dependencyText: null);
+            RectangularSymbolDependencyRecipe.None);
 
     private static KeyValuePair<string, RectangularSymbolDefinition> Definition(
         string contractId,
@@ -140,17 +158,19 @@ internal static class TeachingMixedRectangularSymbolRegistry
         ConformanceClaimV1 claim,
         IReadOnlyList<string> clauses,
         string? deviationCode,
-        string? dependencyText) => KeyValuePair.Create(
+        RectangularSymbolDependencyRecipe dependencyRecipe) => KeyValuePair.Create(
             contractId,
             new RectangularSymbolDefinition(
                 $"logiclab.teachingmixed.{contractId}",
-                "1.0.0",
+                dependencyRecipe == RectangularSymbolDependencyRecipe.None
+                    ? "1.0.0"
+                    : "2.0.0",
                 $"presentation.symbol.{contractId}",
                 functionText,
                 claim,
                 Array.AsReadOnly(clauses.ToArray()),
                 deviationCode,
-                dependencyText));
+                dependencyRecipe));
 
     private static uint U32(
         IReadOnlyList<ComponentParameterBinding> parameters,

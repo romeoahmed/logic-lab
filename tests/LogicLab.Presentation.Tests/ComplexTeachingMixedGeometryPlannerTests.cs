@@ -73,8 +73,9 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
                     && region.SourcePortId == port.Id)).IsTrue();
                 await Assert.That(width.Value).IsEqualTo(port.Width);
                 await Assert.That(plan.Operations.OfType<DrawTextV1>()
-                    .Any(operation => operation.FontRole == FontRoleV1.PortLabel
-                        && operation.Text.StartsWith(port.Id, StringComparison.Ordinal)))
+                    .Any(operation => operation.FontRole is
+                            FontRoleV1.PortLabel or FontRoleV1.Dependency
+                        && operation.Text.Contains(port.Id, StringComparison.Ordinal)))
                     .IsTrue();
             }
         }
@@ -82,9 +83,9 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
 
     [Test]
     [Arguments("logic.tristate", "3.3-8|3.3-12|4.3.9|5.2-4")]
-    [Arguments("logic.mux", "4.3.6|5.6-1")]
-    [Arguments("logic.demux", "4.3.6|5.6-2")]
-    [Arguments("logic.decoder", "5.4-1|5.4-4")]
+    [Arguments("logic.mux", "4.3.2|4.4.2|5.6-1")]
+    [Arguments("logic.demux", "4.3.2|4.4.2|5.6-2")]
+    [Arguments("logic.decoder", "4.3.9|5.4-1|5.4-4")]
     [Arguments("logic.priority_encoder", "5.4.1.2|5.4-6")]
     [Arguments("logic.unsigned_compare", "3.3-31|3.3-32|3.3-33|5.7-1|5.7-11")]
     [Arguments("logic.adder", "3.3-25|3.3-26|5.7-1|5.7-5")]
@@ -107,6 +108,25 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
                     CollectionOrdering.Matching);
             await Assert.That(plan.Conformance.Deviations).IsEmpty();
         }
+    }
+
+    [Test]
+    [Arguments("logic.tristate", "EN1|1Q[3:0]")]
+    [Arguments("logic.mux", "0D0[3:0]|1D1[3:0]|2D2[3:0]|3D3[3:0]|G0/3S[1:0]")]
+    [Arguments("logic.demux", "G0/3S[1:0]|0Q0[3:0]|1Q1[3:0]|2Q2[3:0]|3Q3[3:0]")]
+    [Arguments("logic.decoder", "EN1|1Q0|1Q1|1Q2|1Q3")]
+    public async Task Plan_DependencyNotation_BindsRelationsToAffectedPortLabels(
+        string contractId,
+        string expectedLabels)
+    {
+        var plan = Plan(Request(contractId));
+
+        await Assert.That(plan.Operations.OfType<DrawTextV1>()
+                .Where(operation => operation.FontRole == FontRoleV1.Dependency)
+                .Select(operation => operation.Text))
+            .IsEquivalentTo(
+                expectedLabels.Split('|'),
+                CollectionOrdering.Matching);
     }
 
     [Test]

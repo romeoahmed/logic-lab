@@ -221,6 +221,7 @@ public static class TeachingMixedGeometryPlanner
             if (!TeachingMixedRectangularSymbolRegistry.TryResolve(
                     request.Contract.Key.ContractId,
                     request.Parameters,
+                    ports,
                     request.SymbolVariantId,
                     out var definition))
             {
@@ -236,7 +237,7 @@ public static class TeachingMixedGeometryPlanner
                     ? FontRoleV1.Symbol
                     : FontRoleV1.ExtensionMark,
                 definition.AccessibilityKey,
-                definition.DependencyText,
+                definition.Dependencies,
                 request.MetricSet,
                 request.LocaleId,
                 request.BaseDirection,
@@ -359,7 +360,7 @@ public static class TeachingMixedGeometryPlanner
                 request.DisplayName,
                 FontRoleV1.ExtensionMark,
                 "presentation.symbol.circuit-definition",
-                null,
+                [],
                 request.MetricSet,
                 request.LocaleId,
                 request.BaseDirection,
