@@ -16,6 +16,15 @@ internal sealed record RectangularSymbolPortLabel(
     string Text,
     FontRoleV1 FontRole);
 
+internal enum RectangularSymbolInputQualifierKind
+{
+    ActiveLow,
+}
+
+internal sealed record RectangularSymbolInputQualifier(
+    RectangularSymbolInputQualifierKind Kind,
+    string PortId);
+
 internal sealed record RectangularSymbolLayoutRequest(
     string FunctionText,
     FontRoleV1 FunctionFontRole,
@@ -25,7 +34,7 @@ internal sealed record RectangularSymbolLayoutRequest(
     PresentationLocaleIdV1 LocaleId,
     BaseDirectionV1 BaseDirection,
     IndicationConvention IndicationConvention,
-    bool HasActiveLowEnable,
+    ReadOnlyCollection<RectangularSymbolInputQualifier> InputQualifiers,
     bool HasThreeStateOutput,
     ConformanceEvidenceV1 Conformance);
 
@@ -75,7 +84,11 @@ internal static class RectangularSymbolGeometryBuilder
         var functionEnvelope = functionMeasurement.InkAndAdvanceBounds(
             TextAlignmentV1.Center,
             request.BaseDirection);
-        var labels = CreatePortLabels(ports, request.Dependencies);
+        var labels = CreatePortLabels(
+            ports,
+            request.Dependencies,
+            request.InputQualifiers,
+            request.IndicationConvention);
         var labelMeasurements = labels.ToDictionary(
             pair => pair.Key,
             pair => Measure(
@@ -200,7 +213,7 @@ internal static class RectangularSymbolGeometryBuilder
                 CircleBounds(point, portHitRadius),
                 "presentation.port",
                 [
-                    new TextLocalizationArgumentV1("portId", port.Id),
+                    new TextLocalizationArgumentV1("label", port.DisplayName),
                     new UnsignedLocalizationArgumentV1("width", port.Width),
                 ],
                 [
@@ -227,41 +240,15 @@ internal static class RectangularSymbolGeometryBuilder
                 request));
         }
 
-        if (request.HasActiveLowEnable)
+        if (request.IndicationConvention == IndicationConvention.Negation)
         {
-            var enable = anchors.FirstOrDefault(anchor =>
-                anchor.PortId.Contains("en", StringComparison.OrdinalIgnoreCase));
-            if (enable is not null)
+            foreach (var qualifier in request.InputQualifiers)
             {
-                if (request.IndicationConvention == IndicationConvention.Negation)
-                {
-                    operations.Add(QualifierCircle(
-                        new PointV1(body.Left, enable.Point.Y),
-                        ScaleUp(h, 1, 4),
-                        outlineWidth));
-                }
-                else
-                {
-                    var polarity = Measure(
-                        "L",
-                        FontRoleV1.Dependency,
-                        TextAlignmentV1.Center,
-                        request,
-                        textMeasurer,
-                        cancellationToken);
-                    var polarityOrigin = new PointV1(
-                        checked(body.Left + h),
-                        enable.Point.Y);
-                    operations.Add(Text(
-                        "L",
-                        FontRoleV1.Dependency,
-                        polarityOrigin,
-                        polarity.InkAndAdvanceBounds(
-                            TextAlignmentV1.Center,
-                            request.BaseDirection),
-                        TextAlignmentV1.Center,
-                        request));
-                }
+                var anchor = anchors.Single(candidate => candidate.PortId == qualifier.PortId);
+                operations.Add(QualifierCircle(
+                    new PointV1(body.Left, anchor.Point.Y),
+                    ScaleUp(h, 1, 4),
+                    outlineWidth));
             }
         }
 
@@ -293,13 +280,23 @@ internal static class RectangularSymbolGeometryBuilder
 
     private static Dictionary<string, RectangularSymbolPortLabel> CreatePortLabels(
         IReadOnlyList<RectangularSymbolPort> ports,
-        ReadOnlyCollection<RectangularSymbolDependency> dependencies)
+        ReadOnlyCollection<RectangularSymbolDependency> dependencies,
+        ReadOnlyCollection<RectangularSymbolInputQualifier> inputQualifiers,
+        IndicationConvention indicationConvention)
     {
         ArgumentNullException.ThrowIfNull(dependencies);
+        ArgumentNullException.ThrowIfNull(inputQualifiers);
         var portIds = ports.Select(port => port.Id).ToHashSet(StringComparer.Ordinal);
         if (portIds.Count != ports.Count
             || dependencies.GroupBy(dependency => dependency.Identifier, StringComparer.Ordinal)
-                .Any(group => group.Select(dependency => dependency.Kind).Distinct().Count() > 1))
+                .Any(group => group.Select(dependency => dependency.Kind).Distinct().Count() > 1)
+            || inputQualifiers.Select(qualifier => qualifier.PortId).Distinct(StringComparer.Ordinal)
+                .Count() != inputQualifiers.Count
+            || inputQualifiers.Any(qualifier =>
+                !Enum.IsDefined(qualifier.Kind)
+                || !portIds.Contains(qualifier.PortId)
+                || ports.Single(port => port.Id == qualifier.PortId).Direction
+                    != PortDirection.Input))
         {
             throw new LayoutInvalidException(LayoutConstraintV1.Request);
         }
@@ -365,6 +362,9 @@ internal static class RectangularSymbolGeometryBuilder
         var affectingRelationships = dependencies.ToLookup(
             dependency => dependency.AffectingPortId,
             StringComparer.Ordinal);
+        var qualifiedPortIds = inputQualifiers
+            .Select(qualifier => qualifier.PortId)
+            .ToHashSet(StringComparer.Ordinal);
         return ports.ToDictionary(
             port => port.Id,
             port =>
@@ -383,12 +383,18 @@ internal static class RectangularSymbolGeometryBuilder
                     && affecting.Select(dependency => dependency.Kind).Distinct().Count() == 1
                     && functionLabel == DependencyLetter(affecting[0].Kind);
                 var text = string.Concat(
+                    indicationConvention == IndicationConvention.DirectPolarity
+                        && qualifiedPortIds.Contains(port.Id)
+                            ? "L"
+                            : string.Empty,
                     affectedNotation,
                     affectingNotation,
                     omitFunctionLabel ? string.Empty : functionLabel);
                 return new RectangularSymbolPortLabel(
                     text,
-                    affectedNotation.Length > 0 || affectingNotation.Length > 0
+                    affectedNotation.Length > 0
+                        || affectingNotation.Length > 0
+                        || qualifiedPortIds.Contains(port.Id)
                         ? FontRoleV1.Dependency
                         : FontRoleV1.PortLabel);
             },
@@ -463,20 +469,7 @@ internal static class RectangularSymbolGeometryBuilder
             : ports.Max(port => measurements[port.Id]
                 .InkAndAdvanceBounds(TextAlignmentV1.Center, baseDirection).Width);
 
-    private static string PortLabel(RectangularSymbolPort port)
-    {
-        var identity = string.Equals(port.Id, port.DisplayName, StringComparison.Ordinal)
-            ? port.Id
-            : string.Concat(port.Id, ":", port.DisplayName);
-        return port.Width == 1
-            ? identity
-            : string.Concat(
-                identity,
-                "[",
-                checked(port.Width - 1).ToString(
-                    System.Globalization.CultureInfo.InvariantCulture),
-                ":0]");
-    }
+    private static string PortLabel(RectangularSymbolPort port) => port.DisplayName;
 
     private static SymbolTextMeasurementV1 Measure(
         string text,

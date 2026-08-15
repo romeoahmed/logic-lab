@@ -23,6 +23,8 @@ V1 ships one project-level, versioned `TeachingMixed` Symbol Profile based on IE
 
 The two-input XOR outline is never stretched into a different multi-input parity meaning. Distinctive shapes are not composed into complex symbols.
 
+`HPRI/BIN` is used only for the `highestIndex` Priority Encoder parameter. The `lowestIndex` parameter uses the visible TeachingMixed extension `[LPRI/BIN]`, publishes `StandardBaseWithNonstandardInfo`, and records the `teachingmixed-lowest-priority-encoder` deviation for its Ports.
+
 The project stores Symbol Profile ID and version. Opening an old project never silently adopts a newer default. A Component Instance may store only a registered `SymbolVariantId` override that preserves the same Component Contract, Port identities, widths, and diagram-wide indication convention. Arbitrary SVG, path data, or per-instance polarity convention is invalid.
 
 ## 2. Declarative model
@@ -81,6 +83,7 @@ Qualifier and dependency composition is structured:
 - negation and direct-polarity indication are diagram-wide alternatives and are not mixed;
 - output-qualifier evidence cites diagram convention rule 3.1.1 plus the defining symbol: 3.1-2 for negation, 3.1-6 for direct-polarity output, or 3.1-7 for right-to-left direct-polarity output;
 - dynamic, active-low, three-state, bit-grouping, common-control, and common-output marks bind to explicit Ports or groups;
+- a V1 aggregate multi-bit Port has one semantic anchor and therefore is not presented as an IEEE multi-terminal bit group; its authored display label is shown without HDL slice notation, the claim is no stronger than `StandardBaseWithNonstandardInfo`, and `teachingmixed-aggregate-multibit-port` lists the affected Port IDs;
 - dependency notation records type, identifier, affecting endpoint, affected endpoints, and application order;
 - input and output qualifier sequences follow IEEE 91A clauses 4.4.3 and 4.4.4;
 - orientation distinguishes glyphs relative to signal flow from text relative to reading direction.

@@ -15,7 +15,7 @@ internal sealed record RectangularSymbolDefinition(
     Func<IReadOnlyList<ComponentParameterBinding>, string> FunctionText,
     ConformanceClaimV1 Claim,
     ReadOnlyCollection<string> StandardClauses,
-    string? DeviationCode,
+    string? FunctionDeviationCode,
     RectangularSymbolDependencyRecipe DependencyRecipe);
 
 internal sealed record ResolvedRectangularSymbolDefinition(
@@ -24,9 +24,10 @@ internal sealed record ResolvedRectangularSymbolDefinition(
     string AccessibilityKey,
     string VariantId,
     string FunctionText,
+    FontRoleV1 FunctionFontRole,
     ConformanceClaimV1 Claim,
     ReadOnlyCollection<string> StandardClauses,
-    string? DeviationCode,
+    ReadOnlyCollection<ConformanceDeviationV1> Deviations,
     ReadOnlyCollection<RectangularSymbolDependency> Dependencies);
 
 internal static class TeachingMixedRectangularSymbolRegistry
@@ -96,15 +97,54 @@ internal static class TeachingMixedRectangularSymbolRegistry
             return false;
         }
 
+        var functionText = definition.FunctionText(parameters);
+        var functionFontRole = definition.FunctionDeviationCode is null
+            ? FontRoleV1.Symbol
+            : FontRoleV1.ExtensionMark;
+        var claim = definition.Claim;
+        var deviations = new List<ConformanceDeviationV1>();
+        if (definition.FunctionDeviationCode is { } functionDeviationCode)
+        {
+            deviations.Add(new ConformanceDeviationV1(functionDeviationCode, []));
+        }
+
+        if (contractId == "logic.priority_encoder"
+            && Choice(parameters, "priority") == "lowestIndex")
+        {
+            functionText = "[LPRI/BIN]";
+            functionFontRole = FontRoleV1.ExtensionMark;
+            claim = ConformanceClaimV1.StandardBaseWithNonstandardInfo;
+            deviations.Add(new ConformanceDeviationV1(
+                "teachingmixed-lowest-priority-encoder",
+                [.. ports.Select(port => port.Id)]));
+        }
+
+        var aggregatePorts = ports
+            .Where(port => port.Width > 1)
+            .Select(port => port.Id)
+            .ToArray();
+        if (aggregatePorts.Length > 0)
+        {
+            if (claim == ConformanceClaimV1.Standardized91A)
+            {
+                claim = ConformanceClaimV1.StandardBaseWithNonstandardInfo;
+            }
+
+            deviations.Add(new ConformanceDeviationV1(
+                "teachingmixed-aggregate-multibit-port",
+                aggregatePorts));
+        }
+
         resolved = new ResolvedRectangularSymbolDefinition(
             definition.DefinitionId,
             definition.DefinitionVersion,
             definition.AccessibilityKey,
             SymbolVariantCatalog.RectangularId,
-            definition.FunctionText(parameters),
-            definition.Claim,
+            functionText,
+            functionFontRole,
+            claim,
             definition.StandardClauses,
-            definition.DeviationCode,
+            Array.AsReadOnly(deviations.ToArray()),
             RectangularSymbolDependencyResolver.Resolve(
                 definition.DependencyRecipe,
                 ports));
@@ -132,7 +172,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
             functionText,
             ConformanceClaimV1.Standardized91A,
             clauses,
-            deviationCode: null,
+            functionDeviationCode: null,
             dependencyRecipe);
 
     private static KeyValuePair<string, RectangularSymbolDefinition> Extension(
@@ -157,19 +197,17 @@ internal static class TeachingMixedRectangularSymbolRegistry
         Func<IReadOnlyList<ComponentParameterBinding>, string> functionText,
         ConformanceClaimV1 claim,
         IReadOnlyList<string> clauses,
-        string? deviationCode,
+        string? functionDeviationCode,
         RectangularSymbolDependencyRecipe dependencyRecipe) => KeyValuePair.Create(
             contractId,
             new RectangularSymbolDefinition(
                 $"logiclab.teachingmixed.{contractId}",
-                dependencyRecipe == RectangularSymbolDependencyRecipe.None
-                    ? "1.0.0"
-                    : "2.0.0",
+                "3.0.0",
                 $"presentation.symbol.{contractId}",
                 functionText,
                 claim,
                 Array.AsReadOnly(clauses.ToArray()),
-                deviationCode,
+                functionDeviationCode,
                 dependencyRecipe));
 
     private static uint U32(

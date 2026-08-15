@@ -483,11 +483,28 @@ internal static class GeometryPlanValidator
 
         ValidateAccessibilityTree(plan.AccessibilityNodes);
         ValidatePortBindings(plan);
+        ValidateConformanceBindings(plan);
 
         if (plan.Operations.Any(operation => !IsWithinBounds(operation, plan.Bounds)))
         {
             throw new InvalidOperationException(
                 "A Geometry Plan drawing operation exceeds its published bounds.");
+        }
+    }
+
+    private static void ValidateConformanceBindings(GeometryPlanV1 plan)
+    {
+        var portIds = plan.PortAnchors
+            .Select(anchor => anchor.PortId)
+            .ToHashSet(StringComparer.Ordinal);
+        if (HasDuplicates(plan.Conformance.Deviations.Select(deviation =>
+                deviation.DeviationCode))
+            || plan.Conformance.Deviations.Any(deviation =>
+                HasDuplicates(deviation.AffectedPortIds)
+                || deviation.AffectedPortIds.Any(portId => !portIds.Contains(portId))))
+        {
+            throw new InvalidOperationException(
+                "Conformance deviations must be unique and reference published Ports.");
         }
     }
 

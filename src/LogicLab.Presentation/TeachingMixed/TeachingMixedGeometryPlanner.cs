@@ -233,16 +233,14 @@ public static class TeachingMixedGeometryPlanner
             var conformance = Conformance(definition);
             var layoutRequest = new RectangularSymbolLayoutRequest(
                 definition.FunctionText,
-                definition.DeviationCode is null
-                    ? FontRoleV1.Symbol
-                    : FontRoleV1.ExtensionMark,
+                definition.FunctionFontRole,
                 definition.AccessibilityKey,
                 definition.Dependencies,
                 request.MetricSet,
                 request.LocaleId,
                 request.BaseDirection,
                 request.Profile.IndicationConvention,
-                HasActiveLowEnable(request.Parameters),
+                ActiveLowQualifiers(request.Parameters, ports),
                 request.Contract.Key.ContractId == "logic.tristate",
                 conformance);
             var rectangularPorts = ports.Select(port => new RectangularSymbolPort(
@@ -365,7 +363,7 @@ public static class TeachingMixedGeometryPlanner
                 request.LocaleId,
                 request.BaseDirection,
                 request.Profile.IndicationConvention,
-                HasActiveLowEnable: false,
+                InputQualifiers: [],
                 HasThreeStateOutput: false,
                 conformance);
             var ports = request.Definition.Ports.Select(port => new RectangularSymbolPort(
@@ -386,7 +384,7 @@ public static class TeachingMixedGeometryPlanner
             var semanticDigest = GeometryRequestFingerprint.CircuitContract(request.Definition);
             var key = new GeometryPlanKeyV1(
                 "logiclab.teachingmixed.circuit-definition",
-                "1.0.0",
+                "2.0.0",
                 semanticDigest,
                 SymbolVariantCatalog.RectangularId,
                 GeometryRequestFingerprint.Compute(request),
@@ -464,15 +462,33 @@ public static class TeachingMixedGeometryPlanner
         ResolvedRectangularSymbolDefinition definition) => new(
             definition.Claim,
             [new StandardReferenceV1("IEEE-91A", "1991", definition.StandardClauses)],
-            definition.DeviationCode is { } deviationCode
-                ? [new ConformanceDeviationV1(deviationCode, [])]
-                : [],
+            definition.Deviations,
             AnnexAStatusV1.NotEvaluated);
 
-    private static bool HasActiveLowEnable(
-        IReadOnlyList<ComponentParameterBinding> parameters) => parameters.Any(parameter =>
-            parameter.ParameterId == "enablePolarity"
-            && parameter.Value is ChoiceParameterValue { Value: "activeLow" });
+    private static ReadOnlyCollection<RectangularSymbolInputQualifier> ActiveLowQualifiers(
+        IReadOnlyList<ComponentParameterBinding> parameters,
+        IReadOnlyList<ResolvedComponentPortSchema> ports)
+    {
+        if (!parameters.Any(parameter =>
+                parameter.ParameterId == "enablePolarity"
+                && parameter.Value is ChoiceParameterValue { Value: "activeLow" }))
+        {
+            return Array.AsReadOnly(Array.Empty<RectangularSymbolInputQualifier>());
+        }
+
+        var qualifiers = ports
+            .Where(port => port.Id == "EN" && port.Direction == PortDirection.Input)
+            .Select(port => new RectangularSymbolInputQualifier(
+                RectangularSymbolInputQualifierKind.ActiveLow,
+                port.Id))
+            .ToArray();
+        if (qualifiers.Length == 0)
+        {
+            throw new LayoutInvalidException(LayoutConstraintV1.Request);
+        }
+
+        return Array.AsReadOnly(qualifiers);
+    }
 
     private static void ValidateBasicPorts(
         ReadOnlyCollection<ResolvedComponentPortSchema> ports)
