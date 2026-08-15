@@ -347,12 +347,27 @@ public static class TeachingMixedGeometryPlanner
             {
                 new StandardReferenceV1("IEEE-91A", "1991", ["6.1-1", "6.1.2", "6.1.4"]),
             };
+            var deviations = new List<ConformanceDeviationV1>
+            {
+                new(
+                    "teachingmixed-user-circuit-definition",
+                    [.. request.Definition.Ports.Select(port => port.Id.Value)]),
+            };
+            var aggregatePortIds = request.Definition.Ports
+                .Where(port => port.Width > 1)
+                .Select(port => port.Id.Value)
+                .ToArray();
+            if (aggregatePortIds.Length > 0)
+            {
+                deviations.Add(new ConformanceDeviationV1(
+                    "teachingmixed-aggregate-multibit-port",
+                    aggregatePortIds));
+            }
+
             var conformance = new ConformanceEvidenceV1(
                 ConformanceClaimV1.TeachingExtension,
                 standardReferences,
-                [new ConformanceDeviationV1(
-                    "teachingmixed-user-circuit-definition",
-                    [.. request.Definition.Ports.Select(port => port.Id.Value)])],
+                deviations,
                 AnnexAStatusV1.NotEvaluated);
             var layoutRequest = new RectangularSymbolLayoutRequest(
                 request.DisplayName,

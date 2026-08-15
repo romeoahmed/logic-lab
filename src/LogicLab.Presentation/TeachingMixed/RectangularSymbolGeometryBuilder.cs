@@ -102,12 +102,16 @@ internal static class RectangularSymbolGeometryBuilder
         var maximumInputWidth = MaximumLabelWidth(inputs, labelMeasurements, request.BaseDirection);
         var maximumOutputWidth = MaximumLabelWidth(outputs, labelMeasurements, request.BaseDirection);
 
+        var functionLeftExtent = checked(-functionEnvelope.Left);
+        var functionRightExtent = functionEnvelope.Right;
+        var sideTextPadding = ScaleUp(h, 2);
+        var requiredLeftHalfWidth = checked(
+            maximumInputWidth + sideTextPadding + functionLeftExtent);
+        var requiredRightHalfWidth = checked(
+            maximumOutputWidth + sideTextPadding + functionRightExtent);
         var bodyWidth = Math.Max(
             ScaleUp(h, 8),
-            checked(maximumInputWidth
-                + maximumOutputWidth
-                + functionEnvelope.Width
-                + ScaleUp(h, 4)));
+            checked(2 * Math.Max(requiredLeftHalfWidth, requiredRightHalfWidth)));
         var sideCount = Math.Max(inputs.Length, outputs.Length);
         var widestUprightText = Math.Max(
             Math.Max(maximumInputWidth, maximumOutputWidth),
@@ -156,7 +160,20 @@ internal static class RectangularSymbolGeometryBuilder
 
         var inputRows = Rows(inputs.Length, body.Top, body.Height, portPitch);
         var outputRows = Rows(outputs.Length, body.Top, body.Height, portPitch);
-        AddPortLeads(operations, inputs, inputRows, inset, body.Left, outlineWidth);
+        var qualifierRadius = ScaleUp(h, 1, 4);
+        var negatedInputPortIds = request.IndicationConvention == IndicationConvention.Negation
+            ? request.InputQualifiers.Select(qualifier => qualifier.PortId)
+                .ToHashSet(StringComparer.Ordinal)
+            : [];
+        AddPortLeads(
+            operations,
+            inputs,
+            inputRows,
+            inset,
+            body.Left,
+            outlineWidth,
+            negatedInputPortIds,
+            qualifierRadius);
         AddPortLeads(operations, outputs, outputRows, body.Right, outputAnchorX, outlineWidth);
 
         var anchors = new List<PortAnchorV1>(ports.Count);
@@ -222,14 +239,14 @@ internal static class RectangularSymbolGeometryBuilder
                     AccessibilityActionV1.OpenInspector,
                 ]));
 
-            var labelOrigin = new PointV1(
-                isInput
-                    ? checked(body.Left + h + (maximumInputWidth / 2))
-                    : checked(body.Right - h - (maximumOutputWidth / 2)),
-                y);
             var labelEnvelope = labelMeasurements[port.Id].InkAndAdvanceBounds(
                 TextAlignmentV1.Center,
                 request.BaseDirection);
+            var labelOrigin = new PointV1(
+                isInput
+                    ? checked(body.Left + h - labelEnvelope.Left)
+                    : checked(body.Right - h - labelEnvelope.Right),
+                y);
             var label = labels[port.Id];
             operations.Add(Text(
                 label.Text,
@@ -246,8 +263,8 @@ internal static class RectangularSymbolGeometryBuilder
             {
                 var anchor = anchors.Single(candidate => candidate.PortId == qualifier.PortId);
                 operations.Add(QualifierCircle(
-                    new PointV1(body.Left, anchor.Point.Y),
-                    ScaleUp(h, 1, 4),
+                    new PointV1(checked(body.Left - qualifierRadius), anchor.Point.Y),
+                    qualifierRadius,
                     outlineWidth));
             }
         }
@@ -510,15 +527,20 @@ internal static class RectangularSymbolGeometryBuilder
         int[] rows,
         int startX,
         int endX,
-        int outlineWidth)
+        int outlineWidth,
+        HashSet<string>? externallyQualifiedPortIds = null,
+        int qualifierRadius = 0)
     {
         for (var index = 0; index < ports.Length; index++)
         {
+            var leadEndX = externallyQualifiedPortIds?.Contains(ports[index].Id) is true
+                ? checked(endX - (2 * qualifierRadius))
+                : endX;
             operations.Add(Stroke(
                 new PathV1(
                 [
                     new MoveToV1(new PointV1(startX, rows[index])),
-                    new LineToV1(new PointV1(endX, rows[index])),
+                    new LineToV1(new PointV1(leadEndX, rows[index])),
                 ]),
                 StrokeRoleV1.Outline,
                 outlineWidth));

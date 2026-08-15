@@ -129,6 +129,25 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     }
 
     [Test]
+    public async Task Plan_AsymmetricSideLabels_ReserveIndependentFunctionClearance()
+    {
+        var plan = Plan(Request("logic.mux"));
+        var text = plan.Operations.OfType<DrawTextV1>().ToArray();
+        var function = text.Single(operation => operation.Text == "MUX");
+        var maximumInputRight = text
+            .Where(operation => operation.Text is "0D0" or "1D1" or "2D2" or "3D3" or "G0/3S")
+            .Max(operation => operation.Bounds.Right);
+        var minimumOutputLeft = text.Single(operation => operation.Text == "Q").Bounds.Left;
+        var clearance = TeachingMixedMetricSets.AnnexA100.UnitsPerH;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(function.Bounds.Left - maximumInputRight >= clearance).IsTrue();
+            await Assert.That(minimumOutputLeft - function.Bounds.Right >= clearance).IsTrue();
+        }
+    }
+
+    [Test]
     public async Task Plan_MultiBitAdder_PublishesTeachingExtensionAndAggregateDeviation()
     {
         var plan = Plan(Request("logic.adder"));
@@ -312,6 +331,23 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
 
         var negation = Plan(negationRequest);
         var directPolarity = Plan(directPolarityRequest);
+        var bodyOutline = negation.Operations.OfType<StrokePathV1>().Single(operation =>
+            operation.Role == StrokeRoleV1.Outline
+            && operation.Path.Commands is
+                [MoveToV1, LineToV1, LineToV1, LineToV1, ClosePathV1]);
+        var bodyLeft = ((MoveToV1)bodyOutline.Path.Commands[0]).Point.X;
+        var negationQualifier = negation.Operations.OfType<StrokePathV1>().Single(operation =>
+            operation.Role == StrokeRoleV1.Qualifier
+            && operation.Path.Commands.OfType<CubicToV1>().Any());
+        var qualifierRight = ((MoveToV1)negationQualifier.Path.Commands[0]).Point;
+        var qualifierLeft = ((CubicToV1)negationQualifier.Path.Commands[2]).End.X;
+        var qualifiedInputLead = negation.Operations.OfType<StrokePathV1>().Single(operation =>
+            operation.Role == StrokeRoleV1.Outline
+            && operation.Path.Commands is [MoveToV1 move, LineToV1 line]
+            && move.Point.Y == qualifierRight.Y
+            && line.Point.Y == qualifierRight.Y
+            && Math.Min(move.Point.X, line.Point.X) < bodyLeft
+            && Math.Max(move.Point.X, line.Point.X) <= bodyLeft);
 
         using (Assert.Multiple())
         {
@@ -328,6 +364,9 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
                     && operation.FontRole == FontRoleV1.Dependency)).IsTrue();
             await Assert.That(directPolarity.Operations.OfType<DrawTextV1>()
                 .Any(operation => operation.Text == "L")).IsFalse();
+            await Assert.That(qualifierRight.X).IsEqualTo(bodyLeft);
+            await Assert.That(((LineToV1)qualifiedInputLead.Path.Commands[1]).Point.X)
+                .IsEqualTo(qualifierLeft);
         }
     }
 
@@ -364,6 +403,13 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
             await Assert.That(plan.Conformance.StandardReferences[0].ClauseIds)
                 .IsEquivalentTo(
                     ["6.1-1", "6.1.2", "6.1.4"],
+                    CollectionOrdering.Matching);
+            await Assert.That(plan.Conformance.Deviations.Single(deviation =>
+                    deviation.DeviationCode == "teachingmixed-aggregate-multibit-port")
+                .AffectedPortIds)
+                .IsEquivalentTo(
+                    definition.Ports.Where(port => port.Width > 1)
+                        .Select(port => port.Id.Value),
                     CollectionOrdering.Matching);
             await Assert.That(definition.Ports.All(port =>
                 plan.Operations.OfType<DrawTextV1>().Any(operation =>
