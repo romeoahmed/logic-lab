@@ -193,11 +193,15 @@ public static class TeachingMixedSchematicProjector
             foreach (var net in definition.Nets.OrderBy(net => net.Id.Value, StringComparer.Ordinal))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var terminalAnchors = ProjectTerminals(
-                    definition.Id,
-                    net,
-                    definitionAnchors,
-                    instanceAnchors);
+                if (!TryProjectTerminals(
+                        definition.Id,
+                        net,
+                        definitionAnchors,
+                        instanceAnchors,
+                        out var terminalAnchors))
+                {
+                    return Invalid(LayoutConstraintV1.Request);
+                }
                 var junctionIds = net.JunctionIds.ToArray();
                 var netWires = wiresByNet[net.Id].ToArray();
                 var junctionPoints = new PointV1[junctionIds.Length];
@@ -691,16 +695,17 @@ public static class TeachingMixedSchematicProjector
                 [AccessibilityActionV1.Focus, AccessibilityActionV1.Select])]);
     }
 
-    private static ProjectedTerminalAnchorV1[] ProjectTerminals(
+    private static bool TryProjectTerminals(
         CircuitDefinitionId definitionId,
         Net net,
         Dictionary<DefinitionPortId, PointV1> definitionAnchors,
-        Dictionary<(ComponentInstanceId, string), PointV1> instanceAnchors)
+        Dictionary<(ComponentInstanceId, string), PointV1> instanceAnchors,
+        out ProjectedTerminalAnchorV1[] anchors)
     {
-        var anchors = new ProjectedTerminalAnchorV1[net.Terminals.Count];
+        anchors = new ProjectedTerminalAnchorV1[net.Terminals.Count];
         for (var index = 0; index < net.Terminals.Count; index++)
         {
-            anchors[index] = net.Terminals[index] switch
+            ProjectedTerminalAnchorV1? anchor = net.Terminals[index] switch
             {
                 DefinitionTerminalReference terminal
                     when terminal.CircuitDefinitionId == definitionId
@@ -717,12 +722,18 @@ public static class TeachingMixedSchematicProjector
                                 terminal.ComponentInstanceId,
                                 terminal.PortId,
                                 point),
-                _ => throw new InvalidOperationException(
-                    "An authored Net Terminal is outside the projected definition."),
+                _ => null,
             };
+            if (anchor is null)
+            {
+                anchors = [];
+                return false;
+            }
+
+            anchors[index] = anchor;
         }
 
-        return anchors;
+        return true;
     }
 
     private static PointV1 Convert(

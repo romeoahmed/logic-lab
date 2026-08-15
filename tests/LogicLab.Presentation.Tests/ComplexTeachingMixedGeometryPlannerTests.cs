@@ -21,14 +21,14 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     [Arguments("topology.concat", "[CONCAT]", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
     [Arguments("topology.zero_extend", "[ZERO EXT]", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
     [Arguments("topology.sign_extend", "[SIGN EXT]", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
-    [Arguments("logic.tristate", "1", ConformanceClaimV1.Standardized91A)]
-    [Arguments("logic.mux", "MUX", ConformanceClaimV1.Standardized91A)]
-    [Arguments("logic.demux", "DX", ConformanceClaimV1.Standardized91A)]
-    [Arguments("logic.decoder", "BIN/4", ConformanceClaimV1.Standardized91A)]
-    [Arguments("logic.priority_encoder", "HPRI/BIN", ConformanceClaimV1.Standardized91A)]
-    [Arguments("logic.unsigned_compare", "COMP", ConformanceClaimV1.Standardized91A)]
-    [Arguments("logic.adder", "Σ", ConformanceClaimV1.Standardized91A)]
-    [Arguments("logic.subtractor", "P-Q", ConformanceClaimV1.Standardized91A)]
+    [Arguments("logic.tristate", "1", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
+    [Arguments("logic.mux", "MUX", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
+    [Arguments("logic.demux", "DX", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
+    [Arguments("logic.decoder", "BIN/4", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
+    [Arguments("logic.priority_encoder", "HPRI/BIN", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
+    [Arguments("logic.unsigned_compare", "COMP", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
+    [Arguments("logic.adder", "Σ", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
+    [Arguments("logic.subtractor", "P-Q", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
     [Arguments("logic.shift", "[SHL]", ConformanceClaimV1.StandardBaseWithNonstandardInfo)]
     public async Task Plan_Item24LibraryContract_EmitsParameterizedRectangleAndExactPorts(
         string contractId,
@@ -106,14 +106,13 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
                 .IsEquivalentTo(
                     expectedClauses.Split('|'),
                     CollectionOrdering.Matching);
-            await Assert.That(plan.Conformance.Deviations).IsEmpty();
         }
     }
 
     [Test]
-    [Arguments("logic.tristate", "EN1|1Q[3:0]")]
-    [Arguments("logic.mux", "0D0[3:0]|1D1[3:0]|2D2[3:0]|3D3[3:0]|G0/3S[1:0]")]
-    [Arguments("logic.demux", "G0/3S[1:0]|0Q0[3:0]|1Q1[3:0]|2Q2[3:0]|3Q3[3:0]")]
+    [Arguments("logic.tristate", "EN1|1Q")]
+    [Arguments("logic.mux", "0D0|1D1|2D2|3D3|G0/3S")]
+    [Arguments("logic.demux", "G0/3S|0Q0|1Q1|2Q2|3Q3")]
     [Arguments("logic.decoder", "EN1|1Q0|1Q1|1Q2|1Q3")]
     public async Task Plan_DependencyNotation_BindsRelationsToAffectedPortLabels(
         string contractId,
@@ -127,6 +126,58 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
             .IsEquivalentTo(
                 expectedLabels.Split('|'),
                 CollectionOrdering.Matching);
+    }
+
+    [Test]
+    public async Task Plan_MultiBitAdder_PublishesAggregatePortDeviationWithoutSliceLabels()
+    {
+        var plan = Plan(Request("logic.adder"));
+        var deviation = plan.Conformance.Deviations.Single(candidate =>
+            candidate.DeviationCode == "teachingmixed-aggregate-multibit-port");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Conformance.Claim)
+                .IsEqualTo(ConformanceClaimV1.StandardBaseWithNonstandardInfo);
+            await Assert.That(deviation.AffectedPortIds)
+                .IsEquivalentTo(["A", "B", "SUM"], CollectionOrdering.Matching);
+            await Assert.That(plan.Operations.OfType<DrawTextV1>()
+                .Any(operation => operation.Text.Contains('[', StringComparison.Ordinal)))
+                .IsFalse();
+        }
+    }
+
+    [Test]
+    public async Task Plan_LowestPriorityEncoder_PublishesExplicitExtensionInsteadOfHpri()
+    {
+        var template = Request("logic.priority_encoder");
+        var request = new ComplexSymbolRequestV1(
+            template.Contract,
+            [U32("inputCount", 5), Choice("priority", "lowestIndex")],
+            template.Profile,
+            template.SymbolVariantId,
+            template.Facing,
+            template.IsReflected,
+            template.MetricSet,
+            template.FontFingerprint,
+            template.LocaleId,
+            template.BaseDirection);
+
+        var plan = Plan(request);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Operations.OfType<DrawTextV1>()
+                .Any(operation => operation.Text == "HPRI/BIN")).IsFalse();
+            await Assert.That(plan.Operations.OfType<DrawTextV1>()
+                .Any(operation => operation.Text == "[LPRI/BIN]"
+                    && operation.FontRole == FontRoleV1.ExtensionMark)).IsTrue();
+            await Assert.That(plan.Conformance.Claim)
+                .IsEqualTo(ConformanceClaimV1.StandardBaseWithNonstandardInfo);
+            await Assert.That(plan.Conformance.Deviations.Any(deviation =>
+                deviation.DeviationCode == "teachingmixed-lowest-priority-encoder"))
+                .IsTrue();
+        }
     }
 
     [Test]
@@ -148,9 +199,10 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
             await Assert.That(plan.Operations.OfType<DrawTextV1>()
                 .Any(operation => operation.FontRole == FontRoleV1.ExtensionMark))
                 .IsTrue();
-            await Assert.That(plan.Conformance.Deviations).Count().IsEqualTo(1);
-            await Assert.That(plan.Conformance.Deviations[0].DeviationCode)
-                .StartsWith("teachingmixed-");
+            await Assert.That(plan.Conformance.Deviations.Any(deviation =>
+                deviation.DeviationCode.StartsWith(
+                    $"teachingmixed-{contractId.Replace(".", "-", StringComparison.Ordinal)}",
+                    StringComparison.Ordinal))).IsTrue();
         }
     }
 
@@ -197,7 +249,18 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     [Test]
     public async Task Plan_ActiveLowControl_UsesOneDiagramIndicationConvention()
     {
-        var negationRequest = Request("logic.tristate");
+        var template = Request("logic.tristate");
+        var negationRequest = new ComplexSymbolRequestV1(
+            template.Contract,
+            [U32("width", 1), Choice("enablePolarity", "activeLow")],
+            template.Profile,
+            template.SymbolVariantId,
+            template.Facing,
+            template.IsReflected,
+            template.MetricSet,
+            template.FontFingerprint,
+            template.LocaleId,
+            template.BaseDirection);
         var directPolarityRequest = new ComplexSymbolRequestV1(
             negationRequest.Contract,
             negationRequest.Parameters,
@@ -227,8 +290,10 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
                 .Any(operation => operation.Role == StrokeRoleV1.Qualifier
                     && operation.Path.Commands.OfType<CubicToV1>().Any())).IsFalse();
             await Assert.That(directPolarity.Operations.OfType<DrawTextV1>()
-                .Any(operation => operation.Text == "L"
+                .Any(operation => operation.Text == "LEN1"
                     && operation.FontRole == FontRoleV1.Dependency)).IsTrue();
+            await Assert.That(directPolarity.Operations.OfType<DrawTextV1>()
+                .Any(operation => operation.Text == "L")).IsFalse();
         }
     }
 
@@ -266,6 +331,21 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
                 .IsEquivalentTo(
                     ["6.1-1", "6.1.2", "6.1.4"],
                     CollectionOrdering.Matching);
+            await Assert.That(definition.Ports.All(port =>
+                plan.Operations.OfType<DrawTextV1>().Any(operation =>
+                    operation.Text == port.DisplayName)
+                && plan.Operations.OfType<DrawTextV1>().All(operation =>
+                    !operation.Text.Contains(port.Id.Value, StringComparison.Ordinal))))
+                .IsTrue();
+            await Assert.That(definition.Ports.All(port =>
+            {
+                var anchor = plan.PortAnchors.Single(candidate =>
+                    candidate.PortId == port.Id.Value);
+                var node = plan.AccessibilityNodes.Single(candidate =>
+                    candidate.LocalId == anchor.AccessibilityNodeId);
+                return node.Arguments.OfType<TextLocalizationArgumentV1>().Any(argument =>
+                    argument.Value == port.DisplayName);
+            })).IsTrue();
         }
     }
 
