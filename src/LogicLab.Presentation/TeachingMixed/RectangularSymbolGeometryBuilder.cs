@@ -101,34 +101,54 @@ internal static class RectangularSymbolGeometryBuilder
                 textMeasurer,
                 cancellationToken),
             StringComparer.Ordinal);
-        var maximumInputWidth = MaximumLabelWidth(inputs, labelMeasurements, request.BaseDirection);
-        var maximumOutputWidth = MaximumLabelWidth(outputs, labelMeasurements, request.BaseDirection);
+        var labelEnvelopes = labelMeasurements.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value.InkAndAdvanceBounds(
+                TextAlignmentV1.Center,
+                request.BaseDirection),
+            StringComparer.Ordinal);
+        var flowAxisLabels = labelEnvelopes.ToDictionary(
+            pair => pair.Key,
+            pair => FlowAxisInterval(pair.Value, request.Facing),
+            StringComparer.Ordinal);
+        var rowAxisLabels = labelEnvelopes.ToDictionary(
+            pair => pair.Key,
+            pair => RowAxisInterval(
+                pair.Value,
+                request.Facing,
+                request.IsReflected),
+            StringComparer.Ordinal);
+        var functionFlowAxis = FlowAxisInterval(functionEnvelope, request.Facing);
+        var functionRowAxis = RowAxisInterval(
+            functionEnvelope,
+            request.Facing,
+            request.IsReflected);
+        var maximumInputFlowSpan = MaximumLabelSpan(inputs, flowAxisLabels);
+        var maximumOutputFlowSpan = MaximumLabelSpan(outputs, flowAxisLabels);
         var portPitch = RequiredPortPitch(
             inputs,
             outputs,
-            labelMeasurements,
-            request,
+            rowAxisLabels,
             basePortPitch,
             Math.Max(1, h / 2));
 
-        var functionLeftExtent = checked(-functionEnvelope.Left);
-        var functionRightExtent = functionEnvelope.Right;
         var sideTextPadding = ScaleUp(h, 2);
         var requiredLeftHalfWidth = checked(
-            maximumInputWidth + sideTextPadding + functionLeftExtent);
+            maximumInputFlowSpan + sideTextPadding - functionFlowAxis.Start);
         var requiredRightHalfWidth = checked(
-            maximumOutputWidth + sideTextPadding + functionRightExtent);
+            maximumOutputFlowSpan + sideTextPadding + functionFlowAxis.End);
         var bodyWidth = Math.Max(
             ScaleUp(h, 8),
             checked(2 * Math.Max(requiredLeftHalfWidth, requiredRightHalfWidth)));
-        var sideCount = Math.Max(inputs.Length, outputs.Length);
-        var widestUprightText = Math.Max(
-            Math.Max(maximumInputWidth, maximumOutputWidth),
-            functionEnvelope.Width);
-        var rotationTextMargin = checked((widestUprightText / 2) + h);
-        var bodyHeight = Math.Max(
+        var crossAxisLayout = RequiredCrossAxisLayout(
+            inputs,
+            outputs,
+            rowAxisLabels,
+            functionRowAxis,
+            portPitch,
             ScaleUp(h, 13, 2),
-            checked(Math.Max(0, sideCount - 1) * portPitch + (2 * rotationTextMargin)));
+            h);
+        var bodyHeight = crossAxisLayout.Extent;
 
         var bodyLeft = checked(inset + leadLength);
         var body = new RectV1(
@@ -156,19 +176,20 @@ internal static class RectangularSymbolGeometryBuilder
                 StrokeRoleV1.Outline,
                 outlineWidth),
         };
-        var center = new PointV1(
+        var contentCenterY = checked(body.Top + crossAxisLayout.CenterOffset);
+        var functionOrigin = new PointV1(
             checked(body.Left + (body.Width / 2)),
-            checked(body.Top + (body.Height / 2)));
+            contentCenterY);
         operations.Add(Text(
             request.FunctionText,
             functionRole,
-            center,
+            functionOrigin,
             functionEnvelope,
             TextAlignmentV1.Center,
             request));
 
-        var inputRows = Rows(inputs.Length, body.Top, body.Height, portPitch);
-        var outputRows = Rows(outputs.Length, body.Top, body.Height, portPitch);
+        var inputRows = Rows(inputs.Length, contentCenterY, portPitch);
+        var outputRows = Rows(outputs.Length, contentCenterY, portPitch);
         var qualifierRadius = ScaleUp(h, 1, 4);
         var negatedInputPortIds = request.IndicationConvention == IndicationConvention.Negation
             ? request.InputQualifiers.Select(qualifier => qualifier.PortId)
@@ -248,13 +269,12 @@ internal static class RectangularSymbolGeometryBuilder
                     AccessibilityActionV1.OpenInspector,
                 ]));
 
-            var labelEnvelope = labelMeasurements[port.Id].InkAndAdvanceBounds(
-                TextAlignmentV1.Center,
-                request.BaseDirection);
+            var labelEnvelope = labelEnvelopes[port.Id];
+            var flowAxisLabel = flowAxisLabels[port.Id];
             var labelOrigin = new PointV1(
                 isInput
-                    ? checked(body.Left + h - labelEnvelope.Left)
-                    : checked(body.Right - h - labelEnvelope.Right),
+                    ? checked(body.Left + h - flowAxisLabel.Start)
+                    : checked(body.Right - h - flowAxisLabel.End),
                 y);
             var label = labels[port.Id];
             operations.Add(Text(
@@ -487,77 +507,115 @@ internal static class RectangularSymbolGeometryBuilder
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
-    private static int MaximumLabelWidth(
+    private static int MaximumLabelSpan(
         RectangularSymbolPort[] ports,
-        Dictionary<string, SymbolTextMeasurementV1> measurements,
-        BaseDirectionV1 baseDirection) => ports.Length == 0
+        IReadOnlyDictionary<string, AxisInterval> intervals) => ports.Length == 0
             ? 0
-            : ports.Max(port => measurements[port.Id]
-                .InkAndAdvanceBounds(TextAlignmentV1.Center, baseDirection).Width);
+            : ports.Max(port => intervals[port.Id].Span);
 
     private static int RequiredPortPitch(
         IReadOnlyList<RectangularSymbolPort> inputs,
         IReadOnlyList<RectangularSymbolPort> outputs,
-        IReadOnlyDictionary<string, SymbolTextMeasurementV1> measurements,
-        RectangularSymbolLayoutRequest request,
+        IReadOnlyDictionary<string, AxisInterval> intervals,
         int minimumPitch,
         int clearance)
     {
-        var horizontal = request.Facing is SymbolFacingV1.North or SymbolFacingV1.South;
-        var rowOrderIncreases = request.Facing switch
-        {
-            SymbolFacingV1.East or SymbolFacingV1.North => !request.IsReflected,
-            SymbolFacingV1.South or SymbolFacingV1.West => request.IsReflected,
-            _ => throw new LayoutInvalidException(LayoutConstraintV1.Request),
-        };
         var required = RequiredPortPitch(
             inputs,
-            measurements,
-            request.BaseDirection,
-            horizontal,
-            rowOrderIncreases,
+            intervals,
             minimumPitch,
             clearance);
         return RequiredPortPitch(
             outputs,
-            measurements,
-            request.BaseDirection,
-            horizontal,
-            rowOrderIncreases,
+            intervals,
             required,
             clearance);
     }
 
     private static int RequiredPortPitch(
         IReadOnlyList<RectangularSymbolPort> ports,
-        IReadOnlyDictionary<string, SymbolTextMeasurementV1> measurements,
-        BaseDirectionV1 baseDirection,
-        bool horizontal,
-        bool rowOrderIncreases,
+        IReadOnlyDictionary<string, AxisInterval> intervals,
         int minimumPitch,
         int clearance)
     {
         var required = minimumPitch;
         for (var index = 1; index < ports.Count; index++)
         {
-            var previous = measurements[ports[index - 1].Id].InkAndAdvanceBounds(
-                TextAlignmentV1.Center,
-                baseDirection);
-            var current = measurements[ports[index].Id].InkAndAdvanceBounds(
-                TextAlignmentV1.Center,
-                baseDirection);
-            var previousStart = horizontal ? previous.Left : previous.Top;
-            var previousEnd = horizontal ? previous.Right : previous.Bottom;
-            var currentStart = horizontal ? current.Left : current.Top;
-            var currentEnd = horizontal ? current.Right : current.Bottom;
-            var adjacentRequirement = rowOrderIncreases
-                ? checked(previousEnd - currentStart + clearance)
-                : checked(currentEnd - previousStart + clearance);
+            var previous = intervals[ports[index - 1].Id];
+            var current = intervals[ports[index].Id];
+            var adjacentRequirement = checked(previous.End - current.Start + clearance);
             required = Math.Max(required, adjacentRequirement);
         }
 
         return required;
     }
+
+    private static CrossAxisLayout RequiredCrossAxisLayout(
+        IReadOnlyList<RectangularSymbolPort> inputs,
+        IReadOnlyList<RectangularSymbolPort> outputs,
+        IReadOnlyDictionary<string, AxisInterval> intervals,
+        AxisInterval functionInterval,
+        int pitch,
+        int minimumExtent,
+        int padding)
+    {
+        var contentStart = functionInterval.Start;
+        var contentEnd = functionInterval.End;
+        IncludeRows(inputs, intervals, pitch, ref contentStart, ref contentEnd);
+        IncludeRows(outputs, intervals, pitch, ref contentStart, ref contentEnd);
+
+        var minimumBefore = minimumExtent / 2;
+        var minimumAfter = checked(minimumExtent - minimumBefore);
+        var before = Math.Max(minimumBefore, checked(padding - contentStart));
+        var after = Math.Max(minimumAfter, checked(contentEnd + padding));
+        return new CrossAxisLayout(checked(before + after), before);
+    }
+
+    private static void IncludeRows(
+        IReadOnlyList<RectangularSymbolPort> ports,
+        IReadOnlyDictionary<string, AxisInterval> intervals,
+        int pitch,
+        ref int contentStart,
+        ref int contentEnd)
+    {
+        var rows = Rows(ports.Count, 0, pitch);
+        for (var index = 0; index < ports.Count; index++)
+        {
+            var interval = intervals[ports[index].Id];
+            contentStart = Math.Min(contentStart, checked(rows[index] + interval.Start));
+            contentEnd = Math.Max(contentEnd, checked(rows[index] + interval.End));
+        }
+    }
+
+    private static AxisInterval FlowAxisInterval(RectV1 envelope, SymbolFacingV1 facing) =>
+        facing switch
+        {
+            SymbolFacingV1.East => new AxisInterval(envelope.Left, envelope.Right),
+            SymbolFacingV1.South => new AxisInterval(envelope.Top, envelope.Bottom),
+            SymbolFacingV1.West => Reverse(envelope.Left, envelope.Right),
+            SymbolFacingV1.North => Reverse(envelope.Top, envelope.Bottom),
+            _ => throw new LayoutInvalidException(LayoutConstraintV1.Request),
+        };
+
+    private static AxisInterval RowAxisInterval(
+        RectV1 envelope,
+        SymbolFacingV1 facing,
+        bool isReflected)
+    {
+        var interval = facing is SymbolFacingV1.North or SymbolFacingV1.South
+            ? new AxisInterval(envelope.Left, envelope.Right)
+            : new AxisInterval(envelope.Top, envelope.Bottom);
+        var rowOrderIncreases = facing switch
+        {
+            SymbolFacingV1.East or SymbolFacingV1.North => !isReflected,
+            SymbolFacingV1.South or SymbolFacingV1.West => isReflected,
+            _ => throw new LayoutInvalidException(LayoutConstraintV1.Request),
+        };
+        return rowOrderIncreases ? interval : Reverse(interval.Start, interval.End);
+    }
+
+    private static AxisInterval Reverse(int start, int end) =>
+        new(checked(-end), checked(-start));
 
     private static string PortLabel(RectangularSymbolPort port) => port.DisplayName;
 
@@ -620,17 +678,23 @@ internal static class RectangularSymbolGeometryBuilder
         }
     }
 
-    private static int[] Rows(int count, int bodyTop, int bodyHeight, int pitch)
+    private static int[] Rows(int count, int center, int pitch)
     {
         if (count == 0)
         {
             return [];
         }
 
-        var center = checked(bodyTop + (bodyHeight / 2));
         var first = checked(center - (((count - 1) * pitch) / 2));
         return [.. Enumerable.Range(0, count).Select(index => checked(first + (index * pitch)))];
     }
+
+    private readonly record struct AxisInterval(int Start, int End)
+    {
+        public int Span => checked(End - Start);
+    }
+
+    private readonly record struct CrossAxisLayout(int Extent, int CenterOffset);
 
     private static StrokePathV1 QualifierCircle(PointV1 center, int radius, int width)
     {

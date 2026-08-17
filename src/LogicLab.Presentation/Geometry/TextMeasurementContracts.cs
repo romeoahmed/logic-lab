@@ -83,15 +83,10 @@ public sealed record SymbolTextMeasurementRequestV1
 public sealed record SymbolTextMeasurementV1
 {
     // Ink bounds use plan units relative to the requested alignment point and baseline.
+    // Zero advance and degenerate ink bounds are valid when shaping produces no glyph ink.
     public SymbolTextMeasurementV1(int advanceWidth, RectV1 inkBounds)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(advanceWidth);
-        if (inkBounds.Width <= 0 || inkBounds.Height <= 0)
-        {
-            throw new ArgumentException(
-                "Measured ink bounds must have positive extent.",
-                nameof(inkBounds));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(advanceWidth);
 
         AdvanceWidth = advanceWidth;
         InkBounds = inkBounds;

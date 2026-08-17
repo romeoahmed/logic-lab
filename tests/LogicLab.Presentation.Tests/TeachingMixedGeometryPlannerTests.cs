@@ -240,6 +240,34 @@ internal sealed class TeachingMixedGeometryPlannerTests
     }
 
     [Test]
+    [Arguments(0)]
+    [Arguments(120)]
+    public async Task Plan_DegenerateTextMetrics_PreservesNonnegativeAdvance(
+        int advanceWidth)
+    {
+        var measurement = new SymbolTextMeasurementV1(
+            advanceWidth,
+            new RectV1(0, 0, 0, 0));
+        var envelope = measurement.InkAndAdvanceBounds(
+            TextAlignmentV1.Start,
+            BaseDirectionV1.LeftToRight);
+        var plan = Plan(
+            Request("logic.xor", 3),
+            new StubTextMeasurer(DefaultFontFingerprint, measurement));
+        var text = await Assert.That(plan.Operations.OfType<DrawTextV1>())
+            .HasSingleItem();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(measurement.AdvanceWidth).IsEqualTo(advanceWidth);
+            await Assert.That(envelope)
+                .IsEqualTo(new RectV1(0, 0, advanceWidth, 0));
+            await Assert.That(text.Bounds.Width).IsEqualTo(advanceWidth);
+            await Assert.That(text.Bounds.Height).IsEqualTo(0);
+        }
+    }
+
+    [Test]
     public async Task Plan_FingerprintInputsChange_KeyChangesDeterministically()
     {
         var first = Plan(Request("logic.and", 2));

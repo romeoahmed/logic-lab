@@ -331,6 +331,44 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     }
 
     [Test]
+    public async Task Plan_AsymmetricUprightMetrics_PreservesEveryFacingEnvelope()
+    {
+        var template = Request("logic.mux");
+        var textMeasurer = new AsymmetricTextMeasurer(FontFingerprint);
+
+        foreach (var facing in Enum.GetValues<SymbolFacingV1>())
+        {
+            foreach (var isReflected in new[] { false, true })
+            {
+                var request = new ComplexSymbolRequestV1(
+                    template.Contract,
+                    template.Parameters,
+                    template.Profile,
+                    template.SymbolVariantId,
+                    facing,
+                    isReflected,
+                    template.MetricSet,
+                    template.FontFingerprint,
+                    template.LocaleId,
+                    template.BaseDirection);
+                var outcome = TeachingMixedGeometryPlanner.Plan(request, 64, textMeasurer);
+                var plan = (outcome as GeometryPlanSucceededV1)?.Plan;
+
+                await Assert.That(plan).IsNotNull();
+                var function = plan!.Operations.OfType<DrawTextV1>()
+                    .Single(operation => operation.Text == "MUX");
+                var portLabels = plan.Operations.OfType<DrawTextV1>()
+                    .Where(operation => operation.FontRole is
+                        FontRoleV1.PortLabel or FontRoleV1.Dependency)
+                    .ToArray();
+
+                await Assert.That(portLabels.All(label =>
+                    !InteriorsOverlap(function.Bounds, label.Bounds))).IsTrue();
+            }
+        }
+    }
+
+    [Test]
     public async Task Plan_ActiveLowControl_UsesOneDiagramIndicationConvention()
     {
         var template = Request("logic.tristate");
@@ -705,6 +743,12 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     private static ComponentParameterBinding Choice(string id, string value) =>
         new(id, new ChoiceParameterValue(value));
 
+    private static bool InteriorsOverlap(RectV1 left, RectV1 right) =>
+        left.Left < right.Right
+        && right.Left < left.Right
+        && left.Top < right.Bottom
+        && right.Top < left.Bottom;
+
     private static SymbolProfileReference TeachingMixedProfile { get; } = new(
         "TeachingMixed",
         "1.0.0",
@@ -727,6 +771,25 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
             return new SymbolTextMeasurementV1(
                 Math.Max(70, width),
                 new RectV1(-Math.Max(35, width / 2), -80, Math.Max(35, width / 2), 40));
+        }
+    }
+
+    private sealed class AsymmetricTextMeasurer(FontFingerprintV1 fontFingerprint)
+        : ISymbolTextMeasurerV1
+    {
+        public FontFingerprintV1 FontFingerprint { get; } = fontFingerprint;
+
+        public SymbolMetricSetV1 MetricSet { get; } = TeachingMixedMetricSets.AnnexA100;
+
+        public SymbolTextMeasurementV1 Measure(
+            SymbolTextMeasurementRequestV1 request,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            cancellationToken.ThrowIfCancellationRequested();
+            return new SymbolTextMeasurementV1(
+                40,
+                new RectV1(-10, -1000, 30, 400));
         }
     }
 }
