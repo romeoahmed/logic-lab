@@ -99,6 +99,9 @@ internal static class TeachingMixedBasicSymbolRegistry
         ],
         StringComparer.Ordinal).ToFrozenDictionary(StringComparer.Ordinal);
 
+    public static bool ContainsContract(string contractId) =>
+        Definitions.ContainsKey(contractId);
+
     public static bool TryResolve(
         string contractId,
         int inputCount,

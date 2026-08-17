@@ -22,7 +22,7 @@ internal static class BasicGateGeometryBuilder
     private static readonly AnnexAProportion TriangleBodyWidth = new(39, 4);
 
     public static GeometryPlanDraft Build(
-        BasicSymbolRequestV1 request,
+        ComponentSymbolRequestV1 request,
         ResolvedBasicSymbolDefinition definition,
         IReadOnlyList<ResolvedComponentPortSchema> ports,
         SymbolTextMeasurementV1? textMeasurement,
@@ -237,7 +237,7 @@ internal static class BasicGateGeometryBuilder
         ResolvedBasicSymbolDefinition definition,
         RectV1 body,
         RectV1? textEnvelope,
-        BasicSymbolRequestV1 request,
+        ComponentSymbolRequestV1 request,
         int outlineStrokeWidth)
     {
         var outline = definition.Recipe switch

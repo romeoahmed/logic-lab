@@ -61,11 +61,9 @@ public static class TeachingMixedMetricSets
         100);
 }
 
-public sealed class BasicSymbolRequestV1
+public abstract class SymbolRequestV1
 {
-    public BasicSymbolRequestV1(
-        ComponentContractSchema contract,
-        IReadOnlyList<ComponentParameterBinding> parameters,
+    private protected SymbolRequestV1(
         SymbolProfileReference profile,
         string? symbolVariantId,
         SymbolFacingV1 facing,
@@ -75,8 +73,6 @@ public sealed class BasicSymbolRequestV1
         PresentationLocaleIdV1 localeId,
         BaseDirectionV1 baseDirection)
     {
-        ArgumentNullException.ThrowIfNull(contract);
-        ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(metricSet);
         ArgumentNullException.ThrowIfNull(fontFingerprint);
@@ -91,8 +87,6 @@ public sealed class BasicSymbolRequestV1
             throw new ArgumentOutOfRangeException(nameof(baseDirection));
         }
 
-        Contract = contract;
-        Parameters = Array.AsReadOnly(parameters.ToArray());
         Profile = profile;
         SymbolVariantId = symbolVariantId;
         Facing = facing;
@@ -102,10 +96,6 @@ public sealed class BasicSymbolRequestV1
         LocaleId = localeId;
         BaseDirection = baseDirection;
     }
-
-    public ComponentContractSchema Contract { get; }
-
-    public ReadOnlyCollection<ComponentParameterBinding> Parameters { get; }
 
     public SymbolProfileReference Profile { get; }
 
@@ -124,9 +114,9 @@ public sealed class BasicSymbolRequestV1
     public BaseDirectionV1 BaseDirection { get; }
 }
 
-public sealed class ComplexSymbolRequestV1
+public sealed class ComponentSymbolRequestV1 : SymbolRequestV1
 {
-    public ComplexSymbolRequestV1(
+    public ComponentSymbolRequestV1(
         ComponentContractSchema contract,
         IReadOnlyList<ComponentParameterBinding> parameters,
         SymbolProfileReference profile,
@@ -137,57 +127,30 @@ public sealed class ComplexSymbolRequestV1
         FontFingerprintV1 fontFingerprint,
         PresentationLocaleIdV1 localeId,
         BaseDirectionV1 baseDirection)
+        : base(
+            profile,
+            symbolVariantId,
+            facing,
+            isReflected,
+            metricSet,
+            fontFingerprint,
+            localeId,
+            baseDirection)
     {
         ArgumentNullException.ThrowIfNull(contract);
         ArgumentNullException.ThrowIfNull(parameters);
-        ArgumentNullException.ThrowIfNull(profile);
-        ArgumentNullException.ThrowIfNull(metricSet);
-        ArgumentNullException.ThrowIfNull(fontFingerprint);
-        ArgumentNullException.ThrowIfNull(localeId);
-        if (!Enum.IsDefined(facing))
-        {
-            throw new ArgumentOutOfRangeException(nameof(facing));
-        }
-
-        if (!Enum.IsDefined(baseDirection))
-        {
-            throw new ArgumentOutOfRangeException(nameof(baseDirection));
-        }
 
         Contract = contract;
         Parameters = Array.AsReadOnly(parameters.ToArray());
-        Profile = profile;
-        SymbolVariantId = symbolVariantId;
-        Facing = facing;
-        IsReflected = isReflected;
-        MetricSet = metricSet;
-        FontFingerprint = fontFingerprint;
-        LocaleId = localeId;
-        BaseDirection = baseDirection;
     }
 
     public ComponentContractSchema Contract { get; }
 
     public ReadOnlyCollection<ComponentParameterBinding> Parameters { get; }
 
-    public SymbolProfileReference Profile { get; }
-
-    public string? SymbolVariantId { get; }
-
-    public SymbolFacingV1 Facing { get; }
-
-    public bool IsReflected { get; }
-
-    public SymbolMetricSetV1 MetricSet { get; }
-
-    public FontFingerprintV1 FontFingerprint { get; }
-
-    public PresentationLocaleIdV1 LocaleId { get; }
-
-    public BaseDirectionV1 BaseDirection { get; }
 }
 
-public sealed class CircuitDefinitionSymbolRequestV1
+public sealed class CircuitDefinitionSymbolRequestV1 : SymbolRequestV1
 {
     public CircuitDefinitionSymbolRequestV1(
         CircuitDefinition definition,
@@ -200,22 +163,17 @@ public sealed class CircuitDefinitionSymbolRequestV1
         PresentationLocaleIdV1 localeId,
         BaseDirectionV1 baseDirection,
         string? displayName = null)
+        : base(
+            profile,
+            symbolVariantId,
+            facing,
+            isReflected,
+            metricSet,
+            fontFingerprint,
+            localeId,
+            baseDirection)
     {
         ArgumentNullException.ThrowIfNull(definition);
-        ArgumentNullException.ThrowIfNull(profile);
-        ArgumentNullException.ThrowIfNull(metricSet);
-        ArgumentNullException.ThrowIfNull(fontFingerprint);
-        ArgumentNullException.ThrowIfNull(localeId);
-        if (!Enum.IsDefined(facing))
-        {
-            throw new ArgumentOutOfRangeException(nameof(facing));
-        }
-
-        if (!Enum.IsDefined(baseDirection))
-        {
-            throw new ArgumentOutOfRangeException(nameof(baseDirection));
-        }
-
         if (displayName is not null && !DisplayTextLexemes.IsValid(displayName))
         {
             throw new ArgumentException(
@@ -224,34 +182,10 @@ public sealed class CircuitDefinitionSymbolRequestV1
         }
 
         Definition = definition;
-        Profile = profile;
-        SymbolVariantId = symbolVariantId;
-        Facing = facing;
-        IsReflected = isReflected;
-        MetricSet = metricSet;
-        FontFingerprint = fontFingerprint;
-        LocaleId = localeId;
-        BaseDirection = baseDirection;
         DisplayName = displayName ?? definition.DisplayName;
     }
 
     public CircuitDefinition Definition { get; }
-
-    public SymbolProfileReference Profile { get; }
-
-    public string? SymbolVariantId { get; }
-
-    public SymbolFacingV1 Facing { get; }
-
-    public bool IsReflected { get; }
-
-    public SymbolMetricSetV1 MetricSet { get; }
-
-    public FontFingerprintV1 FontFingerprint { get; }
-
-    public PresentationLocaleIdV1 LocaleId { get; }
-
-    public BaseDirectionV1 BaseDirection { get; }
 
     public string DisplayName { get; }
 }
