@@ -1,5 +1,4 @@
 using System.Collections.Frozen;
-using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using LogicLab.Domain.Authoring;
@@ -14,7 +13,7 @@ internal sealed record RectangularSymbolDefinition(
     string AccessibilityKey,
     Func<IReadOnlyList<ComponentParameterBinding>, string> FunctionText,
     ConformanceClaimV1 Claim,
-    ReadOnlyCollection<string> StandardClauses,
+    string[] StandardClauses,
     string? FunctionDeviationCode,
     RectangularSymbolDependencyRecipe DependencyRecipe);
 
@@ -26,9 +25,9 @@ internal sealed record ResolvedRectangularSymbolDefinition(
     string FunctionText,
     FontRoleV1 FunctionFontRole,
     ConformanceClaimV1 Claim,
-    ReadOnlyCollection<string> StandardClauses,
-    ReadOnlyCollection<ConformanceDeviationV1> Deviations,
-    ReadOnlyCollection<RectangularSymbolDependency> Dependencies);
+    string[] StandardClauses,
+    ConformanceDeviationV1[] Deviations,
+    RectangularSymbolDependency[] Dependencies);
 
 internal static class TeachingMixedRectangularSymbolRegistry
 {
@@ -147,7 +146,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
             functionFontRole,
             claim,
             definition.StandardClauses,
-            Array.AsReadOnly(deviations.ToArray()),
+            [.. deviations],
             RectangularSymbolDependencyResolver.Resolve(
                 definition.DependencyRecipe,
                 ports));
@@ -157,7 +156,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
     private static KeyValuePair<string, RectangularSymbolDefinition> Standard(
         string contractId,
         string functionText,
-        IReadOnlyList<string> clauses,
+        string[] clauses,
         RectangularSymbolDependencyRecipe dependencyRecipe =
             RectangularSymbolDependencyRecipe.None) => DynamicStandard(
             contractId,
@@ -168,7 +167,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
     private static KeyValuePair<string, RectangularSymbolDefinition> DynamicStandard(
         string contractId,
         Func<IReadOnlyList<ComponentParameterBinding>, string> functionText,
-        IReadOnlyList<string> clauses,
+        string[] clauses,
         RectangularSymbolDependencyRecipe dependencyRecipe =
             RectangularSymbolDependencyRecipe.None) => Definition(
             contractId,
@@ -199,7 +198,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
         string contractId,
         Func<IReadOnlyList<ComponentParameterBinding>, string> functionText,
         ConformanceClaimV1 claim,
-        IReadOnlyList<string> clauses,
+        string[] clauses,
         string? functionDeviationCode,
         RectangularSymbolDependencyRecipe dependencyRecipe) => KeyValuePair.Create(
             contractId,
@@ -209,7 +208,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
                 $"presentation.symbol.{contractId}",
                 functionText,
                 claim,
-                Array.AsReadOnly(clauses.ToArray()),
+                clauses,
                 functionDeviationCode,
                 dependencyRecipe));
 

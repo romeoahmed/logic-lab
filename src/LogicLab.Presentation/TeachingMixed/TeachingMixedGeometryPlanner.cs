@@ -363,7 +363,7 @@ public static class TeachingMixedGeometryPlanner
             definition.Deviations,
             AnnexAStatusV1.NotEvaluated);
 
-    private static ReadOnlyCollection<RectangularSymbolInputQualifier> ActiveLowQualifiers(
+    private static RectangularSymbolInputQualifier[] ActiveLowQualifiers(
         IReadOnlyList<ComponentParameterBinding> parameters,
         IReadOnlyList<ResolvedComponentPortSchema> ports)
     {
@@ -371,21 +371,19 @@ public static class TeachingMixedGeometryPlanner
                 parameter.ParameterId == "enablePolarity"
                 && parameter.Value is ChoiceParameterValue { Value: "activeLow" }))
         {
-            return Array.AsReadOnly(Array.Empty<RectangularSymbolInputQualifier>());
+            return [];
         }
 
         var qualifiers = ports
             .Where(port => port.Id == "EN" && port.Direction == PortDirection.Input)
-            .Select(port => new RectangularSymbolInputQualifier(
-                RectangularSymbolInputQualifierKind.ActiveLow,
-                port.Id))
+            .Select(port => new RectangularSymbolInputQualifier(port.Id))
             .ToArray();
         if (qualifiers.Length == 0)
         {
             throw new LayoutInvalidException(LayoutConstraintV1.Request);
         }
 
-        return Array.AsReadOnly(qualifiers);
+        return qualifiers;
     }
 
     private static void ValidateBasicPorts(

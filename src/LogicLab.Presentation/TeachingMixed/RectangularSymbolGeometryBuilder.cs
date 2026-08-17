@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Globalization;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
@@ -16,27 +15,20 @@ internal sealed record RectangularSymbolPortLabel(
     string Text,
     FontRoleV1 FontRole);
 
-internal enum RectangularSymbolInputQualifierKind
-{
-    ActiveLow,
-}
-
-internal sealed record RectangularSymbolInputQualifier(
-    RectangularSymbolInputQualifierKind Kind,
-    string PortId);
+internal sealed record RectangularSymbolInputQualifier(string PortId);
 
 internal sealed record RectangularSymbolLayoutRequest(
     string FunctionText,
     FontRoleV1 FunctionFontRole,
     string AccessibilityKey,
-    ReadOnlyCollection<RectangularSymbolDependency> Dependencies,
+    RectangularSymbolDependency[] Dependencies,
     SymbolMetricSetV1 MetricSet,
     PresentationLocaleIdV1 LocaleId,
     BaseDirectionV1 BaseDirection,
     SymbolFacingV1 Facing,
     bool IsReflected,
     IndicationConvention IndicationConvention,
-    ReadOnlyCollection<RectangularSymbolInputQualifier> InputQualifiers,
+    RectangularSymbolInputQualifier[] InputQualifiers,
     bool HasThreeStateOutput,
     ConformanceEvidenceV1 Conformance);
 
@@ -54,17 +46,9 @@ internal static class RectangularSymbolGeometryBuilder
         ArgumentNullException.ThrowIfNull(ports);
         ArgumentNullException.ThrowIfNull(textMeasurer);
         cancellationToken.ThrowIfCancellationRequested();
-        if (ports.Any(port => port.Width == 0))
-        {
-            throw new LayoutInvalidException(LayoutConstraintV1.Request);
-        }
 
         var inputs = ports.Where(port => port.Direction == PortDirection.Input).ToArray();
         var outputs = ports.Where(port => port.Direction == PortDirection.Output).ToArray();
-        if (inputs.Length + outputs.Length != ports.Count)
-        {
-            throw new LayoutInvalidException(LayoutConstraintV1.Request);
-        }
 
         var h = request.MetricSet.UnitsPerH;
         var outlineWidth = ScaleUp(h, 1, 10);
@@ -91,7 +75,7 @@ internal static class RectangularSymbolGeometryBuilder
             request.Dependencies,
             request.InputQualifiers,
             request.IndicationConvention);
-        var labelMeasurements = labels.ToDictionary(
+        var labelEnvelopes = labels.ToDictionary(
             pair => pair.Key,
             pair => Measure(
                 pair.Value.Text,
@@ -99,11 +83,7 @@ internal static class RectangularSymbolGeometryBuilder
                 TextAlignmentV1.Center,
                 request,
                 textMeasurer,
-                cancellationToken),
-            StringComparer.Ordinal);
-        var labelEnvelopes = labelMeasurements.ToDictionary(
-            pair => pair.Key,
-            pair => pair.Value.InkAndAdvanceBounds(
+                cancellationToken).InkAndAdvanceBounds(
                 TextAlignmentV1.Center,
                 request.BaseDirection),
             StringComparer.Ordinal);
@@ -326,63 +306,18 @@ internal static class RectangularSymbolGeometryBuilder
 
     private static Dictionary<string, RectangularSymbolPortLabel> CreatePortLabels(
         IReadOnlyList<RectangularSymbolPort> ports,
-        ReadOnlyCollection<RectangularSymbolDependency> dependencies,
-        ReadOnlyCollection<RectangularSymbolInputQualifier> inputQualifiers,
+        RectangularSymbolDependency[] dependencies,
+        RectangularSymbolInputQualifier[] inputQualifiers,
         IndicationConvention indicationConvention)
     {
-        ArgumentNullException.ThrowIfNull(dependencies);
-        ArgumentNullException.ThrowIfNull(inputQualifiers);
-        var portIds = ports.Select(port => port.Id).ToHashSet(StringComparer.Ordinal);
-        if (portIds.Count != ports.Count
-            || dependencies.GroupBy(dependency => dependency.Identifier, StringComparer.Ordinal)
-                .Any(group => group.Select(dependency => dependency.Kind).Distinct().Count() > 1)
-            || inputQualifiers.Select(qualifier => qualifier.PortId).Distinct(StringComparer.Ordinal)
-                .Count() != inputQualifiers.Count
-            || inputQualifiers.Any(qualifier =>
-                !Enum.IsDefined(qualifier.Kind)
-                || !portIds.Contains(qualifier.PortId)
-                || ports.Single(port => port.Id == qualifier.PortId).Direction
-                    != PortDirection.Input))
-        {
-            throw new LayoutInvalidException(LayoutConstraintV1.Request);
-        }
-
-        var relationKeys = new HashSet<(
-            RectangularSymbolDependencyKind Kind,
-            string Identifier,
-            string AffectingPortId,
-            string AffectedPortId)>();
-        var dependencyKeys = new HashSet<(
-            RectangularSymbolDependencyKind Kind,
-            string Identifier,
-            string AffectingPortId)>();
         var affectedRelationships = new Dictionary<
             string,
             List<(RectangularSymbolDependency Dependency, int ApplicationOrder)>>(
                 StringComparer.Ordinal);
         foreach (var dependency in dependencies)
         {
-            if (!portIds.Contains(dependency.AffectingPortId)
-                || !dependencyKeys.Add((
-                    dependency.Kind,
-                    dependency.Identifier,
-                    dependency.AffectingPortId)))
-            {
-                throw new LayoutInvalidException(LayoutConstraintV1.Request);
-            }
-
             foreach (var endpoint in dependency.AffectedEndpoints)
             {
-                if (!portIds.Contains(endpoint.PortId)
-                    || !relationKeys.Add((
-                        dependency.Kind,
-                        dependency.Identifier,
-                        dependency.AffectingPortId,
-                        endpoint.PortId)))
-                {
-                    throw new LayoutInvalidException(LayoutConstraintV1.Request);
-                }
-
                 if (!affectedRelationships.TryGetValue(endpoint.PortId, out var relationships))
                 {
                     relationships = [];
@@ -390,18 +325,6 @@ internal static class RectangularSymbolGeometryBuilder
                 }
 
                 relationships.Add((dependency, endpoint.ApplicationOrder));
-            }
-        }
-
-        foreach (var relationships in affectedRelationships.Values)
-        {
-            var orders = relationships
-                .Select(relationship => relationship.ApplicationOrder)
-                .Order()
-                .ToArray();
-            if (!orders.SequenceEqual(Enumerable.Range(0, orders.Length)))
-            {
-                throw new LayoutInvalidException(LayoutConstraintV1.Request);
             }
         }
 
@@ -422,9 +345,10 @@ internal static class RectangularSymbolGeometryBuilder
                     : string.Join(
                         ',',
                         affected.OrderBy(relationship => relationship.ApplicationOrder)
-                            .Select(relationship => relationship.Dependency.Identifier));
+                            .Select(relationship => relationship.Dependency.Identifier.ToString(
+                                CultureInfo.InvariantCulture)));
                 var affectingNotation = AffectingNotation(affecting);
-                var functionLabel = PortLabel(port);
+                var functionLabel = port.DisplayName;
                 var omitFunctionLabel = affecting.Length > 0
                     && affecting.Select(dependency => dependency.Kind).Distinct().Count() == 1
                     && functionLabel == DependencyLetter(affecting[0].Kind);
@@ -457,48 +381,36 @@ internal static class RectangularSymbolGeometryBuilder
     private static string FormatAffectingGroup(
         IGrouping<RectangularSymbolDependencyKind, RectangularSymbolDependency> group)
     {
-        var identifiers = group.Select(dependency => dependency.Identifier).ToArray();
+        var identifiers = group.Select(dependency => dependency.Identifier)
+            .Order()
+            .ToArray();
         if (identifiers.Length == 1)
         {
-            return string.Concat(DependencyLetter(group.Key), identifiers[0]);
+            return DependencyLabel(group.Key, identifiers[0]);
         }
 
-        var numericIdentifiers = new uint[identifiers.Length];
-        for (var index = 0; index < identifiers.Length; index++)
+        for (var index = 1; index < identifiers.Length; index++)
         {
-            if (!uint.TryParse(
-                    identifiers[index],
-                    NumberStyles.None,
-                    CultureInfo.InvariantCulture,
-                    out numericIdentifiers[index]))
+            if (identifiers[index] != checked(identifiers[index - 1] + 1))
             {
                 return string.Join(
                     ',',
-                    identifiers.Select(identifier => string.Concat(
-                        DependencyLetter(group.Key),
-                        identifier)));
-            }
-        }
-
-        Array.Sort(numericIdentifiers);
-        for (var index = 1; index < numericIdentifiers.Length; index++)
-        {
-            if (numericIdentifiers[index] != checked(numericIdentifiers[index - 1] + 1))
-            {
-                return string.Join(
-                    ',',
-                    numericIdentifiers.Select(identifier => string.Concat(
-                        DependencyLetter(group.Key),
-                        identifier.ToString(CultureInfo.InvariantCulture))));
+                    identifiers.Select(identifier => DependencyLabel(group.Key, identifier)));
             }
         }
 
         return string.Concat(
             DependencyLetter(group.Key),
-            numericIdentifiers[0].ToString(CultureInfo.InvariantCulture),
+            identifiers[0].ToString(CultureInfo.InvariantCulture),
             '/',
-            numericIdentifiers[^1].ToString(CultureInfo.InvariantCulture));
+            identifiers[^1].ToString(CultureInfo.InvariantCulture));
     }
+
+    private static string DependencyLabel(
+        RectangularSymbolDependencyKind kind,
+        uint identifier) => string.Concat(
+            DependencyLetter(kind),
+            identifier.ToString(CultureInfo.InvariantCulture));
 
     private static string DependencyLetter(RectangularSymbolDependencyKind kind) => kind switch
     {
@@ -617,8 +529,6 @@ internal static class RectangularSymbolGeometryBuilder
     private static AxisInterval Reverse(int start, int end) =>
         new(checked(-end), checked(-start));
 
-    private static string PortLabel(RectangularSymbolPort port) => port.DisplayName;
-
     private static SymbolTextMeasurementV1 Measure(
         string text,
         FontRoleV1 role,
@@ -686,7 +596,13 @@ internal static class RectangularSymbolGeometryBuilder
         }
 
         var first = checked(center - (((count - 1) * pitch) / 2));
-        return [.. Enumerable.Range(0, count).Select(index => checked(first + (index * pitch)))];
+        var rows = new int[count];
+        for (var index = 0; index < rows.Length; index++)
+        {
+            rows[index] = checked(first + (index * pitch));
+        }
+
+        return rows;
     }
 
     private readonly record struct AxisInterval(int Start, int End)
