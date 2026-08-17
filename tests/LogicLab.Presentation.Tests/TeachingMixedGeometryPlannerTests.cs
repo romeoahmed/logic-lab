@@ -239,11 +239,8 @@ internal sealed class TeachingMixedGeometryPlannerTests
         }
     }
 
-    [Test]
-    [Arguments(0)]
-    [Arguments(120)]
-    public async Task Plan_DegenerateTextMetrics_PreservesNonnegativeAdvance(
-        int advanceWidth)
+    [Test, FsCheckProperty]
+    public Property Plan_ZeroInkTextMetrics_PreservesAdvanceEnvelope(byte advanceWidth)
     {
         var measurement = new SymbolTextMeasurementV1(
             advanceWidth,
@@ -254,17 +251,23 @@ internal sealed class TeachingMixedGeometryPlannerTests
         var plan = Plan(
             Request("logic.xor", 3),
             new StubTextMeasurer(DefaultFontFingerprint, measurement));
-        var text = await Assert.That(plan.Operations.OfType<DrawTextV1>())
-            .HasSingleItem();
+        var text = plan.Operations.OfType<DrawTextV1>().Single();
+        var violations = new List<string>();
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(measurement.AdvanceWidth).IsEqualTo(advanceWidth);
-            await Assert.That(envelope)
-                .IsEqualTo(new RectV1(0, 0, advanceWidth, 0));
-            await Assert.That(text.Bounds.Width).IsEqualTo(advanceWidth);
-            await Assert.That(text.Bounds.Height).IsEqualTo(0);
-        }
+        Check(
+            measurement.AdvanceWidth == advanceWidth,
+            "the measurement changed the nonnegative advance",
+            violations);
+        Check(
+            envelope == new RectV1(0, 0, advanceWidth, 0),
+            "the advance-only envelope differs from the measured advance",
+            violations);
+        Check(
+            text.Bounds.Width == advanceWidth && text.Bounds.Height == 0,
+            "the published zero-ink bounds differ from the measured envelope",
+            violations);
+
+        return (violations.Count == 0).Label(string.Join("; ", violations));
     }
 
     [Test]
