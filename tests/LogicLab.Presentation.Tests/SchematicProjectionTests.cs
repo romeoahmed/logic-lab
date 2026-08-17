@@ -7,6 +7,7 @@ using LogicLab.Presentation.Geometry;
 using LogicLab.Presentation.Scene;
 using TUnit.Assertions.Enums;
 using TUnit.FsCheck;
+using static LogicLab.Presentation.Tests.PresentationPropertyChecks;
 
 namespace LogicLab.Presentation.Tests;
 
@@ -554,14 +555,6 @@ internal sealed class SchematicProjectionTests
     private static ProjectRevision Commit(EditOutcome outcome) =>
         ((EditCommitted)outcome).Revision;
 
-    private static void Check(bool condition, string message, List<string> violations)
-    {
-        if (!condition)
-        {
-            violations.Add(message);
-        }
-    }
-
     private static TextAlignmentV1 TextAlignment(AnnotationAlignment alignment) =>
         alignment switch
         {
@@ -570,12 +563,6 @@ internal sealed class SchematicProjectionTests
             AnnotationAlignment.End => TextAlignmentV1.End,
             _ => throw new ArgumentOutOfRangeException(nameof(alignment)),
         };
-
-    private static bool Contains(RectV1 outer, RectV1 inner) =>
-        inner.Left >= outer.Left
-        && inner.Top >= outer.Top
-        && inner.Right <= outer.Right
-        && inner.Bottom <= outer.Bottom;
 
     private static SymbolProfileReference TeachingMixedProfile { get; } = new(
         "TeachingMixed",
