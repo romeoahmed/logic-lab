@@ -7,11 +7,20 @@ using LogicLab.Presentation.Geometry;
 
 namespace LogicLab.Presentation.TeachingMixed;
 
+internal enum RectangularSymbolFunctionRecipe
+{
+    Literal,
+    BinaryDecoder,
+    PriorityEncoder,
+    Shift,
+}
+
 internal sealed record RectangularSymbolDefinition(
     string DefinitionId,
     string DefinitionVersion,
     string AccessibilityKey,
-    Func<IReadOnlyList<ComponentParameterBinding>, string> FunctionText,
+    RectangularSymbolFunctionRecipe FunctionRecipe,
+    string? LiteralFunctionText,
     ConformanceClaimV1 Claim,
     string[] StandardClauses,
     string? FunctionDeviationCode,
@@ -58,13 +67,10 @@ internal static class TeachingMixedRectangularSymbolRegistry
                 RectangularSymbolDependencyRecipe.SelectDataOutputs),
             DynamicStandard(
                 "logic.decoder",
-                parameters => string.Concat(
-                    "BIN/",
-                        CheckedPowerOfTwo(U32(parameters, "selectorWidth")).ToString(
-                            CultureInfo.InvariantCulture)),
+                RectangularSymbolFunctionRecipe.BinaryDecoder,
                 ["4.3.9", "5.4-1", "5.4-4"],
                 RectangularSymbolDependencyRecipe.EnableOutputs),
-            Standard("logic.priority_encoder", "HPRI/BIN", ["5.4.1.2", "5.4-6"]),
+            PriorityEncoder(),
             Standard(
                 "logic.unsigned_compare",
                 "COMP",
@@ -76,7 +82,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
                 ["3.3-25", "3.3-26", "5.7-1", "5.7-6"]),
             DynamicExtension(
                 "logic.shift",
-                parameters => Choice(parameters, "direction") == "left" ? "[SHL]" : "[SHR]"),
+                RectangularSymbolFunctionRecipe.Shift),
         ],
         StringComparer.Ordinal).ToFrozenDictionary(StringComparer.Ordinal);
 
@@ -96,10 +102,11 @@ internal static class TeachingMixedRectangularSymbolRegistry
             return false;
         }
 
-        var functionText = definition.FunctionText(parameters);
-        var functionFontRole = definition.FunctionDeviationCode is null
-            ? FontRoleV1.Symbol
-            : FontRoleV1.ExtensionMark;
+        var functionText = FunctionText(definition, parameters);
+        var functionFontRole = definition.FunctionDeviationCode is not null
+            || definition.FunctionRecipe == RectangularSymbolFunctionRecipe.PriorityEncoder
+                ? FontRoleV1.ExtensionMark
+                : FontRoleV1.Symbol;
         var claim = definition.Claim;
         var deviations = new List<ConformanceDeviationV1>();
         if (definition.FunctionDeviationCode is { } functionDeviationCode)
@@ -107,12 +114,9 @@ internal static class TeachingMixedRectangularSymbolRegistry
             deviations.Add(new ConformanceDeviationV1(functionDeviationCode, []));
         }
 
-        if (contractId == "logic.priority_encoder")
+        if (definition.FunctionRecipe == RectangularSymbolFunctionRecipe.PriorityEncoder)
         {
             var priority = Choice(parameters, "priority");
-            functionText = priority == "highestIndex" ? "[HPRI/BIN]" : "[LPRI/BIN]";
-            functionFontRole = FontRoleV1.ExtensionMark;
-            claim = ConformanceClaimV1.TeachingExtension;
             deviations.Add(new ConformanceDeviationV1(
                 "teachingmixed-unmodeled-priority-encoder",
                 [.. ports.Select(port => port.Id)]));
@@ -158,20 +162,34 @@ internal static class TeachingMixedRectangularSymbolRegistry
         string functionText,
         string[] clauses,
         RectangularSymbolDependencyRecipe dependencyRecipe =
-            RectangularSymbolDependencyRecipe.None) => DynamicStandard(
+            RectangularSymbolDependencyRecipe.None) => Definition(
             contractId,
-            _ => functionText,
+            RectangularSymbolFunctionRecipe.Literal,
+            functionText,
+            ConformanceClaimV1.Standardized91A,
             clauses,
+            functionDeviationCode: null,
             dependencyRecipe);
+
+    private static KeyValuePair<string, RectangularSymbolDefinition> PriorityEncoder() =>
+        Definition(
+            "logic.priority_encoder",
+            RectangularSymbolFunctionRecipe.PriorityEncoder,
+            literalFunctionText: null,
+            ConformanceClaimV1.TeachingExtension,
+            ["5.4.1.2", "5.4-6"],
+            functionDeviationCode: null,
+            RectangularSymbolDependencyRecipe.None);
 
     private static KeyValuePair<string, RectangularSymbolDefinition> DynamicStandard(
         string contractId,
-        Func<IReadOnlyList<ComponentParameterBinding>, string> functionText,
+        RectangularSymbolFunctionRecipe functionRecipe,
         string[] clauses,
         RectangularSymbolDependencyRecipe dependencyRecipe =
             RectangularSymbolDependencyRecipe.None) => Definition(
             contractId,
-            functionText,
+            functionRecipe,
+            literalFunctionText: null,
             ConformanceClaimV1.Standardized91A,
             clauses,
             functionDeviationCode: null,
@@ -180,15 +198,22 @@ internal static class TeachingMixedRectangularSymbolRegistry
     private static KeyValuePair<string, RectangularSymbolDefinition> Extension(
         string contractId,
         string functionText,
-        ConformanceClaimV1 claim = ConformanceClaimV1.StandardBaseWithNonstandardInfo) =>
-        DynamicExtension(contractId, _ => functionText, claim);
+        ConformanceClaimV1 claim = ConformanceClaimV1.StandardBaseWithNonstandardInfo) => Definition(
+            contractId,
+            RectangularSymbolFunctionRecipe.Literal,
+            functionText,
+            claim,
+            ["2.1.2", "2.2"],
+            $"teachingmixed-{contractId.Replace(".", "-", StringComparison.Ordinal)}",
+            RectangularSymbolDependencyRecipe.None);
 
     private static KeyValuePair<string, RectangularSymbolDefinition> DynamicExtension(
         string contractId,
-        Func<IReadOnlyList<ComponentParameterBinding>, string> functionText,
+        RectangularSymbolFunctionRecipe functionRecipe,
         ConformanceClaimV1 claim = ConformanceClaimV1.StandardBaseWithNonstandardInfo) => Definition(
             contractId,
-            functionText,
+            functionRecipe,
+            literalFunctionText: null,
             claim,
             ["2.1.2", "2.2"],
             $"teachingmixed-{contractId.Replace(".", "-", StringComparison.Ordinal)}",
@@ -196,7 +221,8 @@ internal static class TeachingMixedRectangularSymbolRegistry
 
     private static KeyValuePair<string, RectangularSymbolDefinition> Definition(
         string contractId,
-        Func<IReadOnlyList<ComponentParameterBinding>, string> functionText,
+        RectangularSymbolFunctionRecipe functionRecipe,
+        string? literalFunctionText,
         ConformanceClaimV1 claim,
         string[] clauses,
         string? functionDeviationCode,
@@ -206,11 +232,35 @@ internal static class TeachingMixedRectangularSymbolRegistry
                 $"logiclab.teachingmixed.{contractId}",
                 "3.0.0",
                 $"presentation.symbol.{contractId}",
-                functionText,
+                functionRecipe,
+                literalFunctionText,
                 claim,
                 clauses,
                 functionDeviationCode,
                 dependencyRecipe));
+
+    private static string FunctionText(
+        RectangularSymbolDefinition definition,
+        IReadOnlyList<ComponentParameterBinding> parameters) =>
+        definition.FunctionRecipe switch
+        {
+            RectangularSymbolFunctionRecipe.Literal =>
+                definition.LiteralFunctionText
+                    ?? throw new InvalidOperationException(
+                        "A literal rectangular function has no text."),
+            RectangularSymbolFunctionRecipe.BinaryDecoder => string.Concat(
+                "BIN/",
+                CheckedPowerOfTwo(U32(parameters, "selectorWidth")).ToString(
+                    CultureInfo.InvariantCulture)),
+            RectangularSymbolFunctionRecipe.PriorityEncoder =>
+                Choice(parameters, "priority") == "highestIndex"
+                    ? "[HPRI/BIN]"
+                    : "[LPRI/BIN]",
+            RectangularSymbolFunctionRecipe.Shift =>
+                Choice(parameters, "direction") == "left" ? "[SHL]" : "[SHR]",
+            _ => throw new InvalidOperationException(
+                "The rectangular function recipe is undefined."),
+        };
 
     private static uint U32(
         IReadOnlyList<ComponentParameterBinding> parameters,
