@@ -1,9 +1,12 @@
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Geometry;
 using LogicLab.Presentation.TeachingMixed;
 using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Presentation.Tests;
 
@@ -133,11 +136,13 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     {
         var plan = Plan(Request("logic.mux"));
         var text = plan.Operations.OfType<DrawTextV1>().ToArray();
-        var function = text.Single(operation => operation.Text == "MUX");
+        var function = text.Single(operation => operation.FontRole == FontRoleV1.Symbol);
         var maximumInputRight = text
-            .Where(operation => operation.Text is "0D0" or "1D1" or "2D2" or "3D3" or "G0/3S")
+            .Where(operation => operation.Bounds.Right <= function.Bounds.Left)
             .Max(operation => operation.Bounds.Right);
-        var minimumOutputLeft = text.Single(operation => operation.Text == "Q").Bounds.Left;
+        var minimumOutputLeft = text
+            .Where(operation => operation.Bounds.Left >= function.Bounds.Right)
+            .Min(operation => operation.Bounds.Left);
         var clearance = TeachingMixedMetricSets.AnnexA100.UnitsPerH;
 
         using (Assert.Multiple())
@@ -161,8 +166,11 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
             await Assert.That(deviation.AffectedPortIds)
                 .IsEquivalentTo(["A", "B", "SUM"], CollectionOrdering.Matching);
             await Assert.That(plan.Operations.OfType<DrawTextV1>()
-                .Any(operation => operation.Text.Contains('[', StringComparison.Ordinal)))
-                .IsFalse();
+                    .Where(operation => operation.FontRole == FontRoleV1.PortLabel)
+                    .Select(operation => operation.Text))
+                .IsEquivalentTo(
+                    plan.PortAnchors.Select(anchor => anchor.PortId),
+                    CollectionOrdering.Matching);
         }
     }
 
@@ -259,75 +267,55 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
         }
     }
 
-    [Test]
-    public async Task Plan_ComplexSymbolMatrix_PreservesGeometryContract()
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(PresentationGeometryArbitraries) })]
+    public Property Plan_ValidRectangularSymbol_PreservesPublishedGeometryContract(
+        RectangularSymbolPlanCase sample)
     {
-        var request = Request("logic.mux");
-        var canonical = Plan(request);
+        var request = Request(sample);
+        var plan = Plan(request);
+        var repeated = Plan(request);
+        var resolution = request.Contract.ResolvePorts(request.Parameters);
+        _ = resolution.TryMaterialize(128, out var ports);
+        var violations = new List<string>();
 
-        foreach (var facing in Enum.GetValues<SymbolFacingV1>())
-        {
-            foreach (var isReflected in new[] { false, true })
-            {
-                var candidate = Plan(new ComponentSymbolRequestV1(
-                    request.Contract,
-                    request.Parameters,
-                    request.Profile,
-                    request.SymbolVariantId,
-                    facing,
-                    isReflected,
-                    request.MetricSet,
-                    request.FontFingerprint,
-                    request.LocaleId,
-                    request.BaseDirection));
+        Check(plan.Key == repeated.Key, "repeated plan key changed", violations);
+        Check(
+            plan.PortAnchors.Select(anchor => anchor.PortId)
+                .SequenceEqual(ports.Select(port => port.Id)),
+            "Port order or identity differs from the Component Contract",
+            violations);
+        Check(
+            plan.PortAnchors.Select(anchor => anchor.Point).Distinct().Count()
+                == plan.PortAnchors.Count,
+            "Port anchors are not spatially distinct",
+            violations);
+        Check(
+            plan.Key.Facing == sample.Facing
+                && plan.Key.IsReflected == sample.IsReflected
+                && plan.Key.IndicationConvention == sample.IndicationConvention
+                && plan.Key.LocaleId == sample.LocaleId
+                && plan.Key.BaseDirection == sample.BaseDirection,
+            "the plan key lost a presentation input",
+            violations);
+        Check(
+            PortAccessibilityWidthsMatch(plan, ports),
+            "an accessibility Port width differs from the resolved contract",
+            violations);
+        Check(
+            PortHitRegionsAreDisjoint(plan),
+            "Port hit regions overlap",
+            violations);
+        Check(
+            plan.Operations.OfType<DrawTextV1>().All(operation =>
+                operation.Orientation == TextOrientationV1.UprightReading),
+            "rectangular text is not upright-reading",
+            violations);
+        Check(
+            TextInteriorsAreDisjoint([.. plan.Operations.OfType<DrawTextV1>()]),
+            "text interiors overlap",
+            violations);
 
-                using (Assert.Multiple())
-                {
-                    await Assert.That(candidate.PortAnchors.Select(anchor => anchor.PortId))
-                        .IsEquivalentTo(
-                            canonical.PortAnchors.Select(anchor => anchor.PortId),
-                            CollectionOrdering.Matching);
-                    await Assert.That(candidate.PortAnchors.Select(anchor => anchor.Point).Distinct())
-                        .Count().IsEqualTo(candidate.PortAnchors.Count);
-                    await Assert.That(candidate.Bounds.Width).IsGreaterThan(0);
-                    await Assert.That(candidate.Bounds.Height).IsGreaterThan(0);
-                    await Assert.That(candidate.Operations.OfType<DrawTextV1>()
-                        .All(text => text.Orientation == TextOrientationV1.UprightReading))
-                        .IsTrue();
-                }
-            }
-        }
-    }
-
-    [Test]
-    [Arguments(SymbolFacingV1.North, false)]
-    [Arguments(SymbolFacingV1.North, true)]
-    [Arguments(SymbolFacingV1.South, false)]
-    [Arguments(SymbolFacingV1.South, true)]
-    public async Task Plan_RotatedMux_SpacesUprightPortLabels(
-        SymbolFacingV1 facing,
-        bool isReflected)
-    {
-        var template = Request("logic.mux");
-        var plan = Plan(new ComponentSymbolRequestV1(
-            template.Contract,
-            template.Parameters,
-            template.Profile,
-            template.SymbolVariantId,
-            facing,
-            isReflected,
-            template.MetricSet,
-            template.FontFingerprint,
-            template.LocaleId,
-            template.BaseDirection));
-        var dataLabels = plan.Operations.OfType<DrawTextV1>()
-            .Where(operation => operation.Text is "0D0" or "1D1" or "2D2" or "3D3")
-            .OrderBy(operation => operation.Bounds.Left)
-            .ToArray();
-
-        await Assert.That(dataLabels).Count().IsEqualTo(4);
-        await Assert.That(Enumerable.Range(1, dataLabels.Length - 1).All(index =>
-            dataLabels[index - 1].Bounds.Right <= dataLabels[index].Bounds.Left)).IsTrue();
+        return (violations.Count == 0).Label(string.Join("; ", violations));
     }
 
     [Test]
@@ -356,7 +344,7 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
 
                 await Assert.That(plan).IsNotNull();
                 var function = plan!.Operations.OfType<DrawTextV1>()
-                    .Single(operation => operation.Text == "MUX");
+                    .Single(operation => operation.FontRole == FontRoleV1.Symbol);
                 var portLabels = plan.Operations.OfType<DrawTextV1>()
                     .Where(operation => operation.FontRole is
                         FontRoleV1.PortLabel or FontRoleV1.Dependency)
@@ -602,6 +590,25 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
                 ? success.Plan
                 : throw new InvalidOperationException("The Circuit Definition symbol was rejected.");
 
+    private static ComponentSymbolRequestV1 Request(RectangularSymbolPlanCase sample)
+    {
+        var template = Request(sample.ContractId);
+        return new ComponentSymbolRequestV1(
+            template.Contract,
+            template.Parameters,
+            template.Profile with
+            {
+                IndicationConvention = sample.IndicationConvention,
+            },
+            template.SymbolVariantId,
+            sample.Facing,
+            sample.IsReflected,
+            template.MetricSet,
+            template.FontFingerprint,
+            sample.LocaleId,
+            sample.BaseDirection);
+    }
+
     private static ComponentSymbolRequestV1 Request(string contractId)
     {
         var contract = CoreLibrarySchema.FindContract(new ComponentContractKey(
@@ -742,6 +749,77 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
 
     private static ComponentParameterBinding Choice(string id, string value) =>
         new(id, new ChoiceParameterValue(value));
+
+    private static void Check(bool condition, string message, List<string> violations)
+    {
+        if (!condition)
+        {
+            violations.Add(message);
+        }
+    }
+
+    private static bool PortAccessibilityWidthsMatch(
+        GeometryPlanV1 plan,
+        IReadOnlyList<ResolvedComponentPortSchema> ports)
+    {
+        var widthsByPortId = ports.ToDictionary(
+            port => port.Id,
+            port => port.Width,
+            StringComparer.Ordinal);
+        return plan.PortAnchors.All(anchor =>
+        {
+            var node = plan.AccessibilityNodes.Single(candidate =>
+                candidate.LocalId == anchor.AccessibilityNodeId);
+            return node.Arguments.SingleOrDefault(argument => argument.Name == "width")
+                is UnsignedLocalizationArgumentV1 width
+                && width.Value == widthsByPortId[anchor.PortId];
+        });
+    }
+
+    private static bool PortHitRegionsAreDisjoint(GeometryPlanV1 plan)
+    {
+        var circles = plan.HitRegions
+            .Where(region => region.Kind == HitRegionKindV1.Port)
+            .Select(region => region.Shape)
+            .OfType<CircleHitShapeV1>()
+            .ToArray();
+        if (circles.Length != plan.PortAnchors.Count)
+        {
+            return false;
+        }
+
+        for (var first = 0; first < circles.Length; first++)
+        {
+            for (var second = first + 1; second < circles.Length; second++)
+            {
+                var deltaX = (long)circles[first].Center.X - circles[second].Center.X;
+                var deltaY = (long)circles[first].Center.Y - circles[second].Center.Y;
+                var radiusSum = (long)circles[first].Radius + circles[second].Radius;
+                if ((deltaX * deltaX) + (deltaY * deltaY) <= radiusSum * radiusSum)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TextInteriorsAreDisjoint(DrawTextV1[] text)
+    {
+        for (var first = 0; first < text.Length; first++)
+        {
+            for (var second = first + 1; second < text.Length; second++)
+            {
+                if (InteriorsOverlap(text[first].Bounds, text[second].Bounds))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
 
     private static bool InteriorsOverlap(RectV1 left, RectV1 right) =>
         left.Left < right.Right
