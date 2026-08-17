@@ -59,26 +59,20 @@ public static class TeachingMixedGeometryPlanner
             string definitionId;
             string definitionVersion;
             string variantId;
-            if (TeachingMixedBasicSymbolRegistry.ContainsContract(
-                    request.Contract.Key.ContractId))
+            var inputCount = ports.Count(port => port.Direction == PortDirection.Input);
+            if (TeachingMixedBasicSymbolRegistry.TryResolve(
+                    request.Contract.Key.ContractId,
+                    inputCount,
+                    request.SymbolVariantId,
+                    request.Profile.IndicationConvention,
+                    request.Facing,
+                    out var basicDefinition))
             {
                 ValidateBasicPorts(ports);
-                var inputCount = ports.Count(port => port.Direction == PortDirection.Input);
-                if (!TeachingMixedBasicSymbolRegistry.TryResolve(
-                        request.Contract.Key.ContractId,
-                        inputCount,
-                        request.SymbolVariantId,
-                        request.Profile.IndicationConvention,
-                        request.Facing,
-                        out var definition))
-                {
-                    return VariantUnresolved(request);
-                }
-
-                var textMeasurement = definition.Recipe == BasicOutlineRecipe.Rectangle
+                var textMeasurement = basicDefinition.Recipe == BasicOutlineRecipe.Rectangle
                     ? textMeasurer.Measure(
                         new SymbolTextMeasurementRequestV1(
-                            definition.FunctionText,
+                            basicDefinition.FunctionText,
                             FontRoleV1.Symbol,
                             TextAlignmentV1.Center,
                             request.MetricSet,
@@ -90,31 +84,26 @@ public static class TeachingMixedGeometryPlanner
                     : null;
                 draft = BasicGateGeometryBuilder.Build(
                     request,
-                    definition,
+                    basicDefinition,
                     ports,
                     textMeasurement,
                     cancellationToken);
-                definitionId = definition.Definition.DefinitionId;
-                definitionVersion = definition.Definition.DefinitionVersion;
-                variantId = definition.VariantId;
+                definitionId = basicDefinition.Definition.DefinitionId;
+                definitionVersion = basicDefinition.Definition.DefinitionVersion;
+                variantId = basicDefinition.VariantId;
             }
-            else
+            else if (TeachingMixedRectangularSymbolRegistry.TryResolve(
+                request.Contract.Key.ContractId,
+                request.Parameters,
+                ports,
+                request.SymbolVariantId,
+                out var rectangularDefinition))
             {
-                if (!TeachingMixedRectangularSymbolRegistry.TryResolve(
-                        request.Contract.Key.ContractId,
-                        request.Parameters,
-                        ports,
-                        request.SymbolVariantId,
-                        out var definition))
-                {
-                    return VariantUnresolved(request);
-                }
-
                 var layoutRequest = new RectangularSymbolLayoutRequest(
-                    definition.FunctionText,
-                    definition.FunctionFontRole,
-                    definition.AccessibilityKey,
-                    definition.Dependencies,
+                    rectangularDefinition.FunctionText,
+                    rectangularDefinition.FunctionFontRole,
+                    rectangularDefinition.AccessibilityKey,
+                    rectangularDefinition.Dependencies,
                     request.MetricSet,
                     request.LocaleId,
                     request.BaseDirection,
@@ -123,7 +112,7 @@ public static class TeachingMixedGeometryPlanner
                     request.Profile.IndicationConvention,
                     ActiveLowQualifiers(request.Parameters, ports),
                     request.Contract.Key.ContractId == "logic.tristate",
-                    Conformance(definition));
+                    Conformance(rectangularDefinition));
                 var rectangularPorts = ports.Select(port => new RectangularSymbolPort(
                     port.Id,
                     port.Id,
@@ -134,9 +123,13 @@ public static class TeachingMixedGeometryPlanner
                     rectangularPorts,
                     textMeasurer,
                     cancellationToken);
-                definitionId = definition.DefinitionId;
-                definitionVersion = definition.DefinitionVersion;
-                variantId = definition.VariantId;
+                definitionId = rectangularDefinition.DefinitionId;
+                definitionVersion = rectangularDefinition.DefinitionVersion;
+                variantId = rectangularDefinition.VariantId;
+            }
+            else
+            {
+                return VariantUnresolved(request);
             }
 
             var key = new GeometryPlanKeyV1(
