@@ -1,5 +1,3 @@
-using System.Collections.ObjectModel;
-using System.Globalization;
 using LogicLab.Domain.Components;
 
 namespace LogicLab.Presentation.TeachingMixed;
@@ -18,69 +16,19 @@ internal enum RectangularSymbolDependencyRecipe
     SelectDataOutputs,
 }
 
-internal sealed record RectangularSymbolAffectedEndpoint
-{
-    public RectangularSymbolAffectedEndpoint(string portId, int applicationOrder)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(portId);
-        ArgumentOutOfRangeException.ThrowIfNegative(applicationOrder);
-        PortId = portId;
-        ApplicationOrder = applicationOrder;
-    }
+internal readonly record struct RectangularSymbolAffectedEndpoint(
+    string PortId,
+    int ApplicationOrder);
 
-    public string PortId { get; }
-
-    public int ApplicationOrder { get; }
-}
-
-internal sealed record RectangularSymbolDependency
-{
-    public RectangularSymbolDependency(
-        RectangularSymbolDependencyKind kind,
-        string identifier,
-        string affectingPortId,
-        IReadOnlyList<RectangularSymbolAffectedEndpoint> affectedEndpoints)
-    {
-        if (!Enum.IsDefined(kind))
-        {
-            throw new ArgumentOutOfRangeException(nameof(kind));
-        }
-
-        ArgumentException.ThrowIfNullOrEmpty(identifier);
-        ArgumentException.ThrowIfNullOrEmpty(affectingPortId);
-        ArgumentNullException.ThrowIfNull(affectedEndpoints);
-        if (identifier.Any(character => character is < '0' or > '9'))
-        {
-            throw new ArgumentException(
-                "A supported dependency identifier must use decimal digits.",
-                nameof(identifier));
-        }
-
-        if (affectedEndpoints.Count == 0)
-        {
-            throw new ArgumentException(
-                "A dependency must affect at least one Port.",
-                nameof(affectedEndpoints));
-        }
-
-        Kind = kind;
-        Identifier = identifier;
-        AffectingPortId = affectingPortId;
-        AffectedEndpoints = Array.AsReadOnly(affectedEndpoints.ToArray());
-    }
-
-    public RectangularSymbolDependencyKind Kind { get; }
-
-    public string Identifier { get; }
-
-    public string AffectingPortId { get; }
-
-    public ReadOnlyCollection<RectangularSymbolAffectedEndpoint> AffectedEndpoints { get; }
-}
+internal sealed record RectangularSymbolDependency(
+    RectangularSymbolDependencyKind Kind,
+    uint Identifier,
+    string AffectingPortId,
+    RectangularSymbolAffectedEndpoint[] AffectedEndpoints);
 
 internal static class RectangularSymbolDependencyResolver
 {
-    public static ReadOnlyCollection<RectangularSymbolDependency> Resolve(
+    public static RectangularSymbolDependency[] Resolve(
         RectangularSymbolDependencyRecipe recipe,
         IReadOnlyList<ResolvedComponentPortSchema> ports)
     {
@@ -99,7 +47,7 @@ internal static class RectangularSymbolDependencyResolver
                 "S"),
             _ => throw new ArgumentOutOfRangeException(nameof(recipe)),
         };
-        return Array.AsReadOnly(dependencies);
+        return dependencies;
     }
 
     private static RectangularSymbolDependency[] EnableOutputs(
@@ -113,7 +61,7 @@ internal static class RectangularSymbolDependencyResolver
         [
             new RectangularSymbolDependency(
                 RectangularSymbolDependencyKind.Enable,
-                "1",
+                1,
                 "EN",
                 affected),
         ];
@@ -132,7 +80,7 @@ internal static class RectangularSymbolDependencyResolver
         {
             dependencies[index] = new RectangularSymbolDependency(
                 RectangularSymbolDependencyKind.And,
-                index.ToString(CultureInfo.InvariantCulture),
+                checked((uint)index),
                 selectorPortId,
                 [new RectangularSymbolAffectedEndpoint(affected[index].Id, 0)]);
         }
