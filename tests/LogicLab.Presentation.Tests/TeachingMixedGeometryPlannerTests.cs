@@ -337,10 +337,6 @@ internal sealed class TeachingMixedGeometryPlannerTests
 
     [Test]
     [Arguments(
-        "unsupported",
-        LayoutRejectionReasonV1.LayoutInvalid,
-        "presentation_variant_unresolved")]
-    [Arguments(
         "variant",
         LayoutRejectionReasonV1.LayoutInvalid,
         "presentation_variant_unresolved")]
@@ -359,7 +355,6 @@ internal sealed class TeachingMixedGeometryPlannerTests
     {
         var request = scenario switch
         {
-            "unsupported" => Request("logic.mux", 1),
             "variant" => Request("logic.and", 2, symbolVariantId: "unregistered"),
             "profile" => Request(
                 "logic.and",
@@ -1278,7 +1273,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
         && outer.Contains(new PointV1(inner.Right, inner.Bottom));
 
     private static GeometryPlanV1 Plan(
-        BasicSymbolRequestV1 request,
+        ComponentSymbolRequestV1 request,
         ISymbolTextMeasurerV1? textMeasurer = null)
     {
         return TeachingMixedGeometryPlanner.Plan(
@@ -1315,7 +1310,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
         [],
         []);
 
-    private static BasicSymbolRequestV1 Request(BasicSymbolPlanCase sample) => Request(
+    private static ComponentSymbolRequestV1 Request(BasicSymbolPlanCase sample) => Request(
         sample.ContractId,
         sample.FanIn,
         sample.SymbolVariantId,
@@ -1331,7 +1326,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
         localeId: sample.LocaleId,
         baseDirection: sample.BaseDirection);
 
-    private static BasicSymbolRequestV1 Request(
+    private static ComponentSymbolRequestV1 Request(
         string contractId,
         uint fanIn = 2,
         string? symbolVariantId = null,
@@ -1358,7 +1353,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
             _ => GateParameters(fanIn),
         };
 
-        return new BasicSymbolRequestV1(
+        return new ComponentSymbolRequestV1(
             contract,
             parameters,
             profile ?? TeachingMixedProfile,

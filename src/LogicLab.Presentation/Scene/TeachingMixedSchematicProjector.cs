@@ -9,17 +9,6 @@ namespace LogicLab.Presentation.Scene;
 public static class TeachingMixedSchematicProjector
 {
     private static readonly LineJoinV1 RoundJoin = new(LineJoinKindV1.Round, 0);
-    private static readonly HashSet<string> BasicContracts = new(StringComparer.Ordinal)
-    {
-        "logic.and",
-        "logic.nand",
-        "logic.or",
-        "logic.nor",
-        "logic.xor",
-        "logic.xnor",
-        "logic.buffer",
-        "logic.not",
-    };
 
     public static SchematicProjectionOutcomeV1 Project(
         ProjectRevision revision,
@@ -372,37 +361,21 @@ public static class TeachingMixedSchematicProjector
                 [PresentationDiagnosticsV1.ConstraintUnsatisfied(LayoutConstraintV1.Request)]);
         }
 
-        return BasicContracts.Contains(target.ContractKey.ContractId)
-            ? TeachingMixedGeometryPlanner.Plan(
-                new BasicSymbolRequestV1(
-                    contract,
-                    instance.Parameters,
-                    revision.Document.SymbolProfile,
-                    instance.SymbolVariantId,
-                    facing,
-                    instance.Placement.Reflected,
-                    fingerprint.MetricSet,
-                    fingerprint.FontFingerprint,
-                    fingerprint.LocaleId,
-                    fingerprint.BaseDirection),
-                maximumPortCount,
-                textMeasurer,
-                cancellationToken)
-            : TeachingMixedGeometryPlanner.Plan(
-                new ComplexSymbolRequestV1(
-                    contract,
-                    instance.Parameters,
-                    revision.Document.SymbolProfile,
-                    instance.SymbolVariantId,
-                    facing,
-                    instance.Placement.Reflected,
-                    fingerprint.MetricSet,
-                    fingerprint.FontFingerprint,
-                    fingerprint.LocaleId,
-                    fingerprint.BaseDirection),
-                maximumPortCount,
-                textMeasurer,
-                cancellationToken);
+        return TeachingMixedGeometryPlanner.Plan(
+            new ComponentSymbolRequestV1(
+                contract,
+                instance.Parameters,
+                revision.Document.SymbolProfile,
+                instance.SymbolVariantId,
+                facing,
+                instance.Placement.Reflected,
+                fingerprint.MetricSet,
+                fingerprint.FontFingerprint,
+                fingerprint.LocaleId,
+                fingerprint.BaseDirection),
+            maximumPortCount,
+            textMeasurer,
+            cancellationToken);
     }
 
     private static GeometryPlanOutcomeV1 PlanDefinitionComponent(

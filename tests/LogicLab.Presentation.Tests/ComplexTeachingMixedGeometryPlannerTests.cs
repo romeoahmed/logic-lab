@@ -170,7 +170,7 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     public async Task Plan_TwoInputHighestPriorityEncoder_DowngradesUnmodeledStandardNotation()
     {
         var template = Request("logic.priority_encoder");
-        var request = new ComplexSymbolRequestV1(
+        var request = new ComponentSymbolRequestV1(
             template.Contract,
             [U32("inputCount", 2), Choice("priority", "highestIndex")],
             template.Profile,
@@ -204,7 +204,7 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     public async Task Plan_LowestPriorityEncoder_PublishesExplicitExtensionInsteadOfHpri()
     {
         var template = Request("logic.priority_encoder");
-        var request = new ComplexSymbolRequestV1(
+        var request = new ComponentSymbolRequestV1(
             template.Contract,
             [U32("inputCount", 5), Choice("priority", "lowestIndex")],
             template.Profile,
@@ -269,7 +269,7 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
         {
             foreach (var isReflected in new[] { false, true })
             {
-                var candidate = Plan(new ComplexSymbolRequestV1(
+                var candidate = Plan(new ComponentSymbolRequestV1(
                     request.Contract,
                     request.Parameters,
                     request.Profile,
@@ -309,7 +309,7 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
         bool isReflected)
     {
         var template = Request("logic.mux");
-        var plan = Plan(new ComplexSymbolRequestV1(
+        var plan = Plan(new ComponentSymbolRequestV1(
             template.Contract,
             template.Parameters,
             template.Profile,
@@ -340,7 +340,7 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
         {
             foreach (var isReflected in new[] { false, true })
             {
-                var request = new ComplexSymbolRequestV1(
+                var request = new ComponentSymbolRequestV1(
                     template.Contract,
                     template.Parameters,
                     template.Profile,
@@ -372,7 +372,7 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     public async Task Plan_ActiveLowControl_UsesOneDiagramIndicationConvention()
     {
         var template = Request("logic.tristate");
-        var negationRequest = new ComplexSymbolRequestV1(
+        var negationRequest = new ComponentSymbolRequestV1(
             template.Contract,
             [U32("width", 1), Choice("enablePolarity", "activeLow")],
             template.Profile,
@@ -383,7 +383,7 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
             template.FontFingerprint,
             template.LocaleId,
             template.BaseDirection);
-        var directPolarityRequest = new ComplexSymbolRequestV1(
+        var directPolarityRequest = new ComponentSymbolRequestV1(
             negationRequest.Contract,
             negationRequest.Parameters,
             TeachingMixedProfile with
@@ -572,7 +572,7 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
         }
     }
 
-    private static GeometryPlanV1 Plan(ComplexSymbolRequestV1 request)
+    private static GeometryPlanV1 Plan(ComponentSymbolRequestV1 request)
     {
         var outcome = TeachingMixedGeometryPlanner.Plan(request, 64, TextMeasurer);
         if (outcome is GeometryPlanSucceededV1 success)
@@ -602,12 +602,12 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
                 ? success.Plan
                 : throw new InvalidOperationException("The Circuit Definition symbol was rejected.");
 
-    private static ComplexSymbolRequestV1 Request(string contractId)
+    private static ComponentSymbolRequestV1 Request(string contractId)
     {
         var contract = CoreLibrarySchema.FindContract(new ComponentContractKey(
             CoreLibrarySchema.LibraryId,
             contractId)) ?? throw new InvalidOperationException($"Missing {contractId}.");
-        return new ComplexSymbolRequestV1(
+        return new ComponentSymbolRequestV1(
             contract,
             Parameters(contractId),
             TeachingMixedProfile,

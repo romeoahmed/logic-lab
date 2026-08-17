@@ -11,7 +11,7 @@ namespace LogicLab.Presentation.TeachingMixed;
 public static class TeachingMixedGeometryPlanner
 {
     public static GeometryPlanOutcomeV1 Plan(
-        BasicSymbolRequestV1 request,
+        ComponentSymbolRequestV1 request,
         ulong maximumPortCount,
         ISymbolTextMeasurerV1 textMeasurer,
         CancellationToken cancellationToken = default)
@@ -26,27 +26,10 @@ public static class TeachingMixedGeometryPlanner
 
         try
         {
-            if (!SymbolProfileRegistry.IsRegistered(request.Profile))
+            var environmentFailure = ValidateEnvironment(request, textMeasurer);
+            if (environmentFailure is not null)
             {
-                return Invalid(PresentationDiagnosticsV1.VariantUnresolved(
-                    request.Profile.Id,
-                    request.SymbolVariantId ?? "default"));
-            }
-
-            var measuredFontFingerprint = textMeasurer.FontFingerprint;
-            if (measuredFontFingerprint != request.FontFingerprint)
-            {
-                return Invalid(PresentationDiagnosticsV1.FontFingerprintMismatch(
-                    request.FontFingerprint,
-                    measuredFontFingerprint));
-            }
-
-            var measuredMetricSet = textMeasurer.MetricSet;
-            if (measuredMetricSet != request.MetricSet)
-            {
-                return Invalid(PresentationDiagnosticsV1.MetricFingerprintMismatch(
-                    request.MetricSet.Fingerprint,
-                    measuredMetricSet.Fingerprint));
+                return environmentFailure;
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -72,27 +55,28 @@ public static class TeachingMixedGeometryPlanner
                     LayoutConstraintV1.Request));
             }
 
-            ValidateBasicPorts(ports);
-            var inputCount = ports.Count(port => port.Direction == PortDirection.Input);
-            if (!TeachingMixedBasicSymbolRegistry.TryResolve(
-                    request.Contract.Key.ContractId,
-                    inputCount,
-                    request.SymbolVariantId,
-                    request.Profile.IndicationConvention,
-                    request.Facing,
-                    out var definition))
+            GeometryPlanDraft draft;
+            string definitionId;
+            string definitionVersion;
+            string variantId;
+            if (TeachingMixedBasicSymbolRegistry.ContainsContract(
+                    request.Contract.Key.ContractId))
             {
-                return Invalid(PresentationDiagnosticsV1.VariantUnresolved(
-                    request.Profile.Id,
-                    request.SymbolVariantId ?? request.Contract.Key.ContractId));
-            }
-
-            SymbolTextMeasurementV1? textMeasurement = null;
-            if (definition.Recipe == BasicOutlineRecipe.Rectangle)
-            {
-                try
+                ValidateBasicPorts(ports);
+                var inputCount = ports.Count(port => port.Direction == PortDirection.Input);
+                if (!TeachingMixedBasicSymbolRegistry.TryResolve(
+                        request.Contract.Key.ContractId,
+                        inputCount,
+                        request.SymbolVariantId,
+                        request.Profile.IndicationConvention,
+                        request.Facing,
+                        out var definition))
                 {
-                    textMeasurement = textMeasurer.Measure(
+                    return VariantUnresolved(request);
+                }
+
+                var textMeasurement = definition.Recipe == BasicOutlineRecipe.Rectangle
+                    ? textMeasurer.Measure(
                         new SymbolTextMeasurementRequestV1(
                             definition.FunctionText,
                             FontRoleV1.Symbol,
@@ -102,36 +86,64 @@ public static class TeachingMixedGeometryPlanner
                             request.BaseDirection),
                         cancellationToken)
                         ?? throw new InvalidOperationException(
-                            "The Symbol Text Measurer returned no measurement.");
-                }
-                catch (OperationCanceledException)
-                    when (cancellationToken.IsCancellationRequested)
+                            "The Symbol Text Measurer returned no measurement.")
+                    : null;
+                draft = BasicGateGeometryBuilder.Build(
+                    request,
+                    definition,
+                    ports,
+                    textMeasurement,
+                    cancellationToken);
+                definitionId = definition.Definition.DefinitionId;
+                definitionVersion = definition.Definition.DefinitionVersion;
+                variantId = definition.VariantId;
+            }
+            else
+            {
+                if (!TeachingMixedRectangularSymbolRegistry.TryResolve(
+                        request.Contract.Key.ContractId,
+                        request.Parameters,
+                        ports,
+                        request.SymbolVariantId,
+                        out var definition))
                 {
-                    throw;
+                    return VariantUnresolved(request);
                 }
-                catch (Exception exception) when (!IsFatal(exception))
-                {
-                    return InternalDefect();
-                }
+
+                var layoutRequest = new RectangularSymbolLayoutRequest(
+                    definition.FunctionText,
+                    definition.FunctionFontRole,
+                    definition.AccessibilityKey,
+                    definition.Dependencies,
+                    request.MetricSet,
+                    request.LocaleId,
+                    request.BaseDirection,
+                    request.Facing,
+                    request.IsReflected,
+                    request.Profile.IndicationConvention,
+                    ActiveLowQualifiers(request.Parameters, ports),
+                    request.Contract.Key.ContractId == "logic.tristate",
+                    Conformance(definition));
+                var rectangularPorts = ports.Select(port => new RectangularSymbolPort(
+                    port.Id,
+                    port.Id,
+                    port.Direction,
+                    port.Width)).ToArray();
+                draft = RectangularSymbolGeometryBuilder.Build(
+                    layoutRequest,
+                    rectangularPorts,
+                    textMeasurer,
+                    cancellationToken);
+                definitionId = definition.DefinitionId;
+                definitionVersion = definition.DefinitionVersion;
+                variantId = definition.VariantId;
             }
 
-            var draft = BasicGateGeometryBuilder.Build(
-                request,
-                definition,
-                ports,
-                textMeasurement,
-                cancellationToken);
-            var transformed = GeometryPlanTransform.Apply(
-                draft,
-                request.Facing,
-                request.IsReflected);
-            cancellationToken.ThrowIfCancellationRequested();
-
             var key = new GeometryPlanKeyV1(
-                definition.Definition.DefinitionId,
-                definition.Definition.DefinitionVersion,
+                definitionId,
+                definitionVersion,
                 request.Contract.SchemaDigest,
-                definition.VariantId,
+                variantId,
                 GeometryRequestFingerprint.Compute(request, ports),
                 request.Facing,
                 request.IsReflected,
@@ -142,16 +154,7 @@ public static class TeachingMixedGeometryPlanner
                 request.MetricSet.Version,
                 request.MetricSet.Fingerprint,
                 request.FontFingerprint);
-            var plan = new GeometryPlanV1(
-                key,
-                transformed.Bounds,
-                transformed.Operations,
-                transformed.PortAnchors,
-                transformed.HitRegions,
-                transformed.AccessibilityNodes,
-                transformed.Conformance);
-            cancellationToken.ThrowIfCancellationRequested();
-            return new GeometryPlanSucceededV1(plan);
+            return Publish(draft, key, request, cancellationToken);
         }
         catch (OperationCanceledException)
             when (cancellationToken.IsCancellationRequested)
@@ -162,137 +165,6 @@ public static class TeachingMixedGeometryPlanner
         {
             return Invalid(PresentationDiagnosticsV1.ConstraintUnsatisfied(
                 exception.Constraint));
-        }
-        catch (OverflowException)
-        {
-            return Invalid(PresentationDiagnosticsV1.ConstraintUnsatisfied(
-                LayoutConstraintV1.CoordinateRange));
-        }
-        catch (Exception exception) when (!IsFatal(exception))
-        {
-            return InternalDefect();
-        }
-    }
-
-    public static GeometryPlanOutcomeV1 Plan(
-        ComplexSymbolRequestV1 request,
-        ulong maximumPortCount,
-        ISymbolTextMeasurerV1 textMeasurer,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(textMeasurer);
-        ArgumentOutOfRangeException.ThrowIfZero(maximumPortCount);
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Cancelled();
-        }
-
-        try
-        {
-            var environmentFailure = ValidateEnvironment(
-                request.Profile,
-                request.SymbolVariantId,
-                request.MetricSet,
-                request.FontFingerprint,
-                textMeasurer);
-            if (environmentFailure is not null)
-            {
-                return environmentFailure;
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            ReadOnlyCollection<ResolvedComponentPortSchema> ports;
-            try
-            {
-                var resolution = request.Contract.ResolvePorts(request.Parameters, cancellationToken);
-                if (!resolution.TryMaterialize(maximumPortCount, out ports, cancellationToken))
-                {
-                    return Invalid(PresentationDiagnosticsV1.ConstraintUnsatisfied(
-                        LayoutConstraintV1.PortBudget));
-                }
-            }
-            catch (ArgumentException)
-            {
-                return Invalid(PresentationDiagnosticsV1.ConstraintUnsatisfied(
-                    LayoutConstraintV1.Request));
-            }
-
-            if (!TeachingMixedRectangularSymbolRegistry.TryResolve(
-                    request.Contract.Key.ContractId,
-                    request.Parameters,
-                    ports,
-                    request.SymbolVariantId,
-                    out var definition))
-            {
-                return Invalid(PresentationDiagnosticsV1.VariantUnresolved(
-                    request.Profile.Id,
-                    request.SymbolVariantId ?? request.Contract.Key.ContractId));
-            }
-
-            var conformance = Conformance(definition);
-            var layoutRequest = new RectangularSymbolLayoutRequest(
-                definition.FunctionText,
-                definition.FunctionFontRole,
-                definition.AccessibilityKey,
-                definition.Dependencies,
-                request.MetricSet,
-                request.LocaleId,
-                request.BaseDirection,
-                request.Facing,
-                request.IsReflected,
-                request.Profile.IndicationConvention,
-                ActiveLowQualifiers(request.Parameters, ports),
-                request.Contract.Key.ContractId == "logic.tristate",
-                conformance);
-            var rectangularPorts = ports.Select(port => new RectangularSymbolPort(
-                port.Id,
-                port.Id,
-                port.Direction,
-                port.Width)).ToArray();
-            var draft = RectangularSymbolGeometryBuilder.Build(
-                layoutRequest,
-                rectangularPorts,
-                textMeasurer,
-                cancellationToken);
-            var transformed = GeometryPlanTransform.Apply(
-                draft,
-                request.Facing,
-                request.IsReflected);
-            cancellationToken.ThrowIfCancellationRequested();
-            var key = new GeometryPlanKeyV1(
-                definition.DefinitionId,
-                definition.DefinitionVersion,
-                request.Contract.SchemaDigest,
-                definition.VariantId,
-                GeometryRequestFingerprint.Compute(request, ports),
-                request.Facing,
-                request.IsReflected,
-                request.Profile.IndicationConvention,
-                request.LocaleId,
-                request.BaseDirection,
-                request.MetricSet.Id,
-                request.MetricSet.Version,
-                request.MetricSet.Fingerprint,
-                request.FontFingerprint);
-            var plan = new GeometryPlanV1(
-                key,
-                transformed.Bounds,
-                transformed.Operations,
-                transformed.PortAnchors,
-                transformed.HitRegions,
-                transformed.AccessibilityNodes,
-                transformed.Conformance);
-            cancellationToken.ThrowIfCancellationRequested();
-            return new GeometryPlanSucceededV1(plan);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return Cancelled();
-        }
-        catch (LayoutInvalidException exception)
-        {
-            return Invalid(PresentationDiagnosticsV1.ConstraintUnsatisfied(exception.Constraint));
         }
         catch (OverflowException)
         {
@@ -321,12 +193,7 @@ public static class TeachingMixedGeometryPlanner
 
         try
         {
-            var environmentFailure = ValidateEnvironment(
-                request.Profile,
-                request.SymbolVariantId,
-                request.MetricSet,
-                request.FontFingerprint,
-                textMeasurer);
+            var environmentFailure = ValidateEnvironment(request, textMeasurer);
             if (environmentFailure is not null)
             {
                 return environmentFailure;
@@ -395,11 +262,6 @@ public static class TeachingMixedGeometryPlanner
                 ports,
                 textMeasurer,
                 cancellationToken);
-            var transformed = GeometryPlanTransform.Apply(
-                draft,
-                request.Facing,
-                request.IsReflected);
-            cancellationToken.ThrowIfCancellationRequested();
             var semanticDigest = GeometryRequestFingerprint.CircuitContract(request.Definition);
             var key = new GeometryPlanKeyV1(
                 "logiclab.teachingmixed.circuit-definition",
@@ -416,16 +278,7 @@ public static class TeachingMixedGeometryPlanner
                 request.MetricSet.Version,
                 request.MetricSet.Fingerprint,
                 request.FontFingerprint);
-            var plan = new GeometryPlanV1(
-                key,
-                transformed.Bounds,
-                transformed.Operations,
-                transformed.PortAnchors,
-                transformed.HitRegions,
-                transformed.AccessibilityNodes,
-                transformed.Conformance);
-            cancellationToken.ThrowIfCancellationRequested();
-            return new GeometryPlanSucceededV1(plan);
+            return Publish(draft, key, request, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -447,35 +300,61 @@ public static class TeachingMixedGeometryPlanner
     }
 
     private static GeometryPlanRejectedV1? ValidateEnvironment(
-        SymbolProfileReference profile,
-        string? symbolVariantId,
-        SymbolMetricSetV1 metricSet,
-        FontFingerprintV1 fontFingerprint,
+        SymbolRequestV1 request,
         ISymbolTextMeasurerV1 textMeasurer)
     {
-        if (!SymbolProfileRegistry.IsRegistered(profile))
+        if (!SymbolProfileRegistry.IsRegistered(request.Profile))
         {
             return Invalid(PresentationDiagnosticsV1.VariantUnresolved(
-                profile.Id,
-                symbolVariantId ?? "default"));
+                request.Profile.Id,
+                request.SymbolVariantId ?? "default"));
         }
 
-        if (textMeasurer.FontFingerprint != fontFingerprint)
+        if (textMeasurer.FontFingerprint != request.FontFingerprint)
         {
             return Invalid(PresentationDiagnosticsV1.FontFingerprintMismatch(
-                fontFingerprint,
+                request.FontFingerprint,
                 textMeasurer.FontFingerprint));
         }
 
-        if (textMeasurer.MetricSet != metricSet)
+        if (textMeasurer.MetricSet != request.MetricSet)
         {
             return Invalid(PresentationDiagnosticsV1.MetricFingerprintMismatch(
-                metricSet.Fingerprint,
+                request.MetricSet.Fingerprint,
                 textMeasurer.MetricSet.Fingerprint));
         }
 
         return null;
     }
+
+    private static GeometryPlanSucceededV1 Publish(
+        GeometryPlanDraft draft,
+        GeometryPlanKeyV1 key,
+        SymbolRequestV1 request,
+        CancellationToken cancellationToken)
+    {
+        var transformed = GeometryPlanTransform.Apply(
+            draft,
+            request.Facing,
+            request.IsReflected);
+        cancellationToken.ThrowIfCancellationRequested();
+        var plan = new GeometryPlanV1(
+            key,
+            transformed.Bounds,
+            transformed.Operations,
+            transformed.PortAnchors,
+            transformed.HitRegions,
+            transformed.AccessibilityNodes,
+            transformed.Conformance);
+        cancellationToken.ThrowIfCancellationRequested();
+        return new GeometryPlanSucceededV1(plan);
+    }
+
+    private static GeometryPlanRejectedV1 VariantUnresolved(
+        ComponentSymbolRequestV1 request) => Invalid(
+            PresentationDiagnosticsV1.VariantUnresolved(
+                request.Profile.Id,
+                request.SymbolVariantId ?? request.Contract.Key.ContractId));
 
     private static ConformanceEvidenceV1 Conformance(
         ResolvedRectangularSymbolDefinition definition) => new(
@@ -551,19 +430,11 @@ internal sealed class LayoutInvalidException(LayoutConstraintV1 constraint) :
 internal static class GeometryRequestFingerprint
 {
     public static string Compute(
-        BasicSymbolRequestV1 request,
+        ComponentSymbolRequestV1 request,
         IReadOnlyList<ResolvedComponentPortSchema> ports)
     {
         var canonical = new StringBuilder();
-        foreach (var parameter in request.Parameters
-            .OrderBy(parameter => parameter.ParameterId, StringComparer.Ordinal))
-        {
-            canonical.Append(parameter.ParameterId)
-                .Append('=')
-                .Append(ParameterValue(parameter.Value))
-                .Append('\n');
-        }
-
+        AppendParameters(canonical, request.Parameters);
         foreach (var port in ports)
         {
             canonical.Append(port.Id)
@@ -574,27 +445,6 @@ internal static class GeometryRequestFingerprint
                 .Append('\n');
         }
 
-        canonical.Append(request.LocaleId)
-            .Append('\n')
-            .Append(request.BaseDirection);
-        return Convert.ToHexStringLower(SHA256.HashData(
-            Encoding.UTF8.GetBytes(canonical.ToString())));
-    }
-
-    public static string Compute(
-        ComplexSymbolRequestV1 request,
-        IReadOnlyList<ResolvedComponentPortSchema> ports)
-    {
-        var canonical = new StringBuilder();
-        AppendParameters(canonical, request.Parameters);
-        AppendPorts(canonical, ports.Select(port => (
-            port.Id,
-            port.Direction,
-            port.Width,
-            port.Id)));
-        canonical.Append(request.LocaleId)
-            .Append('\n')
-            .Append(request.BaseDirection);
         return Digest(canonical);
     }
 
@@ -607,9 +457,6 @@ internal static class GeometryRequestFingerprint
             port.Direction,
             port.Width,
             port.DisplayName)));
-        canonical.Append(request.LocaleId)
-            .Append('\n')
-            .Append(request.BaseDirection);
         return Digest(canonical);
     }
 
