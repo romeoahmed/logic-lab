@@ -188,6 +188,28 @@ public abstract record SchematicItemV1
     }
 }
 
+public abstract record StaticSchematicItemV1 : SchematicItemV1
+{
+    private protected StaticSchematicItemV1(
+        IReadOnlyList<DrawOperationV1> operations,
+        IReadOnlyList<HitRegionV1> hitRegions,
+        IReadOnlyList<AccessibilityNodeV1> accessibilityNodes)
+    {
+        ArgumentNullException.ThrowIfNull(operations);
+        ArgumentNullException.ThrowIfNull(hitRegions);
+        ArgumentNullException.ThrowIfNull(accessibilityNodes);
+        Operations = Array.AsReadOnly(operations.ToArray());
+        HitRegions = Array.AsReadOnly(hitRegions.ToArray());
+        AccessibilityNodes = Array.AsReadOnly(accessibilityNodes.ToArray());
+    }
+
+    public ReadOnlyCollection<DrawOperationV1> Operations { get; }
+
+    public ReadOnlyCollection<HitRegionV1> HitRegions { get; }
+
+    public ReadOnlyCollection<AccessibilityNodeV1> AccessibilityNodes { get; }
+}
+
 public sealed record ComponentSymbolItemV1 : SchematicItemV1
 {
     internal ComponentSymbolItemV1(
@@ -209,7 +231,7 @@ public sealed record ComponentSymbolItemV1 : SchematicItemV1
     public GeometryPlanV1 Plan { get; }
 }
 
-public sealed record DefinitionPortItemV1 : SchematicItemV1
+public sealed record DefinitionPortItemV1 : StaticSchematicItemV1
 {
     internal DefinitionPortItemV1(
         DefinitionPortId portId,
@@ -217,28 +239,17 @@ public sealed record DefinitionPortItemV1 : SchematicItemV1
         PortAnchorV1 anchor,
         IReadOnlyList<HitRegionV1> hitRegions,
         IReadOnlyList<AccessibilityNodeV1> accessibilityNodes)
+        : base(operations, hitRegions, accessibilityNodes)
     {
         ArgumentNullException.ThrowIfNull(portId);
-        ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(anchor);
-        ArgumentNullException.ThrowIfNull(hitRegions);
-        ArgumentNullException.ThrowIfNull(accessibilityNodes);
         PortId = portId;
-        Operations = Array.AsReadOnly(operations.ToArray());
         Anchor = anchor;
-        HitRegions = Array.AsReadOnly(hitRegions.ToArray());
-        AccessibilityNodes = Array.AsReadOnly(accessibilityNodes.ToArray());
     }
 
     public DefinitionPortId PortId { get; }
 
-    public ReadOnlyCollection<DrawOperationV1> Operations { get; }
-
     public PortAnchorV1 Anchor { get; }
-
-    public ReadOnlyCollection<HitRegionV1> HitRegions { get; }
-
-    public ReadOnlyCollection<AccessibilityNodeV1> AccessibilityNodes { get; }
 }
 
 public sealed record NetTopologyItemV1 : SchematicItemV1
@@ -314,7 +325,7 @@ public sealed record ProjectedOrthogonalWireRouteV1 : ProjectedWireRouteV1
     public ReadOnlyCollection<PointV1> Points { get; }
 }
 
-public sealed record WireGeometryItemV1 : SchematicItemV1
+public sealed record WireGeometryItemV1 : StaticSchematicItemV1
 {
     internal WireGeometryItemV1(
         WireGeometryId wireGeometryId,
@@ -323,19 +334,14 @@ public sealed record WireGeometryItemV1 : SchematicItemV1
         IReadOnlyList<DrawOperationV1> operations,
         IReadOnlyList<HitRegionV1> hitRegions,
         IReadOnlyList<AccessibilityNodeV1> accessibilityNodes)
+        : base(operations, hitRegions, accessibilityNodes)
     {
         ArgumentNullException.ThrowIfNull(wireGeometryId);
         ArgumentNullException.ThrowIfNull(netId);
         ArgumentNullException.ThrowIfNull(route);
-        ArgumentNullException.ThrowIfNull(operations);
-        ArgumentNullException.ThrowIfNull(hitRegions);
-        ArgumentNullException.ThrowIfNull(accessibilityNodes);
         WireGeometryId = wireGeometryId;
         NetId = netId;
         Route = route;
-        Operations = Array.AsReadOnly(operations.ToArray());
-        HitRegions = Array.AsReadOnly(hitRegions.ToArray());
-        AccessibilityNodes = Array.AsReadOnly(accessibilityNodes.ToArray());
     }
 
     public WireGeometryId WireGeometryId { get; }
@@ -344,14 +350,9 @@ public sealed record WireGeometryItemV1 : SchematicItemV1
 
     public ProjectedWireRouteV1 Route { get; }
 
-    public ReadOnlyCollection<DrawOperationV1> Operations { get; }
-
-    public ReadOnlyCollection<HitRegionV1> HitRegions { get; }
-
-    public ReadOnlyCollection<AccessibilityNodeV1> AccessibilityNodes { get; }
 }
 
-public sealed record JunctionItemV1 : SchematicItemV1
+public sealed record JunctionItemV1 : StaticSchematicItemV1
 {
     internal JunctionItemV1(
         JunctionId junctionId,
@@ -360,18 +361,13 @@ public sealed record JunctionItemV1 : SchematicItemV1
         IReadOnlyList<DrawOperationV1> operations,
         IReadOnlyList<HitRegionV1> hitRegions,
         IReadOnlyList<AccessibilityNodeV1> accessibilityNodes)
+        : base(operations, hitRegions, accessibilityNodes)
     {
         ArgumentNullException.ThrowIfNull(junctionId);
         ArgumentNullException.ThrowIfNull(netId);
-        ArgumentNullException.ThrowIfNull(operations);
-        ArgumentNullException.ThrowIfNull(hitRegions);
-        ArgumentNullException.ThrowIfNull(accessibilityNodes);
         JunctionId = junctionId;
         NetId = netId;
         Point = point;
-        Operations = Array.AsReadOnly(operations.ToArray());
-        HitRegions = Array.AsReadOnly(hitRegions.ToArray());
-        AccessibilityNodes = Array.AsReadOnly(accessibilityNodes.ToArray());
     }
 
     public JunctionId JunctionId { get; }
@@ -380,38 +376,23 @@ public sealed record JunctionItemV1 : SchematicItemV1
 
     public PointV1 Point { get; }
 
-    public ReadOnlyCollection<DrawOperationV1> Operations { get; }
-
-    public ReadOnlyCollection<HitRegionV1> HitRegions { get; }
-
-    public ReadOnlyCollection<AccessibilityNodeV1> AccessibilityNodes { get; }
 }
 
-public sealed record AnnotationItemV1 : SchematicItemV1
+public sealed record AnnotationItemV1 : StaticSchematicItemV1
 {
     internal AnnotationItemV1(
         AnnotationId annotationId,
         IReadOnlyList<DrawOperationV1> operations,
         IReadOnlyList<HitRegionV1> hitRegions,
         IReadOnlyList<AccessibilityNodeV1> accessibilityNodes)
+        : base(operations, hitRegions, accessibilityNodes)
     {
         ArgumentNullException.ThrowIfNull(annotationId);
-        ArgumentNullException.ThrowIfNull(operations);
-        ArgumentNullException.ThrowIfNull(hitRegions);
-        ArgumentNullException.ThrowIfNull(accessibilityNodes);
         AnnotationId = annotationId;
-        Operations = Array.AsReadOnly(operations.ToArray());
-        HitRegions = Array.AsReadOnly(hitRegions.ToArray());
-        AccessibilityNodes = Array.AsReadOnly(accessibilityNodes.ToArray());
     }
 
     public AnnotationId AnnotationId { get; }
 
-    public ReadOnlyCollection<DrawOperationV1> Operations { get; }
-
-    public ReadOnlyCollection<HitRegionV1> HitRegions { get; }
-
-    public ReadOnlyCollection<AccessibilityNodeV1> AccessibilityNodes { get; }
 }
 
 public abstract record ProjectedTerminalAnchorV1
@@ -524,13 +505,13 @@ internal static class SchematicProbeAnchorSelector
             return new AvailableProbeAnchorV1(junctionPoints[0]);
         }
 
-        var routed = wires
+        var route = wires
             .OrderBy(wire => wire.WireGeometryId, StringComparer.Ordinal)
             .Select(wire => wire.Route)
             .OfType<ProjectedOrthogonalWireRouteV1>()
-            .FirstOrDefault(route => route.Points.Count > 0);
-        return routed is null
+            .FirstOrDefault();
+        return route is null
             ? new UnavailableProbeAnchorV1()
-            : new AvailableProbeAnchorV1(routed.Points[0]);
+            : new AvailableProbeAnchorV1(route.Points[0]);
     }
 }
