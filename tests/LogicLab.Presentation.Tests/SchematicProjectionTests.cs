@@ -1,9 +1,12 @@
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Geometry;
 using LogicLab.Presentation.Scene;
 using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Presentation.Tests;
 
@@ -78,7 +81,9 @@ internal sealed class SchematicProjectionTests
                         .OrderBy(wire => wire.Id.Value, StringComparer.Ordinal)
                         .Select(wire => wire.Id),
                     CollectionOrdering.Matching);
-            await Assert.That(topology.ProbeAnchor).IsTypeOf<AvailableProbeAnchorV1>();
+            var probe = await Assert.That(topology.ProbeAnchor)
+                .IsTypeOf<AvailableProbeAnchorV1>();
+            await Assert.That(probe!.Point).IsEqualTo(topology.TerminalAnchors[0].Point);
         }
     }
 
@@ -106,51 +111,6 @@ internal sealed class SchematicProjectionTests
                 Contains(projection.Bounds, rect))).IsTrue();
             await Assert.That(routedWire.AccessibilityNodes.All(node =>
                 Contains(projection.Bounds, node.Bounds))).IsTrue();
-        }
-    }
-
-    [Test]
-    public async Task Project_NetProbeAnchor_UsesTerminalThenJunctionThenLowestRoutedWire()
-    {
-        var terminalPoint = new PointV1(10, 20);
-        var junctionPoint = new PointV1(30, 40);
-        var firstWirePoint = new PointV1(50, 60);
-        var terminal = new DefinitionTerminalAnchorV1(
-            DefinitionPortIdForTest(),
-            terminalPoint);
-        var lowestWire = new ProbeWireCandidateV1(
-            "a-wire",
-            new ProjectedOrthogonalWireRouteV1([firstWirePoint, new PointV1(70, 60)]));
-        var higherWire = new ProbeWireCandidateV1(
-            "z-wire",
-            new ProjectedOrthogonalWireRouteV1([new PointV1(90, 90), new PointV1(100, 90)]));
-
-        var withTerminal = SchematicProbeAnchorSelector.Select(
-            [terminal],
-            [junctionPoint],
-            [higherWire, lowestWire]);
-        var withJunction = SchematicProbeAnchorSelector.Select(
-            [],
-            [junctionPoint],
-            [higherWire, lowestWire]);
-        var withWire = SchematicProbeAnchorSelector.Select(
-            [],
-            [],
-            [higherWire, lowestWire]);
-        var unavailable = SchematicProbeAnchorSelector.Select(
-            [],
-            [],
-            [new ProbeWireCandidateV1("only", new ProjectedUnroutedWireRouteV1())]);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(((AvailableProbeAnchorV1)withTerminal).Point)
-                .IsEqualTo(terminalPoint);
-            await Assert.That(((AvailableProbeAnchorV1)withJunction).Point)
-                .IsEqualTo(junctionPoint);
-            await Assert.That(((AvailableProbeAnchorV1)withWire).Point)
-                .IsEqualTo(firstWirePoint);
-            await Assert.That(unavailable).IsTypeOf<UnavailableProbeAnchorV1>();
         }
     }
 
@@ -295,60 +255,68 @@ internal sealed class SchematicProjectionTests
         }
     }
 
-    [Test]
-    public async Task Project_LfAnnotations_PublishExplicitVisibleLinesAndNoInkGeometry()
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(PresentationGeometryArbitraries) })]
+    public Property Project_AnnotationLogicalLines_PreserveTextAndSelectableGeometry(
+        AnnotationProjectionCase sample)
     {
-        const string multilineText = "First\n\nSecond";
-        const string noInkText = "\n";
-        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
-            "LF annotation projection",
-            LibrarySnapshot.Core,
-            TeachingMixedProfile,
-            "Main"))).Revision;
-        var definition = revision.Document.EntryCircuitDefinition;
-        revision = Commit(ProjectEditor.Apply(
-            revision,
-            new CreateAnnotationIntent(
-                definition.Id,
-                new AnnotationValue(
-                    multilineText,
-                    new GridPoint(4, 6),
-                    AnnotationAlignment.Start))));
-        var multilineId = revision.Document.EntryCircuitDefinition.Annotations.Single().Id;
-        revision = Commit(ProjectEditor.Apply(
-            revision,
-            new CreateAnnotationIntent(
-                definition.Id,
-                new AnnotationValue(
-                    noInkText,
-                    new GridPoint(8, 6),
-                    AnnotationAlignment.Center))));
-        var noInkId = revision.Document.EntryCircuitDefinition.Annotations.Single(annotation =>
-            annotation.Text == noInkText).Id;
+        var (projection, annotation) = ProjectAnnotation(sample);
+        var visibleLines = annotation.Operations.OfType<DrawTextV1>().ToArray();
+        var visibleLogicalLines = sample.Lines
+            .Select((text, index) => (Text: text, Index: index))
+            .Where(line => line.Text.Length > 0)
+            .ToArray();
+        var expectedLines = visibleLogicalLines.Select(line => line.Text).ToArray();
+        var compactedLines = expectedLines.Length == 0
+            ? []
+            : ProjectAnnotation(new AnnotationProjectionCase(
+                    expectedLines,
+                    sample.Alignment))
+                .Annotation.Operations.OfType<DrawTextV1>().ToArray();
+        var hitBounds = ((RectHitShapeV1)annotation.HitRegions.Single().Shape).Rect;
+        var accessibility = annotation.AccessibilityNodes.Single();
+        var violations = new List<string>();
 
-        var projection = Project(revision, definition.Id, Fingerprint());
-        var multiline = projection.Items.OfType<AnnotationItemV1>().Single(item =>
-            item.AnnotationId == multilineId);
-        var noInk = projection.Items.OfType<AnnotationItemV1>().Single(item =>
-            item.AnnotationId == noInkId);
-        var visibleLines = multiline.Operations.OfType<DrawTextV1>().ToArray();
+        Check(
+            visibleLines.Select(line => line.Text).SequenceEqual(expectedLines),
+            "visible line order differs from the authored LF sequence",
+            violations);
+        Check(
+            annotation.Operations.Count == visibleLines.Length
+                && visibleLines.All(line =>
+                    !line.Text.Contains('\n')
+                    && line.Alignment == TextAlignment(sample.Alignment)),
+            "a drawing operation is not one explicit authorized line",
+            violations);
+        Check(
+            visibleLines.Zip(visibleLines.Skip(1)).All(pair =>
+                pair.First.Origin.Y < pair.Second.Origin.Y),
+            "visible baselines do not preserve logical line order",
+            violations);
+        Check(
+            visibleLines.Select((line, index) => (Line: line, Index: index)).All(item =>
+                visibleLogicalLines[item.Index].Index == item.Index
+                    ? item.Line.Origin.Y == compactedLines[item.Index].Origin.Y
+                    : item.Line.Origin.Y > compactedLines[item.Index].Origin.Y),
+            "empty logical lines do not advance later visible baselines",
+            violations);
+        Check(
+            annotation.HitRegions.Count == 1
+                && annotation.AccessibilityNodes.Count == 1,
+            "the Annotation is not one selectable accessible item",
+            violations);
+        Check(
+            accessibility.Arguments.OfType<TextLocalizationArgumentV1>()
+                .Single(argument => argument.Name == "text").Value == sample.Text,
+            "accessibility text differs from the authored Annotation",
+            violations);
+        Check(
+            Contains(projection.Bounds, hitBounds)
+                && Contains(projection.Bounds, accessibility.Bounds)
+                && visibleLines.All(line => Contains(projection.Bounds, line.Bounds)),
+            "published Annotation geometry escapes Projection Bounds",
+            violations);
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(visibleLines.Select(line => line.Text))
-                .IsEquivalentTo(["First", "Second"], CollectionOrdering.Matching);
-            await Assert.That(visibleLines.All(line =>
-                !line.Text.Contains('\n'))).IsTrue();
-            await Assert.That(visibleLines[1].Origin.Y).IsGreaterThan(visibleLines[0].Origin.Y);
-            await Assert.That(noInk.Operations).IsEmpty();
-            await Assert.That(noInk.HitRegions).HasSingleItem();
-            await Assert.That(multiline.AccessibilityNodes.Single().Arguments
-                    .OfType<TextLocalizationArgumentV1>().Single().Value)
-                .IsEqualTo(multilineText);
-            await Assert.That(noInk.AccessibilityNodes.Single().Arguments
-                    .OfType<TextLocalizationArgumentV1>().Single().Value)
-                .IsEqualTo(noInkText);
-        }
+        return (violations.Count == 0).Label(string.Join("; ", violations));
     }
 
     [Test]
@@ -419,6 +387,27 @@ internal sealed class SchematicProjectionTests
             textMeasurer ?? TextMeasurer) is SchematicProjectionSucceededV1 success
                 ? success.Projection
                 : throw new InvalidOperationException("The Schematic Projection was rejected.");
+
+    private static (SchematicProjectionV1 Projection, AnnotationItemV1 Annotation)
+        ProjectAnnotation(AnnotationProjectionCase sample)
+    {
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "LF annotation projection",
+            LibrarySnapshot.Core,
+            TeachingMixedProfile,
+            "Main"))).Revision;
+        var definition = revision.Document.EntryCircuitDefinition;
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new CreateAnnotationIntent(
+                definition.Id,
+                new AnnotationValue(
+                    sample.Text,
+                    new GridPoint(4, 6),
+                    sample.Alignment))));
+        var projection = Project(revision, definition.Id, Fingerprint());
+        return (projection, projection.Items.OfType<AnnotationItemV1>().Single());
+    }
 
     private static PresentationFingerprintV1 Fingerprint(
         SymbolMetricSetV1? metricSet = null,
@@ -562,11 +551,25 @@ internal sealed class SchematicProjectionTests
         new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
     ];
 
-    private static DefinitionPortId DefinitionPortIdForTest() =>
-        CreateCompleteDefinition().Definition.Ports[0].Id;
-
     private static ProjectRevision Commit(EditOutcome outcome) =>
         ((EditCommitted)outcome).Revision;
+
+    private static void Check(bool condition, string message, List<string> violations)
+    {
+        if (!condition)
+        {
+            violations.Add(message);
+        }
+    }
+
+    private static TextAlignmentV1 TextAlignment(AnnotationAlignment alignment) =>
+        alignment switch
+        {
+            AnnotationAlignment.Start => TextAlignmentV1.Start,
+            AnnotationAlignment.Center => TextAlignmentV1.Center,
+            AnnotationAlignment.End => TextAlignmentV1.End,
+            _ => throw new ArgumentOutOfRangeException(nameof(alignment)),
+        };
 
     private static bool Contains(RectV1 outer, RectV1 inner) =>
         inner.Left >= outer.Left

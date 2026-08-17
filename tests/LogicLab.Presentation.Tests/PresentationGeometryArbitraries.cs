@@ -38,6 +38,16 @@ internal sealed record RectangularSymbolPlanCase(
         $"indication={IndicationConvention}, locale={LocaleId}, direction={BaseDirection})";
 }
 
+internal sealed record AnnotationProjectionCase(
+    string[] Lines,
+    AnnotationAlignment Alignment)
+{
+    public string Text => string.Join('\n', Lines);
+
+    public override string ToString() =>
+        $"{Alignment}({string.Join(" | ", Lines.Select(line => $"'{line}'"))})";
+}
+
 internal static class PresentationGeometryArbitraries
 {
     private static readonly string[] ContractIds =
@@ -70,6 +80,16 @@ internal static class PresentationGeometryArbitraries
         "logic.adder",
         "logic.subtractor",
         "logic.shift",
+    ];
+
+    private static readonly string[] AnnotationLines =
+    [
+        string.Empty,
+        " ",
+        "A",
+        "Second",
+        "wide label",
+        "中",
     ];
 
     public static Arbitrary<BasicSymbolPlanCase> BasicSymbolPlan()
@@ -122,6 +142,17 @@ internal static class PresentationGeometryArbitraries
                 indication,
                 locale,
                 baseDirection);
+
+        return Arb.From(generator, Shrink);
+    }
+
+    public static Arbitrary<AnnotationProjectionCase> AnnotationProjection()
+    {
+        var generator =
+            from count in Gen.Choose(1, 8)
+            from lines in Gen.Elements(AnnotationLines).ArrayOf(count)
+            from alignment in Gen.Elements(Enum.GetValues<AnnotationAlignment>())
+            select new AnnotationProjectionCase(lines, alignment);
 
         return Arb.From(generator, Shrink);
     }
@@ -208,6 +239,25 @@ internal static class PresentationGeometryArbitraries
         if (sample.BaseDirection != BaseDirectionV1.LeftToRight)
         {
             yield return sample with { BaseDirection = BaseDirectionV1.LeftToRight };
+        }
+    }
+
+    private static IEnumerable<AnnotationProjectionCase> Shrink(
+        AnnotationProjectionCase sample)
+    {
+        if (sample.Lines.Length > 1)
+        {
+            yield return sample with { Lines = [sample.Lines[0]] };
+        }
+
+        if (sample.Lines.Any(line => line.Length > 0))
+        {
+            yield return sample with { Lines = [string.Empty] };
+        }
+
+        if (sample.Alignment != AnnotationAlignment.Start)
+        {
+            yield return sample with { Alignment = AnnotationAlignment.Start };
         }
     }
 
