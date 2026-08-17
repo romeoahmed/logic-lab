@@ -501,7 +501,7 @@ public static class TeachingMixedSchematicProjector
             case OrthogonalWireRoute orthogonal:
                 var points = orthogonal.Points.Select(point => Convert(point, fingerprint)).ToArray();
                 var route = new ProjectedOrthogonalWireRouteV1(points);
-                var pathBounds = Inflate(RectV1.Enclose(points), Math.Max(1, width));
+                var pathBounds = Inflate(RectV1.Enclose(points), width);
                 var hitPadding = Math.Max(1, fingerprint.MetricSet.UnitsPerH / 2);
                 var hitRegions = new HitRegionV1[points.Length - 1];
                 for (var index = 0; index < hitRegions.Length; index++)
@@ -644,8 +644,7 @@ public static class TeachingMixedSchematicProjector
             visibleLines.Max(line => line.Envelope.Bottom)
             - visibleLines.Min(line => line.Envelope.Top)
             + Math.Max(1, fingerprint.MetricSet.UnitsPerH / 2));
-        var operations = new DrawOperationV1[visibleLines.Count];
-        RectV1? visibleBounds = null;
+        var operations = new DrawTextV1[visibleLines.Count];
         for (var index = 0; index < visibleLines.Count; index++)
         {
             var line = visibleLines[index];
@@ -662,13 +661,11 @@ public static class TeachingMixedSchematicProjector
                 TextOrientationV1.UprightReading,
                 fingerprint.BaseDirection,
                 fingerprint.LocaleId);
-            visibleBounds = visibleBounds is null
-                ? lineBounds
-                : Union(visibleBounds.Value, lineBounds);
         }
 
-        var projectedBounds = visibleBounds ?? throw new InvalidOperationException(
-            "A visible Annotation line did not produce bounds.");
+        var projectedBounds = operations
+            .Select(operation => operation.Bounds)
+            .Aggregate(Union);
         return new AnnotationItemV1(
             annotation.Id,
             operations,
@@ -799,33 +796,12 @@ public static class TeachingMixedSchematicProjector
                 case ComponentSymbolItemV1 component:
                     bounds.Add(Translate(component.Plan.Bounds, component.Origin));
                     break;
-                case DefinitionPortItemV1 port:
+                case StaticSchematicItemV1 staticItem:
                     AddStaticBounds(
                         bounds,
-                        port.Operations,
-                        port.HitRegions,
-                        port.AccessibilityNodes);
-                    break;
-                case WireGeometryItemV1 wire:
-                    AddStaticBounds(
-                        bounds,
-                        wire.Operations,
-                        wire.HitRegions,
-                        wire.AccessibilityNodes);
-                    break;
-                case JunctionItemV1 junction:
-                    AddStaticBounds(
-                        bounds,
-                        junction.Operations,
-                        junction.HitRegions,
-                        junction.AccessibilityNodes);
-                    break;
-                case AnnotationItemV1 annotation:
-                    AddStaticBounds(
-                        bounds,
-                        annotation.Operations,
-                        annotation.HitRegions,
-                        annotation.AccessibilityNodes);
+                        staticItem.Operations,
+                        staticItem.HitRegions,
+                        staticItem.AccessibilityNodes);
                     break;
                 case NetTopologyItemV1:
                     break;
@@ -871,16 +847,31 @@ public static class TeachingMixedSchematicProjector
             "The Schematic hit shape variant is undefined."),
     };
 
-    private static IEnumerable<PointV1> PathPoints(PathV1 path) =>
-        path.Commands.SelectMany(command => command switch
+    private static IEnumerable<PointV1> PathPoints(PathV1 path)
+    {
+        foreach (var command in path.Commands)
         {
-            MoveToV1 move => new[] { move.Point },
-            LineToV1 line => [line.Point],
-            CubicToV1 cubic => [cubic.Control1, cubic.Control2, cubic.End],
-            ClosePathV1 => [],
-            _ => throw new InvalidOperationException(
-                "The Schematic path command variant is undefined."),
-        });
+            switch (command)
+            {
+                case MoveToV1 move:
+                    yield return move.Point;
+                    break;
+                case LineToV1 line:
+                    yield return line.Point;
+                    break;
+                case CubicToV1 cubic:
+                    yield return cubic.Control1;
+                    yield return cubic.Control2;
+                    yield return cubic.End;
+                    break;
+                case ClosePathV1:
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        "The Schematic path command variant is undefined.");
+            }
+        }
+    }
 
     private static RectV1 Enclose(List<RectV1> bounds)
     {
