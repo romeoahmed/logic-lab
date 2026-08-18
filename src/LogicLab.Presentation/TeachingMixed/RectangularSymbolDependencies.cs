@@ -6,6 +6,9 @@ internal enum RectangularSymbolDependencyKind
 {
     And,
     Enable,
+    Control,
+    Mode,
+    Address,
 }
 
 internal enum RectangularSymbolDependencyRecipe
@@ -14,6 +17,15 @@ internal enum RectangularSymbolDependencyRecipe
     EnableOutputs,
     SelectDataInputs,
     SelectDataOutputs,
+    StorageEnable,
+    ClockedData,
+    ClockedJk,
+    ClockedToggle,
+    ClockedRegister,
+    ShiftRegister,
+    Counter,
+    ReadOnlyMemory,
+    SinglePortMemory,
 }
 
 internal readonly record struct RectangularSymbolAffectedEndpoint(
@@ -45,9 +57,133 @@ internal static class RectangularSymbolDependencyResolver
                 ports,
                 PortDirection.Output,
                 "S"),
+            RectangularSymbolDependencyRecipe.StorageEnable =>
+                Single(ports, RectangularSymbolDependencyKind.And, 1, "EN", "D"),
+            RectangularSymbolDependencyRecipe.ClockedData =>
+                Single(ports, RectangularSymbolDependencyKind.Control, 1, "CLK", "D"),
+            RectangularSymbolDependencyRecipe.ClockedJk =>
+                Single(ports, RectangularSymbolDependencyKind.Control, 1, "CLK", "J", "K"),
+            RectangularSymbolDependencyRecipe.ClockedToggle =>
+                Single(ports, RectangularSymbolDependencyKind.Control, 1, "CLK", "T"),
+            RectangularSymbolDependencyRecipe.ClockedRegister =>
+            [
+                Dependency(
+                    ports,
+                    RectangularSymbolDependencyKind.Control,
+                    1,
+                    "CLK",
+                    "D"),
+                Dependency(
+                    ports,
+                    RectangularSymbolDependencyKind.And,
+                    2,
+                    "EN",
+                    "D"),
+            ],
+            RectangularSymbolDependencyRecipe.ShiftRegister =>
+            [
+                Dependency(
+                    ports,
+                    RectangularSymbolDependencyKind.Mode,
+                    1,
+                    "LOAD",
+                    "PARALLEL"),
+                Dependency(
+                    ports,
+                    RectangularSymbolDependencyKind.Control,
+                    2,
+                    "CLK",
+                    "PARALLEL",
+                    "SERIAL"),
+                Dependency(
+                    ports,
+                    RectangularSymbolDependencyKind.And,
+                    3,
+                    "EN",
+                    "PARALLEL",
+                    "SERIAL"),
+            ],
+            RectangularSymbolDependencyRecipe.Counter =>
+            [
+                Dependency(
+                    ports,
+                    RectangularSymbolDependencyKind.Mode,
+                    1,
+                    "LOAD",
+                    "LOAD_VALUE"),
+                Dependency(
+                    ports,
+                    RectangularSymbolDependencyKind.Control,
+                    2,
+                    "CLK",
+                    "LOAD_VALUE"),
+                Dependency(
+                    ports,
+                    RectangularSymbolDependencyKind.And,
+                    3,
+                    "EN",
+                    "LOAD_VALUE"),
+            ],
+            RectangularSymbolDependencyRecipe.ReadOnlyMemory =>
+                Single(ports, RectangularSymbolDependencyKind.Address, 1, "A", "Q"),
+            RectangularSymbolDependencyRecipe.SinglePortMemory =>
+            [
+                Dependency(
+                    ports,
+                    RectangularSymbolDependencyKind.Address,
+                    1,
+                    "A",
+                    "D",
+                    "Q"),
+                Dependency(
+                    ports,
+                    RectangularSymbolDependencyKind.Control,
+                    2,
+                    "CLK",
+                    "D",
+                    "WE"),
+                Dependency(
+                    ports,
+                    RectangularSymbolDependencyKind.And,
+                    3,
+                    "WE",
+                    "D"),
+            ],
             _ => throw new ArgumentOutOfRangeException(nameof(recipe)),
         };
         return dependencies;
+    }
+
+    private static RectangularSymbolDependency[] Single(
+        IReadOnlyList<ResolvedComponentPortSchema> ports,
+        RectangularSymbolDependencyKind kind,
+        uint identifier,
+        string affectingPortId,
+        params string[] affectedPortIds) =>
+    [
+        Dependency(ports, kind, identifier, affectingPortId, affectedPortIds),
+    ];
+
+    private static RectangularSymbolDependency Dependency(
+        IReadOnlyList<ResolvedComponentPortSchema> ports,
+        RectangularSymbolDependencyKind kind,
+        uint identifier,
+        string affectingPortId,
+        params string[] affectedPortIds)
+    {
+        _ = ports.Single(port => port.Id == affectingPortId);
+        var affectedEndpoints = affectedPortIds
+            .Select((portId, index) =>
+            {
+                _ = ports.Single(port => port.Id == portId);
+                return new RectangularSymbolAffectedEndpoint(portId, index);
+            })
+            .ToArray();
+        return new RectangularSymbolDependency(
+            kind,
+            identifier,
+            affectingPortId,
+            affectedEndpoints);
     }
 
     private static RectangularSymbolDependency[] EnableOutputs(
