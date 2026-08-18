@@ -9,10 +9,16 @@ namespace LogicLab.Presentation.TeachingMixed;
 
 internal enum RectangularSymbolFunctionRecipe
 {
+    None,
     Literal,
     BinaryDecoder,
     PriorityEncoder,
     Shift,
+    Register,
+    ShiftRegister,
+    Counter,
+    Rom,
+    Ram,
 }
 
 internal sealed record RectangularSymbolDefinition(
@@ -31,7 +37,7 @@ internal sealed record ResolvedRectangularSymbolDefinition(
     string DefinitionVersion,
     string AccessibilityKey,
     string VariantId,
-    string FunctionText,
+    string? FunctionText,
     FontRoleV1 FunctionFontRole,
     ConformanceClaimV1 Claim,
     string[] StandardClauses,
@@ -83,6 +89,51 @@ internal static class TeachingMixedRectangularSymbolRegistry
             DynamicExtension(
                 "logic.shift",
                 RectangularSymbolFunctionRecipe.Shift),
+            Standard("source.clock", "G", ["5.12-1"]),
+            NoFunctionStandard(
+                "sequential.d_latch",
+                ["3.3-13", "4.3.2", "5.9"],
+                RectangularSymbolDependencyRecipe.StorageEnable),
+            NoFunctionStandard(
+                "sequential.dff",
+                ["3.3-13", "4.3.7", "5.9"],
+                RectangularSymbolDependencyRecipe.ClockedData),
+            NoFunctionStandard(
+                "sequential.sr_latch",
+                ["3.3-16", "3.3-17", "5.9"]),
+            NoFunctionStandard(
+                "sequential.jkff",
+                ["3.3-14", "3.3-15", "4.3.7", "5.9"],
+                RectangularSymbolDependencyRecipe.ClockedJk),
+            NoFunctionStandard(
+                "sequential.tff",
+                ["3.3-18", "4.3.7", "5.9"],
+                RectangularSymbolDependencyRecipe.ClockedToggle),
+            DynamicStandard(
+                "sequential.register",
+                RectangularSymbolFunctionRecipe.Register,
+                ["3.3-13", "4.3.7", "5.13-1"],
+                RectangularSymbolDependencyRecipe.ClockedRegister),
+            DynamicStandard(
+                "sequential.shift_register",
+                RectangularSymbolFunctionRecipe.ShiftRegister,
+                ["3.3-19", "3.3-20", "4.3.7", "5.13-1"],
+                RectangularSymbolDependencyRecipe.ShiftRegister),
+            DynamicStandard(
+                "sequential.counter",
+                RectangularSymbolFunctionRecipe.Counter,
+                ["3.3-21", "3.3-22", "4.3.7", "5.13-1"],
+                RectangularSymbolDependencyRecipe.Counter),
+            DynamicStandard(
+                "memory.rom",
+                RectangularSymbolFunctionRecipe.Rom,
+                ["4.3.11", "5.14-1"],
+                RectangularSymbolDependencyRecipe.ReadOnlyMemory),
+            DynamicStandard(
+                "memory.ram_single_port",
+                RectangularSymbolFunctionRecipe.Ram,
+                ["4.3.7", "4.3.11", "5.14-1"],
+                RectangularSymbolDependencyRecipe.SinglePortMemory),
         ],
         StringComparer.Ordinal).ToFrozenDictionary(StringComparer.Ordinal);
 
@@ -167,6 +218,19 @@ internal static class TeachingMixedRectangularSymbolRegistry
             functionDeviationCode: null,
             RectangularSymbolDependencyRecipe.None);
 
+    private static KeyValuePair<string, RectangularSymbolDefinition> NoFunctionStandard(
+        string contractId,
+        string[] clauses,
+        RectangularSymbolDependencyRecipe dependencyRecipe =
+            RectangularSymbolDependencyRecipe.None) => Definition(
+            contractId,
+            RectangularSymbolFunctionRecipe.None,
+            literalFunctionText: null,
+            ConformanceClaimV1.Standardized91A,
+            clauses,
+            functionDeviationCode: null,
+            dependencyRecipe);
+
     private static KeyValuePair<string, RectangularSymbolDefinition> DynamicStandard(
         string contractId,
         RectangularSymbolFunctionRecipe functionRecipe,
@@ -225,11 +289,12 @@ internal static class TeachingMixedRectangularSymbolRegistry
                 functionDeviationCode,
                 dependencyRecipe));
 
-    private static string FunctionText(
+    private static string? FunctionText(
         RectangularSymbolDefinition definition,
         IReadOnlyList<ComponentParameterBinding> parameters) =>
         definition.FunctionRecipe switch
         {
+            RectangularSymbolFunctionRecipe.None => null,
             RectangularSymbolFunctionRecipe.Literal =>
                 definition.LiteralFunctionText
                     ?? throw new InvalidOperationException(
@@ -244,9 +309,32 @@ internal static class TeachingMixedRectangularSymbolRegistry
                     : "[LPRI/BIN]",
             RectangularSymbolFunctionRecipe.Shift =>
                 Choice(parameters, "direction") == "left" ? "[SHL]" : "[SHR]",
+            RectangularSymbolFunctionRecipe.Register => string.Concat(
+                "REG",
+                U32(parameters, "width").ToString(CultureInfo.InvariantCulture)),
+            RectangularSymbolFunctionRecipe.ShiftRegister => string.Concat(
+                "SRG",
+                U32(parameters, "width").ToString(CultureInfo.InvariantCulture),
+                Choice(parameters, "direction") == "towardHigh" ? "→" : "←"),
+            RectangularSymbolFunctionRecipe.Counter => string.Concat(
+                "CTR",
+                U32(parameters, "width").ToString(CultureInfo.InvariantCulture),
+                Choice(parameters, "direction") == "up" ? "+" : "−"),
+            RectangularSymbolFunctionRecipe.Rom => MemoryFunction("ROM", parameters),
+            RectangularSymbolFunctionRecipe.Ram => MemoryFunction("RAM", parameters),
             _ => throw new InvalidOperationException(
                 "The rectangular function recipe is undefined."),
         };
+
+    private static string MemoryFunction(
+        string function,
+        IReadOnlyList<ComponentParameterBinding> parameters) => string.Concat(
+            function,
+            ' ',
+            CheckedPowerOfTwo(U32(parameters, "addressWidth")).ToString(
+                CultureInfo.InvariantCulture),
+            " × ",
+            U32(parameters, "wordWidth").ToString(CultureInfo.InvariantCulture));
 
     private static uint U32(
         IReadOnlyList<ComponentParameterBinding> parameters,

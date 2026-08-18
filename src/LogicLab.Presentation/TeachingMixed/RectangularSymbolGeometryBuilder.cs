@@ -17,10 +17,14 @@ internal sealed record RectangularSymbolPortLabel(
 
 internal sealed record RectangularSymbolActiveLowInputQualifier(string PortId);
 
+internal sealed record RectangularSymbolDynamicInputQualifier(
+    string PortId,
+    bool IsFallingEdge);
+
 internal sealed record RectangularSymbolThreeStateOutputQualifier(string PortId);
 
 internal sealed record RectangularSymbolLayoutRequest(
-    string FunctionText,
+    string? FunctionText,
     FontRoleV1 FunctionFontRole,
     string AccessibilityKey,
     RectangularSymbolDependency[] Dependencies,
@@ -30,6 +34,7 @@ internal sealed record RectangularSymbolLayoutRequest(
     SymbolFacingV1 Facing,
     bool IsReflected,
     IndicationConvention IndicationConvention,
+    RectangularSymbolDynamicInputQualifier[] DynamicInputQualifiers,
     RectangularSymbolActiveLowInputQualifier[] ActiveLowInputQualifiers,
     RectangularSymbolThreeStateOutputQualifier[] ThreeStateOutputQualifiers,
     ConformanceEvidenceV1 Conformance);
@@ -65,16 +70,18 @@ internal static class RectangularSymbolGeometryBuilder
             GeometryPlanValidator.ConservativeStrokeMargin(outlineWidth, MiterJoin),
             Math.Max(portHitRadius, bodyHitPadding));
         var functionRole = request.FunctionFontRole;
-        var functionMeasurement = Measure(
-            request.FunctionText,
-            functionRole,
-            TextAlignmentV1.Center,
-            request,
-            textMeasurer,
-            cancellationToken);
-        var functionEnvelope = functionMeasurement.InkAndAdvanceBounds(
-            TextAlignmentV1.Center,
-            request.BaseDirection);
+        var functionEnvelope = request.FunctionText is { } functionText
+            ? Measure(
+                    functionText,
+                    functionRole,
+                    TextAlignmentV1.Center,
+                    request,
+                    textMeasurer,
+                    cancellationToken)
+                .InkAndAdvanceBounds(
+                    TextAlignmentV1.Center,
+                    request.BaseDirection)
+            : new RectV1(0, 0, 0, 0);
         var labels = CreatePortLabels(ports, request.Dependencies);
         var labelEnvelopes = labels.ToDictionary(
             pair => pair.Key,
@@ -184,13 +191,16 @@ internal static class RectangularSymbolGeometryBuilder
         var functionOrigin = new PointV1(
             checked(body.Left + (body.Width / 2)),
             contentCenterY);
-        operations.Add(Text(
-            request.FunctionText,
-            functionRole,
-            functionOrigin,
-            functionEnvelope,
-            TextAlignmentV1.Center,
-            request));
+        if (request.FunctionText is { } functionTextToDraw)
+        {
+            operations.Add(Text(
+                functionTextToDraw,
+                functionRole,
+                functionOrigin,
+                functionEnvelope,
+                TextAlignmentV1.Center,
+                request));
+        }
 
         var inputRows = UprightTextLayout.Rows(inputs.Length, contentCenterY, portPitch);
         var outputRows = UprightTextLayout.Rows(outputs.Length, contentCenterY, portPitch);
@@ -313,6 +323,16 @@ internal static class RectangularSymbolGeometryBuilder
             });
         }
 
+        foreach (var qualifier in request.DynamicInputQualifiers)
+        {
+            var anchor = anchors.Single(candidate => candidate.PortId == qualifier.PortId);
+            operations.Add(DynamicInputQualifier(
+                body.Left,
+                anchor.Point.Y,
+                h,
+                outlineWidth));
+        }
+
         foreach (var qualifier in request.ThreeStateOutputQualifiers)
         {
             var output = anchors.Single(anchor => anchor.PortId == qualifier.PortId);
@@ -368,13 +388,12 @@ internal static class RectangularSymbolGeometryBuilder
                     : string.Join(
                         ',',
                         affected.OrderBy(relationship => relationship.ApplicationOrder)
-                            .Select(relationship => relationship.Dependency.Identifier.ToString(
-                                CultureInfo.InvariantCulture)));
+                            .Select(AffectedNotation));
                 var affectingNotation = AffectingNotation(affecting);
                 var functionLabel = port.DisplayName;
                 var omitFunctionLabel = affecting.Length > 0
                     && affecting.Select(dependency => dependency.Kind).Distinct().Count() == 1
-                    && functionLabel == DependencyLetter(affecting[0].Kind);
+                    && IsDependencyPortLabel(functionLabel, affecting[0].Kind);
                 var text = string.Concat(
                     affectedNotation,
                     affectingNotation,
@@ -434,8 +453,25 @@ internal static class RectangularSymbolGeometryBuilder
     {
         RectangularSymbolDependencyKind.And => "G",
         RectangularSymbolDependencyKind.Enable => "EN",
+        RectangularSymbolDependencyKind.Control => "C",
+        RectangularSymbolDependencyKind.Mode => "M",
+        RectangularSymbolDependencyKind.Address => "A",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
+
+    private static string AffectedNotation(
+        (RectangularSymbolDependency Dependency, int ApplicationOrder) relationship) =>
+        relationship.Dependency.Kind == RectangularSymbolDependencyKind.Address
+            ? "A"
+            : relationship.Dependency.Identifier.ToString(CultureInfo.InvariantCulture);
+
+    private static bool IsDependencyPortLabel(
+        string functionLabel,
+        RectangularSymbolDependencyKind kind) =>
+        functionLabel == DependencyLetter(kind)
+        || (functionLabel == "CLK" && kind == RectangularSymbolDependencyKind.Control)
+        || (functionLabel == "EN" && kind == RectangularSymbolDependencyKind.And)
+        || (functionLabel == "LOAD" && kind == RectangularSymbolDependencyKind.Mode);
 
     private static CrossAxisLayout RequiredCrossAxisLayout(
         string[] inputPortIds,
@@ -573,6 +609,25 @@ internal static class RectangularSymbolGeometryBuilder
                 new LineToV1(new PointV1(bodyLeft, centerY)),
                 new LineToV1(new PointV1(baseX, checked(centerY + halfHeight))),
                 new ClosePathV1(),
+            ]),
+            StrokeRoleV1.Qualifier,
+            width);
+    }
+
+    private static StrokePathV1 DynamicInputQualifier(
+        int bodyLeft,
+        int centerY,
+        int h,
+        int width)
+    {
+        var depth = h;
+        var halfHeight = ScaleUp(h, 1, 2);
+        return Stroke(
+            new PathV1(
+            [
+                new MoveToV1(new PointV1(bodyLeft, checked(centerY - halfHeight))),
+                new LineToV1(new PointV1(checked(bodyLeft + depth), centerY)),
+                new LineToV1(new PointV1(bodyLeft, checked(centerY + halfHeight))),
             ]),
             StrokeRoleV1.Qualifier,
             width);

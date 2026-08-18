@@ -86,6 +86,9 @@ Qualifier and dependency composition is structured:
 - a V1 aggregate multi-bit Port has one semantic anchor and therefore is not presented as an IEEE multi-terminal bit group; its authored display label is shown without HDL slice notation, the claim is `TeachingExtension`, and `teachingmixed-aggregate-multibit-port` lists the affected Port IDs;
 - a V1 priority encoder is `TeachingExtension` until input weights and priority composition are represented as structured Port-group and dependency data; its bracketed function mark and `teachingmixed-unmodeled-priority-encoder` deviation prevent an incomplete HPRI representation from publishing `Standardized91A`;
 - dependency notation records type, identifier, affecting endpoint, affected endpoints, and application order;
+- sequential recipes bind dynamic edge marks to the authored `CLK` Port and derive rising/falling presentation from the closed `edge` parameter; a falling edge composes the dynamic mark with the diagram-wide negation or direct-polarity convention rather than inventing a second clock Port;
+- latch, D/J/K/T, shift, count, mode, enable, control, and address notation is generated from registered recipes; an address dependency labels the affecting address Port and every selected data endpoint structurally, while register width, counter direction, shift direction, memory address width, and memory word width remain explicit request inputs;
+- ROM and RAM capacity text is derived from structured `(addressWidth, wordWidth)` array information as `2^addressWidth` words of `wordWidth` bits; the renderer never parses capacity back from display text;
 - input and output qualifier sequences follow IEEE 91A clauses 4.4.3 and 4.4.4;
 - orientation distinguishes glyphs relative to signal flow from text relative to reading direction.
 
@@ -263,6 +266,30 @@ Each generated symbol carries one claim:
 Annex A proportions are informative and recorded separately as `Pass`, `Adjusted`, or `NotEvaluated`. `Pass` requires every registered rational proportion to be exactly representable in the Metric Set's integer plan units and the final layout to retain the registered body dimensions; quantization or constraint-driven enlargement reports `Adjusted`. No product-wide “IEEE compliant” claim is made from a mixture of individual claims.
 
 Strict export rejects a Teaching Extension or requires an explicit user-visible standardized fallback. TeachingMixed export includes a manifest of Component Instance, variant, claim, deviations, and exact standard references.
+
+The export preflight is one closed, atomic Presentation interface:
+
+```text
+Export(SchematicProjectionV1, TeachingMixed)
+  -> ExportSucceeded(TeachingMixedConformanceManifestV1)
+
+Export(SchematicProjectionV1, Strict)
+  -> ExportSucceeded(TeachingMixedConformanceManifestV1)
+  | ExportRejected(strict_conformance, StrictConformanceViolationV1[])
+
+TeachingMixedConformanceManifestV1
+  projectionKey: SchematicProjectionKeyV1
+  entries: TeachingMixedConformanceManifestEntryV1[]
+
+TeachingMixedConformanceManifestEntryV1
+  componentInstanceId
+  symbolVariantId
+  claim
+  deviations
+  exact standard references
+```
+
+Manifest entries use ordinal Component Instance ID order and own their nested arrays. `TeachingMixed` mode records every Component Symbol, including extensions and fallbacks. `Strict` mode accepts only `Standardized91A` and `PermittedDistinctive91A`; any other claim rejects the whole preflight, publishes no partial manifest, and returns deterministic violations containing the Component Instance, variant, claim, and deviation codes. The exporter never silently substitutes or replans geometry. A standardized fallback is explicit and user-visible: the caller commits or selects one registered compatible Symbol Variant, creates a new Schematic Projection, and retries strict preflight against that projection.
 
 ## 8. Required evidence
 

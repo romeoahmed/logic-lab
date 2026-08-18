@@ -642,24 +642,168 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
 
     [Test]
     [Arguments("source.clock")]
+    [Arguments("sequential.d_latch")]
     [Arguments("sequential.dff")]
+    [Arguments("sequential.sr_latch")]
+    [Arguments("sequential.jkff")]
+    [Arguments("sequential.tff")]
+    [Arguments("sequential.register")]
+    [Arguments("sequential.shift_register")]
+    [Arguments("sequential.counter")]
     [Arguments("memory.rom")]
-    public async Task Plan_SequentialClockOrMemoryContract_RemainsUnresolved(
+    [Arguments("memory.ram_single_port")]
+    public async Task Plan_Item25SequentialOrMemoryContract_PublishesRectangularPlan(
         string contractId)
     {
-        var outcome = TeachingMixedGeometryPlanner.Plan(
-            Request(contractId),
-            64,
-            TextMeasurer);
-        var rejected = (await Assert.That(outcome)
-            .IsTypeOf<GeometryPlanRejectedV1>())!;
+        var plan = Plan(Request(contractId));
 
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Reason)
-                .IsEqualTo(LayoutRejectionReasonV1.LayoutInvalid);
-            await Assert.That(rejected.Diagnostics[0].Code)
-                .IsEqualTo("presentation_variant_unresolved");
+            await Assert.That(plan.Key.SymbolVariantId)
+                .IsEqualTo(SymbolVariantCatalog.RectangularId);
+            await Assert.That(plan.PortAnchors).IsNotEmpty();
+            await Assert.That(plan.Conformance.StandardReferences)
+                .IsNotEmpty();
+        }
+    }
+
+    [Test]
+    public async Task Plan_RisingEdgeDff_DrawsDynamicClockQualifierAndCitesItsClause()
+    {
+        var plan = Plan(Request("sequential.dff"));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Operations.OfType<StrokePathV1>().Count(operation =>
+                    operation.Role == StrokeRoleV1.Qualifier))
+                .IsEqualTo(1);
+            await Assert.That(plan.Conformance.StandardReferences.Single().ClauseIds)
+                .Contains("3.1-9");
+        }
+    }
+
+    [Test]
+    [Arguments(IndicationConvention.Negation, "3.1-10")]
+    [Arguments(IndicationConvention.DirectPolarity, "3.1-11")]
+    public async Task Plan_FallingEdgeDff_ComposesDynamicAndDiagramPolarityQualifiers(
+        IndicationConvention indicationConvention,
+        string expectedClause)
+    {
+        var plan = Plan(RequestWithParameters(
+            "sequential.dff",
+            [
+                U32("width", 1),
+                Choice("edge", "falling"),
+                new ComponentParameterBinding(
+                    "initialState",
+                    new LogicVectorParameterValue([LogicValue.Zero])),
+            ],
+            indicationConvention));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Operations.OfType<StrokePathV1>().Count(operation =>
+                    operation.Role == StrokeRoleV1.Qualifier))
+                .IsEqualTo(2);
+            await Assert.That(plan.Conformance.StandardReferences.Single().ClauseIds)
+                .Contains(expectedClause);
+        }
+    }
+
+    [Test]
+    public async Task Plan_SinglePortRam_DrawsItsFixedRisingDynamicInputQualifier()
+    {
+        var plan = Plan(Request("memory.ram_single_port"));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Operations.OfType<StrokePathV1>().Count(operation =>
+                    operation.Role == StrokeRoleV1.Qualifier))
+                .IsEqualTo(1);
+            await Assert.That(plan.Conformance.StandardReferences.Single().ClauseIds)
+                .Contains("3.1-9");
+        }
+    }
+
+    [Test]
+    [Arguments("sequential.d_latch", "1D|G1")]
+    [Arguments("sequential.dff", "1D|C1")]
+    [Arguments("sequential.jkff", "1J|1K|C1")]
+    [Arguments("sequential.tff", "1T|C1")]
+    [Arguments("memory.rom", "A1|AQ")]
+    public async Task Plan_Item25DependencyRecipe_UsesDeterministicStandardLabels(
+        string contractId,
+        string expectedLabels)
+    {
+        var plan = Plan(Request(contractId));
+
+        await Assert.That(plan.Operations.OfType<DrawTextV1>()
+                .Where(operation => operation.FontRole == FontRoleV1.Dependency)
+                .Select(operation => operation.Text))
+            .IsEquivalentTo(
+                expectedLabels.Split('|'),
+                CollectionOrdering.Matching);
+    }
+
+    [Test]
+    [Arguments("source.clock", "G")]
+    [Arguments("sequential.register", "REG1")]
+    [Arguments("sequential.shift_register", "SRG1→")]
+    [Arguments("sequential.counter", "CTR1+")]
+    [Arguments("memory.rom", "ROM 2 × 1")]
+    [Arguments("memory.ram_single_port", "RAM 2 × 1")]
+    public async Task Plan_Item25FunctionRecipe_UsesStructuredParameters(
+        string contractId,
+        string expectedFunction)
+    {
+        var plan = Plan(Request(contractId));
+
+        await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
+                operation.FontRole == FontRoleV1.Symbol
+                && operation.Text == expectedFunction))
+            .IsTrue();
+    }
+
+    [Test]
+    [Arguments("sequential.d_latch")]
+    [Arguments("sequential.dff")]
+    [Arguments("sequential.sr_latch")]
+    [Arguments("sequential.jkff")]
+    [Arguments("sequential.tff")]
+    public async Task Plan_BistableFunction_UsesPortQualifiersWithoutUniversalBodyMark(
+        string contractId)
+    {
+        var plan = Plan(Request(contractId));
+
+        await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
+                operation.FontRole == FontRoleV1.Symbol))
+            .IsFalse();
+    }
+
+    [Test]
+    public async Task Plan_RomDimensions_ChangeVisibleArrayInformationAndRemainExplicitExtension()
+    {
+        var plan = Plan(RequestWithParameters(
+            "memory.rom",
+            [
+                U32("addressWidth", 3),
+                U32("wordWidth", 4),
+                new ComponentParameterBinding(
+                    "initialImage",
+                    new MemoryImageParameterValue(CreateMemoryImageId())),
+            ]));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
+                    operation.Text == "ROM 8 × 4"))
+                .IsTrue();
+            await Assert.That(plan.Conformance.Claim)
+                .IsEqualTo(ConformanceClaimV1.TeachingExtension);
+            await Assert.That(plan.Conformance.Deviations.Any(deviation =>
+                    deviation.DeviationCode == "teachingmixed-aggregate-multibit-port"
+                    && deviation.AffectedPortIds.SequenceEqual(["A", "Q"])))
+                .IsTrue();
         }
     }
 
@@ -730,6 +874,25 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
             BaseDirectionV1.LeftToRight);
     }
 
+    private static ComponentSymbolRequestV1 RequestWithParameters(
+        string contractId,
+        IReadOnlyList<ComponentParameterBinding> parameters,
+        IndicationConvention indicationConvention = IndicationConvention.Negation)
+    {
+        var template = Request(contractId);
+        return new ComponentSymbolRequestV1(
+            template.Contract,
+            parameters,
+            template.Profile with { IndicationConvention = indicationConvention },
+            template.SymbolVariantId,
+            template.Facing,
+            template.IsReflected,
+            template.MetricSet,
+            template.FontFingerprint,
+            template.LocaleId,
+            template.BaseDirection);
+    }
+
     private static ComponentParameterBinding[] Parameters(string contractId) => contractId switch
     {
         "source.input" =>
@@ -789,7 +952,53 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
                 "initialState",
                 new LogicVectorParameterValue([LogicValue.Zero])),
         ],
-        "memory.rom" =>
+        "sequential.d_latch" =>
+        [
+            U32("width", 1),
+            new ComponentParameterBinding(
+                "initialState",
+                new LogicVectorParameterValue([LogicValue.Zero])),
+        ],
+        "sequential.sr_latch" =>
+        [
+            new ComponentParameterBinding(
+                "initialState",
+                new LogicVectorParameterValue([LogicValue.Zero])),
+        ],
+        "sequential.jkff" or "sequential.tff" =>
+        [
+            Choice("edge", "rising"),
+            new ComponentParameterBinding(
+                "initialState",
+                new LogicVectorParameterValue([LogicValue.Zero])),
+        ],
+        "sequential.register" =>
+        [
+            U32("width", 1),
+            Choice("edge", "rising"),
+            new ComponentParameterBinding(
+                "initialState",
+                new LogicVectorParameterValue([LogicValue.Zero])),
+        ],
+        "sequential.shift_register" =>
+        [
+            U32("width", 1),
+            Choice("direction", "towardHigh"),
+            Choice("edge", "rising"),
+            new ComponentParameterBinding(
+                "initialState",
+                new LogicVectorParameterValue([LogicValue.Zero])),
+        ],
+        "sequential.counter" =>
+        [
+            U32("width", 1),
+            Choice("direction", "up"),
+            Choice("edge", "rising"),
+            new ComponentParameterBinding(
+                "initialState",
+                new LogicVectorParameterValue([LogicValue.Zero])),
+        ],
+        "memory.rom" or "memory.ram_single_port" =>
         [
             U32("addressWidth", 1),
             U32("wordWidth", 1),
