@@ -394,6 +394,46 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     }
 
     [Test]
+    public async Task Plan_MinimumMetricThreeStateOutput_SeparatesLabelFromQualifierStroke()
+    {
+        var metricSet = new SymbolMetricSetV1("minimum", "1.0.0", 1);
+        var textMeasurer = new ConstantTextMeasurer(
+            FontFingerprint,
+            metricSet,
+            new SymbolTextMeasurementV1(10, new RectV1(-5, -1, 5, 1)));
+        var template = Request("logic.tristate");
+        var request = new ComponentSymbolRequestV1(
+            template.Contract,
+            [U32("width", 1), Choice("enablePolarity", "activeHigh")],
+            template.Profile,
+            template.SymbolVariantId,
+            template.Facing,
+            template.IsReflected,
+            metricSet,
+            template.FontFingerprint,
+            template.LocaleId,
+            template.BaseDirection);
+
+        var outcome = TeachingMixedGeometryPlanner.Plan(request, 64, textMeasurer);
+        var plan = (outcome as GeometryPlanSucceededV1)?.Plan;
+
+        await Assert.That(plan).IsNotNull();
+        var label = plan!.Operations.OfType<DrawTextV1>()
+            .Single(operation => operation.Text == "1Q");
+        var qualifier = plan.Operations.OfType<StrokePathV1>()
+            .Single(operation => operation.Role == StrokeRoleV1.Qualifier
+                && operation.Path.Commands is
+                    [MoveToV1, LineToV1, LineToV1, ClosePathV1]);
+        var qualifierLeft = ((MoveToV1)qualifier.Path.Commands[0]).Point.X;
+        var strokeMargin = GeometryPlanValidator.ConservativeStrokeMargin(
+            qualifier.Width,
+            qualifier.LineJoin);
+
+        await Assert.That(label.Bounds.Right)
+            .IsLessThan(checked(qualifierLeft - strokeMargin));
+    }
+
+    [Test]
     public async Task Plan_ActiveLowControl_UsesSelectedStandardQualifier()
     {
         var template = Request("logic.decoder");
@@ -894,6 +934,25 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
             return new SymbolTextMeasurementV1(
                 40,
                 new RectV1(-10, -1000, 30, 400));
+        }
+    }
+
+    private sealed class ConstantTextMeasurer(
+        FontFingerprintV1 fontFingerprint,
+        SymbolMetricSetV1 metricSet,
+        SymbolTextMeasurementV1 measurement) : ISymbolTextMeasurerV1
+    {
+        public FontFingerprintV1 FontFingerprint { get; } = fontFingerprint;
+
+        public SymbolMetricSetV1 MetricSet { get; } = metricSet;
+
+        public SymbolTextMeasurementV1 Measure(
+            SymbolTextMeasurementRequestV1 request,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            cancellationToken.ThrowIfCancellationRequested();
+            return measurement;
         }
     }
 }

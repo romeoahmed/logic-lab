@@ -57,6 +57,7 @@ internal static class RectangularSymbolGeometryBuilder
         var h = request.MetricSet.UnitsPerH;
         var outlineWidth = ScaleUp(h, 1, 10);
         var basePortPitch = Math.Max(3, ScaleUp(h, 2));
+        var textClearance = Math.Max(1, h / 2);
         var leadLength = ScaleUp(h, 2);
         var portHitRadius = Math.Max(1, (basePortPitch - outlineWidth) / 2);
         var bodyHitPadding = ScaleUp(h, 1, 2);
@@ -103,24 +104,43 @@ internal static class RectangularSymbolGeometryBuilder
             functionEnvelope,
             request.Facing,
             request.IsReflected);
+        var threeStateOutputPortIds = request.ThreeStateOutputQualifiers
+            .Select(qualifier => qualifier.PortId)
+            .ToHashSet(StringComparer.Ordinal);
+        var threeStateQualifierRadius = ScaleUp(h, 1, 3);
+        var threeStateOutputLabelInset = threeStateOutputPortIds.Count == 0
+            ? h
+            : Math.Max(
+                h,
+                checked(
+                    (2 * threeStateQualifierRadius)
+                    + GeometryPlanValidator.ConservativeStrokeMargin(
+                        outlineWidth,
+                        MiterJoin)
+                    + textClearance));
+        int OutputLabelInset(string portId) => threeStateOutputPortIds.Contains(portId)
+            ? threeStateOutputLabelInset
+            : h;
         var maximumInputFlowSpan = UprightTextLayout.MaximumSpan(
             inputPortIds,
             flowAxisLabels);
-        var maximumOutputFlowSpan = UprightTextLayout.MaximumSpan(
-            outputPortIds,
-            flowAxisLabels);
+        var maximumOutputFlowDepth = outputPortIds
+            .Select(portId => checked(
+                flowAxisLabels[portId].Span + OutputLabelInset(portId)))
+            .DefaultIfEmpty(h)
+            .Max();
         var portPitch = UprightTextLayout.RequiredPitch(
             inputPortIds,
             outputPortIds,
             rowAxisLabels,
             basePortPitch,
-            Math.Max(1, h / 2));
+            textClearance);
 
         var sideTextPadding = ScaleUp(h, 2);
         var requiredLeftHalfWidth = checked(
             maximumInputFlowSpan + sideTextPadding - functionFlowAxis.Start);
         var requiredRightHalfWidth = checked(
-            maximumOutputFlowSpan + sideTextPadding + functionFlowAxis.End);
+            maximumOutputFlowDepth + h + functionFlowAxis.End);
         var bodyWidth = Math.Max(
             ScaleUp(h, 8),
             checked(2 * Math.Max(requiredLeftHalfWidth, requiredRightHalfWidth)));
@@ -260,7 +280,10 @@ internal static class RectangularSymbolGeometryBuilder
             var labelOrigin = new PointV1(
                 isInput
                     ? checked(body.Left + h - flowAxisLabel.Start)
-                    : checked(body.Right - h - flowAxisLabel.End),
+                    : checked(
+                        body.Right
+                        - OutputLabelInset(port.Id)
+                        - flowAxisLabel.End),
                 y);
             var label = labels[port.Id];
             operations.Add(Text(
@@ -296,7 +319,7 @@ internal static class RectangularSymbolGeometryBuilder
             operations.Add(ThreeStateOutputQualifier(
                 body.Right,
                 output.Point.Y,
-                ScaleUp(h, 1, 3),
+                threeStateQualifierRadius,
                 outlineWidth));
         }
 
