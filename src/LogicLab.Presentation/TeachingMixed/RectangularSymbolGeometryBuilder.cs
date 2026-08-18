@@ -51,10 +51,12 @@ internal static class RectangularSymbolGeometryBuilder
 
         var inputs = ports.Where(port => port.Direction == PortDirection.Input).ToArray();
         var outputs = ports.Where(port => port.Direction == PortDirection.Output).ToArray();
+        var inputPortIds = inputs.Select(port => port.Id).ToArray();
+        var outputPortIds = outputs.Select(port => port.Id).ToArray();
 
         var h = request.MetricSet.UnitsPerH;
         var outlineWidth = ScaleUp(h, 1, 10);
-        var basePortPitch = ScaleUp(h, 2);
+        var basePortPitch = Math.Max(3, ScaleUp(h, 2));
         var leadLength = ScaleUp(h, 2);
         var portHitRadius = Math.Max(1, (basePortPitch - outlineWidth) / 2);
         var bodyHitPadding = ScaleUp(h, 1, 2);
@@ -87,25 +89,29 @@ internal static class RectangularSymbolGeometryBuilder
             StringComparer.Ordinal);
         var flowAxisLabels = labelEnvelopes.ToDictionary(
             pair => pair.Key,
-            pair => FlowAxisInterval(pair.Value, request.Facing),
+            pair => UprightTextLayout.FlowAxis(pair.Value, request.Facing),
             StringComparer.Ordinal);
         var rowAxisLabels = labelEnvelopes.ToDictionary(
             pair => pair.Key,
-            pair => RowAxisInterval(
+            pair => UprightTextLayout.RowAxis(
                 pair.Value,
                 request.Facing,
                 request.IsReflected),
             StringComparer.Ordinal);
-        var functionFlowAxis = FlowAxisInterval(functionEnvelope, request.Facing);
-        var functionRowAxis = RowAxisInterval(
+        var functionFlowAxis = UprightTextLayout.FlowAxis(functionEnvelope, request.Facing);
+        var functionRowAxis = UprightTextLayout.RowAxis(
             functionEnvelope,
             request.Facing,
             request.IsReflected);
-        var maximumInputFlowSpan = MaximumLabelSpan(inputs, flowAxisLabels);
-        var maximumOutputFlowSpan = MaximumLabelSpan(outputs, flowAxisLabels);
-        var portPitch = RequiredPortPitch(
-            inputs,
-            outputs,
+        var maximumInputFlowSpan = UprightTextLayout.MaximumSpan(
+            inputPortIds,
+            flowAxisLabels);
+        var maximumOutputFlowSpan = UprightTextLayout.MaximumSpan(
+            outputPortIds,
+            flowAxisLabels);
+        var portPitch = UprightTextLayout.RequiredPitch(
+            inputPortIds,
+            outputPortIds,
             rowAxisLabels,
             basePortPitch,
             Math.Max(1, h / 2));
@@ -119,8 +125,8 @@ internal static class RectangularSymbolGeometryBuilder
             ScaleUp(h, 8),
             checked(2 * Math.Max(requiredLeftHalfWidth, requiredRightHalfWidth)));
         var crossAxisLayout = RequiredCrossAxisLayout(
-            inputs,
-            outputs,
+            inputPortIds,
+            outputPortIds,
             rowAxisLabels,
             functionRowAxis,
             portPitch,
@@ -166,8 +172,8 @@ internal static class RectangularSymbolGeometryBuilder
             TextAlignmentV1.Center,
             request));
 
-        var inputRows = Rows(inputs.Length, contentCenterY, portPitch);
-        var outputRows = Rows(outputs.Length, contentCenterY, portPitch);
+        var inputRows = UprightTextLayout.Rows(inputs.Length, contentCenterY, portPitch);
+        var outputRows = UprightTextLayout.Rows(outputs.Length, contentCenterY, portPitch);
         var qualifierRadius = ScaleUp(h, 1, 4);
         var qualifiedInputPortIds = request.ActiveLowInputQualifiers
             .Select(qualifier => qualifier.PortId)
@@ -241,11 +247,8 @@ internal static class RectangularSymbolGeometryBuilder
                 "symbol",
                 accessibilityNodes.Count,
                 CircleBounds(point, portHitRadius),
-                "presentation.port",
-                [
-                    new TextLocalizationArgumentV1("label", port.DisplayName),
-                    new UnsignedLocalizationArgumentV1("width", port.Width),
-                ],
+                AccessibilityLocalization.PortKey,
+                AccessibilityLocalization.PortArguments(port.DisplayName, port.Width),
                 [
                     AccessibilityActionV1.Focus,
                     AccessibilityActionV1.BeginConnection,
@@ -411,62 +414,29 @@ internal static class RectangularSymbolGeometryBuilder
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
-    private static int MaximumLabelSpan(
-        RectangularSymbolPort[] ports,
-        IReadOnlyDictionary<string, AxisInterval> intervals) => ports.Length == 0
-            ? 0
-            : ports.Max(port => intervals[port.Id].Span);
-
-    private static int RequiredPortPitch(
-        IReadOnlyList<RectangularSymbolPort> inputs,
-        IReadOnlyList<RectangularSymbolPort> outputs,
-        IReadOnlyDictionary<string, AxisInterval> intervals,
-        int minimumPitch,
-        int clearance)
-    {
-        var required = RequiredPortPitch(
-            inputs,
-            intervals,
-            minimumPitch,
-            clearance);
-        return RequiredPortPitch(
-            outputs,
-            intervals,
-            required,
-            clearance);
-    }
-
-    private static int RequiredPortPitch(
-        IReadOnlyList<RectangularSymbolPort> ports,
-        IReadOnlyDictionary<string, AxisInterval> intervals,
-        int minimumPitch,
-        int clearance)
-    {
-        var required = minimumPitch;
-        for (var index = 1; index < ports.Count; index++)
-        {
-            var previous = intervals[ports[index - 1].Id];
-            var current = intervals[ports[index].Id];
-            var adjacentRequirement = checked(previous.End - current.Start + clearance);
-            required = Math.Max(required, adjacentRequirement);
-        }
-
-        return required;
-    }
-
     private static CrossAxisLayout RequiredCrossAxisLayout(
-        IReadOnlyList<RectangularSymbolPort> inputs,
-        IReadOnlyList<RectangularSymbolPort> outputs,
-        IReadOnlyDictionary<string, AxisInterval> intervals,
-        AxisInterval functionInterval,
+        string[] inputPortIds,
+        string[] outputPortIds,
+        IReadOnlyDictionary<string, TextAxisInterval> intervals,
+        TextAxisInterval functionInterval,
         int pitch,
         int minimumExtent,
         int padding)
     {
         var contentStart = functionInterval.Start;
         var contentEnd = functionInterval.End;
-        IncludeRows(inputs, intervals, pitch, ref contentStart, ref contentEnd);
-        IncludeRows(outputs, intervals, pitch, ref contentStart, ref contentEnd);
+        UprightTextLayout.IncludeRows(
+            inputPortIds,
+            intervals,
+            pitch,
+            ref contentStart,
+            ref contentEnd);
+        UprightTextLayout.IncludeRows(
+            outputPortIds,
+            intervals,
+            pitch,
+            ref contentStart,
+            ref contentEnd);
 
         var minimumBefore = minimumExtent / 2;
         var minimumAfter = checked(minimumExtent - minimumBefore);
@@ -474,52 +444,6 @@ internal static class RectangularSymbolGeometryBuilder
         var after = Math.Max(minimumAfter, checked(contentEnd + padding));
         return new CrossAxisLayout(checked(before + after), before);
     }
-
-    private static void IncludeRows(
-        IReadOnlyList<RectangularSymbolPort> ports,
-        IReadOnlyDictionary<string, AxisInterval> intervals,
-        int pitch,
-        ref int contentStart,
-        ref int contentEnd)
-    {
-        var rows = Rows(ports.Count, 0, pitch);
-        for (var index = 0; index < ports.Count; index++)
-        {
-            var interval = intervals[ports[index].Id];
-            contentStart = Math.Min(contentStart, checked(rows[index] + interval.Start));
-            contentEnd = Math.Max(contentEnd, checked(rows[index] + interval.End));
-        }
-    }
-
-    private static AxisInterval FlowAxisInterval(RectV1 envelope, SymbolFacingV1 facing) =>
-        facing switch
-        {
-            SymbolFacingV1.East => new AxisInterval(envelope.Left, envelope.Right),
-            SymbolFacingV1.South => new AxisInterval(envelope.Top, envelope.Bottom),
-            SymbolFacingV1.West => Reverse(envelope.Left, envelope.Right),
-            SymbolFacingV1.North => Reverse(envelope.Top, envelope.Bottom),
-            _ => throw new LayoutInvalidException(LayoutConstraintV1.Request),
-        };
-
-    private static AxisInterval RowAxisInterval(
-        RectV1 envelope,
-        SymbolFacingV1 facing,
-        bool isReflected)
-    {
-        var interval = facing is SymbolFacingV1.North or SymbolFacingV1.South
-            ? new AxisInterval(envelope.Left, envelope.Right)
-            : new AxisInterval(envelope.Top, envelope.Bottom);
-        var rowOrderIncreases = facing switch
-        {
-            SymbolFacingV1.East or SymbolFacingV1.North => !isReflected,
-            SymbolFacingV1.South or SymbolFacingV1.West => isReflected,
-            _ => throw new LayoutInvalidException(LayoutConstraintV1.Request),
-        };
-        return rowOrderIncreases ? interval : Reverse(interval.Start, interval.End);
-    }
-
-    private static AxisInterval Reverse(int start, int end) =>
-        new(checked(-end), checked(-start));
 
     private static SymbolTextMeasurementV1 Measure(
         string text,
@@ -578,28 +502,6 @@ internal static class RectangularSymbolGeometryBuilder
                 StrokeRoleV1.Outline,
                 outlineWidth));
         }
-    }
-
-    private static int[] Rows(int count, int center, int pitch)
-    {
-        if (count == 0)
-        {
-            return [];
-        }
-
-        var first = checked(center - (((count - 1) * pitch) / 2));
-        var rows = new int[count];
-        for (var index = 0; index < rows.Length; index++)
-        {
-            rows[index] = checked(first + (index * pitch));
-        }
-
-        return rows;
-    }
-
-    private readonly record struct AxisInterval(int Start, int End)
-    {
-        public int Span => checked(End - Start);
     }
 
     private readonly record struct CrossAxisLayout(int Extent, int CenterOffset);

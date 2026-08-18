@@ -259,6 +259,34 @@ internal sealed class SchematicProjectionTests
     }
 
     [Test]
+    public async Task Project_EmptyLogicalLines_ExtendAnnotationInteractionBounds()
+    {
+        var visible = ProjectAnnotation(new AnnotationProjectionCase(
+            ["A"],
+            AnnotationAlignment.Start)).Annotation;
+        var trailingEmpty = ProjectAnnotation(new AnnotationProjectionCase(
+            ["A", string.Empty],
+            AnnotationAlignment.Start)).Annotation;
+        var oneEmpty = ProjectAnnotation(new AnnotationProjectionCase(
+            [string.Empty],
+            AnnotationAlignment.Start)).Annotation;
+        var twoEmpty = ProjectAnnotation(new AnnotationProjectionCase(
+            [string.Empty, string.Empty],
+            AnnotationAlignment.Start)).Annotation;
+
+        static int InteractionHeight(AnnotationItemV1 annotation) =>
+            ((RectHitShapeV1)annotation.HitRegions.Single().Shape).Rect.Height;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(InteractionHeight(trailingEmpty))
+                .IsGreaterThan(InteractionHeight(visible));
+            await Assert.That(InteractionHeight(twoEmpty))
+                .IsGreaterThan(InteractionHeight(oneEmpty));
+        }
+    }
+
+    [Test]
     public async Task Project_MultilineAnnotation_UsesVerticalBearingsForBaselineSpacing()
     {
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(

@@ -25,20 +25,57 @@ internal static class BasicGateGeometryBuilder
         ComponentSymbolRequestV1 request,
         ResolvedBasicSymbolDefinition definition,
         IReadOnlyList<ResolvedComponentPortSchema> ports,
-        SymbolTextMeasurementV1? textMeasurement,
+        ISymbolTextMeasurerV1 textMeasurer,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(textMeasurer);
         cancellationToken.ThrowIfCancellationRequested();
         var inputs = ports.Where(port => port.Direction == PortDirection.Input).ToArray();
+        var outputs = ports.Where(port => port.Direction == PortDirection.Output).ToArray();
+        var inputPortIds = inputs.Select(port => port.Id).ToArray();
+        var outputPortIds = outputs.Select(port => port.Id).ToArray();
         var metrics = BasicGateMetrics.From(request.MetricSet);
         var h = metrics.UnitsPerH;
-        var textEnvelope = textMeasurement?.InkAndAdvanceBounds(
-            TextAlignmentV1.Center,
-            request.BaseDirection);
+        RectV1? textEnvelope = definition.Recipe == BasicOutlineRecipe.Rectangle
+            ? MeasureText(
+                definition.FunctionText,
+                FontRoleV1.Symbol,
+                request,
+                textMeasurer,
+                cancellationToken)
+            : null;
+        var portLabelEnvelopes = ports
+            .Where(port => port.Width > 1)
+            .ToDictionary(
+                port => port.Id,
+                port => MeasureText(
+                    port.Id,
+                    FontRoleV1.PortLabel,
+                    request,
+                    textMeasurer,
+                    cancellationToken),
+                StringComparer.Ordinal);
+        var rowAxisLabels = portLabelEnvelopes.ToDictionary(
+            pair => pair.Key,
+            pair => UprightTextLayout.RowAxis(
+                pair.Value,
+                request.Facing,
+                request.IsReflected),
+            StringComparer.Ordinal);
+        var flowAxisLabels = portLabelEnvelopes.ToDictionary(
+            pair => pair.Key,
+            pair => UprightTextLayout.FlowAxis(pair.Value, request.Facing),
+            StringComparer.Ordinal);
+        var portPitch = UprightTextLayout.RequiredPitch(
+            inputPortIds,
+            outputPortIds,
+            rowAxisLabels,
+            metrics.MinimumPortPitch,
+            Math.Max(1, h / 2));
         var standardBodyHeight = BasicBodyHeight.ScaleUp(h);
         var requestedBodyHeight = inputs.Length == 1
             ? standardBodyHeight
-            : checked((inputs.Length - 1) * metrics.MinimumPortPitch + ScaleUp(h, 2));
+            : checked((inputs.Length - 1) * portPitch + ScaleUp(h, 2));
         var (minimumHorizontalTextSize, minimumVerticalTextSize) = textEnvelope is { } measuredText
             ? (
                 RequiredCenteredSize(
@@ -59,6 +96,33 @@ internal static class BasicGateGeometryBuilder
             : Math.Max(
                 Math.Max(standardBodyHeight, requestedBodyHeight),
                 minimumTextBodyHeight);
+        if (portLabelEnvelopes.Count > 0)
+        {
+            var functionRowAxis = textEnvelope is { } functionBounds
+                ? UprightTextLayout.RowAxis(
+                    functionBounds,
+                    request.Facing,
+                    request.IsReflected)
+                : new TextAxisInterval(0, 0);
+            var contentStart = functionRowAxis.Start;
+            var contentEnd = functionRowAxis.End;
+            UprightTextLayout.IncludeRows(
+                inputPortIds,
+                rowAxisLabels,
+                portPitch,
+                ref contentStart,
+                ref contentEnd);
+            UprightTextLayout.IncludeRows(
+                outputPortIds,
+                rowAxisLabels,
+                portPitch,
+                ref contentStart,
+                ref contentEnd);
+            bodyHeight = Math.Max(
+                bodyHeight,
+                RequiredCenteredSize(contentStart, contentEnd, h));
+        }
+
         var standardBodyWidth = definition.Recipe == BasicOutlineRecipe.Triangle
             ? TriangleBodyWidth.ScaleUp(h)
             : BasicBodyWidth.ScaleUp(h);
@@ -71,6 +135,25 @@ internal static class BasicGateGeometryBuilder
         var bodyWidth = Math.Max(
             standardBodyWidth,
             Math.Max(minimumRecipeWidth, minimumTextBodyWidth));
+        var labelInset = ScaleUp(h, 2);
+        if (portLabelEnvelopes.Count > 0)
+        {
+            var functionFlowAxis = textEnvelope is { } flowBounds
+                ? UprightTextLayout.FlowAxis(flowBounds, request.Facing)
+                : new TextAxisInterval(0, 0);
+            var inputSpan = UprightTextLayout.MaximumSpan(inputPortIds, flowAxisLabels);
+            var outputSpan = UprightTextLayout.MaximumSpan(outputPortIds, flowAxisLabels);
+            var requiredInputHalfWidth = inputSpan == 0
+                ? 0
+                : checked(inputSpan + labelInset + h - functionFlowAxis.Start);
+            var requiredOutputHalfWidth = outputSpan == 0
+                ? 0
+                : checked(outputSpan + labelInset + h + functionFlowAxis.End);
+            bodyWidth = Math.Max(
+                bodyWidth,
+                checked(2 * Math.Max(requiredInputHalfWidth, requiredOutputHalfWidth)));
+        }
+
         var strokeMargin = GeometryPlanValidator.ConservativeStrokeMargin(
             metrics.OutlineStrokeWidth,
             MiterJoin);
@@ -110,11 +193,7 @@ internal static class BasicGateGeometryBuilder
             textEnvelope,
             request,
             metrics.OutlineStrokeWidth);
-        var inputYs = InputRows(
-            inputs.Length,
-            body.Top,
-            bodyHeight,
-            metrics.MinimumPortPitch);
+        var inputYs = UprightTextLayout.Rows(inputs.Length, centerY, portPitch);
         for (var index = 0; index < inputs.Length; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -197,16 +276,32 @@ internal static class BasicGateGeometryBuilder
                 "symbol",
                 accessibilityNodes.Count,
                 CircleBounds(point, metrics.PortHitRadius),
-                "presentation.port",
-                [
-                    new TextLocalizationArgumentV1("portId", port.Id),
-                    new UnsignedLocalizationArgumentV1("width", port.Width),
-                ],
+                AccessibilityLocalization.PortKey,
+                AccessibilityLocalization.PortArguments(port.Id, port.Width),
                 [
                     AccessibilityActionV1.Focus,
                     AccessibilityActionV1.BeginConnection,
                     AccessibilityActionV1.OpenInspector,
                 ]));
+
+            if (portLabelEnvelopes.TryGetValue(port.Id, out var labelEnvelope))
+            {
+                var flowAxisLabel = flowAxisLabels[port.Id];
+                var labelOrigin = new PointV1(
+                    port.Direction == PortDirection.Input
+                        ? checked(body.Left + labelInset - flowAxisLabel.Start)
+                        : checked(body.Right - labelInset - flowAxisLabel.End),
+                    point.Y);
+                operations.Add(new DrawTextV1(
+                    port.Id,
+                    FontRoleV1.PortLabel,
+                    labelOrigin,
+                    Translate(labelEnvelope, labelOrigin),
+                    TextAlignmentV1.Center,
+                    TextOrientationV1.UprightReading,
+                    request.BaseDirection,
+                    request.LocaleId));
+            }
         }
 
         var annexA = definition.AnnexA == AnnexAStatusV1.Pass
@@ -483,27 +578,24 @@ internal static class BasicGateGeometryBuilder
             new ClosePathV1());
     }
 
-    private static int[] InputRows(
-        int inputCount,
-        int bodyTop,
-        int bodyHeight,
-        int pitch)
-    {
-        if (inputCount == 1)
-        {
-            return [checked(bodyTop + (bodyHeight / 2))];
-        }
-
-        var span = checked((inputCount - 1) * pitch);
-        var first = checked(bodyTop + ((bodyHeight - span) / 2));
-        var rows = new int[inputCount];
-        for (var index = 0; index < rows.Length; index++)
-        {
-            rows[index] = checked(first + (index * pitch));
-        }
-
-        return rows;
-    }
+    private static RectV1 MeasureText(
+        string text,
+        FontRoleV1 role,
+        ComponentSymbolRequestV1 request,
+        ISymbolTextMeasurerV1 textMeasurer,
+        CancellationToken cancellationToken) => textMeasurer.Measure(
+            new SymbolTextMeasurementRequestV1(
+                text,
+                role,
+                TextAlignmentV1.Center,
+                request.MetricSet,
+                request.LocaleId,
+                request.BaseDirection),
+            cancellationToken)?.InkAndAdvanceBounds(
+                TextAlignmentV1.Center,
+                request.BaseDirection)
+            ?? throw new InvalidOperationException(
+                "The Symbol Text Measurer returned no measurement.");
 
     private static int RequiredCenteredSize(int start, int end, int clearance)
     {

@@ -111,6 +111,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
             violations);
         Check(
             plan.Key.SymbolVariantId == SymbolVariantCatalog.RectangularId
+                || sample.Width > 1
                 || PlanGeometryMatchesTransform(
                     canonical,
                     plan,
@@ -125,10 +126,6 @@ internal sealed class TeachingMixedGeometryPlannerTests
         Check(HasCompleteCrossReferences(plan), "cross-reference graph is incomplete", violations);
         Check(AllGeometryIsInsideBounds(plan), "published geometry escapes Bounds", violations);
         Check(PortHitRegionsAreDisjoint(plan), "Port hit regions overlap", violations);
-        Check(
-            PlansShareGeometry(plan, scalar),
-            "vector width changed symbol geometry",
-            violations);
         Check(
             sample.Width == 1
                 || plan.Key.NormalizedRequestDigest != scalar.Key.NormalizedRequestDigest,
@@ -369,6 +366,24 @@ internal sealed class TeachingMixedGeometryPlannerTests
                     .IsEquivalentTo(
                         plan.PortAnchors.Select(anchor => anchor.PortId),
                         CollectionOrdering.Matching);
+                await Assert.That(plan.Operations.OfType<DrawTextV1>()
+                        .Where(operation => operation.FontRole == FontRoleV1.PortLabel)
+                        .Select(operation => operation.Text))
+                    .IsEquivalentTo(
+                        plan.PortAnchors.Select(anchor => anchor.PortId),
+                        CollectionOrdering.Matching);
+                await Assert.That(plan.PortAnchors.All(anchor =>
+                {
+                    var node = plan.AccessibilityNodes.Single(candidate =>
+                        candidate.LocalId == anchor.AccessibilityNodeId);
+                    return node.LocalizationKey == "presentation.port"
+                        && node.Arguments is
+                        [
+                            TextLocalizationArgumentV1 { Name: "label", Value: var label },
+                            UnsignedLocalizationArgumentV1 { Name: "width", Value: 8 },
+                        ]
+                        && label == anchor.PortId;
+                })).IsTrue();
             }
         }
     }
@@ -659,6 +674,23 @@ internal sealed class TeachingMixedGeometryPlannerTests
             await Assert.That(plan.Bounds.Height).IsGreaterThan(0);
             await Assert.That(plan.Conformance.AnnexA).IsEqualTo(expectedAnnexA);
         }
+    }
+
+    [Test]
+    public async Task Plan_MinimumMetricScale_SeparatesRectangularPortHitRegions()
+    {
+        var metricSet = new SymbolMetricSetV1("metric", "1.0.0", 1);
+        var zeroMeasurement = new SymbolTextMeasurementV1(
+            0,
+            new RectV1(0, 0, 0, 0));
+        var plan = Plan(
+            Request("logic.mux", metricSet: metricSet),
+            new StubTextMeasurer(
+                DefaultFontFingerprint,
+                zeroMeasurement,
+                metricSet));
+
+        await Assert.That(PortHitRegionsAreDisjoint(plan)).IsTrue();
     }
 
     [Test]

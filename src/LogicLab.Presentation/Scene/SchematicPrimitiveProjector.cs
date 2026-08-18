@@ -216,34 +216,16 @@ internal static class SchematicPrimitiveProjector
                 measurement.InkAndAdvanceBounds(alignment, fingerprint.BaseDirection)));
         }
 
-        if (visibleLines.Count == 0)
-        {
-            var emptyInteractionBounds = EnsureMinimumInteractionExtent(
-                new RectV1(origin.X, origin.Y, origin.X, origin.Y),
-                fingerprint.MetricSet.UnitsPerH);
-            return new AnnotationItemV1(
-                annotation.Id,
-                [],
-                [new HitRegionV1(
-                    "annotation",
-                    HitRegionKindV1.Label,
-                    null,
-                    new RectHitShapeV1(emptyInteractionBounds))],
-                [new AccessibilityNodeV1(
-                    "annotation",
-                    AccessibilityNodeKindV1.Label,
-                    null,
-                    0,
-                    emptyInteractionBounds,
-                    "presentation.annotation",
-                    [new TextLocalizationArgumentV1("text", annotation.Text)],
-                    [AccessibilityActionV1.Focus, AccessibilityActionV1.Select])]);
-        }
-
-        var linePitch = checked(
-            visibleLines.Max(line => line.Envelope.Bottom)
-            - visibleLines.Min(line => line.Envelope.Top)
-            + Math.Max(1, fingerprint.MetricSet.UnitsPerH / 2));
+        var h = fingerprint.MetricSet.UnitsPerH;
+        var minimumTop = visibleLines.Count == 0
+            ? 0
+            : visibleLines.Min(line => line.Envelope.Top);
+        var maximumBottom = visibleLines.Count == 0
+            ? 0
+            : visibleLines.Max(line => line.Envelope.Bottom);
+        var linePitch = Math.Max(
+            h,
+            checked(maximumBottom - minimumTop + Math.Max(1, h / 2)));
         var operations = new DrawTextV1[visibleLines.Count];
         for (var index = 0; index < visibleLines.Count; index++)
         {
@@ -263,12 +245,17 @@ internal static class SchematicPrimitiveProjector
                 fingerprint.LocaleId);
         }
 
+        var logicalLineBounds = new RectV1(
+            origin.X,
+            checked(origin.Y + minimumTop),
+            origin.X,
+            checked(origin.Y + minimumTop + checked(lines.Length * linePitch)));
         var projectedBounds = operations
             .Select(operation => operation.Bounds)
-            .Aggregate(Union);
+            .Aggregate(logicalLineBounds, Union);
         var interactionBounds = EnsureMinimumInteractionExtent(
             projectedBounds,
-            fingerprint.MetricSet.UnitsPerH);
+            h);
         return new AnnotationItemV1(
             annotation.Id,
             operations,
