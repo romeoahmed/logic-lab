@@ -136,23 +136,30 @@ internal static class BasicGateGeometryBuilder
             standardBodyWidth,
             Math.Max(minimumRecipeWidth, minimumTextBodyWidth));
         var labelInset = ScaleUp(h, 2);
+        var functionFlowAxis = textEnvelope is { } flowBounds
+            ? UprightTextLayout.FlowAxis(flowBounds, request.Facing)
+            : new TextAxisInterval(0, 0);
         if (portLabelEnvelopes.Count > 0)
         {
-            var functionFlowAxis = textEnvelope is { } flowBounds
-                ? UprightTextLayout.FlowAxis(flowBounds, request.Facing)
-                : new TextAxisInterval(0, 0);
-            var inputSpan = UprightTextLayout.MaximumSpan(inputPortIds, flowAxisLabels);
             var outputSpan = UprightTextLayout.MaximumSpan(outputPortIds, flowAxisLabels);
-            var requiredInputHalfWidth = inputSpan == 0
-                ? 0
-                : checked(inputSpan + labelInset + h - functionFlowAxis.Start);
             var requiredOutputHalfWidth = outputSpan == 0
                 ? 0
                 : checked(outputSpan + labelInset + h + functionFlowAxis.End);
             bodyWidth = Math.Max(
                 bodyWidth,
-                checked(2 * Math.Max(requiredInputHalfWidth, requiredOutputHalfWidth)));
+                checked(2 * requiredOutputHalfWidth));
         }
+
+        bodyWidth = SolveInputLabelWidth(
+            bodyWidth,
+            bodyHeight,
+            definition.Recipe,
+            inputPortIds,
+            flowAxisLabels,
+            portPitch,
+            labelInset,
+            h,
+            functionFlowAxis);
 
         var strokeMargin = GeometryPlanValidator.ConservativeStrokeMargin(
             metrics.OutlineStrokeWidth,
@@ -194,6 +201,7 @@ internal static class BasicGateGeometryBuilder
             request,
             metrics.OutlineStrokeWidth);
         var inputYs = UprightTextLayout.Rows(inputs.Length, centerY, portPitch);
+        var inputConnectionXs = new int[inputs.Length];
         for (var index = 0; index < inputs.Length; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -201,6 +209,7 @@ internal static class BasicGateGeometryBuilder
                 definition.Recipe,
                 body,
                 inputYs[index]);
+            inputConnectionXs[index] = inputEdgeX;
             operations.Add(Stroke(
                 Path(
                     new MoveToV1(new PointV1(planInset, inputYs[index])),
@@ -251,8 +260,11 @@ internal static class BasicGateGeometryBuilder
         foreach (var port in ports)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var point = port.Direction == PortDirection.Input
-                ? new PointV1(planInset, inputYs[inputIndex++])
+            var inputRowIndex = port.Direction == PortDirection.Input
+                ? inputIndex++
+                : -1;
+            var point = inputRowIndex >= 0
+                ? new PointV1(planInset, inputYs[inputRowIndex])
                 : new PointV1(outputAnchorX, centerY);
             var direction = port.Direction == PortDirection.Input
                 ? PlanDirectionV1.West
@@ -288,8 +300,11 @@ internal static class BasicGateGeometryBuilder
             {
                 var flowAxisLabel = flowAxisLabels[port.Id];
                 var labelOrigin = new PointV1(
-                    port.Direction == PortDirection.Input
-                        ? checked(body.Left + labelInset - flowAxisLabel.Start)
+                    inputRowIndex >= 0
+                        ? checked(
+                            inputConnectionXs[inputRowIndex]
+                            + labelInset
+                            - flowAxisLabel.Start)
                         : checked(body.Right - labelInset - flowAxisLabel.End),
                     point.Y);
                 operations.Add(new DrawTextV1(
@@ -458,6 +473,51 @@ internal static class BasicGateGeometryBuilder
             ? CubicXAtY(OrInputCurve(body), inputY)
             : body.Left;
 
+    private static int SolveInputLabelWidth(
+        int initialWidth,
+        int bodyHeight,
+        BasicOutlineRecipe recipe,
+        string[] inputPortIds,
+        Dictionary<string, TextAxisInterval> flowAxisLabels,
+        int portPitch,
+        int labelInset,
+        int functionClearance,
+        TextAxisInterval functionFlowAxis)
+    {
+        var bodyWidth = initialWidth;
+        for (var iteration = 0; iteration < 64; iteration++)
+        {
+            var body = new RectV1(0, 0, bodyWidth, bodyHeight);
+            var centerY = bodyHeight / 2;
+            var rows = UprightTextLayout.Rows(inputPortIds.Length, centerY, portPitch);
+            var requiredWidth = bodyWidth;
+            for (var index = 0; index < inputPortIds.Length; index++)
+            {
+                if (!flowAxisLabels.TryGetValue(inputPortIds[index], out var label))
+                {
+                    continue;
+                }
+
+                var labelEnd = checked(
+                    InputConnectionX(recipe, body, rows[index])
+                    + labelInset
+                    + label.Span);
+                var requiredHalfWidth = checked(
+                    labelEnd + functionClearance - functionFlowAxis.Start);
+                requiredWidth = Math.Max(requiredWidth, checked(2 * requiredHalfWidth));
+            }
+
+            if (requiredWidth == bodyWidth)
+            {
+                return bodyWidth;
+            }
+
+            bodyWidth = requiredWidth;
+        }
+
+        throw new InvalidOperationException("The basic-gate label layout did not converge.");
+    }
+
     private static int CubicXAtY(CubicSegment curve, int targetY)
     {
         decimal low = 0;
@@ -583,7 +643,8 @@ internal static class BasicGateGeometryBuilder
         FontRoleV1 role,
         ComponentSymbolRequestV1 request,
         ISymbolTextMeasurerV1 textMeasurer,
-        CancellationToken cancellationToken) => textMeasurer.Measure(
+        CancellationToken cancellationToken) => TextMeasurementBoundary.Measure(
+            textMeasurer,
             new SymbolTextMeasurementRequestV1(
                 text,
                 role,
@@ -591,11 +652,9 @@ internal static class BasicGateGeometryBuilder
                 request.MetricSet,
                 request.LocaleId,
                 request.BaseDirection),
-            cancellationToken)?.InkAndAdvanceBounds(
+            cancellationToken).InkAndAdvanceBounds(
                 TextAlignmentV1.Center,
-                request.BaseDirection)
-            ?? throw new InvalidOperationException(
-                "The Symbol Text Measurer returned no measurement.");
+                request.BaseDirection);
 
     private static int RequiredCenteredSize(int start, int end, int clearance)
     {

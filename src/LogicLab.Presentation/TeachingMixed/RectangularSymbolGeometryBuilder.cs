@@ -451,7 +451,8 @@ internal static class RectangularSymbolGeometryBuilder
         TextAlignmentV1 alignment,
         RectangularSymbolLayoutRequest request,
         ISymbolTextMeasurerV1 textMeasurer,
-        CancellationToken cancellationToken) => textMeasurer.Measure(
+        CancellationToken cancellationToken) => TextMeasurementBoundary.Measure(
+            textMeasurer,
             new SymbolTextMeasurementRequestV1(
                 text,
                 role,
@@ -459,8 +460,7 @@ internal static class RectangularSymbolGeometryBuilder
                 request.MetricSet,
                 request.LocaleId,
                 request.BaseDirection),
-            cancellationToken) ?? throw new InvalidOperationException(
-                "The Symbol Text Measurer returned no measurement.");
+            cancellationToken);
 
     private static DrawTextV1 Text(
         string text,

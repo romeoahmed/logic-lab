@@ -18,7 +18,8 @@ internal static class SchematicPrimitiveProjector
         var radius = Math.Max(1, h / 2);
         var direction = Direction(port.Placement.Facing);
         var inward = Offset(point, Opposite(direction), h);
-        var measurement = textMeasurer.Measure(
+        var measurement = TextMeasurementBoundary.Measure(
+            textMeasurer,
             new SymbolTextMeasurementRequestV1(
                 port.DisplayName,
                 FontRoleV1.PortLabel,
@@ -26,14 +27,16 @@ internal static class SchematicPrimitiveProjector
                 fingerprint.MetricSet,
                 fingerprint.LocaleId,
                 fingerprint.BaseDirection),
-            cancellationToken) ?? throw new InvalidOperationException(
-                "The Symbol Text Measurer returned no measurement.");
-        var labelOrigin = Offset(inward, Opposite(direction), h);
-        var labelBounds = SchematicGeometry.Translate(
-            measurement.InkAndAdvanceBounds(
-                TextAlignmentV1.Center,
-                fingerprint.BaseDirection),
-            labelOrigin);
+            cancellationToken);
+        var labelEnvelope = measurement.InkAndAdvanceBounds(
+            TextAlignmentV1.Center,
+            fingerprint.BaseDirection);
+        var labelOrigin = PlaceBeyond(
+            inward,
+            labelEnvelope,
+            Opposite(direction),
+            h);
+        var labelBounds = SchematicGeometry.Translate(labelEnvelope, labelOrigin);
         var operations = new DrawOperationV1[]
         {
             Stroke([point, inward], StrokeRoleV1.Outline, Math.Max(1, h / 10)),
@@ -200,7 +203,8 @@ internal static class SchematicPrimitiveProjector
                 continue;
             }
 
-            var measurement = textMeasurer.Measure(
+            var measurement = TextMeasurementBoundary.Measure(
+                textMeasurer,
                 new SymbolTextMeasurementRequestV1(
                     lines[index],
                     FontRoleV1.Symbol,
@@ -208,8 +212,7 @@ internal static class SchematicPrimitiveProjector
                     fingerprint.MetricSet,
                     fingerprint.LocaleId,
                     fingerprint.BaseDirection),
-                cancellationToken) ?? throw new InvalidOperationException(
-                    "The Symbol Text Measurer returned no measurement.");
+                cancellationToken);
             visibleLines.Add((
                 index,
                 lines[index],
@@ -315,6 +318,27 @@ internal static class SchematicPrimitiveProjector
             PlanDirectionV1.East => new PointV1(checked(point.X + distance), point.Y),
             PlanDirectionV1.South => new PointV1(point.X, checked(point.Y + distance)),
             PlanDirectionV1.West => new PointV1(checked(point.X - distance), point.Y),
+            _ => throw new InvalidOperationException("The plan direction is undefined."),
+        };
+
+    private static PointV1 PlaceBeyond(
+        PointV1 point,
+        RectV1 envelope,
+        PlanDirectionV1 direction,
+        int clearance) => direction switch
+        {
+            PlanDirectionV1.North => new PointV1(
+                point.X,
+                checked(point.Y - clearance - envelope.Bottom)),
+            PlanDirectionV1.East => new PointV1(
+                checked(point.X + clearance - envelope.Left),
+                point.Y),
+            PlanDirectionV1.South => new PointV1(
+                point.X,
+                checked(point.Y + clearance - envelope.Top)),
+            PlanDirectionV1.West => new PointV1(
+                checked(point.X - clearance - envelope.Right),
+                point.Y),
             _ => throw new InvalidOperationException("The plan direction is undefined."),
         };
 

@@ -165,6 +165,52 @@ internal sealed class TeachingMixedGeometryPlannerTests
     }
 
     [Test]
+    [Arguments("logic.or", 63U, SymbolFacingV1.East)]
+    [Arguments("logic.or", 63U, SymbolFacingV1.South)]
+    [Arguments("logic.or", 63U, SymbolFacingV1.West)]
+    [Arguments("logic.or", 63U, SymbolFacingV1.North)]
+    [Arguments("logic.xor", 2U, SymbolFacingV1.East)]
+    [Arguments("logic.xor", 2U, SymbolFacingV1.South)]
+    [Arguments("logic.xor", 2U, SymbolFacingV1.West)]
+    [Arguments("logic.xor", 2U, SymbolFacingV1.North)]
+    public async Task Plan_AggregateCurvedInputGate_ClearsInputLabelsFromLeads(
+        string contractId,
+        uint fanIn,
+        SymbolFacingV1 facing)
+    {
+        var plan = Plan(Request(
+            contractId,
+            fanIn,
+            facing: facing,
+            parameters: GateParameters(width: 8, fanIn)));
+        var labels = plan.Operations
+            .OfType<DrawTextV1>()
+            .Where(operation => operation.FontRole == FontRoleV1.PortLabel)
+            .ToDictionary(operation => operation.Text, StringComparer.Ordinal);
+        var clearance = TeachingMixedMetricSets.AnnexA100.UnitsPerH;
+
+        foreach (var input in plan.PortAnchors.Take(checked((int)fanIn)))
+        {
+            var lead = plan.Operations
+                .OfType<StrokePathV1>()
+                .Single(operation => operation.Path.Commands is
+                    [MoveToV1 move, LineToV1] && move.Point == input.Point);
+            var endpoint = ((LineToV1)lead.Path.Commands[1]).Point;
+            var label = labels[input.PortId];
+            var actualClearance = input.OutwardDirection switch
+            {
+                PlanDirectionV1.North => label.Bounds.Top - endpoint.Y,
+                PlanDirectionV1.East => endpoint.X - label.Bounds.Right,
+                PlanDirectionV1.South => endpoint.Y - label.Bounds.Bottom,
+                PlanDirectionV1.West => label.Bounds.Left - endpoint.X,
+                _ => throw new InvalidOperationException("Unexpected Port direction."),
+            };
+
+            await Assert.That(actualClearance).IsGreaterThanOrEqualTo(clearance);
+        }
+    }
+
+    [Test]
     [Arguments("logic.and", 2U, "&", "5.1-3")]
     [Arguments("logic.nand", 2U, "&", "5.1-17|3.1.1|3.1-2")]
     [Arguments("logic.or", 2U, "\u22651", "5.1-1")]
@@ -1543,7 +1589,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
         public SymbolTextMeasurementV1 Measure(
             SymbolTextMeasurementRequestV1 request,
             CancellationToken cancellationToken = default) =>
-            throw new ArgumentException("Synthetic text measurement defect.", nameof(request));
+            throw new OverflowException("Synthetic text measurement defect.");
     }
 
     private sealed class LinkedCancellingTextMeasurer(

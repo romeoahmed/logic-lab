@@ -166,7 +166,7 @@ public static class TeachingMixedGeometryPlanner
             return Invalid(PresentationDiagnosticsV1.ConstraintUnsatisfied(
                 LayoutConstraintV1.CoordinateRange));
         }
-        catch (Exception exception) when (!IsFatal(exception))
+        catch (Exception exception) when (!PresentationExceptionClassifier.IsFatal(exception))
         {
             return InternalDefect();
         }
@@ -275,7 +275,7 @@ public static class TeachingMixedGeometryPlanner
             return Invalid(PresentationDiagnosticsV1.ConstraintUnsatisfied(
                 LayoutConstraintV1.CoordinateRange));
         }
-        catch (Exception exception) when (!IsFatal(exception))
+        catch (Exception exception) when (!PresentationExceptionClassifier.IsFatal(exception))
         {
             return InternalDefect();
         }
@@ -292,18 +292,20 @@ public static class TeachingMixedGeometryPlanner
                 request.SymbolVariantId ?? "default"));
         }
 
-        if (textMeasurer.FontFingerprint != request.FontFingerprint)
+        var actualFontFingerprint = TextMeasurementBoundary.FontFingerprint(textMeasurer);
+        if (actualFontFingerprint != request.FontFingerprint)
         {
             return Invalid(PresentationDiagnosticsV1.FontFingerprintMismatch(
                 request.FontFingerprint,
-                textMeasurer.FontFingerprint));
+                actualFontFingerprint));
         }
 
-        if (textMeasurer.MetricSet != request.MetricSet)
+        var actualMetricSet = TextMeasurementBoundary.MetricSet(textMeasurer);
+        if (actualMetricSet != request.MetricSet)
         {
             return Invalid(PresentationDiagnosticsV1.MetricFingerprintMismatch(
                 request.MetricSet.Fingerprint,
-                textMeasurer.MetricSet.Fingerprint));
+                actualMetricSet.Fingerprint));
         }
 
         return null;
@@ -461,12 +463,6 @@ public static class TeachingMixedGeometryPlanner
         LayoutRejectionReasonV1.LayoutInternalDefect,
         [PresentationDiagnosticsV1.InternalInvariant()]);
 
-    private static bool IsFatal(Exception exception) =>
-        exception is OutOfMemoryException
-            or StackOverflowException
-            or AccessViolationException
-            or AppDomainUnloadedException
-            or BadImageFormatException;
 }
 
 internal sealed class LayoutInvalidException(LayoutConstraintV1 constraint) :
