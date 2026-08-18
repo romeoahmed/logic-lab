@@ -69,24 +69,11 @@ public static class TeachingMixedGeometryPlanner
                     out var basicDefinition))
             {
                 ValidateBasicPorts(ports);
-                var textMeasurement = basicDefinition.Recipe == BasicOutlineRecipe.Rectangle
-                    ? textMeasurer.Measure(
-                        new SymbolTextMeasurementRequestV1(
-                            basicDefinition.FunctionText,
-                            FontRoleV1.Symbol,
-                            TextAlignmentV1.Center,
-                            request.MetricSet,
-                            request.LocaleId,
-                            request.BaseDirection),
-                        cancellationToken)
-                        ?? throw new InvalidOperationException(
-                            "The Symbol Text Measurer returned no measurement.")
-                    : null;
                 draft = BasicGateGeometryBuilder.Build(
                     request,
                     basicDefinition,
                     ports,
-                    textMeasurement,
+                    textMeasurer,
                     cancellationToken);
                 definitionId = basicDefinition.Definition.DefinitionId;
                 definitionVersion = basicDefinition.Definition.DefinitionVersion;
