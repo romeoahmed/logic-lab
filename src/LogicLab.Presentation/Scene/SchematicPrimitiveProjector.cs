@@ -218,8 +218,9 @@ internal static class SchematicPrimitiveProjector
 
         if (visibleLines.Count == 0)
         {
-            var interactionRadius = Math.Max(1, fingerprint.MetricSet.UnitsPerH / 2);
-            var interactionBounds = SchematicGeometry.CircleBounds(origin, interactionRadius);
+            var emptyInteractionBounds = EnsureMinimumInteractionExtent(
+                new RectV1(origin.X, origin.Y, origin.X, origin.Y),
+                fingerprint.MetricSet.UnitsPerH);
             return new AnnotationItemV1(
                 annotation.Id,
                 [],
@@ -227,13 +228,13 @@ internal static class SchematicPrimitiveProjector
                     "annotation",
                     HitRegionKindV1.Label,
                     null,
-                    new RectHitShapeV1(interactionBounds))],
+                    new RectHitShapeV1(emptyInteractionBounds))],
                 [new AccessibilityNodeV1(
                     "annotation",
                     AccessibilityNodeKindV1.Label,
                     null,
                     0,
-                    interactionBounds,
+                    emptyInteractionBounds,
                     "presentation.annotation",
                     [new TextLocalizationArgumentV1("text", annotation.Text)],
                     [AccessibilityActionV1.Focus, AccessibilityActionV1.Select])]);
@@ -265,6 +266,9 @@ internal static class SchematicPrimitiveProjector
         var projectedBounds = operations
             .Select(operation => operation.Bounds)
             .Aggregate(Union);
+        var interactionBounds = EnsureMinimumInteractionExtent(
+            projectedBounds,
+            fingerprint.MetricSet.UnitsPerH);
         return new AnnotationItemV1(
             annotation.Id,
             operations,
@@ -272,16 +276,31 @@ internal static class SchematicPrimitiveProjector
                 "annotation",
                 HitRegionKindV1.Label,
                 null,
-                new RectHitShapeV1(projectedBounds))],
+                new RectHitShapeV1(interactionBounds))],
             [new AccessibilityNodeV1(
                 "annotation",
                 AccessibilityNodeKindV1.Label,
                 null,
                 0,
-                projectedBounds,
+                interactionBounds,
                 "presentation.annotation",
                 [new TextLocalizationArgumentV1("text", annotation.Text)],
                 [AccessibilityActionV1.Focus, AccessibilityActionV1.Select])]);
+    }
+
+    private static RectV1 EnsureMinimumInteractionExtent(
+        RectV1 bounds,
+        int minimumExtent)
+    {
+        var additionalWidth = Math.Max(0, checked(minimumExtent - bounds.Width));
+        var additionalHeight = Math.Max(0, checked(minimumExtent - bounds.Height));
+        var left = additionalWidth / 2;
+        var top = additionalHeight / 2;
+        return new RectV1(
+            checked(bounds.Left - left),
+            checked(bounds.Top - top),
+            checked(bounds.Right + additionalWidth - left),
+            checked(bounds.Bottom + additionalHeight - top));
     }
 
     private static PlanDirectionV1 Direction(CardinalDirection direction) => direction switch

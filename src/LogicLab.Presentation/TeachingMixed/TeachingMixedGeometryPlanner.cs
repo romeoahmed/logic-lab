@@ -99,6 +99,10 @@ public static class TeachingMixedGeometryPlanner
                 request.SymbolVariantId,
                 out var rectangularDefinition))
             {
+                var inputQualifiers = ActiveLowQualifiers(request.Parameters, ports);
+                var outputQualifiers = ThreeStateOutputQualifiers(
+                    request.Contract.Key.ContractId,
+                    ports);
                 var layoutRequest = new RectangularSymbolLayoutRequest(
                     rectangularDefinition.FunctionText,
                     rectangularDefinition.FunctionFontRole,
@@ -110,9 +114,13 @@ public static class TeachingMixedGeometryPlanner
                     request.Facing,
                     request.IsReflected,
                     request.Profile.IndicationConvention,
-                    ActiveLowQualifiers(request.Parameters, ports),
-                    request.Contract.Key.ContractId == "logic.tristate",
-                    Conformance(rectangularDefinition));
+                    inputQualifiers,
+                    outputQualifiers,
+                    Conformance(
+                        rectangularDefinition,
+                        inputQualifiers,
+                        request.Profile.IndicationConvention,
+                        request.Facing));
                 var rectangularPorts = ports.Select(port => new RectangularSymbolPort(
                     port.Id,
                     port.Id,
@@ -131,6 +139,13 @@ public static class TeachingMixedGeometryPlanner
             {
                 return VariantUnresolved(request);
             }
+
+            draft = draft with
+            {
+                Conformance = ApplyAggregatePortConformance(
+                    draft.Conformance,
+                    ports.Select(port => (port.Id, port.Width))),
+            };
 
             var key = new GeometryPlanKeyV1(
                 definitionId,
@@ -209,28 +224,15 @@ public static class TeachingMixedGeometryPlanner
             {
                 new StandardReferenceV1("IEEE-91A", "1991", ["6.1-1", "6.1.2", "6.1.4"]),
             };
-            var deviations = new List<ConformanceDeviationV1>
-            {
-                new(
-                    "teachingmixed-user-circuit-definition",
-                    [.. request.Definition.Ports.Select(port => port.Id.Value)]),
-            };
-            var aggregatePortIds = request.Definition.Ports
-                .Where(port => port.Width > 1)
-                .Select(port => port.Id.Value)
-                .ToArray();
-            if (aggregatePortIds.Length > 0)
-            {
-                deviations.Add(new ConformanceDeviationV1(
-                    "teachingmixed-aggregate-multibit-port",
-                    aggregatePortIds));
-            }
-
-            var conformance = new ConformanceEvidenceV1(
-                ConformanceClaimV1.TeachingExtension,
-                standardReferences,
-                deviations,
-                AnnexAStatusV1.NotEvaluated);
+            var conformance = ApplyAggregatePortConformance(
+                new ConformanceEvidenceV1(
+                    ConformanceClaimV1.TeachingExtension,
+                    standardReferences,
+                    [new ConformanceDeviationV1(
+                        "teachingmixed-user-circuit-definition",
+                        [.. request.Definition.Ports.Select(port => port.Id.Value)])],
+                    AnnexAStatusV1.NotEvaluated),
+                request.Definition.Ports.Select(port => (port.Id.Value, port.Width)));
             var layoutRequest = new RectangularSymbolLayoutRequest(
                 request.DisplayName,
                 FontRoleV1.ExtensionMark,
@@ -242,8 +244,8 @@ public static class TeachingMixedGeometryPlanner
                 request.Facing,
                 request.IsReflected,
                 request.Profile.IndicationConvention,
-                InputQualifiers: [],
-                HasThreeStateOutput: false,
+                ActiveLowInputQualifiers: [],
+                ThreeStateOutputQualifiers: [],
                 conformance);
             var ports = request.Definition.Ports.Select(port => new RectangularSymbolPort(
                 port.Id.Value,
@@ -350,13 +352,60 @@ public static class TeachingMixedGeometryPlanner
                 request.SymbolVariantId ?? request.Contract.Key.ContractId));
 
     private static ConformanceEvidenceV1 Conformance(
-        ResolvedRectangularSymbolDefinition definition) => new(
+        ResolvedRectangularSymbolDefinition definition,
+        RectangularSymbolActiveLowInputQualifier[] inputQualifiers,
+        IndicationConvention indicationConvention,
+        SymbolFacingV1 facing)
+    {
+        string[] qualifierClauses = inputQualifiers.Length == 0
+            ? []
+            : indicationConvention switch
+            {
+                IndicationConvention.Negation => ["3.1.1", "3.1-1"],
+                IndicationConvention.DirectPolarity when facing == SymbolFacingV1.West =>
+                    ["3.1.1", "3.1-5"],
+                IndicationConvention.DirectPolarity => ["3.1.1", "3.1-4"],
+                _ => throw new LayoutInvalidException(LayoutConstraintV1.IndicationConvention),
+            };
+        var clauses = definition.StandardClauses
+            .Concat(qualifierClauses)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return new ConformanceEvidenceV1(
             definition.Claim,
-            [new StandardReferenceV1("IEEE-91A", "1991", definition.StandardClauses)],
+            [new StandardReferenceV1("IEEE-91A", "1991", clauses)],
             definition.Deviations,
             AnnexAStatusV1.NotEvaluated);
+    }
 
-    private static RectangularSymbolInputQualifier[] ActiveLowQualifiers(
+    private static ConformanceEvidenceV1 ApplyAggregatePortConformance(
+        ConformanceEvidenceV1 conformance,
+        IEnumerable<(string Id, uint Width)> ports)
+    {
+        var aggregatePortIds = ports
+            .Where(port => port.Width > 1)
+            .Select(port => port.Id)
+            .ToArray();
+        if (aggregatePortIds.Length == 0)
+        {
+            return conformance;
+        }
+
+        var deviations = conformance.Deviations
+            .Where(deviation =>
+                deviation.DeviationCode != "teachingmixed-aggregate-multibit-port")
+            .Append(new ConformanceDeviationV1(
+                "teachingmixed-aggregate-multibit-port",
+                aggregatePortIds))
+            .ToArray();
+        return new ConformanceEvidenceV1(
+            ConformanceClaimV1.TeachingExtension,
+            conformance.StandardReferences,
+            deviations,
+            conformance.AnnexA);
+    }
+
+    private static RectangularSymbolActiveLowInputQualifier[] ActiveLowQualifiers(
         IReadOnlyList<ComponentParameterBinding> parameters,
         IReadOnlyList<ResolvedComponentPortSchema> ports)
     {
@@ -369,9 +418,30 @@ public static class TeachingMixedGeometryPlanner
 
         var qualifiers = ports
             .Where(port => port.Id == "EN" && port.Direction == PortDirection.Input)
-            .Select(port => new RectangularSymbolInputQualifier(port.Id))
+            .Select(port => new RectangularSymbolActiveLowInputQualifier(port.Id))
             .ToArray();
         if (qualifiers.Length == 0)
+        {
+            throw new LayoutInvalidException(LayoutConstraintV1.Request);
+        }
+
+        return qualifiers;
+    }
+
+    private static RectangularSymbolThreeStateOutputQualifier[] ThreeStateOutputQualifiers(
+        string contractId,
+        IReadOnlyList<ResolvedComponentPortSchema> ports)
+    {
+        if (contractId != "logic.tristate")
+        {
+            return [];
+        }
+
+        var qualifiers = ports
+            .Where(port => port.Id == "Q" && port.Direction == PortDirection.Output)
+            .Select(port => new RectangularSymbolThreeStateOutputQualifier(port.Id))
+            .ToArray();
+        if (qualifiers.Length != 1)
         {
             throw new LayoutInvalidException(LayoutConstraintV1.Request);
         }
