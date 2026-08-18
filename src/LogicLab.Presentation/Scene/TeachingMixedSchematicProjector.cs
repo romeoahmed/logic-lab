@@ -42,22 +42,24 @@ public static class TeachingMixedSchematicProjector
                         "default")]);
             }
 
-            if (textMeasurer.FontFingerprint != presentationFingerprint.FontFingerprint)
+            var actualFontFingerprint = TextMeasurementBoundary.FontFingerprint(textMeasurer);
+            if (actualFontFingerprint != presentationFingerprint.FontFingerprint)
             {
                 return new SchematicProjectionRejectedV1(
                     LayoutRejectionReasonV1.LayoutInvalid,
                     [PresentationDiagnosticsV1.FontFingerprintMismatch(
                         presentationFingerprint.FontFingerprint,
-                        textMeasurer.FontFingerprint)]);
+                        actualFontFingerprint)]);
             }
 
-            if (textMeasurer.MetricSet != presentationFingerprint.MetricSet)
+            var actualMetricSet = TextMeasurementBoundary.MetricSet(textMeasurer);
+            if (actualMetricSet != presentationFingerprint.MetricSet)
             {
                 return new SchematicProjectionRejectedV1(
                     LayoutRejectionReasonV1.LayoutInvalid,
                     [PresentationDiagnosticsV1.MetricFingerprintMismatch(
                         presentationFingerprint.MetricSet.Fingerprint,
-                        textMeasurer.MetricSet.Fingerprint)]);
+                        actualMetricSet.Fingerprint)]);
             }
 
             if (!FitsPortBudget(
@@ -237,7 +239,7 @@ public static class TeachingMixedSchematicProjector
         {
             return Invalid(LayoutConstraintV1.CoordinateRange);
         }
-        catch (Exception exception) when (!IsFatal(exception))
+        catch (Exception exception) when (!PresentationExceptionClassifier.IsFatal(exception))
         {
             return InternalDefect();
         }
@@ -581,10 +583,4 @@ public static class TeachingMixedSchematicProjector
         LayoutRejectionReasonV1.LayoutInternalDefect,
         [PresentationDiagnosticsV1.InternalInvariant()]);
 
-    private static bool IsFatal(Exception exception) => exception is
-        OutOfMemoryException
-        or StackOverflowException
-        or AccessViolationException
-        or AppDomainUnloadedException
-        or BadImageFormatException;
 }

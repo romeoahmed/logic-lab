@@ -116,6 +116,30 @@ internal sealed class SchematicProjectionTests
     }
 
     [Test]
+    public async Task Project_DefinitionPortLabels_ClearTheirOwnLeads()
+    {
+        var fixture = CreateDefinitionPortDefinition();
+        var projection = Project(fixture.Revision, fixture.Definition.Id, Fingerprint());
+        var clearance = TeachingMixedMetricSets.AnnexA100.UnitsPerH;
+        foreach (var port in projection.Items.OfType<DefinitionPortItemV1>())
+        {
+            var lead = port.Operations.OfType<StrokePathV1>().Single();
+            var inward = ((LineToV1)lead.Path.Commands[1]).Point;
+            var label = port.Operations.OfType<DrawTextV1>().Single();
+            var actualClearance = port.Anchor.OutwardDirection switch
+            {
+                PlanDirectionV1.North => label.Bounds.Top - inward.Y,
+                PlanDirectionV1.East => inward.X - label.Bounds.Right,
+                PlanDirectionV1.South => inward.Y - label.Bounds.Bottom,
+                PlanDirectionV1.West => label.Bounds.Left - inward.X,
+                _ => throw new InvalidOperationException("Unexpected Port direction."),
+            };
+
+            await Assert.That(actualClearance).IsGreaterThanOrEqualTo(clearance);
+        }
+    }
+
+    [Test]
     public async Task Project_PresentationInputs_ChangeProjectionKey()
     {
         var fixture = CreateCompleteDefinition();
@@ -392,6 +416,7 @@ internal sealed class SchematicProjectionTests
     {
         var fixture = CreateCompleteDefinition();
         var other = CreateCompleteDefinition();
+        var primitiveFixture = CreateDefinitionPortDefinition();
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
 
@@ -414,8 +439,8 @@ internal sealed class SchematicProjectionTests
             64,
             TextMeasurer);
         var defective = TeachingMixedSchematicProjector.Project(
-            fixture.Revision,
-            fixture.Definition.Id,
+            primitiveFixture.Revision,
+            primitiveFixture.Definition.Id,
             Fingerprint(),
             64,
             new DefectiveTextMeasurer(FontFingerprint));
@@ -584,6 +609,31 @@ internal sealed class SchematicProjectionTests
             revision.Document.FindCircuitDefinition(definition.Id)!);
     }
 
+    private static ProjectionFixture CreateDefinitionPortDefinition()
+    {
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "Definition Port projection",
+            LibrarySnapshot.Core,
+            TeachingMixedProfile,
+            "Main"))).Revision;
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new CreateCircuitDefinitionIntent(
+                "Ports",
+                [.. Enum.GetValues<CardinalDirection>()
+                    .Select((facing, index) => new DefinitionPortDeclaration(
+                        facing.ToString().ToUpperInvariant(),
+                        PortDirection.Input,
+                        1,
+                        new DefinitionPortPlacement(
+                            new GridPoint(index * 4, index * 4),
+                            facing)))])));
+        return new ProjectionFixture(
+            revision,
+            revision.Document.CircuitDefinitions.Single(candidate =>
+                candidate.DisplayName == "Ports"));
+    }
+
     private static ProjectRevision Place(
         ProjectRevision revision,
         CircuitDefinitionId definitionId,
@@ -668,7 +718,7 @@ internal sealed class SchematicProjectionTests
         public SymbolTextMeasurementV1 Measure(
             SymbolTextMeasurementRequestV1 request,
             CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Synthetic text shaping defect.");
+            throw new OverflowException("Synthetic text shaping defect.");
     }
 
     private sealed class MixedBearingTextMeasurer(FontFingerprintV1 fingerprint)
