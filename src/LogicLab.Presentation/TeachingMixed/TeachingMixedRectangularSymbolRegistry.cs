@@ -107,7 +107,6 @@ internal static class TeachingMixedRectangularSymbolRegistry
             || definition.FunctionRecipe == RectangularSymbolFunctionRecipe.PriorityEncoder
                 ? FontRoleV1.ExtensionMark
                 : FontRoleV1.Symbol;
-        var claim = definition.Claim;
         var deviations = new List<ConformanceDeviationV1>();
         if (definition.FunctionDeviationCode is { } functionDeviationCode)
         {
@@ -128,19 +127,6 @@ internal static class TeachingMixedRectangularSymbolRegistry
             }
         }
 
-        var aggregatePorts = ports
-            .Where(port => port.Width > 1)
-            .Select(port => port.Id)
-            .ToArray();
-        if (aggregatePorts.Length > 0)
-        {
-            claim = ConformanceClaimV1.TeachingExtension;
-
-            deviations.Add(new ConformanceDeviationV1(
-                "teachingmixed-aggregate-multibit-port",
-                aggregatePorts));
-        }
-
         resolved = new ResolvedRectangularSymbolDefinition(
             definition.DefinitionId,
             definition.DefinitionVersion,
@@ -148,7 +134,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
             SymbolVariantCatalog.RectangularId,
             functionText,
             functionFontRole,
-            claim,
+            definition.Claim,
             definition.StandardClauses,
             [.. deviations],
             RectangularSymbolDependencyResolver.Resolve(

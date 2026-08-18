@@ -340,6 +340,40 @@ internal sealed class TeachingMixedGeometryPlannerTests
     }
 
     [Test]
+    [Arguments("logic.and", 2U)]
+    [Arguments("logic.not", 1U)]
+    public async Task Plan_AggregateBasicGate_DowngradesEveryVariant(
+        string contractId,
+        uint fanIn)
+    {
+        var parameters = contractId == "logic.not"
+            ? UnaryParameters(8)
+            : GateParameters(8, fanIn);
+
+        foreach (var variantId in new string?[] { null, SymbolVariantCatalog.RectangularId })
+        {
+            var plan = Plan(Request(
+                contractId,
+                fanIn,
+                variantId,
+                parameters: parameters));
+            var deviation = await Assert.That(plan.Conformance.Deviations)
+                .HasSingleItem(candidate =>
+                    candidate.DeviationCode == "teachingmixed-aggregate-multibit-port");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(plan.Conformance.Claim)
+                    .IsEqualTo(ConformanceClaimV1.TeachingExtension);
+                await Assert.That(deviation.AffectedPortIds)
+                    .IsEquivalentTo(
+                        plan.PortAnchors.Select(anchor => anchor.PortId),
+                        CollectionOrdering.Matching);
+            }
+        }
+    }
+
+    [Test]
     [Arguments(
         "variant",
         LayoutRejectionReasonV1.LayoutInvalid,

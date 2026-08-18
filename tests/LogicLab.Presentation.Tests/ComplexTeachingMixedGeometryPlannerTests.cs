@@ -86,10 +86,10 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     }
 
     [Test]
-    [Arguments("logic.tristate", "3.3-8|3.3-12|4.3.9|5.2-4")]
+    [Arguments("logic.tristate", "3.3-8|3.3-12|4.3.9|5.2-4|3.1.1|3.1-1")]
     [Arguments("logic.mux", "4.3.2|4.4.2|5.6-1")]
     [Arguments("logic.demux", "4.3.2|4.4.2|5.6-2")]
-    [Arguments("logic.decoder", "4.3.9|5.4-1|5.4-4")]
+    [Arguments("logic.decoder", "4.3.9|5.4-1|5.4-4|3.1.1|3.1-1")]
     [Arguments("logic.priority_encoder", "5.4.1.2|5.4-6")]
     [Arguments("logic.unsigned_compare", "3.3-31|3.3-32|3.3-33|5.7-1|5.7-11")]
     [Arguments("logic.adder", "3.3-25|3.3-26|5.7-1|5.7-5")]
@@ -358,12 +358,48 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     }
 
     [Test]
-    public async Task Plan_ActiveLowControl_UsesOneDiagramIndicationConvention()
+    public async Task Plan_ThreeStateOutput_UsesTransverseQualifier()
     {
         var template = Request("logic.tristate");
+        var request = new ComponentSymbolRequestV1(
+            template.Contract,
+            [U32("width", 1), Choice("enablePolarity", "activeHigh")],
+            template.Profile,
+            template.SymbolVariantId,
+            template.Facing,
+            template.IsReflected,
+            template.MetricSet,
+            template.FontFingerprint,
+            template.LocaleId,
+            template.BaseDirection);
+
+        var plan = Plan(request);
+        var output = plan.PortAnchors.Single(anchor => anchor.PortId == "Q");
+        var qualifier = await Assert.That(plan.Operations.OfType<StrokePathV1>())
+            .HasSingleItem(operation => operation.Role == StrokeRoleV1.Qualifier
+                && operation.Path.Commands is
+                    [MoveToV1, LineToV1, LineToV1, ClosePathV1]);
+        var firstBase = ((MoveToV1)qualifier.Path.Commands[0]).Point;
+        var secondBase = ((LineToV1)qualifier.Path.Commands[1]).Point;
+        var tip = ((LineToV1)qualifier.Path.Commands[2]).Point;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(firstBase.Y).IsEqualTo(output.Point.Y);
+            await Assert.That(secondBase.Y).IsEqualTo(output.Point.Y);
+            await Assert.That(tip.Y).IsGreaterThan(output.Point.Y);
+            await Assert.That(tip.X).IsGreaterThan(Math.Min(firstBase.X, secondBase.X));
+            await Assert.That(tip.X).IsLessThan(Math.Max(firstBase.X, secondBase.X));
+        }
+    }
+
+    [Test]
+    public async Task Plan_ActiveLowControl_UsesSelectedStandardQualifier()
+    {
+        var template = Request("logic.decoder");
         var negationRequest = new ComponentSymbolRequestV1(
             template.Contract,
-            [U32("width", 1), Choice("enablePolarity", "activeLow")],
+            [U32("selectorWidth", 1), Choice("enablePolarity", "activeLow")],
             template.Profile,
             template.SymbolVariantId,
             template.Facing,
@@ -386,26 +422,43 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
             negationRequest.FontFingerprint,
             negationRequest.LocaleId,
             negationRequest.BaseDirection);
+        var westDirectPolarityRequest = new ComponentSymbolRequestV1(
+            directPolarityRequest.Contract,
+            directPolarityRequest.Parameters,
+            directPolarityRequest.Profile,
+            directPolarityRequest.SymbolVariantId,
+            SymbolFacingV1.West,
+            directPolarityRequest.IsReflected,
+            directPolarityRequest.MetricSet,
+            directPolarityRequest.FontFingerprint,
+            directPolarityRequest.LocaleId,
+            directPolarityRequest.BaseDirection);
 
         var negation = Plan(negationRequest);
         var directPolarity = Plan(directPolarityRequest);
-        var bodyOutline = negation.Operations.OfType<StrokePathV1>().Single(operation =>
+        var westDirectPolarity = Plan(westDirectPolarityRequest);
+        var bodyOutline = directPolarity.Operations.OfType<StrokePathV1>().Single(operation =>
             operation.Role == StrokeRoleV1.Outline
             && operation.Path.Commands is
                 [MoveToV1, LineToV1, LineToV1, LineToV1, ClosePathV1]);
         var bodyLeft = ((MoveToV1)bodyOutline.Path.Commands[0]).Point.X;
-        var negationQualifier = negation.Operations.OfType<StrokePathV1>().Single(operation =>
-            operation.Role == StrokeRoleV1.Qualifier
-            && operation.Path.Commands.OfType<CubicToV1>().Any());
-        var qualifierRight = ((MoveToV1)negationQualifier.Path.Commands[0]).Point;
-        var qualifierLeft = ((CubicToV1)negationQualifier.Path.Commands[2]).End.X;
-        var qualifiedInputLead = negation.Operations.OfType<StrokePathV1>().Single(operation =>
+        var enable = directPolarity.PortAnchors.Single(anchor => anchor.PortId == "EN");
+        var qualifier = await Assert.That(directPolarity.Operations.OfType<StrokePathV1>())
+            .HasSingleItem(operation => operation.Role == StrokeRoleV1.Qualifier
+                && operation.Path.Commands is
+                    [MoveToV1, LineToV1, LineToV1, ClosePathV1]);
+        var baseUpper = ((MoveToV1)qualifier.Path.Commands[0]).Point;
+        var tip = ((LineToV1)qualifier.Path.Commands[1]).Point;
+        var baseLower = ((LineToV1)qualifier.Path.Commands[2]).Point;
+        var qualifiedInputLead = directPolarity.Operations.OfType<StrokePathV1>().Single(operation =>
             operation.Role == StrokeRoleV1.Outline
             && operation.Path.Commands is [MoveToV1 move, LineToV1 line]
-            && move.Point.Y == qualifierRight.Y
-            && line.Point.Y == qualifierRight.Y
+            && move.Point.Y == enable.Point.Y
+            && line.Point.Y == enable.Point.Y
             && Math.Min(move.Point.X, line.Point.X) < bodyLeft
             && Math.Max(move.Point.X, line.Point.X) <= bodyLeft);
+        var clauses = directPolarity.Conformance.StandardReferences.Single().ClauseIds;
+        var westClauses = westDirectPolarity.Conformance.StandardReferences.Single().ClauseIds;
 
         using (Assert.Multiple())
         {
@@ -416,15 +469,24 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
                 .Any(operation => operation.Text == "L")).IsFalse();
             await Assert.That(directPolarity.Operations.OfType<StrokePathV1>()
                 .Any(operation => operation.Role == StrokeRoleV1.Qualifier
-                    && operation.Path.Commands.OfType<CubicToV1>().Any())).IsFalse();
+                    && operation.Path.Commands is
+                        [MoveToV1, LineToV1, LineToV1, ClosePathV1])).IsTrue();
             await Assert.That(directPolarity.Operations.OfType<DrawTextV1>()
-                .Any(operation => operation.Text == "LEN1"
+                .Any(operation => operation.Text == "EN1"
                     && operation.FontRole == FontRoleV1.Dependency)).IsTrue();
             await Assert.That(directPolarity.Operations.OfType<DrawTextV1>()
-                .Any(operation => operation.Text == "L")).IsFalse();
-            await Assert.That(qualifierRight.X).IsEqualTo(bodyLeft);
+                .Any(operation => operation.Text.StartsWith('L'))).IsFalse();
+            await Assert.That(tip).IsEqualTo(new PointV1(bodyLeft, enable.Point.Y));
+            await Assert.That(baseUpper.X).IsEqualTo(baseLower.X);
+            await Assert.That(baseUpper.X).IsLessThan(tip.X);
+            await Assert.That(baseUpper.Y).IsLessThan(tip.Y);
+            await Assert.That(baseLower.Y).IsGreaterThan(tip.Y);
             await Assert.That(((LineToV1)qualifiedInputLead.Path.Commands[1]).Point.X)
-                .IsEqualTo(qualifierLeft);
+                .IsEqualTo(baseUpper.X);
+            await Assert.That(clauses).Contains("3.1.1");
+            await Assert.That(clauses).Contains("3.1-4");
+            await Assert.That(clauses).DoesNotContain("3.1-5");
+            await Assert.That(westClauses).Contains("3.1-5");
         }
     }
 

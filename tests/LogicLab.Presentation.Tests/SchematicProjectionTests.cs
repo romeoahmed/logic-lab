@@ -222,6 +222,43 @@ internal sealed class SchematicProjectionTests
     }
 
     [Test]
+    public async Task Project_ZeroInkAnnotation_PublishesMinimumSelectableBounds()
+    {
+        var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
+            "Zero-ink annotation projection",
+            LibrarySnapshot.Core,
+            TeachingMixedProfile,
+            "Main"))).Revision;
+        var definition = revision.Document.EntryCircuitDefinition;
+        revision = Commit(ProjectEditor.Apply(
+            revision,
+            new CreateAnnotationIntent(
+                definition.Id,
+                new AnnotationValue(
+                    "\u200D",
+                    new GridPoint(4, 6),
+                    AnnotationAlignment.Start))));
+
+        var projection = Project(
+            revision,
+            definition.Id,
+            Fingerprint(),
+            new ZeroInkTextMeasurer(FontFingerprint));
+        var annotation = projection.Items.OfType<AnnotationItemV1>().Single();
+        var hitBounds = ((RectHitShapeV1)annotation.HitRegions.Single().Shape).Rect;
+        var accessibilityBounds = annotation.AccessibilityNodes.Single().Bounds;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(annotation.Operations.OfType<DrawTextV1>()).HasSingleItem();
+            await Assert.That(hitBounds.Width).IsGreaterThan(0);
+            await Assert.That(hitBounds.Height).IsGreaterThan(0);
+            await Assert.That(accessibilityBounds).IsEqualTo(hitBounds);
+            await Assert.That(Contains(projection.Bounds, hitBounds)).IsTrue();
+        }
+    }
+
+    [Test]
     public async Task Project_MultilineAnnotation_UsesVerticalBearingsForBaselineSpacing()
     {
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
@@ -302,7 +339,9 @@ internal sealed class SchematicProjectionTests
             violations);
         Check(
             annotation.HitRegions.Count == 1
-                && annotation.AccessibilityNodes.Count == 1,
+                && annotation.AccessibilityNodes.Count == 1
+                && hitBounds.Width > 0
+                && hitBounds.Height > 0,
             "the Annotation is not one selectable accessible item",
             violations);
         Check(
@@ -626,6 +665,22 @@ internal sealed class SchematicProjectionTests
                     new RectV1(0, -190, 420, 10)),
                 _ => throw new InvalidOperationException("Unexpected annotation line."),
             };
+        }
+    }
+
+    private sealed class ZeroInkTextMeasurer(FontFingerprintV1 fingerprint)
+        : ISymbolTextMeasurerV1
+    {
+        public FontFingerprintV1 FontFingerprint { get; } = fingerprint;
+
+        public SymbolMetricSetV1 MetricSet { get; } = TeachingMixedMetricSets.AnnexA100;
+
+        public SymbolTextMeasurementV1 Measure(
+            SymbolTextMeasurementRequestV1 request,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new SymbolTextMeasurementV1(0, new RectV1(0, 0, 0, 0));
         }
     }
 
