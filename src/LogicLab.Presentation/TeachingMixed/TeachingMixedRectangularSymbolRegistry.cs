@@ -59,6 +59,7 @@ internal sealed record ResolvedRectangularSymbolDefinition(
     string[] StandardClauses,
     ConformanceDeviationV1[] Deviations,
     RectangularSymbolDependency[] Dependencies,
+    RectangularSymbolBitGroupingInputQualifier[] BitGroupingInputQualifiers,
     RectangularSymbolInputFunctionQualifier[] InputFunctionQualifiers,
     RectangularSymbolPortFunction[] PortFunctions);
 
@@ -168,14 +169,14 @@ internal static class TeachingMixedRectangularSymbolRegistry
                 ["3.3-25", "4.3.11", "4.4.2", "5.14-1"],
                 RectangularSymbolDependencyRecipe.ReadOnlyMemory,
                 RectangularSymbolPortFunctionRecipe.ReadOnlyMemory,
-                definitionVersion: "3.3.0"),
+                definitionVersion: "3.4.0"),
             DynamicStandard(
                 "memory.ram_single_port",
                 RectangularSymbolFunctionRecipe.Ram,
                 ["3.3-13", "3.3-25", "4.3.7", "4.3.9", "4.3.11", "4.4.2", "5.14-1"],
                 RectangularSymbolDependencyRecipe.SinglePortMemory,
                 RectangularSymbolPortFunctionRecipe.SinglePortMemory,
-                definitionVersion: "3.3.0"),
+                definitionVersion: "3.4.0"),
         ],
         StringComparer.Ordinal).ToFrozenDictionary(StringComparer.Ordinal);
 
@@ -228,6 +229,9 @@ internal static class TeachingMixedRectangularSymbolRegistry
             .Concat(inputFunctionQualifiers.Select(qualifier => qualifier.ClauseId))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+        var dependencies = RectangularSymbolDependencyResolver.Resolve(
+            definition.DependencyRecipe,
+            ports);
         resolved = new ResolvedRectangularSymbolDefinition(
             definition.DefinitionId,
             definition.DefinitionVersion,
@@ -238,9 +242,8 @@ internal static class TeachingMixedRectangularSymbolRegistry
             definition.Claim,
             standardClauses,
             [.. deviations],
-            RectangularSymbolDependencyResolver.Resolve(
-                definition.DependencyRecipe,
-                ports),
+            dependencies,
+            BitGroupingInputQualifiers(dependencies, ports),
             inputFunctionQualifiers,
             PortFunctions(definition.PortFunctionRecipe, parameters, ports));
         return true;
@@ -420,6 +423,26 @@ internal static class TeachingMixedRectangularSymbolRegistry
                 }),
             _ => [],
         };
+
+    private static RectangularSymbolBitGroupingInputQualifier[] BitGroupingInputQualifiers(
+        IReadOnlyList<RectangularSymbolDependency> dependencies,
+        IReadOnlyList<ResolvedComponentPortSchema> ports) =>
+    [
+        .. dependencies
+            .Where(dependency => dependency.Kind == RectangularSymbolDependencyKind.Address)
+            .Select(dependency => (
+                Dependency: dependency,
+                Port: ports.Single(candidate =>
+                    candidate.Id == dependency.AffectingPortId
+                    && candidate.Direction == PortDirection.Input)))
+            .Where(group => group.Port.Width == 1)
+            .Select(group => new RectangularSymbolBitGroupingInputQualifier(
+                    group.Port.Id,
+                    FirstWeight: 0,
+                    LastWeight: 0,
+                    group.Dependency.Kind,
+                    group.Dependency.IdentifierRange)),
+    ];
 
     private static RectangularSymbolInputFunctionQualifier[] ClockInputFunctionQualifier(
         IReadOnlyList<ResolvedComponentPortSchema> ports,

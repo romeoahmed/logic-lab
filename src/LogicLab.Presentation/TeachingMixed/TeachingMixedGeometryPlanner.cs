@@ -110,6 +110,7 @@ public static class TeachingMixedGeometryPlanner
                     request.IsReflected,
                     request.Profile.IndicationConvention,
                     rectangularDefinition.InputFunctionQualifiers,
+                    rectangularDefinition.BitGroupingInputQualifiers,
                     rectangularDefinition.PortFunctions,
                     dynamicInputQualifiers,
                     inputQualifiers,
@@ -244,6 +245,7 @@ public static class TeachingMixedGeometryPlanner
                 request.IsReflected,
                 request.Profile.IndicationConvention,
                 InputFunctionQualifiers: [],
+                BitGroupingInputQualifiers: [],
                 PortFunctions:
                 [
                     .. request.Definition.Ports.Select(port =>

@@ -735,7 +735,8 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
         using (Assert.Multiple())
         {
             await Assert.That(plan.Operations.OfType<StrokePathV1>().Count(operation =>
-                    operation.Role == StrokeRoleV1.Qualifier))
+                    operation.Role == StrokeRoleV1.Qualifier
+                    && !operation.Path.Commands.OfType<CubicToV1>().Any()))
                 .IsEqualTo(1);
             await Assert.That(plan.Conformance.StandardReferences.Single().ClauseIds)
                 .Contains("3.1-9");
@@ -945,12 +946,91 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
             await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
                     operation.Text == "A0/7"))
                 .IsTrue();
+            await Assert.That(plan.Operations.OfType<StrokePathV1>().Any(operation =>
+                    operation.Role == StrokeRoleV1.Qualifier
+                    && operation.Path.Commands.OfType<CubicToV1>().Any()))
+                .IsFalse();
             await Assert.That(plan.Conformance.Claim)
                 .IsEqualTo(ConformanceClaimV1.TeachingExtension);
             await Assert.That(plan.Conformance.Deviations.Any(deviation =>
                     deviation.DeviationCode == "teachingmixed-aggregate-multibit-port"
                     && deviation.AffectedPortIds.SequenceEqual(["A", "Q"])))
                 .IsTrue();
+        }
+    }
+
+    [Test]
+    [Arguments("memory.rom")]
+    [Arguments("memory.ram_single_port")]
+    public async Task Plan_MemoryAddress_UsesStructuredBitGroupingAcrossFacingAndReflection(
+        string contractId)
+    {
+        var template = Request(contractId);
+
+        foreach (var facing in Enum.GetValues<SymbolFacingV1>())
+        {
+            foreach (var isReflected in new[] { false, true })
+            {
+                var plan = Plan(new ComponentSymbolRequestV1(
+                    template.Contract,
+                    template.Parameters,
+                    template.Profile,
+                    template.SymbolVariantId,
+                    facing,
+                    isReflected,
+                    template.MetricSet,
+                    template.FontFingerprint,
+                    template.LocaleId,
+                    template.BaseDirection));
+                var groupingMarks = plan.Operations.OfType<StrokePathV1>()
+                    .Where(operation =>
+                        operation.Role == StrokeRoleV1.Qualifier
+                        && operation.Path.Commands.OfType<CubicToV1>().Any())
+                    .ToArray();
+
+                await Assert.That(groupingMarks).Count().IsEqualTo(1);
+                var groupingMark = groupingMarks[0];
+                var groupingPoints = groupingMark.Path.Commands.SelectMany(command =>
+                    command switch
+                    {
+                        MoveToV1 move => new[] { move.Point },
+                        LineToV1 line => [line.Point],
+                        CubicToV1 cubic => [cubic.Control1, cubic.Control2, cubic.End],
+                        ClosePathV1 => [],
+                        _ => throw new InvalidOperationException("Unknown path command."),
+                    }).ToArray();
+                var addressAnchor = plan.PortAnchors.Single(anchor => anchor.PortId == "A");
+                var groupingIsInsideBody = addressAnchor.OutwardDirection switch
+                {
+                    PlanDirectionV1.West => groupingPoints.All(point =>
+                        point.X > addressAnchor.Point.X),
+                    PlanDirectionV1.East => groupingPoints.All(point =>
+                        point.X < addressAnchor.Point.X),
+                    PlanDirectionV1.North => groupingPoints.All(point =>
+                        point.Y > addressAnchor.Point.Y),
+                    PlanDirectionV1.South => groupingPoints.All(point =>
+                        point.Y < addressAnchor.Point.Y),
+                    _ => false,
+                };
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(groupingMark.Path.Commands.OfType<CubicToV1>())
+                        .IsNotEmpty();
+                    await Assert.That(groupingPoints.All(plan.Bounds.Contains)).IsTrue();
+                    await Assert.That(groupingIsInsideBody).IsTrue();
+                    await Assert.That(plan.Operations.OfType<DrawTextV1>())
+                        .HasSingleItem(operation =>
+                            operation.Text == "0"
+                            && operation.FontRole == FontRoleV1.PortLabel);
+                    await Assert.That(plan.Operations.OfType<DrawTextV1>())
+                        .HasSingleItem(operation =>
+                            operation.Text == "A0/1"
+                            && operation.FontRole == FontRoleV1.Dependency);
+                    await Assert.That(plan.Conformance.Claim)
+                        .IsEqualTo(ConformanceClaimV1.Standardized91A);
+                }
+            }
         }
     }
 
