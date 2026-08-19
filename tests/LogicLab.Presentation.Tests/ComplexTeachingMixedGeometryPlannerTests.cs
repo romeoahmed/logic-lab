@@ -926,6 +926,39 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     }
 
     [Test]
+    public async Task Plan_AggregateShiftRegister_UsesAuthoredAggregatePortLabels()
+    {
+        var plan = Plan(RequestWithParameters(
+            "sequential.shift_register",
+            [
+                U32("width", 4),
+                Choice("direction", "towardHigh"),
+                Choice("edge", "rising"),
+                new ComponentParameterBinding(
+                    "initialState",
+                    new LogicVectorParameterValue(
+                        [LogicValue.Zero, LogicValue.Zero, LogicValue.Zero, LogicValue.Zero])),
+            ]));
+        var labels = plan.Operations.OfType<DrawTextV1>().ToArray();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(labels)
+                .HasSingleItem(operation =>
+                    operation.Text == "1,2PARALLEL"
+                    && operation.FontRole == FontRoleV1.Dependency);
+            await Assert.That(labels)
+                .HasSingleItem(operation =>
+                    operation.Text == "Q"
+                    && operation.FontRole == FontRoleV1.PortLabel);
+            await Assert.That(labels.Any(operation => operation.Text == "1,2D"))
+                .IsFalse();
+            await Assert.That(plan.Conformance.Claim)
+                .IsEqualTo(ConformanceClaimV1.TeachingExtension);
+        }
+    }
+
+    [Test]
     public async Task Plan_RomDimensions_ChangeVisibleArrayInformationAndRemainExplicitExtension()
     {
         var plan = Plan(RequestWithParameters(
@@ -943,15 +976,29 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
             await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
                     operation.Text == "ROM 8 × 4"))
                 .IsTrue();
+            await Assert.That(plan.Operations.OfType<DrawTextV1>())
+                .HasSingleItem(operation =>
+                    operation.Text == "A"
+                    && operation.FontRole == FontRoleV1.PortLabel);
+            await Assert.That(plan.Operations.OfType<DrawTextV1>())
+                .HasSingleItem(operation =>
+                    operation.Text == "Q"
+                    && operation.FontRole == FontRoleV1.PortLabel);
             await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
                     operation.Text == "A0/7"))
-                .IsTrue();
+                .IsFalse();
             await Assert.That(plan.Operations.OfType<StrokePathV1>().Any(operation =>
                     operation.Role == StrokeRoleV1.Qualifier
                     && operation.Path.Commands.OfType<CubicToV1>().Any()))
                 .IsFalse();
             await Assert.That(plan.Conformance.Claim)
                 .IsEqualTo(ConformanceClaimV1.TeachingExtension);
+            await Assert.That(plan.Conformance.StandardReferences.Single().ClauseIds)
+                .DoesNotContain("3.3-25");
+            await Assert.That(plan.Conformance.StandardReferences.Single().ClauseIds)
+                .DoesNotContain("4.3.11");
+            await Assert.That(plan.Conformance.StandardReferences.Single().ClauseIds)
+                .DoesNotContain("4.4.2");
             await Assert.That(plan.Conformance.Deviations.Any(deviation =>
                     deviation.DeviationCode == "teachingmixed-aggregate-multibit-port"
                     && deviation.AffectedPortIds.SequenceEqual(["A", "Q"])))

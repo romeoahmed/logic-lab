@@ -192,14 +192,12 @@ internal static class RectangularSymbolDependencyResolver
                     ]),
             ],
             RectangularSymbolDependencyRecipe.ReadOnlyMemory =>
-            [
-                AddressDependency(
+                AddressDependencies(
                     ports,
                     [AffectedPort(ports, "Q", 0)]),
-            ],
             RectangularSymbolDependencyRecipe.SinglePortMemory =>
             [
-                AddressDependency(
+                .. AddressDependencies(
                     ports,
                     [
                         AffectedPort(ports, "D", 0),
@@ -266,24 +264,25 @@ internal static class RectangularSymbolDependencyResolver
             affectedEndpoints);
     }
 
-    private static RectangularSymbolDependency AddressDependency(
+    private static RectangularSymbolDependency[] AddressDependencies(
         IReadOnlyList<ResolvedComponentPortSchema> ports,
         RectangularSymbolAffectedEndpoint[] affectedEndpoints)
     {
         var address = ports.Single(port =>
             port.Id == "A" && port.Direction == PortDirection.Input);
-        var lastIdentifier = address.Width switch
+        return address.Width switch
         {
             0 => throw new LayoutInvalidException(LayoutConstraintV1.ParameterKind),
-            < 32 => checked((1U << checked((int)address.Width)) - 1U),
-            32 => uint.MaxValue,
-            _ => throw new LayoutInvalidException(LayoutConstraintV1.ParameterKind),
+            1 =>
+            [
+                new RectangularSymbolDependency(
+                    RectangularSymbolDependencyKind.Address,
+                    new RectangularSymbolDependencyIdentifierRange(0, 1),
+                    address.Id,
+                    affectedEndpoints),
+            ],
+            _ => [],
         };
-        return new RectangularSymbolDependency(
-            RectangularSymbolDependencyKind.Address,
-            new RectangularSymbolDependencyIdentifierRange(0, lastIdentifier),
-            address.Id,
-            affectedEndpoints);
     }
 
     private static RectangularSymbolAffectedEndpoint AffectedPort(

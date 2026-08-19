@@ -119,13 +119,13 @@ internal static class TeachingMixedRectangularSymbolRegistry
                 ["3.3-13", "4.3.7", "5.9"],
                 RectangularSymbolDependencyRecipe.TransparentLatch,
                 RectangularSymbolPortFunctionRecipe.DataLatch,
-                definitionVersion: "3.2.0"),
+                definitionVersion: "3.3.0"),
             NoFunctionStandard(
                 "sequential.dff",
                 ["3.3-13", "4.3.7", "5.9"],
                 RectangularSymbolDependencyRecipe.ClockedData,
                 RectangularSymbolPortFunctionRecipe.DataFlipFlop,
-                definitionVersion: "3.2.0"),
+                definitionVersion: "3.3.0"),
             NoFunctionStandard(
                 "sequential.sr_latch",
                 ["3.3-16", "3.3-17", "5.9"],
@@ -148,35 +148,35 @@ internal static class TeachingMixedRectangularSymbolRegistry
                 ["3.3-13", "4.3.7", "4.3.9", "5.9"],
                 RectangularSymbolDependencyRecipe.ClockedRegister,
                 RectangularSymbolPortFunctionRecipe.Register,
-                definitionVersion: "3.2.0"),
+                definitionVersion: "3.3.0"),
             DynamicStandard(
                 "sequential.shift_register",
                 RectangularSymbolFunctionRecipe.ShiftRegister,
                 ["3.3-13", "4.3.1", "4.3.7", "4.3.9", "4.4.3", "5.13-1"],
                 RectangularSymbolDependencyRecipe.ShiftRegister,
                 RectangularSymbolPortFunctionRecipe.ShiftRegister,
-                definitionVersion: "3.2.0"),
+                definitionVersion: "3.3.0"),
             DynamicStandard(
                 "sequential.counter",
                 RectangularSymbolFunctionRecipe.Counter,
                 ["3.3-13", "3.3-36", "4.3.1", "4.3.7", "4.3.9", "4.4.3", "5.13-1", "5.13-17"],
                 RectangularSymbolDependencyRecipe.Counter,
                 RectangularSymbolPortFunctionRecipe.Counter,
-                definitionVersion: "3.2.0"),
+                definitionVersion: "3.3.0"),
             DynamicStandard(
                 "memory.rom",
                 RectangularSymbolFunctionRecipe.Rom,
                 ["3.3-25", "4.3.11", "4.4.2", "5.14-1"],
                 RectangularSymbolDependencyRecipe.ReadOnlyMemory,
                 RectangularSymbolPortFunctionRecipe.ReadOnlyMemory,
-                definitionVersion: "3.4.0"),
+                definitionVersion: "3.5.0"),
             DynamicStandard(
                 "memory.ram_single_port",
                 RectangularSymbolFunctionRecipe.Ram,
                 ["3.3-13", "3.3-25", "4.3.7", "4.3.9", "4.3.11", "4.4.2", "5.14-1"],
                 RectangularSymbolDependencyRecipe.SinglePortMemory,
                 RectangularSymbolPortFunctionRecipe.SinglePortMemory,
-                definitionVersion: "3.4.0"),
+                definitionVersion: "3.5.0"),
         ],
         StringComparer.Ordinal).ToFrozenDictionary(StringComparer.Ordinal);
 
@@ -225,13 +225,13 @@ internal static class TeachingMixedRectangularSymbolRegistry
             definition,
             parameters,
             ports);
-        var standardClauses = definition.StandardClauses
-            .Concat(inputFunctionQualifiers.Select(qualifier => qualifier.ClauseId))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
         var dependencies = RectangularSymbolDependencyResolver.Resolve(
             definition.DependencyRecipe,
             ports);
+        var standardClauses = RegisteredStandardClauses(definition, dependencies)
+            .Concat(inputFunctionQualifiers.Select(qualifier => qualifier.ClauseId))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
         resolved = new ResolvedRectangularSymbolDefinition(
             definition.DefinitionId,
             definition.DefinitionVersion,
@@ -247,6 +247,24 @@ internal static class TeachingMixedRectangularSymbolRegistry
             inputFunctionQualifiers,
             PortFunctions(definition.PortFunctionRecipe, parameters, ports));
         return true;
+    }
+
+    private static IEnumerable<string> RegisteredStandardClauses(
+        RectangularSymbolDefinition definition,
+        IReadOnlyList<RectangularSymbolDependency> dependencies)
+    {
+        var isMemoryRecipe = definition.DependencyRecipe is
+            RectangularSymbolDependencyRecipe.ReadOnlyMemory
+            or RectangularSymbolDependencyRecipe.SinglePortMemory;
+        if (!isMemoryRecipe
+            || dependencies.Any(dependency =>
+                dependency.Kind == RectangularSymbolDependencyKind.Address))
+        {
+            return definition.StandardClauses;
+        }
+
+        return definition.StandardClauses.Where(clause => clause is not
+            ("3.3-25" or "4.3.11" or "4.4.2"));
     }
 
     private static KeyValuePair<string, RectangularSymbolDefinition> Standard(
@@ -562,8 +580,8 @@ internal static class TeachingMixedRectangularSymbolRegistry
 
             resolved[index] = new RectangularSymbolPortFunction(
                 function.PortId,
-                function.Text,
-                function.IsComplementedOutput);
+                port.Width > 1 ? port.Id : function.Text,
+                function.IsComplementedOutput && port.Width == 1);
         }
 
         return resolved;
