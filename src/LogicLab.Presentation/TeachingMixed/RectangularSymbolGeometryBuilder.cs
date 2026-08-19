@@ -17,6 +17,12 @@ internal sealed record RectangularSymbolPortLabel(
 
 internal sealed record RectangularSymbolActiveLowInputQualifier(string PortId);
 
+internal sealed record RectangularSymbolInputFunctionQualifier(
+    string Id,
+    string PortId,
+    string Text,
+    string ClauseId);
+
 internal sealed record RectangularSymbolDynamicInputQualifier(
     string PortId,
     bool IsFallingEdge);
@@ -34,6 +40,7 @@ internal sealed record RectangularSymbolLayoutRequest(
     SymbolFacingV1 Facing,
     bool IsReflected,
     IndicationConvention IndicationConvention,
+    RectangularSymbolInputFunctionQualifier[] InputFunctionQualifiers,
     RectangularSymbolDynamicInputQualifier[] DynamicInputQualifiers,
     RectangularSymbolActiveLowInputQualifier[] ActiveLowInputQualifiers,
     RectangularSymbolThreeStateOutputQualifier[] ThreeStateOutputQualifiers,
@@ -82,7 +89,10 @@ internal static class RectangularSymbolGeometryBuilder
                     TextAlignmentV1.Center,
                     request.BaseDirection)
             : new RectV1(0, 0, 0, 0);
-        var labels = CreatePortLabels(ports, request.Dependencies);
+        var labels = CreatePortLabels(
+            ports,
+            request.Dependencies,
+            request.InputFunctionQualifiers);
         var labelEnvelopes = labels.ToDictionary(
             pair => pair.Key,
             pair => Measure(
@@ -354,28 +364,55 @@ internal static class RectangularSymbolGeometryBuilder
 
     private static Dictionary<string, RectangularSymbolPortLabel> CreatePortLabels(
         IReadOnlyList<RectangularSymbolPort> ports,
-        RectangularSymbolDependency[] dependencies)
+        RectangularSymbolDependency[] dependencies,
+        RectangularSymbolInputFunctionQualifier[] inputFunctionQualifiers)
     {
         var affectedRelationships = new Dictionary<
             string,
-            List<(RectangularSymbolDependency Dependency, int ApplicationOrder)>>(
+            List<(RectangularSymbolDependency Dependency,
+                RectangularSymbolAffectedEndpoint Endpoint)>>(
+                StringComparer.Ordinal);
+        var affectedInputFunctions = new Dictionary<
+            string,
+            List<(RectangularSymbolDependency Dependency,
+                RectangularSymbolAffectedEndpoint Endpoint)>>(
                 StringComparer.Ordinal);
         foreach (var dependency in dependencies)
         {
             foreach (var endpoint in dependency.AffectedEndpoints)
             {
-                if (!affectedRelationships.TryGetValue(endpoint.PortId, out var relationships))
+                var target = endpoint.InputFunctionQualifierId is null
+                    ? affectedRelationships
+                    : affectedInputFunctions;
+                var targetId = endpoint.InputFunctionQualifierId ?? endpoint.PortId;
+                if (!target.TryGetValue(targetId, out var relationships))
                 {
                     relationships = [];
-                    affectedRelationships.Add(endpoint.PortId, relationships);
+                    target.Add(targetId, relationships);
                 }
 
-                relationships.Add((dependency, endpoint.ApplicationOrder));
+                relationships.Add((dependency, endpoint));
             }
         }
 
         var affectingRelationships = dependencies.ToLookup(
             dependency => dependency.AffectingPortId,
+            StringComparer.Ordinal);
+        var functionQualifierById = inputFunctionQualifiers.ToDictionary(
+            qualifier => qualifier.Id,
+            StringComparer.Ordinal);
+        foreach (var (qualifierId, relationships) in affectedInputFunctions)
+        {
+            if (!functionQualifierById.TryGetValue(qualifierId, out var qualifier)
+                || relationships.Any(relationship =>
+                    relationship.Endpoint.PortId != qualifier.PortId))
+            {
+                throw new LayoutInvalidException(LayoutConstraintV1.Request);
+            }
+        }
+
+        var functionQualifiers = inputFunctionQualifiers.ToLookup(
+            qualifier => qualifier.PortId,
             StringComparer.Ordinal);
         return ports.ToDictionary(
             port => port.Id,
@@ -387,17 +424,27 @@ internal static class RectangularSymbolGeometryBuilder
                     ? string.Empty
                     : string.Join(
                         ',',
-                        affected.OrderBy(relationship => relationship.ApplicationOrder)
+                        affected.OrderBy(relationship =>
+                                relationship.Endpoint.ApplicationOrder)
                             .Select(AffectedNotation));
                 var affectingNotation = AffectingNotation(affecting);
                 var functionLabel = port.DisplayName;
                 var omitFunctionLabel = affecting.Length > 0
                     && affecting.Select(dependency => dependency.Kind).Distinct().Count() == 1
                     && IsDependencyPortLabel(functionLabel, affecting[0].Kind);
-                var text = string.Concat(
+                var primaryFunction = string.Concat(
                     affectedNotation,
                     affectingNotation,
                     omitFunctionLabel ? string.Empty : functionLabel);
+                var text = string.Join(
+                    '/',
+                    new[] { primaryFunction }
+                        .Concat(functionQualifiers[port.Id].Select(qualifier =>
+                            string.Concat(
+                                AffectedNotation(
+                                    affectedInputFunctions.GetValueOrDefault(qualifier.Id)),
+                                qualifier.Text)))
+                        .Where(label => label.Length > 0));
                 return new RectangularSymbolPortLabel(
                     text,
                     affectedNotation.Length > 0
@@ -460,17 +507,34 @@ internal static class RectangularSymbolGeometryBuilder
     };
 
     private static string AffectedNotation(
-        (RectangularSymbolDependency Dependency, int ApplicationOrder) relationship) =>
-        relationship.Dependency.Kind == RectangularSymbolDependencyKind.Address
+        IReadOnlyList<(RectangularSymbolDependency Dependency,
+            RectangularSymbolAffectedEndpoint Endpoint)>? relationships) =>
+        relationships is null
+            ? string.Empty
+            : string.Join(
+                ',',
+                relationships.OrderBy(relationship =>
+                        relationship.Endpoint.ApplicationOrder)
+                    .Select(AffectedNotation));
+
+    private static string AffectedNotation(
+        (RectangularSymbolDependency Dependency,
+            RectangularSymbolAffectedEndpoint Endpoint) relationship)
+    {
+        var notation = relationship.Dependency.Kind == RectangularSymbolDependencyKind.Address
             ? "A"
             : relationship.Dependency.Identifier.ToString(CultureInfo.InvariantCulture);
+        return relationship.Endpoint.IsComplemented
+            ? string.Concat('¬', notation)
+            : notation;
+    }
 
     private static bool IsDependencyPortLabel(
         string functionLabel,
         RectangularSymbolDependencyKind kind) =>
         functionLabel == DependencyLetter(kind)
         || (functionLabel == "CLK" && kind == RectangularSymbolDependencyKind.Control)
-        || (functionLabel == "EN" && kind == RectangularSymbolDependencyKind.And)
+        || (functionLabel == "EN" && kind == RectangularSymbolDependencyKind.Control)
         || (functionLabel == "LOAD" && kind == RectangularSymbolDependencyKind.Mode);
 
     private static CrossAxisLayout RequiredCrossAxisLayout(
