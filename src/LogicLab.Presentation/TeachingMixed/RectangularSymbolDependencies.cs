@@ -17,7 +17,7 @@ internal enum RectangularSymbolDependencyRecipe
     EnableOutputs,
     SelectDataInputs,
     SelectDataOutputs,
-    StorageEnable,
+    TransparentLatch,
     ClockedData,
     ClockedJk,
     ClockedToggle,
@@ -30,7 +30,15 @@ internal enum RectangularSymbolDependencyRecipe
 
 internal readonly record struct RectangularSymbolAffectedEndpoint(
     string PortId,
-    int ApplicationOrder);
+    int ApplicationOrder,
+    string? InputFunctionQualifierId = null,
+    bool IsComplemented = false);
+
+internal static class RectangularSymbolInputFunctionQualifierIds
+{
+    public const string Shift = "shift";
+    public const string Count = "count";
+}
 
 internal sealed record RectangularSymbolDependency(
     RectangularSymbolDependencyKind Kind,
@@ -57,8 +65,8 @@ internal static class RectangularSymbolDependencyResolver
                 ports,
                 PortDirection.Output,
                 "S"),
-            RectangularSymbolDependencyRecipe.StorageEnable =>
-                Single(ports, RectangularSymbolDependencyKind.And, 1, "EN", "D"),
+            RectangularSymbolDependencyRecipe.TransparentLatch =>
+                Single(ports, RectangularSymbolDependencyKind.Control, 1, "EN", "D"),
             RectangularSymbolDependencyRecipe.ClockedData =>
                 Single(ports, RectangularSymbolDependencyKind.Control, 1, "CLK", "D"),
             RectangularSymbolDependencyRecipe.ClockedJk =>
@@ -72,12 +80,14 @@ internal static class RectangularSymbolDependencyResolver
                     RectangularSymbolDependencyKind.Control,
                     1,
                     "CLK",
+                    0,
                     "D"),
                 Dependency(
                     ports,
-                    RectangularSymbolDependencyKind.And,
+                    RectangularSymbolDependencyKind.Enable,
                     2,
                     "EN",
+                    1,
                     "D"),
             ],
             RectangularSymbolDependencyRecipe.ShiftRegister =>
@@ -87,21 +97,38 @@ internal static class RectangularSymbolDependencyResolver
                     RectangularSymbolDependencyKind.Mode,
                     1,
                     "LOAD",
-                    "PARALLEL"),
+                    [
+                        AffectedPort(ports, "PARALLEL", 0),
+                        AffectedPort(ports, "SERIAL", 0, isComplemented: true),
+                        AffectedInputFunction(
+                            ports,
+                            "CLK",
+                            RectangularSymbolInputFunctionQualifierIds.Shift,
+                            0,
+                            isComplemented: true),
+                    ]),
                 Dependency(
                     ports,
                     RectangularSymbolDependencyKind.Control,
                     2,
                     "CLK",
-                    "PARALLEL",
-                    "SERIAL"),
+                    [
+                        AffectedPort(ports, "PARALLEL", 1),
+                        AffectedPort(ports, "SERIAL", 1),
+                    ]),
                 Dependency(
                     ports,
-                    RectangularSymbolDependencyKind.And,
+                    RectangularSymbolDependencyKind.Enable,
                     3,
                     "EN",
-                    "PARALLEL",
-                    "SERIAL"),
+                    [
+                        AffectedPort(ports, "SERIAL", 2),
+                        AffectedInputFunction(
+                            ports,
+                            "CLK",
+                            RectangularSymbolInputFunctionQualifierIds.Shift,
+                            1),
+                    ]),
             ],
             RectangularSymbolDependencyRecipe.Counter =>
             [
@@ -110,19 +137,34 @@ internal static class RectangularSymbolDependencyResolver
                     RectangularSymbolDependencyKind.Mode,
                     1,
                     "LOAD",
-                    "LOAD_VALUE"),
+                    [
+                        AffectedPort(ports, "LOAD_VALUE", 0),
+                        AffectedInputFunction(
+                            ports,
+                            "CLK",
+                            RectangularSymbolInputFunctionQualifierIds.Count,
+                            0,
+                            isComplemented: true),
+                    ]),
                 Dependency(
                     ports,
                     RectangularSymbolDependencyKind.Control,
                     2,
                     "CLK",
+                    1,
                     "LOAD_VALUE"),
                 Dependency(
                     ports,
-                    RectangularSymbolDependencyKind.And,
+                    RectangularSymbolDependencyKind.Enable,
                     3,
                     "EN",
-                    "LOAD_VALUE"),
+                    [
+                        AffectedInputFunction(
+                            ports,
+                            "CLK",
+                            RectangularSymbolInputFunctionQualifierIds.Count,
+                            1),
+                    ]),
             ],
             RectangularSymbolDependencyRecipe.ReadOnlyMemory =>
                 Single(ports, RectangularSymbolDependencyKind.Address, 1, "A", "Q"),
@@ -133,20 +175,25 @@ internal static class RectangularSymbolDependencyResolver
                     RectangularSymbolDependencyKind.Address,
                     1,
                     "A",
-                    "D",
-                    "Q"),
+                    [
+                        AffectedPort(ports, "D", 0),
+                        AffectedPort(ports, "Q", 0),
+                    ]),
                 Dependency(
                     ports,
                     RectangularSymbolDependencyKind.Control,
                     2,
                     "CLK",
-                    "D",
-                    "WE"),
+                    [
+                        AffectedPort(ports, "D", 1),
+                        AffectedPort(ports, "WE", 0),
+                    ]),
                 Dependency(
                     ports,
-                    RectangularSymbolDependencyKind.And,
+                    RectangularSymbolDependencyKind.Enable,
                     3,
                     "WE",
+                    2,
                     "D"),
             ],
             _ => throw new ArgumentOutOfRangeException(nameof(recipe)),
@@ -161,7 +208,7 @@ internal static class RectangularSymbolDependencyResolver
         string affectingPortId,
         params string[] affectedPortIds) =>
     [
-        Dependency(ports, kind, identifier, affectingPortId, affectedPortIds),
+        Dependency(ports, kind, identifier, affectingPortId, 0, affectedPortIds),
     ];
 
     private static RectangularSymbolDependency Dependency(
@@ -169,21 +216,58 @@ internal static class RectangularSymbolDependencyResolver
         RectangularSymbolDependencyKind kind,
         uint identifier,
         string affectingPortId,
+        int applicationOrder,
         params string[] affectedPortIds)
     {
-        _ = ports.Single(port => port.Id == affectingPortId);
         var affectedEndpoints = affectedPortIds
-            .Select((portId, index) =>
-            {
-                _ = ports.Single(port => port.Id == portId);
-                return new RectangularSymbolAffectedEndpoint(portId, index);
-            })
+            .Select(portId => AffectedPort(ports, portId, applicationOrder))
             .ToArray();
+        return Dependency(ports, kind, identifier, affectingPortId, affectedEndpoints);
+    }
+
+    private static RectangularSymbolDependency Dependency(
+        IReadOnlyList<ResolvedComponentPortSchema> ports,
+        RectangularSymbolDependencyKind kind,
+        uint identifier,
+        string affectingPortId,
+        RectangularSymbolAffectedEndpoint[] affectedEndpoints)
+    {
+        _ = ports.Single(port => port.Id == affectingPortId);
         return new RectangularSymbolDependency(
             kind,
             identifier,
             affectingPortId,
             affectedEndpoints);
+    }
+
+    private static RectangularSymbolAffectedEndpoint AffectedPort(
+        IReadOnlyList<ResolvedComponentPortSchema> ports,
+        string portId,
+        int applicationOrder,
+        bool isComplemented = false)
+    {
+        _ = ports.Single(port => port.Id == portId);
+        return new RectangularSymbolAffectedEndpoint(
+            portId,
+            applicationOrder,
+            InputFunctionQualifierId: null,
+            IsComplemented: isComplemented);
+    }
+
+    private static RectangularSymbolAffectedEndpoint AffectedInputFunction(
+        IReadOnlyList<ResolvedComponentPortSchema> ports,
+        string portId,
+        string inputFunctionQualifierId,
+        int applicationOrder,
+        bool isComplemented = false)
+    {
+        _ = ports.Single(port =>
+            port.Id == portId && port.Direction == PortDirection.Input);
+        return new RectangularSymbolAffectedEndpoint(
+            portId,
+            applicationOrder,
+            inputFunctionQualifierId,
+            isComplemented);
     }
 
     private static RectangularSymbolDependency[] EnableOutputs(

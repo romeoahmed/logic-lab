@@ -80,6 +80,8 @@ internal static class PresentationGeometryArbitraries
         "logic.adder",
         "logic.subtractor",
         "logic.shift",
+        "sequential.shift_register",
+        "sequential.counter",
     ];
 
     private static readonly string[] AnnotationLines =

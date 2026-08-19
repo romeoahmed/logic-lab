@@ -726,30 +726,40 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     }
 
     [Test]
-    [Arguments("sequential.d_latch", "1D|G1")]
-    [Arguments("sequential.dff", "1D|C1")]
-    [Arguments("sequential.jkff", "1J|1K|C1")]
-    [Arguments("sequential.tff", "1T|C1")]
-    [Arguments("memory.rom", "A1|AQ")]
-    public async Task Plan_Item25DependencyRecipe_UsesDeterministicStandardLabels(
+    [Arguments("sequential.d_latch", "1D|C1", "3.3-13|4.3.7|5.9")]
+    [Arguments("sequential.dff", "1D|C1", "3.3-13|4.3.7|5.9|3.1-9")]
+    [Arguments("sequential.jkff", "1J|1K|C1", "3.3-14|3.3-15|4.3.7|5.9|3.1-9")]
+    [Arguments("sequential.tff", "1T|C1", "3.3-18|4.3.7|5.9|3.1-9")]
+    [Arguments("sequential.register", "1,2D|C1|EN2", "3.3-13|4.3.7|4.3.9|5.9|3.1-9")]
+    [Arguments("sequential.shift_register", "1,2PARALLEL|¬1,2,3SERIAL|M1|C2/¬1,3→|EN3", "3.3-19|4.3.1|4.3.7|4.3.9|4.4.3|5.13-1|3.1-9")]
+    [Arguments("sequential.counter", "1,2LOAD_VALUE|M1|C2/¬1,3+|EN3", "3.3-21|4.3.1|4.3.7|4.3.9|4.4.3|5.13-1|3.1-9")]
+    [Arguments("memory.rom", "A1|AQ", "4.3.11|5.14-1")]
+    [Arguments("memory.ram_single_port", "A1|A,2,3D|2EN3WE|C2|AQ", "4.3.7|4.3.9|4.3.11|5.14-1|3.1-9")]
+    public async Task Plan_Item25DependencyRecipe_UsesStandardLabelsAndEvidence(
         string contractId,
-        string expectedLabels)
+        string expectedLabels,
+        string expectedClauses)
     {
         var plan = Plan(Request(contractId));
+        var reference = plan.Conformance.StandardReferences.Single();
 
-        await Assert.That(plan.Operations.OfType<DrawTextV1>()
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Operations.OfType<DrawTextV1>()
                 .Where(operation => operation.FontRole == FontRoleV1.Dependency)
                 .Select(operation => operation.Text))
-            .IsEquivalentTo(
-                expectedLabels.Split('|'),
-                CollectionOrdering.Matching);
+                .IsEquivalentTo(
+                    expectedLabels.Split('|'),
+                    CollectionOrdering.Matching);
+            await Assert.That(reference.ClauseIds)
+                .IsEquivalentTo(expectedClauses.Split('|'));
+        }
     }
 
     [Test]
     [Arguments("source.clock", "G")]
-    [Arguments("sequential.register", "REG1")]
-    [Arguments("sequential.shift_register", "SRG1→")]
-    [Arguments("sequential.counter", "CTR1+")]
+    [Arguments("sequential.shift_register", "SRG1")]
+    [Arguments("sequential.counter", "CTR1")]
     [Arguments("memory.rom", "ROM 2 × 1")]
     [Arguments("memory.ram_single_port", "RAM 2 × 1")]
     public async Task Plan_Item25FunctionRecipe_UsesStructuredParameters(
@@ -765,11 +775,67 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     }
 
     [Test]
+    [Arguments("sequential.shift_register", "towardHigh", "SRG1", "C2/¬1,3→", "3.3-19", "3.3-20")]
+    [Arguments("sequential.shift_register", "towardLow", "SRG1", "C2/¬1,3←", "3.3-20", "3.3-19")]
+    [Arguments("sequential.counter", "up", "CTR1", "C2/¬1,3+", "3.3-21", "3.3-22")]
+    [Arguments("sequential.counter", "down", "CTR1", "C2/¬1,3−", "3.3-22", "3.3-21")]
+    public async Task Plan_ShiftOrCountDirection_BindsQualifierAcrossFacingAndReflection(
+        string contractId,
+        string direction,
+        string expectedFunction,
+        string expectedClockLabel,
+        string expectedClause,
+        string excludedClause)
+    {
+        var parameters = Parameters(contractId)
+            .Select(parameter => parameter.ParameterId == "direction"
+                ? Choice("direction", direction)
+                : parameter)
+            .ToArray();
+        var template = RequestWithParameters(contractId, parameters);
+
+        foreach (var facing in Enum.GetValues<SymbolFacingV1>())
+        {
+            foreach (var isReflected in new[] { false, true })
+            {
+                var plan = Plan(new ComponentSymbolRequestV1(
+                    template.Contract,
+                    template.Parameters,
+                    template.Profile,
+                    template.SymbolVariantId,
+                    facing,
+                    isReflected,
+                    template.MetricSet,
+                    template.FontFingerprint,
+                    template.LocaleId,
+                    template.BaseDirection));
+                var clauses = plan.Conformance.StandardReferences.Single().ClauseIds;
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
+                            operation.FontRole == FontRoleV1.Symbol
+                            && operation.Text == expectedFunction))
+                        .IsTrue();
+                    await Assert.That(plan.Operations.OfType<DrawTextV1>())
+                        .HasSingleItem(operation =>
+                            operation.FontRole == FontRoleV1.Dependency
+                            && operation.Text == expectedClockLabel
+                            && operation.Orientation == TextOrientationV1.UprightReading);
+                    await Assert.That(clauses).Contains(expectedClause);
+                    await Assert.That(clauses).DoesNotContain(excludedClause);
+                }
+            }
+        }
+    }
+
+    [Test]
     [Arguments("sequential.d_latch")]
     [Arguments("sequential.dff")]
     [Arguments("sequential.sr_latch")]
     [Arguments("sequential.jkff")]
     [Arguments("sequential.tff")]
+    [Arguments("sequential.register")]
     public async Task Plan_BistableFunction_UsesPortQualifiersWithoutUniversalBodyMark(
         string contractId)
     {

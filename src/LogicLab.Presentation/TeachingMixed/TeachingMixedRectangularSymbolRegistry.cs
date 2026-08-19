@@ -14,7 +14,6 @@ internal enum RectangularSymbolFunctionRecipe
     BinaryDecoder,
     PriorityEncoder,
     Shift,
-    Register,
     ShiftRegister,
     Counter,
     Rom,
@@ -42,7 +41,8 @@ internal sealed record ResolvedRectangularSymbolDefinition(
     ConformanceClaimV1 Claim,
     string[] StandardClauses,
     ConformanceDeviationV1[] Deviations,
-    RectangularSymbolDependency[] Dependencies);
+    RectangularSymbolDependency[] Dependencies,
+    RectangularSymbolInputFunctionQualifier[] InputFunctionQualifiers);
 
 internal static class TeachingMixedRectangularSymbolRegistry
 {
@@ -92,8 +92,9 @@ internal static class TeachingMixedRectangularSymbolRegistry
             Standard("source.clock", "G", ["5.12-1"]),
             NoFunctionStandard(
                 "sequential.d_latch",
-                ["3.3-13", "4.3.2", "5.9"],
-                RectangularSymbolDependencyRecipe.StorageEnable),
+                ["3.3-13", "4.3.7", "5.9"],
+                RectangularSymbolDependencyRecipe.TransparentLatch,
+                definitionVersion: "3.1.0"),
             NoFunctionStandard(
                 "sequential.dff",
                 ["3.3-13", "4.3.7", "5.9"],
@@ -109,21 +110,23 @@ internal static class TeachingMixedRectangularSymbolRegistry
                 "sequential.tff",
                 ["3.3-18", "4.3.7", "5.9"],
                 RectangularSymbolDependencyRecipe.ClockedToggle),
-            DynamicStandard(
+            NoFunctionStandard(
                 "sequential.register",
-                RectangularSymbolFunctionRecipe.Register,
-                ["3.3-13", "4.3.7", "5.13-1"],
-                RectangularSymbolDependencyRecipe.ClockedRegister),
+                ["3.3-13", "4.3.7", "4.3.9", "5.9"],
+                RectangularSymbolDependencyRecipe.ClockedRegister,
+                definitionVersion: "3.1.0"),
             DynamicStandard(
                 "sequential.shift_register",
                 RectangularSymbolFunctionRecipe.ShiftRegister,
-                ["3.3-19", "3.3-20", "4.3.7", "5.13-1"],
-                RectangularSymbolDependencyRecipe.ShiftRegister),
+                ["4.3.1", "4.3.7", "4.3.9", "4.4.3", "5.13-1"],
+                RectangularSymbolDependencyRecipe.ShiftRegister,
+                definitionVersion: "3.1.0"),
             DynamicStandard(
                 "sequential.counter",
                 RectangularSymbolFunctionRecipe.Counter,
-                ["3.3-21", "3.3-22", "4.3.7", "5.13-1"],
-                RectangularSymbolDependencyRecipe.Counter),
+                ["4.3.1", "4.3.7", "4.3.9", "4.4.3", "5.13-1"],
+                RectangularSymbolDependencyRecipe.Counter,
+                definitionVersion: "3.1.0"),
             DynamicStandard(
                 "memory.rom",
                 RectangularSymbolFunctionRecipe.Rom,
@@ -132,8 +135,9 @@ internal static class TeachingMixedRectangularSymbolRegistry
             DynamicStandard(
                 "memory.ram_single_port",
                 RectangularSymbolFunctionRecipe.Ram,
-                ["4.3.7", "4.3.11", "5.14-1"],
-                RectangularSymbolDependencyRecipe.SinglePortMemory),
+                ["4.3.7", "4.3.9", "4.3.11", "5.14-1"],
+                RectangularSymbolDependencyRecipe.SinglePortMemory,
+                definitionVersion: "3.1.0"),
         ],
         StringComparer.Ordinal).ToFrozenDictionary(StringComparer.Ordinal);
 
@@ -178,6 +182,14 @@ internal static class TeachingMixedRectangularSymbolRegistry
             }
         }
 
+        var inputFunctionQualifiers = InputFunctionQualifiers(
+            definition,
+            parameters,
+            ports);
+        var standardClauses = definition.StandardClauses
+            .Concat(inputFunctionQualifiers.Select(qualifier => qualifier.ClauseId))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
         resolved = new ResolvedRectangularSymbolDefinition(
             definition.DefinitionId,
             definition.DefinitionVersion,
@@ -186,11 +198,12 @@ internal static class TeachingMixedRectangularSymbolRegistry
             functionText,
             functionFontRole,
             definition.Claim,
-            definition.StandardClauses,
+            standardClauses,
             [.. deviations],
             RectangularSymbolDependencyResolver.Resolve(
                 definition.DependencyRecipe,
-                ports));
+                ports),
+            inputFunctionQualifiers);
         return true;
     }
 
@@ -222,28 +235,32 @@ internal static class TeachingMixedRectangularSymbolRegistry
         string contractId,
         string[] clauses,
         RectangularSymbolDependencyRecipe dependencyRecipe =
-            RectangularSymbolDependencyRecipe.None) => Definition(
+            RectangularSymbolDependencyRecipe.None,
+        string definitionVersion = "3.0.0") => Definition(
             contractId,
             RectangularSymbolFunctionRecipe.None,
             literalFunctionText: null,
             ConformanceClaimV1.Standardized91A,
             clauses,
             functionDeviationCode: null,
-            dependencyRecipe);
+            dependencyRecipe,
+            definitionVersion);
 
     private static KeyValuePair<string, RectangularSymbolDefinition> DynamicStandard(
         string contractId,
         RectangularSymbolFunctionRecipe functionRecipe,
         string[] clauses,
         RectangularSymbolDependencyRecipe dependencyRecipe =
-            RectangularSymbolDependencyRecipe.None) => Definition(
+            RectangularSymbolDependencyRecipe.None,
+        string definitionVersion = "3.0.0") => Definition(
             contractId,
             functionRecipe,
             literalFunctionText: null,
             ConformanceClaimV1.Standardized91A,
             clauses,
             functionDeviationCode: null,
-            dependencyRecipe);
+            dependencyRecipe,
+            definitionVersion);
 
     private static KeyValuePair<string, RectangularSymbolDefinition> Extension(
         string contractId,
@@ -276,11 +293,12 @@ internal static class TeachingMixedRectangularSymbolRegistry
         ConformanceClaimV1 claim,
         string[] clauses,
         string? functionDeviationCode,
-        RectangularSymbolDependencyRecipe dependencyRecipe) => KeyValuePair.Create(
+        RectangularSymbolDependencyRecipe dependencyRecipe,
+        string definitionVersion = "3.0.0") => KeyValuePair.Create(
             contractId,
             new RectangularSymbolDefinition(
                 $"logiclab.teachingmixed.{contractId}",
-                "3.0.0",
+                definitionVersion,
                 $"presentation.symbol.{contractId}",
                 functionRecipe,
                 literalFunctionText,
@@ -309,22 +327,61 @@ internal static class TeachingMixedRectangularSymbolRegistry
                     : "[LPRI/BIN]",
             RectangularSymbolFunctionRecipe.Shift =>
                 Choice(parameters, "direction") == "left" ? "[SHL]" : "[SHR]",
-            RectangularSymbolFunctionRecipe.Register => string.Concat(
-                "REG",
-                U32(parameters, "width").ToString(CultureInfo.InvariantCulture)),
             RectangularSymbolFunctionRecipe.ShiftRegister => string.Concat(
                 "SRG",
-                U32(parameters, "width").ToString(CultureInfo.InvariantCulture),
-                Choice(parameters, "direction") == "towardHigh" ? "→" : "←"),
+                U32(parameters, "width").ToString(CultureInfo.InvariantCulture)),
             RectangularSymbolFunctionRecipe.Counter => string.Concat(
                 "CTR",
-                U32(parameters, "width").ToString(CultureInfo.InvariantCulture),
-                Choice(parameters, "direction") == "up" ? "+" : "−"),
+                U32(parameters, "width").ToString(CultureInfo.InvariantCulture)),
             RectangularSymbolFunctionRecipe.Rom => MemoryFunction("ROM", parameters),
             RectangularSymbolFunctionRecipe.Ram => MemoryFunction("RAM", parameters),
             _ => throw new InvalidOperationException(
                 "The rectangular function recipe is undefined."),
         };
+
+    private static RectangularSymbolInputFunctionQualifier[] InputFunctionQualifiers(
+        RectangularSymbolDefinition definition,
+        IReadOnlyList<ComponentParameterBinding> parameters,
+        IReadOnlyList<ResolvedComponentPortSchema> ports) =>
+        definition.FunctionRecipe switch
+        {
+            RectangularSymbolFunctionRecipe.ShiftRegister => ClockInputFunctionQualifier(
+                ports,
+                RectangularSymbolInputFunctionQualifierIds.Shift,
+                Choice(parameters, "direction") switch
+                {
+                    "towardHigh" => (Text: "→", ClauseId: "3.3-19"),
+                    "towardLow" => (Text: "←", ClauseId: "3.3-20"),
+                    _ => throw new LayoutInvalidException(LayoutConstraintV1.ParameterKind),
+                }),
+            RectangularSymbolFunctionRecipe.Counter => ClockInputFunctionQualifier(
+                ports,
+                RectangularSymbolInputFunctionQualifierIds.Count,
+                Choice(parameters, "direction") switch
+                {
+                    "up" => (Text: "+", ClauseId: "3.3-21"),
+                    "down" => (Text: "−", ClauseId: "3.3-22"),
+                    _ => throw new LayoutInvalidException(LayoutConstraintV1.ParameterKind),
+                }),
+            _ => [],
+        };
+
+    private static RectangularSymbolInputFunctionQualifier[] ClockInputFunctionQualifier(
+        IReadOnlyList<ResolvedComponentPortSchema> ports,
+        string id,
+        (string Text, string ClauseId) qualifier)
+    {
+        var clock = ports.Single(port =>
+            port.Id == "CLK" && port.Direction == PortDirection.Input);
+        return
+        [
+            new RectangularSymbolInputFunctionQualifier(
+                id,
+                clock.Id,
+                qualifier.Text,
+                qualifier.ClauseId),
+        ];
+    }
 
     private static string MemoryFunction(
         string function,
