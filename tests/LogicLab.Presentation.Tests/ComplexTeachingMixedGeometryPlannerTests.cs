@@ -668,6 +668,23 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     }
 
     [Test]
+    public async Task Plan_AstableClock_HidesContractOutputId()
+    {
+        var plan = Plan(Request("source.clock"));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
+                    operation.Text == "Q"))
+                .IsFalse();
+            await Assert.That(plan.Conformance.Claim)
+                .IsEqualTo(ConformanceClaimV1.Standardized91A);
+            await Assert.That(plan.Conformance.StandardReferences.Single().ClauseIds)
+                .Contains("5.12-1");
+        }
+    }
+
+    [Test]
     public async Task Plan_RisingEdgeDff_DrawsDynamicClockQualifierAndCitesItsClause()
     {
         var plan = Plan(Request("sequential.dff"));
@@ -733,8 +750,8 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     [Arguments("sequential.register", "1,2D|C1|EN2", "3.3-13|4.3.7|4.3.9|5.9|3.1-9", "Q")]
     [Arguments("sequential.shift_register", "1,2D|¬1,2,3D|M1|C2/¬1,3→|EN3", "3.3-13|3.3-19|4.3.1|4.3.7|4.3.9|4.4.3|5.13-1|3.1-9", "PARALLEL|SERIAL|Q|SERIAL_OUT")]
     [Arguments("sequential.counter", "1,2D|M1|C2/¬1,3+|EN3", "3.3-13|3.3-21|3.3-36|4.3.1|4.3.7|4.3.9|4.4.3|5.13-1|5.13-17|3.1-9", "LOAD_VALUE|Q|TERMINAL")]
-    [Arguments("memory.rom", "A1|A", "4.3.11|5.14-1", "Q")]
-    [Arguments("memory.ram_single_port", "A1|A,2,3D|2EN3|C2|A", "3.3-13|4.3.7|4.3.9|4.3.11|5.14-1|3.1-9", "WE|Q")]
+    [Arguments("memory.rom", "A0/1|A", "3.3-25|4.3.11|4.4.2|5.14-1", "Q")]
+    [Arguments("memory.ram_single_port", "A0/1|A,2,3D|2EN3|C2|A", "3.3-13|3.3-25|4.3.7|4.3.9|4.3.11|4.4.2|5.14-1|3.1-9", "WE|Q")]
     public async Task Plan_Item25Recipes_UseStandardPortFunctionsAndEvidence(
         string contractId,
         string expectedLabels,
@@ -749,6 +766,8 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
 
         using (Assert.Multiple())
         {
+            await Assert.That(plan.Conformance.Claim)
+                .IsEqualTo(ConformanceClaimV1.Standardized91A);
             await Assert.That(plan.Operations.OfType<DrawTextV1>()
                 .Where(operation => operation.FontRole == FontRoleV1.Dependency)
                 .Select(operation => operation.Text))
@@ -922,6 +941,9 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
         {
             await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
                     operation.Text == "ROM 8 × 4"))
+                .IsTrue();
+            await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
+                    operation.Text == "A0/7"))
                 .IsTrue();
             await Assert.That(plan.Conformance.Claim)
                 .IsEqualTo(ConformanceClaimV1.TeachingExtension);

@@ -23,6 +23,7 @@ internal enum RectangularSymbolFunctionRecipe
 internal enum RectangularSymbolPortFunctionRecipe
 {
     ContractPortIds,
+    Astable,
     DataLatch,
     DataFlipFlop,
     SrLatch,
@@ -106,7 +107,12 @@ internal static class TeachingMixedRectangularSymbolRegistry
             DynamicExtension(
                 "logic.shift",
                 RectangularSymbolFunctionRecipe.Shift),
-            Standard("source.clock", "G", ["5.12-1"]),
+            Standard(
+                "source.clock",
+                "G",
+                ["5.12-1"],
+                portFunctionRecipe: RectangularSymbolPortFunctionRecipe.Astable,
+                definitionVersion: "3.3.0"),
             NoFunctionStandard(
                 "sequential.d_latch",
                 ["3.3-13", "4.3.7", "5.9"],
@@ -159,17 +165,17 @@ internal static class TeachingMixedRectangularSymbolRegistry
             DynamicStandard(
                 "memory.rom",
                 RectangularSymbolFunctionRecipe.Rom,
-                ["4.3.11", "5.14-1"],
+                ["3.3-25", "4.3.11", "4.4.2", "5.14-1"],
                 RectangularSymbolDependencyRecipe.ReadOnlyMemory,
                 RectangularSymbolPortFunctionRecipe.ReadOnlyMemory,
-                definitionVersion: "3.2.0"),
+                definitionVersion: "3.3.0"),
             DynamicStandard(
                 "memory.ram_single_port",
                 RectangularSymbolFunctionRecipe.Ram,
-                ["3.3-13", "4.3.7", "4.3.9", "4.3.11", "5.14-1"],
+                ["3.3-13", "3.3-25", "4.3.7", "4.3.9", "4.3.11", "4.4.2", "5.14-1"],
                 RectangularSymbolDependencyRecipe.SinglePortMemory,
                 RectangularSymbolPortFunctionRecipe.SinglePortMemory,
-                definitionVersion: "3.2.0"),
+                definitionVersion: "3.3.0"),
         ],
         StringComparer.Ordinal).ToFrozenDictionary(StringComparer.Ordinal);
 
@@ -441,6 +447,9 @@ internal static class TeachingMixedRectangularSymbolRegistry
             [
                 .. ports.Select(port => new RectangularSymbolPortFunction(port.Id, port.Id)),
             ],
+            RectangularSymbolPortFunctionRecipe.Astable => CompletePortFunctions(
+                ports,
+                ("Q", null, false)),
             RectangularSymbolPortFunctionRecipe.DataLatch => CompletePortFunctions(
                 ports,
                 ("D", "D", false),

@@ -1,4 +1,5 @@
 using LogicLab.Domain.Components;
+using LogicLab.Presentation.Geometry;
 
 namespace LogicLab.Presentation.TeachingMixed;
 
@@ -40,9 +41,33 @@ internal static class RectangularSymbolInputFunctionQualifierIds
     public const string Count = "count";
 }
 
+internal readonly record struct RectangularSymbolDependencyIdentifierRange
+{
+    public RectangularSymbolDependencyIdentifierRange(uint first, uint last)
+    {
+        if (last < first)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(last),
+                last,
+                "A dependency identifier range cannot be descending.");
+        }
+
+        First = first;
+        Last = last;
+    }
+
+    public uint First { get; }
+
+    public uint Last { get; }
+
+    public static RectangularSymbolDependencyIdentifierRange Single(uint identifier) =>
+        new(identifier, identifier);
+}
+
 internal sealed record RectangularSymbolDependency(
     RectangularSymbolDependencyKind Kind,
-    uint Identifier,
+    RectangularSymbolDependencyIdentifierRange IdentifierRange,
     string AffectingPortId,
     RectangularSymbolAffectedEndpoint[] AffectedEndpoints);
 
@@ -167,14 +192,15 @@ internal static class RectangularSymbolDependencyResolver
                     ]),
             ],
             RectangularSymbolDependencyRecipe.ReadOnlyMemory =>
-                Single(ports, RectangularSymbolDependencyKind.Address, 1, "A", "Q"),
+            [
+                AddressDependency(
+                    ports,
+                    [AffectedPort(ports, "Q", 0)]),
+            ],
             RectangularSymbolDependencyRecipe.SinglePortMemory =>
             [
-                Dependency(
+                AddressDependency(
                     ports,
-                    RectangularSymbolDependencyKind.Address,
-                    1,
-                    "A",
                     [
                         AffectedPort(ports, "D", 0),
                         AffectedPort(ports, "Q", 0),
@@ -235,8 +261,28 @@ internal static class RectangularSymbolDependencyResolver
         _ = ports.Single(port => port.Id == affectingPortId);
         return new RectangularSymbolDependency(
             kind,
-            identifier,
+            RectangularSymbolDependencyIdentifierRange.Single(identifier),
             affectingPortId,
+            affectedEndpoints);
+    }
+
+    private static RectangularSymbolDependency AddressDependency(
+        IReadOnlyList<ResolvedComponentPortSchema> ports,
+        RectangularSymbolAffectedEndpoint[] affectedEndpoints)
+    {
+        var address = ports.Single(port =>
+            port.Id == "A" && port.Direction == PortDirection.Input);
+        var lastIdentifier = address.Width switch
+        {
+            0 => throw new LayoutInvalidException(LayoutConstraintV1.ParameterKind),
+            < 32 => checked((1U << checked((int)address.Width)) - 1U),
+            32 => uint.MaxValue,
+            _ => throw new LayoutInvalidException(LayoutConstraintV1.ParameterKind),
+        };
+        return new RectangularSymbolDependency(
+            RectangularSymbolDependencyKind.Address,
+            new RectangularSymbolDependencyIdentifierRange(0, lastIdentifier),
+            address.Id,
             affectedEndpoints);
     }
 
@@ -281,7 +327,7 @@ internal static class RectangularSymbolDependencyResolver
         [
             new RectangularSymbolDependency(
                 RectangularSymbolDependencyKind.Enable,
-                1,
+                RectangularSymbolDependencyIdentifierRange.Single(1),
                 "EN",
                 affected),
         ];
@@ -300,7 +346,7 @@ internal static class RectangularSymbolDependencyResolver
         {
             dependencies[index] = new RectangularSymbolDependency(
                 RectangularSymbolDependencyKind.And,
-                checked((uint)index),
+                RectangularSymbolDependencyIdentifierRange.Single(checked((uint)index)),
                 selectorPortId,
                 [new RectangularSymbolAffectedEndpoint(affected[index].Id, 0)]);
         }

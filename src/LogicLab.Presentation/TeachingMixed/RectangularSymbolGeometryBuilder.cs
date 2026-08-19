@@ -532,36 +532,50 @@ internal static class RectangularSymbolGeometryBuilder
     private static string FormatAffectingGroup(
         IGrouping<RectangularSymbolDependencyKind, RectangularSymbolDependency> group)
     {
-        var identifiers = group.Select(dependency => dependency.Identifier)
-            .Order()
+        var ranges = group.Select(dependency => dependency.IdentifierRange)
+            .OrderBy(range => range.First)
+            .ThenBy(range => range.Last)
             .ToArray();
-        if (identifiers.Length == 1)
+        if (ranges.Length == 1)
         {
-            return DependencyLabel(group.Key, identifiers[0]);
+            return DependencyLabel(group.Key, ranges[0]);
         }
 
-        for (var index = 1; index < identifiers.Length; index++)
+        var lastIdentifier = ranges[0].Last;
+        for (var index = 1; index < ranges.Length; index++)
         {
-            if (identifiers[index] != checked(identifiers[index - 1] + 1))
+            if (lastIdentifier == uint.MaxValue
+                || ranges[index].First != lastIdentifier + 1)
             {
                 return string.Join(
                     ',',
-                    identifiers.Select(identifier => DependencyLabel(group.Key, identifier)));
+                    ranges.Select(range => DependencyLabel(group.Key, range)));
             }
+
+            lastIdentifier = ranges[index].Last;
         }
 
-        return string.Concat(
-            DependencyLetter(group.Key),
-            identifiers[0].ToString(CultureInfo.InvariantCulture),
-            '/',
-            identifiers[^1].ToString(CultureInfo.InvariantCulture));
+        return DependencyLabel(
+            group.Key,
+            new RectangularSymbolDependencyIdentifierRange(
+                ranges[0].First,
+                lastIdentifier));
     }
 
     private static string DependencyLabel(
         RectangularSymbolDependencyKind kind,
-        uint identifier) => string.Concat(
+        RectangularSymbolDependencyIdentifierRange range)
+    {
+        var label = string.Concat(
             DependencyLetter(kind),
-            identifier.ToString(CultureInfo.InvariantCulture));
+            range.First.ToString(CultureInfo.InvariantCulture));
+        return range.First == range.Last
+            ? label
+            : string.Concat(
+                label,
+                '/',
+                range.Last.ToString(CultureInfo.InvariantCulture));
+    }
 
     private static string DependencyLetter(RectangularSymbolDependencyKind kind) => kind switch
     {
@@ -590,7 +604,8 @@ internal static class RectangularSymbolGeometryBuilder
     {
         var notation = relationship.Dependency.Kind == RectangularSymbolDependencyKind.Address
             ? "A"
-            : relationship.Dependency.Identifier.ToString(CultureInfo.InvariantCulture);
+            : relationship.Dependency.IdentifierRange.First.ToString(
+                CultureInfo.InvariantCulture);
         return relationship.Endpoint.IsComplemented
             ? string.Concat('¬', notation)
             : notation;
