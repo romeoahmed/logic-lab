@@ -726,22 +726,26 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
     }
 
     [Test]
-    [Arguments("sequential.d_latch", "1D|C1", "3.3-13|4.3.7|5.9")]
-    [Arguments("sequential.dff", "1D|C1", "3.3-13|4.3.7|5.9|3.1-9")]
-    [Arguments("sequential.jkff", "1J|1K|C1", "3.3-14|3.3-15|4.3.7|5.9|3.1-9")]
-    [Arguments("sequential.tff", "1T|C1", "3.3-18|4.3.7|5.9|3.1-9")]
-    [Arguments("sequential.register", "1,2D|C1|EN2", "3.3-13|4.3.7|4.3.9|5.9|3.1-9")]
-    [Arguments("sequential.shift_register", "1,2PARALLEL|¬1,2,3SERIAL|M1|C2/¬1,3→|EN3", "3.3-19|4.3.1|4.3.7|4.3.9|4.4.3|5.13-1|3.1-9")]
-    [Arguments("sequential.counter", "1,2LOAD_VALUE|M1|C2/¬1,3+|EN3", "3.3-21|4.3.1|4.3.7|4.3.9|4.4.3|5.13-1|3.1-9")]
-    [Arguments("memory.rom", "A1|AQ", "4.3.11|5.14-1")]
-    [Arguments("memory.ram_single_port", "A1|A,2,3D|2EN3WE|C2|AQ", "4.3.7|4.3.9|4.3.11|5.14-1|3.1-9")]
-    public async Task Plan_Item25DependencyRecipe_UsesStandardLabelsAndEvidence(
+    [Arguments("sequential.d_latch", "1D|C1", "3.3-13|4.3.7|5.9", "Q")]
+    [Arguments("sequential.dff", "1D|C1", "3.3-13|4.3.7|5.9|3.1-9", "Q")]
+    [Arguments("sequential.jkff", "1J|1K|C1", "3.3-14|3.3-15|4.3.7|5.9|3.1-9|3.1.1|3.1-2", "Q|QN")]
+    [Arguments("sequential.tff", "1T|C1", "3.3-18|4.3.7|5.9|3.1-9|3.1.1|3.1-2", "Q|QN")]
+    [Arguments("sequential.register", "1,2D|C1|EN2", "3.3-13|4.3.7|4.3.9|5.9|3.1-9", "Q")]
+    [Arguments("sequential.shift_register", "1,2D|¬1,2,3D|M1|C2/¬1,3→|EN3", "3.3-13|3.3-19|4.3.1|4.3.7|4.3.9|4.4.3|5.13-1|3.1-9", "PARALLEL|SERIAL|Q|SERIAL_OUT")]
+    [Arguments("sequential.counter", "1,2D|M1|C2/¬1,3+|EN3", "3.3-13|3.3-21|3.3-36|4.3.1|4.3.7|4.3.9|4.4.3|5.13-1|5.13-17|3.1-9", "LOAD_VALUE|Q|TERMINAL")]
+    [Arguments("memory.rom", "A1|A", "4.3.11|5.14-1", "Q")]
+    [Arguments("memory.ram_single_port", "A1|A,2,3D|2EN3|C2|A", "3.3-13|4.3.7|4.3.9|4.3.11|5.14-1|3.1-9", "WE|Q")]
+    public async Task Plan_Item25Recipes_UseStandardPortFunctionsAndEvidence(
         string contractId,
         string expectedLabels,
-        string expectedClauses)
+        string expectedClauses,
+        string contractOnlyLabels)
     {
         var plan = Plan(Request(contractId));
         var reference = plan.Conformance.StandardReferences.Single();
+        var visibleText = plan.Operations.OfType<DrawTextV1>()
+            .Select(operation => operation.Text)
+            .ToArray();
 
         using (Assert.Multiple())
         {
@@ -753,7 +757,62 @@ internal sealed class ComplexTeachingMixedGeometryPlannerTests
                     CollectionOrdering.Matching);
             await Assert.That(reference.ClauseIds)
                 .IsEquivalentTo(expectedClauses.Split('|'));
+            await Assert.That(visibleText.Any(contractOnlyLabels.Split('|').Contains))
+                .IsFalse();
         }
+    }
+
+    [Test]
+    [Arguments(IndicationConvention.Negation, SymbolFacingV1.East, "3.1-2")]
+    [Arguments(IndicationConvention.DirectPolarity, SymbolFacingV1.East, "3.1-6")]
+    [Arguments(IndicationConvention.DirectPolarity, SymbolFacingV1.West, "3.1-7")]
+    public async Task Plan_ComplementedBistableOutput_UsesSelectedOutputQualifier(
+        IndicationConvention indicationConvention,
+        SymbolFacingV1 facing,
+        string expectedClause)
+    {
+        var template = Request("sequential.sr_latch");
+        var plan = Plan(new ComponentSymbolRequestV1(
+            template.Contract,
+            template.Parameters,
+            template.Profile with { IndicationConvention = indicationConvention },
+            template.SymbolVariantId,
+            facing,
+            template.IsReflected,
+            template.MetricSet,
+            template.FontFingerprint,
+            template.LocaleId,
+            template.BaseDirection));
+        var clauses = plan.Conformance.StandardReferences.Single().ClauseIds;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Operations.OfType<StrokePathV1>())
+                .HasSingleItem(operation => operation.Role == StrokeRoleV1.Qualifier);
+            await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
+                    operation.Text is "Q" or "QN"))
+                .IsFalse();
+            await Assert.That(clauses).Contains("3.1.1");
+            await Assert.That(clauses).Contains(expectedClause);
+        }
+    }
+
+    [Test]
+    [Arguments("up", "CT = 1")]
+    [Arguments("down", "CT = 0")]
+    public async Task Plan_CounterTerminal_UsesStandardCountCondition(
+        string direction,
+        string expectedFunction)
+    {
+        var parameters = Parameters("sequential.counter")
+            .Select(parameter => parameter.ParameterId == "direction"
+                ? Choice("direction", direction)
+                : parameter)
+            .ToArray();
+        var plan = Plan(RequestWithParameters("sequential.counter", parameters));
+
+        await Assert.That(plan.Operations.OfType<DrawTextV1>())
+            .HasSingleItem(operation => operation.Text == expectedFunction);
     }
 
     [Test]

@@ -15,6 +15,11 @@ internal sealed record RectangularSymbolPortLabel(
     string Text,
     FontRoleV1 FontRole);
 
+internal sealed record RectangularSymbolPortFunction(
+    string PortId,
+    string? Text,
+    bool IsComplementedOutput = false);
+
 internal sealed record RectangularSymbolActiveLowInputQualifier(string PortId);
 
 internal sealed record RectangularSymbolInputFunctionQualifier(
@@ -41,6 +46,7 @@ internal sealed record RectangularSymbolLayoutRequest(
     bool IsReflected,
     IndicationConvention IndicationConvention,
     RectangularSymbolInputFunctionQualifier[] InputFunctionQualifiers,
+    RectangularSymbolPortFunction[] PortFunctions,
     RectangularSymbolDynamicInputQualifier[] DynamicInputQualifiers,
     RectangularSymbolActiveLowInputQualifier[] ActiveLowInputQualifiers,
     RectangularSymbolThreeStateOutputQualifier[] ThreeStateOutputQualifiers,
@@ -92,18 +98,21 @@ internal static class RectangularSymbolGeometryBuilder
         var labels = CreatePortLabels(
             ports,
             request.Dependencies,
-            request.InputFunctionQualifiers);
+            request.InputFunctionQualifiers,
+            request.PortFunctions);
         var labelEnvelopes = labels.ToDictionary(
             pair => pair.Key,
-            pair => Measure(
-                pair.Value.Text,
-                pair.Value.FontRole,
-                TextAlignmentV1.Center,
-                request,
-                textMeasurer,
-                cancellationToken).InkAndAdvanceBounds(
-                TextAlignmentV1.Center,
-                request.BaseDirection),
+            pair => pair.Value.Text.Length == 0
+                ? new RectV1(0, 0, 0, 0)
+                : Measure(
+                    pair.Value.Text,
+                    pair.Value.FontRole,
+                    TextAlignmentV1.Center,
+                    request,
+                    textMeasurer,
+                    cancellationToken).InkAndAdvanceBounds(
+                    TextAlignmentV1.Center,
+                    request.BaseDirection),
             StringComparer.Ordinal);
         var flowAxisLabels = labelEnvelopes.ToDictionary(
             pair => pair.Key,
@@ -121,6 +130,24 @@ internal static class RectangularSymbolGeometryBuilder
             functionEnvelope,
             request.Facing,
             request.IsReflected);
+        var qualifierRadius = ScaleUp(h, 1, 4);
+        var complementedOutputPortIds = request.PortFunctions
+            .Where(function => function.IsComplementedOutput)
+            .Select(function => function.PortId)
+            .ToHashSet(StringComparer.Ordinal);
+        if (!complementedOutputPortIds.IsSubsetOf(outputPortIds))
+        {
+            throw new LayoutInvalidException(LayoutConstraintV1.Request);
+        }
+
+        var complementedOutputDepth = complementedOutputPortIds.Count == 0
+            ? 0
+            : request.IndicationConvention switch
+            {
+                IndicationConvention.Negation => checked(2 * qualifierRadius),
+                IndicationConvention.DirectPolarity => h,
+                _ => throw new LayoutInvalidException(LayoutConstraintV1.IndicationConvention),
+            };
         var threeStateOutputPortIds = request.ThreeStateOutputQualifiers
             .Select(qualifier => qualifier.PortId)
             .ToHashSet(StringComparer.Ordinal);
@@ -177,7 +204,7 @@ internal static class RectangularSymbolGeometryBuilder
             inset,
             checked(bodyLeft + bodyWidth),
             checked(inset + bodyHeight));
-        var outputAnchorX = checked(body.Right + leadLength);
+        var outputAnchorX = checked(body.Right + complementedOutputDepth + leadLength);
         var bounds = new RectV1(
             0,
             0,
@@ -214,7 +241,6 @@ internal static class RectangularSymbolGeometryBuilder
 
         var inputRows = UprightTextLayout.Rows(inputs.Length, contentCenterY, portPitch);
         var outputRows = UprightTextLayout.Rows(outputs.Length, contentCenterY, portPitch);
-        var qualifierRadius = ScaleUp(h, 1, 4);
         var qualifiedInputPortIds = request.ActiveLowInputQualifiers
             .Select(qualifier => qualifier.PortId)
             .ToHashSet(StringComparer.Ordinal);
@@ -233,7 +259,15 @@ internal static class RectangularSymbolGeometryBuilder
             outlineWidth,
             qualifiedInputPortIds,
             inputQualifierDepth);
-        AddPortLeads(operations, outputs, outputRows, body.Right, outputAnchorX, outlineWidth);
+        AddOutputPortLeads(
+            operations,
+            outputs,
+            outputRows,
+            body.Right,
+            outputAnchorX,
+            outlineWidth,
+            complementedOutputPortIds,
+            complementedOutputDepth);
 
         var anchors = new List<PortAnchorV1>(ports.Count);
         var hitRegions = new List<HitRegionV1>(ports.Count + 1)
@@ -306,13 +340,16 @@ internal static class RectangularSymbolGeometryBuilder
                         - flowAxisLabel.End),
                 y);
             var label = labels[port.Id];
-            operations.Add(Text(
-                label.Text,
-                label.FontRole,
-                labelOrigin,
-                labelEnvelope,
-                TextAlignmentV1.Center,
-                request));
+            if (label.Text.Length > 0)
+            {
+                operations.Add(Text(
+                    label.Text,
+                    label.FontRole,
+                    labelOrigin,
+                    labelEnvelope,
+                    TextAlignmentV1.Center,
+                    request));
+            }
         }
 
         foreach (var qualifier in request.ActiveLowInputQualifiers)
@@ -353,6 +390,25 @@ internal static class RectangularSymbolGeometryBuilder
                 outlineWidth));
         }
 
+        foreach (var function in request.PortFunctions.Where(
+                     candidate => candidate.IsComplementedOutput))
+        {
+            var output = anchors.Single(anchor => anchor.PortId == function.PortId);
+            operations.Add(request.IndicationConvention switch
+            {
+                IndicationConvention.Negation => QualifierCircle(
+                    new PointV1(checked(body.Right + qualifierRadius), output.Point.Y),
+                    qualifierRadius,
+                    outlineWidth),
+                IndicationConvention.DirectPolarity => DirectPolarityOutputQualifier(
+                    body.Right,
+                    output.Point.Y,
+                    h,
+                    outlineWidth),
+                _ => throw new LayoutInvalidException(LayoutConstraintV1.IndicationConvention),
+            });
+        }
+
         return new GeometryPlanDraft(
             bounds,
             operations,
@@ -365,8 +421,19 @@ internal static class RectangularSymbolGeometryBuilder
     private static Dictionary<string, RectangularSymbolPortLabel> CreatePortLabels(
         IReadOnlyList<RectangularSymbolPort> ports,
         RectangularSymbolDependency[] dependencies,
-        RectangularSymbolInputFunctionQualifier[] inputFunctionQualifiers)
+        RectangularSymbolInputFunctionQualifier[] inputFunctionQualifiers,
+        RectangularSymbolPortFunction[] portFunctions)
     {
+        if (!ports.Select(port => port.Id).SequenceEqual(
+                portFunctions.Select(function => function.PortId),
+                StringComparer.Ordinal))
+        {
+            throw new LayoutInvalidException(LayoutConstraintV1.Request);
+        }
+
+        var portFunctionById = portFunctions.ToDictionary(
+            function => function.PortId,
+            StringComparer.Ordinal);
         var affectedRelationships = new Dictionary<
             string,
             List<(RectangularSymbolDependency Dependency,
@@ -428,7 +495,7 @@ internal static class RectangularSymbolGeometryBuilder
                                 relationship.Endpoint.ApplicationOrder)
                             .Select(AffectedNotation));
                 var affectingNotation = AffectingNotation(affecting);
-                var functionLabel = port.DisplayName;
+                var functionLabel = portFunctionById[port.Id].Text ?? string.Empty;
                 var omitFunctionLabel = affecting.Length > 0
                     && affecting.Select(dependency => dependency.Kind).Distinct().Count() == 1
                     && IsDependencyPortLabel(functionLabel, affecting[0].Kind);
@@ -627,6 +694,32 @@ internal static class RectangularSymbolGeometryBuilder
         }
     }
 
+    private static void AddOutputPortLeads(
+        List<DrawOperationV1> operations,
+        RectangularSymbolPort[] ports,
+        int[] rows,
+        int bodyRight,
+        int anchorX,
+        int outlineWidth,
+        HashSet<string> complementedPortIds,
+        int qualifierDepth)
+    {
+        for (var index = 0; index < ports.Length; index++)
+        {
+            var leadStartX = complementedPortIds.Contains(ports[index].Id)
+                ? checked(bodyRight + qualifierDepth)
+                : bodyRight;
+            operations.Add(Stroke(
+                new PathV1(
+                [
+                    new MoveToV1(new PointV1(leadStartX, rows[index])),
+                    new LineToV1(new PointV1(anchorX, rows[index])),
+                ]),
+                StrokeRoleV1.Outline,
+                outlineWidth));
+        }
+    }
+
     private readonly record struct CrossAxisLayout(int Extent, int CenterOffset);
 
     private static StrokePathV1 QualifierCircle(PointV1 center, int radius, int width)
@@ -672,6 +765,26 @@ internal static class RectangularSymbolGeometryBuilder
                 new MoveToV1(new PointV1(baseX, checked(centerY - halfHeight))),
                 new LineToV1(new PointV1(bodyLeft, centerY)),
                 new LineToV1(new PointV1(baseX, checked(centerY + halfHeight))),
+                new ClosePathV1(),
+            ]),
+            StrokeRoleV1.Qualifier,
+            width);
+    }
+
+    private static StrokePathV1 DirectPolarityOutputQualifier(
+        int bodyRight,
+        int centerY,
+        int h,
+        int width)
+    {
+        var tipX = checked(bodyRight + h);
+        var halfHeight = ScaleUp(h, 1, 2);
+        return Stroke(
+            new PathV1(
+            [
+                new MoveToV1(new PointV1(bodyRight, checked(centerY - halfHeight))),
+                new LineToV1(new PointV1(tipX, centerY)),
+                new LineToV1(new PointV1(bodyRight, checked(centerY + halfHeight))),
                 new ClosePathV1(),
             ]),
             StrokeRoleV1.Qualifier,
