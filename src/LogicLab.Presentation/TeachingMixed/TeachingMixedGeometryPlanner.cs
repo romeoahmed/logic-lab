@@ -110,6 +110,7 @@ public static class TeachingMixedGeometryPlanner
                     request.IsReflected,
                     request.Profile.IndicationConvention,
                     rectangularDefinition.InputFunctionQualifiers,
+                    rectangularDefinition.PortFunctions,
                     dynamicInputQualifiers,
                     inputQualifiers,
                     outputQualifiers,
@@ -243,6 +244,13 @@ public static class TeachingMixedGeometryPlanner
                 request.IsReflected,
                 request.Profile.IndicationConvention,
                 InputFunctionQualifiers: [],
+                PortFunctions:
+                [
+                    .. request.Definition.Ports.Select(port =>
+                        new RectangularSymbolPortFunction(
+                            port.Id.Value,
+                            port.DisplayName)),
+                ],
                 DynamicInputQualifiers: [],
                 ActiveLowInputQualifiers: [],
                 ThreeStateOutputQualifiers: [],
@@ -377,9 +385,22 @@ public static class TeachingMixedGeometryPlanner
                     ? ["3.1-9", "3.1-10"]
                     : ["3.1-9", "3.1-11"]
                 : ["3.1-9"];
+        string[] outputQualifierClauses = definition.PortFunctions.Any(
+            function => function.IsComplementedOutput)
+                ? indicationConvention switch
+                {
+                    IndicationConvention.Negation => ["3.1.1", "3.1-2"],
+                    IndicationConvention.DirectPolarity when facing == SymbolFacingV1.West =>
+                        ["3.1.1", "3.1-7"],
+                    IndicationConvention.DirectPolarity => ["3.1.1", "3.1-6"],
+                    _ => throw new LayoutInvalidException(
+                        LayoutConstraintV1.IndicationConvention),
+                }
+                : [];
         var clauses = definition.StandardClauses
             .Concat(dynamicClauses)
             .Concat(qualifierClauses)
+            .Concat(outputQualifierClauses)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
         return new ConformanceEvidenceV1(
