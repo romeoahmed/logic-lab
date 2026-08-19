@@ -32,6 +32,13 @@ internal sealed record RectangularSymbolDynamicInputQualifier(
     string PortId,
     bool IsFallingEdge);
 
+internal sealed record RectangularSymbolBitGroupingInputQualifier(
+    string PortId,
+    uint FirstWeight,
+    uint LastWeight,
+    RectangularSymbolDependencyKind DependencyKind,
+    RectangularSymbolDependencyIdentifierRange IdentifierRange);
+
 internal sealed record RectangularSymbolThreeStateOutputQualifier(string PortId);
 
 internal sealed record RectangularSymbolLayoutRequest(
@@ -46,6 +53,7 @@ internal sealed record RectangularSymbolLayoutRequest(
     bool IsReflected,
     IndicationConvention IndicationConvention,
     RectangularSymbolInputFunctionQualifier[] InputFunctionQualifiers,
+    RectangularSymbolBitGroupingInputQualifier[] BitGroupingInputQualifiers,
     RectangularSymbolPortFunction[] PortFunctions,
     RectangularSymbolDynamicInputQualifier[] DynamicInputQualifiers,
     RectangularSymbolActiveLowInputQualifier[] ActiveLowInputQualifiers,
@@ -71,6 +79,24 @@ internal static class RectangularSymbolGeometryBuilder
         var outputs = ports.Where(port => port.Direction == PortDirection.Output).ToArray();
         var inputPortIds = inputs.Select(port => port.Id).ToArray();
         var outputPortIds = outputs.Select(port => port.Id).ToArray();
+        if (request.BitGroupingInputQualifiers
+                .Select(qualifier => qualifier.PortId)
+                .Distinct(StringComparer.Ordinal)
+                .Count() != request.BitGroupingInputQualifiers.Length
+            || request.BitGroupingInputQualifiers.Any(qualifier =>
+                qualifier.LastWeight < qualifier.FirstWeight
+                || !inputPortIds.Contains(qualifier.PortId, StringComparer.Ordinal)
+                || !request.Dependencies.Any(dependency =>
+                    dependency.AffectingPortId == qualifier.PortId
+                    && dependency.Kind == qualifier.DependencyKind
+                    && dependency.IdentifierRange == qualifier.IdentifierRange)))
+        {
+            throw new LayoutInvalidException(LayoutConstraintV1.Request);
+        }
+
+        var bitGroupingByPortId = request.BitGroupingInputQualifiers.ToDictionary(
+            qualifier => qualifier.PortId,
+            StringComparer.Ordinal);
 
         var h = request.MetricSet.UnitsPerH;
         var outlineWidth = ScaleUp(h, 1, 10);
@@ -100,6 +126,16 @@ internal static class RectangularSymbolGeometryBuilder
             request.Dependencies,
             request.InputFunctionQualifiers,
             request.PortFunctions);
+        foreach (var qualifier in request.BitGroupingInputQualifiers)
+        {
+            if (labels[qualifier.PortId].Text != DependencyLabel(
+                    qualifier.DependencyKind,
+                    qualifier.IdentifierRange))
+            {
+                throw new LayoutInvalidException(LayoutConstraintV1.Request);
+            }
+        }
+
         var labelEnvelopes = labels.ToDictionary(
             pair => pair.Key,
             pair => pair.Value.Text.Length == 0
@@ -125,6 +161,57 @@ internal static class RectangularSymbolGeometryBuilder
                 request.Facing,
                 request.IsReflected),
             StringComparer.Ordinal);
+        var bitGroupingWeightTexts = request.BitGroupingInputQualifiers.ToDictionary(
+            qualifier => qualifier.PortId,
+            qualifier => WeightLabel(qualifier.FirstWeight, qualifier.LastWeight),
+            StringComparer.Ordinal);
+        var bitGroupingWeightEnvelopes = bitGroupingWeightTexts.ToDictionary(
+            pair => pair.Key,
+            pair => Measure(
+                pair.Value,
+                FontRoleV1.PortLabel,
+                TextAlignmentV1.Center,
+                request,
+                textMeasurer,
+                cancellationToken).InkAndAdvanceBounds(
+                TextAlignmentV1.Center,
+                request.BaseDirection),
+            StringComparer.Ordinal);
+        var bitGroupingWeightFlowAxes = bitGroupingWeightEnvelopes.ToDictionary(
+            pair => pair.Key,
+            pair => UprightTextLayout.FlowAxis(pair.Value, request.Facing),
+            StringComparer.Ordinal);
+        var bitGroupingWeightRowAxes = bitGroupingWeightEnvelopes.ToDictionary(
+            pair => pair.Key,
+            pair => UprightTextLayout.RowAxis(
+                pair.Value,
+                request.Facing,
+                request.IsReflected),
+            StringComparer.Ordinal);
+        var bitGroupingBraceDepth = ScaleUp(h, 1, 2);
+        var bitGroupingBraceHalfHeight = ScaleUp(h, 3, 4);
+        var bitGroupingBraceMargin = GeometryPlanValidator.ConservativeStrokeMargin(
+            outlineWidth,
+            MiterJoin);
+        var bitGroupingPrefixDepths = bitGroupingWeightFlowAxes.ToDictionary(
+            pair => pair.Key,
+            pair => checked(
+                pair.Value.Span
+                + textClearance
+                + bitGroupingBraceDepth
+                + textClearance),
+            StringComparer.Ordinal);
+        foreach (var portId in bitGroupingByPortId.Keys)
+        {
+            var dependencyRow = rowAxisLabels[portId];
+            var weightRow = bitGroupingWeightRowAxes[portId];
+            var braceExtent = checked(
+                bitGroupingBraceHalfHeight + bitGroupingBraceMargin);
+            rowAxisLabels[portId] = new TextAxisInterval(
+                Math.Min(Math.Min(dependencyRow.Start, weightRow.Start), -braceExtent),
+                Math.Max(Math.Max(dependencyRow.End, weightRow.End), braceExtent));
+        }
+
         var functionFlowAxis = UprightTextLayout.FlowAxis(functionEnvelope, request.Facing);
         var functionRowAxis = UprightTextLayout.RowAxis(
             functionEnvelope,
@@ -165,9 +252,14 @@ internal static class RectangularSymbolGeometryBuilder
         int OutputLabelInset(string portId) => threeStateOutputPortIds.Contains(portId)
             ? threeStateOutputLabelInset
             : h;
-        var maximumInputFlowSpan = UprightTextLayout.MaximumSpan(
-            inputPortIds,
-            flowAxisLabels);
+        int InputLabelInset(string portId) => checked(
+            h + bitGroupingPrefixDepths.GetValueOrDefault(portId));
+        var maximumInputFlowSpan = inputPortIds
+            .Select(portId => checked(
+                flowAxisLabels[portId].Span
+                + bitGroupingPrefixDepths.GetValueOrDefault(portId)))
+            .DefaultIfEmpty()
+            .Max();
         var maximumOutputFlowDepth = outputPortIds
             .Select(portId => checked(
                 flowAxisLabels[portId].Span + OutputLabelInset(portId)))
@@ -333,13 +425,37 @@ internal static class RectangularSymbolGeometryBuilder
             var flowAxisLabel = flowAxisLabels[port.Id];
             var labelOrigin = new PointV1(
                 isInput
-                    ? checked(body.Left + h - flowAxisLabel.Start)
+                    ? checked(body.Left + InputLabelInset(port.Id) - flowAxisLabel.Start)
                     : checked(
                         body.Right
                         - OutputLabelInset(port.Id)
                         - flowAxisLabel.End),
                 y);
             var label = labels[port.Id];
+            if (bitGroupingByPortId.ContainsKey(port.Id))
+            {
+                var weightEnvelope = bitGroupingWeightEnvelopes[port.Id];
+                var weightFlowAxis = bitGroupingWeightFlowAxes[port.Id];
+                var weightOrigin = new PointV1(
+                    checked(body.Left + h - weightFlowAxis.Start),
+                    y);
+                operations.Add(Text(
+                    bitGroupingWeightTexts[port.Id],
+                    FontRoleV1.PortLabel,
+                    weightOrigin,
+                    weightEnvelope,
+                    TextAlignmentV1.Center,
+                    request));
+                var braceLeft = checked(
+                    body.Left + h + weightFlowAxis.Span + textClearance);
+                operations.Add(BitGroupingInputBrace(
+                    braceLeft,
+                    checked(braceLeft + bitGroupingBraceDepth),
+                    y,
+                    bitGroupingBraceHalfHeight,
+                    outlineWidth));
+            }
+
             if (label.Text.Length > 0)
             {
                 operations.Add(Text(
@@ -575,6 +691,17 @@ internal static class RectangularSymbolGeometryBuilder
                 label,
                 '/',
                 range.Last.ToString(CultureInfo.InvariantCulture));
+    }
+
+    private static string WeightLabel(uint first, uint last)
+    {
+        var firstText = first.ToString(CultureInfo.InvariantCulture);
+        return first == last
+            ? firstText
+            : string.Concat(
+                firstText,
+                '/',
+                last.ToString(CultureInfo.InvariantCulture));
     }
 
     private static string DependencyLetter(RectangularSymbolDependencyKind kind) => kind switch
@@ -840,6 +967,41 @@ internal static class RectangularSymbolGeometryBuilder
                 new LineToV1(new PointV1(bodyRight, centerY)),
                 new LineToV1(new PointV1(centerX, checked(centerY + radius))),
                 new ClosePathV1(),
+            ]),
+            StrokeRoleV1.Qualifier,
+            width);
+    }
+
+    private static StrokePathV1 BitGroupingInputBrace(
+        int left,
+        int right,
+        int centerY,
+        int halfHeight,
+        int width)
+    {
+        var shoulderX = checked(left + ((right - left) * 2 / 3));
+        var upperShoulderY = checked(centerY - (halfHeight / 3));
+        var lowerShoulderY = checked(centerY + (halfHeight / 3));
+        return Stroke(
+            new PathV1(
+            [
+                new MoveToV1(new PointV1(left, checked(centerY - halfHeight))),
+                new CubicToV1(
+                    new PointV1(shoulderX, checked(centerY - halfHeight)),
+                    new PointV1(shoulderX, checked(centerY - (2 * halfHeight / 3))),
+                    new PointV1(shoulderX, upperShoulderY)),
+                new CubicToV1(
+                    new PointV1(shoulderX, checked(centerY - (halfHeight / 6))),
+                    new PointV1(right, checked(centerY - (halfHeight / 6))),
+                    new PointV1(right, centerY)),
+                new CubicToV1(
+                    new PointV1(right, checked(centerY + (halfHeight / 6))),
+                    new PointV1(shoulderX, checked(centerY + (halfHeight / 6))),
+                    new PointV1(shoulderX, lowerShoulderY)),
+                new CubicToV1(
+                    new PointV1(shoulderX, checked(centerY + (2 * halfHeight / 3))),
+                    new PointV1(shoulderX, checked(centerY + halfHeight)),
+                    new PointV1(left, checked(centerY + halfHeight))),
             ]),
             StrokeRoleV1.Qualifier,
             width);
