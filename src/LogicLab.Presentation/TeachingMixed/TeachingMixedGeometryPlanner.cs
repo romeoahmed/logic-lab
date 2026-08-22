@@ -89,12 +89,9 @@ public static class TeachingMixedGeometryPlanner
                 var dynamicInputQualifiers = DynamicInputQualifiers(
                     request.Parameters,
                     ports);
-                var inputQualifiers = ActiveLowQualifiers(request.Parameters, ports)
-                    .Concat(dynamicInputQualifiers
-                        .Where(qualifier => qualifier.IsFallingEdge)
-                        .Select(qualifier =>
-                            new RectangularSymbolActiveLowInputQualifier(qualifier.PortId)))
-                    .ToArray();
+                var activeLowInputQualifiers = ActiveLowQualifiers(
+                    request.Parameters,
+                    ports);
                 var outputQualifiers = ThreeStateOutputQualifiers(
                     request.Contract.Key.ContractId,
                     ports);
@@ -113,12 +110,12 @@ public static class TeachingMixedGeometryPlanner
                     rectangularDefinition.BitGroupingInputQualifiers,
                     rectangularDefinition.PortFunctions,
                     dynamicInputQualifiers,
-                    inputQualifiers,
+                    activeLowInputQualifiers,
                     outputQualifiers,
                     Conformance(
                         rectangularDefinition,
                         dynamicInputQualifiers,
-                        inputQualifiers,
+                        activeLowInputQualifiers,
                         request.Profile.IndicationConvention,
                         request.Facing));
                 var rectangularPorts = ports.Select(port => new RectangularSymbolPort(
@@ -366,11 +363,11 @@ public static class TeachingMixedGeometryPlanner
     private static ConformanceEvidenceV1 Conformance(
         ResolvedRectangularSymbolDefinition definition,
         RectangularSymbolDynamicInputQualifier[] dynamicInputQualifiers,
-        RectangularSymbolActiveLowInputQualifier[] inputQualifiers,
+        RectangularSymbolActiveLowInputQualifier[] activeLowInputQualifiers,
         IndicationConvention indicationConvention,
         SymbolFacingV1 facing)
     {
-        string[] qualifierClauses = inputQualifiers.Length == 0
+        string[] qualifierClauses = activeLowInputQualifiers.Length == 0
             ? []
             : indicationConvention switch
             {
@@ -382,7 +379,8 @@ public static class TeachingMixedGeometryPlanner
             };
         string[] dynamicClauses = dynamicInputQualifiers.Length == 0
             ? []
-            : dynamicInputQualifiers.Any(qualifier => qualifier.IsFallingEdge)
+            : dynamicInputQualifiers.Any(qualifier =>
+                qualifier.Kind == RectangularSymbolDynamicInputKind.FallingEdge)
                 ? indicationConvention == IndicationConvention.Negation
                     ? ["3.1-9", "3.1-10"]
                     : ["3.1-9", "3.1-11"]
@@ -426,8 +424,6 @@ public static class TeachingMixedGeometryPlanner
         }
 
         var deviations = conformance.Deviations
-            .Where(deviation =>
-                deviation.DeviationCode != "teachingmixed-aggregate-multibit-port")
             .Append(new ConformanceDeviationV1(
                 "teachingmixed-aggregate-multibit-port",
                 aggregatePortIds))
@@ -474,7 +470,9 @@ public static class TeachingMixedGeometryPlanner
         {
             return clock is null
                 ? []
-                : [new RectangularSymbolDynamicInputQualifier(clock.Id, false)];
+                : [new RectangularSymbolDynamicInputQualifier(
+                    clock.Id,
+                    RectangularSymbolDynamicInputKind.RisingEdge)];
         }
 
         if (edgeParameter.Value is not ChoiceParameterValue edge
@@ -488,7 +486,10 @@ public static class TeachingMixedGeometryPlanner
             throw new LayoutInvalidException(LayoutConstraintV1.Request);
         }
 
-        return [new RectangularSymbolDynamicInputQualifier(clock.Id, edge.Value == "falling")];
+        var kind = edge.Value == "falling"
+            ? RectangularSymbolDynamicInputKind.FallingEdge
+            : RectangularSymbolDynamicInputKind.RisingEdge;
+        return [new RectangularSymbolDynamicInputQualifier(clock.Id, kind)];
     }
 
     private static RectangularSymbolThreeStateOutputQualifier[] ThreeStateOutputQualifiers(

@@ -1,64 +1,8 @@
-using System.Globalization;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Geometry;
 
 namespace LogicLab.Presentation.TeachingMixed;
-
-internal sealed record RectangularSymbolPort(
-    string Id,
-    string DisplayName,
-    PortDirection Direction,
-    uint Width);
-
-internal sealed record RectangularSymbolPortLabel(
-    string Text,
-    FontRoleV1 FontRole);
-
-internal sealed record RectangularSymbolPortFunction(
-    string PortId,
-    string? Text,
-    bool IsComplementedOutput = false);
-
-internal sealed record RectangularSymbolActiveLowInputQualifier(string PortId);
-
-internal sealed record RectangularSymbolInputFunctionQualifier(
-    string Id,
-    string PortId,
-    string Text,
-    string ClauseId);
-
-internal sealed record RectangularSymbolDynamicInputQualifier(
-    string PortId,
-    bool IsFallingEdge);
-
-internal sealed record RectangularSymbolBitGroupingInputQualifier(
-    string PortId,
-    uint FirstWeight,
-    uint LastWeight,
-    RectangularSymbolDependencyKind DependencyKind,
-    RectangularSymbolDependencyIdentifierRange IdentifierRange);
-
-internal sealed record RectangularSymbolThreeStateOutputQualifier(string PortId);
-
-internal sealed record RectangularSymbolLayoutRequest(
-    string? FunctionText,
-    FontRoleV1 FunctionFontRole,
-    string AccessibilityKey,
-    RectangularSymbolDependency[] Dependencies,
-    SymbolMetricSetV1 MetricSet,
-    PresentationLocaleIdV1 LocaleId,
-    BaseDirectionV1 BaseDirection,
-    SymbolFacingV1 Facing,
-    bool IsReflected,
-    IndicationConvention IndicationConvention,
-    RectangularSymbolInputFunctionQualifier[] InputFunctionQualifiers,
-    RectangularSymbolBitGroupingInputQualifier[] BitGroupingInputQualifiers,
-    RectangularSymbolPortFunction[] PortFunctions,
-    RectangularSymbolDynamicInputQualifier[] DynamicInputQualifiers,
-    RectangularSymbolActiveLowInputQualifier[] ActiveLowInputQualifiers,
-    RectangularSymbolThreeStateOutputQualifier[] ThreeStateOutputQualifiers,
-    ConformanceEvidenceV1 Conformance);
 
 internal static class RectangularSymbolGeometryBuilder
 {
@@ -94,9 +38,9 @@ internal static class RectangularSymbolGeometryBuilder
             throw new LayoutInvalidException(LayoutConstraintV1.Request);
         }
 
-        var bitGroupingByPortId = request.BitGroupingInputQualifiers.ToDictionary(
-            qualifier => qualifier.PortId,
-            StringComparer.Ordinal);
+        var bitGroupedInputPortIds = request.BitGroupingInputQualifiers
+            .Select(qualifier => qualifier.PortId)
+            .ToHashSet(StringComparer.Ordinal);
 
         var h = request.MetricSet.UnitsPerH;
         var outlineWidth = ScaleUp(h, 1, 10);
@@ -108,11 +52,10 @@ internal static class RectangularSymbolGeometryBuilder
         var inset = Math.Max(
             GeometryPlanValidator.ConservativeStrokeMargin(outlineWidth, MiterJoin),
             Math.Max(portHitRadius, bodyHitPadding));
-        var functionRole = request.FunctionFontRole;
         var functionEnvelope = request.FunctionText is { } functionText
             ? Measure(
                     functionText,
-                    functionRole,
+                    request.FunctionFontRole,
                     TextAlignmentV1.Center,
                     request,
                     textMeasurer,
@@ -121,14 +64,14 @@ internal static class RectangularSymbolGeometryBuilder
                     TextAlignmentV1.Center,
                     request.BaseDirection)
             : new RectV1(0, 0, 0, 0);
-        var labels = CreatePortLabels(
+        var labels = RectangularSymbolPortLabelComposer.Compose(
             ports,
             request.Dependencies,
             request.InputFunctionQualifiers,
             request.PortFunctions);
         foreach (var qualifier in request.BitGroupingInputQualifiers)
         {
-            if (labels[qualifier.PortId].Text != DependencyLabel(
+            if (labels[qualifier.PortId].Text != RectangularSymbolPortLabelComposer.DependencyLabel(
                     qualifier.DependencyKind,
                     qualifier.IdentifierRange))
             {
@@ -163,7 +106,9 @@ internal static class RectangularSymbolGeometryBuilder
             StringComparer.Ordinal);
         var bitGroupingWeightTexts = request.BitGroupingInputQualifiers.ToDictionary(
             qualifier => qualifier.PortId,
-            qualifier => WeightLabel(qualifier.FirstWeight, qualifier.LastWeight),
+            qualifier => RectangularSymbolPortLabelComposer.WeightLabel(
+                qualifier.FirstWeight,
+                qualifier.LastWeight),
             StringComparer.Ordinal);
         var bitGroupingWeightEnvelopes = bitGroupingWeightTexts.ToDictionary(
             pair => pair.Key,
@@ -201,7 +146,7 @@ internal static class RectangularSymbolGeometryBuilder
                 + bitGroupingBraceDepth
                 + textClearance),
             StringComparer.Ordinal);
-        foreach (var portId in bitGroupingByPortId.Keys)
+        foreach (var portId in bitGroupedInputPortIds)
         {
             var dependencyRow = rowAxisLabels[portId];
             var weightRow = bitGroupingWeightRowAxes[portId];
@@ -324,7 +269,7 @@ internal static class RectangularSymbolGeometryBuilder
         {
             operations.Add(Text(
                 functionTextToDraw,
-                functionRole,
+                request.FunctionFontRole,
                 functionOrigin,
                 functionEnvelope,
                 TextAlignmentV1.Center,
@@ -333,8 +278,12 @@ internal static class RectangularSymbolGeometryBuilder
 
         var inputRows = UprightTextLayout.Rows(inputs.Length, contentCenterY, portPitch);
         var outputRows = UprightTextLayout.Rows(outputs.Length, contentCenterY, portPitch);
-        var qualifiedInputPortIds = request.ActiveLowInputQualifiers
+        var polarityQualifiedInputPortIds = request.ActiveLowInputQualifiers
             .Select(qualifier => qualifier.PortId)
+            .Concat(request.DynamicInputQualifiers
+                .Where(qualifier =>
+                    qualifier.Kind == RectangularSymbolDynamicInputKind.FallingEdge)
+                .Select(qualifier => qualifier.PortId))
             .ToHashSet(StringComparer.Ordinal);
         var inputQualifierDepth = request.IndicationConvention switch
         {
@@ -349,7 +298,7 @@ internal static class RectangularSymbolGeometryBuilder
             inset,
             body.Left,
             outlineWidth,
-            qualifiedInputPortIds,
+            polarityQualifiedInputPortIds,
             inputQualifierDepth);
         AddOutputPortLeads(
             operations,
@@ -432,7 +381,7 @@ internal static class RectangularSymbolGeometryBuilder
                         - flowAxisLabel.End),
                 y);
             var label = labels[port.Id];
-            if (bitGroupingByPortId.ContainsKey(port.Id))
+            if (bitGroupedInputPortIds.Contains(port.Id))
             {
                 var weightEnvelope = bitGroupingWeightEnvelopes[port.Id];
                 var weightFlowAxis = bitGroupingWeightFlowAxes[port.Id];
@@ -448,7 +397,7 @@ internal static class RectangularSymbolGeometryBuilder
                     request));
                 var braceLeft = checked(
                     body.Left + h + weightFlowAxis.Span + textClearance);
-                operations.Add(BitGroupingInputBrace(
+                operations.Add(RectangularSymbolQualifierGeometry.BitGroupingInputBrace(
                     braceLeft,
                     checked(braceLeft + bitGroupingBraceDepth),
                     y,
@@ -473,11 +422,12 @@ internal static class RectangularSymbolGeometryBuilder
             var anchor = anchors.Single(candidate => candidate.PortId == qualifier.PortId);
             operations.Add(request.IndicationConvention switch
             {
-                IndicationConvention.Negation => QualifierCircle(
+                IndicationConvention.Negation => RectangularSymbolQualifierGeometry.Circle(
                     new PointV1(checked(body.Left - qualifierRadius), anchor.Point.Y),
                     qualifierRadius,
                     outlineWidth),
-                IndicationConvention.DirectPolarity => DirectPolarityInputQualifier(
+                IndicationConvention.DirectPolarity =>
+                    RectangularSymbolQualifierGeometry.DirectPolarityInput(
                     body.Left,
                     anchor.Point.Y,
                     h,
@@ -489,17 +439,37 @@ internal static class RectangularSymbolGeometryBuilder
         foreach (var qualifier in request.DynamicInputQualifiers)
         {
             var anchor = anchors.Single(candidate => candidate.PortId == qualifier.PortId);
-            operations.Add(DynamicInputQualifier(
+            operations.Add(RectangularSymbolQualifierGeometry.DynamicInput(
                 body.Left,
                 anchor.Point.Y,
                 h,
                 outlineWidth));
+            if (qualifier.Kind == RectangularSymbolDynamicInputKind.FallingEdge)
+            {
+                operations.Add(request.IndicationConvention switch
+                {
+                    IndicationConvention.Negation => RectangularSymbolQualifierGeometry.Circle(
+                        new PointV1(
+                            checked(body.Left - qualifierRadius),
+                            anchor.Point.Y),
+                        qualifierRadius,
+                        outlineWidth),
+                    IndicationConvention.DirectPolarity =>
+                        RectangularSymbolQualifierGeometry.DirectPolarityInput(
+                        body.Left,
+                        anchor.Point.Y,
+                        h,
+                        outlineWidth),
+                    _ => throw new LayoutInvalidException(
+                        LayoutConstraintV1.IndicationConvention),
+                });
+            }
         }
 
         foreach (var qualifier in request.ThreeStateOutputQualifiers)
         {
             var output = anchors.Single(anchor => anchor.PortId == qualifier.PortId);
-            operations.Add(ThreeStateOutputQualifier(
+            operations.Add(RectangularSymbolQualifierGeometry.ThreeStateOutput(
                 body.Right,
                 output.Point.Y,
                 threeStateQualifierRadius,
@@ -512,11 +482,12 @@ internal static class RectangularSymbolGeometryBuilder
             var output = anchors.Single(anchor => anchor.PortId == function.PortId);
             operations.Add(request.IndicationConvention switch
             {
-                IndicationConvention.Negation => QualifierCircle(
+                IndicationConvention.Negation => RectangularSymbolQualifierGeometry.Circle(
                     new PointV1(checked(body.Right + qualifierRadius), output.Point.Y),
                     qualifierRadius,
                     outlineWidth),
-                IndicationConvention.DirectPolarity => DirectPolarityOutputQualifier(
+                IndicationConvention.DirectPolarity =>
+                    RectangularSymbolQualifierGeometry.DirectPolarityOutput(
                     body.Right,
                     output.Point.Y,
                     h,
@@ -533,218 +504,6 @@ internal static class RectangularSymbolGeometryBuilder
             accessibilityNodes,
             request.Conformance);
     }
-
-    private static Dictionary<string, RectangularSymbolPortLabel> CreatePortLabels(
-        IReadOnlyList<RectangularSymbolPort> ports,
-        RectangularSymbolDependency[] dependencies,
-        RectangularSymbolInputFunctionQualifier[] inputFunctionQualifiers,
-        RectangularSymbolPortFunction[] portFunctions)
-    {
-        if (!ports.Select(port => port.Id).SequenceEqual(
-                portFunctions.Select(function => function.PortId),
-                StringComparer.Ordinal))
-        {
-            throw new LayoutInvalidException(LayoutConstraintV1.Request);
-        }
-
-        var portFunctionById = portFunctions.ToDictionary(
-            function => function.PortId,
-            StringComparer.Ordinal);
-        var affectedRelationships = new Dictionary<
-            string,
-            List<(RectangularSymbolDependency Dependency,
-                RectangularSymbolAffectedEndpoint Endpoint)>>(
-                StringComparer.Ordinal);
-        var affectedInputFunctions = new Dictionary<
-            string,
-            List<(RectangularSymbolDependency Dependency,
-                RectangularSymbolAffectedEndpoint Endpoint)>>(
-                StringComparer.Ordinal);
-        foreach (var dependency in dependencies)
-        {
-            foreach (var endpoint in dependency.AffectedEndpoints)
-            {
-                var target = endpoint.InputFunctionQualifierId is null
-                    ? affectedRelationships
-                    : affectedInputFunctions;
-                var targetId = endpoint.InputFunctionQualifierId ?? endpoint.PortId;
-                if (!target.TryGetValue(targetId, out var relationships))
-                {
-                    relationships = [];
-                    target.Add(targetId, relationships);
-                }
-
-                relationships.Add((dependency, endpoint));
-            }
-        }
-
-        var affectingRelationships = dependencies.ToLookup(
-            dependency => dependency.AffectingPortId,
-            StringComparer.Ordinal);
-        var functionQualifierById = inputFunctionQualifiers.ToDictionary(
-            qualifier => qualifier.Id,
-            StringComparer.Ordinal);
-        foreach (var (qualifierId, relationships) in affectedInputFunctions)
-        {
-            if (!functionQualifierById.TryGetValue(qualifierId, out var qualifier)
-                || relationships.Any(relationship =>
-                    relationship.Endpoint.PortId != qualifier.PortId))
-            {
-                throw new LayoutInvalidException(LayoutConstraintV1.Request);
-            }
-        }
-
-        var functionQualifiers = inputFunctionQualifiers.ToLookup(
-            qualifier => qualifier.PortId,
-            StringComparer.Ordinal);
-        return ports.ToDictionary(
-            port => port.Id,
-            port =>
-            {
-                var affecting = affectingRelationships[port.Id].ToArray();
-                affectedRelationships.TryGetValue(port.Id, out var affected);
-                var affectedNotation = affected is null
-                    ? string.Empty
-                    : string.Join(
-                        ',',
-                        affected.OrderBy(relationship =>
-                                relationship.Endpoint.ApplicationOrder)
-                            .Select(AffectedNotation));
-                var affectingNotation = AffectingNotation(affecting);
-                var functionLabel = portFunctionById[port.Id].Text ?? string.Empty;
-                var omitFunctionLabel = affecting.Length > 0
-                    && affecting.Select(dependency => dependency.Kind).Distinct().Count() == 1
-                    && IsDependencyPortLabel(functionLabel, affecting[0].Kind);
-                var primaryFunction = string.Concat(
-                    affectedNotation,
-                    affectingNotation,
-                    omitFunctionLabel ? string.Empty : functionLabel);
-                var text = string.Join(
-                    '/',
-                    new[] { primaryFunction }
-                        .Concat(functionQualifiers[port.Id].Select(qualifier =>
-                            string.Concat(
-                                AffectedNotation(
-                                    affectedInputFunctions.GetValueOrDefault(qualifier.Id)),
-                                qualifier.Text)))
-                        .Where(label => label.Length > 0));
-                return new RectangularSymbolPortLabel(
-                    text,
-                    affectedNotation.Length > 0
-                        || affectingNotation.Length > 0
-                        ? FontRoleV1.Dependency
-                        : FontRoleV1.PortLabel);
-            },
-            StringComparer.Ordinal);
-    }
-
-    private static string AffectingNotation(
-        IReadOnlyList<RectangularSymbolDependency> dependencies) => string.Join(
-            ',',
-            dependencies.GroupBy(dependency => dependency.Kind)
-                .OrderBy(group => group.Key)
-                .Select(FormatAffectingGroup));
-
-    private static string FormatAffectingGroup(
-        IGrouping<RectangularSymbolDependencyKind, RectangularSymbolDependency> group)
-    {
-        var ranges = group.Select(dependency => dependency.IdentifierRange)
-            .OrderBy(range => range.First)
-            .ThenBy(range => range.Last)
-            .ToArray();
-        if (ranges.Length == 1)
-        {
-            return DependencyLabel(group.Key, ranges[0]);
-        }
-
-        var lastIdentifier = ranges[0].Last;
-        for (var index = 1; index < ranges.Length; index++)
-        {
-            if (lastIdentifier == uint.MaxValue
-                || ranges[index].First != lastIdentifier + 1)
-            {
-                return string.Join(
-                    ',',
-                    ranges.Select(range => DependencyLabel(group.Key, range)));
-            }
-
-            lastIdentifier = ranges[index].Last;
-        }
-
-        return DependencyLabel(
-            group.Key,
-            new RectangularSymbolDependencyIdentifierRange(
-                ranges[0].First,
-                lastIdentifier));
-    }
-
-    private static string DependencyLabel(
-        RectangularSymbolDependencyKind kind,
-        RectangularSymbolDependencyIdentifierRange range)
-    {
-        var label = string.Concat(
-            DependencyLetter(kind),
-            range.First.ToString(CultureInfo.InvariantCulture));
-        return range.First == range.Last
-            ? label
-            : string.Concat(
-                label,
-                '/',
-                range.Last.ToString(CultureInfo.InvariantCulture));
-    }
-
-    private static string WeightLabel(uint first, uint last)
-    {
-        var firstText = first.ToString(CultureInfo.InvariantCulture);
-        return first == last
-            ? firstText
-            : string.Concat(
-                firstText,
-                '/',
-                last.ToString(CultureInfo.InvariantCulture));
-    }
-
-    private static string DependencyLetter(RectangularSymbolDependencyKind kind) => kind switch
-    {
-        RectangularSymbolDependencyKind.And => "G",
-        RectangularSymbolDependencyKind.Enable => "EN",
-        RectangularSymbolDependencyKind.Control => "C",
-        RectangularSymbolDependencyKind.Mode => "M",
-        RectangularSymbolDependencyKind.Address => "A",
-        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
-    };
-
-    private static string AffectedNotation(
-        IReadOnlyList<(RectangularSymbolDependency Dependency,
-            RectangularSymbolAffectedEndpoint Endpoint)>? relationships) =>
-        relationships is null
-            ? string.Empty
-            : string.Join(
-                ',',
-                relationships.OrderBy(relationship =>
-                        relationship.Endpoint.ApplicationOrder)
-                    .Select(AffectedNotation));
-
-    private static string AffectedNotation(
-        (RectangularSymbolDependency Dependency,
-            RectangularSymbolAffectedEndpoint Endpoint) relationship)
-    {
-        var notation = relationship.Dependency.Kind == RectangularSymbolDependencyKind.Address
-            ? "A"
-            : relationship.Dependency.IdentifierRange.First.ToString(
-                CultureInfo.InvariantCulture);
-        return relationship.Endpoint.IsComplemented
-            ? string.Concat('¬', notation)
-            : notation;
-    }
-
-    private static bool IsDependencyPortLabel(
-        string functionLabel,
-        RectangularSymbolDependencyKind kind) =>
-        functionLabel == DependencyLetter(kind)
-        || (functionLabel == "CLK" && kind == RectangularSymbolDependencyKind.Control)
-        || (functionLabel == "EN" && kind == RectangularSymbolDependencyKind.Control)
-        || (functionLabel == "LOAD" && kind == RectangularSymbolDependencyKind.Mode);
 
     private static CrossAxisLayout RequiredCrossAxisLayout(
         string[] inputPortIds,
@@ -863,149 +622,6 @@ internal static class RectangularSymbolGeometryBuilder
     }
 
     private readonly record struct CrossAxisLayout(int Extent, int CenterOffset);
-
-    private static StrokePathV1 QualifierCircle(PointV1 center, int radius, int width)
-    {
-        var curve = checked(radius * 552 / 1000);
-        return Stroke(
-            new PathV1(
-            [
-                new MoveToV1(new PointV1(checked(center.X + radius), center.Y)),
-                new CubicToV1(
-                    new PointV1(checked(center.X + radius), checked(center.Y + curve)),
-                    new PointV1(checked(center.X + curve), checked(center.Y + radius)),
-                    new PointV1(center.X, checked(center.Y + radius))),
-                new CubicToV1(
-                    new PointV1(checked(center.X - curve), checked(center.Y + radius)),
-                    new PointV1(checked(center.X - radius), checked(center.Y + curve)),
-                    new PointV1(checked(center.X - radius), center.Y)),
-                new CubicToV1(
-                    new PointV1(checked(center.X - radius), checked(center.Y - curve)),
-                    new PointV1(checked(center.X - curve), checked(center.Y - radius)),
-                    new PointV1(center.X, checked(center.Y - radius))),
-                new CubicToV1(
-                    new PointV1(checked(center.X + curve), checked(center.Y - radius)),
-                    new PointV1(checked(center.X + radius), checked(center.Y - curve)),
-                    new PointV1(checked(center.X + radius), center.Y)),
-                new ClosePathV1(),
-            ]),
-            StrokeRoleV1.Qualifier,
-            width);
-    }
-
-    private static StrokePathV1 DirectPolarityInputQualifier(
-        int bodyLeft,
-        int centerY,
-        int h,
-        int width)
-    {
-        var baseX = checked(bodyLeft - h);
-        var halfHeight = ScaleUp(h, 1, 2);
-        return Stroke(
-            new PathV1(
-            [
-                new MoveToV1(new PointV1(baseX, checked(centerY - halfHeight))),
-                new LineToV1(new PointV1(bodyLeft, centerY)),
-                new LineToV1(new PointV1(baseX, checked(centerY + halfHeight))),
-                new ClosePathV1(),
-            ]),
-            StrokeRoleV1.Qualifier,
-            width);
-    }
-
-    private static StrokePathV1 DirectPolarityOutputQualifier(
-        int bodyRight,
-        int centerY,
-        int h,
-        int width)
-    {
-        var tipX = checked(bodyRight + h);
-        var halfHeight = ScaleUp(h, 1, 2);
-        return Stroke(
-            new PathV1(
-            [
-                new MoveToV1(new PointV1(bodyRight, checked(centerY - halfHeight))),
-                new LineToV1(new PointV1(tipX, centerY)),
-                new LineToV1(new PointV1(bodyRight, checked(centerY + halfHeight))),
-                new ClosePathV1(),
-            ]),
-            StrokeRoleV1.Qualifier,
-            width);
-    }
-
-    private static StrokePathV1 DynamicInputQualifier(
-        int bodyLeft,
-        int centerY,
-        int h,
-        int width)
-    {
-        var depth = h;
-        var halfHeight = ScaleUp(h, 1, 2);
-        return Stroke(
-            new PathV1(
-            [
-                new MoveToV1(new PointV1(bodyLeft, checked(centerY - halfHeight))),
-                new LineToV1(new PointV1(checked(bodyLeft + depth), centerY)),
-                new LineToV1(new PointV1(bodyLeft, checked(centerY + halfHeight))),
-            ]),
-            StrokeRoleV1.Qualifier,
-            width);
-    }
-
-    private static StrokePathV1 ThreeStateOutputQualifier(
-        int bodyRight,
-        int centerY,
-        int radius,
-        int width)
-    {
-        var left = checked(bodyRight - (2 * radius));
-        var centerX = checked(bodyRight - radius);
-        return Stroke(
-            new PathV1(
-            [
-                new MoveToV1(new PointV1(left, centerY)),
-                new LineToV1(new PointV1(bodyRight, centerY)),
-                new LineToV1(new PointV1(centerX, checked(centerY + radius))),
-                new ClosePathV1(),
-            ]),
-            StrokeRoleV1.Qualifier,
-            width);
-    }
-
-    private static StrokePathV1 BitGroupingInputBrace(
-        int left,
-        int right,
-        int centerY,
-        int halfHeight,
-        int width)
-    {
-        var shoulderX = checked(left + ((right - left) * 2 / 3));
-        var upperShoulderY = checked(centerY - (halfHeight / 3));
-        var lowerShoulderY = checked(centerY + (halfHeight / 3));
-        return Stroke(
-            new PathV1(
-            [
-                new MoveToV1(new PointV1(left, checked(centerY - halfHeight))),
-                new CubicToV1(
-                    new PointV1(shoulderX, checked(centerY - halfHeight)),
-                    new PointV1(shoulderX, checked(centerY - (2 * halfHeight / 3))),
-                    new PointV1(shoulderX, upperShoulderY)),
-                new CubicToV1(
-                    new PointV1(shoulderX, checked(centerY - (halfHeight / 6))),
-                    new PointV1(right, checked(centerY - (halfHeight / 6))),
-                    new PointV1(right, centerY)),
-                new CubicToV1(
-                    new PointV1(right, checked(centerY + (halfHeight / 6))),
-                    new PointV1(shoulderX, checked(centerY + (halfHeight / 6))),
-                    new PointV1(shoulderX, lowerShoulderY)),
-                new CubicToV1(
-                    new PointV1(shoulderX, checked(centerY + (2 * halfHeight / 3))),
-                    new PointV1(shoulderX, checked(centerY + halfHeight)),
-                    new PointV1(left, checked(centerY + halfHeight))),
-            ]),
-            StrokeRoleV1.Qualifier,
-            width);
-    }
 
     private static StrokePathV1 Stroke(PathV1 path, StrokeRoleV1 role, int width) => new(
         path,
