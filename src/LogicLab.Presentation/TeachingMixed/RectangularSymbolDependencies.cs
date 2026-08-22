@@ -32,13 +32,13 @@ internal enum RectangularSymbolDependencyRecipe
 internal readonly record struct RectangularSymbolAffectedEndpoint(
     string PortId,
     int ApplicationOrder,
-    string? InputFunctionQualifierId = null,
+    RectangularSymbolInputFunctionKind? InputFunctionKind = null,
     bool IsComplemented = false);
 
-internal static class RectangularSymbolInputFunctionQualifierIds
+internal enum RectangularSymbolInputFunctionKind
 {
-    public const string Shift = "shift";
-    public const string Count = "count";
+    Shift,
+    Count,
 }
 
 internal readonly record struct RectangularSymbolDependencyIdentifierRange
@@ -128,7 +128,7 @@ internal static class RectangularSymbolDependencyResolver
                         AffectedInputFunction(
                             ports,
                             "CLK",
-                            RectangularSymbolInputFunctionQualifierIds.Shift,
+                            RectangularSymbolInputFunctionKind.Shift,
                             0,
                             isComplemented: true),
                     ]),
@@ -151,7 +151,7 @@ internal static class RectangularSymbolDependencyResolver
                         AffectedInputFunction(
                             ports,
                             "CLK",
-                            RectangularSymbolInputFunctionQualifierIds.Shift,
+                            RectangularSymbolInputFunctionKind.Shift,
                             1),
                     ]),
             ],
@@ -167,7 +167,7 @@ internal static class RectangularSymbolDependencyResolver
                         AffectedInputFunction(
                             ports,
                             "CLK",
-                            RectangularSymbolInputFunctionQualifierIds.Count,
+                            RectangularSymbolInputFunctionKind.Count,
                             0,
                             isComplemented: true),
                     ]),
@@ -187,7 +187,7 @@ internal static class RectangularSymbolDependencyResolver
                         AffectedInputFunction(
                             ports,
                             "CLK",
-                            RectangularSymbolInputFunctionQualifierIds.Count,
+                            RectangularSymbolInputFunctionKind.Count,
                             1),
                     ]),
             ],
@@ -295,14 +295,14 @@ internal static class RectangularSymbolDependencyResolver
         return new RectangularSymbolAffectedEndpoint(
             portId,
             applicationOrder,
-            InputFunctionQualifierId: null,
+            InputFunctionKind: null,
             IsComplemented: isComplemented);
     }
 
     private static RectangularSymbolAffectedEndpoint AffectedInputFunction(
         IReadOnlyList<ResolvedComponentPortSchema> ports,
         string portId,
-        string inputFunctionQualifierId,
+        RectangularSymbolInputFunctionKind inputFunctionKind,
         int applicationOrder,
         bool isComplemented = false)
     {
@@ -311,7 +311,7 @@ internal static class RectangularSymbolDependencyResolver
         return new RectangularSymbolAffectedEndpoint(
             portId,
             applicationOrder,
-            inputFunctionQualifierId,
+            inputFunctionKind,
             isComplemented);
     }
 

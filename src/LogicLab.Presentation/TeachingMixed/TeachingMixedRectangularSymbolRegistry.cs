@@ -423,7 +423,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
         {
             RectangularSymbolFunctionRecipe.ShiftRegister => ClockInputFunctionQualifier(
                 ports,
-                RectangularSymbolInputFunctionQualifierIds.Shift,
+                RectangularSymbolInputFunctionKind.Shift,
                 Choice(parameters, "direction") switch
                 {
                     "towardHigh" => (Text: "→", ClauseId: "3.3-19"),
@@ -432,7 +432,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
                 }),
             RectangularSymbolFunctionRecipe.Counter => ClockInputFunctionQualifier(
                 ports,
-                RectangularSymbolInputFunctionQualifierIds.Count,
+                RectangularSymbolInputFunctionKind.Count,
                 Choice(parameters, "direction") switch
                 {
                     "up" => (Text: "+", ClauseId: "3.3-21"),
@@ -453,18 +453,31 @@ internal static class TeachingMixedRectangularSymbolRegistry
                 Port: ports.Single(candidate =>
                     candidate.Id == dependency.AffectingPortId
                     && candidate.Direction == PortDirection.Input)))
-            .Where(group => group.Port.Width == 1)
-            .Select(group => new RectangularSymbolBitGroupingInputQualifier(
-                    group.Port.Id,
-                    FirstWeight: 0,
-                    LastWeight: 0,
-                    group.Dependency.Kind,
-                    group.Dependency.IdentifierRange)),
+            .Select(group => BitGroupingInputQualifier(
+                group.Dependency,
+                group.Port)),
     ];
+
+    private static RectangularSymbolBitGroupingInputQualifier BitGroupingInputQualifier(
+        RectangularSymbolDependency dependency,
+        ResolvedComponentPortSchema port)
+    {
+        if (port.Width != 1)
+        {
+            throw new LayoutInvalidException(LayoutConstraintV1.Request);
+        }
+
+        return new RectangularSymbolBitGroupingInputQualifier(
+            port.Id,
+            FirstWeight: 0,
+            LastWeight: 0,
+            dependency.Kind,
+            dependency.IdentifierRange);
+    }
 
     private static RectangularSymbolInputFunctionQualifier[] ClockInputFunctionQualifier(
         IReadOnlyList<ResolvedComponentPortSchema> ports,
-        string id,
+        RectangularSymbolInputFunctionKind kind,
         (string Text, string ClauseId) qualifier)
     {
         var clock = ports.Single(port =>
@@ -472,7 +485,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
         return
         [
             new RectangularSymbolInputFunctionQualifier(
-                id,
+                kind,
                 clock.Id,
                 qualifier.Text,
                 qualifier.ClauseId),
@@ -572,7 +585,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
         for (var index = 0; index < functions.Length; index++)
         {
             var function = functions[index];
-            var port = ports.Single(candidate => candidate.Id == function.PortId);
+            var port = ports[index];
             if (function.IsComplementedOutput && port.Direction != PortDirection.Output)
             {
                 throw new LayoutInvalidException(LayoutConstraintV1.Request);
@@ -590,25 +603,25 @@ internal static class TeachingMixedRectangularSymbolRegistry
     private static string CounterTerminalFunction(
         IReadOnlyList<ComponentParameterBinding> parameters)
     {
-        var direction = Choice(parameters, "direction");
-        if (direction == "down")
+        return Choice(parameters, "direction") switch
         {
-            return "CT = 0";
-        }
+            "down" => "CT = 0",
+            "up" => string.Concat("CT = ", CounterMaximum(parameters)),
+            _ => throw new LayoutInvalidException(LayoutConstraintV1.ParameterKind),
+        };
+    }
 
-        if (direction != "up")
-        {
-            throw new LayoutInvalidException(LayoutConstraintV1.ParameterKind);
-        }
-
+    private static string CounterMaximum(
+        IReadOnlyList<ComponentParameterBinding> parameters)
+    {
         var width = U32(parameters, "width");
-        var maximum = width < 32
-            ? checked((1U << checked((int)width)) - 1U).ToString(CultureInfo.InvariantCulture)
+        return width < 32
+            ? checked((1U << checked((int)width)) - 1U).ToString(
+                CultureInfo.InvariantCulture)
             : string.Concat(
                 "2^",
                 width.ToString(CultureInfo.InvariantCulture),
                 " − 1");
-        return string.Concat("CT = ", maximum);
     }
 
     private static string MemoryFunction(
