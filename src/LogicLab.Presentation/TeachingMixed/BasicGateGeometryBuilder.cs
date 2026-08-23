@@ -593,49 +593,20 @@ internal static class BasicGateGeometryBuilder
         return convention switch
         {
             IndicationConvention.Negation => new OutputQualifierGeometry(
-                Stroke(
-                    CirclePath(
-                        new PointV1(checked(bodyRight + halfH), centerY),
-                        halfH),
-                    StrokeRoleV1.Qualifier,
+                TeachingMixedQualifierGeometry.Circle(
+                    new PointV1(checked(bodyRight + halfH), centerY),
+                    halfH,
                     qualifierStrokeWidth),
                 checked(bodyRight + (2 * halfH))),
             IndicationConvention.DirectPolarity => new OutputQualifierGeometry(
-                Stroke(
-                    Path(
-                        new MoveToV1(new PointV1(bodyRight, checked(centerY - halfH))),
-                        new LineToV1(new PointV1(checked(bodyRight + h), centerY)),
-                        new LineToV1(new PointV1(bodyRight, checked(centerY + halfH))),
-                        new ClosePathV1()),
-                    StrokeRoleV1.Qualifier,
+                TeachingMixedQualifierGeometry.DirectPolarityOutput(
+                    bodyRight,
+                    centerY,
+                    h,
                     qualifierStrokeWidth),
                 checked(bodyRight + h)),
             _ => throw new LayoutInvalidException(LayoutConstraintV1.IndicationConvention),
         };
-    }
-
-    private static PathV1 CirclePath(PointV1 center, int radius)
-    {
-        var curve = Math.Max(1, ScaleDown(radius, 552, 1000));
-        return Path(
-            new MoveToV1(new PointV1(checked(center.X + radius), center.Y)),
-            new CubicToV1(
-                new PointV1(checked(center.X + radius), checked(center.Y + curve)),
-                new PointV1(checked(center.X + curve), checked(center.Y + radius)),
-                new PointV1(center.X, checked(center.Y + radius))),
-            new CubicToV1(
-                new PointV1(checked(center.X - curve), checked(center.Y + radius)),
-                new PointV1(checked(center.X - radius), checked(center.Y + curve)),
-                new PointV1(checked(center.X - radius), center.Y)),
-            new CubicToV1(
-                new PointV1(checked(center.X - radius), checked(center.Y - curve)),
-                new PointV1(checked(center.X - curve), checked(center.Y - radius)),
-                new PointV1(center.X, checked(center.Y - radius))),
-            new CubicToV1(
-                new PointV1(checked(center.X + curve), checked(center.Y - radius)),
-                new PointV1(checked(center.X + radius), checked(center.Y - curve)),
-                new PointV1(checked(center.X + radius), center.Y)),
-            new ClosePathV1());
     }
 
     private static RectV1 MeasureText(
@@ -683,9 +654,6 @@ internal static class BasicGateGeometryBuilder
 
     private static int ScaleUp(int value, int numerator, int denominator = 1) =>
         checked((int)((((long)value * numerator) + denominator - 1) / denominator));
-
-    private static int ScaleDown(int value, int numerator, int denominator) =>
-        checked((int)(((long)value * numerator) / denominator));
 
     private static bool PreservesAnnexAProportions(
         BasicOutlineRecipe recipe,

@@ -2,13 +2,13 @@ using LogicLab.Presentation.Geometry;
 
 namespace LogicLab.Presentation.TeachingMixed;
 
-internal static class RectangularSymbolQualifierGeometry
+internal static class TeachingMixedQualifierGeometry
 {
     private static readonly LineJoinV1 MiterJoin = new(LineJoinKindV1.Miter, 4);
 
     public static StrokePathV1 Circle(PointV1 center, int radius, int width)
     {
-        var curve = checked(radius * 552 / 1000);
+        var curve = Math.Max(1, checked(radius * 552 / 1000));
         return Stroke(
             new PathV1(
             [
