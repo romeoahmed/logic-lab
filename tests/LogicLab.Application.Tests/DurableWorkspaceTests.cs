@@ -1028,12 +1028,11 @@ internal sealed partial class DurableWorkspaceTests
                 .IsEqualTo(firstSaved.DurableVersion);
             await Assert.That(conflict.Recovery)
                 .IsEquivalentTo(
-                    new[]
-                    {
+                    [
                         DurableConflictRecovery.Reload,
                         DurableConflictRecovery.Copy,
                         DurableConflictRecovery.Export,
-                    },
+                    ],
                     CollectionOrdering.Matching);
             await Assert.That(conflictedState.SaveStatus)
                 .IsEqualTo(DurableSaveStatus.Conflict);

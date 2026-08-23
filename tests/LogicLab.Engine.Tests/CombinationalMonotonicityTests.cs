@@ -453,10 +453,10 @@ internal sealed class CombinationalMonotonicityTests
                 yield break;
             }
 
-            foreach (var pair in InformationOrderedPairs)
+            foreach (var (lowerValue, upperValue) in InformationOrderedPairs)
             {
-                lower[index] = pair.Lower;
-                upper[index] = pair.Upper;
+                lower[index] = lowerValue;
+                upper[index] = upperValue;
                 foreach (var candidate in Enumerate(index + 1))
                 {
                     yield return candidate;

@@ -609,15 +609,15 @@ internal static class GeometryRequestFingerprint
         StringBuilder canonical,
         IEnumerable<(string Id, PortDirection Direction, uint Width, string DisplayName)> ports)
     {
-        foreach (var port in ports)
+        foreach (var (id, direction, width, displayName) in ports)
         {
-            canonical.Append(port.Id)
+            canonical.Append(id)
                 .Append(':')
-                .Append(port.DisplayName)
+                .Append(displayName)
                 .Append(':')
-                .Append(port.Direction)
+                .Append(direction)
                 .Append(':')
-                .Append(port.Width.ToString(CultureInfo.InvariantCulture))
+                .Append(width.ToString(CultureInfo.InvariantCulture))
                 .Append('\n');
         }
     }
