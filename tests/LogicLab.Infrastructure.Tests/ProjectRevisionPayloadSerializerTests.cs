@@ -55,15 +55,13 @@ internal sealed class ProjectRevisionPayloadSerializerTests
                 .IsEqualTo(revision.Document.ProjectId);
             await Assert.That(instances.Select(instance => instance.Target.GetType()).Distinct())
                 .IsEquivalentTo(
-                    new Type[]
-                    {
+                    [
                         typeof(LibraryComponentTarget),
                         typeof(CircuitDefinitionComponentTarget),
-                    },
+                    ],
                     CollectionOrdering.Any);
             await Assert.That(parameterKinds).IsEquivalentTo(
-                new Type[]
-                {
+                [
                     typeof(MemoryImageParameterValue),
                     typeof(Unsigned32ParameterValue),
                     typeof(Unsigned64ParameterValue),
@@ -71,21 +69,19 @@ internal sealed class ProjectRevisionPayloadSerializerTests
                     typeof(LogicVectorParameterValue),
                     typeof(SlicesParameterValue),
                     typeof(WidthsParameterValue),
-                },
+                ],
                 CollectionOrdering.Any);
             await Assert.That(terminalKinds).IsEquivalentTo(
-                new Type[]
-                {
+                [
                     typeof(DefinitionTerminalReference),
                     typeof(InstanceTerminalReference),
-                },
+                ],
                 CollectionOrdering.Any);
             await Assert.That(routeKinds).IsEquivalentTo(
-                new Type[]
-                {
+                [
                     typeof(UnroutedWireRoute),
                     typeof(OrthogonalWireRoute),
-                },
+                ],
                 CollectionOrdering.Any);
             await Assert.That(restoredMemory.Width).IsEqualTo(expectedMemory.Width);
             await Assert.That(restoredMemory.Depth).IsEqualTo(expectedMemory.Depth);

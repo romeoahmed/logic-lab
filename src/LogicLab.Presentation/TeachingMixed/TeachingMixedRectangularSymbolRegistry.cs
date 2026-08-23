@@ -584,17 +584,17 @@ internal static class TeachingMixedRectangularSymbolRegistry
         var resolved = new RectangularSymbolPortFunction[functions.Length];
         for (var index = 0; index < functions.Length; index++)
         {
-            var function = functions[index];
+            var (portId, text, isComplementedOutput) = functions[index];
             var port = ports[index];
-            if (function.IsComplementedOutput && port.Direction != PortDirection.Output)
+            if (isComplementedOutput && port.Direction != PortDirection.Output)
             {
                 throw new LayoutInvalidException(LayoutConstraintV1.Request);
             }
 
             resolved[index] = new RectangularSymbolPortFunction(
-                function.PortId,
-                port.Width > 1 ? port.Id : function.Text,
-                function.IsComplementedOutput && port.Width == 1);
+                portId,
+                port.Width > 1 ? port.Id : text,
+                isComplementedOutput && port.Width == 1);
         }
 
         return resolved;
