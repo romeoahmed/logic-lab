@@ -38,10 +38,20 @@ public sealed class BrowserMeasuredTextMeasurer : ISymbolTextMeasurerV1
     {
         ArgumentNullException.ThrowIfNull(requests);
         ArgumentNullException.ThrowIfNull(batch);
+        ArgumentNullException.ThrowIfNull(batch.Measurements);
+        if (requests.Any(static request => request is null))
+        {
+            throw new ArgumentException(
+                "The text measurement requests must not contain null elements.",
+                nameof(requests));
+        }
+
         FontFingerprint = new FontFingerprintV1(batch.FontFingerprint);
         var requestedKeys = requests.Select(request => request.Key).ToHashSet(StringComparer.Ordinal);
         var owned = batch.Measurements.ToArray();
-        if (owned.Length != requestedKeys.Count
+        if (requestedKeys.Count != requests.Count
+            || owned.Length != requestedKeys.Count
+            || owned.Any(static measurement => measurement is null)
             || owned.Select(measurement => measurement.Key).Distinct(StringComparer.Ordinal).Count()
                 != owned.Length
             || owned.Any(measurement => !requestedKeys.Contains(measurement.Key)

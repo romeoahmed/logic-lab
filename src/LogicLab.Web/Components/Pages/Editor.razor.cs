@@ -5,6 +5,7 @@ using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Scene;
 using LogicLab.Web.Components.Editor;
+using LogicLab.Web.Scene;
 using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -46,6 +47,8 @@ public sealed partial class Editor : IAsyncDisposable
     private WorkspaceAttachmentFailure? AttachmentFailure { get; set; }
 
     private AccessibleSceneProjection? Scene { get; set; }
+
+    private SceneSelectionV1? SceneSelection { get; set; }
 
     private CircuitDefinitionId? SelectedDefinitionId { get; set; }
 
@@ -1194,11 +1197,88 @@ public sealed partial class Editor : IAsyncDisposable
                 out var scene))
         {
             Scene = scene;
+            NormalizeSceneSelection();
             return;
         }
 
         Scene = null;
         Status = Text["ScenePolicyExceeded"];
+    }
+
+    private Task HandleSceneSelectionAsync(SceneSelectionV1 change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        var selected = SceneSelection?.Sources.ToList() ?? [];
+        switch (change.SelectionMode)
+        {
+            case "replace":
+                selected = [.. change.Sources];
+                break;
+            case "add":
+                foreach (var source in change.Sources)
+                {
+                    if (!selected.Any(candidate => candidate.Key == source.Key))
+                    {
+                        selected.Add(source);
+                    }
+                }
+                break;
+            case "toggle":
+                foreach (var source in change.Sources)
+                {
+                    var index = selected.FindIndex(candidate => candidate.Key == source.Key);
+                    if (index >= 0)
+                    {
+                        selected.RemoveAt(index);
+                    }
+                    else
+                    {
+                        selected.Add(source);
+                    }
+                }
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(change),
+                    change.SelectionMode,
+                    "The Scene selection mode is undefined.");
+        }
+
+        SceneSelection = selected.Count == 0
+            ? null
+            : new SceneSelectionV1(selected, "replace");
+        return Task.CompletedTask;
+    }
+
+    private void NormalizeSceneSelection()
+    {
+        if (SceneSelection is null || Scene is null)
+        {
+            SceneSelection = null;
+            return;
+        }
+
+        var available = Scene.Components.Select(component =>
+                $"component:{component.Source.ComponentInstanceId.Value}")
+            .Concat(Scene.Components.SelectMany(component => component.Ports.Select(port =>
+                $"instancePort:{port.Source.ComponentInstanceId.Value}:{port.Source.PortId}")))
+            .Concat(Scene.DefinitionPorts.Select(port =>
+                $"definitionPort:{port.Source.DefinitionPortId.Value}"))
+            .Concat(Scene.Connections.Select(connection =>
+                $"net:{connection.Source.NetId.Value}"))
+            .Concat(Scene.Connections.SelectMany(connection => connection.Junctions.Select(junction =>
+                $"junction:{junction.Source.JunctionId.Value}")))
+            .Concat(Scene.Connections.SelectMany(connection =>
+                connection.WireGeometries.Select(wire =>
+                    $"wireGeometry:{wire.Source.WireGeometryId.Value}")))
+            .ToHashSet(StringComparer.Ordinal);
+        var retained = SceneSelection.Sources
+            .Where(source => source.CircuitDefinitionId == SelectedDefinitionId?.Value
+                && available.Contains(source.Key))
+            .ToArray();
+        SceneSelection = retained.Length == 0
+            ? null
+            : new SceneSelectionV1(retained, "replace");
     }
 
     private ComponentInstance Find(string contractId)

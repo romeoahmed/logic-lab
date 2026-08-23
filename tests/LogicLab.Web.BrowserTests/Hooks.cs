@@ -5,13 +5,11 @@ namespace LogicLab.Web.BrowserTests;
 internal static class Hooks
 {
     [Before(TestSession)]
-    public static void InstallPlaywright()
+    public static void ConfigurePlaywrightDebugging()
     {
         if (Debugger.IsAttached)
         {
             Environment.SetEnvironmentVariable("PWDEBUG", "1");
         }
-
-        Microsoft.Playwright.Program.Main(["install", "chromium"]);
     }
 }

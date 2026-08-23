@@ -1,9 +1,12 @@
 @using LogicLab.Web.Scene
 @implements IAsyncDisposable
 
-<section class="circuit-scene-shell"
+<section @key="rendererGeneration"
+         class="circuit-scene-shell"
          aria-labelledby="circuit-canvas-heading"
          data-scene-renderer="@rendererState"
+         data-scene-generation="@rendererGeneration"
+         data-scene-selection-count="@(Selection?.Sources.Count ?? 0)"
          @ref="hostElement">
     <div class="scene-heading">
         <div>

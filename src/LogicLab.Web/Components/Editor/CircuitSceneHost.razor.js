@@ -232,7 +232,7 @@ class CircuitSceneHandle {
   setConnected(isConnected) {
     this.ensureLive();
     this.connected = Boolean(isConnected);
-    if (!this.connected) {
+    if (!this.connected && this.gesture?.kind !== "pan") {
       this.cancelGesture();
     }
   }
@@ -356,7 +356,11 @@ class CircuitSceneHandle {
     this.canvas.addEventListener("lostpointercapture", () => this.cancelGesture(), { signal });
     this.canvas.addEventListener("wheel", (event) => this.wheel(event), { passive: false, signal });
     this.canvas.addEventListener("keydown", (event) => this.keyDown(event), { signal });
-    this.canvas.addEventListener("keyup", (event) => this.keyUp(event), { signal });
+    document.addEventListener("keyup", (event) => this.keyUp(event), { signal });
+    window.addEventListener("blur", () => {
+      this.spacePan = false;
+      this.cancelGesture();
+    }, { signal });
     this.canvas.addEventListener("contextlost", (event) => this.contextLost(event), { signal });
     this.canvas.addEventListener("contextrestored", () => this.contextRestored(), { signal });
     this.host.addEventListener("focusin", (event) => this.semanticFocus(event), { signal });
@@ -381,7 +385,9 @@ class CircuitSceneHandle {
     };
     this.armDensityListener();
 
-    const stableAncestor = this.host.closest("[data-workbench]") ?? this.host.parentElement;
+    // Blazor DOM cleanup guidance requires observing outside the component subtree:
+    // https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#dom-cleanup-tasks-during-component-disposal
+    const stableAncestor = this.host.closest("[data-browser-host-ancestor]");
     if (stableAncestor) {
       this.removalObserver = new MutationObserver(() => {
         if (!this.host.isConnected) {
@@ -548,7 +554,7 @@ class CircuitSceneHandle {
     }
 
     const screen = this.pointerScreen(event);
-    const hit = this.connected && !this.spacePan ? this.hitTest(this.screenToWorld(screen)) : null;
+    const hit = !this.spacePan ? this.hitTest(this.screenToWorld(screen)) : null;
     this.gesture = {
       pointerId: event.pointerId,
       kind: hit ? "select" : "pan",
@@ -584,7 +590,7 @@ class CircuitSceneHandle {
 
     this.releaseCapture(event.pointerId);
     this.gesture = null;
-    if (gesture.kind === "select" && this.connected && this.published
+    if (gesture.kind === "select" && this.published
         && gesture.sceneVersion === this.published.sceneVersion
         && gesture.projectionVersion === this.published.projectionVersion) {
       this.selectSource(gesture.hit.source, "replace");
@@ -634,13 +640,16 @@ class CircuitSceneHandle {
       return;
     }
 
-    if (event.key === " " && !this.focusedSource) {
+    if (event.key === " ") {
+      if (!this.spacePan) {
+        this.cancelGesture();
+      }
       this.spacePan = true;
       event.preventDefault();
       return;
     }
 
-    const keys = this.sourceKeys();
+    const keys = this.semanticSourceKeys();
     if ((event.key === "ArrowRight" || event.key === "ArrowDown"
         || event.key === "ArrowLeft" || event.key === "ArrowUp") && keys.length) {
       const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
@@ -648,8 +657,7 @@ class CircuitSceneHandle {
       this.focusedSource = keys[(current + direction + keys.length) % keys.length];
       this.invalidate();
       event.preventDefault();
-    } else if ((event.key === "Enter" || event.key === " ")
-        && this.focusedSource && this.connected) {
+    } else if (event.key === "Enter" && this.focusedSource) {
       const source = this.sourceByKey(this.focusedSource);
       if (source) {
         this.selectSource(source, "replace");
@@ -725,13 +733,13 @@ class CircuitSceneHandle {
     this.focusedSource = source.id;
     this.invalidate();
     const snapshot = this.published;
-    if (!snapshot) {
+    if (!snapshot || !this.connected) {
       return;
     }
 
     const intent = {
-      buildFingerprint: this.buildFingerprint,
       kind: "selectSources",
+      buildFingerprint: this.buildFingerprint,
       sceneVersion: snapshot.sceneVersion,
       projectionVersion: snapshot.projectionVersion,
       circuitDefinitionId: snapshot.circuitDefinitionId,
@@ -845,6 +853,20 @@ class CircuitSceneHandle {
     return sourceKeys;
   }
 
+  semanticSourceKeys() {
+    const available = new Set(this.sourceKeys());
+    const keys = [];
+    const seen = new Set();
+    for (const action of this.host.querySelectorAll("[data-scene-source]")) {
+      const sourceKey = action.dataset.sceneSource;
+      if (sourceKey && available.has(sourceKey) && !seen.has(sourceKey)) {
+        seen.add(sourceKey);
+        keys.push(sourceKey);
+      }
+    }
+    return keys;
+  }
+
   sourceByKey(key) {
     for (const item of this.published?.items ?? []) {
       if (item.source.id === key) {
@@ -911,11 +933,11 @@ function validatePolicy(policy) {
     "sceneCacheBytes",
     "waveformCacheBytes",
   ];
-  const exactShape = ["policyId", "policyRevision", ...fields];
+  const exactShape = new Set(["policyId", "policyRevision", ...fields]);
   const actualShape = policy ? Object.keys(policy) : [];
   if (!policy || !isToken(policy.policyId) || !isToken(policy.policyRevision)
-      || actualShape.length !== exactShape.length
-      || actualShape.some((field, index) => field !== exactShape[index])
+      || actualShape.length !== exactShape.size
+      || actualShape.some((field) => !exactShape.has(field))
       || fields.some((field) => !positiveSafeInteger(policy[field]))
       || BigInt(policy.zoomMillionthsMinimum) > BigInt(policy.zoomMillionthsMaximum)) {
     throw new Error("invalid Browser Policy");

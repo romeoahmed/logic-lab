@@ -166,7 +166,10 @@
                         <CircuitSceneHost Scene="Scene"
                                           ProjectRevision="Projection.ProjectRevision"
                                           ProjectionVersion="Projection.ProjectionVersion"
-                                          CircuitDefinitionId="SelectedDefinitionId" />
+                                          CircuitDefinitionId="SelectedDefinitionId"
+                                          Selection="SceneSelection"
+                                          OnSelect="HandleSceneSelectionAsync"
+                                          OnIntent="HandleSceneIntentAsync" />
                     }
                     else
                     {
