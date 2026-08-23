@@ -242,6 +242,64 @@ public sealed record StepSession : WorkspaceCommand
     public SessionMutationPrecondition Precondition { get; }
 }
 
+public abstract record ProbeBindingRequest
+{
+    private protected ProbeBindingRequest(CompilationSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        Source = source;
+    }
+
+    public CompilationSource Source { get; }
+}
+
+public sealed record RetainProbe : ProbeBindingRequest
+{
+    public RetainProbe(ProbeId probeId, CompilationSource source)
+        : base(source)
+    {
+        ArgumentNullException.ThrowIfNull(probeId);
+        ProbeId = probeId;
+    }
+
+    public ProbeId ProbeId { get; }
+}
+
+public sealed record CreateProbe : ProbeBindingRequest
+{
+    public CreateProbe(CompilationSource source)
+        : base(source)
+    {
+    }
+}
+
+public sealed record ReplaceProbes : WorkspaceCommand
+{
+    public ReplaceProbes(
+        WorkspaceCommandContext context,
+        SessionMutationPrecondition precondition,
+        IReadOnlyList<ProbeBindingRequest> bindings)
+        : base(context)
+    {
+        ArgumentNullException.ThrowIfNull(precondition);
+        ArgumentNullException.ThrowIfNull(bindings);
+        var ownedBindings = bindings.ToArray();
+        if (ownedBindings.Any(static binding => binding is null))
+        {
+            throw new ArgumentException(
+                "Probe bindings cannot contain null requests.",
+                nameof(bindings));
+        }
+
+        Precondition = precondition;
+        Bindings = Array.AsReadOnly(ownedBindings);
+    }
+
+    public SessionMutationPrecondition Precondition { get; }
+
+    public ReadOnlyCollection<ProbeBindingRequest> Bindings { get; }
+}
+
 public sealed record StartRun : WorkspaceCommand
 {
     public StartRun(
@@ -335,6 +393,34 @@ public sealed record StimulusScheduled(
 public sealed record SessionStepped(
     ulong LogicalTime,
     ulong ProjectionVersion) : WorkspaceCommandOutcome;
+
+public sealed record ProbesReplaced : WorkspaceCommandOutcome
+{
+    public ProbesReplaced(
+        ulong sessionVersion,
+        IReadOnlyList<ProbeId> probeIds,
+        ulong projectionVersion)
+    {
+        ArgumentNullException.ThrowIfNull(probeIds);
+        var ownedProbeIds = probeIds.ToArray();
+        if (ownedProbeIds.Any(static probeId => probeId is null))
+        {
+            throw new ArgumentException(
+                "Probe IDs cannot contain null values.",
+                nameof(probeIds));
+        }
+
+        SessionVersion = sessionVersion;
+        ProbeIds = Array.AsReadOnly(ownedProbeIds);
+        ProjectionVersion = projectionVersion;
+    }
+
+    public ulong SessionVersion { get; }
+
+    public ReadOnlyCollection<ProbeId> ProbeIds { get; }
+
+    public ulong ProjectionVersion { get; }
+}
 
 public enum AdvanceFailureReason
 {
@@ -757,7 +843,7 @@ public sealed record ProbeProjection
 {
     public ProbeProjection(
         ProbeId probeId,
-        AuthoredSourceIdentity source,
+        CompilationSource source,
         IReadOnlyList<LogicValue> value)
     {
         ProbeId = probeId;
@@ -767,7 +853,7 @@ public sealed record ProbeProjection
 
     private ProbeProjection(
         ProbeId probeId,
-        AuthoredSourceIdentity source,
+        CompilationSource source,
         ReadOnlyCollection<LogicValue> value)
     {
         ProbeId = probeId;
@@ -777,13 +863,13 @@ public sealed record ProbeProjection
 
     public ProbeId ProbeId { get; }
 
-    public AuthoredSourceIdentity Source { get; }
+    public CompilationSource Source { get; }
 
     public ReadOnlyCollection<LogicValue> Value { get; }
 
     internal static ProbeProjection FromOwnedValue(
         ProbeId probeId,
-        AuthoredSourceIdentity source,
+        CompilationSource source,
         LogicValue[] ownedValue)
     {
         ArgumentNullException.ThrowIfNull(probeId);

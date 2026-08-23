@@ -515,9 +515,23 @@ public sealed record SceneJunctionRemovalPartitionV1
     public IReadOnlyList<SceneWireRouteV1> RouteAdditions { get; }
 }
 
-public sealed record SceneElaboratedNetRefV1(
-    SceneSourceRefV1 AuthoredNet,
-    SceneHierarchyPathV1 HierarchyPath);
+public sealed record SceneElaboratedNetRefV1
+{
+    [JsonConstructor]
+    public SceneElaboratedNetRefV1(
+        SceneSourceRefV1 authoredNet,
+        SceneHierarchyPathV1 hierarchyPath)
+    {
+        ArgumentNullException.ThrowIfNull(authoredNet);
+        ArgumentNullException.ThrowIfNull(hierarchyPath);
+        AuthoredNet = authoredNet;
+        HierarchyPath = hierarchyPath;
+    }
+
+    public SceneSourceRefV1 AuthoredNet { get; }
+
+    public SceneHierarchyPathV1 HierarchyPath { get; }
+}
 
 public sealed record SceneHierarchyPathV1
 {

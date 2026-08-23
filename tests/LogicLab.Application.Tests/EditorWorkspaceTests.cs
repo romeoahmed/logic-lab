@@ -476,6 +476,34 @@ internal sealed class EditorWorkspaceTests
     }
 
     [Test]
+    public async Task DispatchAsync_ReplaceProbes_RemovesBindingAndProjectsEmptySet(
+        CancellationToken cancellationToken)
+    {
+        await using var workspace = TestEditorWorkspaceFactory.Create(
+            WorkspaceBuild.DevelopmentFingerprint);
+        var (opened, _) = await OpenInputOutputSession(workspace, cancellationToken);
+        var before = await Read(workspace, opened);
+        var simulation = before.Simulation!;
+        _ = simulation.Probes.Single();
+
+        var outcome = await workspace.DispatchAsync(
+            new ReplaceProbes(
+                Context(opened.WorkspaceId, opened.Attachment, "replace-probes"),
+                EditorWorkspaceTestDriver.SessionMutation(before),
+                []),
+            CancellationToken.None);
+        var after = await Read(workspace, opened);
+
+        var replaced = (await Assert.That(outcome).IsTypeOf<ProbesReplaced>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(after.Simulation!.SessionVersion).IsEqualTo(2UL);
+            await Assert.That(after.Simulation.Probes).IsEmpty();
+            await Assert.That(replaced.ProbeIds).IsEmpty();
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_IncompleteCircuit_DoesNotPublishArtifactOrCreateSession(
         CancellationToken cancellationToken)
     {

@@ -84,6 +84,93 @@ internal sealed class SimulationRuntimeTests
     }
 
     [Test]
+    public async Task Execute_ReplaceProbeBindings_RetainsIdentityAndBaselinesCreatedProbe()
+    {
+        var context = SimulationTestContext.Create();
+        var outputSource = context.NetSource(context.Circuit.OutputNet.Id);
+        var inputSource = context.NetSource(context.Circuit.InputNet.Id);
+        var opened = (SimulationOpened)SimulationRuntime.Open(
+            context.Request(outputSource),
+            CancellationToken.None);
+
+        var outcome = SimulationRuntime.Execute(
+            opened.Handle,
+            new ReplaceProbeBindings(
+            [
+                new RetainProbe(opened.ProbeIds[0], outputSource),
+                new CreateProbe(inputSource),
+            ]),
+            CancellationToken.None);
+
+        var replaced = (await Assert.That(outcome)
+            .IsTypeOf<ProbeBindingsReplaced>())!;
+        var snapshot = (SessionSnapshotRead)SimulationRuntime.Read(
+            opened.Handle,
+            new ReadSessionSnapshot(),
+            CancellationToken.None);
+        var createdTrace = (TraceTransitionsAvailable)SimulationRuntime.Read(
+            opened.Handle,
+            new ReadTraceWindow(new SimulationTraceWindowRequest(
+                [replaced.ProbeIds[1]],
+                new LogicalTimeRange(0, 1),
+                afterSequence: null)),
+            CancellationToken.None);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(replaced.SessionVersion).IsEqualTo(2UL);
+            await Assert.That(replaced.ProbeIds[0]).IsEqualTo(opened.ProbeIds[0]);
+            await Assert.That(replaced.ProbeIds[1]).IsNotEqualTo(opened.ProbeIds[0]);
+            await Assert.That(snapshot.Probes.Select(probe => probe.Source))
+                .IsEquivalentTo(
+                    [outputSource, inputSource],
+                    CollectionOrdering.Matching);
+            await Assert.That(createdTrace.Transitions).Count().IsEqualTo(1);
+            await Assert.That(createdTrace.Transitions[0].ProbeId)
+                .IsEqualTo(replaced.ProbeIds[1]);
+            await Assert.That(createdTrace.Transitions[0].LogicalTime).IsEqualTo(0UL);
+        }
+    }
+
+    [Test]
+    public async Task Execute_ReplaceProbeBindings_DuplicateBindingPreservesSession()
+    {
+        var context = SimulationTestContext.Create();
+        var outputSource = context.NetSource(context.Circuit.OutputNet.Id);
+        var opened = (SimulationOpened)SimulationRuntime.Open(
+            context.Request(outputSource),
+            CancellationToken.None);
+
+        var outcome = SimulationRuntime.Execute(
+            opened.Handle,
+            new ReplaceProbeBindings(
+            [
+                new RetainProbe(opened.ProbeIds[0], outputSource),
+                new CreateProbe(outputSource),
+            ]),
+            CancellationToken.None);
+        var snapshot = (SessionSnapshotRead)SimulationRuntime.Read(
+            opened.Handle,
+            new ReadSessionSnapshot(),
+            CancellationToken.None);
+
+        var invalid = (await Assert.That(outcome)
+            .IsTypeOf<ProbeBindingsInvalid>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(invalid.Rule)
+                .IsEqualTo(ProbeBindingsInvalidRule.DuplicateBinding);
+            await Assert.That(invalid.SessionVersion).IsEqualTo(1UL);
+            await Assert.That(invalid.SourceLocations)
+                .IsEquivalentTo([outputSource], CollectionOrdering.Matching);
+            await Assert.That(snapshot.SessionVersion).IsEqualTo(1UL);
+            await Assert.That(snapshot.Probes).Count().IsEqualTo(1);
+            await Assert.That(snapshot.Probes[0].ProbeId).IsEqualTo(opened.ProbeIds[0]);
+            await Assert.That(snapshot.TraceCursor).IsEqualTo(opened.TraceCursor);
+        }
+    }
+
+    [Test]
     public async Task Open_UnresolvedInitialProbe_ReturnsExplicitInvalidBinding()
     {
         var context = SimulationTestContext.Create();

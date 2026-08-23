@@ -251,8 +251,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
                 state,
                 request,
                 cancellationToken).ConfigureAwait(false),
-            CreateSession or ScheduleInputStimulus or StepSession or StartRun
-                or HotSwapSession =>
+            CreateSession or ScheduleInputStimulus or StepSession or ReplaceProbes
+                or StartRun or HotSwapSession =>
                 await QueueContextualSessionAsync(
                     state,
                     command,
@@ -945,6 +945,94 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
         return new SessionStepped(committed.LogicalTime, state.ProjectionVersion);
     }
 
+    private WorkspaceCommandOutcome ReplaceProbeBindings(
+        WorkspaceState state,
+        ReplaceProbes command,
+        CancellationToken cancellationToken)
+    {
+        var activeSession = state.ActiveSession;
+        var priorSimulation = state.Simulation;
+        if (activeSession is null || priorSimulation is null)
+        {
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
+        }
+
+        var runtimeBindings = new LogicLab.Engine.Simulation.ProbeBindingRequest[
+            command.Bindings.Count];
+        for (var index = 0; index < command.Bindings.Count; index++)
+        {
+            runtimeBindings[index] = command.Bindings[index] switch
+            {
+                RetainProbe retain => new LogicLab.Engine.Simulation.RetainProbe(
+                    retain.ProbeId,
+                    retain.Source),
+                CreateProbe create => new LogicLab.Engine.Simulation.CreateProbe(
+                    create.Source),
+                _ => throw new InvalidOperationException(
+                    "The Workspace Probe binding request variant is undefined."),
+            };
+        }
+
+        var outcome = operations.ExecuteSimulation(
+            activeSession.Handle,
+            new ReplaceProbeBindings(runtimeBindings),
+            cancellationToken);
+        if (outcome is ProbeBindingsInvalid)
+        {
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
+        }
+
+        if (outcome is SimulationCommandFailed failed)
+        {
+            return Reject(
+                WorkspaceOutcomeReasons.FromSimulation(failed.Reason),
+                failed.Diagnostics.Select(item => item.Code),
+                PolicyEvidenceFrom(failed.PolicyEvidence));
+        }
+
+        if (outcome is not ProbeBindingsReplaced replaced)
+        {
+            return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
+        }
+
+        var readFailure = TryReadSimulation(
+            activeSession.Handle,
+            CancellationToken.None,
+            out var refreshedSimulation);
+        var refreshedIsConsistent = refreshedSimulation is not null
+            && refreshedSimulation.SessionId == priorSimulation.SessionId
+            && refreshedSimulation.SessionVersion == replaced.SessionVersion
+            && refreshedSimulation.CompilationArtifactKey
+                == priorSimulation.CompilationArtifactKey
+            && refreshedSimulation.LogicalTime == priorSimulation.LogicalTime
+            && refreshedSimulation.TraceCursor == replaced.TraceCursor
+            && refreshedSimulation.Probes.Select(probe => probe.ProbeId)
+                .SequenceEqual(replaced.ProbeIds);
+        if (readFailure is not null || !refreshedIsConsistent)
+        {
+            CloseSimulationForCleanup(activeSession.Handle);
+            state.ActiveSession = null;
+            state.Simulation = null;
+            state.ProjectionVersion++;
+            return readFailure
+                ?? Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
+        }
+
+        state.Simulation = SimulationProjection.FromOwnedProbes(
+            refreshedSimulation!.SessionId,
+            refreshedSimulation.SessionVersion,
+            refreshedSimulation.CompilationArtifactKey,
+            refreshedSimulation.LogicalTime,
+            refreshedSimulation.TraceCursor,
+            [.. refreshedSimulation.Probes],
+            priorSimulation.Run);
+        state.ProjectionVersion++;
+        return new ProbesReplaced(
+            replaced.SessionVersion,
+            replaced.ProbeIds,
+            state.ProjectionVersion);
+    }
+
     private static SessionAdvanceFailed AdvanceFailure(
         SimulationProjection simulation,
         AdvanceFailureReason reason,
@@ -1066,7 +1154,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
 
             return new ProbeProjection(
                 observation.ProbeId,
-                observation.Source.Identity,
+                observation.Source,
                 Values(observation.Value));
         })];
     }
@@ -1080,7 +1168,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
             var observation = observations[index];
             projections[index] = ProbeProjection.FromOwnedValue(
                 observation.ProbeId,
-                observation.Source.Identity,
+                observation.Source,
                 Values(observation.Value));
         }
 
@@ -1096,7 +1184,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
             var snapshot = snapshots[index];
             projections[index] = ProbeProjection.FromOwnedValue(
                 snapshot.ProbeId,
-                snapshot.Source.Identity,
+                snapshot.Source,
                 Values(snapshot.Value));
         }
 

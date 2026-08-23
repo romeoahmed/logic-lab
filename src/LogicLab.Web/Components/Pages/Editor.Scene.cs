@@ -1,7 +1,9 @@
 using System.Globalization;
+using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
+using LogicLab.Engine.Compilation;
 using LogicLab.Web.Scene;
 
 namespace LogicLab.Web.Components.Pages;
@@ -11,10 +13,20 @@ public sealed partial class Editor
     private async Task HandleSceneIntentAsync(SceneIntentV1 intent)
     {
         ArgumentNullException.ThrowIfNull(intent);
-        EditIntent? edit;
         try
         {
-            edit = TranslateSceneEditIntent(intent);
+            var definition = ResolveIntentDefinition(intent);
+            if (intent is ToggleProbeSceneIntentV1 toggleProbe)
+            {
+                await ToggleProbeAsync(toggleProbe, definition);
+                return;
+            }
+
+            var edit = TranslateSceneEditIntent(intent, definition);
+            if (edit is not null)
+            {
+                _ = await Apply(edit);
+            }
         }
         catch (Exception exception) when (exception is ArgumentException
             or FormatException
@@ -25,16 +37,12 @@ public sealed partial class Editor
             // publication key, so an invalid known intent receives a full snapshot.
             return;
         }
-
-        if (edit is not null)
-        {
-            _ = await Apply(edit);
-        }
     }
 
-    private EditIntent? TranslateSceneEditIntent(SceneIntentV1 intent)
+    private EditIntent? TranslateSceneEditIntent(
+        SceneIntentV1 intent,
+        CircuitDefinition definition)
     {
-        var definition = ResolveIntentDefinition(intent);
         return intent switch
         {
             PlaceComponentSceneIntentV1 place => new PlaceComponentInstanceIntent(
@@ -92,12 +100,102 @@ public sealed partial class Editor
                 definition.Id,
                 ResolveWireGeometry(definition, route.WireGeometry).Id,
                 TranslateRoute(route.Route, route.SnapModifier)),
-            ToggleProbeSceneIntentV1 => throw new InvalidOperationException(
-                "Probe interaction requires the Logic Analyzer command seam."),
             SelectSourcesSceneIntentV1 => throw new InvalidOperationException(
                 "Selection must enter through the Web-owned selection callback."),
             _ => throw new InvalidOperationException("The Scene Intent variant is undefined."),
         };
+    }
+
+    private async Task ToggleProbeAsync(
+        ToggleProbeSceneIntentV1 intent,
+        CircuitDefinition definition)
+    {
+        var projection = Projection
+            ?? throw new InvalidOperationException("The Workspace is not open.");
+        var simulation = projection.Simulation
+            ?? throw new InvalidOperationException("The Simulation Session is not open.");
+        var target = TranslateElaboratedNet(intent.Net, definition);
+        var bindings = new List<ProbeBindingRequest>(simulation.Probes.Count + 1);
+        var removed = false;
+        foreach (var probe in simulation.Probes)
+        {
+            if (probe.Source == target)
+            {
+                removed = true;
+                continue;
+            }
+
+            bindings.Add(new RetainProbe(probe.ProbeId, probe.Source));
+        }
+
+        if (!removed)
+        {
+            bindings.Add(new CreateProbe(target));
+        }
+
+        var precondition = SessionPrecondition();
+        var outcome = await Execute(context => new ReplaceProbes(
+            context,
+            precondition,
+            bindings));
+        if (outcome is WorkspaceCommandRejected rejected)
+        {
+            Status = Text["SessionRejected", rejected.Code];
+        }
+    }
+
+    private CompilationSource TranslateElaboratedNet(
+        SceneElaboratedNetRefV1 reference,
+        CircuitDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+        var net = ResolveNet(definition, reference.AuthoredNet);
+        var document = Projection!.ProjectRevision.Document;
+        var path = reference.HierarchyPath;
+        if (!string.Equals(
+                path.EntryCircuitDefinitionId,
+                document.EntryCircuitDefinitionId.Value,
+                StringComparison.Ordinal))
+        {
+            throw new ArgumentException("The Probe hierarchy entry is invalid.");
+        }
+
+        var current = document.EntryCircuitDefinition;
+        var steps = new HierarchyPathStep[path.Steps.Count];
+        for (var index = 0; index < path.Steps.Count; index++)
+        {
+            var step = path.Steps[index];
+            if (!string.Equals(
+                    step.ContainingCircuitDefinitionId,
+                    current.Id.Value,
+                    StringComparison.Ordinal))
+            {
+                throw new ArgumentException("The Probe hierarchy path is discontinuous.");
+            }
+
+            var instance = current.ComponentInstances.Single(candidate => string.Equals(
+                candidate.Id.Value,
+                step.ComponentInstanceId,
+                StringComparison.Ordinal));
+            if (instance.Target is not CircuitDefinitionComponentTarget target
+                || document.FindCircuitDefinition(target.CircuitDefinitionId) is not { } child)
+            {
+                throw new ArgumentException("The Probe hierarchy step is not elaboratable.");
+            }
+
+            steps[index] = new HierarchyPathStep(current.Id, instance.Id);
+            current = child;
+        }
+
+        if (current.Id != definition.Id)
+        {
+            throw new ArgumentException(
+                "The Probe hierarchy does not reach the Scene definition.");
+        }
+
+        return new CompilationSource(
+            new NetSourceIdentity(definition.Id, net.Id),
+            new HierarchyPath(document.EntryCircuitDefinitionId, steps));
     }
 
     private CircuitDefinition ResolveIntentDefinition(SceneIntentV1 intent)

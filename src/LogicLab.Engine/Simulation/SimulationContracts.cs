@@ -427,6 +427,56 @@ public sealed record ScheduleStimulusBatch : SimulationCommand
 
 public sealed record AdvanceToNextQuiescentBoundary : SimulationCommand;
 
+public abstract record ProbeBindingRequest
+{
+    private protected ProbeBindingRequest(CompilationSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        Source = source;
+    }
+
+    public CompilationSource Source { get; }
+}
+
+public sealed record RetainProbe : ProbeBindingRequest
+{
+    public RetainProbe(ProbeId probeId, CompilationSource source)
+        : base(source)
+    {
+        ArgumentNullException.ThrowIfNull(probeId);
+        ProbeId = probeId;
+    }
+
+    public ProbeId ProbeId { get; }
+}
+
+public sealed record CreateProbe : ProbeBindingRequest
+{
+    public CreateProbe(CompilationSource source)
+        : base(source)
+    {
+    }
+}
+
+public sealed record ReplaceProbeBindings : SimulationCommand
+{
+    public ReplaceProbeBindings(IReadOnlyList<ProbeBindingRequest> bindings)
+    {
+        ArgumentNullException.ThrowIfNull(bindings);
+        var ownedBindings = bindings.ToArray();
+        if (ownedBindings.Any(static binding => binding is null))
+        {
+            throw new ArgumentException(
+                "Probe bindings cannot contain null requests.",
+                nameof(bindings));
+        }
+
+        Bindings = Array.AsReadOnly(ownedBindings);
+    }
+
+    public ReadOnlyCollection<ProbeBindingRequest> Bindings { get; }
+}
+
 public sealed record HotSwapConsumerBufferRequirements
 {
     public HotSwapConsumerBufferRequirements(
@@ -528,6 +578,51 @@ public sealed record AdvanceCommitted : SimulationCommandOutcome
 public sealed record NoScheduledStimulus(
     ulong SessionVersion,
     ulong LogicalTime) : SimulationCommandOutcome;
+
+public sealed record ProbeBindingsReplaced : SimulationCommandOutcome
+{
+    internal ProbeBindingsReplaced(
+        ulong sessionVersion,
+        ProbeId[] ownedProbeIds,
+        TraceCursor traceCursor)
+    {
+        SessionVersion = sessionVersion;
+        ProbeIds = Array.AsReadOnly(ownedProbeIds);
+        TraceCursor = traceCursor;
+    }
+
+    public ulong SessionVersion { get; }
+
+    public ReadOnlyCollection<ProbeId> ProbeIds { get; }
+
+    public TraceCursor TraceCursor { get; }
+}
+
+public enum ProbeBindingsInvalidRule
+{
+    DuplicateBinding,
+    UnresolvedSource,
+    ArtifactMismatch,
+}
+
+public sealed record ProbeBindingsInvalid : SimulationCommandOutcome
+{
+    internal ProbeBindingsInvalid(
+        ulong sessionVersion,
+        ProbeBindingsInvalidRule rule,
+        CompilationSource[] ownedSourceLocations)
+    {
+        SessionVersion = sessionVersion;
+        Rule = rule;
+        SourceLocations = Array.AsReadOnly(ownedSourceLocations);
+    }
+
+    public ulong SessionVersion { get; }
+
+    public ProbeBindingsInvalidRule Rule { get; }
+
+    public ReadOnlyCollection<CompilationSource> SourceLocations { get; }
+}
 
 public sealed class HotSwapMigrationEvidence
 {

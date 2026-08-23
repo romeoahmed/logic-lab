@@ -622,6 +622,19 @@ internal sealed partial class EditorWorkspace
         return Step(state, cancellationToken);
     }
 
+    private WorkspaceCommandOutcome ReplaceProbesWithPrecondition(
+        WorkspaceState state,
+        ReplaceProbes command,
+        CancellationToken cancellationToken)
+    {
+        if (!MatchesSessionPrecondition(state, command.Precondition))
+        {
+            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
+        }
+
+        return ReplaceProbeBindings(state, command, cancellationToken);
+    }
+
     private static bool MatchesSessionPrecondition(
         WorkspaceState state,
         SessionMutationPrecondition precondition)
@@ -820,6 +833,7 @@ internal sealed partial class EditorWorkspace
                 JsonSerializer.Serialize(
                     step.Precondition.CompilationArtifactKey,
                     CanonicalJsonOptions)),
+            ReplaceProbes replace => CanonicalReplaceProbesIdentity(replace),
             StartRun start => SerializeCanonicalIdentity(
                 nameof(StartRun),
                 start.Precondition.SessionId.Value,
@@ -860,6 +874,31 @@ internal sealed partial class EditorWorkspace
             _ => SerializeCanonicalIdentity(
                 command.GetType().FullName ?? command.GetType().Name),
         };
+    }
+
+    private static string CanonicalReplaceProbesIdentity(ReplaceProbes command)
+    {
+        var components = new List<string>(command.Bindings.Count + 3)
+        {
+            command.Precondition.SessionId.Value,
+            command.Precondition.SessionVersion.ToString(CultureInfo.InvariantCulture),
+            JsonSerializer.Serialize(
+                command.Precondition.CompilationArtifactKey,
+                CanonicalJsonOptions),
+        };
+        components.AddRange(command.Bindings.Select(binding => binding switch
+        {
+            RetainProbe retain => SerializeCanonicalIdentity(
+                nameof(RetainProbe),
+                retain.ProbeId.Value,
+                JsonSerializer.Serialize(retain.Source, CanonicalJsonOptions)),
+            CreateProbe create => SerializeCanonicalIdentity(
+                nameof(CreateProbe),
+                JsonSerializer.Serialize(create.Source, CanonicalJsonOptions)),
+            _ => throw new InvalidOperationException(
+                "The Workspace Probe binding request variant is undefined."),
+        }));
+        return SerializeCanonicalIdentity(nameof(ReplaceProbes), [.. components]);
     }
 
     private static string SerializeCanonicalIdentity(
