@@ -1,48 +1,31 @@
+using System.Globalization;
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Geometry;
 using LogicLab.Presentation.TeachingMixed;
 using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
+using static LogicLab.Presentation.Tests.PresentationPropertyChecks;
+using static LogicLab.Presentation.Tests.SequentialAndMemoryPresentationTestData;
 
 namespace LogicLab.Presentation.Tests;
 
 internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
 {
     [Test]
-    [Arguments("source.clock")]
-    [Arguments("sequential.d_latch")]
-    [Arguments("sequential.dff")]
-    [Arguments("sequential.sr_latch")]
-    [Arguments("sequential.jkff")]
-    [Arguments("sequential.tff")]
-    [Arguments("sequential.register")]
-    [Arguments("sequential.shift_register")]
-    [Arguments("sequential.counter")]
-    [Arguments("memory.rom")]
-    [Arguments("memory.ram_single_port")]
-    public async Task Plan_Item25SequentialOrMemoryContract_PublishesRectangularPlan(
-        string contractId)
-    {
-        var plan = Plan(Request(contractId));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(plan.Key.SymbolVariantId)
-                .IsEqualTo(SymbolVariantCatalog.RectangularId);
-            await Assert.That(plan.PortAnchors).IsNotEmpty();
-            await Assert.That(plan.Conformance.StandardReferences)
-                .IsNotEmpty();
-        }
-    }
-
-    [Test]
-    public async Task Plan_AstableClock_HidesContractOutputId()
+    public async Task Plan_AstableClock_PublishesStandardFunctionWithoutContractOutputId()
     {
         var plan = Plan(Request("source.clock"));
 
         using (Assert.Multiple())
         {
+            await Assert.That(plan.Operations.OfType<DrawTextV1>())
+                .HasSingleItem(operation =>
+                    operation.FontRole == FontRoleV1.Symbol
+                    && operation.Text == "G");
             await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
                     operation.Text == "Q"))
                 .IsFalse();
@@ -107,31 +90,21 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
         using (Assert.Multiple())
         {
             await Assert.That(plan.Operations.OfType<StrokePathV1>().Count(operation =>
-                    operation.Role == StrokeRoleV1.Qualifier
-                    && !operation.Path.Commands.OfType<CubicToV1>().Any()))
-                .IsEqualTo(1);
+                    operation.Role == StrokeRoleV1.Qualifier))
+                .IsEqualTo(2);
             await Assert.That(plan.Conformance.StandardReferences.Single().ClauseIds)
                 .Contains("3.1-9");
         }
     }
 
     [Test]
-    [Arguments("sequential.d_latch", "1D|C1", "3.3-13|4.3.7|5.9", "Q")]
-    [Arguments("sequential.dff", "1D|C1", "3.3-13|4.3.7|5.9|3.1-9", "Q")]
-    [Arguments("sequential.jkff", "1J|1K|C1", "3.3-14|3.3-15|4.3.7|5.9|3.1-9|3.1.1|3.1-2", "Q|QN")]
-    [Arguments("sequential.tff", "1T|C1", "3.3-18|4.3.7|5.9|3.1-9|3.1.1|3.1-2", "Q|QN")]
-    [Arguments("sequential.register", "1,2D|C1|EN2", "3.3-13|4.3.7|4.3.9|5.9|3.1-9", "Q")]
-    [Arguments("sequential.shift_register", "1,2D|¬1,2,3D|M1|C2/¬1,3→|EN3", "3.3-13|3.3-19|4.3.1|4.3.7|4.3.9|4.4.3|5.13-1|3.1-9", "PARALLEL|SERIAL|Q|SERIAL_OUT")]
-    [Arguments("sequential.counter", "1,2D|M1|C2/¬1,3+|EN3", "3.3-13|3.3-21|3.3-36|4.3.1|4.3.7|4.3.9|4.4.3|5.13-1|5.13-17|3.1-9", "LOAD_VALUE|Q|TERMINAL")]
-    [Arguments("memory.rom", "A0/1|A", "3.3-25|4.3.11|4.4.2|5.14-1", "Q")]
-    [Arguments("memory.ram_single_port", "A0/1|A,2,3D|2EN3|C2|A", "3.3-13|3.3-25|4.3.7|4.3.9|4.3.11|4.4.2|5.14-1|3.1-9", "WE|Q")]
-    public async Task Plan_Item25Recipes_UseStandardPortFunctionsAndEvidence(
-        string contractId,
-        string expectedLabels,
-        string expectedClauses,
-        string contractOnlyLabels)
+    [MethodDataSource(
+        typeof(SequentialAndMemoryPresentationTestData),
+        nameof(SequentialAndMemoryPresentationTestData.Item25RecipeExpectations))]
+    public async Task Plan_ScalarItem25Recipe_PublishesRegisteredNotationAndEvidence(
+        Item25RecipeExpectation expectation)
     {
-        var plan = Plan(Request(contractId));
+        var plan = Plan(Request(expectation.ContractId));
         var reference = plan.Conformance.StandardReferences.Single();
         var visibleText = plan.Operations.OfType<DrawTextV1>()
             .Select(operation => operation.Text)
@@ -145,11 +118,11 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
                 .Where(operation => operation.FontRole == FontRoleV1.Dependency)
                 .Select(operation => operation.Text))
                 .IsEquivalentTo(
-                    expectedLabels.Split('|'),
+                    expectation.DependencyLabels,
                     CollectionOrdering.Matching);
             await Assert.That(reference.ClauseIds)
-                .IsEquivalentTo(expectedClauses.Split('|'));
-            await Assert.That(visibleText.Any(contractOnlyLabels.Split('|').Contains))
+                .IsEquivalentTo(expectation.ClauseIds);
+            await Assert.That(visibleText.Any(expectation.HiddenContractLabels.Contains))
                 .IsFalse();
         }
     }
@@ -189,94 +162,92 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
         }
     }
 
-    [Test]
-    [Arguments("up", "CT = 1")]
-    [Arguments("down", "CT = 0")]
-    public async Task Plan_CounterTerminal_UsesStandardCountCondition(
-        string direction,
-        string expectedFunction)
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(PresentationGeometryArbitraries) })]
+    public Property Plan_CounterParameters_DeriveBodyAndTerminalFunctions(
+        CounterSymbolPlanCase sample)
     {
-        var parameters = Parameters("sequential.counter")
-            .Select(parameter => parameter.ParameterId == "direction"
-                ? Choice("direction", direction)
-                : parameter)
+        var plan = Plan(RequestWithParameters(
+            "sequential.counter",
+            [
+                U32("width", sample.Width),
+                Choice("direction", sample.Direction),
+                Choice("edge", "rising"),
+                new ComponentParameterBinding(
+                    "initialState",
+                    new LogicVectorParameterValue(
+                        [.. Enumerable.Repeat(LogicValue.Zero, checked((int)sample.Width))])),
+            ]));
+        var textOperations = plan.Operations.OfType<DrawTextV1>().ToArray();
+        var visibleText = textOperations
+            .Select(operation => operation.Text)
             .ToArray();
-        var plan = Plan(RequestWithParameters("sequential.counter", parameters));
+        var expectedTerminal = sample.Direction == "down"
+            ? "CT = 0"
+            : sample.Width < 32
+                ? string.Concat(
+                    "CT = ",
+                    checked((1U << checked((int)sample.Width)) - 1U).ToString(
+                        CultureInfo.InvariantCulture))
+                : string.Concat(
+                    "CT = 2^",
+                    sample.Width.ToString(CultureInfo.InvariantCulture),
+                    " − 1");
+        var violations = new List<string>();
 
-        await Assert.That(plan.Operations.OfType<DrawTextV1>())
-            .HasSingleItem(operation => operation.Text == expectedFunction);
-    }
-
-    [Test]
-    [Arguments("source.clock", "G")]
-    [Arguments("sequential.shift_register", "SRG1")]
-    [Arguments("sequential.counter", "CTR1")]
-    [Arguments("memory.rom", "ROM 2 × 1")]
-    [Arguments("memory.ram_single_port", "RAM 2 × 1")]
-    public async Task Plan_Item25FunctionRecipe_UsesStructuredParameters(
-        string contractId,
-        string expectedFunction)
-    {
-        var plan = Plan(Request(contractId));
-
-        await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
+        Check(
+            textOperations.Count(operation =>
                 operation.FontRole == FontRoleV1.Symbol
-                && operation.Text == expectedFunction))
-            .IsTrue();
+                && operation.Text == string.Concat(
+                    "CTR",
+                    sample.Width.ToString(CultureInfo.InvariantCulture))) == 1,
+            "counter body function does not reflect width",
+            violations);
+        Check(
+            visibleText.Count(text => text == expectedTerminal) == 1,
+            "terminal-count function does not reflect width and direction",
+            violations);
+
+        return (violations.Count == 0).Label(string.Join("; ", violations));
     }
 
     [Test]
-    [Arguments("sequential.shift_register", "towardHigh", "SRG1", "C2/¬1,3→", "3.3-19", "3.3-20")]
-    [Arguments("sequential.shift_register", "towardLow", "SRG1", "C2/¬1,3←", "3.3-20", "3.3-19")]
-    [Arguments("sequential.counter", "up", "CTR1", "C2/¬1,3+", "3.3-21", "3.3-22")]
-    [Arguments("sequential.counter", "down", "CTR1", "C2/¬1,3−", "3.3-22", "3.3-21")]
+    [MatrixDataSource]
     public async Task Plan_ShiftOrCountDirection_BindsQualifierAcrossFacingAndReflection(
-        string contractId,
-        string direction,
-        string expectedFunction,
-        string expectedClockLabel,
-        string expectedClause,
-        string excludedClause)
+        [Matrix(
+            DirectionalOperation.ShiftTowardHigh,
+            DirectionalOperation.ShiftTowardLow,
+            DirectionalOperation.CountUp,
+            DirectionalOperation.CountDown)] DirectionalOperation operation,
+        [Matrix(
+            SymbolFacingV1.East,
+            SymbolFacingV1.South,
+            SymbolFacingV1.West,
+            SymbolFacingV1.North)] SymbolFacingV1 facing,
+        [Matrix(false, true)] bool isReflected)
     {
-        var parameters = Parameters(contractId)
+        var expectation = GetDirectionExpectation(operation);
+        var parameters = Parameters(expectation.ContractId)
             .Select(parameter => parameter.ParameterId == "direction"
-                ? Choice("direction", direction)
+                ? Choice("direction", expectation.Direction)
                 : parameter)
             .ToArray();
-        var template = RequestWithParameters(contractId, parameters);
+        var template = RequestWithParameters(expectation.ContractId, parameters);
+        var plan = Plan(WithPresentation(template, facing, isReflected));
+        var clauses = plan.Conformance.StandardReferences.Single().ClauseIds;
 
-        foreach (var facing in Enum.GetValues<SymbolFacingV1>())
+        using (Assert.Multiple())
         {
-            foreach (var isReflected in new[] { false, true })
-            {
-                var plan = Plan(new ComponentSymbolRequestV1(
-                    template.Contract,
-                    template.Parameters,
-                    template.Profile,
-                    template.SymbolVariantId,
-                    facing,
-                    isReflected,
-                    template.MetricSet,
-                    template.FontFingerprint,
-                    template.LocaleId,
-                    template.BaseDirection));
-                var clauses = plan.Conformance.StandardReferences.Single().ClauseIds;
-
-                using (Assert.Multiple())
-                {
-                    await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
-                            operation.FontRole == FontRoleV1.Symbol
-                            && operation.Text == expectedFunction))
-                        .IsTrue();
-                    await Assert.That(plan.Operations.OfType<DrawTextV1>())
-                        .HasSingleItem(operation =>
-                            operation.FontRole == FontRoleV1.Dependency
-                            && operation.Text == expectedClockLabel
-                            && operation.Orientation == TextOrientationV1.UprightReading);
-                    await Assert.That(clauses).Contains(expectedClause);
-                    await Assert.That(clauses).DoesNotContain(excludedClause);
-                }
-            }
+            await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(candidate =>
+                    candidate.FontRole == FontRoleV1.Symbol
+                    && candidate.Text == expectation.Function))
+                .IsTrue();
+            await Assert.That(plan.Operations.OfType<DrawTextV1>())
+                .HasSingleItem(candidate =>
+                    candidate.FontRole == FontRoleV1.Dependency
+                    && candidate.Text == expectation.ClockLabel
+                    && candidate.Orientation == TextOrientationV1.UprightReading);
+            await Assert.That(clauses).Contains(expectation.ClauseId);
+            await Assert.That(clauses).DoesNotContain(expectation.ExcludedClauseId);
         }
     }
 
@@ -330,126 +301,145 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
         }
     }
 
-    [Test]
-    public async Task Plan_RomDimensions_ChangeVisibleArrayInformationAndRemainExplicitExtension()
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(PresentationGeometryArbitraries) })]
+    public Property Plan_MemoryParameters_DeriveCapacityAndAggregateConformance(
+        MemorySymbolPlanCase sample)
     {
         var plan = Plan(RequestWithParameters(
-            "memory.rom",
+            sample.ContractId,
             [
-                U32("addressWidth", 3),
-                U32("wordWidth", 4),
+                U32("addressWidth", sample.AddressWidth),
+                U32("wordWidth", sample.WordWidth),
                 new ComponentParameterBinding(
                     "initialImage",
                     new MemoryImageParameterValue(CreateMemoryImageId())),
             ]));
-
-        using (Assert.Multiple())
+        var expectedFunction = string.Concat(
+            sample.ContractId == "memory.rom" ? "ROM " : "RAM ",
+            (1U << checked((int)sample.AddressWidth)).ToString(
+                CultureInfo.InvariantCulture),
+            " × ",
+            sample.WordWidth.ToString(CultureInfo.InvariantCulture));
+        var expectedAggregatePortIds = new List<string>();
+        if (sample.AddressWidth > 1)
         {
-            await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
-                    operation.Text == "ROM 8 × 4"))
-                .IsTrue();
-            await Assert.That(plan.Operations.OfType<DrawTextV1>())
-                .HasSingleItem(operation =>
-                    operation.Text == "A"
-                    && operation.FontRole == FontRoleV1.PortLabel);
-            await Assert.That(plan.Operations.OfType<DrawTextV1>())
-                .HasSingleItem(operation =>
-                    operation.Text == "Q"
-                    && operation.FontRole == FontRoleV1.PortLabel);
-            await Assert.That(plan.Operations.OfType<DrawTextV1>().Any(operation =>
-                    operation.Text == "A0/7"))
-                .IsFalse();
-            await Assert.That(plan.Operations.OfType<StrokePathV1>().Any(operation =>
-                    operation.Role == StrokeRoleV1.Qualifier
-                    && operation.Path.Commands.OfType<CubicToV1>().Any()))
-                .IsFalse();
-            await Assert.That(plan.Conformance.Claim)
-                .IsEqualTo(ConformanceClaimV1.TeachingExtension);
-            await Assert.That(plan.Conformance.StandardReferences.Single().ClauseIds)
-                .DoesNotContain("3.3-25");
-            await Assert.That(plan.Conformance.StandardReferences.Single().ClauseIds)
-                .DoesNotContain("4.3.11");
-            await Assert.That(plan.Conformance.StandardReferences.Single().ClauseIds)
-                .DoesNotContain("4.4.2");
-            await Assert.That(plan.Conformance.Deviations.Any(deviation =>
-                    deviation.DeviationCode == "teachingmixed-aggregate-multibit-port"
-                    && deviation.AffectedPortIds.SequenceEqual(["A", "Q"])))
-                .IsTrue();
+            expectedAggregatePortIds.Add("A");
         }
+
+        if (sample.WordWidth > 1)
+        {
+            if (sample.ContractId == "memory.ram_single_port")
+            {
+                expectedAggregatePortIds.Add("D");
+            }
+
+            expectedAggregatePortIds.Add("Q");
+        }
+
+        var aggregateDeviation = plan.Conformance.Deviations.SingleOrDefault(deviation =>
+            deviation.DeviationCode == "teachingmixed-aggregate-multibit-port");
+        var clauses = plan.Conformance.StandardReferences.Single().ClauseIds;
+        var violations = new List<string>();
+
+        Check(
+            plan.Operations.OfType<DrawTextV1>().Count(operation =>
+                operation.FontRole == FontRoleV1.Symbol
+                && operation.Text == expectedFunction) == 1,
+            "memory capacity does not reflect address and word width",
+            violations);
+        Check(
+            plan.Conformance.Claim == (expectedAggregatePortIds.Count == 0
+                ? ConformanceClaimV1.Standardized91A
+                : ConformanceClaimV1.TeachingExtension),
+            "memory conformance does not reflect aggregate Ports",
+            violations);
+        Check(
+            expectedAggregatePortIds.Count == 0
+                ? aggregateDeviation is null
+                : aggregateDeviation is not null
+                    && aggregateDeviation.AffectedPortIds
+                        .Order(StringComparer.Ordinal)
+                        .SequenceEqual(expectedAggregatePortIds.Order(StringComparer.Ordinal)),
+            "aggregate deviation does not identify every multi-bit Port",
+            violations);
+        Check(
+            clauses.Contains("3.3-25", StringComparer.Ordinal)
+                == (sample.AddressWidth == 1),
+            "address grouping evidence does not reflect scalar address notation",
+            violations);
+
+        return (violations.Count == 0).Label(string.Join("; ", violations));
     }
 
     [Test]
-    [Arguments("memory.rom")]
-    [Arguments("memory.ram_single_port")]
+    [MatrixDataSource]
     public async Task Plan_MemoryAddress_UsesStructuredBitGroupingAcrossFacingAndReflection(
-        string contractId)
+        [Matrix("memory.rom", "memory.ram_single_port")] string contractId,
+        [Matrix(
+            SymbolFacingV1.East,
+            SymbolFacingV1.South,
+            SymbolFacingV1.West,
+            SymbolFacingV1.North)] SymbolFacingV1 facing,
+        [Matrix(false, true)] bool isReflected)
     {
         var template = Request(contractId);
-
-        foreach (var facing in Enum.GetValues<SymbolFacingV1>())
-        {
-            foreach (var isReflected in new[] { false, true })
+        var plan = Plan(WithPresentation(template, facing, isReflected));
+        var groupingMark = await Assert.That(plan.Operations.OfType<StrokePathV1>())
+            .HasSingleItem(operation =>
+                operation.Role == StrokeRoleV1.Qualifier
+                && operation.Path.Commands.OfType<CubicToV1>().Any());
+        var groupingPoints = groupingMark.Path.Commands.SelectMany(command =>
+            command switch
             {
-                var plan = Plan(new ComponentSymbolRequestV1(
-                    template.Contract,
-                    template.Parameters,
-                    template.Profile,
-                    template.SymbolVariantId,
-                    facing,
-                    isReflected,
-                    template.MetricSet,
-                    template.FontFingerprint,
-                    template.LocaleId,
-                    template.BaseDirection));
-                var groupingMarks = plan.Operations.OfType<StrokePathV1>()
-                    .Where(operation =>
-                        operation.Role == StrokeRoleV1.Qualifier
-                        && operation.Path.Commands.OfType<CubicToV1>().Any())
-                    .ToArray();
+                MoveToV1 move => new[] { move.Point },
+                LineToV1 line => [line.Point],
+                CubicToV1 cubic => [cubic.Control1, cubic.Control2, cubic.End],
+                ClosePathV1 => [],
+                _ => throw new InvalidOperationException("Unknown path command."),
+            }).ToArray();
+        var addressAnchor = plan.PortAnchors.Single(anchor => anchor.PortId == "A");
+        var groupingIsInsideBody = addressAnchor.OutwardDirection switch
+        {
+            PlanDirectionV1.West => groupingPoints.All(point =>
+                point.X > addressAnchor.Point.X),
+            PlanDirectionV1.East => groupingPoints.All(point =>
+                point.X < addressAnchor.Point.X),
+            PlanDirectionV1.North => groupingPoints.All(point =>
+                point.Y > addressAnchor.Point.Y),
+            PlanDirectionV1.South => groupingPoints.All(point =>
+                point.Y < addressAnchor.Point.Y),
+            _ => false,
+        };
 
-                await Assert.That(groupingMarks).Count().IsEqualTo(1);
-                var groupingMark = groupingMarks[0];
-                var groupingPoints = groupingMark.Path.Commands.SelectMany(command =>
-                    command switch
-                    {
-                        MoveToV1 move => new[] { move.Point },
-                        LineToV1 line => [line.Point],
-                        CubicToV1 cubic => [cubic.Control1, cubic.Control2, cubic.End],
-                        ClosePathV1 => [],
-                        _ => throw new InvalidOperationException("Unknown path command."),
-                    }).ToArray();
-                var addressAnchor = plan.PortAnchors.Single(anchor => anchor.PortId == "A");
-                var groupingIsInsideBody = addressAnchor.OutwardDirection switch
-                {
-                    PlanDirectionV1.West => groupingPoints.All(point =>
-                        point.X > addressAnchor.Point.X),
-                    PlanDirectionV1.East => groupingPoints.All(point =>
-                        point.X < addressAnchor.Point.X),
-                    PlanDirectionV1.North => groupingPoints.All(point =>
-                        point.Y > addressAnchor.Point.Y),
-                    PlanDirectionV1.South => groupingPoints.All(point =>
-                        point.Y < addressAnchor.Point.Y),
-                    _ => false,
-                };
-
-                using (Assert.Multiple())
-                {
-                    await Assert.That(groupingMark.Path.Commands.OfType<CubicToV1>())
-                        .IsNotEmpty();
-                    await Assert.That(groupingPoints.All(plan.Bounds.Contains)).IsTrue();
-                    await Assert.That(groupingIsInsideBody).IsTrue();
-                    await Assert.That(plan.Operations.OfType<DrawTextV1>())
-                        .HasSingleItem(operation =>
-                            operation.Text == "0"
-                            && operation.FontRole == FontRoleV1.PortLabel);
-                    await Assert.That(plan.Operations.OfType<DrawTextV1>())
-                        .HasSingleItem(operation =>
-                            operation.Text == "A0/1"
-                            && operation.FontRole == FontRoleV1.Dependency);
-                    await Assert.That(plan.Conformance.Claim)
-                        .IsEqualTo(ConformanceClaimV1.Standardized91A);
-                }
-            }
+        using (Assert.Multiple())
+        {
+            await Assert.That(groupingPoints.All(plan.Bounds.Contains)).IsTrue();
+            await Assert.That(groupingIsInsideBody).IsTrue();
+            await Assert.That(plan.Operations.OfType<DrawTextV1>())
+                .HasSingleItem(operation =>
+                    operation.Text == "0"
+                    && operation.FontRole == FontRoleV1.PortLabel);
+            await Assert.That(plan.Operations.OfType<DrawTextV1>())
+                .HasSingleItem(operation =>
+                    operation.Text == "A0/1"
+                    && operation.FontRole == FontRoleV1.Dependency);
+            await Assert.That(plan.Conformance.Claim)
+                .IsEqualTo(ConformanceClaimV1.Standardized91A);
         }
     }
+
+    private static ComponentSymbolRequestV1 WithPresentation(
+        ComponentSymbolRequestV1 template,
+        SymbolFacingV1 facing,
+        bool isReflected) => new(
+            template.Contract,
+            template.Parameters,
+            template.Profile,
+            template.SymbolVariantId,
+            facing,
+            isReflected,
+            template.MetricSet,
+            template.FontFingerprint,
+            template.LocaleId,
+            template.BaseDirection);
 }
