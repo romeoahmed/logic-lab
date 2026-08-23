@@ -244,6 +244,10 @@ internal sealed partial class EditorWorkspace
                     state,
                     step,
                     cancellationToken),
+                ReplaceProbes replace => ReplaceProbesWithPrecondition(
+                    state,
+                    replace,
+                    cancellationToken),
                 StartRun start => StartRunWithPrecondition(
                     state,
                     start),

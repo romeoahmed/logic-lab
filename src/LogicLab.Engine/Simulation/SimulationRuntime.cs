@@ -152,6 +152,10 @@ public static partial class SimulationRuntime
                 AdvanceToNextQuiescentBoundary => Advance(
                     state,
                     cancellationToken),
+                ReplaceProbeBindings replace => ReplaceProbes(
+                    state,
+                    replace,
+                    cancellationToken),
                 HotSwapTo hotSwap => HotSwap(
                     state,
                     hotSwap.CompilationArtifact,

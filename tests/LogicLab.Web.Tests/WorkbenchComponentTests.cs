@@ -9,6 +9,7 @@ using LogicLab.Engine.Compilation;
 using LogicLab.ProjectFormat;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Components.Pages;
+using LogicLab.Web.Scene;
 using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -507,6 +508,33 @@ internal sealed class WorkbenchComponentTests
             await Assert.That(IsDisabled(rendered, "stimulus")).IsFalse();
             await Assert.That(IsDisabled(rendered, "step")).IsTrue();
         }
+
+        var beforeToggle = await workspace.ReadCurrent();
+        var definition = beforeToggle.ProjectRevision.Document.EntryCircuitDefinition;
+        var boundProbe = beforeToggle.Simulation!.Probes.Single();
+        var boundNet = (NetSourceIdentity)boundProbe.Source.Identity;
+        var sceneHost = rendered.FindComponent<CircuitSceneHost>();
+        await rendered.InvokeAsync(() => sceneHost.Instance.OnIntent.InvokeAsync(
+            new ToggleProbeSceneIntentV1(
+                LogicLabWebBuild.Fingerprint,
+                sceneVersion: 1,
+                beforeToggle.ProjectionVersion,
+                definition.Id.Value,
+                new SceneElaboratedNetRefV1(
+                    new SceneSourceRefV1(
+                        boundNet.CircuitDefinitionId.Value,
+                        "net",
+                        $"net:{boundNet.NetId.Value}"),
+                    new SceneHierarchyPathV1(
+                        boundProbe.Source.HierarchyPath.EntryCircuitDefinitionId.Value,
+                        [.. boundProbe.Source.HierarchyPath.Steps.Select(step =>
+                            new SceneHierarchyStepV1(
+                                step.ContainingCircuitDefinitionId.Value,
+                                step.ComponentInstanceId.Value))])))));
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-probe]").Count == 0);
+        var afterToggle = await workspace.ReadCurrent();
+
+        await Assert.That(afterToggle.Simulation!.Probes).IsEmpty();
     }
 
     [Test]
