@@ -640,53 +640,17 @@ public static partial class Compiler
             inputTerminals,
             driverByTerminal,
             cancellationToken);
-        var (fanoutOffsets, fanoutEvaluators) = BuildFanout(
-            simulationNets,
-            cancellationToken);
-        var adjacency = BuildEvaluatorAdjacency(
+        return CreateArtifact(
+            request,
             evaluators,
             drivers,
             simulationNets,
-            cancellationToken);
-        var graphPlan = CompilerGraph.CreatePlan(adjacency, cancellationToken);
-        var simulationIr = new SimulationIr(
-            evaluators,
-            drivers,
-            simulationNets,
-            fanoutOffsets,
-            fanoutEvaluators,
-            graphPlan.Components,
-            graphPlan.CondensationOrder);
-        var sccMemberSources = graphPlan.Components
-            .SelectMany(component => component.EvaluatorOrdinals.Select(
-                evaluatorOrdinal =>
-                    new StronglyConnectedComponentMemberSourceMapEntry(
-                        component.Ordinal,
-                        evaluatorOrdinal,
-                        evaluatorSources[evaluatorOrdinal].Source)))
-            .ToArray();
-        var sourceMap = new SourceMap(
             evaluatorSources,
             evaluatorInputSources,
             driverSources,
             netSources,
-            sccMemberSources,
-            []);
-        CompilationArtifactValidator.Validate(
-            simulationIr,
-            sourceMap,
-            cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        var key = new CompilationArtifactKey(
-            request.ProjectRevision.RevisionId,
-            request.EntryCircuitDefinitionId,
-            request.LibrarySnapshot.Fingerprint,
-            SemanticVersion);
-        return new CompilationArtifact(
-            key,
-            simulationIr,
-            sourceMap,
-            request.ProjectRevision);
+            netAliases: [],
+            cancellationToken: cancellationToken);
     }
 
     private static (
