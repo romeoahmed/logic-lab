@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LogicLab.Web\LogicLab.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit.Playwright" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\src\LogicLab.Web\Components\Editor\CircuitSceneHost.razor.js"
+             Link="CircuitSceneHost.razor.js"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

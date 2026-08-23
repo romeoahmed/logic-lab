@@ -213,4 +213,15 @@
   <data name="RouteMarkedUnrouted" xml:space="preserve"><value>Wire Geometry marked explicitly unrouted.</value></data>
   <data name="RouteRouted" xml:space="preserve"><value>Wire Geometry routed orthogonally.</value></data>
   <data name="SteeringGalleryAuthored" xml:space="preserve"><value>Steering gallery authored with generated Ports. Compile the current Project Revision.</value></data>
+  <data name="CanvasReady" xml:space="preserve"><value>Circuit Canvas ready.</value></data>
+  <data name="CanvasStarting" xml:space="preserve"><value>Preparing the responsive Circuit Canvas. The semantic outline remains available.</value></data>
+  <data name="CanvasUnavailable" xml:space="preserve"><value>The bitmap renderer is unavailable. Continue with the semantic circuit outline or retry the Canvas.</value></data>
+  <data name="CircuitCanvasAriaLabel" xml:space="preserve"><value>Interactive Circuit Canvas. Use the semantic circuit outline for the same selectable sources.</value></data>
+  <data name="CircuitCanvasFallback" xml:space="preserve"><value>Interactive circuit rendering is unavailable. Use the semantic circuit outline that follows.</value></data>
+  <data name="RetryCanvas" xml:space="preserve"><value>Retry Canvas</value></data>
+  <data name="SemanticCircuitOutline" xml:space="preserve"><value>Semantic circuit outline</value></data>
+  <data name="SemanticScenePagesAriaLabel" xml:space="preserve"><value>Semantic circuit pages</value></data>
+  <data name="SemanticScenePage" xml:space="preserve"><value>Page {0} of {1}</value></data>
+  <data name="Previous" xml:space="preserve"><value>Previous</value></data>
+  <data name="Next" xml:space="preserve"><value>Next</value></data>
 </root>

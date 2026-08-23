@@ -1,10 +1,11 @@
 @inject IStringLocalizer<EditorText> Text
+@using LogicLab.Web.Scene
 
-<section class="scene" aria-labelledby="circuit-scene-heading">
+<section class="scene" aria-labelledby="@HeadingId">
     <div class="scene-heading">
         <div>
             <p class="eyebrow">@Text["CircuitSceneEyebrow"]</p>
-            <h2 id="circuit-scene-heading">@(Scene?.DisplayName ?? Text["Circuit"])</h2>
+            <h2 id="@HeadingId" class="@(!ShowHeading ? "visually-hidden" : null)">@(Scene?.DisplayName ?? Text["Circuit"])</h2>
         </div>
         @if (Scene is not null)
         {
@@ -24,31 +25,75 @@
     }
     else
     {
+        @if (totalPages > 1)
+        {
+            <nav class="semantic-pager" aria-label="@Text["SemanticScenePagesAriaLabel"]">
+                <button type="button" disabled="@(pageIndex == 0)" @onclick="PreviousPage">
+                    @Text["Previous"]
+                </button>
+                <span>@Text["SemanticScenePage", pageIndex + 1, totalPages]</span>
+                <button type="button" disabled="@(pageIndex + 1 == totalPages)" @onclick="NextPage">
+                    @Text["Next"]
+                </button>
+            </nav>
+        }
+
         @if (Scene.DefinitionPorts.Count != 0)
         {
             <h3 class="definition-ports-heading">@Text["DefinitionPorts"]</h3>
             <ul class="definition-port-list" aria-label="@Text["CircuitDefinitionPortsAriaLabel"]">
-                @foreach (var port in Scene.DefinitionPorts)
+                @foreach (var port in Scene.DefinitionPorts.Where(port =>
+                    IsVisible(DefinitionPortSource(port))))
                 {
                     <li @key="port.Source"
                         data-definition-port="@port.Source.DefinitionPortId.Value">
-                        <strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]
+                        <button type="button"
+                                class="scene-action"
+                                data-scene-source="@DefinitionPortSource(port).Key"
+                                @onfocus="@(() => FocusAsync(DefinitionPortSource(port)))"
+                                @onclick="@(() => SelectAsync(DefinitionPortSource(port)))">
+                            <strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]
+                        </button>
                     </li>
                 }
             </ul>
         }
 
         <ol class="component-list" aria-label="@Text["CircuitComponentsAriaLabel"]">
-            @foreach (var component in Scene.Components)
+            @foreach (var component in Scene.Components.Where(ComponentIsVisible))
             {
                 <li @key="component.Source" data-component="@component.Source.ComponentInstanceId.Value">
                     <article class="component-card">
-                        <h3>@component.Label</h3>
+                        @if (IsVisible(ComponentSource(component)))
+                        {
+                            <h3>
+                                <button type="button"
+                                        class="scene-action"
+                                        data-scene-source="@ComponentSource(component).Key"
+                                        @onfocus="@(() => FocusAsync(ComponentSource(component)))"
+                                        @onclick="@(() => SelectAsync(ComponentSource(component)))">
+                                    @component.Label
+                                </button>
+                            </h3>
+                        }
+                        else
+                        {
+                            <h3>@component.Label</h3>
+                        }
                         <p>@Text["GridPosition", component.Placement.Origin.X, component.Placement.Origin.Y]</p>
                         <ul aria-label="@Text["PortsAriaLabel", component.Label]">
-                            @foreach (var port in component.Ports)
+                            @foreach (var port in component.Ports.Where(port =>
+                                IsVisible(InstancePortSource(port))))
                             {
-                                <li @key="port.Source"><strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]</li>
+                                <li @key="port.Source">
+                                    <button type="button"
+                                            class="scene-action"
+                                            data-scene-source="@InstancePortSource(port).Key"
+                                            @onfocus="@(() => FocusAsync(InstancePortSource(port)))"
+                                            @onclick="@(() => SelectAsync(InstancePortSource(port)))">
+                                        <strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]
+                                    </button>
+                                </li>
                             }
                         </ul>
                     </article>
@@ -58,26 +103,55 @@
 
         <h3 class="connections-heading">@Text["Connections"]</h3>
         <ol class="connection-list" aria-label="@Text["ElectricalConnectionsAriaLabel"]">
-            @foreach (var connection in Scene.Connections)
+            @foreach (var connection in Scene.Connections.Where(ConnectionIsVisible))
             {
                 <li @key="connection.Source" data-connection="@connection.Source.NetId.Value">
                     <div class="connection-summary">
-                        <span>@TerminalPath(Scene, connection)</span>
+                        <span>
+                            @if (IsVisible(NetSource(connection)))
+                            {
+                                <button type="button"
+                                        class="scene-action"
+                                        data-scene-source="@NetSource(connection).Key"
+                                        @onfocus="@(() => FocusAsync(NetSource(connection)))"
+                                        @onclick="@(() => SelectAsync(NetSource(connection)))">
+                                    @TerminalPath(Scene, connection)
+                                </button>
+                            }
+                            else
+                            {
+                                @TerminalPath(Scene, connection)
+                            }
+                        </span>
                         <small>@Text["PortCount", connection.Width]</small>
                     </div>
                     @if (connection.Junctions.Count != 0 || connection.WireGeometries.Count != 0)
                     {
                         <ul class="topology-list" aria-label="@Text["TopologyForNetAriaLabel", connection.Source.NetId.Value]">
-                            @foreach (var junction in connection.Junctions)
+                            @foreach (var junction in connection.Junctions.Where(junction =>
+                                IsVisible(JunctionSource(junction))))
                             {
                                 <li @key="junction.Source" data-junction="@junction.Source.JunctionId.Value">
-                                    @Text["JunctionAtGrid", junction.Point.X, junction.Point.Y]
+                                    <button type="button"
+                                            class="scene-action"
+                                            data-scene-source="@JunctionSource(junction).Key"
+                                            @onfocus="@(() => FocusAsync(JunctionSource(junction)))"
+                                            @onclick="@(() => SelectAsync(JunctionSource(junction)))">
+                                        @Text["JunctionAtGrid", junction.Point.X, junction.Point.Y]
+                                    </button>
                                 </li>
                             }
-                            @foreach (var geometry in connection.WireGeometries)
+                            @foreach (var geometry in connection.WireGeometries.Where(geometry =>
+                                IsVisible(WireSource(geometry))))
                             {
                                 <li @key="geometry.Source" data-wire-geometry="@geometry.Source.WireGeometryId.Value">
-                                    @WireRouteLabel(geometry.Route)
+                                    <button type="button"
+                                            class="scene-action"
+                                            data-scene-source="@WireSource(geometry).Key"
+                                            @onfocus="@(() => FocusAsync(WireSource(geometry)))"
+                                            @onclick="@(() => SelectAsync(WireSource(geometry)))">
+                                        @WireRouteLabel(geometry.Route)
+                                    </button>
                                 </li>
                             }
                         </ul>
@@ -91,6 +165,137 @@
 @code {
     [Parameter]
     public AccessibleSceneProjection? Scene { get; set; }
+
+    [Parameter]
+    public bool ShowHeading { get; set; } = true;
+
+    [Parameter]
+    public string HeadingId { get; set; } = "circuit-scene-heading";
+
+    [Parameter]
+    public EventCallback<SceneSelectionV1> OnSelect { get; set; }
+
+    [Parameter]
+    public EventCallback<SceneSourceRefV1> OnFocus { get; set; }
+
+    [Parameter]
+    public int PageSize { get; set; } = int.MaxValue;
+
+    private HashSet<string> visibleSourceKeys = new(StringComparer.Ordinal);
+
+    private int pageIndex;
+
+    private int totalPages = 1;
+
+    protected override void OnParametersSet()
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(PageSize);
+        var sources = SemanticSources().ToArray();
+        var pageCount = checked((sources.Length + (long)PageSize - 1) / PageSize);
+        totalPages = checked((int)Math.Max(1L, pageCount));
+        pageIndex = Math.Min(pageIndex, totalPages - 1);
+        visibleSourceKeys = sources
+            .Skip(checked(pageIndex * PageSize))
+            .Take(PageSize)
+            .Select(source => source.Key)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private IEnumerable<SceneSourceRefV1> SemanticSources()
+    {
+        if (Scene is null)
+        {
+            yield break;
+        }
+
+        foreach (var port in Scene.DefinitionPorts)
+        {
+            yield return DefinitionPortSource(port);
+        }
+
+        foreach (var component in Scene.Components)
+        {
+            yield return ComponentSource(component);
+            foreach (var port in component.Ports)
+            {
+                yield return InstancePortSource(port);
+            }
+        }
+
+        foreach (var connection in Scene.Connections)
+        {
+            yield return NetSource(connection);
+            foreach (var junction in connection.Junctions)
+            {
+                yield return JunctionSource(junction);
+            }
+
+            foreach (var wire in connection.WireGeometries)
+            {
+                yield return WireSource(wire);
+            }
+        }
+    }
+
+    private bool IsVisible(SceneSourceRefV1 source) => visibleSourceKeys.Contains(source.Key);
+
+    private bool ComponentIsVisible(AccessibleComponentProjection component) =>
+        IsVisible(ComponentSource(component))
+        || component.Ports.Any(port => IsVisible(InstancePortSource(port)));
+
+    private bool ConnectionIsVisible(AccessibleConnectionProjection connection) =>
+        IsVisible(NetSource(connection))
+        || connection.Junctions.Any(junction => IsVisible(JunctionSource(junction)))
+        || connection.WireGeometries.Any(wire => IsVisible(WireSource(wire)));
+
+    private void PreviousPage()
+    {
+        pageIndex = Math.Max(0, pageIndex - 1);
+        OnParametersSet();
+    }
+
+    private void NextPage()
+    {
+        pageIndex = Math.Min(totalPages - 1, pageIndex + 1);
+        OnParametersSet();
+    }
+
+    private Task SelectAsync(SceneSourceRefV1 source) =>
+        OnSelect.InvokeAsync(new SceneSelectionV1([source], "replace"));
+
+    private Task FocusAsync(SceneSourceRefV1 source) => OnFocus.InvokeAsync(source);
+
+    private static SceneSourceRefV1 DefinitionPortSource(
+        AccessibleDefinitionPortProjection port) => new(
+            port.Source.CircuitDefinitionId.Value,
+            "definitionPort",
+            $"definitionPort:{port.Source.DefinitionPortId.Value}");
+
+    private static SceneSourceRefV1 ComponentSource(AccessibleComponentProjection component) =>
+        new(
+            component.Source.CircuitDefinitionId.Value,
+            "component",
+            $"component:{component.Source.ComponentInstanceId.Value}");
+
+    private static SceneSourceRefV1 InstancePortSource(AccessiblePortProjection port) => new(
+        port.Source.CircuitDefinitionId.Value,
+        "instancePort",
+        $"instancePort:{port.Source.ComponentInstanceId.Value}:{port.Source.PortId}");
+
+    private static SceneSourceRefV1 NetSource(AccessibleConnectionProjection connection) => new(
+        connection.Source.CircuitDefinitionId.Value,
+        "net",
+        $"net:{connection.Source.NetId.Value}");
+
+    private static SceneSourceRefV1 JunctionSource(AccessibleJunctionProjection junction) => new(
+        junction.Source.CircuitDefinitionId.Value,
+        "junction",
+        $"junction:{junction.Source.JunctionId.Value}");
+
+    private static SceneSourceRefV1 WireSource(AccessibleWireGeometryProjection wire) => new(
+        wire.Source.CircuitDefinitionId.Value,
+        "wireGeometry",
+        $"wireGeometry:{wire.Source.WireGeometryId.Value}");
 
     private static string TerminalPath(
         AccessibleSceneProjection scene,

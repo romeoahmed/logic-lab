@@ -1,0 +1,113 @@
+.circuit-scene-shell {
+  display: grid;
+  min-block-size: 38rem;
+  padding: clamp(1rem, 2vw, 1.5rem);
+  background: var(--ll-canvas);
+}
+
+.scene-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-end: 1rem;
+}
+
+.scene-heading h2,
+.scene-heading p {
+  margin: 0;
+}
+
+.eyebrow {
+  color: var(--ll-signal);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.scene-count {
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--ll-border);
+  border-radius: var(--ll-radius-small);
+  color: var(--ll-muted);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 0.75rem;
+}
+
+.canvas-frame {
+  position: relative;
+  min-block-size: 30rem;
+  overflow: hidden;
+  border: 1px solid var(--ll-border-strong);
+  background: var(--ll-canvas);
+}
+
+.scene-canvas {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  min-block-size: 30rem;
+  touch-action: none;
+}
+
+.scene-canvas:focus-visible {
+  outline: 3px solid var(--ll-signal);
+  outline-offset: -4px;
+}
+
+.renderer-recovery {
+  display: grid;
+  position: absolute;
+  inset: 0;
+  place-content: center;
+  justify-items: center;
+  gap: 1rem;
+  padding: 2rem;
+  background: color-mix(in oklab, var(--ll-canvas) 92%, transparent);
+  color: var(--ll-muted);
+  text-align: center;
+}
+
+.renderer-recovery p {
+  max-inline-size: 34rem;
+  margin: 0;
+}
+
+.renderer-recovery button {
+  min-block-size: 2.75rem;
+  padding-inline: 1rem;
+  border: 1px solid var(--ll-signal);
+  border-radius: var(--ll-radius-small);
+  background: var(--ll-signal);
+  color: white;
+  font: inherit;
+  font-weight: 700;
+}
+
+.semantic-scene {
+  margin-block-start: 0.75rem;
+}
+
+.semantic-scene > summary {
+  min-block-size: 2.75rem;
+  cursor: pointer;
+  color: var(--ll-signal);
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .circuit-scene-shell {
+    min-block-size: 28rem;
+  }
+
+  .scene-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .canvas-frame,
+  .scene-canvas {
+    min-block-size: 22rem;
+  }
+}

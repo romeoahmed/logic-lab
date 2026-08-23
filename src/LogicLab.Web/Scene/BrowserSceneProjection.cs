@@ -1,0 +1,384 @@
+using LogicLab.Domain.Authoring;
+using LogicLab.Presentation.Geometry;
+using LogicLab.Presentation.Scene;
+
+namespace LogicLab.Web.Scene;
+
+public static class BrowserSceneProjection
+{
+    private const ulong MaximumPortCount = 100_000;
+
+    public static ISceneReplacementV1 Project(
+        string buildFingerprint,
+        ulong sceneVersion,
+        ulong projectionVersion,
+        ProjectRevision revision,
+        CircuitDefinitionId circuitDefinitionId,
+        string uiCulture,
+        BrowserPolicy policy,
+        ISymbolTextMeasurerV1 textMeasurer,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(buildFingerprint);
+        ArgumentNullException.ThrowIfNull(revision);
+        ArgumentNullException.ThrowIfNull(circuitDefinitionId);
+        ArgumentNullException.ThrowIfNull(policy);
+        ArgumentNullException.ThrowIfNull(textMeasurer);
+        ArgumentOutOfRangeException.ThrowIfZero(sceneVersion);
+        ArgumentOutOfRangeException.ThrowIfZero(projectionVersion);
+        if (uiCulture is not ("en-US" or "zh-CN"))
+        {
+            throw new ArgumentOutOfRangeException(nameof(uiCulture));
+        }
+
+        var locale = uiCulture == "zh-CN"
+            ? PresentationLocaleIdV1.SimplifiedChineseChina
+            : PresentationLocaleIdV1.EnglishUnitedStates;
+        var fingerprint = new PresentationFingerprintV1(
+            TeachingMixedMetricSets.AnnexA100,
+            textMeasurer.FontFingerprint,
+            "logiclab-web",
+            "1.0.0",
+            locale,
+            BaseDirectionV1.LeftToRight,
+            gridStepPlanUnits: 100,
+            snapStepGridUnits: 1);
+        var outcome = TeachingMixedSchematicProjector.Project(
+            revision,
+            circuitDefinitionId,
+            fingerprint,
+            MaximumPortCount,
+            textMeasurer,
+            cancellationToken);
+        if (outcome is SchematicProjectionRejectedV1 rejected)
+        {
+            return Unavailable(
+                buildFingerprint,
+                sceneVersion,
+                projectionVersion,
+                circuitDefinitionId,
+                uiCulture,
+                [.. rejected.Diagnostics.Select(diagnostic => diagnostic.Code)]);
+        }
+
+        var projection = ((SchematicProjectionSucceededV1)outcome).Projection;
+        var items = projection.Items
+            .Select((item, order) => MapItem(circuitDefinitionId, item, order, projection.Bounds))
+            .ToArray();
+        var recordCount = CountRecords(items);
+        if (recordCount > policy.Limit(BrowserLimitDimension.SceneSnapshotRecordCount))
+        {
+            return Unavailable(
+                buildFingerprint,
+                sceneVersion,
+                projectionVersion,
+                circuitDefinitionId,
+                uiCulture,
+                ["web_browser_policy_exhausted:scene_snapshot_record_count"]);
+        }
+
+        return new SceneSnapshotV1(
+            buildFingerprint,
+            sceneVersion,
+            projectionVersion,
+            circuitDefinitionId.Value,
+            uiCulture,
+            "leftToRight",
+            ProjectionKey(projection.Key),
+            Rect(projection.Bounds),
+            projection.GridStepPlanUnits,
+            projection.SnapStepGridUnits,
+            textMeasurer.FontFingerprint.Digest,
+            items,
+            []);
+    }
+
+    private static SceneUnavailableV1 Unavailable(
+        string buildFingerprint,
+        ulong sceneVersion,
+        ulong projectionVersion,
+        CircuitDefinitionId circuitDefinitionId,
+        string uiCulture,
+        IReadOnlyList<string> diagnostics) => new(
+            buildFingerprint,
+            sceneVersion,
+            projectionVersion,
+            circuitDefinitionId.Value,
+            uiCulture,
+            "leftToRight",
+            diagnostics);
+
+    private static SceneItemV1 MapItem(
+        CircuitDefinitionId definitionId,
+        SchematicItemV1 item,
+        int order,
+        RectV1 projectionBounds)
+    {
+        return item switch
+        {
+            ComponentSymbolItemV1 component => Map(
+                Source(definitionId, "component", component.ComponentInstanceId.Value),
+                order,
+                component.Plan.Bounds,
+                component.Origin,
+                component.Plan.Operations,
+                component.Plan.HitRegions,
+                sourcePortId => Source(
+                    definitionId,
+                    "instancePort",
+                    $"{component.ComponentInstanceId.Value}:{sourcePortId}")),
+            DefinitionPortItemV1 port => Map(
+                Source(definitionId, "definitionPort", port.PortId.Value),
+                order,
+                Bounds(port, projectionBounds),
+                default,
+                port.Operations,
+                port.HitRegions,
+                _ => Source(definitionId, "definitionPort", port.PortId.Value)),
+            WireGeometryItemV1 wire => Map(
+                Source(definitionId, "wireGeometry", wire.WireGeometryId.Value),
+                order,
+                Bounds(wire, projectionBounds),
+                default,
+                wire.Operations,
+                wire.HitRegions,
+                _ => null),
+            JunctionItemV1 junction => Map(
+                Source(definitionId, "junction", junction.JunctionId.Value),
+                order,
+                Bounds(junction, projectionBounds),
+                default,
+                junction.Operations,
+                junction.HitRegions,
+                _ => null),
+            AnnotationItemV1 annotation => Map(
+                Source(definitionId, "annotation", annotation.AnnotationId.Value),
+                order,
+                Bounds(annotation, projectionBounds),
+                default,
+                annotation.Operations,
+                annotation.HitRegions,
+                _ => null),
+            NetTopologyItemV1 topology => new SceneItemV1(
+                Source(definitionId, "net", topology.NetId.Value),
+                order,
+                topology.ProbeAnchor is AvailableProbeAnchorV1 available
+                    ? new SceneRect(
+                        available.Point.X - 1,
+                        available.Point.Y - 1,
+                        available.Point.X + 1,
+                        available.Point.Y + 1)
+                    : Rect(projectionBounds),
+                default,
+                [],
+                []),
+            _ => throw new InvalidOperationException("The Schematic Item variant is undefined."),
+        };
+    }
+
+    private static SceneItemV1 Map(
+        SceneSourceRefV1 source,
+        int order,
+        RectV1 bounds,
+        PointV1 origin,
+        IReadOnlyList<DrawOperationV1> operations,
+        IReadOnlyList<HitRegionV1> hitRegions,
+        Func<string, SceneSourceRefV1?> portSource) => new(
+            source,
+            order,
+            Rect(bounds),
+            Point(origin),
+            [.. operations.Select(MapOperation)],
+            [.. hitRegions.Select(region => MapHit(region, portSource))]);
+
+    private static SceneDrawOperationV1 MapOperation(DrawOperationV1 operation) => operation switch
+    {
+        StrokePathV1 stroke => new SceneDrawOperationV1(
+            "stroke",
+            Token(stroke.Role),
+            PathBounds(stroke.Path, stroke.Width),
+            Commands(stroke.Path),
+            stroke.Width,
+            [.. stroke.DashPattern.Select(value => (double)value)],
+            Token(stroke.LineCap),
+            Token(stroke.LineJoin.Kind),
+            stroke.LineJoin.MiterLimitRatio),
+        FillPathV1 fill => new SceneDrawOperationV1(
+            "fill",
+            Token(fill.Role),
+            PathBounds(fill.Path, 0),
+            Commands(fill.Path),
+            FillRule: Token(fill.FillRule)),
+        DrawTextV1 text => new SceneDrawOperationV1(
+            "text",
+            Token(text.FontRole),
+            Rect(text.Bounds),
+            [],
+            Text: text.Text,
+            Origin: Point(text.Origin),
+            Alignment: Token(text.Alignment),
+            Direction: text.BaseDirection == BaseDirectionV1.LeftToRight
+                ? "ltr"
+                : "rtl",
+            Locale: text.LocaleId.Value),
+        _ => throw new InvalidOperationException("The Draw Operation variant is undefined."),
+    };
+
+    private static SceneHitRegionV1 MapHit(
+        HitRegionV1 region,
+        Func<string, SceneSourceRefV1?> portSource)
+    {
+        var target = region.SourcePortId is null ? null : portSource(region.SourcePortId);
+        return region.Shape switch
+        {
+            RectHitShapeV1 rectangle => new SceneHitRegionV1(
+                region.LocalId,
+                Token(region.Kind),
+                region.SourcePortId,
+                "rect",
+                Rect(rectangle.Rect),
+                TargetSource: target),
+            CircleHitShapeV1 circle => new SceneHitRegionV1(
+                region.LocalId,
+                Token(region.Kind),
+                region.SourcePortId,
+                "circle",
+                new SceneRect(
+                    circle.Center.X - circle.Radius,
+                    circle.Center.Y - circle.Radius,
+                    circle.Center.X + circle.Radius,
+                    circle.Center.Y + circle.Radius),
+                Point(circle.Center),
+                circle.Radius,
+                TargetSource: target),
+            PolygonHitShapeV1 polygon => new SceneHitRegionV1(
+                region.LocalId,
+                Token(region.Kind),
+                region.SourcePortId,
+                "polygon",
+                PointsBounds(polygon.Points),
+                Points: [.. polygon.Points.Select(Point)],
+                TargetSource: target),
+            _ => throw new InvalidOperationException("The Hit Shape variant is undefined."),
+        };
+    }
+
+    private static RectV1 Bounds(StaticSchematicItemV1 item, RectV1 fallback)
+    {
+        var rectangles = item.Operations.Select(OperationRect)
+            .Concat(item.HitRegions.Select(HitRect))
+            .Concat(item.AccessibilityNodes.Select(node => node.Bounds))
+            .ToArray();
+        return rectangles.Length == 0 ? fallback : Enclose(rectangles);
+    }
+
+    private static RectV1 OperationRect(DrawOperationV1 operation) => operation switch
+    {
+        StrokePathV1 stroke => RectV1From(PathBounds(stroke.Path, stroke.Width)),
+        FillPathV1 fill => RectV1From(PathBounds(fill.Path, 0)),
+        DrawTextV1 text => text.Bounds,
+        _ => throw new InvalidOperationException("The Draw Operation variant is undefined."),
+    };
+
+    private static RectV1 HitRect(HitRegionV1 region) => region.Shape switch
+    {
+        RectHitShapeV1 rectangle => rectangle.Rect,
+        CircleHitShapeV1 circle => new RectV1(
+            checked(circle.Center.X - circle.Radius),
+            checked(circle.Center.Y - circle.Radius),
+            checked(circle.Center.X + circle.Radius),
+            checked(circle.Center.Y + circle.Radius)),
+        PolygonHitShapeV1 polygon => RectV1From(PointsBounds(polygon.Points)),
+        _ => throw new InvalidOperationException("The Hit Shape variant is undefined."),
+    };
+
+    private static RectV1 Enclose(IReadOnlyList<RectV1> rectangles) => new(
+        rectangles.Min(rectangle => rectangle.Left),
+        rectangles.Min(rectangle => rectangle.Top),
+        rectangles.Max(rectangle => rectangle.Right),
+        rectangles.Max(rectangle => rectangle.Bottom));
+
+    private static SceneRect PathBounds(PathV1 path, int width)
+    {
+        var points = path.Commands.SelectMany<PathCommandV1, PointV1>(command => command switch
+        {
+            MoveToV1 move => [move.Point],
+            LineToV1 line => [line.Point],
+            CubicToV1 cubic => [cubic.Control1, cubic.Control2, cubic.End],
+            ClosePathV1 => [],
+            _ => throw new InvalidOperationException("The Path Command variant is undefined."),
+        }).ToArray();
+        var padding = (int)Math.Ceiling(width / 2d);
+        return new SceneRect(
+            checked(points.Min(point => point.X) - padding),
+            checked(points.Min(point => point.Y) - padding),
+            checked(points.Max(point => point.X) + padding),
+            checked(points.Max(point => point.Y) + padding));
+    }
+
+    private static SceneRect PointsBounds(IReadOnlyList<PointV1> points) => new(
+        points.Min(point => point.X),
+        points.Min(point => point.Y),
+        points.Max(point => point.X),
+        points.Max(point => point.Y));
+
+    private static IReadOnlyList<ScenePathCommandV1> Commands(PathV1 path) =>
+    [
+        .. path.Commands.Select(command => command switch
+        {
+            MoveToV1 move => new ScenePathCommandV1("move", move.Point.X, move.Point.Y),
+            LineToV1 line => new ScenePathCommandV1("line", line.Point.X, line.Point.Y),
+            CubicToV1 cubic => new ScenePathCommandV1(
+                "cubic",
+                cubic.End.X,
+                cubic.End.Y,
+                cubic.Control1.X,
+                cubic.Control1.Y,
+                cubic.Control2.X,
+                cubic.Control2.Y),
+            ClosePathV1 => new ScenePathCommandV1("close", 0, 0),
+            _ => throw new InvalidOperationException("The Path Command variant is undefined."),
+        }),
+    ];
+
+    private static ulong CountRecords(IReadOnlyList<SceneItemV1> items)
+    {
+        ulong count = 1;
+        foreach (var item in items)
+        {
+            count = checked(count + 1UL + (ulong)item.Operations.Count + (ulong)item.HitRegions.Count);
+            foreach (var operation in item.Operations)
+            {
+                count = checked(count + (ulong)operation.Commands.Count);
+            }
+        }
+
+        return count;
+    }
+
+    private static string ProjectionKey(SchematicProjectionKeyV1 key) => string.Join(
+        ':',
+        key.ProjectRevisionId.Value,
+        key.CircuitDefinitionId.Value,
+        key.SymbolProfileId,
+        key.SymbolProfileVersion,
+        key.PresentationFingerprintDigest);
+
+    private static SceneSourceRefV1 Source(
+        CircuitDefinitionId definitionId,
+        string kind,
+        string id) => new(definitionId.Value, kind, $"{kind}:{id}");
+
+    private static ScenePoint Point(PointV1 point) => new(point.X, point.Y);
+
+    private static SceneRect Rect(RectV1 rect) => new(rect.Left, rect.Top, rect.Right, rect.Bottom);
+
+    private static RectV1 RectV1From(SceneRect rect) => new(
+        checked((int)rect.Left),
+        checked((int)rect.Top),
+        checked((int)rect.Right),
+        checked((int)rect.Bottom));
+
+    private static string Token<T>(T value) where T : struct, Enum =>
+        char.ToLowerInvariant(value.ToString()[0]) + value.ToString()[1..];
+}
