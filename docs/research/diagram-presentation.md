@@ -40,21 +40,23 @@ The choice is not a claim that every project symbol is standardized.
 
 IEEE 91A treats qualifiers as semantics, not decoration:
 
-- clause 3.1.1 prevents mixing negation and direct-polarity conventions across one diagram, except for its stated internal-negation case;
-- Symbols 3.1-1 to 3.1-11 define negation, polarity, and dynamic inputs;
-- Symbols 3.3-8 and 3.3-12 define three-state output and enable;
-- Symbols 3.3-13 to 3.3-22 cover D/J/K/R/S/T, shift, and count qualifiers;
-- Symbols 3.3-25 and 3.3-26 require meaningful bit-weight order;
-- Table 4.1 defines dependency categories, and clause 4.3.1 makes dependency numbering and application order meaningful;
-- clauses 4.4.3 and 4.4.4 constrain input and output label ordering.
+- clause 2.1.2 brackets nonstandard input, output, and body information instead of letting it resemble standardized notation;
+- clause 3.1.1 prevents mixing negation and direct-polarity conventions across one diagram, except for its stated internal-negation case, while Symbols 3.1-1 to 3.1-11 define the corresponding polarity and dynamic marks;
+- clause 3.3.2 distinguishes an input function from dynamic behavior: a D/J/K/R/S/T, shift, or count function receives the separate dynamic-input mark when it is edge-sensitive;
+- Symbols 3.3-19 to 3.3-22 place shift direction and count direction at the affected input, not in the register or counter body function;
+- Symbols 3.3-25 and 3.3-26 use a brace and meaningful bit-weight order for a bit group; clause 4.4.2 replaces the input-group result with a dependency letter and complete consecutive identifier range;
+- clause 4.3.2 makes G an AND dependency whose inactive state imposes internal 0 on affected inputs and outputs; clause 4.3.7 instead identifies sequential action, including an edge clock or transparent-latch data enable, and suppresses an affected input's action while inactive; clause 4.3.9 gives EN the C/M behavior when it affects inputs;
+- clause 4.3.1 makes dependency identifiers and application order meaningful, and clauses 4.4.3 and 4.4.4 constrain input and output label ordering.
 
-Therefore `activeLow`, `clockEdge`, `threeState`, Port grouping, and dependency relationships must exist before drawing. A file name such as `falling-clock-active-low.svg` cannot own those rules safely.
+Therefore polarity, edge behavior, Port grouping, dependency kind, dependency range, and application order must exist before drawing. A file name such as `falling-clock-active-low.svg` cannot own those rules safely.
 
 ## 5. Sequential and memory symbols
 
-Clause 5.9 describes bistable functions through input/output qualifiers rather than one universal internal glyph. The examples distinguish latches, edge-triggering, pulse behavior, and control dependencies.
+Clause 5.9 gives a basic bistable no general body qualifier: input and output qualifiers express its function, while dynamic and postponed marks distinguish latch, edge-triggered, pulse-triggered, and data-lock-out behavior. Complementary outputs are therefore output polarity, not a literal `QN` function.
 
-Symbols 5.13-1 to 5.13-18 cover registers, shift registers, counters, direction, load, and mode relationships. Memory Symbols 5.14-1 onward require function and size information such as ROM/RAM and address-count by word-width; address dependency is defined in clause 4.3.11.
+Symbol 5.12-1 places `G` in an astable generator body and does not label its output `Q`. Symbol 5.13-1 registers `SRG*`, `CTR*`, `RCTR*`, `CTRDIVm`, and `RCTRDIVm` as the general shift-register and counter functions; it does not define a `REG*` body function. The examples combine those body functions with Port-bound D, C, EN, mode, shift, count, and terminal-count notation.
+
+Clause 4.3.11 defines A dependency as selection of an addressed array section and refers grouped addresses to clause 4.4.2. Symbol 5.14-1 requires the memory function to carry both address count and bit count; later ROM/RAM examples show the address brace and consecutive A range as a single structured group rather than independent text. A V1 aggregate Port with one anchor cannot reproduce that multi-terminal grouping honestly and must remain an explicit Teaching Extension.
 
 These families vary with Port groups, width, labels, clock/control marks, and array presentation. A pre-drawn `RAM.svg` cannot represent the contract space while keeping Port anchors authoritative.
 
