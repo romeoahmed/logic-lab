@@ -38,6 +38,20 @@ internal sealed record RectangularSymbolPlanCase(
         $"indication={IndicationConvention}, locale={LocaleId}, direction={BaseDirection})";
 }
 
+internal sealed record CounterSymbolPlanCase(uint Width, string Direction)
+{
+    public override string ToString() => $"counter(width={Width}, direction={Direction})";
+}
+
+internal sealed record MemorySymbolPlanCase(
+    string ContractId,
+    uint AddressWidth,
+    uint WordWidth)
+{
+    public override string ToString() =>
+        $"{ContractId}(addressWidth={AddressWidth}, wordWidth={WordWidth})";
+}
+
 internal sealed record AnnotationProjectionCase(
     string[] Lines,
     AnnotationAlignment Alignment)
@@ -80,8 +94,17 @@ internal static class PresentationGeometryArbitraries
         "logic.adder",
         "logic.subtractor",
         "logic.shift",
+        "source.clock",
+        "sequential.d_latch",
+        "sequential.dff",
+        "sequential.sr_latch",
+        "sequential.jkff",
+        "sequential.tff",
+        "sequential.register",
         "sequential.shift_register",
         "sequential.counter",
+        "memory.rom",
+        "memory.ram_single_port",
     ];
 
     private static readonly string[] AnnotationLines =
@@ -155,6 +178,27 @@ internal static class PresentationGeometryArbitraries
             from lines in Gen.Elements(AnnotationLines).ArrayOf(count)
             from alignment in Gen.Elements(Enum.GetValues<AnnotationAlignment>())
             select new AnnotationProjectionCase(lines, alignment);
+
+        return Arb.From(generator, Shrink);
+    }
+
+    public static Arbitrary<CounterSymbolPlanCase> CounterSymbolPlan()
+    {
+        var generator =
+            from width in Gen.Elements(1U, 2U, 31U, 32U, 33U, 64U, 128U)
+            from direction in Gen.Elements("up", "down")
+            select new CounterSymbolPlanCase(width, direction);
+
+        return Arb.From(generator, Shrink);
+    }
+
+    public static Arbitrary<MemorySymbolPlanCase> MemorySymbolPlan()
+    {
+        var generator =
+            from contractId in Gen.Elements("memory.rom", "memory.ram_single_port")
+            from addressWidth in Gen.Elements(1U, 2U, 3U, 30U, 31U)
+            from wordWidth in Gen.Elements(1U, 2U, 4U, 64U, 128U)
+            select new MemorySymbolPlanCase(contractId, addressWidth, wordWidth);
 
         return Arb.From(generator, Shrink);
     }
@@ -260,6 +304,42 @@ internal static class PresentationGeometryArbitraries
         if (sample.Alignment != AnnotationAlignment.Start)
         {
             yield return sample with { Alignment = AnnotationAlignment.Start };
+        }
+    }
+
+    private static IEnumerable<CounterSymbolPlanCase> Shrink(CounterSymbolPlanCase sample)
+    {
+        if (sample.Width > 32)
+        {
+            yield return sample with { Width = 32 };
+        }
+
+        if (sample.Width != 1)
+        {
+            yield return sample with { Width = 1 };
+        }
+
+        if (sample.Direction != "up")
+        {
+            yield return sample with { Direction = "up" };
+        }
+    }
+
+    private static IEnumerable<MemorySymbolPlanCase> Shrink(MemorySymbolPlanCase sample)
+    {
+        if (sample.AddressWidth != 1)
+        {
+            yield return sample with { AddressWidth = 1 };
+        }
+
+        if (sample.WordWidth != 1)
+        {
+            yield return sample with { WordWidth = 1 };
+        }
+
+        if (sample.ContractId != "memory.rom")
+        {
+            yield return sample with { ContractId = "memory.rom" };
         }
     }
 
