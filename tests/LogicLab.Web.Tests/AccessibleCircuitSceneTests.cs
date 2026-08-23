@@ -126,6 +126,29 @@ internal sealed class AccessibleCircuitSceneTests
         }
     }
 
+    [Test]
+    public async Task AccessibleCircuitScene_BoundedPage_ExposesEverySourceThroughNavigation()
+    {
+        await using var context = CreateContext();
+        var scene = Project(WebTestCircuit.CreateCompleteCircuit());
+        var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
+            .Add(component => component.Scene, scene)
+            .Add(component => component.PageSize, 1));
+        var firstSource = rendered.Find("[data-scene-source]")
+            .GetAttribute("data-scene-source");
+
+        await rendered.Find(".semantic-pager button:last-of-type").ClickAsync();
+        var secondSource = rendered.Find("[data-scene-source]")
+            .GetAttribute("data-scene-source");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.FindAll("[data-scene-source]")).Count().IsEqualTo(1);
+            await Assert.That(firstSource).IsNotEqualTo(secondSource);
+            await Assert.That(rendered.FindAll(".semantic-pager")).Count().IsEqualTo(1);
+        }
+    }
+
     private static async Task AssertRenderedPorts(
         IRenderedComponent<AccessibleCircuitScene> rendered,
         AccessibleComponentProjection component)

@@ -161,7 +161,17 @@
                 </div>
 
                 <div class="workbench-grid">
-                    <AccessibleCircuitScene Scene="Scene" />
+                    @if (Projection is not null && SelectedDefinitionId is not null)
+                    {
+                        <CircuitSceneHost Scene="Scene"
+                                          ProjectRevision="Projection.ProjectRevision"
+                                          ProjectionVersion="Projection.ProjectionVersion"
+                                          CircuitDefinitionId="SelectedDefinitionId" />
+                    }
+                    else
+                    {
+                        <AccessibleCircuitScene Scene="Scene" />
+                    }
                     <ProbePanel Simulation="Projection?.Simulation" />
                 </div>
             </div>

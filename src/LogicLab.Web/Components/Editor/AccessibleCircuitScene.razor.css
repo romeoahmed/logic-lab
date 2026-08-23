@@ -129,6 +129,36 @@
   background: color-mix(in oklab, var(--ll-panel) 88%, var(--ll-signal-soft));
 }
 
+.scene-action {
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.scene-action:focus-visible {
+  border-radius: 0.2rem;
+  outline: 3px solid var(--ll-signal);
+  outline-offset: 3px;
+}
+
+.semantic-pager {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 0.75rem;
+  margin-block-end: 1rem;
+}
+
+.semantic-pager button {
+  min-block-size: 2.75rem;
+  padding-inline: 0.8rem;
+  border: 1px solid var(--ll-border-strong);
+  border-radius: var(--ll-radius-small);
+  background: var(--ll-panel);
+  color: var(--ll-ink);
+  font: inherit;
+}
+
 .component-card h3,
 .component-card p {
   margin: 0;

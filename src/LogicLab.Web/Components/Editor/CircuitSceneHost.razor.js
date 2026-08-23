@@ -1,0 +1,1293 @@
+const mountedHandles = new WeakMap();
+const textEncoder = new TextEncoder();
+const spatialCellSize = 400;
+const spatialEntryBaseBytes = 64;
+const contextRestoreTimeoutMilliseconds = 2_000;
+
+export function mount(host, buildFingerprint, policy, dotnetSink) {
+  const existing = mountedHandles.get(host);
+  if (existing && existing.buildFingerprint === buildFingerprint && !existing.destroyed) {
+    return existing;
+  }
+
+  existing?.destroy();
+  const handle = new CircuitSceneHandle(host, buildFingerprint, validatePolicy(policy), dotnetSink);
+  mountedHandles.set(host, handle);
+  return handle;
+}
+
+class CircuitSceneHandle {
+  constructor(host, buildFingerprint, policy, dotnetSink) {
+    this.host = host;
+    this.buildFingerprint = buildFingerprint;
+    this.policy = policy;
+    this.dotnetSink = dotnetSink;
+    this.canvas = host.querySelector("[data-scene-canvas]");
+    this.context = this.canvas?.getContext("2d", { alpha: false }) ?? null;
+    this.published = null;
+    this.spatialIndex = new Map();
+    this.viewport = { x: 0, y: 0, zoom: 1 };
+    this.savedViewports = new Map();
+    this.focusedSource = null;
+    this.selectedSources = new Set();
+    this.gesture = null;
+    this.spacePan = false;
+    this.connected = true;
+    this.sceneOwnsDocumentFocus = false;
+    this.pendingFrame = 0;
+    this.dirty = false;
+    this.cssWidth = 0;
+    this.cssHeight = 0;
+    this.density = 1;
+    this.fontFingerprint = null;
+    this.transfers = new Map();
+    this.destroyed = false;
+    this.abortController = new AbortController();
+    this.resizeObserver = null;
+    this.densityMedia = null;
+    this.removalObserver = null;
+    this.contextIsLost = false;
+    this.contextRestoreTimer = 0;
+
+    if (!this.canvas || !this.context) {
+      void this.notifyFailure("contextUnavailable");
+      return;
+    }
+
+    this.installListeners();
+    this.installObservers();
+    this.resize();
+  }
+
+  async measureText(requests) {
+    this.ensureLive();
+    if (!Array.isArray(requests)) {
+      throw new Error("invalid text measurement request batch");
+    }
+
+    await document.fonts.ready;
+    const family = getComputedStyle(this.canvas).fontFamily;
+    if (!family) {
+      await this.notifyFailure("fontUnavailable");
+      throw new Error("symbol font is unavailable");
+    }
+
+    const measurements = [];
+    const seen = new Set();
+    for (const request of requests) {
+      if (!request || typeof request.key !== "string" || seen.has(request.key)
+          || typeof request.text !== "string" || !isTextRole(request.fontRole)
+          || !isAlignment(request.alignment) || !isLocale(request.locale)
+          || !isDirection(request.direction)) {
+        throw new Error("invalid text measurement request");
+      }
+
+      seen.add(request.key);
+      this.context.save();
+      this.context.font = `100px ${family}`;
+      this.context.textAlign = canvasAlignment(request.alignment, request.direction);
+      this.context.direction = request.direction;
+      const metrics = this.context.measureText(request.text);
+      this.context.restore();
+      const measurement = {
+        key: request.key,
+        advanceWidth: checkedInteger(Math.ceil(metrics.width)),
+        inkLeft: checkedInteger(Math.floor(-metrics.actualBoundingBoxLeft)),
+        inkTop: checkedInteger(Math.floor(-metrics.actualBoundingBoxAscent)),
+        inkRight: checkedInteger(Math.ceil(metrics.actualBoundingBoxRight)),
+        inkBottom: checkedInteger(Math.ceil(metrics.actualBoundingBoxDescent)),
+      };
+      if (measurement.advanceWidth < 0 || measurement.inkRight < measurement.inkLeft
+          || measurement.inkBottom < measurement.inkTop) {
+        throw new Error("invalid text metrics");
+      }
+
+      measurements.push(measurement);
+    }
+
+    const canonical = measurements
+      .slice()
+      .sort((left, right) => compareOrdinal(left.key, right.key))
+      .map((value) => `${value.key}:${value.advanceWidth}:${value.inkLeft}:${value.inkTop}:${value.inkRight}:${value.inkBottom}`)
+      .join("\n");
+    this.fontFingerprint = await sha256(textEncoder.encode(`logiclab-browser-font-v1\n${family}\n${canonical}`));
+    return { fontFingerprint: this.fontFingerprint, measurements };
+  }
+
+  beginTransfer(transferId, kind, byteLength, digest) {
+    this.ensureLive();
+    if (!isToken(transferId) || !["replacement", "patch"].includes(kind)
+        || !Number.isSafeInteger(byteLength) || byteLength <= 0
+        || BigInt(byteLength) > BigInt(this.policy.candidateTransferBytes)
+        || !isDigest(digest) || this.transfers.has(transferId)) {
+      this.rejectBatch("invalid scene transfer envelope");
+    }
+
+    this.transfers.set(transferId, {
+      kind,
+      byteLength,
+      digest,
+      nextOrdinal: 0,
+      received: 0,
+      chunks: [],
+    });
+  }
+
+  appendTransfer(transferId, ordinal, base64Chunk) {
+    this.ensureLive();
+    const transfer = this.transfers.get(transferId);
+    if (!transfer || ordinal !== transfer.nextOrdinal || typeof base64Chunk !== "string") {
+      this.transfers.delete(transferId);
+      this.rejectBatch("invalid scene transfer batch");
+    }
+    if (BigInt(textEncoder.encode(base64Chunk).byteLength + 512)
+        > BigInt(this.policy.interopBatchBytes)) {
+      this.transfers.delete(transferId);
+      this.rejectBatch("scene transfer batch policy exhausted");
+    }
+
+    let chunk;
+    try {
+      chunk = decodeBase64(base64Chunk);
+    } catch {
+      this.transfers.delete(transferId);
+      this.rejectBatch("invalid scene transfer encoding");
+    }
+    transfer.received += chunk.byteLength;
+    if (transfer.received > transfer.byteLength) {
+      this.transfers.delete(transferId);
+      this.rejectBatch("scene transfer exceeds its envelope");
+    }
+
+    transfer.chunks.push(chunk);
+    transfer.nextOrdinal++;
+  }
+
+  async commitTransfer(transferId) {
+    this.ensureLive();
+    const transfer = this.transfers.get(transferId);
+    this.transfers.delete(transferId);
+    if (!transfer || transfer.received !== transfer.byteLength) {
+      await this.rejectCandidate("invalidBatch");
+      return false;
+    }
+
+    const bytes = new Uint8Array(transfer.byteLength);
+    let offset = 0;
+    for (const chunk of transfer.chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    let candidate;
+    try {
+      if (await sha256(bytes) !== transfer.digest) {
+        throw new Error("scene transfer digest mismatch");
+      }
+
+      candidate = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    } catch {
+      await this.rejectCandidate("invalidBatch");
+      return false;
+    }
+
+    if (candidate?.buildFingerprint !== this.buildFingerprint) {
+      await this.dotnetSink?.invokeMethodAsync("SceneBuildMismatchAsync").catch(() => {});
+      this.destroy();
+      return false;
+    }
+
+    try {
+      if (transfer.kind === "replacement") {
+        this.replace(candidate);
+      } else {
+        const replacement = validatePatch(
+          candidate,
+          this.published,
+          this.buildFingerprint,
+          this.fontFingerprint,
+          this.policy,
+        );
+        if (!replacement) {
+          throw new Error("invalid scene patch");
+        }
+        this.replace(replacement);
+      }
+      return true;
+    } catch {
+      await this.rejectCandidate(transfer.kind === "patch" ? "invalidPatch" : "invalidSnapshot");
+      return false;
+    }
+  }
+
+  abortTransfer(transferId) {
+    this.transfers.delete(transferId);
+  }
+
+  rejectBatch(message) {
+    void this.rejectCandidate("invalidBatch");
+    throw new Error(message);
+  }
+
+  setConnected(isConnected) {
+    this.ensureLive();
+    this.connected = Boolean(isConnected);
+    if (!this.connected) {
+      this.cancelGesture();
+    }
+  }
+
+  focusSource(sourceKey) {
+    this.ensureLive();
+    if (this.sourceKeys().includes(sourceKey)) {
+      this.focusedSource = sourceKey;
+      this.invalidate();
+    }
+  }
+
+  setSelection(sources, selectionMode) {
+    this.ensureLive();
+    const available = new Set(this.sourceKeys());
+    if (!Array.isArray(sources) || sources.length === 0
+        || !["replace", "add", "toggle"].includes(selectionMode)
+        || !this.published
+        || sources.some((source) => !validSource(
+          source,
+          this.published.circuitDefinitionId,
+        ) || !available.has(source.id))) {
+      throw new Error("invalid semantic Scene selection");
+    }
+
+    const sourceKeys = sources.map((source) => source.id);
+    this.updateSelection(sourceKeys, selectionMode);
+    this.focusedSource = sourceKeys[0];
+    this.invalidate();
+  }
+
+  destroy() {
+    if (this.destroyed) {
+      return;
+    }
+
+    this.destroyed = true;
+    this.cancelGesture();
+    this.abortController.abort();
+    this.resizeObserver?.disconnect();
+    this.densityMedia?.removeEventListener("change", this.onDensityChange);
+    this.removalObserver?.disconnect();
+    if (this.pendingFrame) {
+      cancelAnimationFrame(this.pendingFrame);
+      this.pendingFrame = 0;
+    }
+    if (this.contextRestoreTimer) {
+      clearTimeout(this.contextRestoreTimer);
+      this.contextRestoreTimer = 0;
+    }
+
+    this.transfers.clear();
+    this.savedViewports.clear();
+    this.selectedSources.clear();
+    this.published = null;
+    this.spatialIndex.clear();
+    this.context = null;
+    this.dotnetSink = null;
+    if (mountedHandles.get(this.host) === this) {
+      mountedHandles.delete(this.host);
+    }
+  }
+
+  replace(candidate) {
+    const validated = validateReplacement(candidate, this.buildFingerprint, this.fontFingerprint, this.policy);
+    const spatialIndex = validated.kind === "snapshot"
+      ? buildSpatialIndex(validated.value, this.policy)
+      : new Map();
+    this.cancelGesture();
+    if (this.published?.circuitDefinitionId) {
+      this.savedViewports.set(this.published.circuitDefinitionId, { ...this.viewport });
+    }
+
+    if (validated.kind === "unavailable") {
+      this.published = null;
+      this.spatialIndex = spatialIndex;
+      this.focusedSource = null;
+      this.selectedSources.clear();
+      this.clearCanvas();
+      return;
+    }
+
+    const priorKeys = this.sourceKeys();
+    const priorFocusIndex = Math.max(0, priorKeys.indexOf(this.focusedSource));
+    const shouldRecoverFocus = this.sceneOwnsDocumentFocus;
+    this.published = validated.value;
+    this.spatialIndex = spatialIndex;
+    const saved = this.savedViewports.get(validated.value.circuitDefinitionId);
+    if (saved) {
+      this.viewport = { ...saved };
+    } else {
+      this.fitViewport();
+    }
+
+    const keys = this.sourceKeys();
+    if (!keys.includes(this.focusedSource)) {
+      this.focusedSource = keys[Math.min(priorFocusIndex, Math.max(0, keys.length - 1))] ?? null;
+      this.recoverDocumentFocus(shouldRecoverFocus);
+    }
+
+    this.selectedSources = new Set([...this.selectedSources].filter((key) => keys.includes(key)));
+    this.invalidate();
+  }
+
+  apply(patch) {
+    const candidate = validatePatch(patch, this.published, this.buildFingerprint, this.fontFingerprint, this.policy);
+    if (!candidate) {
+      void this.rejectCandidate("invalidPatch");
+      return;
+    }
+
+    this.replace(candidate);
+  }
+
+  installListeners() {
+    const signal = this.abortController.signal;
+    this.canvas.addEventListener("pointerdown", (event) => this.pointerDown(event), { signal });
+    this.canvas.addEventListener("pointermove", (event) => this.pointerMove(event), { signal });
+    this.canvas.addEventListener("pointerup", (event) => this.pointerUp(event), { signal });
+    this.canvas.addEventListener("pointercancel", () => this.cancelGesture(), { signal });
+    this.canvas.addEventListener("lostpointercapture", () => this.cancelGesture(), { signal });
+    this.canvas.addEventListener("wheel", (event) => this.wheel(event), { passive: false, signal });
+    this.canvas.addEventListener("keydown", (event) => this.keyDown(event), { signal });
+    this.canvas.addEventListener("keyup", (event) => this.keyUp(event), { signal });
+    this.canvas.addEventListener("contextlost", (event) => this.contextLost(event), { signal });
+    this.canvas.addEventListener("contextrestored", () => this.contextRestored(), { signal });
+    this.host.addEventListener("focusin", (event) => this.semanticFocus(event), { signal });
+    document.addEventListener("focusin", (event) => {
+      this.sceneOwnsDocumentFocus = this.host.contains(event.target);
+    }, { signal });
+
+    this.reconnectModal = document.getElementById("components-reconnect-modal");
+    this.reconnectModal?.addEventListener(
+      "components-reconnect-state-changed",
+      (event) => this.reconnectStateChanged(event),
+      { signal },
+    );
+  }
+
+  installObservers() {
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeObserver.observe(this.host);
+    this.onDensityChange = () => {
+      this.armDensityListener();
+      this.resize();
+    };
+    this.armDensityListener();
+
+    const stableAncestor = this.host.closest("[data-workbench]") ?? this.host.parentElement;
+    if (stableAncestor) {
+      this.removalObserver = new MutationObserver(() => {
+        if (!this.host.isConnected) {
+          this.destroy();
+        }
+      });
+      this.removalObserver.observe(stableAncestor, { childList: true, subtree: true });
+    }
+  }
+
+  armDensityListener() {
+    this.densityMedia?.removeEventListener("change", this.onDensityChange);
+    this.densityMedia = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    this.densityMedia.addEventListener("change", this.onDensityChange, { once: true });
+  }
+
+  resize() {
+    if (this.destroyed || !this.canvas || !this.context || this.contextIsLost) {
+      return;
+    }
+
+    const rect = this.canvas.getBoundingClientRect();
+    if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height)
+        || rect.width <= 0 || rect.height <= 0) {
+      this.cssWidth = 0;
+      this.cssHeight = 0;
+      return;
+    }
+
+    const maximumDensity = Number(this.policy.effectiveDensityMillionths) / 1_000_000;
+    const density = Math.min(Math.max(1, window.devicePixelRatio || 1), maximumDensity);
+    const width = Math.ceil(rect.width * density);
+    const height = Math.ceil(rect.height * density);
+    const pixels = BigInt(width) * BigInt(height);
+    const bytes = pixels * 4n;
+    if (pixels > BigInt(this.policy.canvasBitmapPixels)
+        || bytes > BigInt(this.policy.canvasBitmapBytes)) {
+      void this.notifyFailure("browserPolicyExhausted");
+      return;
+    }
+
+    const center = this.cssWidth > 0 && this.cssHeight > 0
+      ? this.screenToWorld({ x: this.cssWidth / 2, y: this.cssHeight / 2 })
+      : null;
+    this.cssWidth = rect.width;
+    this.cssHeight = rect.height;
+    this.density = density;
+    if (this.canvas.width !== width || this.canvas.height !== height) {
+      this.canvas.width = width;
+      this.canvas.height = height;
+      this.context = this.canvas.getContext("2d", { alpha: false });
+      if (!this.context) {
+        void this.notifyFailure("contextUnavailable");
+        return;
+      }
+    }
+
+    if (center) {
+      this.viewport.x = (this.cssWidth / 2) - (center.x * this.viewport.zoom);
+      this.viewport.y = (this.cssHeight / 2) - (center.y * this.viewport.zoom);
+    }
+
+    this.invalidate();
+  }
+
+  invalidate() {
+    if (this.destroyed) {
+      return;
+    }
+
+    this.dirty = true;
+    if (!this.pendingFrame) {
+      this.pendingFrame = requestAnimationFrame(() => this.render());
+    }
+  }
+
+  render() {
+    this.pendingFrame = 0;
+    if (this.destroyed || this.contextIsLost || !this.dirty || !this.context
+        || !this.cssWidth || !this.cssHeight) {
+      return;
+    }
+
+    this.dirty = false;
+    const context = this.context;
+    const styles = getComputedStyle(this.host);
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.fillStyle = cssColor(styles, "--ll-canvas", "#ffffff");
+    context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    if (!this.published) {
+      return;
+    }
+
+    context.setTransform(
+      this.density * this.viewport.zoom,
+      0,
+      0,
+      this.density * this.viewport.zoom,
+      this.density * this.viewport.x,
+      this.density * this.viewport.y,
+    );
+    const visible = expandRect(this.visibleWorldRect(), 4 / this.viewport.zoom);
+    for (const item of this.published.items) {
+      const bounds = translateRect(item.bounds, item.origin);
+      if (!intersects(bounds, visible)) {
+        continue;
+      }
+
+      context.save();
+      context.translate(item.origin.x, item.origin.y);
+      for (const operation of item.operations) {
+        drawOperation(context, operation, styles);
+      }
+      context.restore();
+    }
+
+    this.drawOverlays(context, styles);
+  }
+
+  drawOverlays(context, styles) {
+    const selected = new Set(this.selectedSources);
+    let focused = this.focusedSource;
+    for (const overlay of this.published.overlays) {
+      if (overlay.kind === "selection") {
+        selected.add(overlay.source.id);
+      } else if (overlay.kind === "keyboardFocus") {
+        focused = overlay.source.id;
+      }
+    }
+
+    for (const item of this.published.items) {
+      const targets = [{ source: item.source, bounds: item.bounds }];
+      for (const region of item.hitRegions) {
+        if (region.targetSource) {
+          targets.push({ source: region.targetSource, bounds: region.bounds });
+        }
+      }
+
+      for (const target of targets) {
+        const isFocused = target.source.id === focused;
+        if (!isFocused && !selected.has(target.source.id)) {
+          continue;
+        }
+
+        const bounds = translateRect(target.bounds, item.origin);
+        context.save();
+        context.strokeStyle = cssColor(styles, "--ll-signal", "#08788c");
+        context.lineWidth = 3 / this.viewport.zoom;
+        context.setLineDash(isFocused ? [8, 5] : []);
+        context.strokeRect(
+          bounds.left,
+          bounds.top,
+          bounds.right - bounds.left,
+          bounds.bottom - bounds.top,
+        );
+        context.restore();
+      }
+    }
+  }
+
+  pointerDown(event) {
+    if (this.destroyed || !event.isPrimary || event.button !== 0 || this.gesture) {
+      return;
+    }
+
+    const screen = this.pointerScreen(event);
+    const hit = this.connected && !this.spacePan ? this.hitTest(this.screenToWorld(screen)) : null;
+    this.gesture = {
+      pointerId: event.pointerId,
+      kind: hit ? "select" : "pan",
+      hit,
+      last: screen,
+      sceneVersion: this.published?.sceneVersion ?? 0,
+      projectionVersion: this.published?.projectionVersion ?? 0,
+    };
+    this.canvas.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  }
+
+  pointerMove(event) {
+    const gesture = this.gesture;
+    if (!gesture || gesture.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const screen = this.pointerScreen(event);
+    if (gesture.kind === "pan") {
+      this.viewport.x += screen.x - gesture.last.x;
+      this.viewport.y += screen.y - gesture.last.y;
+      gesture.last = screen;
+      this.invalidate();
+    }
+  }
+
+  pointerUp(event) {
+    const gesture = this.gesture;
+    if (!gesture || gesture.pointerId !== event.pointerId) {
+      return;
+    }
+
+    this.releaseCapture(event.pointerId);
+    this.gesture = null;
+    if (gesture.kind === "select" && this.connected && this.published
+        && gesture.sceneVersion === this.published.sceneVersion
+        && gesture.projectionVersion === this.published.projectionVersion) {
+      this.selectSource(gesture.hit.source, "replace");
+    }
+  }
+
+  cancelGesture() {
+    const gesture = this.gesture;
+    this.gesture = null;
+    if (gesture) {
+      this.releaseCapture(gesture.pointerId);
+    }
+  }
+
+  releaseCapture(pointerId) {
+    try {
+      if (this.canvas?.hasPointerCapture(pointerId)) {
+        this.canvas.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // Capture may already have ended because the host was removed.
+    }
+  }
+
+  wheel(event) {
+    if (!this.published) {
+      return;
+    }
+
+    event.preventDefault();
+    const anchor = this.pointerScreen(event);
+    const world = this.screenToWorld(anchor);
+    const minimum = Number(this.policy.zoomMillionthsMinimum) / 1_000_000;
+    const maximum = Number(this.policy.zoomMillionthsMaximum) / 1_000_000;
+    const zoom = Math.min(maximum, Math.max(minimum, this.viewport.zoom * Math.exp(-event.deltaY * 0.001)));
+    this.viewport.zoom = zoom;
+    this.viewport.x = anchor.x - (world.x * zoom);
+    this.viewport.y = anchor.y - (world.y * zoom);
+    this.invalidate();
+  }
+
+  keyDown(event) {
+    if (event.key === "Escape") {
+      this.cancelGesture();
+      this.spacePan = false;
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === " " && !this.focusedSource) {
+      this.spacePan = true;
+      event.preventDefault();
+      return;
+    }
+
+    const keys = this.sourceKeys();
+    if ((event.key === "ArrowRight" || event.key === "ArrowDown"
+        || event.key === "ArrowLeft" || event.key === "ArrowUp") && keys.length) {
+      const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+      const current = Math.max(0, keys.indexOf(this.focusedSource));
+      this.focusedSource = keys[(current + direction + keys.length) % keys.length];
+      this.invalidate();
+      event.preventDefault();
+    } else if ((event.key === "Enter" || event.key === " ")
+        && this.focusedSource && this.connected) {
+      const source = this.sourceByKey(this.focusedSource);
+      if (source) {
+        this.selectSource(source, "replace");
+      }
+      event.preventDefault();
+    }
+  }
+
+  keyUp(event) {
+    if (event.key === " ") {
+      this.spacePan = false;
+    }
+  }
+
+  semanticFocus(event) {
+    this.sceneOwnsDocumentFocus = true;
+    const sourceKey = event.target?.closest?.("[data-scene-source]")?.dataset.sceneSource;
+    if (sourceKey && this.sourceKeys().includes(sourceKey)) {
+      this.focusedSource = sourceKey;
+      this.invalidate();
+    }
+  }
+
+  reconnectStateChanged(event) {
+    const state = event.detail?.state;
+    if (["show", "failed"].includes(state)) {
+      this.setConnected(false);
+      void this.dotnetSink?.invokeMethodAsync("SceneConnectionChangedAsync", false).catch(() => {});
+    } else if (state === "hide") {
+      this.setConnected(true);
+      void this.dotnetSink?.invokeMethodAsync("SceneConnectionChangedAsync", true).catch(() => {});
+    }
+  }
+
+  contextLost(event) {
+    event.preventDefault();
+    this.contextIsLost = true;
+    this.cancelGesture();
+    if (this.pendingFrame) {
+      cancelAnimationFrame(this.pendingFrame);
+      this.pendingFrame = 0;
+    }
+    if (this.contextRestoreTimer) {
+      clearTimeout(this.contextRestoreTimer);
+    }
+    this.contextRestoreTimer = setTimeout(() => {
+      this.contextRestoreTimer = 0;
+      if (this.contextIsLost && !this.destroyed) {
+        void this.notifyFailure("contextLost");
+      }
+    }, contextRestoreTimeoutMilliseconds);
+  }
+
+  contextRestored() {
+    if (this.contextRestoreTimer) {
+      clearTimeout(this.contextRestoreTimer);
+      this.contextRestoreTimer = 0;
+    }
+    this.contextIsLost = false;
+    this.context = this.canvas.getContext("2d", { alpha: false });
+    if (!this.context) {
+      this.contextIsLost = true;
+      void this.notifyFailure("contextLost");
+      return;
+    }
+
+    this.invalidate();
+  }
+
+  selectSource(source, selectionMode) {
+    this.updateSelection([source.id], selectionMode);
+
+    this.focusedSource = source.id;
+    this.invalidate();
+    const snapshot = this.published;
+    if (!snapshot) {
+      return;
+    }
+
+    const intent = {
+      buildFingerprint: this.buildFingerprint,
+      kind: "selectSources",
+      sceneVersion: snapshot.sceneVersion,
+      projectionVersion: snapshot.projectionVersion,
+      circuitDefinitionId: snapshot.circuitDefinitionId,
+      sources: [source],
+      selectionMode,
+    };
+    if (encodedJsonBytes(intent) > BigInt(this.policy.semanticIntentBytes)) {
+      void this.notifyFailure("browserPolicyExhausted");
+      return;
+    }
+    void this.dotnetSink?.invokeMethodAsync("ReceiveSceneIntentAsync", intent)
+      .catch(() => this.notifyFailure("invalidSnapshot"));
+  }
+
+  updateSelection(sourceKeys, selectionMode) {
+    if (selectionMode === "replace") {
+      this.selectedSources = new Set(sourceKeys);
+    } else if (selectionMode === "add") {
+      sourceKeys.forEach((sourceKey) => this.selectedSources.add(sourceKey));
+    } else {
+      for (const sourceKey of sourceKeys) {
+        if (this.selectedSources.has(sourceKey)) {
+          this.selectedSources.delete(sourceKey);
+        } else {
+          this.selectedSources.add(sourceKey);
+        }
+      }
+    }
+  }
+
+  hitTest(world) {
+    if (!this.published || !validPoint(world)) {
+      return null;
+    }
+
+    const candidates = [];
+    const cell = this.spatialIndex.get(spatialCellKey(world.x, world.y)) ?? [];
+    for (const { item, region } of cell) {
+      const local = { x: world.x - item.origin.x, y: world.y - item.origin.y };
+      if (contains(region, local)) {
+        candidates.push({
+          source: region.targetSource ?? item.source,
+          priority: hitPriority(item, region),
+          order: item.order,
+        });
+      }
+    }
+
+    candidates.sort((left, right) => right.priority - left.priority || right.order - left.order);
+    return candidates[0] ?? null;
+  }
+
+  fitViewport() {
+    if (!this.published || !this.cssWidth || !this.cssHeight) {
+      return;
+    }
+
+    const bounds = this.published.bounds;
+    const padding = 32;
+    const maximum = Number(this.policy.zoomMillionthsMaximum) / 1_000_000;
+    const minimum = Number(this.policy.zoomMillionthsMinimum) / 1_000_000;
+    const zoom = Math.min(
+      maximum,
+      Math.max(minimum, Math.min(
+        (this.cssWidth - (padding * 2)) / (bounds.right - bounds.left),
+        (this.cssHeight - (padding * 2)) / (bounds.bottom - bounds.top),
+      )),
+    );
+    this.viewport.zoom = zoom;
+    this.viewport.x = (this.cssWidth / 2) - (((bounds.left + bounds.right) / 2) * zoom);
+    this.viewport.y = (this.cssHeight / 2) - (((bounds.top + bounds.bottom) / 2) * zoom);
+  }
+
+  pointerScreen(event) {
+    const rect = this.canvas.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  screenToWorld(point) {
+    return {
+      x: (point.x - this.viewport.x) / this.viewport.zoom,
+      y: (point.y - this.viewport.y) / this.viewport.zoom,
+    };
+  }
+
+  visibleWorldRect() {
+    const topLeft = this.screenToWorld({ x: 0, y: 0 });
+    const bottomRight = this.screenToWorld({ x: this.cssWidth, y: this.cssHeight });
+    return {
+      left: Math.min(topLeft.x, bottomRight.x),
+      top: Math.min(topLeft.y, bottomRight.y),
+      right: Math.max(topLeft.x, bottomRight.x),
+      bottom: Math.max(topLeft.y, bottomRight.y),
+    };
+  }
+
+  sourceKeys() {
+    const sourceKeys = [];
+    const seen = new Set();
+    for (const item of this.published?.items ?? []) {
+      for (const sourceKey of [
+        item.source.id,
+        ...item.hitRegions.map((region) => region.targetSource?.id).filter(Boolean),
+      ]) {
+        if (!seen.has(sourceKey)) {
+          seen.add(sourceKey);
+          sourceKeys.push(sourceKey);
+        }
+      }
+    }
+    return sourceKeys;
+  }
+
+  sourceByKey(key) {
+    for (const item of this.published?.items ?? []) {
+      if (item.source.id === key) {
+        return item.source;
+      }
+      const target = item.hitRegions.find((region) => region.targetSource?.id === key)?.targetSource;
+      if (target) {
+        return target;
+      }
+    }
+    return null;
+  }
+
+  recoverDocumentFocus(shouldRecover) {
+    if (!shouldRecover || !this.focusedSource) {
+      return;
+    }
+
+    const escaped = CSS.escape(this.focusedSource);
+    const fallback = this.host.querySelector(`[data-scene-source="${escaped}"]`);
+    (fallback ?? this.canvas).focus({ preventScroll: true });
+  }
+
+  clearCanvas() {
+    if (!this.context) {
+      return;
+    }
+    this.context.setTransform(1, 0, 0, 1, 0, 0);
+    this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  async rejectCandidate(code) {
+    this.cancelGesture();
+    await this.notifyFailure(code);
+    await this.dotnetSink?.invokeMethodAsync("SceneSnapshotRequiredAsync").catch(() => {});
+  }
+
+  async notifyFailure(code) {
+    await this.dotnetSink?.invokeMethodAsync("SceneRendererFailedAsync", code).catch(() => {});
+  }
+
+  ensureLive() {
+    if (this.destroyed) {
+      throw new Error("scene handle is destroyed");
+    }
+  }
+}
+
+function validatePolicy(policy) {
+  const fields = [
+    "semanticIntentBytes",
+    "sceneSnapshotRecordCount",
+    "scenePatchRecordCount",
+    "interopBatchBytes",
+    "candidateTransferBytes",
+    "canvasBitmapPixels",
+    "canvasBitmapBytes",
+    "effectiveDensityMillionths",
+    "zoomMillionthsMinimum",
+    "zoomMillionthsMaximum",
+    "semanticTreePageItems",
+    "displayListBytes",
+    "spatialIndexBytes",
+    "sceneCacheBytes",
+    "waveformCacheBytes",
+  ];
+  const exactShape = ["policyId", "policyRevision", ...fields];
+  const actualShape = policy ? Object.keys(policy) : [];
+  if (!policy || !isToken(policy.policyId) || !isToken(policy.policyRevision)
+      || actualShape.length !== exactShape.length
+      || actualShape.some((field, index) => field !== exactShape[index])
+      || fields.some((field) => !positiveSafeInteger(policy[field]))
+      || BigInt(policy.zoomMillionthsMinimum) > BigInt(policy.zoomMillionthsMaximum)) {
+    throw new Error("invalid Browser Policy");
+  }
+  return Object.freeze({ ...policy });
+}
+
+function validateReplacement(candidate, buildFingerprint, fontFingerprint, policy) {
+  if (!candidate || candidate.buildFingerprint !== buildFingerprint
+      || !positiveSafeInteger(candidate.sceneVersion)
+      || !positiveSafeInteger(candidate.projectionVersion)
+      || typeof candidate.circuitDefinitionId !== "string" || !candidate.circuitDefinitionId
+      || !isLocale(candidate.uiCulture) || candidate.baseDirection !== "leftToRight") {
+    throw new Error("invalid scene replacement envelope");
+  }
+
+  if (Array.isArray(candidate.diagnostics) && !candidate.items) {
+    if (candidate.diagnostics.some((diagnostic) => typeof diagnostic !== "string")) {
+      throw new Error("invalid unavailable scene");
+    }
+    return { kind: "unavailable", value: deepFreeze(candidate) };
+  }
+
+  validateSnapshot(candidate, fontFingerprint, policy);
+  return { kind: "snapshot", value: freezeSnapshot(candidate) };
+}
+
+function validateSnapshot(candidate, fontFingerprint, policy) {
+  if (!isDigest(candidate.fontFingerprint) || candidate.fontFingerprint !== fontFingerprint
+      || typeof candidate.schematicProjectionKey !== "string" || !candidate.schematicProjectionKey
+      || !validRect(candidate.bounds) || !positiveSafeInteger(candidate.gridStepPlanUnits)
+      || !positiveSafeInteger(candidate.snapStepGridUnits)
+      || !Array.isArray(candidate.items) || !Array.isArray(candidate.overlays)) {
+    throw new Error("invalid scene snapshot");
+  }
+  if (encodedJsonBytes(candidate) > BigInt(policy.sceneCacheBytes)) {
+    throw new Error("scene cache policy exhausted");
+  }
+  const displayList = candidate.items.map((item) => ({
+    order: item?.order,
+    bounds: item?.bounds,
+    origin: item?.origin,
+    operations: item?.operations,
+  }));
+  if (encodedJsonBytes(displayList) > BigInt(policy.displayListBytes)) {
+    throw new Error("display list policy exhausted");
+  }
+
+  const sourceKeys = new Set();
+  const orders = new Set();
+  let previousOrder = -1;
+  let records = 1;
+  for (const item of candidate.items) {
+    if (!validSource(item?.source, candidate.circuitDefinitionId)
+        || sourceKeys.has(item.source.id) || !Number.isSafeInteger(item.order)
+        || item.order < 0 || item.order <= previousOrder
+        || orders.has(item.order) || !validRect(item.bounds) || !validPoint(item.origin)
+        || !Array.isArray(item.operations) || !Array.isArray(item.hitRegions)) {
+      throw new Error("invalid scene item");
+    }
+    sourceKeys.add(item.source.id);
+    orders.add(item.order);
+    previousOrder = item.order;
+    records += 1 + item.operations.length + item.hitRegions.length;
+    item.operations.forEach(validateOperation);
+    item.hitRegions.forEach((region) => validateHit(region, candidate.circuitDefinitionId));
+    records += item.operations.reduce((sum, operation) => sum + operation.commands.length, 0);
+  }
+  const overlayIds = new Set();
+  let previousOverlayId = null;
+  for (const overlay of candidate.overlays) {
+    if (!overlay || typeof overlay.id !== "string" || !overlay.id
+        || overlayIds.has(overlay.id)
+        || (previousOverlayId !== null && compareOrdinal(previousOverlayId, overlay.id) >= 0)
+        || !["liveNetValue", "selection", "keyboardFocus", "probeAnchor", "diagnosticMarker"].includes(overlay.kind)
+        || !validSource(overlay.source, candidate.circuitDefinitionId)
+        || typeof overlay.role !== "string" || !overlay.role) {
+      throw new Error("invalid scene overlay");
+    }
+    overlayIds.add(overlay.id);
+    previousOverlayId = overlay.id;
+    records++;
+  }
+  if (BigInt(records) > BigInt(policy.sceneSnapshotRecordCount)) {
+    throw new Error("scene snapshot record policy exhausted");
+  }
+}
+
+function validatePatch(patch, published, buildFingerprint, fontFingerprint, policy) {
+  if (!published || !patch || patch.buildFingerprint !== buildFingerprint
+      || patch.baseSceneVersion !== published.sceneVersion
+      || !positiveSafeInteger(patch.nextSceneVersion)
+      || patch.nextSceneVersion <= patch.baseSceneVersion
+      || patch.projectionVersion < published.projectionVersion
+      || patch.circuitDefinitionId !== published.circuitDefinitionId
+      || patch.uiCulture !== published.uiCulture || patch.baseDirection !== published.baseDirection
+      || patch.fontFingerprint !== fontFingerprint || !Array.isArray(patch.itemUpserts)
+      || !Array.isArray(patch.itemRemovals) || !Array.isArray(patch.overlayUpserts)
+      || !Array.isArray(patch.overlayRemovals)) {
+    return null;
+  }
+
+  try {
+    const itemUpsertIds = patch.itemUpserts.map((item) => item?.source?.id);
+    const itemRemovalIds = patch.itemRemovals.map((source) => source?.id);
+    const overlayUpsertIds = patch.overlayUpserts.map((overlay) => overlay?.id);
+    if (new Set(itemUpsertIds).size !== itemUpsertIds.length
+        || new Set(itemRemovalIds).size !== itemRemovalIds.length
+        || itemUpsertIds.some((id) => itemRemovalIds.includes(id))
+        || new Set(overlayUpsertIds).size !== overlayUpsertIds.length
+        || new Set(patch.overlayRemovals).size !== patch.overlayRemovals.length
+        || patch.overlayRemovals.some((id) => typeof id !== "string" || !id)
+        || overlayUpsertIds.some((id) => patch.overlayRemovals.includes(id))) {
+      throw new Error();
+    }
+    let patchRecords = patch.itemUpserts.length + patch.itemRemovals.length
+      + patch.overlayUpserts.length + patch.overlayRemovals.length;
+    patchRecords += patch.itemUpserts.reduce((sum, item) => sum + item.operations.length
+      + item.hitRegions.length
+      + item.operations.reduce((commandSum, operation) => commandSum + operation.commands.length, 0), 0);
+    if (BigInt(patchRecords) > BigInt(policy.scenePatchRecordCount)) throw new Error();
+    const items = new Map(published.items.map((item) => [item.source.id, item]));
+    for (const removal of patch.itemRemovals) {
+      if (!validSource(removal, published.circuitDefinitionId)) throw new Error();
+      items.delete(removal.id);
+    }
+    for (const upsert of patch.itemUpserts) items.set(upsert.source.id, upsert);
+    const overlays = new Map(published.overlays.map((overlay) => [overlay.id, overlay]));
+    patch.overlayRemovals.forEach((id) => overlays.delete(id));
+    patch.overlayUpserts.forEach((overlay) => overlays.set(overlay.id, overlay));
+    const candidate = {
+      buildFingerprint,
+      sceneVersion: patch.nextSceneVersion,
+      projectionVersion: patch.projectionVersion,
+      circuitDefinitionId: patch.circuitDefinitionId,
+      uiCulture: patch.uiCulture,
+      baseDirection: patch.baseDirection,
+      schematicProjectionKey: patch.schematicProjectionKey,
+      bounds: patch.bounds,
+      gridStepPlanUnits: patch.gridStepPlanUnits,
+      snapStepGridUnits: patch.snapStepGridUnits,
+      fontFingerprint: patch.fontFingerprint,
+      items: [...items.values()].sort((left, right) => left.order - right.order),
+      overlays: [...overlays.values()].sort((left, right) => compareOrdinal(left.id, right.id)),
+    };
+    validateSnapshot(candidate, fontFingerprint, policy);
+    return candidate;
+  } catch {
+    return null;
+  }
+}
+
+function freezeSnapshot(candidate) {
+  return deepFreeze(candidate);
+}
+
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.values(value).forEach(deepFreeze);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+function buildSpatialIndex(snapshot, policy) {
+  const index = new Map();
+  const maximumBytes = BigInt(policy.spatialIndexBytes);
+  let observedBytes = 0n;
+  for (const item of snapshot.items) {
+    for (const region of item.hitRegions) {
+      const bounds = translateRect(region.bounds, item.origin);
+      const minimumX = Math.floor(bounds.left / spatialCellSize);
+      const minimumY = Math.floor(bounds.top / spatialCellSize);
+      const maximumX = Math.floor(bounds.right / spatialCellSize);
+      const maximumY = Math.floor(bounds.bottom / spatialCellSize);
+      const columns = maximumX - minimumX + 1;
+      const rows = maximumY - minimumY + 1;
+      if (!Number.isSafeInteger(minimumX) || !Number.isSafeInteger(minimumY)
+          || !Number.isSafeInteger(maximumX) || !Number.isSafeInteger(maximumY)
+          || !Number.isSafeInteger(columns) || !Number.isSafeInteger(rows)
+          || columns <= 0 || rows <= 0) {
+        throw new Error("spatial index coordinate range is invalid");
+      }
+
+      const source = region.targetSource ?? item.source;
+      const entryBytes = BigInt(spatialEntryBaseBytes
+        + textEncoder.encode(source.id).byteLength
+        + textEncoder.encode(region.localId).byteLength);
+      const candidateBytes = observedBytes + (BigInt(columns) * BigInt(rows) * entryBytes);
+      if (candidateBytes > maximumBytes) {
+        throw new Error("spatial index policy exhausted");
+      }
+      observedBytes = candidateBytes;
+
+      for (let cellX = minimumX; cellX <= maximumX; cellX++) {
+        for (let cellY = minimumY; cellY <= maximumY; cellY++) {
+          const key = `${cellX}:${cellY}`;
+          const cell = index.get(key) ?? [];
+          cell.push({ item, region });
+          index.set(key, cell);
+        }
+      }
+    }
+  }
+  return index;
+}
+
+function spatialCellKey(x, y) {
+  return `${Math.floor(x / spatialCellSize)}:${Math.floor(y / spatialCellSize)}`;
+}
+
+function validateOperation(operation) {
+  if (!operation || !["stroke", "fill", "text"].includes(operation.kind)
+      || typeof operation.role !== "string" || !validRectAllowDegenerate(operation.bounds)
+      || !Array.isArray(operation.commands)) throw new Error("invalid draw operation");
+  for (const command of operation.commands) {
+    if (!command || !["move", "line", "cubic", "close"].includes(command.kind)
+        || !finiteNumbers(command.x, command.y, command.control1X, command.control1Y,
+          command.control2X, command.control2Y)) throw new Error("invalid path command");
+  }
+  if (operation.kind === "stroke" && (!Number.isFinite(operation.width) || operation.width <= 0
+      || !Array.isArray(operation.dashPattern)
+      || operation.dashPattern.length % 2 !== 0
+      || operation.dashPattern.some((value) => !Number.isFinite(value) || value <= 0)
+      || !["butt", "round", "square"].includes(operation.lineCap)
+      || !["miter", "round", "bevel"].includes(operation.lineJoin)
+      || !Number.isSafeInteger(operation.miterLimitRatio)
+      || (operation.lineJoin === "miter" && operation.miterLimitRatio <= 0)
+      || (operation.lineJoin !== "miter" && operation.miterLimitRatio !== 0))) {
+    throw new Error("invalid stroke");
+  }
+  if (operation.kind === "fill" && !["nonzero", "evenodd"].includes(operation.fillRule)) {
+    throw new Error("invalid fill");
+  }
+  if (operation.kind === "text" && (typeof operation.text !== "string"
+      || !validPoint(operation.origin) || !isAlignment(operation.alignment)
+      || !isDirection(operation.direction) || !isLocale(operation.locale))) throw new Error("invalid text");
+}
+
+function validateHit(region, definitionId) {
+  if (!region || typeof region.localId !== "string" || !["port", "body", "label"].includes(region.kind)
+      || !["rect", "circle", "polygon"].includes(region.shape)
+      || !validRectAllowDegenerate(region.bounds)
+      || (region.targetSource && !validSource(region.targetSource, definitionId))) {
+    throw new Error("invalid hit region");
+  }
+  if (region.shape === "circle" && (!validPoint(region.center) || !Number.isFinite(region.radius)
+      || region.radius <= 0)) throw new Error("invalid circle hit region");
+  if (region.shape === "polygon" && (!Array.isArray(region.points) || region.points.length < 3
+      || region.points.some((point) => !validPoint(point)))) throw new Error("invalid polygon hit region");
+}
+
+function drawOperation(context, operation, styles) {
+  if (operation.kind === "text") {
+    context.save();
+    context.fillStyle = cssColor(styles, "--ll-ink", "#172124");
+    context.font = `100px ${getComputedStyle(context.canvas).fontFamily}`;
+    context.textAlign = canvasAlignment(operation.alignment, operation.direction);
+    context.textBaseline = "alphabetic";
+    context.direction = operation.direction;
+    context.fillText(operation.text, operation.origin.x, operation.origin.y);
+    context.restore();
+    return;
+  }
+
+  context.beginPath();
+  for (const command of operation.commands) {
+    if (command.kind === "move") context.moveTo(command.x, command.y);
+    else if (command.kind === "line") context.lineTo(command.x, command.y);
+    else if (command.kind === "cubic") context.bezierCurveTo(
+      command.control1X, command.control1Y, command.control2X, command.control2Y,
+      command.x, command.y,
+    );
+    else context.closePath();
+  }
+  if (operation.kind === "stroke") {
+    context.strokeStyle = cssColor(styles, "--ll-ink", "#172124");
+    context.lineWidth = operation.width;
+    context.lineCap = operation.lineCap;
+    context.lineJoin = operation.lineJoin;
+    if (operation.lineJoin === "miter") {
+      context.miterLimit = operation.miterLimitRatio;
+    }
+    context.setLineDash(operation.dashPattern);
+    context.stroke();
+  } else {
+    context.fillStyle = operation.role === "background"
+      ? cssColor(styles, "--ll-canvas", "#ffffff")
+      : cssColor(styles, "--ll-ink", "#172124");
+    context.fill(operation.fillRule);
+  }
+}
+
+function contains(region, point) {
+  if (region.shape === "rect") return point.x >= region.bounds.left && point.x <= region.bounds.right
+    && point.y >= region.bounds.top && point.y <= region.bounds.bottom;
+  if (region.shape === "circle") {
+    const x = point.x - region.center.x;
+    const y = point.y - region.center.y;
+    return (x * x) + (y * y) <= region.radius * region.radius;
+  }
+  let inside = false;
+  for (let index = 0, previous = region.points.length - 1; index < region.points.length; previous = index++) {
+    const currentPoint = region.points[index];
+    const priorPoint = region.points[previous];
+    if (((currentPoint.y > point.y) !== (priorPoint.y > point.y))
+        && point.x < ((priorPoint.x - currentPoint.x) * (point.y - currentPoint.y)
+          / (priorPoint.y - currentPoint.y)) + currentPoint.x) inside = !inside;
+  }
+  return inside;
+}
+
+function hitPriority(item, region) {
+  if (region.kind === "port") return 5;
+  if (item.source.kind === "junction") return 4;
+  if (item.source.kind === "component") return 3;
+  if (item.source.kind === "wireGeometry") return 2;
+  return 1;
+}
+
+function translateRect(rect, origin) {
+  return { left: rect.left + origin.x, top: rect.top + origin.y,
+    right: rect.right + origin.x, bottom: rect.bottom + origin.y };
+}
+
+function intersects(left, right) {
+  return left.left <= right.right && left.right >= right.left
+    && left.top <= right.bottom && left.bottom >= right.top;
+}
+
+function expandRect(rect, margin) {
+  return {
+    left: rect.left - margin,
+    top: rect.top - margin,
+    right: rect.right + margin,
+    bottom: rect.bottom + margin,
+  };
+}
+
+function validSource(source, definitionId) {
+  return source && source.circuitDefinitionId === definitionId
+    && ["definitionPort", "component", "instancePort", "net", "junction", "wireGeometry", "annotation"].includes(source.kind)
+    && typeof source.id === "string" && source.id.startsWith(`${source.kind}:`)
+    && source.id.length > source.kind.length + 1;
+}
+
+function validRect(rect) {
+  return validRectAllowDegenerate(rect) && rect.right > rect.left && rect.bottom > rect.top;
+}
+
+function validRectAllowDegenerate(rect) {
+  return rect && finiteNumbers(rect.left, rect.top, rect.right, rect.bottom)
+    && rect.right >= rect.left && rect.bottom >= rect.top;
+}
+
+function validPoint(point) { return point && finiteNumbers(point.x, point.y); }
+function finiteNumbers(...values) { return values.every(Number.isFinite); }
+function positiveSafeInteger(value) { return Number.isSafeInteger(value) && value > 0; }
+function isLocale(value) { return value === "en-US" || value === "zh-CN"; }
+function isDirection(value) { return value === "ltr" || value === "rtl"; }
+function isAlignment(value) { return ["start", "center", "end"].includes(value); }
+function isTextRole(value) { return ["symbol", "portlabel", "dependency", "extensionmark"].includes(value); }
+function isToken(value) { return typeof value === "string" && /^[A-Za-z0-9._-]+$/.test(value); }
+function isDigest(value) { return typeof value === "string" && /^[0-9a-f]{64}$/.test(value); }
+function checkedInteger(value) { if (!Number.isSafeInteger(value) || value < -2147483648 || value > 2147483647) throw new Error("integer overflow"); return value; }
+function canvasAlignment(value, direction) {
+  if (value === "center") return "center";
+  if (value === "start") return direction === "ltr" ? "left" : "right";
+  return direction === "ltr" ? "right" : "left";
+}
+function cssColor(styles, name, fallback) { return styles.getPropertyValue(name).trim() || fallback; }
+function compareOrdinal(left, right) { return left < right ? -1 : left > right ? 1 : 0; }
+function encodedJsonBytes(value) { return BigInt(textEncoder.encode(JSON.stringify(value)).byteLength); }
+function decodeBase64(value) { const binary = atob(value); return Uint8Array.from(binary, (character) => character.charCodeAt(0)); }
+async function sha256(bytes) { const digest = await crypto.subtle.digest("SHA-256", bytes); return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join(""); }

@@ -213,4 +213,15 @@
   <data name="RouteMarkedUnrouted" xml:space="preserve"><value>导线几何已显式标记为未布线。</value></data>
   <data name="RouteRouted" xml:space="preserve"><value>导线几何已正交布线。</value></data>
   <data name="SteeringGalleryAuthored" xml:space="preserve"><value>已使用生成的端口编辑导向模板集。请编译当前项目修订。</value></data>
+  <data name="CanvasReady" xml:space="preserve"><value>电路画布已就绪。</value></data>
+  <data name="CanvasStarting" xml:space="preserve"><value>正在准备响应式电路画布。语义大纲仍可使用。</value></data>
+  <data name="CanvasUnavailable" xml:space="preserve"><value>位图渲染器不可用。请继续使用语义电路大纲，或重试画布。</value></data>
+  <data name="CircuitCanvasAriaLabel" xml:space="preserve"><value>交互式电路画布。语义电路大纲提供相同的可选择来源。</value></data>
+  <data name="CircuitCanvasFallback" xml:space="preserve"><value>交互式电路渲染不可用。请使用后面的语义电路大纲。</value></data>
+  <data name="RetryCanvas" xml:space="preserve"><value>重试画布</value></data>
+  <data name="SemanticCircuitOutline" xml:space="preserve"><value>语义电路大纲</value></data>
+  <data name="SemanticScenePagesAriaLabel" xml:space="preserve"><value>语义电路分页</value></data>
+  <data name="SemanticScenePage" xml:space="preserve"><value>第 {0} 页，共 {1} 页</value></data>
+  <data name="Previous" xml:space="preserve"><value>上一页</value></data>
+  <data name="Next" xml:space="preserve"><value>下一页</value></data>
 </root>

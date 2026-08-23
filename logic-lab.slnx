@@ -19,5 +19,6 @@
     <Project Path="tests/LogicLab.Presentation.Tests/LogicLab.Presentation.Tests.csproj" />
     <Project Path="tests/LogicLab.ProjectFormat.Tests/LogicLab.ProjectFormat.Tests.csproj" />
     <Project Path="tests/LogicLab.Web.Tests/LogicLab.Web.Tests.csproj" />
+    <Project Path="tests/LogicLab.Web.BrowserTests/LogicLab.Web.BrowserTests.csproj" />
   </Folder>
 </Solution>

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Bunit;
 using LogicLab.Web.Components.Pages;
+using LogicLab.Web.Scene;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LogicLab.Web.Tests;
@@ -14,6 +15,8 @@ internal static class WebTestContext
         CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(LogicLabCultures.English);
         var context = new BunitContext();
         context.Services.AddLocalization();
+        context.JSInterop.SetupModule(BrowserSceneAdapter.ModulePath).Mode =
+            JSRuntimeMode.Loose;
         if (configureAttachmentNavigation)
         {
             context.JSInterop.SetupModule(WorkspaceAttachmentNavigation.ModulePath).Mode =

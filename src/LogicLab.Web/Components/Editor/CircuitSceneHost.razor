@@ -1,0 +1,52 @@
+@using LogicLab.Web.Scene
+@implements IAsyncDisposable
+
+<section class="circuit-scene-shell"
+         aria-labelledby="circuit-canvas-heading"
+         data-scene-renderer="@rendererState"
+         @ref="hostElement">
+    <div class="scene-heading">
+        <div>
+            <p class="eyebrow">@Text["CircuitSceneEyebrow"]</p>
+            <h2 id="circuit-canvas-heading">@(Scene?.DisplayName ?? Text["Circuit"])</h2>
+        </div>
+        @if (Scene is not null)
+        {
+            <span class="scene-count">@Text["SceneCount", Scene.Components.Count, Scene.Connections.Count]</span>
+        }
+    </div>
+
+    <div class="canvas-frame">
+        <canvas class="scene-canvas"
+                data-scene-canvas
+                tabindex="0"
+                hidden="@(rendererState == RendererUnavailableState)"
+                aria-label="@Text["CircuitCanvasAriaLabel"]"
+                aria-describedby="scene-renderer-status">
+            <p>@Text["CircuitCanvasFallback"]</p>
+        </canvas>
+
+        @if (rendererState != RendererReadyState)
+        {
+            <div class="renderer-recovery" role="status" data-scene-recovery="@failureCode">
+                <p>@RendererMessage</p>
+                @if (rendererState == RendererUnavailableState)
+                {
+                    <button type="button" @onclick="RetryAsync">@Text["RetryCanvas"]</button>
+                }
+            </div>
+        }
+    </div>
+
+    <p id="scene-renderer-status" class="visually-hidden" aria-live="polite">@RendererMessage</p>
+
+    <details class="semantic-scene" open="@(rendererState == RendererUnavailableState)">
+        <summary>@Text["SemanticCircuitOutline"]</summary>
+        <AccessibleCircuitScene Scene="Scene"
+                                ShowHeading="false"
+                                HeadingId="semantic-circuit-heading"
+                                PageSize="SemanticPageSize"
+                                OnSelect="HandleSemanticSelectionAsync"
+                                OnFocus="HandleSemanticFocusAsync" />
+    </details>
+</section>
