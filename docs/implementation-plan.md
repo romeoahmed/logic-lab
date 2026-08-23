@@ -77,7 +77,7 @@ Items `15` and `16` do not claim sequential or memory rendering and browser work
 |---:|---|---|---|
 | 23 | Generate basic TeachingMixed Geometry Plans | 10, 12 | Familiar basic gates are generated declaratively with shared renderer-neutral operations, Port anchors, hit regions, accessibility trees, metric fingerprints, and per-symbol IEEE 91A evidence. |
 | 24 | Project complex combinational and hierarchical symbols | 08, 09, 11, 23 | Steering, arithmetic, topology, and user Circuit Definition symbols receive parameterized rectangular Geometry Plans and complete Schematic Projection behavior. |
-| 25 | Project sequential and memory symbols with conformance exports | 15, 16, 24 | Sequential and memory qualifiers, dependencies, array information, Teaching Extensions, strict fallback behavior, and TeachingMixed export manifests are complete. |
+| 25 | Project sequential and memory symbols with conformance exports | 15, 16, 24 | Sequential and memory qualifiers, dependencies, array information, explicit Teaching Extension downgrades, and atomic TeachingMixed/strict conformance preflight are complete; strict fallback requires a newly selected compatible variant and projection. |
 | 26 | Complete responsive Scene interaction and recovery | 07, 17, 25 | Atomic snapshots/patches, Canvas sizing and density, transforms, culling, hit priority, pointer capture, keyboard actions, semantic fallback, focus recovery, local-only disconnect, teardown, and renderer failures satisfy the Scene contract. |
 | 27 | Deliver the complete Logic Analyzer | 18, 26 | Probe Spine identity, waveform rows, radix/order, cursors, live follow, transition and summary windows, Trace Gaps, Reveal Net, retention, and Hot Swap recovery work without exposing Runtime chunks. |
 

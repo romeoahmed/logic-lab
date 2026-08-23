@@ -78,19 +78,28 @@ An unsatisfied higher-priority constraint returns a structured layout diagnostic
 
 Port groups declare edge, role, stable order, pitch, clearance, grouping, and label policy. Bit groups use explicit ascending or descending weight order. Coordinate order is never used to reconstruct Port identity.
 
-Qualifier and dependency composition is structured:
+Qualifier and dependency composition is structured. Component Contract Port IDs remain identity and accessibility values; a registered function recipe must explicitly authorize any identical visible function text.
 
 - negation and direct-polarity indication are diagram-wide alternatives and are not mixed;
-- output-qualifier evidence cites diagram convention rule 3.1.1 plus the defining symbol: 3.1-2 for negation, 3.1-6 for direct-polarity output, or 3.1-7 for right-to-left direct-polarity output;
-- dynamic, active-low, complemented-output, three-state, bit-grouping, common-control, and common-output marks bind to explicit Ports or groups; a complemented bistable output is drawn with the diagram-wide negation or direct-polarity output qualifier and does not publish a `QN` function label;
-- a V1 aggregate multi-bit Port has one semantic anchor and therefore is not presented as an IEEE multi-terminal bit group; its authored display label is shown without HDL slice notation, the claim is `TeachingExtension`, and `teachingmixed-aggregate-multibit-port` lists the affected Port IDs;
-- a V1 priority encoder is `TeachingExtension` until input weights and priority composition are represented as structured Port-group and dependency data; its bracketed function mark and `teachingmixed-unmodeled-priority-encoder` deviation prevent an incomplete HPRI representation from publishing `Standardized91A`;
-- dependency notation records type, identifier, affecting endpoint, affected endpoints, and application order;
-- sequential recipes bind dynamic edge marks to the authored `CLK` Port and derive rising/falling presentation from the closed `edge` parameter; a falling edge composes the dynamic mark with the diagram-wide negation or direct-polarity convention rather than inventing a second clock Port;
-- latch, D/J/K/T, shift, count, mode, enable, control, terminal-count, and address notation is generated from registered recipes; Component Contract Port IDs remain identity and accessibility values and are not used as standardized function labels unless the registered function text is intentionally identical; the general astable symbol uses its standardized `G` mark without exposing the `Q` Contract Port ID; C and EN dependencies prevent action while G dependencies impose the 0-state, so a hold-capable control is never projected as G; a storage register uses bistable input qualifiers without an invented `REG*` body mark; shift and count direction qualifiers bind to the authored `CLK` Port as a separate input function and are never concatenated to the `SRG*` or `CTR*` body mark; parallel, serial, load-value, and memory data inputs use the D function, write enable uses EN, and a scalar address dependency binds a structured input bit-grouping mark to the affecting address Port, showing the explicit weight, brace, and complete consecutive `A0/...` range while every selected data endpoint carries `A`; register width, counter direction, shift direction, memory address width, and memory word width remain explicit request inputs;
-- ROM and RAM capacity text is derived from structured `(addressWidth, wordWidth)` array information as `2^addressWidth` words of `wordWidth` bits; the renderer never parses capacity back from display text;
+- dynamic, active-low, complemented-output, three-state, bit-grouping, common-control, and common-output marks bind to explicit Ports or groups;
+- dependency data records type, identifier or consecutive range, affecting Port, affected endpoints, and application order;
 - input and output qualifier sequences follow IEEE 91A clauses 4.4.3 and 4.4.4;
-- orientation distinguishes glyphs relative to signal flow from text relative to reading direction.
+- signal-flow glyphs transform with the symbol while readable text remains upright;
+- a V1 aggregate multi-bit Port has one semantic anchor, shows its authored display label without HDL slice notation, and publishes `TeachingExtension` with `teachingmixed-aggregate-multibit-port` naming the affected Port IDs.
+
+### 3.1 Sequential and memory notation
+
+| Concern | Rule |
+|---|---|
+| astable source | The general symbol displays the standardized `G` generator mark and no function label derived from the Contract Port ID `Q`. |
+| bistable body and output | D, J, K, R, S, and T are Port-bound input functions; a basic bistable has no invented body function. A complemented `QN` output uses the diagram-wide negation or direct-polarity output qualifier, cites rule 3.1.1 and the corresponding 3.1 output symbol, and publishes no `QN` function label. |
+| clock and hold controls | The dynamic mark binds to the authored `CLK` Port. The closed `edge` parameter selects rising or falling presentation; falling presentation composes the dynamic mark with the diagram-wide indication convention. For affected inputs, inactive C and EN dependencies suppress action, while an inactive G dependency imposes the internal 0-state, so a hold-capable control is not represented as G. |
+| register, shift, and count | A storage register uses bistable input qualifiers without an invented `REG*` body mark. Shift registers and counters use `SRG{width}` and `CTR{width}` body functions; direction qualifiers `→`, `←`, `+`, and `−` bind to `CLK` as input functions instead of being concatenated to the body text. |
+| data and write functions | Parallel, serial, load-value, and memory data inputs use D. Write enable uses EN. Mode, control, enable, and terminal-count functions remain explicit Port-bound notation. |
+| address dependency | A scalar address Port uses a structured input bit-grouping qualifier with visible weight, brace, and the complete consecutive range `A0/1`; selected data endpoints carry A. An aggregate address Port retains its authored label, omits the unimplemented bit-grouping and address dependency, removes their exact standard references, and publishes `TeachingExtension`. |
+| memory size | ROM and RAM body text is derived from structured `(addressWidth, wordWidth)` array information as `2^addressWidth` words of `wordWidth` bits. The renderer never parses capacity or parameters back from display text. |
+
+The Priority Encoder remains the explicit Teaching Extension defined in Section 1 until input weights and priority composition are structured; it cannot publish `Standardized91A` from its bracketed body text alone.
 
 Text measurement uses a versioned font fingerprint and Metric Set. The planning seam receives a Symbol Text Measurer whose font and Metric Set fingerprints must equal the Symbol Request fingerprints; a mismatch returns `presentation_font_fingerprint_mismatch` or `presentation_metric_fingerprint_mismatch` and publishes no plan. Each measurement request carries the matched Metric Set so the result is expressed at the requested `unitsPerH` scale. Symbol geometry and application chrome typography are separate. A font or Metric Set change invalidates derived Geometry Plans but not Project semantics.
 
