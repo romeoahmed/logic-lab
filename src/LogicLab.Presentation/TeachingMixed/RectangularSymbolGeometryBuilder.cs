@@ -397,7 +397,7 @@ internal static class RectangularSymbolGeometryBuilder
                     request));
                 var braceLeft = checked(
                     body.Left + h + weightFlowAxis.Span + textClearance);
-                operations.Add(RectangularSymbolQualifierGeometry.BitGroupingInputBrace(
+                operations.Add(TeachingMixedQualifierGeometry.BitGroupingInputBrace(
                     braceLeft,
                     checked(braceLeft + bitGroupingBraceDepth),
                     y,
@@ -422,12 +422,12 @@ internal static class RectangularSymbolGeometryBuilder
             var anchor = anchors.Single(candidate => candidate.PortId == qualifier.PortId);
             operations.Add(request.IndicationConvention switch
             {
-                IndicationConvention.Negation => RectangularSymbolQualifierGeometry.Circle(
+                IndicationConvention.Negation => TeachingMixedQualifierGeometry.Circle(
                     new PointV1(checked(body.Left - qualifierRadius), anchor.Point.Y),
                     qualifierRadius,
                     outlineWidth),
                 IndicationConvention.DirectPolarity =>
-                    RectangularSymbolQualifierGeometry.DirectPolarityInput(
+                    TeachingMixedQualifierGeometry.DirectPolarityInput(
                     body.Left,
                     anchor.Point.Y,
                     h,
@@ -439,7 +439,7 @@ internal static class RectangularSymbolGeometryBuilder
         foreach (var qualifier in request.DynamicInputQualifiers)
         {
             var anchor = anchors.Single(candidate => candidate.PortId == qualifier.PortId);
-            operations.Add(RectangularSymbolQualifierGeometry.DynamicInput(
+            operations.Add(TeachingMixedQualifierGeometry.DynamicInput(
                 body.Left,
                 anchor.Point.Y,
                 h,
@@ -448,14 +448,14 @@ internal static class RectangularSymbolGeometryBuilder
             {
                 operations.Add(request.IndicationConvention switch
                 {
-                    IndicationConvention.Negation => RectangularSymbolQualifierGeometry.Circle(
+                    IndicationConvention.Negation => TeachingMixedQualifierGeometry.Circle(
                         new PointV1(
                             checked(body.Left - qualifierRadius),
                             anchor.Point.Y),
                         qualifierRadius,
                         outlineWidth),
                     IndicationConvention.DirectPolarity =>
-                        RectangularSymbolQualifierGeometry.DirectPolarityInput(
+                        TeachingMixedQualifierGeometry.DirectPolarityInput(
                         body.Left,
                         anchor.Point.Y,
                         h,
@@ -469,7 +469,7 @@ internal static class RectangularSymbolGeometryBuilder
         foreach (var qualifier in request.ThreeStateOutputQualifiers)
         {
             var output = anchors.Single(anchor => anchor.PortId == qualifier.PortId);
-            operations.Add(RectangularSymbolQualifierGeometry.ThreeStateOutput(
+            operations.Add(TeachingMixedQualifierGeometry.ThreeStateOutput(
                 body.Right,
                 output.Point.Y,
                 threeStateQualifierRadius,
@@ -482,12 +482,12 @@ internal static class RectangularSymbolGeometryBuilder
             var output = anchors.Single(anchor => anchor.PortId == function.PortId);
             operations.Add(request.IndicationConvention switch
             {
-                IndicationConvention.Negation => RectangularSymbolQualifierGeometry.Circle(
+                IndicationConvention.Negation => TeachingMixedQualifierGeometry.Circle(
                     new PointV1(checked(body.Right + qualifierRadius), output.Point.Y),
                     qualifierRadius,
                     outlineWidth),
                 IndicationConvention.DirectPolarity =>
-                    RectangularSymbolQualifierGeometry.DirectPolarityOutput(
+                    TeachingMixedQualifierGeometry.DirectPolarityOutput(
                     body.Right,
                     output.Point.Y,
                     h,
