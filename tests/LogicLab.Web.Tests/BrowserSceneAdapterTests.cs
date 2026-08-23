@@ -87,6 +87,49 @@ internal sealed class BrowserSceneAdapterTests
         }
     }
 
+    [Test]
+    public async Task MeasureText_JsRecord_IsMaterializedThroughTheStrictJsonBoundary()
+    {
+        using var measurementJson = JsonDocument.Parse(
+            $$"""
+            {
+              "fontFingerprint": "{{new string('8', 64)}}",
+              "measurements": [{
+                "key": "measurement-a",
+                "advanceWidth": 120,
+                "inkLeft": -4,
+                "inkTop": -80,
+                "inkRight": 116,
+                "inkBottom": 20
+              }]
+            }
+            """);
+        var handle = new RecordingJsObjectReference(
+            measurementRecord: measurementJson.RootElement.Clone());
+        var module = new RecordingJsObjectReference(handle);
+        var js = new RecordingJsRuntime(module);
+        using var sink = DotNetObjectReference.Create(new Sink());
+        await using var adapter = await BrowserSceneAdapter.MountAsync(
+            js,
+            default(ElementReference),
+            "build-a",
+            BrowserPolicy.Development,
+            sink,
+            CancellationToken.None);
+
+        var batch = await adapter.MeasureTextAsync(
+            [new BrowserTextMeasurementRequestV1(
+                "measurement-a", "A", "symbol", "center", "en-US", "ltr")],
+            CancellationToken.None);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(batch.Measurements).Count().IsEqualTo(1);
+            await Assert.That(batch.Measurements[0].AdvanceWidth).IsEqualTo(120);
+            await Assert.That(handle.Identifiers).Contains("measureText");
+        }
+    }
+
     private static SceneSnapshotV1 Snapshot() => new(
         "build-a",
         1,
@@ -132,7 +175,8 @@ internal sealed class BrowserSceneAdapterTests
 
     private sealed class RecordingJsObjectReference(
         IJSObjectReference? mountedHandle = null,
-        bool commitAccepted = true)
+        bool commitAccepted = true,
+        JsonElement? measurementRecord = null)
         : IJSObjectReference
     {
         public List<string> Identifiers { get; } = [];
@@ -163,6 +207,13 @@ internal sealed class BrowserSceneAdapterTests
             if (identifier == "commitTransfer" && typeof(TValue) == typeof(bool))
             {
                 return ValueTask.FromResult((TValue)(object)commitAccepted);
+            }
+
+            if (identifier == "measureText" && typeof(TValue) == typeof(JsonElement))
+            {
+                return ValueTask.FromResult((TValue)(object)(measurementRecord
+                    ?? throw new InvalidOperationException(
+                        "No text measurement record was configured.")));
             }
 
             return ValueTask.FromResult(default(TValue)!);

@@ -22,6 +22,26 @@ namespace LogicLab.Web.Tests;
 internal sealed class WorkbenchComponentTests
 {
     [Test]
+    public async Task Editor_SemanticSceneSelection_IsOwnedByTheWorkbench()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = await RenderAuthoredEditor(context, workspace);
+        var action = rendered.Find(".circuit-scene-shell [data-scene-source]");
+
+        await action.ClickAsync();
+        await rendered.WaitForStateAsync(() => string.Equals(
+            rendered.Find("[data-scene-selection-count]")
+                .GetAttribute("data-scene-selection-count"),
+            "1",
+            StringComparison.Ordinal));
+
+        await Assert.That(rendered.Find("[data-scene-selection-count]")
+                .GetAttribute("data-scene-selection-count"))
+            .IsEqualTo("1");
+    }
+
+    [Test]
     public async Task Editor_ValidLogicLabUpload_OpensCompiledImportedWorkspace()
     {
         await using var context = CreateContext();

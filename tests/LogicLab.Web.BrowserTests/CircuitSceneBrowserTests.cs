@@ -36,6 +36,17 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         await canvas.FocusAsync();
         await Page.Keyboard.PressAsync("ArrowRight");
         await Page.Keyboard.PressAsync("Enter");
+        var keyboardSelection = await Page.EvaluateAsync<string?>(
+            "() => window.sceneCalls.filter(call => call.name === 'ReceiveSceneIntentAsync').at(-1)?.args[0]?.sources[0]?.id");
+
+        await Page.Keyboard.DownAsync(" ");
+        await Page.Mouse.MoveAsync((float)hit.X, (float)hit.Y);
+        await Page.Mouse.DownAsync();
+        var spaceGesture = await Page.EvaluateAsync<string?>(
+            "() => window.sceneHandle.gesture?.kind");
+        await Page.Mouse.UpAsync();
+        await Page.Keyboard.UpAsync(" ");
+
         var beforeWheel = await Page.EvaluateAsync<WorldPoint>(
             "() => window.sceneHandle.screenToWorld({ x: 240, y: 160 })");
         var wheelPoint = await Page.EvaluateAsync<ViewportPoint>(
@@ -63,14 +74,45 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             "() => ({ connected: window.sceneHandle.connected, gestureAbsent: window.sceneHandle.gesture === null })");
         await Page.Mouse.UpAsync();
 
+        await Page.EvaluateAsync("() => window.sceneHandle.selectedSources.clear()");
+        var intentCountBeforeLocalSelection = await Page.EvaluateAsync<int>(
+            "() => window.sceneCalls.filter(call => call.name === 'ReceiveSceneIntentAsync').length");
+        await Page.Mouse.ClickAsync((float)hit.X, (float)hit.Y);
+        var localSelection = await Page.EvaluateAsync<LocalSelectionState>(
+            """
+            () => ({
+              isSelected: window.sceneHandle.selectedSources.has('component:a'),
+              intentCount: window.sceneCalls.filter(call =>
+                call.name === 'ReceiveSceneIntentAsync').length,
+            })
+            """);
+
+        await Page.Mouse.MoveAsync(590, 390);
+        await Page.Mouse.DownAsync();
+        await Page.EvaluateAsync(
+            """
+            () => document.querySelector('#components-reconnect-modal').dispatchEvent(
+              new CustomEvent('components-reconnect-state-changed', {
+                detail: { state: 'show' }, bubbles: true,
+              }))
+            """);
+        var localPanGesture = await Page.EvaluateAsync<string?>(
+            "() => window.sceneHandle.gesture?.kind");
+        await Page.Mouse.UpAsync();
+
         using (Assert.Multiple())
         {
             await Assert.That(captured).IsTrue();
             await Assert.That(selected).IsTrue();
+            await Assert.That(keyboardSelection).IsEqualTo("component:a");
+            await Assert.That(spaceGesture).IsEqualTo("pan");
             await Assert.That(afterWheel.X).IsEqualTo(beforeWheel.X).Within(0.000_001);
             await Assert.That(afterWheel.Y).IsEqualTo(beforeWheel.Y).Within(0.000_001);
             await Assert.That(disconnected.Connected).IsFalse();
             await Assert.That(disconnected.GestureAbsent).IsTrue();
+            await Assert.That(localSelection.IsSelected).IsTrue();
+            await Assert.That(localSelection.IntentCount).IsEqualTo(intentCountBeforeLocalSelection);
+            await Assert.That(localPanGesture).IsEqualTo("pan");
         }
     }
 
@@ -82,7 +124,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         await Page.Mouse.MoveAsync(300, 200);
         await Page.Mouse.DownAsync();
 
-        await Page.EvaluateAsync("() => document.querySelector('#host').remove()");
+        await Page.EvaluateAsync("() => document.querySelector('#scene-page').remove()");
         await Page.WaitForFunctionAsync("() => window.sceneHandle.destroyed");
         var state = await Page.EvaluateAsync<DestroyedState>(
             """
@@ -366,7 +408,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                 buildFingerprint: 'build-a', sceneVersion: 1, projectionVersion: 1,
                 circuitDefinitionId: 'definition-a', uiCulture: 'en-US',
                 baseDirection: 'leftToRight', schematicProjectionKey: 'projection-a',
-                bounds: { left: 0, top: 0, right: 100, bottom: 100 },
+                bounds: { left: 0, top: 0, right: 200, bottom: 100 },
                 gridStepPlanUnits: 100, snapStepGridUnits: 1,
                 fontFingerprint: window.sceneFontFingerprint,
                 items: [{
@@ -384,6 +426,23 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                   hitRegions: [{
                     localId: 'body', kind: 'body', sourcePortId: null, shape: 'rect',
                     bounds: { left: 20, top: 20, right: 80, bottom: 80 },
+                    center: null, radius: 0, points: null, targetSource: null,
+                  }],
+                }, {
+                  source: { circuitDefinitionId: 'definition-a', kind: 'component', id: 'component:b' },
+                  order: 1, bounds: { left: 120, top: 20, right: 180, bottom: 80 },
+                  origin: { x: 0, y: 0 },
+                  operations: [{
+                    kind: 'stroke', role: 'outline',
+                    bounds: { left: 120, top: 20, right: 180, bottom: 80 },
+                    commands: [point('move', 120, 20), point('line', 180, 20),
+                      point('line', 180, 80), point('line', 120, 80), point('close', 0, 0)],
+                    width: 2, dashPattern: [], lineCap: 'round', lineJoin: 'round',
+                    miterLimitRatio: 0,
+                  }],
+                  hitRegions: [{
+                    localId: 'body', kind: 'body', sourcePortId: null, shape: 'rect',
+                    bounds: { left: 120, top: 20, right: 180, bottom: 80 },
                     center: null, radius: 0, points: null, targetSource: null,
                   }],
                 }], overlays: [],
@@ -420,20 +479,28 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                     canvas { width: 100%; height: 100%; font-family: sans-serif; }
                   </style>
                   <dialog id="components-reconnect-modal"></dialog>
-                  <main id="stable"><section id="host"><canvas data-scene-canvas tabindex="0"></canvas></section></main>
+                  <main id="stable" data-browser-host-ancestor>
+                    <div id="scene-page">
+                      <section id="host">
+                        <canvas data-scene-canvas tabindex="0"></canvas>
+                        <button data-scene-source="component:a">Component A</button>
+                      </section>
+                    </div>
+                  </main>
                   """,
         }));
         await Page.GotoAsync($"{Origin}/");
         await Page.EvaluateAsync(
             """
             () => window.scenePolicy = {
-              policyId: 'logiclab-browser', policyRevision: 'test-1',
-              semanticIntentBytes: 65536,
+              zoomMillionthsMaximum: 4000000,
+              policyRevision: 'test-1', policyId: 'logiclab-browser',
               sceneSnapshotRecordCount: 1000, scenePatchRecordCount: 1000,
+              semanticIntentBytes: 65536,
               interopBatchBytes: 16384,
               candidateTransferBytes: 1000000, canvasBitmapPixels: 10000000,
               canvasBitmapBytes: 40000000, effectiveDensityMillionths: 3000000,
-              zoomMillionthsMinimum: 250000, zoomMillionthsMaximum: 4000000,
+              zoomMillionthsMinimum: 250000,
               semanticTreePageItems: 200, displayListBytes: 1000000,
               spatialIndexBytes: 1000000, sceneCacheBytes: 4000000,
               waveformCacheBytes: 4000000,
@@ -460,6 +527,13 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         public bool Connected { get; set; }
 
         public bool GestureAbsent { get; set; }
+    }
+
+    private sealed class LocalSelectionState
+    {
+        public bool IsSelected { get; set; }
+
+        public int IntentCount { get; set; }
     }
 
     private sealed class DestroyedState

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
@@ -8,7 +9,11 @@ namespace LogicLab.Web.Scene;
 internal sealed class BrowserSceneAdapter : IAsyncDisposable
 {
     internal const string ModulePath = "./Components/Editor/CircuitSceneHost.razor.js";
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        AllowDuplicateProperties = false,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+    };
     private readonly IJSObjectReference module;
     private readonly IJSObjectReference handle;
     private readonly BrowserPolicy policy;
@@ -59,16 +64,29 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         }
     }
 
-    public ValueTask<BrowserTextMeasurementBatchV1> MeasureTextAsync(
+    public async ValueTask<BrowserTextMeasurementBatchV1> MeasureTextAsync(
         IReadOnlyList<BrowserTextMeasurementRequestV1> requests,
         CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(requests);
-        return handle.InvokeAsync<BrowserTextMeasurementBatchV1>(
+        // Blazor interop requires mutable DTO shapes for direct object materialization. Receive
+        // JsonElement and apply this seam's strict immutable contract explicitly instead:
+        // https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#object-serialization
+        var record = await handle.InvokeAsync<JsonElement>(
             "measureText",
             cancellationToken,
             requests);
+        try
+        {
+            return record.Deserialize<BrowserTextMeasurementBatchV1>(JsonOptions)
+                ?? throw new JsonException("The browser text measurement batch is null.");
+        }
+        catch (Exception exception) when (exception is JsonException
+            or NotSupportedException)
+        {
+            throw new BrowserSceneContractException("measurement");
+        }
     }
 
     public Task ReplaceAsync(
