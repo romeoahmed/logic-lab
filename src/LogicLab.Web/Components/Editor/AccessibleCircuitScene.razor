@@ -51,6 +51,7 @@
                         <button type="button"
                                 class="scene-action"
                                 data-scene-source="@DefinitionPortSource(port).Key"
+                                @attributes="NavigationAttributes(DefinitionPortSource(port))"
                                 @onfocus="@(() => FocusAsync(DefinitionPortSource(port)))"
                                 @onclick="@(() => ActivateAsync(DefinitionPortSource(port)))">
                             <strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]
@@ -76,6 +77,7 @@
                                 <button type="button"
                                         class="scene-action"
                                         data-scene-source="@ComponentSource(component).Key"
+                                        @attributes="NavigationAttributes(ComponentSource(component))"
                                         @onfocus="@(() => FocusAsync(ComponentSource(component)))"
                                         @onclick="@(() => ActivateAsync(ComponentSource(component)))">
                                     @component.Label
@@ -107,6 +109,7 @@
                                     <button type="button"
                                             class="scene-action"
                                             data-scene-source="@InstancePortSource(port).Key"
+                                            @attributes="NavigationAttributes(InstancePortSource(port))"
                                             @onfocus="@(() => FocusAsync(InstancePortSource(port)))"
                                             @onclick="@(() => ActivateAsync(InstancePortSource(port)))">
                                         <strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]
@@ -131,6 +134,7 @@
                         <button type="button"
                                 class="scene-action"
                                 data-scene-source="@AnnotationSource(annotation).Key"
+                                @attributes="NavigationAttributes(AnnotationSource(annotation))"
                                 @onfocus="@(() => FocusAsync(AnnotationSource(annotation)))"
                                 @onclick="@(() => ActivateAsync(AnnotationSource(annotation)))">
                             <bdi>@annotation.Text</bdi> · @Text["GridPosition", annotation.Position.X, annotation.Position.Y]
@@ -161,6 +165,7 @@
                                 <button type="button"
                                         class="scene-action"
                                         data-scene-source="@NetSource(connection).Key"
+                                        @attributes="NavigationAttributes(NetSource(connection))"
                                         @onfocus="@(() => FocusAsync(NetSource(connection)))"
                                         @onclick="@(() => ActivateAsync(NetSource(connection)))">
                                     @TerminalPath(Scene, connection)
@@ -183,6 +188,7 @@
                                     <button type="button"
                                             class="scene-action"
                                             data-scene-source="@JunctionSource(junction).Key"
+                                            @attributes="NavigationAttributes(JunctionSource(junction))"
                                             @onfocus="@(() => FocusAsync(JunctionSource(junction)))"
                                             @onclick="@(() => ActivateAsync(JunctionSource(junction)))">
                                         @Text["JunctionAtGrid", junction.Point.X, junction.Point.Y]
@@ -196,6 +202,7 @@
                                     <button type="button"
                                             class="scene-action"
                                             data-scene-source="@WireSource(geometry).Key"
+                                            @attributes="NavigationAttributes(WireSource(geometry))"
                                             @onfocus="@(() => FocusAsync(WireSource(geometry)))"
                                             @onclick="@(() => ActivateAsync(WireSource(geometry)))">
                                         @WireRouteLabel(geometry.Route)
@@ -238,6 +245,13 @@
 
     private HashSet<string> visibleSourceKeys = new(StringComparer.Ordinal);
 
+    private IReadOnlyDictionary<string, IReadOnlyDictionary<string, object>>
+        navigationAttributes = new Dictionary<string, IReadOnlyDictionary<string, object>>(
+            StringComparer.Ordinal);
+
+    private static IReadOnlyDictionary<string, object> EmptyAttributes { get; } =
+        new Dictionary<string, object>(StringComparer.Ordinal);
+
     private int pageIndex;
 
     private int totalPages = 1;
@@ -249,11 +263,13 @@
         var pageCount = checked((sources.Length + (long)PageSize - 1) / PageSize);
         totalPages = checked((int)Math.Max(1L, pageCount));
         pageIndex = Math.Min(pageIndex, totalPages - 1);
-        visibleSourceKeys = sources
+        var visibleSources = sources
             .Skip(checked(pageIndex * PageSize))
             .Take(PageSize)
-            .Select(source => source.Key)
+            .ToArray();
+        visibleSourceKeys = visibleSources.Select(source => source.Key)
             .ToHashSet(StringComparer.Ordinal);
+        navigationAttributes = BuildNavigationAttributes(visibleSources);
     }
 
     private IEnumerable<SceneSourceRefV1> SemanticSources()
@@ -298,6 +314,57 @@
     }
 
     private bool IsVisible(SceneSourceRefV1 source) => visibleSourceKeys.Contains(source.Key);
+
+    private IReadOnlyDictionary<string, object> NavigationAttributes(
+        SceneSourceRefV1 source) => navigationAttributes.TryGetValue(source.Key, out var attributes)
+            ? attributes
+            : EmptyAttributes;
+
+    private IReadOnlyDictionary<string, IReadOnlyDictionary<string, object>>
+        BuildNavigationAttributes(IReadOnlyList<SceneSourceRefV1> visibleSources)
+    {
+        if (Scene is null)
+        {
+            return new Dictionary<string, IReadOnlyDictionary<string, object>>(
+                StringComparer.Ordinal);
+        }
+
+        var navigation = SceneSemanticNavigation.Project(Scene);
+        var startKey = visibleSources.FirstOrDefault()?.Key;
+        return visibleSources.ToDictionary(
+            source => source.Key,
+            source =>
+            {
+                var attributes = new Dictionary<string, object>(StringComparer.Ordinal);
+                if (string.Equals(source.Key, startKey, StringComparison.Ordinal))
+                {
+                    attributes.Add("data-scene-navigation-start", string.Empty);
+                }
+
+                if (!navigation.TryGetValue(source.Key, out var neighbors))
+                {
+                    return (IReadOnlyDictionary<string, object>)attributes;
+                }
+
+                AddVisibleNeighbor(attributes, "up", neighbors.Up);
+                AddVisibleNeighbor(attributes, "down", neighbors.Down);
+                AddVisibleNeighbor(attributes, "left", neighbors.Left);
+                AddVisibleNeighbor(attributes, "right", neighbors.Right);
+                return attributes;
+            },
+            StringComparer.Ordinal);
+    }
+
+    private void AddVisibleNeighbor(
+        IDictionary<string, object> attributes,
+        string direction,
+        string? sourceKey)
+    {
+        if (sourceKey is not null && visibleSourceKeys.Contains(sourceKey))
+        {
+            attributes.Add($"data-scene-navigation-{direction}", sourceKey);
+        }
+    }
 
     private bool ComponentIsVisible(AccessibleComponentProjection component) =>
         IsVisible(ComponentSource(component))

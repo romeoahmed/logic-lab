@@ -26,7 +26,7 @@
             @onclick="@(() => ChangeToolAsync(SceneWireToolV1.Instance))">@Text["WireTool"]</button>
     <button type="button"
             data-scene-tool="probe"
-            disabled="@(HierarchyPath is null)"
+            disabled="@(!CanProbe || HierarchyPath is null)"
             aria-pressed="@(ActiveTool is SceneProbeToolV1 ? "true" : "false")"
             @onclick="SelectProbeToolAsync">@Text["Probe"]</button>
     <button type="button"
@@ -46,6 +46,9 @@
     public SceneHierarchyPathV1? HierarchyPath { get; set; }
 
     [Parameter]
+    public bool CanProbe { get; set; }
+
+    [Parameter]
     public EventCallback<SceneToolV1> ActiveToolChanged { get; set; }
 
     private string SelectedPlaceOptionId => ActiveTool is ScenePlaceToolV1 place
@@ -61,7 +64,7 @@
 
     private Task ChangeToolAsync(SceneToolV1 tool) => ActiveToolChanged.InvokeAsync(tool);
 
-    private Task SelectProbeToolAsync() => HierarchyPath is null
+    private Task SelectProbeToolAsync() => !CanProbe || HierarchyPath is null
         ? Task.CompletedTask
         : ChangeToolAsync(new SceneProbeToolV1(HierarchyPath));
 

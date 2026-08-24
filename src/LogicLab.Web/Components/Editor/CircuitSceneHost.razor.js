@@ -100,6 +100,7 @@ class CircuitSceneHandle {
     this.removalObserver = null;
     this.contextIsLost = false;
     this.contextRestoreTimer = 0;
+    this.installRemovalObserver();
 
     if (!this.canvas || !this.context) {
       this.failClosed();
@@ -108,7 +109,7 @@ class CircuitSceneHandle {
     }
 
     this.installListeners();
-    this.installObservers();
+    this.installRenderObservers();
     this.resize();
   }
 
@@ -512,7 +513,7 @@ class CircuitSceneHandle {
     );
   }
 
-  installObservers() {
+  installRenderObservers() {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.host);
     this.onDensityChange = () => {
@@ -520,7 +521,9 @@ class CircuitSceneHandle {
       this.resize();
     };
     this.armDensityListener();
+  }
 
+  installRemovalObserver() {
     // Blazor DOM cleanup guidance requires observing outside the component subtree:
     // https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#dom-cleanup-tasks-during-component-disposal
     const stableAncestor = this.host.closest("[data-browser-host-ancestor]");
@@ -786,7 +789,23 @@ class CircuitSceneHandle {
     context.lineWidth = 3 / this.viewport.zoom;
     context.setLineDash([8 / this.viewport.zoom, 5 / this.viewport.zoom]);
 
-    if (gesture.tool.kind === "select" && gesture.hit?.item?.hasDrawableTarget
+    if (gesture.tool.kind === "select" && !gesture.hit && gestureMoved(gesture)) {
+      const marquee = rectFromPoints(gesture.startWorld, gesture.currentWorld);
+      context.globalAlpha = 0.12;
+      context.fillRect(
+        marquee.left,
+        marquee.top,
+        marquee.right - marquee.left,
+        marquee.bottom - marquee.top,
+      );
+      context.globalAlpha = 0.8;
+      context.strokeRect(
+        marquee.left,
+        marquee.top,
+        marquee.right - marquee.left,
+        marquee.bottom - marquee.top,
+      );
+    } else if (gesture.tool.kind === "select" && gesture.hit?.item?.hasDrawableTarget
         && (start.x !== end.x || start.y !== end.y)) {
       const item = gesture.hit.item;
       const translateX = endPoint.x - startPoint.x;
@@ -853,6 +872,7 @@ class CircuitSceneHandle {
       startWorld: world,
       currentWorld: world,
       disableSnap: event.altKey,
+      selectionMode: selectionModeFromModifiers(event),
       sceneVersion: this.published?.sceneVersion ?? 0,
       projectionVersion: this.published?.projectionVersion ?? 0,
     };
@@ -877,6 +897,7 @@ class CircuitSceneHandle {
     const screen = this.pointerScreen(event);
     gesture.currentWorld = this.screenToWorld(screen);
     gesture.disableSnap = event.altKey;
+    gesture.selectionMode = selectionModeFromModifiers(event);
     if (gesture.tool.kind === "pan") {
       this.viewport.x += screen.x - gesture.last.x;
       this.viewport.y += screen.y - gesture.last.y;
@@ -895,6 +916,7 @@ class CircuitSceneHandle {
     this.gesture = null;
     gesture.currentWorld = this.screenToWorld(this.pointerScreen(event));
     gesture.disableSnap = event.altKey;
+    gesture.selectionMode = selectionModeFromModifiers(event);
     this.invalidate();
     if (this.published && this.connected
         && gesture.sceneVersion === this.published.sceneVersion
@@ -1001,13 +1023,8 @@ class CircuitSceneHandle {
       return;
     }
 
-    const keys = this.semanticSourceKeys();
-    if ((event.key === "ArrowRight" || event.key === "ArrowDown"
-        || event.key === "ArrowLeft" || event.key === "ArrowUp") && keys.length) {
-      const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
-      const current = Math.max(0, keys.indexOf(this.focusedSource));
-      this.focusedSource = keys[(current + direction + keys.length) % keys.length];
-      this.invalidate();
+    const navigationDirection = semanticNavigationDirection(event.key);
+    if (navigationDirection && this.navigateSemanticSource(navigationDirection)) {
       event.preventDefault();
     } else if (event.key === "Enter" && this.focusedSource) {
       const escaped = CSS.escape(this.focusedSource);
@@ -1029,6 +1046,35 @@ class CircuitSceneHandle {
       this.focusedSource = sourceKey;
       this.invalidate();
     }
+  }
+
+  navigateSemanticSource(direction) {
+    const escaped = this.focusedSource ? CSS.escape(this.focusedSource) : null;
+    const current = escaped
+      ? this.host.querySelector(`[data-scene-source="${escaped}"]`)
+      : this.host.querySelector("[data-scene-navigation-start]");
+    if (!current) {
+      return false;
+    }
+
+    const targetKey = current.getAttribute(`data-scene-navigation-${direction}`)
+      ?? (!this.focusedSource ? current.dataset.sceneSource : null);
+    const targetSource = targetKey ? this.sourceByKey(targetKey) : null;
+    if (!targetSource) {
+      return false;
+    }
+
+    const target = this.host.querySelector(
+      `[data-scene-source="${CSS.escape(targetKey)}"]`,
+    );
+    if (!target) {
+      return false;
+    }
+
+    this.focusedSource = targetKey;
+    target.focus({ preventScroll: true });
+    this.invalidate();
+    return true;
   }
 
   reconnectStateChanged(event) {
@@ -1081,8 +1127,13 @@ class CircuitSceneHandle {
   }
 
   selectSource(source, selectionMode) {
+    this.selectSources([source], selectionMode);
+  }
+
+  selectSources(sources, selectionMode) {
     const snapshot = this.published;
-    if (!snapshot || !this.connected) {
+    if (!snapshot || !this.connected || !Array.isArray(sources)
+        || (sources.length === 0 && selectionMode !== "replace")) {
       return;
     }
 
@@ -1090,13 +1141,15 @@ class CircuitSceneHandle {
       sceneVersion: snapshot.sceneVersion,
       projectionVersion: snapshot.projectionVersion,
     }, {
-      sources: [source],
+      sources,
       selectionMode,
     });
     if (committed) {
-      const key = sourceKey(source);
-      this.updateSelection([key], selectionMode);
-      this.focusedSource = key;
+      const keys = sources.map(sourceKey);
+      this.updateSelection(keys, selectionMode);
+      if (keys.length > 0) {
+        this.focusedSource = keys[0];
+      }
       this.invalidate();
     }
   }
@@ -1108,7 +1161,13 @@ class CircuitSceneHandle {
       return;
     }
     if (gesture.tool.kind === "select") {
-      if (!hit) return;
+      if (!hit) {
+        const sources = gestureMoved(gesture)
+          ? this.sourcesInRect(rectFromPoints(gesture.startWorld, gesture.currentWorld))
+          : [];
+        this.selectSources(sources, gesture.selectionMode);
+        return;
+      }
       const start = gridPoint(gesture.startWorld, snapshot, disableSnap);
       const end = gridPoint(gesture.currentWorld, snapshot, disableSnap);
       const moved = start.x !== end.x || start.y !== end.y;
@@ -1141,7 +1200,7 @@ class CircuitSceneHandle {
           snapModifier: disableSnap ? "disableSnap" : "none",
         });
       } else {
-        this.selectSource(hit.source, "replace");
+        this.selectSource(hit.source, gesture.selectionMode);
       }
       return;
     }
@@ -1330,6 +1389,20 @@ class CircuitSceneHandle {
     return candidates[0] ?? null;
   }
 
+  sourcesInRect(rect) {
+    const sources = [];
+    const seen = new Set();
+    for (const item of this.published?.items ?? []) {
+      const key = sourceKey(item.source);
+      if (item.hasDrawableTarget && !seen.has(key)
+          && intersects(translateRect(item.bounds, item.origin), rect)) {
+        seen.add(key);
+        sources.push(item.source);
+      }
+    }
+    return sources;
+  }
+
   fitViewport() {
     if (!this.published || !this.cssWidth || !this.cssHeight) {
       return;
@@ -1391,20 +1464,6 @@ class CircuitSceneHandle {
       }
     }
     return sourceKeys;
-  }
-
-  semanticSourceKeys() {
-    const available = new Set(this.sourceKeys());
-    const keys = [];
-    const seen = new Set();
-    for (const action of this.host.querySelectorAll("[data-scene-source]")) {
-      const sourceKey = action.dataset.sceneSource;
-      if (sourceKey && available.has(sourceKey) && !seen.has(sourceKey)) {
-        seen.add(sourceKey);
-        keys.push(sourceKey);
-      }
-    }
-    return keys;
   }
 
   sourceByKey(key) {
@@ -1861,6 +1920,34 @@ function hitPriority(item, region) {
 function translateRect(rect, origin) {
   return { left: rect.left + origin.x, top: rect.top + origin.y,
     right: rect.right + origin.x, bottom: rect.bottom + origin.y };
+}
+
+function rectFromPoints(first, second) {
+  return {
+    left: Math.min(first.x, second.x),
+    top: Math.min(first.y, second.y),
+    right: Math.max(first.x, second.x),
+    bottom: Math.max(first.y, second.y),
+  };
+}
+
+function gestureMoved(gesture) {
+  return gesture.startWorld.x !== gesture.currentWorld.x
+    || gesture.startWorld.y !== gesture.currentWorld.y;
+}
+
+function selectionModeFromModifiers(event) {
+  if (event.ctrlKey || event.metaKey) return "toggle";
+  if (event.shiftKey) return "add";
+  return "replace";
+}
+
+function semanticNavigationDirection(key) {
+  if (key === "ArrowUp") return "up";
+  if (key === "ArrowDown") return "down";
+  if (key === "ArrowLeft") return "left";
+  if (key === "ArrowRight") return "right";
+  return null;
 }
 
 function intersects(left, right) {
