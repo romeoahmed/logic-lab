@@ -3,6 +3,7 @@ const textEncoder = new TextEncoder();
 const spatialCellSize = 400;
 const spatialEntryBaseBytes = 64;
 const contextRestoreTimeoutMilliseconds = 2_000;
+const interopEnvelopeBytes = 512n;
 // Generated from the cmap table of the fingerprinted packaged WOFF2 asset. Keep this
 // list in lockstep with --ll-scene-font-asset when replacing that file.
 const packagedFontCodePointRanges = Object.freeze([
@@ -51,20 +52,26 @@ const browserPolicyDimensionTokens = Object.freeze({
   waveformCacheBytes: "waveform_cache_bytes",
 });
 
-export function mount(host, buildFingerprint, policy, dotnetSink) {
+export function mount(host, buildFingerprint, policy, dotnetSink, recoveryState = null) {
   const existing = mountedHandles.get(host);
   if (existing && existing.buildFingerprint === buildFingerprint && !existing.destroyed) {
     return existing;
   }
 
   existing?.destroy();
-  const handle = new CircuitSceneHandle(host, buildFingerprint, validatePolicy(policy), dotnetSink);
+  const handle = new CircuitSceneHandle(
+    host,
+    buildFingerprint,
+    validatePolicy(policy),
+    dotnetSink,
+    recoveryState,
+  );
   mountedHandles.set(host, handle);
   return handle;
 }
 
 class CircuitSceneHandle {
-  constructor(host, buildFingerprint, policy, dotnetSink) {
+  constructor(host, buildFingerprint, policy, dotnetSink, recoveryState) {
     this.host = host;
     this.buildFingerprint = buildFingerprint;
     this.policy = policy;
@@ -74,7 +81,7 @@ class CircuitSceneHandle {
     this.published = null;
     this.spatialIndex = new Map();
     this.viewport = { x: 0, y: 0, zoom: 1 };
-    this.savedViewports = new Map();
+    this.savedViewports = validateRecoveryState(recoveryState, policy);
     this.focusedSource = null;
     this.hoveredSource = null;
     this.selectedSources = new Set();
@@ -225,7 +232,7 @@ class CircuitSceneHandle {
       this.transfers.delete(transferId);
       this.rejectBatch("invalid scene transfer batch");
     }
-    if (BigInt(textEncoder.encode(base64Chunk).byteLength + 512)
+    if (BigInt(textEncoder.encode(base64Chunk).byteLength) + interopEnvelopeBytes
         > BigInt(this.policy.interopBatchBytes)) {
       this.transfers.delete(transferId);
       this.rejectBatch("scene transfer batch policy exhausted");
@@ -374,6 +381,33 @@ class CircuitSceneHandle {
     this.invalidate();
   }
 
+  captureRecoveryState() {
+    this.ensureLive();
+    this.rememberPublishedViewport();
+    const saved = [...this.savedViewports];
+    const viewports = [];
+    let encodedBytes = encodedJsonBytes({ viewports });
+    for (let index = saved.length - 1; index >= 0
+        && BigInt(viewports.length) < BigInt(this.policy.sceneSnapshotRecordCount); index--) {
+      const [circuitDefinitionId, viewport] = saved[index];
+      const candidate = {
+        circuitDefinitionId,
+        translateX: viewport.x,
+        translateY: viewport.y,
+        zoom: viewport.zoom,
+      };
+      const separatorBytes = viewports.length === 0 ? 0n : 1n;
+      const nextBytes = encodedBytes + separatorBytes + encodedJsonBytes(candidate);
+      if (nextBytes + interopEnvelopeBytes > BigInt(this.policy.interopBatchBytes)) {
+        break;
+      }
+      viewports.push(candidate);
+      encodedBytes = nextBytes;
+    }
+    viewports.reverse();
+    return { viewports };
+  }
+
   destroy() {
     if (this.destroyed) {
       return;
@@ -419,9 +453,7 @@ class CircuitSceneHandle {
           || validated.value.sceneVersion > this.pendingIntent.sceneVersion)) {
       this.pendingIntent = null;
     }
-    if (this.published?.circuitDefinitionId) {
-      this.savedViewports.set(this.published.circuitDefinitionId, { ...this.viewport });
-    }
+    this.rememberPublishedViewport();
 
     if (validated.kind === "unavailable") {
       this.published = null;
@@ -571,7 +603,8 @@ class CircuitSceneHandle {
       return;
     }
 
-    const center = this.cssWidth > 0 && this.cssHeight > 0
+    const focusAnchor = this.focusedResizeAnchor();
+    const center = !focusAnchor && this.cssWidth > 0 && this.cssHeight > 0
       ? this.screenToWorld({ x: this.cssWidth / 2, y: this.cssHeight / 2 })
       : null;
     this.cssWidth = rect.width;
@@ -588,7 +621,10 @@ class CircuitSceneHandle {
       }
     }
 
-    if (center) {
+    if (focusAnchor) {
+      this.viewport.x = focusAnchor.screen.x - (focusAnchor.world.x * this.viewport.zoom);
+      this.viewport.y = focusAnchor.screen.y - (focusAnchor.world.y * this.viewport.zoom);
+    } else if (center) {
       this.viewport.x = (this.cssWidth / 2) - (center.x * this.viewport.zoom);
       this.viewport.y = (this.cssHeight / 2) - (center.y * this.viewport.zoom);
     }
@@ -1504,6 +1540,34 @@ class CircuitSceneHandle {
     return null;
   }
 
+  focusedResizeAnchor() {
+    const source = this.focusedSource ? this.sourceByKey(this.focusedSource) : null;
+    const target = source ? this.targetBySource(source) : null;
+    if (!target) {
+      return null;
+    }
+
+    const world = {
+      x: (target.bounds.left * 0.5) + (target.bounds.right * 0.5),
+      y: (target.bounds.top * 0.5) + (target.bounds.bottom * 0.5),
+    };
+    const screen = {
+      x: this.viewport.x + (world.x * this.viewport.zoom),
+      y: this.viewport.y + (world.y * this.viewport.zoom),
+    };
+    return validPoint(world) && validPoint(screen) ? { world, screen } : null;
+  }
+
+  rememberPublishedViewport() {
+    const definitionId = this.published?.circuitDefinitionId;
+    if (!definitionId) {
+      return;
+    }
+
+    this.savedViewports.delete(definitionId);
+    this.savedViewports.set(definitionId, { ...this.viewport });
+  }
+
   recoverDocumentFocus(shouldRecover) {
     if (!shouldRecover || !this.focusedSource) {
       return;
@@ -1523,6 +1587,7 @@ class CircuitSceneHandle {
   }
 
   failClosed() {
+    this.rememberPublishedViewport();
     this.cancelGesture();
     this.hoveredSource = null;
     this.pendingIntent = null;
@@ -1609,6 +1674,43 @@ function validatePolicy(policy) {
     throw new Error("invalid Browser Policy");
   }
   return Object.freeze({ ...policy });
+}
+
+function validateRecoveryState(candidate, policy) {
+  if (candidate === null || candidate === undefined) {
+    return new Map();
+  }
+
+  const shape = Object.keys(candidate);
+  const viewports = candidate.viewports;
+  const minimumZoom = Number(policy.zoomMillionthsMinimum) / 1_000_000;
+  const maximumZoom = Number(policy.zoomMillionthsMaximum) / 1_000_000;
+  if (shape.length !== 1 || shape[0] !== "viewports" || !Array.isArray(viewports)
+      || BigInt(viewports.length) > BigInt(policy.sceneSnapshotRecordCount)
+      || encodedJsonBytes(candidate) + interopEnvelopeBytes
+        > BigInt(policy.interopBatchBytes)) {
+    throw new Error("invalid Scene recovery state");
+  }
+
+  const recovered = new Map();
+  for (const viewport of viewports) {
+    const viewportShape = viewport && Object.keys(viewport);
+    if (!viewport || viewportShape.length !== 4
+        || !["circuitDefinitionId", "translateX", "translateY", "zoom"]
+          .every((field) => viewportShape.includes(field))
+        || !isToken(viewport.circuitDefinitionId)
+        || !finiteNumbers(viewport.translateX, viewport.translateY, viewport.zoom)
+        || viewport.zoom < minimumZoom || viewport.zoom > maximumZoom
+        || recovered.has(viewport.circuitDefinitionId)) {
+      throw new Error("invalid Scene recovery viewport");
+    }
+    recovered.set(viewport.circuitDefinitionId, {
+      x: viewport.translateX,
+      y: viewport.translateY,
+      zoom: viewport.zoom,
+    });
+  }
+  return recovered;
 }
 
 function validateReplacement(candidate, buildFingerprint, fontFingerprint, policy) {

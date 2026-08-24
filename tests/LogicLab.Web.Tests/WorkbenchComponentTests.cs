@@ -962,6 +962,28 @@ internal sealed class WorkbenchComponentTests
             () => rendered.FindAll("[data-probe]").Count == 1);
 
         await Assert.That(rendered.FindAll("[data-probe]")).Count().IsEqualTo(1);
+
+        await rendered.Find("[data-scene-tool='probe']").ClickAsync();
+        var entryProbe = await Assert.That(rendered.FindComponent<CircuitSceneHost>()
+                .Instance.ActiveTool)
+            .IsTypeOf<SceneProbeToolV1>();
+        await Assert.That(entryProbe!.HierarchyPath.Steps).IsEmpty();
+
+        var enteredInstance = rendered.Find("[data-enter-instance]");
+        var enteredInstanceId = enteredInstance.GetAttribute("data-enter-instance")
+            ?? throw new InvalidOperationException("The hierarchy instance has no identity.");
+        await enteredInstance.ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-definition-port]").Count == 2);
+        var occurrenceProbe = await Assert.That(rendered.FindComponent<CircuitSceneHost>()
+                .Instance.ActiveTool)
+            .IsTypeOf<SceneProbeToolV1>();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(occurrenceProbe!.HierarchyPath.Steps).Count().IsEqualTo(1);
+            await Assert.That(occurrenceProbe.HierarchyPath.Steps[0].ComponentInstanceId)
+                .IsEqualTo(enteredInstanceId);
+        }
     }
 
     [Test]

@@ -13,9 +13,23 @@ internal sealed class BrowserSceneAdapterTests
     [Test]
     public async Task ReplaceAndDispose_UseBoundedTransferAndOneDestroy()
     {
-        var handle = new RecordingJsObjectReference();
+        using var recoveryJson = JsonDocument.Parse(
+            """
+            {
+              "viewports": [{
+                "circuitDefinitionId": "definition-a",
+                "translateX": 125,
+                "translateY": -50,
+                "zoom": 2
+              }]
+            }
+            """);
+        var handle = new RecordingJsObjectReference(
+            recoveryStateRecord: recoveryJson.RootElement.Clone());
         var module = new RecordingJsObjectReference(handle);
         var js = new RecordingJsRuntime(module);
+        var initialRecoveryState = new BrowserSceneRecoveryStateV1(
+            [new BrowserSceneViewportV1("definition-a", 125, -50, 2)]);
         using var sink = DotNetObjectReference.Create(new Sink());
         await using var adapter = await BrowserSceneAdapter.MountAsync(
             js,
@@ -23,9 +37,11 @@ internal sealed class BrowserSceneAdapterTests
             "build-a",
             BrowserPolicy.Development,
             sink,
-            CancellationToken.None);
+            CancellationToken.None,
+            initialRecoveryState);
 
         await adapter.ReplaceAsync(Snapshot(), CancellationToken.None);
+        var recoveryState = await adapter.CaptureRecoveryStateAsync(CancellationToken.None);
         await adapter.DisposeAsync();
 
         using var policyPayload = JsonDocument.Parse(
@@ -33,6 +49,11 @@ internal sealed class BrowserSceneAdapterTests
                 module.MountArguments?[2],
                 JsonOptions));
         var policy = policyPayload.RootElement;
+        using var recoveryPayload = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                module.MountArguments?[4],
+                JsonOptions));
+        var mountedRecovery = recoveryPayload.RootElement.GetProperty("viewports")[0];
 
         using (Assert.Multiple())
         {
@@ -41,6 +62,7 @@ internal sealed class BrowserSceneAdapterTests
             await Assert.That(handle.Identifiers).Contains("beginTransfer");
             await Assert.That(handle.Identifiers).Contains("appendTransfer");
             await Assert.That(handle.Identifiers).Contains("commitTransfer");
+            await Assert.That(handle.Identifiers).Contains("captureRecoveryState");
             await Assert.That(handle.Identifiers.Count(identifier => identifier == "destroy"))
                 .IsEqualTo(1);
             await Assert.That(module.IsDisposed).IsTrue();
@@ -58,6 +80,16 @@ internal sealed class BrowserSceneAdapterTests
             await Assert.That(policy.GetProperty("waveformCacheBytes").GetUInt64())
                 .IsEqualTo(BrowserPolicy.Development.Limit(
                     BrowserLimitDimension.WaveformCacheBytes));
+            await Assert.That(mountedRecovery.GetProperty("circuitDefinitionId").GetString())
+                .IsEqualTo("definition-a");
+            await Assert.That(mountedRecovery.GetProperty("translateX").GetDouble())
+                .IsEqualTo(125);
+            await Assert.That(recoveryState.Viewports).Count().IsEqualTo(1);
+            await Assert.That(recoveryState.Viewports[0].CircuitDefinitionId)
+                .IsEqualTo("definition-a");
+            await Assert.That(recoveryState.Viewports[0].TranslateX).IsEqualTo(125);
+            await Assert.That(recoveryState.Viewports[0].TranslateY).IsEqualTo(-50);
+            await Assert.That(recoveryState.Viewports[0].Zoom).IsEqualTo(2);
         }
     }
 
@@ -180,7 +212,8 @@ internal sealed class BrowserSceneAdapterTests
     private sealed class RecordingJsObjectReference(
         IJSObjectReference? mountedHandle = null,
         bool commitAccepted = true,
-        JsonElement? measurementRecord = null)
+        JsonElement? measurementRecord = null,
+        JsonElement? recoveryStateRecord = null)
         : IJSObjectReference
     {
         public List<string> Identifiers { get; } = [];
@@ -218,6 +251,13 @@ internal sealed class BrowserSceneAdapterTests
                 return ValueTask.FromResult((TValue)(object)(measurementRecord
                     ?? throw new InvalidOperationException(
                         "No text measurement record was configured.")));
+            }
+
+            if (identifier == "captureRecoveryState" && typeof(TValue) == typeof(JsonElement))
+            {
+                return ValueTask.FromResult((TValue)(object)(recoveryStateRecord
+                    ?? throw new InvalidOperationException(
+                        "No recovery state record was configured.")));
             }
 
             return ValueTask.FromResult(default(TValue)!);

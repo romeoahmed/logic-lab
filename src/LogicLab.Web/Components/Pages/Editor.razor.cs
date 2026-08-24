@@ -1193,8 +1193,6 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
-        EnsureSceneToolAvailable();
-
         var document = Projection.ProjectRevision.Document;
         if (SelectedDefinitionId is null
             || document.FindCircuitDefinition(SelectedDefinitionId) is null)
@@ -1202,6 +1200,8 @@ public sealed partial class Editor : IAsyncDisposable
             SelectedDefinitionId = document.EntryCircuitDefinitionId;
             HierarchyNavigation.Clear();
         }
+
+        EnsureSceneToolAvailable();
 
         if (AccessibleSceneProjector.TryProject(
                 Projection.ProjectRevision,
@@ -1233,10 +1233,18 @@ public sealed partial class Editor : IAsyncDisposable
 
     private void EnsureSceneToolAvailable()
     {
-        if (SceneTool is SceneProbeToolV1 && Projection?.Simulation is null)
+        if (SceneTool is not SceneProbeToolV1)
+        {
+            return;
+        }
+
+        if (Projection?.Simulation is null || CurrentSceneHierarchyPath is not { } hierarchyPath)
         {
             SceneTool = SceneSelectToolV1.Instance;
+            return;
         }
+
+        SceneTool = new SceneProbeToolV1(hierarchyPath);
     }
 
     private Task ConsumeSceneToolAsync()
