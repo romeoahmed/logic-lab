@@ -1,0 +1,57 @@
+@using LogicLab.Web.Scene
+
+<button type="button"
+        @ref="buttonElement"
+        class="scene-action"
+        data-scene-source="@Source.Key"
+        data-scene-selected="@(Selected ? "true" : null)"
+        @attributes="NavigationAttributes"
+        @onfocus="@(() => OnFocus.InvokeAsync(Source))"
+        @onclick="@(() => OnActivate.InvokeAsync(Source))">
+    @ChildContent
+</button>
+
+@code {
+    [Parameter, EditorRequired]
+    public SceneSourceRefV1 Source { get; set; } = null!;
+
+    [Parameter]
+    public bool Selected { get; set; }
+
+    [Parameter]
+    public bool RequestFocus { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyDictionary<string, object> NavigationAttributes { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<SceneSourceRefV1> OnFocus { get; set; }
+
+    [Parameter]
+    public EventCallback<SceneSourceRefV1> OnActivate { get; set; }
+
+    [Parameter, EditorRequired]
+    public RenderFragment? ChildContent { get; set; }
+
+    private ElementReference buttonElement;
+    private bool focusApplied;
+
+    protected override void OnParametersSet()
+    {
+        if (!RequestFocus)
+        {
+            focusApplied = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!RequestFocus || focusApplied)
+        {
+            return;
+        }
+
+        focusApplied = true;
+        await buttonElement.FocusAsync();
+    }
+}

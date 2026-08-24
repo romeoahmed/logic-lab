@@ -18,8 +18,6 @@ internal static class WebTestContext
         context.Services.AddLocalization();
         context.JSInterop.SetupModule(BrowserSceneAdapter.ModulePath).Mode =
             JSRuntimeMode.Loose;
-        context.JSInterop.SetupModule(SceneToolStripInterop.ModulePath).Mode =
-            JSRuntimeMode.Loose;
         if (configureAttachmentNavigation)
         {
             context.JSInterop.SetupModule(WorkspaceAttachmentNavigation.ModulePath).Mode =

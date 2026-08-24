@@ -1,16 +1,27 @@
 using LogicLab.Web.Scene;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.Localization;
-using Microsoft.JSInterop;
 
 namespace LogicLab.Web.Components.Editor;
 
-public partial class SceneToolStrip : IAsyncDisposable
+public partial class SceneToolStrip
 {
-    private ElementReference toolbarElement;
-    private SceneToolStripInterop? interop;
+    private const string SelectToolKey = "select";
+    private const string WireToolKey = "wire";
+    private const string ProbeToolKey = "probe";
+    private const string PanToolKey = "pan";
+    private const string PlaceToolKey = "place";
+
+    private ElementReference selectToolElement;
+    private ElementReference wireToolElement;
+    private ElementReference probeToolElement;
+    private ElementReference panToolElement;
+    private ElementReference placeToolElement;
     private bool toolbarNavigationReady;
-    private int isDisposed;
+    private bool toolbarHasFocus;
+    private string toolbarTabStop = SelectToolKey;
+    private string? pendingToolbarFocus;
 
     [Parameter, EditorRequired]
     public IReadOnlyList<ScenePlaceOptionV1> PlaceOptions { get; set; } = [];
@@ -30,10 +41,9 @@ public partial class SceneToolStrip : IAsyncDisposable
     [Inject]
     private IStringLocalizer<EditorText> Text { get; set; } = null!;
 
-    [Inject]
-    private IJSRuntime JS { get; set; } = null!;
-
     private string ToolbarRole => toolbarNavigationReady ? "toolbar" : "group";
+
+    private bool ProbeAvailable => CanProbe && HierarchyPath is not null;
 
     private string SelectedPlaceOptionId => ActiveTool is ScenePlaceToolV1 place
         ? place.Target switch
@@ -46,51 +56,90 @@ public partial class SceneToolStrip : IAsyncDisposable
         }
         : string.Empty;
 
+    protected override void OnParametersSet()
+    {
+        if (!ProbeAvailable
+            && string.Equals(toolbarTabStop, ProbeToolKey, StringComparison.Ordinal))
+        {
+            toolbarTabStop = SelectToolKey;
+            pendingToolbarFocus = toolbarHasFocus ? SelectToolKey : null;
+        }
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || !RendererInfo.IsInteractive || isDisposed != 0)
+        if (!RendererInfo.IsInteractive)
         {
             return;
         }
 
-        var candidate = new SceneToolStripInterop(JS);
-        try
+        if (!toolbarNavigationReady)
         {
-            await candidate.MountAsync(toolbarElement);
-        }
-        catch (Exception exception) when (exception is JSException
-            or InvalidOperationException
-            or OperationCanceledException)
-        {
-            await candidate.DisposeAsync();
+            toolbarNavigationReady = true;
+            StateHasChanged();
             return;
         }
 
-        if (isDisposed != 0)
+        if (pendingToolbarFocus is null)
         {
-            await candidate.DisposeAsync();
             return;
         }
 
-        interop = candidate;
-        toolbarNavigationReady = true;
-        StateHasChanged();
+        var target = pendingToolbarFocus;
+        pendingToolbarFocus = null;
+        await ToolElement(target).FocusAsync();
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        GC.SuppressFinalize(this);
-        if (Interlocked.Exchange(ref isDisposed, 1) != 0 || interop is null)
-        {
-            return;
-        }
-
-        await interop.DisposeAsync();
-    }
-
-    private int? ToolbarTabIndex(bool isEntry) => toolbarNavigationReady
-        ? isEntry ? 0 : -1
+    private int? ToolbarTabIndex(string toolKey) => toolbarNavigationReady
+        ? string.Equals(toolbarTabStop, toolKey, StringComparison.Ordinal) ? 0 : -1
         : null;
+
+    private void TrackToolbarFocus(string toolKey)
+    {
+        toolbarHasFocus = true;
+        toolbarTabStop = toolKey;
+    }
+
+    private void ReleaseToolbarFocus() => toolbarHasFocus = false;
+
+    private void MoveToolbarFocus(KeyboardEventArgs eventArgs, string currentToolKey)
+    {
+        var offset = eventArgs.Key switch
+        {
+            "ArrowLeft" => -1,
+            "ArrowRight" => 1,
+            _ => 0,
+        };
+        if (offset == 0)
+        {
+            return;
+        }
+
+        var toolKeys = AvailableToolKeys();
+        var currentIndex = Array.IndexOf(toolKeys, currentToolKey);
+        if (currentIndex < 0)
+        {
+            return;
+        }
+
+        var targetIndex = (currentIndex + offset + toolKeys.Length) % toolKeys.Length;
+        toolbarTabStop = toolKeys[targetIndex];
+        pendingToolbarFocus = toolbarTabStop;
+    }
+
+    private string[] AvailableToolKeys() => ProbeAvailable
+        ? [SelectToolKey, WireToolKey, ProbeToolKey, PanToolKey, PlaceToolKey]
+        : [SelectToolKey, WireToolKey, PanToolKey, PlaceToolKey];
+
+    private ElementReference ToolElement(string toolKey) => toolKey switch
+    {
+        SelectToolKey => selectToolElement,
+        WireToolKey => wireToolElement,
+        ProbeToolKey => probeToolElement,
+        PanToolKey => panToolElement,
+        PlaceToolKey => placeToolElement,
+        _ => throw new ArgumentOutOfRangeException(nameof(toolKey)),
+    };
 
     private Task ChangeToolAsync(SceneToolV1 tool) => ActiveToolChanged.InvokeAsync(tool);
 

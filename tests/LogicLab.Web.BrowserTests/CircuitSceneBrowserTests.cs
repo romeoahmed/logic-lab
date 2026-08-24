@@ -8,40 +8,69 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     private const string Origin = "https://logiclab.test";
 
     [Test]
-    public async Task SceneToolStrip_ArrowKeys_MoveOneToolbarFocusStop()
+    public async Task Scene_GridCommit_RoundsToGridBeforeApplyingSnap()
     {
-        await OpenModulePageAsync();
-        await Page.EvaluateAsync(
+        await MountSceneAsync();
+        await PublishSnapshotAsync();
+        var point = await Page.EvaluateAsync<ViewportPoint>(
             """
-            async () => {
-              const module = await import('/SceneToolStrip.razor.js');
-              window.sceneToolStripHandle = module.mount(
-                document.querySelector('[data-test-scene-tools]'));
+            () => {
+              const handle = window.sceneHandle;
+              const replacement = structuredClone(handle.published);
+              replacement.sceneVersion = 2;
+              replacement.projectionVersion = 2;
+              replacement.snapStepGridUnits = 4;
+              handle.replace(replacement);
+              handle.viewport = { x: 0, y: 0, zoom: 1 };
+              handle.setTool({
+                kind: 'placeComponent',
+                target: { kind: 'libraryContract', libraryId: 'logiclab.core', contractId: 'logic.not' },
+                parameters: [], displayName: 'NOT', pinned: true,
+              });
+              const rect = handle.canvas.getBoundingClientRect();
+              return { x: rect.left + 249, y: rect.top + 249 };
             }
             """);
-        await Page.Locator("[data-scene-tool='select']").FocusAsync();
 
-        await Page.Keyboard.PressAsync("ArrowRight");
-        var afterRight = await Page.EvaluateAsync<string>(
-            "() => document.activeElement.dataset.sceneTool");
-        await Page.Keyboard.PressAsync("End");
-        var afterEnd = await Page.EvaluateAsync<string>(
-            "() => document.activeElement.dataset.sceneTool");
-        await Page.Keyboard.PressAsync("ArrowLeft");
-        var selectKeepsArrowKeys = await Page.EvaluateAsync<string>(
-            "() => document.activeElement.dataset.sceneTool");
-        var tabStops = await Page.EvaluateAsync<int>(
-            "() => [...document.querySelectorAll('[data-test-scene-tools] [data-scene-tool]')].filter(control => control.tabIndex === 0).length");
-        var tabStop = await Page.EvaluateAsync<string>(
-            "() => document.querySelector('[data-test-scene-tools] [tabindex=\"0\"]').dataset.sceneTool");
+        await Page.Mouse.MoveAsync((float)point.X, (float)point.Y);
+        await Page.Mouse.DownAsync();
+        await Page.Mouse.UpAsync();
+        var origin = await Page.EvaluateAsync<WorldPoint>(
+            """
+            () => window.sceneCalls.filter(call =>
+              call.name === 'ReceiveSceneIntentAsync').at(-1).args[0].placement.origin
+            """);
 
         using (Assert.Multiple())
         {
-            await Assert.That(afterRight).IsEqualTo("wire");
-            await Assert.That(afterEnd).IsEqualTo("place");
-            await Assert.That(selectKeepsArrowKeys).IsEqualTo("place");
-            await Assert.That(tabStops).IsEqualTo(1);
-            await Assert.That(tabStop).IsEqualTo("place");
+            await Assert.That(origin.X).IsEqualTo(0D);
+            await Assert.That(origin.Y).IsEqualTo(0D);
+        }
+    }
+
+    [Test]
+    public async Task Scene_ResizeAcrossZeroSize_PreservesTheWorldCenter()
+    {
+        await MountSceneAsync();
+        var center = await Page.EvaluateAsync<WorldPoint>(
+            """
+            () => {
+              const handle = window.sceneHandle;
+              handle.viewport = { x: 100, y: 80, zoom: 2 };
+              handle.host.style.width = '0px';
+              handle.host.style.height = '0px';
+              handle.resize();
+              handle.host.style.width = '800px';
+              handle.host.style.height = '500px';
+              handle.resize();
+              return handle.screenToWorld({ x: 400, y: 250 });
+            }
+            """);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(center.X).IsEqualTo(100D);
+            await Assert.That(center.Y).IsEqualTo(60D);
         }
     }
 
@@ -1058,8 +1087,6 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     {
         var module = await File.ReadAllTextAsync(
             Path.Combine(AppContext.BaseDirectory, "CircuitSceneHost.razor.js"));
-        var toolbarModule = await File.ReadAllTextAsync(
-            Path.Combine(AppContext.BaseDirectory, "SceneToolStrip.razor.js"));
         var fontPath = Path.Combine(
             AppContext.BaseDirectory,
             "AtkinsonHyperlegibleNext-Regular.woff2");
@@ -1084,18 +1111,6 @@ internal sealed class CircuitSceneBrowserTests : PageTest
               }
             </style>
             <dialog id="components-reconnect-modal"></dialog>
-            <div role="toolbar" aria-label="Scene tools" data-test-scene-tools>
-              <button data-scene-tool="select" tabindex="0">Select</button>
-              <button data-scene-tool="wire" tabindex="-1">Wire</button>
-              <button data-scene-tool="probe" tabindex="-1" disabled>Probe</button>
-              <button data-scene-tool="pan" tabindex="-1">Pan</button>
-              <label>Place
-                <select data-scene-tool="place" tabindex="-1">
-                  <option>Choose component</option>
-                  <option>NOT</option>
-                </select>
-              </label>
-            </div>
             <main id="stable" data-browser-host-ancestor>
               <div id="scene-page">
                 <section id="host">
@@ -1136,11 +1151,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                     ? "text/javascript"
                     : "text/html",
                 Body = route.Request.Url.EndsWith(".js", StringComparison.Ordinal)
-                    ? route.Request.Url.EndsWith(
-                        "SceneToolStrip.razor.js",
-                        StringComparison.Ordinal)
-                        ? toolbarModule
-                        : module
+                    ? module
                     : page,
             }));
         await Page.GotoAsync($"{Origin}/");

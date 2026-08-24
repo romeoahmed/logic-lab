@@ -130,24 +130,6 @@
   background: color-mix(in oklab, var(--ll-panel) 88%, var(--ll-signal-soft));
 }
 
-.scene-action {
-  color: inherit;
-  font: inherit;
-  text-align: start;
-}
-
-.scene-action:focus-visible {
-  border-radius: 0.2rem;
-  outline: 3px solid var(--ll-signal);
-  outline-offset: 3px;
-}
-
-.scene-action[data-scene-selected="true"] {
-  text-decoration: underline;
-  text-decoration-thickness: 0.12em;
-  text-underline-offset: 0.18em;
-}
-
 .selection-indicator {
   display: inline-block;
   margin-inline-start: 0.4rem;

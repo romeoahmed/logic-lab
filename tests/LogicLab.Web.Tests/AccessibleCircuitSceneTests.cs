@@ -201,6 +201,8 @@ internal sealed class AccessibleCircuitSceneTests
         await rendered.Find(".semantic-pager button:last-of-type").ClickAsync();
         var secondSource = rendered.Find("[data-scene-source]")
             .GetAttribute("data-scene-source");
+        context.JSInterop.VerifyFocusAsyncInvoke();
+        await rendered.Find($"[data-scene-source='{secondSource}']").FocusAsync();
 
         using (Assert.Multiple())
         {
