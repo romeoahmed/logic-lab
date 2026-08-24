@@ -1,5 +1,6 @@
 using System.Globalization;
 using Bunit;
+using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Components.Pages;
 using LogicLab.Web.Scene;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,8 @@ internal static class WebTestContext
         var context = new BunitContext();
         context.Services.AddLocalization();
         context.JSInterop.SetupModule(BrowserSceneAdapter.ModulePath).Mode =
+            JSRuntimeMode.Loose;
+        context.JSInterop.SetupModule(SceneToolStripInterop.ModulePath).Mode =
             JSRuntimeMode.Loose;
         if (configureAttachmentNavigation)
         {

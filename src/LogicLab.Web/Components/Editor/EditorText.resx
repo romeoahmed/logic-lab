@@ -241,6 +241,7 @@
   <data name="PanTool" xml:space="preserve"><value>Pan</value></data>
   <data name="PlaceTool" xml:space="preserve"><value>Place</value></data>
   <data name="SceneToolsAriaLabel" xml:space="preserve"><value>Circuit scene tools</value></data>
+  <data name="Selected" xml:space="preserve"><value>Selected</value></data>
   <data name="SelectTool" xml:space="preserve"><value>Select</value></data>
   <data name="WireTool" xml:space="preserve"><value>Wire</value></data>
 </root>

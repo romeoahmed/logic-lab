@@ -234,6 +234,32 @@ internal sealed class AccessibleCircuitSceneTests
     }
 
     [Test]
+    public async Task AccessibleCircuitScene_SelectedSource_ExposesSelectionWithoutColor()
+    {
+        await using var context = CreateContext();
+        var scene = Project(WebTestCircuit.CreateCompleteCircuit());
+        var component = scene.Components[0];
+        var selectedSource = new SceneSourceRefV1(
+            component.Source.CircuitDefinitionId.Value,
+            "componentInstance",
+            component.Source.ComponentInstanceId.Value);
+
+        var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
+            .Add(sceneComponent => sceneComponent.Scene, scene)
+            .Add(sceneComponent => sceneComponent.Selection,
+                new SceneSelectionV1([selectedSource], "replace")));
+        var selectedAction = rendered.Find(
+            $"[data-scene-source='{selectedSource.Key}']");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(selectedAction.GetAttribute("data-scene-selected"))
+                .IsEqualTo("true");
+            await Assert.That(selectedAction.TextContent).Contains("Selected");
+        }
+    }
+
+    [Test]
     public async Task AccessibleCircuitScene_Annotation_ExposesMoveAndRemoveActions()
     {
         await using var context = CreateContext();

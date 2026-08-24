@@ -51,10 +51,15 @@
                         <button type="button"
                                 class="scene-action"
                                 data-scene-source="@DefinitionPortSource(port).Key"
+                                data-scene-selected="@(IsSelected(DefinitionPortSource(port)) ? "true" : null)"
                                 @attributes="NavigationAttributes(DefinitionPortSource(port))"
                                 @onfocus="@(() => FocusAsync(DefinitionPortSource(port)))"
                                 @onclick="@(() => ActivateAsync(DefinitionPortSource(port)))">
                             <strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]
+                            @if (IsSelected(DefinitionPortSource(port)))
+                            {
+                                <span class="selection-indicator">@Text["Selected"]</span>
+                            }
                         </button>
                         <div class="semantic-actions" aria-label="@Text["Move"]">
                             <SceneNudgeButtons Source="DefinitionPortSource(port)"
@@ -78,10 +83,15 @@
                                 <button type="button"
                                         class="scene-action"
                                         data-scene-source="@ComponentSource(component).Key"
+                                        data-scene-selected="@(IsSelected(ComponentSource(component)) ? "true" : null)"
                                         @attributes="NavigationAttributes(ComponentSource(component))"
                                         @onfocus="@(() => FocusAsync(ComponentSource(component)))"
                                         @onclick="@(() => ActivateAsync(ComponentSource(component)))">
                                     @component.Label
+                                    @if (IsSelected(ComponentSource(component)))
+                                    {
+                                        <span class="selection-indicator">@Text["Selected"]</span>
+                                    }
                                 </button>
                             </h3>
                         }
@@ -111,10 +121,15 @@
                                     <button type="button"
                                             class="scene-action"
                                             data-scene-source="@InstancePortSource(port).Key"
+                                            data-scene-selected="@(IsSelected(InstancePortSource(port)) ? "true" : null)"
                                             @attributes="NavigationAttributes(InstancePortSource(port))"
                                             @onfocus="@(() => FocusAsync(InstancePortSource(port)))"
                                             @onclick="@(() => ActivateAsync(InstancePortSource(port)))">
                                         <strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]
+                                        @if (IsSelected(InstancePortSource(port)))
+                                        {
+                                            <span class="selection-indicator">@Text["Selected"]</span>
+                                        }
                                     </button>
                                 </li>
                             }
@@ -136,10 +151,15 @@
                         <button type="button"
                                 class="scene-action"
                                 data-scene-source="@AnnotationSource(annotation).Key"
+                                data-scene-selected="@(IsSelected(AnnotationSource(annotation)) ? "true" : null)"
                                 @attributes="NavigationAttributes(AnnotationSource(annotation))"
                                 @onfocus="@(() => FocusAsync(AnnotationSource(annotation)))"
                                 @onclick="@(() => ActivateAsync(AnnotationSource(annotation)))">
                             <bdi>@annotation.Text</bdi> · @Text["GridPosition", annotation.Position.X, annotation.Position.Y]
+                            @if (IsSelected(AnnotationSource(annotation)))
+                            {
+                                <span class="selection-indicator">@Text["Selected"]</span>
+                            }
                         </button>
                         <div class="semantic-actions" aria-label="@Text["ActionsFor", annotation.Text]">
                             <SceneNudgeButtons Source="AnnotationSource(annotation)"
@@ -168,10 +188,15 @@
                                 <button type="button"
                                         class="scene-action"
                                         data-scene-source="@NetSource(connection).Key"
+                                        data-scene-selected="@(IsSelected(NetSource(connection)) ? "true" : null)"
                                         @attributes="NavigationAttributes(NetSource(connection))"
                                         @onfocus="@(() => FocusAsync(NetSource(connection)))"
                                         @onclick="@(() => ActivateAsync(NetSource(connection)))">
                                     @TerminalPath(Scene, connection)
+                                    @if (IsSelected(NetSource(connection)))
+                                    {
+                                        <span class="selection-indicator">@Text["Selected"]</span>
+                                    }
                                 </button>
                             }
                             else
@@ -191,10 +216,15 @@
                                     <button type="button"
                                             class="scene-action"
                                             data-scene-source="@JunctionSource(junction).Key"
+                                            data-scene-selected="@(IsSelected(JunctionSource(junction)) ? "true" : null)"
                                             @attributes="NavigationAttributes(JunctionSource(junction))"
                                             @onfocus="@(() => FocusAsync(JunctionSource(junction)))"
                                             @onclick="@(() => ActivateAsync(JunctionSource(junction)))">
                                         @Text["JunctionAtGrid", junction.Point.X, junction.Point.Y]
+                                        @if (IsSelected(JunctionSource(junction)))
+                                        {
+                                            <span class="selection-indicator">@Text["Selected"]</span>
+                                        }
                                     </button>
                                 </li>
                             }
@@ -205,10 +235,15 @@
                                     <button type="button"
                                             class="scene-action"
                                             data-scene-source="@WireSource(geometry).Key"
+                                            data-scene-selected="@(IsSelected(WireSource(geometry)) ? "true" : null)"
                                             @attributes="NavigationAttributes(WireSource(geometry))"
                                             @onfocus="@(() => FocusAsync(WireSource(geometry)))"
                                             @onclick="@(() => ActivateAsync(WireSource(geometry)))">
                                         @WireRouteLabel(geometry.Route)
+                                        @if (IsSelected(WireSource(geometry)))
+                                        {
+                                            <span class="selection-indicator">@Text["Selected"]</span>
+                                        }
                                     </button>
                                     <button type="button"
                                             data-scene-action="remove"
@@ -238,6 +273,9 @@
     public EventCallback<SceneSelectionV1> OnSelect { get; set; }
 
     [Parameter]
+    public SceneSelectionV1? Selection { get; set; }
+
+    [Parameter]
     public EventCallback<SceneSourceRefV1> OnFocus { get; set; }
 
     [Parameter]
@@ -250,6 +288,8 @@
     public int PageSize { get; set; } = int.MaxValue;
 
     private HashSet<string> visibleSourceKeys = new(StringComparer.Ordinal);
+
+    private HashSet<string> selectedSourceKeys = new(StringComparer.Ordinal);
 
     private IReadOnlyDictionary<string, IReadOnlyDictionary<string, object>>
         navigationAttributes = new Dictionary<string, IReadOnlyDictionary<string, object>>(
@@ -265,6 +305,9 @@
     protected override void OnParametersSet()
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(PageSize);
+        selectedSourceKeys = Selection?.Sources
+            .Select(source => source.Key)
+            .ToHashSet(StringComparer.Ordinal) ?? [];
         var sources = SemanticSources().ToArray();
         var pageCount = checked((sources.Length + (long)PageSize - 1) / PageSize);
         totalPages = checked((int)Math.Max(1L, pageCount));
@@ -337,6 +380,8 @@
     }
 
     private bool IsVisible(SceneSourceRefV1 source) => visibleSourceKeys.Contains(source.Key);
+
+    private bool IsSelected(SceneSourceRefV1 source) => selectedSourceKeys.Contains(source.Key);
 
     private IReadOnlyDictionary<string, object> NavigationAttributes(
         SceneSourceRefV1 source) => navigationAttributes.TryGetValue(source.Key, out var attributes)

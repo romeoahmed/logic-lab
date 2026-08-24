@@ -24,35 +24,37 @@ public sealed partial class Editor
         }
 
         var definition = Projection.ProjectRevision.Document
-            .FindCircuitDefinition(SelectedDefinitionId)
-            ?? throw new InvalidOperationException("The Scene Circuit Definition is missing.");
-        EditIntent? intent = remove.Source.EntityKind switch
+            .FindCircuitDefinition(SelectedDefinitionId);
+        if (definition is null)
         {
-            "componentInstance" => new RemoveComponentInstancesIntent(
-                definition.Id,
-                [definition.ComponentInstances.Single(item => string.Equals(
-                    item.Id.Value,
-                    remove.Source.EntityId,
-                    StringComparison.Ordinal)).Id]),
-            "wireGeometry" => new RemoveWireGeometryIntent(
-                definition.Id,
-                definition.WireGeometries.Single(item => string.Equals(
-                    item.Id.Value,
-                    remove.Source.EntityId,
-                    StringComparison.Ordinal)).Id),
-            "annotation" => new RemoveAnnotationIntent(
-                definition.Id,
-                definition.Annotations.Single(item => string.Equals(
-                    item.Id.Value,
-                    remove.Source.EntityId,
-                    StringComparison.Ordinal)).Id),
-            _ => null,
-        };
+            return;
+        }
+
+        var intent = TranslateSemanticRemoval(definition, remove.Source);
         if (intent is not null)
         {
             _ = await Apply(intent);
         }
     }
+
+    private static EditIntent? TranslateSemanticRemoval(
+        CircuitDefinition definition,
+        SceneSourceRefV1 source) => source.EntityKind switch
+        {
+            "componentInstance" => definition.ComponentInstances.SingleOrDefault(item =>
+                IsSource(source, definition, "componentInstance", item.Id.Value)) is { } component
+                    ? new RemoveComponentInstancesIntent(definition.Id, [component.Id])
+                    : null,
+            "wireGeometry" => definition.WireGeometries.SingleOrDefault(item =>
+                IsSource(source, definition, "wireGeometry", item.Id.Value)) is { } wire
+                    ? new RemoveWireGeometryIntent(definition.Id, wire.Id)
+                    : null,
+            "annotation" => definition.Annotations.SingleOrDefault(item =>
+                IsSource(source, definition, "annotation", item.Id.Value)) is { } annotation
+                    ? new RemoveAnnotationIntent(definition.Id, annotation.Id)
+                    : null,
+            _ => null,
+        };
 
     private async Task HandleSceneIntentAsync(SceneIntentV1 intent)
     {

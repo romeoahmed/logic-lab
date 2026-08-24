@@ -142,6 +142,23 @@
   outline-offset: 3px;
 }
 
+.scene-action[data-scene-selected="true"] {
+  text-decoration: underline;
+  text-decoration-thickness: 0.12em;
+  text-underline-offset: 0.18em;
+}
+
+.selection-indicator {
+  display: inline-block;
+  margin-inline-start: 0.4rem;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid currentcolor;
+  border-radius: var(--ll-radius-small);
+  font-size: 0.7em;
+  font-weight: 700;
+  text-decoration: none;
+}
+
 .semantic-pager {
   display: flex;
   align-items: center;

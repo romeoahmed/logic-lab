@@ -32,6 +32,7 @@ internal sealed class WorkbenchComponentTests
         await rendered.Find("[data-scene-tool='wire']").ClickAsync();
 
         var sceneHost = rendered.FindComponent<CircuitSceneHost>();
+        var toolbarControls = rendered.FindAll("[role='toolbar'] [data-scene-tool]");
         using (Assert.Multiple())
         {
             await Assert.That(sceneHost.Instance.ActiveTool)
@@ -42,7 +43,44 @@ internal sealed class WorkbenchComponentTests
             await Assert.That(rendered.Find("[data-scene-tool='probe']")
                     .HasAttribute("disabled"))
                 .IsTrue();
+            await Assert.That(toolbarControls).Count().IsEqualTo(5);
+            await Assert.That(toolbarControls.Count(control =>
+                    control.GetAttribute("tabindex") == "0"))
+                .IsEqualTo(1);
+            await Assert.That(toolbarControls.Count(control =>
+                    control.GetAttribute("tabindex") == "-1"))
+                .IsEqualTo(4);
+            await Assert.That(toolbarControls[0].GetAttribute("data-scene-tool"))
+                .IsEqualTo("select");
+            await Assert.That(toolbarControls[^1].GetAttribute("data-scene-tool"))
+                .IsEqualTo("place");
         }
+    }
+
+    [Test]
+    public async Task Editor_RepeatedSemanticRemoval_TreatsMissingSourceAsStale()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = await RenderAuthoredEditor(context, workspace);
+        var host = rendered.FindComponent<CircuitSceneHost>();
+        var component = host.Instance.Scene!.Components[0];
+        var source = new SceneSourceRefV1(
+            component.Source.CircuitDefinitionId.Value,
+            "componentInstance",
+            component.Source.ComponentInstanceId.Value);
+        var action = new RemoveSceneSemanticActionV1(source);
+        var semanticScene = rendered.FindComponent<AccessibleCircuitScene>();
+
+        await rendered.InvokeAsync(() => semanticScene.Instance.OnAction.InvokeAsync(action));
+        await rendered.WaitForStateAsync(() => host.Instance.Scene?.Components.All(candidate =>
+            candidate.Source.ComponentInstanceId.Value != source.EntityId) == true);
+        await rendered.InvokeAsync(() => semanticScene.Instance.OnAction.InvokeAsync(action));
+        var projection = await workspace.ReadCurrent();
+
+        await Assert.That(projection.ProjectRevision.Document.EntryCircuitDefinition
+                .ComponentInstances.Any(candidate => candidate.Id.Value == source.EntityId))
+            .IsFalse();
     }
 
     [Test]
