@@ -2,11 +2,35 @@ using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Web.Components.Editor;
+using LogicLab.Web.Scene;
 
 namespace LogicLab.Web.Components.Pages;
 
 public partial class Editor
 {
+    private SceneHierarchyPathV1? CurrentSceneHierarchyPath
+    {
+        get
+        {
+            if (Projection is null || SelectedDefinitionId is null)
+            {
+                return null;
+            }
+
+            var entryId = Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
+            if (HierarchyNavigation.Count == 0 && SelectedDefinitionId != entryId)
+            {
+                return null;
+            }
+
+            return new SceneHierarchyPathV1(
+                entryId.Value,
+                [.. HierarchyNavigation.Select(step => new SceneHierarchyStepV1(
+                    step.ContainingCircuitDefinitionId.Value,
+                    step.ComponentInstanceId.Value))]);
+        }
+    }
+
     private IReadOnlyList<HierarchyBreadcrumbItem> Breadcrumbs
     {
         get

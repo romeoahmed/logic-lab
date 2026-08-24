@@ -143,12 +143,16 @@ internal sealed class BrowserSceneAdapterTests
         1,
         new string('9', 64),
         [new SceneItemV1(
-            new SceneSourceRefV1("definition-a", "component", "component:a"),
+            new SceneSourceRefV1("definition-a", "componentInstance", "a"),
             0,
             new SceneRect(0, 0, 10, 10),
             new ScenePoint(0, 0),
             [],
-            [])],
+            [],
+            new SceneComponentInteractionV1(new SceneComponentPlacementV1(
+                new SceneGridPointV1(0, 0),
+                0,
+                false)))],
         []);
 
     private sealed class Sink;

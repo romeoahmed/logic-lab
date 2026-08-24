@@ -427,7 +427,7 @@ public sealed partial class Editor
     {
         ArgumentNullException.ThrowIfNull(source);
         return definition.ComponentInstances.Single(candidate =>
-            IsSource(source, definition, "component", candidate.Id.Value));
+            IsSource(source, definition, "componentInstance", candidate.Id.Value));
     }
 
     private static DefinitionPort ResolveDefinitionPort(
@@ -483,6 +483,7 @@ public sealed partial class Editor
             source.CircuitDefinitionId,
             definition.Id.Value,
             StringComparison.Ordinal)
-        && string.Equals(source.Kind, kind, StringComparison.Ordinal)
-        && string.Equals(source.Id, $"{kind}:{id}", StringComparison.Ordinal);
+        && string.Equals(source.EntityKind, kind, StringComparison.Ordinal)
+        && string.Equals(source.EntityId, id, StringComparison.Ordinal)
+        && source.PortId is null;
 }

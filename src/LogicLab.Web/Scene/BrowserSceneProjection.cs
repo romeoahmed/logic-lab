@@ -17,6 +17,7 @@ public static class BrowserSceneProjection
         string uiCulture,
         BrowserPolicy policy,
         ISymbolTextMeasurerV1 textMeasurer,
+        BrowserSceneOverlayInputV1? overlayInput = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(buildFingerprint);
@@ -62,10 +63,17 @@ public static class BrowserSceneProjection
         }
 
         var projection = ((SchematicProjectionSucceededV1)outcome).Projection;
+        var definition = revision.Document.FindCircuitDefinition(circuitDefinitionId)
+            ?? throw new InvalidOperationException("The projected Circuit Definition is missing.");
         var items = projection.Items
-            .Select((item, order) => MapItem(circuitDefinitionId, item, order, projection.Bounds))
+            .Select((item, order) => MapItem(definition, item, order, projection.Bounds))
             .ToArray();
-        var recordCount = CountRecords(items);
+        var overlays = MapOverlays(
+            circuitDefinitionId,
+            projection,
+            items,
+            overlayInput ?? BrowserSceneOverlayInputV1.Empty);
+        var recordCount = checked(CountRecords(items) + (ulong)overlays.Length);
         if (recordCount > policy.Limit(BrowserLimitDimension.SceneSnapshotRecordCount))
         {
             return Unavailable(
@@ -90,7 +98,7 @@ public static class BrowserSceneProjection
             projection.SnapStepGridUnits,
             textMeasurer.FontFingerprint.Digest,
             items,
-            []);
+            overlays);
     }
 
     private static SceneUnavailableV1 Unavailable(
@@ -109,15 +117,16 @@ public static class BrowserSceneProjection
             diagnostics);
 
     private static SceneItemV1 MapItem(
-        CircuitDefinitionId definitionId,
+        CircuitDefinition definition,
         SchematicItemV1 item,
         int order,
         RectV1 projectionBounds)
     {
+        var definitionId = definition.Id;
         return item switch
         {
             ComponentSymbolItemV1 component => Map(
-                Source(definitionId, "component", component.ComponentInstanceId.Value),
+                Source(definitionId, "componentInstance", component.ComponentInstanceId.Value),
                 order,
                 component.Plan.Bounds,
                 component.Origin,
@@ -126,7 +135,9 @@ public static class BrowserSceneProjection
                 sourcePortId => Source(
                     definitionId,
                     "instancePort",
-                    $"{component.ComponentInstanceId.Value}:{sourcePortId}")),
+                    component.ComponentInstanceId.Value,
+                    sourcePortId),
+                ComponentInteraction(definition, component.ComponentInstanceId)),
             DefinitionPortItemV1 port => Map(
                 Source(definitionId, "definitionPort", port.PortId.Value),
                 order,
@@ -134,7 +145,8 @@ public static class BrowserSceneProjection
                 default,
                 port.Operations,
                 port.HitRegions,
-                _ => Source(definitionId, "definitionPort", port.PortId.Value)),
+                _ => Source(definitionId, "definitionPort", port.PortId.Value),
+                DefinitionPortInteraction(definition, port.PortId)),
             WireGeometryItemV1 wire => Map(
                 Source(definitionId, "wireGeometry", wire.WireGeometryId.Value),
                 order,
@@ -142,7 +154,8 @@ public static class BrowserSceneProjection
                 default,
                 wire.Operations,
                 wire.HitRegions,
-                _ => null),
+                _ => null,
+                WireInteraction(definition, wire.WireGeometryId)),
             JunctionItemV1 junction => Map(
                 Source(definitionId, "junction", junction.JunctionId.Value),
                 order,
@@ -150,7 +163,8 @@ public static class BrowserSceneProjection
                 default,
                 junction.Operations,
                 junction.HitRegions,
-                _ => null),
+                _ => null,
+                JunctionInteraction(definition, junction.JunctionId)),
             AnnotationItemV1 annotation => Map(
                 Source(definitionId, "annotation", annotation.AnnotationId.Value),
                 order,
@@ -158,7 +172,8 @@ public static class BrowserSceneProjection
                 default,
                 annotation.Operations,
                 annotation.HitRegions,
-                _ => null),
+                _ => null,
+                AnnotationInteraction(definition, annotation.AnnotationId)),
             NetTopologyItemV1 topology => new SceneItemV1(
                 Source(definitionId, "net", topology.NetId.Value),
                 order,
@@ -171,7 +186,11 @@ public static class BrowserSceneProjection
                     : Rect(projectionBounds),
                 default,
                 [],
-                []),
+                [],
+                new SceneNetInteractionV1(Source(
+                    definitionId,
+                    "net",
+                    topology.NetId.Value))),
             _ => throw new InvalidOperationException("The Schematic Item variant is undefined."),
         };
     }
@@ -183,13 +202,15 @@ public static class BrowserSceneProjection
         PointV1 origin,
         IReadOnlyList<DrawOperationV1> operations,
         IReadOnlyList<HitRegionV1> hitRegions,
-        Func<string, SceneSourceRefV1?> portSource) => new(
+        Func<string, SceneSourceRefV1?> portSource,
+        SceneItemInteractionV1 interaction) => new(
             source,
             order,
             Rect(bounds),
-            Point(origin),
-            [.. operations.Select(MapOperation)],
-            [.. hitRegions.Select(region => MapHit(region, portSource))]);
+        Point(origin),
+        [.. operations.Select(MapOperation)],
+        [.. hitRegions.Select(region => MapHit(region, portSource))],
+        interaction);
 
     private static SceneDrawOperationV1 MapOperation(DrawOperationV1 operation) => operation switch
     {
@@ -356,6 +377,68 @@ public static class BrowserSceneProjection
         return count;
     }
 
+    private static SceneComponentInteractionV1 ComponentInteraction(
+        CircuitDefinition definition,
+        ComponentInstanceId componentInstanceId)
+    {
+        var placement = definition.FindComponentInstance(componentInstanceId)?.Placement
+            ?? throw new InvalidOperationException("The projected Component Instance is missing.");
+        return new SceneComponentInteractionV1(new SceneComponentPlacementV1(
+            GridPoint(placement.Origin),
+            (int)placement.QuarterTurnsClockwise,
+            placement.Reflected));
+    }
+
+    private static SceneDefinitionPortInteractionV1 DefinitionPortInteraction(
+        CircuitDefinition definition,
+        DefinitionPortId portId)
+    {
+        var placement = definition.FindPort(portId)?.Placement
+            ?? throw new InvalidOperationException("The projected Definition Port is missing.");
+        return new SceneDefinitionPortInteractionV1(new SceneDefinitionPortPlacementV1(
+            GridPoint(placement.Position),
+            Token(placement.Facing)));
+    }
+
+    private static SceneAnnotationInteractionV1 AnnotationInteraction(
+        CircuitDefinition definition,
+        AnnotationId annotationId)
+    {
+        var annotation = definition.FindAnnotation(annotationId)
+            ?? throw new InvalidOperationException("The projected Annotation is missing.");
+        return new SceneAnnotationInteractionV1(GridPoint(annotation.Position));
+    }
+
+    private static SceneWireInteractionV1 WireInteraction(
+        CircuitDefinition definition,
+        WireGeometryId wireGeometryId)
+    {
+        var geometry = definition.WireGeometries.Single(candidate =>
+            candidate.Id == wireGeometryId);
+        return new SceneWireInteractionV1(
+            Source(definition.Id, "net", geometry.NetId.Value),
+            Route(geometry.Route));
+    }
+
+    private static SceneJunctionInteractionV1 JunctionInteraction(
+        CircuitDefinition definition,
+        JunctionId junctionId)
+    {
+        var junction = definition.Junctions.Single(candidate => candidate.Id == junctionId);
+        return new SceneJunctionInteractionV1(
+            Source(definition.Id, "net", junction.NetId.Value));
+    }
+
+    private static SceneWireRouteV1 Route(WireRoute route) => route switch
+    {
+        UnroutedWireRoute => new SceneUnroutedWireRouteV1(),
+        OrthogonalWireRoute orthogonal => new SceneOrthogonalWireRouteV1(
+            [.. orthogonal.Points.Select(GridPoint)]),
+        _ => throw new InvalidOperationException("The Wire Route variant is undefined."),
+    };
+
+    private static SceneGridPointV1 GridPoint(GridPoint point) => new(point.X, point.Y);
+
     private static string ProjectionKey(SchematicProjectionKeyV1 key) => string.Join(
         ':',
         key.ProjectRevisionId.Value,
@@ -367,7 +450,91 @@ public static class BrowserSceneProjection
     private static SceneSourceRefV1 Source(
         CircuitDefinitionId definitionId,
         string kind,
-        string id) => new(definitionId.Value, kind, $"{kind}:{id}");
+        string id,
+        string? portId = null) => new(definitionId.Value, kind, id, portId);
+
+    private static SceneOverlayV1[] MapOverlays(
+        CircuitDefinitionId circuitDefinitionId,
+        SchematicProjectionV1 projection,
+        IReadOnlyList<SceneItemV1> items,
+        BrowserSceneOverlayInputV1 input)
+    {
+        var definitionId = circuitDefinitionId.Value;
+        var anchors = projection.Items
+            .OfType<NetTopologyItemV1>()
+            .Where(item => item.ProbeAnchor is AvailableProbeAnchorV1)
+            .ToDictionary(
+                item => item.NetId.Value,
+                item => ((AvailableProbeAnchorV1)item.ProbeAnchor).Point,
+                StringComparer.Ordinal);
+        var sources = items
+            .SelectMany(item => item.HitRegions
+                .Select(region => region.TargetSource)
+                .Where(source => source is not null)
+                .Select(source => source!)
+                .Prepend(item.Source))
+            .Select(source => source.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        var overlays = new List<SceneOverlayV1>();
+        if (input.SessionId is not null && input.SessionVersion is { } sessionVersion)
+        {
+            foreach (var (probe, ordinal) in input.Probes.Select((probe, ordinal) =>
+                         (probe, checked((uint)ordinal))))
+            {
+                var source = probe.Net.AuthoredNet;
+                if (source.CircuitDefinitionId != definitionId
+                    || source.EntityKind != "net"
+                    || !sources.Contains(source.Key))
+                {
+                    continue;
+                }
+
+                overlays.Add(new SceneLiveNetValueOverlayV1(
+                    $"0-live:{source.Key}",
+                    probe.Net,
+                    input.SessionId,
+                    sessionVersion,
+                    SceneLogicVectorTransferV1.From(probe.Value)));
+                if (anchors.TryGetValue(source.EntityId, out var anchor))
+                {
+                    overlays.Add(new SceneProbeAnchorOverlayV1(
+                        $"1-probe:{probe.ProbeId}",
+                        probe.ProbeId,
+                        probe.Net,
+                        Point(anchor),
+                        ordinal));
+                }
+            }
+        }
+
+        foreach (var (source, ordinal) in input.Selection
+                     .Where(source => source.CircuitDefinitionId == definitionId
+                         && sources.Contains(source.Key))
+                     .DistinctBy(source => source.Key, StringComparer.Ordinal)
+                     .Select((source, ordinal) => (source, ordinal)))
+        {
+            overlays.Add(new SceneSelectionOverlayV1(
+                $"2-selection:{source.Key}",
+                source,
+                ordinal == 0 ? "primary" : "member"));
+        }
+
+        foreach (var (diagnostic, ordinal) in input.Diagnostics
+                     .Where(diagnostic => diagnostic.Source.CircuitDefinitionId == definitionId
+                         && sources.Contains(diagnostic.Source.Key))
+                     .Select((diagnostic, ordinal) =>
+                         (diagnostic, checked((uint)ordinal))))
+        {
+            overlays.Add(new SceneDiagnosticMarkerOverlayV1(
+                $"4-diagnostic:{diagnostic.Source.Key}:{diagnostic.DiagnosticCode}:{ordinal}",
+                diagnostic.Source,
+                diagnostic.DiagnosticCode,
+                diagnostic.Severity,
+                ordinal));
+        }
+
+        return [.. overlays.OrderBy(overlay => overlay.Id, StringComparer.Ordinal)];
+    }
 
     private static ScenePoint Point(PointV1 point) => new(point.X, point.Y);
 

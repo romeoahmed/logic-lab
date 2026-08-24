@@ -44,10 +44,14 @@
 }
 
 .scene-canvas {
+  --ll-scene-font-family: Atkinson Hyperlegible Next;
+  --ll-scene-font-asset: 378aea0f5c1d179f4e0b5382c06bfc87571b98cfcc4fd1352bc979e2e2259c54;
+
   display: block;
   inline-size: 100%;
   block-size: 100%;
   min-block-size: 30rem;
+  font-family: "Atkinson Hyperlegible Next", sans-serif;
   touch-action: none;
 }
 

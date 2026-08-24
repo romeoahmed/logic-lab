@@ -115,6 +115,13 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         return handle.InvokeVoidAsync("setConnected", cancellationToken, isConnected);
     }
 
+    public ValueTask SetToolAsync(SceneToolV1 tool, CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(tool);
+        return handle.InvokeVoidAsync("setTool", cancellationToken, tool);
+    }
+
     public ValueTask FocusSourceAsync(string sourceKey, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();

@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
+using LogicLab.Engine.Compilation;
 using LogicLab.Presentation.Scene;
 using LogicLab.Web.Scene;
 using Microsoft.AspNetCore.Components;
@@ -49,6 +51,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     private bool publishInProgress;
     private string rendererState = RendererStartingState;
     private string? failureCode;
+    private SceneToolV1? consumedTool;
     private ulong rendererGeneration;
     private ulong failureEpoch;
     private int isDisposed;
@@ -70,6 +73,15 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     [Parameter]
     public SceneSelectionV1? Selection { get; set; }
+
+    [Parameter]
+    public SceneToolV1 ActiveTool { get; set; } = SceneSelectToolV1.Instance;
+
+    [Parameter]
+    public SimulationProjection? Simulation { get; set; }
+
+    [Parameter]
+    public SceneHierarchyPathV1? HierarchyPath { get; set; }
 
     [Parameter]
     public EventCallback<SceneIntentV1> OnIntent { get; set; }
@@ -102,6 +114,10 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         _ => Text["CanvasStarting"],
     };
 
+    private SceneToolV1 EffectiveTool => ReferenceEquals(consumedTool, ActiveTool)
+        ? SceneSelectToolV1.Instance
+        : ActiveTool;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!RendererInfo.IsInteractive || isDisposed != 0)
@@ -133,6 +149,16 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
                 FailClosed("web_interop_failure");
                 return;
             }
+        }
+
+        try
+        {
+            await adapter.SetToolAsync(EffectiveTool, componentLifetime.Token);
+        }
+        catch (Exception exception) when (IsRecoverable(exception))
+        {
+            FailClosed("web_interop_failure");
+            return;
         }
 
         await PublishIfRequiredAsync();
@@ -321,6 +347,21 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     public Task SceneBuildMismatchAsync() => SceneBuildMismatchAsync(rendererGeneration);
 
+    public Task SceneToolConsumedAsync() => SceneToolConsumedAsync(rendererGeneration);
+
+    private Task SceneToolConsumedAsync(ulong generation)
+    {
+        if (isDisposed == 0
+            && generation == rendererGeneration
+            && ActiveTool is ScenePlaceToolV1 { Pinned: false })
+        {
+            consumedTool = ActiveTool;
+            return InvokeAsync(StateHasChanged);
+        }
+
+        return Task.CompletedTask;
+    }
+
     private Task SceneBuildMismatchAsync(ulong generation)
     {
         if (isDisposed == 0 && generation == rendererGeneration)
@@ -390,7 +431,8 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
                 UiCulture,
                 Policy,
                 measurer,
-                componentLifetime.Token);
+                BuildOverlayInput(),
+                cancellationToken: componentLifetime.Token);
             if (key != CurrentKey()
                 || adapter != publishingAdapter
                 || observedFailureEpoch != failureEpoch)
@@ -405,17 +447,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             }
 
             currentSnapshot = replacement as SceneSnapshotV1;
-            if (currentSnapshot is not null && Selection is { Sources.Count: > 0 })
-            {
-                await publishingAdapter.SetSelectionAsync(
-                    Selection.Sources,
-                    "replace",
-                    componentLifetime.Token);
-                if (adapter != publishingAdapter || observedFailureEpoch != failureEpoch)
-                {
-                    return;
-                }
-            }
             publishedKey = key;
             failedKey = null;
             failureCode = replacement is SceneSnapshotV1 ? null : "projectionUnavailable";
@@ -519,19 +550,39 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             return [];
         }
 
-        return Scene.Components.Select(component =>
-                $"component:{component.Source.ComponentInstanceId.Value}")
+        return Scene.Components.Select(component => new SceneSourceRefV1(
+                component.Source.CircuitDefinitionId.Value,
+                "componentInstance",
+                component.Source.ComponentInstanceId.Value).Key)
             .Concat(Scene.Components.SelectMany(component => component.Ports.Select(port =>
-                $"instancePort:{port.Source.ComponentInstanceId.Value}:{port.Source.PortId}")))
-            .Concat(Scene.DefinitionPorts.Select(port =>
-                $"definitionPort:{port.Source.DefinitionPortId.Value}"))
-            .Concat(Scene.Connections.Select(connection =>
-                $"net:{connection.Source.NetId.Value}"))
+                new SceneSourceRefV1(
+                    port.Source.CircuitDefinitionId.Value,
+                    "instancePort",
+                    port.Source.ComponentInstanceId.Value,
+                    port.Source.PortId).Key)))
+            .Concat(Scene.DefinitionPorts.Select(port => new SceneSourceRefV1(
+                port.Source.CircuitDefinitionId.Value,
+                "definitionPort",
+                port.Source.DefinitionPortId.Value).Key))
+            .Concat(Scene.Connections.Select(connection => new SceneSourceRefV1(
+                connection.Source.CircuitDefinitionId.Value,
+                "net",
+                connection.Source.NetId.Value).Key))
             .Concat(Scene.Connections.SelectMany(connection => connection.Junctions.Select(junction =>
-                $"junction:{junction.Source.JunctionId.Value}")))
+                new SceneSourceRefV1(
+                    junction.Source.CircuitDefinitionId.Value,
+                    "junction",
+                    junction.Source.JunctionId.Value).Key)))
             .Concat(Scene.Connections.SelectMany(connection =>
-                connection.WireGeometries.Select(wire =>
-                    $"wireGeometry:{wire.Source.WireGeometryId.Value}")))
+                connection.WireGeometries.Select(wire => new SceneSourceRefV1(
+                    wire.Source.CircuitDefinitionId.Value,
+                    "wireGeometry",
+                    wire.Source.WireGeometryId.Value).Key)))
+            .Concat(ProjectRevision.Document.FindCircuitDefinition(CircuitDefinitionId)!
+                .Annotations.Select(annotation => new SceneSourceRefV1(
+                    CircuitDefinitionId.Value,
+                    "annotation",
+                    annotation.Id.Value).Key))
             .ToHashSet(StringComparer.Ordinal);
     }
 
@@ -592,11 +643,69 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     private static bool IsSnapModifier(string value) => value is "none" or "disableSnap";
 
+    private BrowserSceneOverlayInputV1 BuildOverlayInput()
+    {
+        var selection = Selection?.Sources ?? [];
+        if (Simulation is not { } simulation || HierarchyPath is not { } hierarchyPath)
+        {
+            return new BrowserSceneOverlayInputV1(null, null, [], selection, []);
+        }
+
+        var probes = simulation.Probes
+            .Where(probe => probe.Source.Identity is NetSourceIdentity
+                && IsSamePath(probe.Source.HierarchyPath, hierarchyPath))
+            .Select(probe =>
+            {
+                var source = (NetSourceIdentity)probe.Source.Identity;
+                return new BrowserSceneProbeInputV1(
+                    probe.ProbeId.Value,
+                    new SceneElaboratedNetRefV1(
+                        new SceneSourceRefV1(
+                            source.CircuitDefinitionId.Value,
+                            "net",
+                            source.NetId.Value),
+                        hierarchyPath),
+                    probe.Value);
+            })
+            .ToArray();
+        return new BrowserSceneOverlayInputV1(
+            simulation.SessionId.Value,
+            simulation.SessionVersion,
+            probes,
+            selection,
+            []);
+    }
+
+    private static bool IsSamePath(
+        HierarchyPath path,
+        SceneHierarchyPathV1 scenePath) =>
+        path.EntryCircuitDefinitionId.Value == scenePath.EntryCircuitDefinitionId
+        && path.Steps.Count == scenePath.Steps.Count
+        && path.Steps.Select((step, index) =>
+            step.ContainingCircuitDefinitionId.Value
+                == scenePath.Steps[index].ContainingCircuitDefinitionId
+            && step.ComponentInstanceId.Value
+                == scenePath.Steps[index].ComponentInstanceId).All(matches => matches);
+
+    private string OverlayKey()
+    {
+        var selection = string.Join('|', Selection?.Sources.Select(source => source.Key) ?? []);
+        var simulation = Simulation is null
+            ? string.Empty
+            : $"{Simulation.SessionId.Value}:{Simulation.SessionVersion}";
+        var path = HierarchyPath is null
+            ? string.Empty
+            : string.Join('/', HierarchyPath.Steps.Select(step =>
+                $"{step.ContainingCircuitDefinitionId}:{step.ComponentInstanceId}"));
+        return $"{selection}\n{simulation}\n{path}";
+    }
+
     private PublicationKey CurrentKey() => new(
         ProjectRevision.RevisionId.Value,
         ProjectionVersion,
         CircuitDefinitionId.Value,
-        UiCulture);
+        UiCulture,
+        OverlayKey());
 
     private void FailClosed(string code)
     {
@@ -618,7 +727,8 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         string RevisionId,
         ulong ProjectionVersion,
         string DefinitionId,
-        string UiCulture);
+        string UiCulture,
+        string OverlayKey);
 
     private sealed class SceneCallbackSink(
         CircuitSceneHost owner,
@@ -646,5 +756,9 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         [JSInvokable]
         public Task SceneBuildMismatchAsync() => owner.InvokeBrowserCallbackAsync(() =>
             owner.SceneBuildMismatchAsync(rendererGeneration));
+
+        [JSInvokable]
+        public Task SceneToolConsumedAsync() => owner.InvokeBrowserCallbackAsync(() =>
+            owner.SceneToolConsumedAsync(rendererGeneration));
     }
 }
