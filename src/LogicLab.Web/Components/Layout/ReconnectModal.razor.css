@@ -21,33 +21,31 @@
 }
 
 #components-reconnect-modal {
+  position: fixed;
+  z-index: 1000;
+  inset-block-start: 1rem;
+  inset-inline-end: 1rem;
+  display: none;
   inline-size: min(26rem, calc(100% - 2rem));
-  margin-block: 16dvh;
-  margin-inline: auto;
+  margin: 0;
   padding: clamp(1.5rem, 5vw, 2.5rem);
   border: 1px solid var(--ll-border);
   border-radius: var(--ll-radius-large);
   color: var(--ll-ink);
   background: color-mix(in oklab, var(--ll-canvas) 96%, var(--ll-signal-soft));
   box-shadow: var(--ll-shadow-float);
-  opacity: 0;
-  transition:
-    display 0.5s allow-discrete,
-    overlay 0.5s allow-discrete;
-  animation: components-reconnect-modal-fade-out 0.5s both;
+  opacity: 1;
 
-  &[open] {
+  &.components-reconnect-show,
+  &.components-reconnect-retrying,
+  &.components-reconnect-failed,
+  &.components-reconnect-paused,
+  &.components-reconnect-resume-failed {
+    display: block;
     animation:
       components-reconnect-modal-slide-up 1.5s cubic-bezier(0.05, 0.89, 0.25, 1.02) 0.3s,
       components-reconnect-modal-fade-in 0.5s ease-in-out 0.3s;
     animation-fill-mode: both;
-  }
-
-  &::backdrop {
-    background-color: rgb(16 42 51 / 48%);
-    backdrop-filter: blur(3px);
-    opacity: 1;
-    animation: components-reconnect-modal-fade-in 0.5s ease-in-out;
   }
 
   & p {
@@ -102,16 +100,6 @@
 
   to {
     opacity: 1;
-  }
-}
-
-@keyframes components-reconnect-modal-fade-out {
-  from {
-    opacity: 1;
-  }
-
-  to {
-    opacity: 0;
   }
 }
 
@@ -177,15 +165,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   #components-reconnect-modal,
-  #components-reconnect-modal[open],
-  #components-reconnect-modal::backdrop,
+  #components-reconnect-modal.components-reconnect-show,
   .components-rejoining-animation div {
     transition: none;
     animation: none;
-  }
-
-  #components-reconnect-modal[open] {
-    opacity: 1;
   }
 
   .components-rejoining-animation div {

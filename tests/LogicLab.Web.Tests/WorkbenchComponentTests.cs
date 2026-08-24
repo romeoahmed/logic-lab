@@ -23,6 +23,26 @@ namespace LogicLab.Web.Tests;
 internal sealed class WorkbenchComponentTests
 {
     [Test]
+    public async Task Editor_SceneToolStrip_ChangesTheHostPrimaryTool()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = await RenderAuthoredEditor(context, workspace);
+
+        await rendered.Find("[data-scene-tool='wire']").ClickAsync();
+
+        var sceneHost = rendered.FindComponent<CircuitSceneHost>();
+        using (Assert.Multiple())
+        {
+            await Assert.That(sceneHost.Instance.ActiveTool)
+                .IsTypeOf<SceneWireToolV1>();
+            await Assert.That(rendered.Find("[data-scene-tool='wire']")
+                    .GetAttribute("aria-pressed"))
+                .IsEqualTo("true");
+        }
+    }
+
+    [Test]
     public async Task Editor_SemanticSceneSelection_IsOwnedByTheWorkbench()
     {
         await using var context = CreateContext();

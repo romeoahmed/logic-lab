@@ -692,16 +692,15 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
                     state.Compilation = new CompilationPublishedProjection(
                         generation,
                         succeeded.Artifact.Key,
-                        [.. succeeded.Diagnostics.Select(item => item.Code)]);
+                        [.. succeeded.Diagnostics.Select(ProjectDiagnostic)]);
                     return;
                 }
 
                 var rejected = (CompilationRejected)outcome;
-                var diagnosticCodes = rejected.Diagnostics.Select(item => item.Code).ToArray();
                 state.Artifact = null;
                 state.Compilation = new CompilationRejectedProjection(
                     generation,
-                    diagnosticCodes,
+                    [.. rejected.Diagnostics.Select(ProjectDiagnostic)],
                     rejected.Reason,
                     WorkspaceOutcomeReasons.RetryFor(rejected.Reason),
                     PolicyEvidenceFrom(rejected.Evidence));
@@ -714,6 +713,14 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
                 context);
         }
     }
+
+    private static CompilationDiagnosticProjection ProjectDiagnostic(
+        CompilerDiagnostic diagnostic) => new(
+            diagnostic.Code,
+            diagnostic.Severity,
+            diagnostic.Primary is CompilerCircuitLocation circuit
+                ? circuit.Source
+                : null);
 
     private WorkspaceCommandOutcome OpenSession(
         WorkspaceState state,

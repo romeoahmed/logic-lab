@@ -50,6 +50,10 @@ public sealed partial class Editor : IAsyncDisposable
 
     private SceneSelectionV1? SceneSelection { get; set; }
 
+    private SceneToolV1 SceneTool { get; set; } = SceneSelectToolV1.Instance;
+
+    private IReadOnlyList<ScenePlaceOptionV1> ScenePlaceOptions { get; set; } = [];
+
     private CircuitDefinitionId? SelectedDefinitionId { get; set; }
 
     private List<HierarchyNavigationStep> HierarchyNavigation { get; } = [];
@@ -1179,6 +1183,8 @@ public sealed partial class Editor : IAsyncDisposable
         if (Projection is null)
         {
             Scene = null;
+            ScenePlaceOptions = [];
+            SceneTool = SceneSelectToolV1.Instance;
             return;
         }
 
@@ -1197,12 +1203,26 @@ public sealed partial class Editor : IAsyncDisposable
                 out var scene))
         {
             Scene = scene;
+            ScenePlaceOptions = ScenePlaceCatalog.Build(document, SelectedDefinitionId);
             NormalizeSceneSelection();
             return;
         }
 
         Scene = null;
         Status = Text["ScenePolicyExceeded"];
+    }
+
+    private Task ChangeSceneToolAsync(SceneToolV1 tool)
+    {
+        ArgumentNullException.ThrowIfNull(tool);
+        SceneTool = tool;
+        return Task.CompletedTask;
+    }
+
+    private Task ConsumeSceneToolAsync()
+    {
+        SceneTool = SceneSelectToolV1.Instance;
+        return Task.CompletedTask;
     }
 
     private Task HandleSceneSelectionAsync(SceneSelectionV1 change)

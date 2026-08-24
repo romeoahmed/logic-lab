@@ -159,6 +159,86 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     }
 
     [Test]
+    public async Task Scene_SemanticCommit_WaitsForANewerSnapshotBeforeAcceptingAnother()
+    {
+        await MountSceneAsync();
+        await PublishSnapshotAsync();
+
+        var result = await Page.EvaluateAsync<PendingIntentResult>(
+            """
+            () => {
+              const gesture = { sceneVersion: 1, projectionVersion: 1 };
+              const net = { circuitDefinitionId: 'definition-a', entityKind: 'net',
+                entityId: 'net-a', portId: null };
+              const payload = { net: { authoredNet: net,
+                hierarchyPath: { entryCircuitDefinitionId: 'definition-a', steps: [] } } };
+              const first = window.sceneHandle.emitIntent('toggleProbe', gesture, payload);
+              const second = window.sceneHandle.emitIntent('toggleProbe', gesture, payload);
+              return {
+                first,
+                second,
+                intentCount: window.sceneCalls.filter(call =>
+                  call.name === 'ReceiveSceneIntentAsync').length,
+              };
+            }
+            """);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(result.First).IsTrue();
+            await Assert.That(result.Second).IsFalse();
+            await Assert.That(result.IntentCount).IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task Scene_WireFromJunctionToTerminal_CommitsToTheJunctionNet()
+    {
+        await MountSceneAsync();
+        await PublishSnapshotAsync();
+
+        var intent = await Page.EvaluateAsync<WireIntentResult>(
+            """
+            () => {
+              const net = { circuitDefinitionId: 'definition-a', entityKind: 'net',
+                entityId: 'net-a', portId: null };
+              const junction = { circuitDefinitionId: 'definition-a', entityKind: 'junction',
+                entityId: 'junction-a', portId: null };
+              const start = {
+                source: junction,
+                item: { source: junction,
+                  interaction: { interactionKind: 'junction', net } },
+              };
+              const end = {
+                source: { circuitDefinitionId: 'definition-a', entityKind: 'definitionPort',
+                  entityId: 'port-a', portId: null },
+                item: { interaction: { interactionKind: 'definitionPort' } },
+              };
+              window.sceneHandle.hitTest = () => end;
+              window.sceneHandle.commitWireGesture({
+                hit: start,
+                startWorld: { x: 0, y: 0 }, currentWorld: { x: 100, y: 0 },
+                sceneVersion: 1, projectionVersion: 1,
+              }, false);
+              const value = window.sceneCalls.filter(call =>
+                call.name === 'ReceiveSceneIntentAsync').at(-1)?.args[0];
+              return {
+                kind: value?.kind,
+                destinationNetId: value?.destinationNet?.entityId,
+                terminalKind: value?.terminals?.[0]?.kind,
+              };
+            }
+            """);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(intent.Kind).IsEqualTo("commitWire");
+            await Assert.That(intent.DestinationNetId).IsEqualTo("net-a");
+            await Assert.That(intent.TerminalKind).IsEqualTo("definitionTerminal");
+        }
+    }
+
+    [Test]
     public async Task Scene_HostRemoval_CancelsGestureAndDestroysResources()
     {
         await MountSceneAsync();
@@ -700,5 +780,23 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         public int ProjectionVersion { get; set; }
 
         public string? CircuitDefinitionId { get; set; }
+    }
+
+    private sealed class PendingIntentResult
+    {
+        public bool First { get; set; }
+
+        public bool Second { get; set; }
+
+        public int IntentCount { get; set; }
+    }
+
+    private sealed class WireIntentResult
+    {
+        public string? Kind { get; set; }
+
+        public string? DestinationNetId { get; set; }
+
+        public string? TerminalKind { get; set; }
     }
 }

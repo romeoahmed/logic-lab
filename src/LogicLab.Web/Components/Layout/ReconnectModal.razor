@@ -1,9 +1,12 @@
 <script type="module" src="@Assets["Components/Layout/ReconnectModal.razor.js"]"></script>
 @inject IStringLocalizer<LayoutText> Text
 
-<dialog id="components-reconnect-modal"
-        aria-labelledby="components-reconnect-title"
-        data-nosnippet>
+<aside id="components-reconnect-modal"
+       role="status"
+       aria-live="assertive"
+       aria-atomic="true"
+       aria-labelledby="components-reconnect-title"
+       data-nosnippet>
     <div class="components-reconnect-container">
         <p class="components-reconnect-eyebrow">@Text["ReconnectEyebrow"]</p>
         <h2 id="components-reconnect-title">@Text["ReconnectTitle"]</h2>
@@ -33,4 +36,4 @@
             @Text["Resume"]
         </button>
     </div>
-</dialog>
+</aside>

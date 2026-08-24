@@ -27,6 +27,11 @@ public sealed record AccessibleWireGeometryProjection(
     NetSourceIdentity NetSource,
     WireRoute Route);
 
+public sealed record AccessibleAnnotationProjection(
+    AnnotationSourceIdentity Source,
+    string Text,
+    GridPoint Position);
+
 public sealed record AccessibleComponentProjection
 {
     public AccessibleComponentProjection(
@@ -91,18 +96,21 @@ public sealed record AccessibleSceneProjection
         string displayName,
         IReadOnlyList<AccessibleDefinitionPortProjection> definitionPorts,
         IReadOnlyList<AccessibleComponentProjection> components,
-        IReadOnlyList<AccessibleConnectionProjection> connections)
+        IReadOnlyList<AccessibleConnectionProjection> connections,
+        IReadOnlyList<AccessibleAnnotationProjection> annotations)
     {
         ArgumentNullException.ThrowIfNull(circuitDefinitionId);
         ArgumentNullException.ThrowIfNull(displayName);
         ArgumentNullException.ThrowIfNull(definitionPorts);
         ArgumentNullException.ThrowIfNull(components);
         ArgumentNullException.ThrowIfNull(connections);
+        ArgumentNullException.ThrowIfNull(annotations);
         CircuitDefinitionId = circuitDefinitionId;
         DisplayName = displayName;
         DefinitionPorts = Array.AsReadOnly(definitionPorts.ToArray());
         Components = Array.AsReadOnly(components.ToArray());
         Connections = Array.AsReadOnly(connections.ToArray());
+        Annotations = Array.AsReadOnly(annotations.ToArray());
     }
 
     public CircuitDefinitionId CircuitDefinitionId { get; }
@@ -114,4 +122,6 @@ public sealed record AccessibleSceneProjection
     public ReadOnlyCollection<AccessibleComponentProjection> Components { get; }
 
     public ReadOnlyCollection<AccessibleConnectionProjection> Connections { get; }
+
+    public ReadOnlyCollection<AccessibleAnnotationProjection> Annotations { get; }
 }

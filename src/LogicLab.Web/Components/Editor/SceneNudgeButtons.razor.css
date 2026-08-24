@@ -1,0 +1,8 @@
+button {
+  min-block-size: 2.25rem;
+  min-inline-size: 2.25rem;
+  border: 1px solid var(--ll-border-strong);
+  border-radius: var(--ll-radius-small);
+  color: var(--ll-ink);
+  background: var(--ll-canvas);
+}

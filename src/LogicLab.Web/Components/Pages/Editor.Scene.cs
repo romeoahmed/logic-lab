@@ -10,6 +10,50 @@ namespace LogicLab.Web.Components.Pages;
 
 public sealed partial class Editor
 {
+    private async Task HandleSceneSemanticActionAsync(SceneSemanticActionV1 action)
+    {
+        if (action is not RemoveSceneSemanticActionV1 remove
+            || Projection is null
+            || SelectedDefinitionId is null
+            || !string.Equals(
+                remove.Source.CircuitDefinitionId,
+                SelectedDefinitionId.Value,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var definition = Projection.ProjectRevision.Document
+            .FindCircuitDefinition(SelectedDefinitionId)
+            ?? throw new InvalidOperationException("The Scene Circuit Definition is missing.");
+        EditIntent? intent = remove.Source.EntityKind switch
+        {
+            "componentInstance" => new RemoveComponentInstancesIntent(
+                definition.Id,
+                [definition.ComponentInstances.Single(item => string.Equals(
+                    item.Id.Value,
+                    remove.Source.EntityId,
+                    StringComparison.Ordinal)).Id]),
+            "wireGeometry" => new RemoveWireGeometryIntent(
+                definition.Id,
+                definition.WireGeometries.Single(item => string.Equals(
+                    item.Id.Value,
+                    remove.Source.EntityId,
+                    StringComparison.Ordinal)).Id),
+            "annotation" => new RemoveAnnotationIntent(
+                definition.Id,
+                definition.Annotations.Single(item => string.Equals(
+                    item.Id.Value,
+                    remove.Source.EntityId,
+                    StringComparison.Ordinal)).Id),
+            _ => null,
+        };
+        if (intent is not null)
+        {
+            _ = await Apply(intent);
+        }
+    }
+
     private async Task HandleSceneIntentAsync(SceneIntentV1 intent)
     {
         ArgumentNullException.ThrowIfNull(intent);

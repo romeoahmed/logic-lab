@@ -1,0 +1,39 @@
+@inject IStringLocalizer<EditorText> Text
+@using LogicLab.Web.Scene
+
+<button type="button"
+        data-scene-action="nudge"
+        aria-label="@Text["NudgeLeft"]"
+        @onfocus="FocusAsync"
+        @onclick="@(() => NudgeAsync(-1, 0))">←</button>
+<button type="button"
+        data-scene-action="nudge"
+        aria-label="@Text["NudgeUp"]"
+        @onfocus="FocusAsync"
+        @onclick="@(() => NudgeAsync(0, -1))">↑</button>
+<button type="button"
+        data-scene-action="nudge"
+        aria-label="@Text["NudgeDown"]"
+        @onfocus="FocusAsync"
+        @onclick="@(() => NudgeAsync(0, 1))">↓</button>
+<button type="button"
+        data-scene-action="nudge"
+        aria-label="@Text["NudgeRight"]"
+        @onfocus="FocusAsync"
+        @onclick="@(() => NudgeAsync(1, 0))">→</button>
+
+@code {
+    [Parameter, EditorRequired]
+    public SceneSourceRefV1 Source { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<SceneSemanticActionV1> OnAction { get; set; }
+
+    [Parameter]
+    public EventCallback<SceneSourceRefV1> OnFocus { get; set; }
+
+    private Task NudgeAsync(int deltaX, int deltaY) => OnAction.InvokeAsync(
+        new NudgeSceneSemanticActionV1(Source, deltaX, deltaY));
+
+    private Task FocusAsync() => OnFocus.InvokeAsync(Source);
+}

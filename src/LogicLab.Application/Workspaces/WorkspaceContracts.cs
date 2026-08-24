@@ -785,25 +785,33 @@ public sealed record CompilationSupersededProjection : CompilationProjection
     public CompilationGeneration SupersededBy { get; }
 }
 
+public sealed record CompilationDiagnosticProjection(
+    string Code,
+    CompilerDiagnosticSeverity Severity,
+    CompilationSource? Source);
+
 public sealed record CompilationPublishedProjection : CompilationProjection
 {
     public CompilationPublishedProjection(
         CompilationGeneration generation,
         CompilationArtifactKey artifactKey,
-        IReadOnlyList<string> diagnosticCodes)
+        IReadOnlyList<CompilationDiagnosticProjection> diagnostics)
         : base(CompilationPublicationStatus.Published)
     {
         ArgumentNullException.ThrowIfNull(generation);
         ArgumentNullException.ThrowIfNull(artifactKey);
-        ArgumentNullException.ThrowIfNull(diagnosticCodes);
+        ArgumentNullException.ThrowIfNull(diagnostics);
         Generation = generation;
         ArtifactKey = artifactKey;
-        DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
+        Diagnostics = Array.AsReadOnly(diagnostics.ToArray());
+        DiagnosticCodes = Array.AsReadOnly(diagnostics.Select(item => item.Code).ToArray());
     }
 
     public override CompilationGeneration Generation { get; }
 
     public CompilationArtifactKey ArtifactKey { get; }
+
+    public ReadOnlyCollection<CompilationDiagnosticProjection> Diagnostics { get; }
 
     public ReadOnlyCollection<string> DiagnosticCodes { get; }
 }
@@ -812,17 +820,18 @@ public sealed record CompilationRejectedProjection : CompilationProjection
 {
     public CompilationRejectedProjection(
         CompilationGeneration generation,
-        IReadOnlyList<string> diagnosticCodes,
+        IReadOnlyList<CompilationDiagnosticProjection> diagnostics,
         string rejectionCode,
         RetryDisposition retryDisposition,
         PolicyEvidenceProjection? policyEvidence)
         : base(CompilationPublicationStatus.Rejected)
     {
         ArgumentNullException.ThrowIfNull(generation);
-        ArgumentNullException.ThrowIfNull(diagnosticCodes);
+        ArgumentNullException.ThrowIfNull(diagnostics);
         ArgumentException.ThrowIfNullOrEmpty(rejectionCode);
         Generation = generation;
-        DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
+        Diagnostics = Array.AsReadOnly(diagnostics.ToArray());
+        DiagnosticCodes = Array.AsReadOnly(diagnostics.Select(item => item.Code).ToArray());
         RejectionCode = rejectionCode;
         RetryDisposition = retryDisposition;
         PolicyEvidence = policyEvidence;
@@ -831,6 +840,8 @@ public sealed record CompilationRejectedProjection : CompilationProjection
     public override CompilationGeneration Generation { get; }
 
     public ReadOnlyCollection<string> DiagnosticCodes { get; }
+
+    public ReadOnlyCollection<CompilationDiagnosticProjection> Diagnostics { get; }
 
     public string RejectionCode { get; }
 

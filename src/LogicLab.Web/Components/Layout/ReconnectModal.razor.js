@@ -10,10 +10,8 @@ resumeButton.addEventListener("click", resume);
 function handleReconnectStateChanged(event) {
   switch (event.detail.state) {
     case "show":
-      reconnectModal.showModal();
       break;
     case "hide":
-      reconnectModal.close();
       break;
     case "failed":
       scheduleRetryWhenVisible();
@@ -41,7 +39,6 @@ async function retry() {
     // We'll reload the page so the user can continue using the app as quickly as possible.
     const resumeSuccessful = await Blazor.resumeCircuit();
     if (resumeSuccessful) {
-      reconnectModal.close();
       return;
     }
 

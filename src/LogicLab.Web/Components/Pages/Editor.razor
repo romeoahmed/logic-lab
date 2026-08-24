@@ -160,24 +160,34 @@
                                         OnUnroute="@(() => RunCommandAsync("topology-unroute", () => CanUnroute, UnrouteGeometry))" />
                 </div>
 
-                <div class="workbench-grid">
-                    @if (Projection is not null && SelectedDefinitionId is not null)
-                    {
-                        <CircuitSceneHost Scene="Scene"
-                                          ProjectRevision="Projection.ProjectRevision"
-                                          ProjectionVersion="Projection.ProjectionVersion"
-                                          CircuitDefinitionId="SelectedDefinitionId"
-                                          Selection="SceneSelection"
-                                          Simulation="Projection.Simulation"
-                                          HierarchyPath="CurrentSceneHierarchyPath"
-                                          OnSelect="HandleSceneSelectionAsync"
-                                          OnIntent="HandleSceneIntentAsync" />
-                    }
-                    else
-                    {
-                        <AccessibleCircuitScene Scene="Scene" />
-                    }
-                    <ProbePanel Simulation="Projection?.Simulation" />
+                <div class="workbench-scene-region">
+                    <SceneToolStrip PlaceOptions="ScenePlaceOptions"
+                                    ActiveTool="SceneTool"
+                                    HierarchyPath="CurrentSceneHierarchyPath"
+                                    ActiveToolChanged="ChangeSceneToolAsync" />
+                    <div class="workbench-grid">
+                        @if (Projection is not null && SelectedDefinitionId is not null)
+                        {
+                            <CircuitSceneHost Scene="Scene"
+                                              ProjectRevision="Projection.ProjectRevision"
+                                              ProjectionVersion="Projection.ProjectionVersion"
+                                              CircuitDefinitionId="SelectedDefinitionId"
+                                              Selection="SceneSelection"
+                                              ActiveTool="SceneTool"
+                                              Simulation="Projection.Simulation"
+                                              Compilation="Projection.Compilation"
+                                              HierarchyPath="CurrentSceneHierarchyPath"
+                                              OnSelect="HandleSceneSelectionAsync"
+                                              OnIntent="HandleSceneIntentAsync"
+                                              OnSemanticAction="HandleSceneSemanticActionAsync"
+                                              OnToolConsumed="ConsumeSceneToolAsync" />
+                        }
+                        else
+                        {
+                            <AccessibleCircuitScene Scene="Scene" />
+                        }
+                        <ProbePanel Simulation="Projection?.Simulation" />
+                    </div>
                 </div>
             </div>
 

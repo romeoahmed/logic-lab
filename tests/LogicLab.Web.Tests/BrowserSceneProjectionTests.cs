@@ -34,6 +34,10 @@ internal sealed class BrowserSceneProjectionTests
                 .IsTrue();
             await Assert.That(snapshot.Items.Any(item => item.Source.EntityKind == "net"))
                 .IsTrue();
+            await Assert.That(snapshot.Items
+                    .Where(item => item.Source.EntityKind == "net")
+                    .All(item => item.HitRegions.Count == 1))
+                .IsTrue();
             await Assert.That(snapshot.Items.SelectMany(item => item.Operations)
                 .Any(operation => operation.Kind == "text"))
                 .IsTrue();

@@ -66,7 +66,12 @@ public static class BrowserSceneProjection
         var definition = revision.Document.FindCircuitDefinition(circuitDefinitionId)
             ?? throw new InvalidOperationException("The projected Circuit Definition is missing.");
         var items = projection.Items
-            .Select((item, order) => MapItem(definition, item, order, projection.Bounds))
+            .Select((item, order) => MapItem(
+                definition,
+                item,
+                order,
+                projection.Bounds,
+                projection.GridStepPlanUnits))
             .ToArray();
         var overlays = MapOverlays(
             circuitDefinitionId,
@@ -120,7 +125,8 @@ public static class BrowserSceneProjection
         CircuitDefinition definition,
         SchematicItemV1 item,
         int order,
-        RectV1 projectionBounds)
+        RectV1 projectionBounds,
+        long gridStepPlanUnits)
     {
         var definitionId = definition.Id;
         return item switch
@@ -174,25 +180,57 @@ public static class BrowserSceneProjection
                 annotation.HitRegions,
                 _ => null,
                 AnnotationInteraction(definition, annotation.AnnotationId)),
-            NetTopologyItemV1 topology => new SceneItemV1(
-                Source(definitionId, "net", topology.NetId.Value),
+            NetTopologyItemV1 topology => MapNetTopology(
+                definitionId,
+                topology,
                 order,
-                topology.ProbeAnchor is AvailableProbeAnchorV1 available
-                    ? new SceneRect(
-                        available.Point.X - 1,
-                        available.Point.Y - 1,
-                        available.Point.X + 1,
-                        available.Point.Y + 1)
-                    : Rect(projectionBounds),
+                projectionBounds,
+                gridStepPlanUnits),
+            _ => throw new InvalidOperationException("The Schematic Item variant is undefined."),
+        };
+    }
+
+    private static SceneItemV1 MapNetTopology(
+        CircuitDefinitionId definitionId,
+        NetTopologyItemV1 topology,
+        int order,
+        RectV1 projectionBounds,
+        long gridStepPlanUnits)
+    {
+        var source = Source(definitionId, "net", topology.NetId.Value);
+        if (topology.ProbeAnchor is not AvailableProbeAnchorV1 anchor)
+        {
+            return new SceneItemV1(
+                source,
+                order,
+                Rect(projectionBounds),
                 default,
                 [],
                 [],
-                new SceneNetInteractionV1(Source(
-                    definitionId,
-                    "net",
-                    topology.NetId.Value))),
-            _ => throw new InvalidOperationException("The Schematic Item variant is undefined."),
-        };
+                new SceneNetInteractionV1(source));
+        }
+
+        var radius = gridStepPlanUnits / 3d;
+        var bounds = new SceneRect(
+            anchor.Point.X - radius,
+            anchor.Point.Y - radius,
+            anchor.Point.X + radius,
+            anchor.Point.Y + radius);
+        return new SceneItemV1(
+            source,
+            order,
+            bounds,
+            default,
+            [],
+            [new SceneHitRegionV1(
+                "probe-anchor",
+                "body",
+                null,
+                "circle",
+                bounds,
+                Point(anchor.Point),
+                radius)],
+            new SceneNetInteractionV1(source));
     }
 
     private static SceneItemV1 Map(

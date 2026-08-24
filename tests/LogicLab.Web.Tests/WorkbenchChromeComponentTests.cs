@@ -2,6 +2,7 @@ using Bunit;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Web.Components.Editor;
+using LogicLab.Web.Components.Layout;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
 
@@ -9,6 +10,21 @@ namespace LogicLab.Web.Tests;
 
 internal sealed class WorkbenchChromeComponentTests
 {
+    [Test]
+    public async Task ReconnectModal_DisconnectedWorkbench_RemainsNonModal()
+    {
+        await using var context = CreateContext();
+
+        var rendered = context.Render<ReconnectModal>();
+        var reconnect = rendered.Find("#components-reconnect-modal");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(reconnect.TagName).IsNotEqualTo("DIALOG");
+            await Assert.That(reconnect.GetAttribute("role")).IsEqualTo("status");
+        }
+    }
+
     [Test]
     public async Task WorkbenchCommandBar_ActiveCommand_ExposesBusyWorkflowState()
     {
