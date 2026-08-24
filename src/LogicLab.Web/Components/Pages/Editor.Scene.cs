@@ -154,10 +154,11 @@ public sealed partial class Editor
         ToggleProbeSceneIntentV1 intent,
         CircuitDefinition definition)
     {
-        var projection = Projection
-            ?? throw new InvalidOperationException("The Workspace is not open.");
-        var simulation = projection.Simulation
-            ?? throw new InvalidOperationException("The Simulation Session is not open.");
+        var projection = Projection;
+        if (projection?.Simulation is not { } simulation)
+        {
+            return;
+        }
         var target = TranslateElaboratedNet(intent.Net, definition);
         var bindings = new List<ProbeBindingRequest>(simulation.Probes.Count + 1);
         var removed = false;

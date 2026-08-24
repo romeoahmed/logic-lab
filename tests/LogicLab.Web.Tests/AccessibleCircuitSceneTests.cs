@@ -60,6 +60,60 @@ internal sealed class AccessibleCircuitSceneTests
                 await Assert.That(summary.TextContent).Contains(terminalLabel);
             }
         }
+
+        var navigationComponent = scene.Components.First(candidate => candidate.Ports.Count > 1);
+        var componentSource = new SceneSourceRefV1(
+            navigationComponent.Source.CircuitDefinitionId.Value,
+            "componentInstance",
+            navigationComponent.Source.ComponentInstanceId.Value);
+        var firstPort = navigationComponent.Ports[0];
+        var secondPort = navigationComponent.Ports[1];
+        var firstPortSource = new SceneSourceRefV1(
+            firstPort.Source.CircuitDefinitionId.Value,
+            "instancePort",
+            firstPort.Source.ComponentInstanceId.Value,
+            firstPort.Source.PortId);
+        var secondPortSource = new SceneSourceRefV1(
+            secondPort.Source.CircuitDefinitionId.Value,
+            "instancePort",
+            secondPort.Source.ComponentInstanceId.Value,
+            secondPort.Source.PortId);
+        var connectedPort = navigationComponent.Ports.First(port => scene.Connections.Any(connection =>
+            connection.Terminals.OfType<InstanceTerminalReference>().Any(terminal =>
+                terminal.ComponentInstanceId == navigationComponent.Source.ComponentInstanceId
+                && string.Equals(terminal.PortId, port.Source.PortId, StringComparison.Ordinal))));
+        var connectedPortSource = new SceneSourceRefV1(
+            connectedPort.Source.CircuitDefinitionId.Value,
+            "instancePort",
+            connectedPort.Source.ComponentInstanceId.Value,
+            connectedPort.Source.PortId);
+        var connectedNet = scene.Connections.Single(connection =>
+            connection.Terminals.OfType<InstanceTerminalReference>().Any(terminal =>
+                terminal.ComponentInstanceId == navigationComponent.Source.ComponentInstanceId
+                && string.Equals(
+                    terminal.PortId,
+                    connectedPort.Source.PortId,
+                    StringComparison.Ordinal)));
+        var connectedNetSource = new SceneSourceRefV1(
+            connectedNet.Source.CircuitDefinitionId.Value,
+            "net",
+            connectedNet.Source.NetId.Value);
+        var topologyAttribute = connectedPort.Direction == PortDirection.Input
+            ? "data-scene-navigation-left"
+            : "data-scene-navigation-right";
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.Find($"[data-scene-source='{componentSource.Key}']")
+                    .GetAttribute("data-scene-navigation-right"))
+                .IsEqualTo(firstPortSource.Key);
+            await Assert.That(rendered.Find($"[data-scene-source='{firstPortSource.Key}']")
+                    .GetAttribute("data-scene-navigation-down"))
+                .IsEqualTo(secondPortSource.Key);
+            await Assert.That(rendered.Find($"[data-scene-source='{connectedPortSource.Key}']")
+                    .GetAttribute(topologyAttribute))
+                .IsEqualTo(connectedNetSource.Key);
+        }
     }
 
     [Test]

@@ -42,6 +42,20 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         var selected = await Page.EvaluateAsync<bool>(
             "() => window.sceneCalls.some(call => call.name === 'ReceiveSceneIntentAsync')");
 
+        await Page.WaitForFunctionAsync("() => window.sceneHandle.pendingIntent === null");
+        await Page.EvaluateAsync(
+            """
+            () => {
+              const handle = window.sceneHandle;
+              handle.focusedSource = null;
+              for (const action of document.querySelectorAll('[data-scene-source]')) {
+                action.addEventListener('click', () => {
+                  const source = handle.sourceByKey(action.dataset.sceneSource);
+                  if (source) handle.selectSource(source, 'replace');
+                });
+              }
+            }
+            """);
         await canvas.FocusAsync();
         await Page.Keyboard.PressAsync("ArrowRight");
         await Page.Keyboard.PressAsync("Enter");
@@ -121,7 +135,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             await Assert.That(captured).IsTrue();
             await Assert.That(unrelatedCancelPreservedGesture).IsTrue();
             await Assert.That(selected).IsTrue();
-            await Assert.That(keyboardSelection).IsEqualTo("a");
+            await Assert.That(keyboardSelection).IsEqualTo("b");
             await Assert.That(spaceGesture).IsEqualTo("pan");
             await Assert.That(afterWheel.X).IsEqualTo(beforeWheel.X).Within(0.000_001);
             await Assert.That(afterWheel.Y).IsEqualTo(beforeWheel.Y).Within(0.000_001);
@@ -131,6 +145,82 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             await Assert.That(localSelection.IsSelected).IsFalse();
             await Assert.That(localSelection.IntentCount).IsEqualTo(intentCountBeforeLocalSelection);
             await Assert.That(localPanGesture).IsEqualTo("pan");
+        }
+    }
+
+    [Test]
+    public async Task Scene_SelectTool_ModifiersAndMarquee_CommitOneSelectionIntent()
+    {
+        await MountSceneAsync();
+        await PublishSnapshotAsync();
+        var points = await Page.EvaluateAsync<SelectionPoints>(
+            """
+            () => {
+              const handle = window.sceneHandle;
+              const rect = handle.canvas.getBoundingClientRect();
+              const viewport = (x, y) => ({
+                x: rect.left + handle.viewport.x + (x * handle.viewport.zoom),
+                y: rect.top + handle.viewport.y + (y * handle.viewport.zoom),
+              });
+              return {
+                componentA: viewport(50, 50),
+                componentB: viewport(150, 50),
+                marqueeStart: viewport(5, 5),
+                marqueeEnd: viewport(195, 95),
+              };
+            }
+            """);
+
+        await Page.Mouse.ClickAsync((float)points.ComponentA.X, (float)points.ComponentA.Y);
+        await Page.WaitForFunctionAsync("() => window.sceneHandle.pendingIntent === null");
+        await Page.Keyboard.DownAsync("Shift");
+        await Page.Mouse.ClickAsync((float)points.ComponentB.X, (float)points.ComponentB.Y);
+        await Page.Keyboard.UpAsync("Shift");
+        await Page.WaitForFunctionAsync("() => window.sceneHandle.pendingIntent === null");
+        var afterAdd = await Page.EvaluateAsync<int>(
+            "() => window.sceneHandle.selectedSources.size");
+
+        await Page.Keyboard.DownAsync("Control");
+        await Page.Mouse.ClickAsync((float)points.ComponentA.X, (float)points.ComponentA.Y);
+        await Page.Keyboard.UpAsync("Control");
+        await Page.WaitForFunctionAsync("() => window.sceneHandle.pendingIntent === null");
+        var afterToggle = await Page.EvaluateAsync<int>(
+            "() => window.sceneHandle.selectedSources.size");
+
+        await Page.Mouse.MoveAsync(
+            (float)points.MarqueeStart.X,
+            (float)points.MarqueeStart.Y);
+        await Page.Mouse.DownAsync();
+        await Page.Mouse.MoveAsync(
+            (float)points.MarqueeEnd.X,
+            (float)points.MarqueeEnd.Y);
+        await Page.Mouse.UpAsync();
+        await Page.WaitForFunctionAsync("() => window.sceneHandle.pendingIntent === null");
+        var result = await Page.EvaluateAsync<MarqueeSelectionResult>(
+            """
+            () => {
+              const intents = window.sceneCalls
+                .filter(call => call.name === 'ReceiveSceneIntentAsync'
+                  && call.args[0]?.kind === 'selectSources')
+                .map(call => call.args[0]);
+              const last = intents.at(-1);
+              return {
+                modes: intents.map(intent => intent.selectionMode),
+                selectedCount: window.sceneHandle.selectedSources.size,
+                finalSourceIds: last.sources.map(source => source.entityId),
+              };
+            }
+            """);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(afterAdd).IsEqualTo(2);
+            await Assert.That(afterToggle).IsEqualTo(1);
+            await Assert.That(result.Modes).Contains("add");
+            await Assert.That(result.Modes).Contains("toggle");
+            await Assert.That(result.SelectedCount).IsEqualTo(2);
+            await Assert.That(result.FinalSourceIds).Contains("a");
+            await Assert.That(result.FinalSourceIds).Contains("b");
         }
     }
 
@@ -194,7 +284,8 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             """
             async () => {
               const source = window.sceneHandle.published.items[0].source;
-              const fallback = document.querySelector('[data-scene-source]');
+              const fallback = document.querySelector(
+                '[data-scene-source="12:definition-a17:componentInstance1:a0:"]');
               let semanticActivations = 0;
               fallback.addEventListener('click', () => semanticActivations++);
               window.sceneHandle.selectSource(source, 'replace');
@@ -379,8 +470,16 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             """
             () => window.sceneCalls.find(call => call.name === 'SceneRendererFailedAsync')?.args[0]
             """);
+        await Page.EvaluateAsync("() => document.querySelector('#scene-page').remove()");
+        await Page.WaitForFunctionAsync("() => window.sceneHandle.destroyed");
 
-        await Assert.That(failure).IsEqualTo("contextUnavailable");
+        using (Assert.Multiple())
+        {
+            await Assert.That(failure).IsEqualTo("contextUnavailable");
+            await Assert.That(await Page.EvaluateAsync<bool>(
+                    "() => window.sceneHandle.destroyed"))
+                .IsTrue();
+        }
     }
 
     [Test]
@@ -848,11 +947,20 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             <main id="stable" data-browser-host-ancestor>
               <div id="scene-page">
                 <section id="host">
-                  <canvas data-scene-canvas tabindex="0"></canvas>
+                  <canvas data-scene-canvas tabindex="0">
+                    <button data-scene-source="12:definition-a17:componentInstance1:b0:"
+                            data-scene-navigation-left="12:definition-a17:componentInstance1:a0:">
+                      Component B
+                    </button>
+                    <button data-scene-source="12:definition-a17:componentInstance1:a0:"
+                            data-scene-navigation-start
+                            data-scene-navigation-right="12:definition-a17:componentInstance1:b0:">
+                      Component A
+                    </button>
+                  </canvas>
                   <button type="button" data-scene-zoom="out">-</button>
                   <button type="button" data-scene-zoom="fit">Fit</button>
                   <button type="button" data-scene-zoom="in">+</button>
-                  <button data-scene-source="12:definition-a17:componentInstance1:a0:">Component A</button>
                 </section>
               </div>
             </main>
@@ -900,6 +1008,26 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         public double X { get; set; }
 
         public double Y { get; set; }
+    }
+
+    private sealed class SelectionPoints
+    {
+        public ViewportPoint ComponentA { get; set; } = null!;
+
+        public ViewportPoint ComponentB { get; set; } = null!;
+
+        public ViewportPoint MarqueeStart { get; set; } = null!;
+
+        public ViewportPoint MarqueeEnd { get; set; } = null!;
+    }
+
+    private sealed class MarqueeSelectionResult
+    {
+        public string[] Modes { get; set; } = [];
+
+        public int SelectedCount { get; set; }
+
+        public string[] FinalSourceIds { get; set; } = [];
     }
 
     private sealed class WorldPoint

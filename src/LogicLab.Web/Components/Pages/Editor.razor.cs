@@ -248,6 +248,10 @@ public sealed partial class Editor : IAsyncDisposable
         && Projection?.Simulation is null
         && Projection?.Compilation is CompilationPublishedProjection;
 
+    private bool CanUseSceneProbe => CommandsAvailable
+        && Projection?.Simulation is not null
+        && CurrentSceneHierarchyPath is not null;
+
     private bool HasProgrammableInputs => Projection?.ProjectRevision.Document
         .EntryCircuitDefinition.ComponentInstances.Any(IsProgrammableInput) is true;
 
@@ -1080,6 +1084,7 @@ public sealed partial class Editor : IAsyncDisposable
         var projectRevisionChanged = Projection?.ProjectRevision.RevisionId
             != projection.ProjectRevision.RevisionId;
         Projection = projection;
+        EnsureSceneToolAvailable();
         if (projectRevisionChanged)
         {
             PreparedExportUrl = null;
@@ -1188,6 +1193,8 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
+        EnsureSceneToolAvailable();
+
         var document = Projection.ProjectRevision.Document;
         if (SelectedDefinitionId is null
             || document.FindCircuitDefinition(SelectedDefinitionId) is null)
@@ -1215,8 +1222,21 @@ public sealed partial class Editor : IAsyncDisposable
     private Task ChangeSceneToolAsync(SceneToolV1 tool)
     {
         ArgumentNullException.ThrowIfNull(tool);
+        if (tool is SceneProbeToolV1 && !CanUseSceneProbe)
+        {
+            return Task.CompletedTask;
+        }
+
         SceneTool = tool;
         return Task.CompletedTask;
+    }
+
+    private void EnsureSceneToolAvailable()
+    {
+        if (SceneTool is SceneProbeToolV1 && Projection?.Simulation is null)
+        {
+            SceneTool = SceneSelectToolV1.Instance;
+        }
     }
 
     private Task ConsumeSceneToolAsync()

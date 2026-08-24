@@ -26,7 +26,16 @@
                 hidden="@(rendererState == RendererUnavailableState)"
                 aria-label="@Text["CircuitCanvasAriaLabel"]"
                 aria-describedby="scene-renderer-status">
-            <p>@Text["CircuitCanvasFallback"]</p>
+            @if (rendererState != RendererUnavailableState)
+            {
+                <AccessibleCircuitScene Scene="Scene"
+                                        ShowHeading="false"
+                                        HeadingId="semantic-circuit-heading"
+                                        PageSize="SemanticPageSize"
+                                        OnSelect="HandleSemanticSelectionAsync"
+                                        OnFocus="HandleSemanticFocusAsync"
+                                        OnAction="HandleSemanticActionAsync" />
+            }
         </canvas>
 
         <div class="scene-zoom-controls"
@@ -66,14 +75,17 @@
 
     <p id="scene-renderer-status" class="visually-hidden" aria-live="polite">@RendererMessage</p>
 
-    <details class="semantic-scene" open="@(rendererState == RendererUnavailableState)">
-        <summary>@Text["SemanticCircuitOutline"]</summary>
-        <AccessibleCircuitScene Scene="Scene"
-                                ShowHeading="false"
-                                HeadingId="semantic-circuit-heading"
-                                PageSize="SemanticPageSize"
-                                OnSelect="HandleSemanticSelectionAsync"
-                                OnFocus="HandleSemanticFocusAsync"
-                                OnAction="HandleSemanticActionAsync" />
-    </details>
+    @if (rendererState == RendererUnavailableState)
+    {
+        <details class="semantic-scene" open>
+            <summary>@Text["SemanticCircuitOutline"]</summary>
+            <AccessibleCircuitScene Scene="Scene"
+                                    ShowHeading="false"
+                                    HeadingId="semantic-circuit-heading"
+                                    PageSize="SemanticPageSize"
+                                    OnSelect="HandleSemanticSelectionAsync"
+                                    OnFocus="HandleSemanticFocusAsync"
+                                    OnAction="HandleSemanticActionAsync" />
+        </details>
+    }
 </section>

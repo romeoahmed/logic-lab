@@ -126,6 +126,10 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         _ => Text["CanvasStarting"],
     };
 
+    private SceneToolV1 EffectiveTool => ActiveTool is SceneProbeToolV1 && Simulation is null
+        ? SceneSelectToolV1.Instance
+        : ActiveTool;
+
     protected override void OnParametersSet()
     {
         if (ActiveTool is not SceneWireToolV1 || observedTool is not SceneWireToolV1)
@@ -171,7 +175,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
         try
         {
-            await adapter.SetToolAsync(ActiveTool, componentLifetime.Token);
+            await adapter.SetToolAsync(EffectiveTool, componentLifetime.Token);
         }
         catch (Exception exception) when (IsRecoverable(exception))
         {
@@ -686,12 +690,13 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     private async Task ActivateSemanticSourceAsync(SceneSourceRefV1 source)
     {
-        switch (ActiveTool)
+        switch (EffectiveTool)
         {
             case SceneSelectToolV1:
                 await HandleSemanticSelectionAsync(new SceneSelectionV1([source], "replace"));
                 break;
-            case SceneProbeToolV1 probe when ResolveNetSource(source) is { } net:
+            case SceneProbeToolV1 probe when Simulation is not null
+                && ResolveNetSource(source) is { } net:
                 await DispatchSemanticIntentAsync(new ToggleProbeSceneIntentV1(
                     LogicLabWebBuild.Fingerprint,
                     SemanticSceneVersion,

@@ -39,6 +39,9 @@ internal sealed class WorkbenchComponentTests
             await Assert.That(rendered.Find("[data-scene-tool='wire']")
                     .GetAttribute("aria-pressed"))
                 .IsEqualTo("true");
+            await Assert.That(rendered.Find("[data-scene-tool='probe']")
+                    .HasAttribute("disabled"))
+                .IsTrue();
         }
     }
 
