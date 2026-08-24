@@ -186,7 +186,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     }
 
     [Test]
-    public async Task Scene_SelectionAcknowledgmentAndKeyboardActivation_UseAuthoritativePaths()
+    public async Task Scene_SelectionEscapeAndKeyboardActivation_UseAuthoritativePaths()
     {
         await MountSceneAsync();
         await PublishSnapshotAsync();
@@ -207,10 +207,28 @@ internal sealed class CircuitSceneBrowserTests : PageTest
               window.sceneHandle.canvas.dispatchEvent(new KeyboardEvent('keydown', {
                 key: 'Enter', bubbles: true,
               }));
+              window.sceneHandle.setTool({ kind: 'select' });
+              window.sceneHandle.selectedSources = new Set([window.sceneHandle.sourceKeys()[0]]);
+              window.sceneHandle.gesture = { pointerId: 999 };
+              window.sceneHandle.canvas.dispatchEvent(new KeyboardEvent('keydown', {
+                key: 'Escape', bubbles: true, cancelable: true,
+              }));
+              const selectionAfterGestureCancel = window.sceneHandle.selectedSources.size;
+              window.sceneHandle.canvas.dispatchEvent(new KeyboardEvent('keydown', {
+                key: 'Escape', bubbles: true, cancelable: true,
+              }));
+              await new Promise(resolve => setTimeout(resolve, 0));
               return {
                 selectionIntents: window.sceneCalls.filter(call =>
                   call.name === 'ReceiveSceneIntentAsync'
                     && call.args[0]?.kind === 'selectSources').length,
+                emptySelectionIntents: window.sceneCalls.filter(call =>
+                  call.name === 'ReceiveSceneIntentAsync'
+                    && call.args[0]?.kind === 'selectSources'
+                    && call.args[0]?.selectionMode === 'replace'
+                    && call.args[0]?.sources?.length === 0).length,
+                selectionAfterGestureCancel,
+                selectionAfterClear: window.sceneHandle.selectedSources.size,
                 semanticActivations,
               };
             }
@@ -218,7 +236,10 @@ internal sealed class CircuitSceneBrowserTests : PageTest
 
         using (Assert.Multiple())
         {
-            await Assert.That(result.SelectionIntents).IsEqualTo(2);
+            await Assert.That(result.SelectionIntents).IsEqualTo(3);
+            await Assert.That(result.EmptySelectionIntents).IsEqualTo(1);
+            await Assert.That(result.SelectionAfterGestureCancel).IsEqualTo(1);
+            await Assert.That(result.SelectionAfterClear).IsEqualTo(0);
             await Assert.That(result.SemanticActivations).IsEqualTo(1);
         }
     }
@@ -550,19 +571,26 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         await Page.WaitForFunctionAsync(
             """
             () => window.sceneCalls.some(call =>
-              call.name === 'SceneRendererFailedAsync'
-                && call.args[0] === 'browserPolicyExhausted')
+              call.name === 'SceneBrowserPolicyExhaustedAsync')
             """);
         var result = await Page.EvaluateAsync<SpatialBudgetResult>(
             """
-            () => ({
-              published: window.sceneHandle.published !== null,
-              cellCount: window.sceneHandle.spatialIndex.size,
-              localUnavailable: window.sceneHandle.canvas.hasAttribute(
-                'data-scene-local-unavailable'),
-              snapshotRequired: window.sceneCalls.some(call =>
-                call.name === 'SceneSnapshotRequiredAsync'),
-            })
+            () => {
+              const failure = window.sceneCalls.find(call =>
+                call.name === 'SceneBrowserPolicyExhaustedAsync');
+              return {
+                published: window.sceneHandle.published !== null,
+                cellCount: window.sceneHandle.spatialIndex.size,
+                localUnavailable: window.sceneHandle.canvas.hasAttribute(
+                  'data-scene-local-unavailable'),
+                snapshotRequired: window.sceneCalls.some(call =>
+                  call.name === 'SceneSnapshotRequiredAsync'),
+                policyId: failure?.args[0],
+                policyRevision: failure?.args[1],
+                dimension: failure?.args[2],
+                observed: failure?.args[3],
+              };
+            }
             """);
 
         using (Assert.Multiple())
@@ -571,6 +599,10 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             await Assert.That(result.CellCount).IsEqualTo(0);
             await Assert.That(result.LocalUnavailable).IsTrue();
             await Assert.That(result.SnapshotRequired).IsFalse();
+            await Assert.That(result.PolicyId).IsEqualTo("logiclab-browser");
+            await Assert.That(result.PolicyRevision).IsEqualTo("test-1");
+            await Assert.That(result.Dimension).IsEqualTo("spatial_index_bytes");
+            await Assert.That(result.Observed).IsEqualTo("2700108");
         }
     }
 
@@ -595,10 +627,14 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     public async Task Scene_ContextLossWithoutRestore_ReportsStableFailure()
     {
         await MountSceneAsync();
-        await Page.EvaluateAsync(
+        await PublishSnapshotAsync();
+        var defaultPrevented = await Page.EvaluateAsync<bool>(
             """
-            () => window.sceneHandle.canvas.dispatchEvent(
-              new Event('contextlost', { cancelable: true }))
+            () => {
+              const event = new Event('contextlost', { cancelable: true });
+              window.sceneHandle.canvas.dispatchEvent(event);
+              return event.defaultPrevented;
+            }
             """);
 
         await Page.WaitForFunctionAsync(
@@ -609,9 +645,24 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             null,
             new PageWaitForFunctionOptions { Timeout = 3_000 });
 
-        var contextIsLost = await Page.EvaluateAsync<bool>(
-            "() => window.sceneHandle.contextIsLost");
-        await Assert.That(contextIsLost).IsTrue();
+        var result = await Page.EvaluateAsync<ContextLossResult>(
+            """
+            () => ({
+              contextIsLost: window.sceneHandle.contextIsLost,
+              published: window.sceneHandle.published !== null,
+              cellCount: window.sceneHandle.spatialIndex.size,
+              localUnavailable: window.sceneHandle.canvas.hasAttribute(
+                'data-scene-local-unavailable'),
+            })
+            """);
+        using (Assert.Multiple())
+        {
+            await Assert.That(defaultPrevented).IsFalse();
+            await Assert.That(result.ContextIsLost).IsTrue();
+            await Assert.That(result.Published).IsFalse();
+            await Assert.That(result.CellCount).IsEqualTo(0);
+            await Assert.That(result.LocalUnavailable).IsTrue();
+        }
     }
 
     [Test]
@@ -906,13 +957,36 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         public bool LocalUnavailable { get; set; }
 
         public bool SnapshotRequired { get; set; }
+
+        public string? PolicyId { get; set; }
+
+        public string? PolicyRevision { get; set; }
+
+        public string? Dimension { get; set; }
+
+        public string? Observed { get; set; }
     }
 
     private sealed class SelectionAcknowledgmentResult
     {
         public int SelectionIntents { get; set; }
 
+        public int EmptySelectionIntents { get; set; }
+
+        public int SelectionAfterGestureCancel { get; set; }
+
+        public int SelectionAfterClear { get; set; }
+
         public int SemanticActivations { get; set; }
+    }
+
+    private sealed class ContextLossResult : SpatialIndexResult
+    {
+        public bool ContextIsLost { get; set; }
+
+        public bool Published { get; set; }
+
+        public bool LocalUnavailable { get; set; }
     }
 
     private sealed class BatchRejectionResult

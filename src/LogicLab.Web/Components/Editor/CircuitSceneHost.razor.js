@@ -25,11 +25,31 @@ const packagedFontCodePointRanges = Object.freeze([
 ]);
 
 class BrowserPolicyError extends Error {
-  constructor(dimension) {
+  constructor(dimension, observed) {
     super(`${dimension} policy exhausted`);
     this.name = "BrowserPolicyError";
+    this.dimension = dimension;
+    this.observed = BigInt(observed);
   }
 }
+
+const browserPolicyDimensionTokens = Object.freeze({
+  semanticIntentBytes: "semantic_intent_bytes",
+  sceneSnapshotRecordCount: "scene_snapshot_record_count",
+  scenePatchRecordCount: "scene_patch_record_count",
+  interopBatchBytes: "interop_batch_bytes",
+  candidateTransferBytes: "candidate_transfer_bytes",
+  canvasBitmapPixels: "canvas_bitmap_pixels",
+  canvasBitmapBytes: "canvas_bitmap_bytes",
+  effectiveDensityMillionths: "effective_density_millionths",
+  zoomMillionthsMinimum: "zoom_millionths_minimum",
+  zoomMillionthsMaximum: "zoom_millionths_maximum",
+  semanticTreePageItems: "semantic_tree_page_items",
+  displayListBytes: "display_list_bytes",
+  spatialIndexBytes: "spatial_index_bytes",
+  sceneCacheBytes: "scene_cache_bytes",
+  waveformCacheBytes: "waveform_cache_bytes",
+});
 
 export function mount(host, buildFingerprint, policy, dotnetSink) {
   const existing = mountedHandles.get(host);
@@ -82,6 +102,7 @@ class CircuitSceneHandle {
     this.contextRestoreTimer = 0;
 
     if (!this.canvas || !this.context) {
+      this.failClosed();
       void this.notifyFailure("contextUnavailable");
       return;
     }
@@ -279,7 +300,7 @@ class CircuitSceneHandle {
       return true;
     } catch (error) {
       if (error instanceof BrowserPolicyError) {
-        await this.reportPolicyFailure();
+        await this.reportPolicyFailure(error);
         return false;
       }
       await this.rejectCandidate(transfer.kind === "patch" ? "invalidPatch" : "invalidSnapshot");
@@ -331,8 +352,9 @@ class CircuitSceneHandle {
   setSelection(sources, selectionMode) {
     this.ensureLive();
     const available = new Set(this.sourceKeys());
-    if (!Array.isArray(sources) || sources.length === 0
+    if (!Array.isArray(sources)
         || !["replace", "add", "toggle"].includes(selectionMode)
+        || (sources.length === 0 && selectionMode !== "replace")
         || !this.published
         || sources.some((source) => !validSource(
           source,
@@ -343,7 +365,9 @@ class CircuitSceneHandle {
 
     const sourceKeys = sources.map(sourceKey);
     this.updateSelection(sourceKeys, selectionMode);
-    this.focusedSource = sourceKeys[0];
+    if (sourceKeys.length > 0) {
+      this.focusedSource = sourceKeys[0];
+    }
     this.invalidate();
   }
 
@@ -448,7 +472,7 @@ class CircuitSceneHandle {
       this.replace(candidate);
     } catch (error) {
       if (error instanceof BrowserPolicyError) {
-        void this.reportPolicyFailure();
+        void this.reportPolicyFailure(error);
         return;
       }
       throw error;
@@ -470,7 +494,7 @@ class CircuitSceneHandle {
       this.spacePan = false;
       this.cancelGesture();
     }, { signal });
-    this.canvas.addEventListener("contextlost", (event) => this.contextLost(event), { signal });
+    this.canvas.addEventListener("contextlost", () => this.contextLost(), { signal });
     this.canvas.addEventListener("contextrestored", () => this.contextRestored(), { signal });
     this.host.addEventListener("focusin", (event) => this.semanticFocus(event), { signal });
     document.addEventListener("focusin", (event) => {
@@ -535,9 +559,12 @@ class CircuitSceneHandle {
     const height = Math.ceil(rect.height * density);
     const pixels = BigInt(width) * BigInt(height);
     const bytes = pixels * 4n;
-    if (pixels > BigInt(this.policy.canvasBitmapPixels)
-        || bytes > BigInt(this.policy.canvasBitmapBytes)) {
-      void this.reportPolicyFailure();
+    if (pixels > BigInt(this.policy.canvasBitmapPixels)) {
+      void this.reportPolicyFailure(new BrowserPolicyError("canvasBitmapPixels", pixels));
+      return;
+    }
+    if (bytes > BigInt(this.policy.canvasBitmapBytes)) {
+      void this.reportPolicyFailure(new BrowserPolicyError("canvasBitmapBytes", bytes));
       return;
     }
 
@@ -552,6 +579,7 @@ class CircuitSceneHandle {
       this.canvas.height = height;
       this.context = this.canvas.getContext("2d", { alpha: false });
       if (!this.context) {
+        this.failClosed();
         void this.notifyFailure("contextUnavailable");
         return;
       }
@@ -895,6 +923,7 @@ class CircuitSceneHandle {
       this.releaseCapture(gesture.pointerId);
       this.invalidate();
     }
+    return gesture !== null;
   }
 
   releaseCapture(pointerId) {
@@ -946,8 +975,19 @@ class CircuitSceneHandle {
 
   keyDown(event) {
     if (event.key === "Escape") {
-      this.cancelGesture();
+      const cancelledGesture = this.cancelGesture();
+      const cancelledPreview = cancelledGesture || this.spacePan;
       this.spacePan = false;
+      if (!cancelledPreview && this.selectedSources.size > 0 && this.published) {
+        const committed = this.emitIntent("selectSources", this.published, {
+          sources: [],
+          selectionMode: "replace",
+        });
+        if (committed) {
+          this.updateSelection([], "replace");
+          this.invalidate();
+        }
+      }
       event.preventDefault();
       return;
     }
@@ -1002,8 +1042,9 @@ class CircuitSceneHandle {
     }
   }
 
-  contextLost(event) {
-    event.preventDefault();
+  // Canvas 2D context-loss cancellation prevents the user agent from restoring its
+  // backing store: https://html.spec.whatwg.org/multipage/canvas.html#context-lost-steps
+  contextLost() {
     this.contextIsLost = true;
     this.cancelGesture();
     if (this.pendingFrame) {
@@ -1016,6 +1057,7 @@ class CircuitSceneHandle {
     this.contextRestoreTimer = setTimeout(() => {
       this.contextRestoreTimer = 0;
       if (this.contextIsLost && !this.destroyed) {
+        this.failClosed();
         void this.notifyFailure("contextLost");
       }
     }, contextRestoreTimeoutMilliseconds);
@@ -1030,6 +1072,7 @@ class CircuitSceneHandle {
     this.context = this.canvas.getContext("2d", { alpha: false });
     if (!this.context) {
       this.contextIsLost = true;
+      this.failClosed();
       void this.notifyFailure("contextLost");
       return;
     }
@@ -1220,8 +1263,9 @@ class CircuitSceneHandle {
       circuitDefinitionId: snapshot.circuitDefinitionId,
       ...payload,
     };
-    if (encodedJsonBytes(intent) > BigInt(this.policy.semanticIntentBytes)) {
-      void this.reportPolicyFailure();
+    const intentBytes = encodedJsonBytes(intent);
+    if (intentBytes > BigInt(this.policy.semanticIntentBytes)) {
+      void this.reportPolicyFailure(new BrowserPolicyError("semanticIntentBytes", intentBytes));
       return false;
     }
     const pendingIntent = Object.freeze({
@@ -1406,7 +1450,7 @@ class CircuitSceneHandle {
   }
 
   clearCanvas() {
-    if (!this.context) {
+    if (!this.context || this.contextIsLost) {
       return;
     }
     this.context.setTransform(1, 0, 0, 1, 0, 0);
@@ -1433,12 +1477,26 @@ class CircuitSceneHandle {
     }
   }
 
-  async reportPolicyFailure() {
+  async reportPolicyFailure(error) {
+    if (!(error instanceof BrowserPolicyError)) {
+      throw new Error("invalid Browser Policy failure");
+    }
     if (this.canvas?.hasAttribute("data-scene-local-unavailable")) {
       return;
     }
     this.failClosed();
-    await this.notifyFailure("browserPolicyExhausted");
+    const dimension = browserPolicyDimensionTokens[error.dimension];
+    if (!dimension) {
+      await this.notifyFailure("web_interop_failure");
+      return;
+    }
+    await this.dotnetSink?.invokeMethodAsync(
+      "SceneBrowserPolicyExhaustedAsync",
+      this.policy.policyId,
+      this.policy.policyRevision,
+      dimension,
+      error.observed.toString(),
+    ).catch(() => {});
   }
 
   async rejectCandidate(code) {
@@ -1670,7 +1728,7 @@ function buildSpatialIndex(snapshot, policy) {
         + textEncoder.encode(region.localId).byteLength);
       const candidateBytes = observedBytes + (BigInt(columns) * BigInt(rows) * entryBytes);
       if (candidateBytes > maximumBytes) {
-        throw new BrowserPolicyError("spatialIndexBytes");
+        throw new BrowserPolicyError("spatialIndexBytes", candidateBytes);
       }
       observedBytes = candidateBytes;
 
@@ -2070,7 +2128,7 @@ function compareOrdinal(left, right) { return left < right ? -1 : left > right ?
 function encodedJsonBytes(value) { return BigInt(textEncoder.encode(JSON.stringify(value)).byteLength); }
 function assertPolicyLimit(dimension, observed, limit) {
   if (BigInt(observed) > BigInt(limit)) {
-    throw new BrowserPolicyError(dimension);
+    throw new BrowserPolicyError(dimension, observed);
   }
 }
 function packagedFontSupports(text) {

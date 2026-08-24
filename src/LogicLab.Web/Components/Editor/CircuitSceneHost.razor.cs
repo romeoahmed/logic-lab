@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using LogicLab.Application.Workspaces;
@@ -51,6 +52,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     private bool publishInProgress;
     private string rendererState = RendererStartingState;
     private string? failureCode;
+    private BrowserPolicyEvidenceV1? browserPolicyEvidence;
     private SceneSourceRefV1? semanticWireStart;
     private SceneToolV1? observedTool;
     private ulong rendererGeneration;
@@ -286,7 +288,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         if (payloadBytes > Policy.Limit(BrowserLimitDimension.SemanticIntentBytes)
             || selection.Sources is null
             || selection.SelectionMode is not ("replace" or "add" or "toggle")
-            || selection.Sources.Count == 0
+            || (selection.Sources.Count == 0 && selection.SelectionMode != "replace")
             || selection.Sources.Select(source => source.Key)
                 .Distinct(StringComparer.Ordinal).Count() != selection.Sources.Count
             || selection.Sources.Any(source => source is null
@@ -333,7 +335,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             or "contextLost"
             or "fontUnavailable"
             or "assetFingerprintMismatch"
-            or "browserPolicyExhausted"
             or "invalidSnapshot"
             or "invalidPatch"
             or "invalidBatch"))
@@ -348,6 +349,56 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         }
 
         FailClosed(code);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    public Task SceneBrowserPolicyExhaustedAsync(
+        string policyId,
+        string policyRevision,
+        string dimension,
+        string observed) => SceneBrowserPolicyExhaustedAsync(
+            rendererGeneration,
+            policyId,
+            policyRevision,
+            dimension,
+            observed);
+
+    private Task SceneBrowserPolicyExhaustedAsync(
+        ulong generation,
+        string policyId,
+        string policyRevision,
+        string dimensionToken,
+        string observedText)
+    {
+        if (isDisposed != 0 || generation != rendererGeneration)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (!string.Equals(policyId, Policy.PolicyId, StringComparison.Ordinal)
+            || !string.Equals(
+                policyRevision,
+                Policy.PolicyRevision,
+                StringComparison.Ordinal)
+            || !BrowserPolicyDimensionTokens.TryParse(dimensionToken, out var dimension)
+            || !ulong.TryParse(
+                observedText,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var observed)
+            || !Policy.Rejects(dimension, observed))
+        {
+            FailClosed("web_interop_failure");
+            return InvokeAsync(StateHasChanged);
+        }
+
+        FailClosed(
+            "browserPolicyExhausted",
+            new BrowserPolicyEvidenceV1(
+                policyId,
+                policyRevision,
+                dimension,
+                observed));
         return InvokeAsync(StateHasChanged);
     }
 
@@ -468,7 +519,31 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
                 return;
             }
 
-            await publishingAdapter.ReplaceAsync(replacement, componentLifetime.Token);
+            if (replacement is SceneSnapshotV1 nextSnapshot
+                && currentSnapshot is { } publishedSnapshot
+                && ScenePatchV1.TryCreate(
+                    publishedSnapshot,
+                    nextSnapshot,
+                    Policy.Limit(BrowserLimitDimension.ScenePatchRecordCount),
+                    out var patch))
+            {
+                try
+                {
+                    await publishingAdapter.ApplyAsync(patch, componentLifetime.Token);
+                }
+                catch (BrowserSceneContractException exception) when (
+                    exception.TransferKind == "patch"
+                    && observedFailureEpoch == failureEpoch)
+                {
+                    await publishingAdapter.ReplaceAsync(
+                        nextSnapshot,
+                        componentLifetime.Token);
+                }
+            }
+            else
+            {
+                await publishingAdapter.ReplaceAsync(replacement, componentLifetime.Token);
+            }
             if (adapter != publishingAdapter || observedFailureEpoch != failureEpoch)
             {
                 return;
@@ -477,6 +552,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             currentSnapshot = replacement as SceneSnapshotV1;
             publishedKey = key;
             failedKey = null;
+            browserPolicyEvidence = null;
             failureCode = replacement is SceneSnapshotV1 ? null : "projectionUnavailable";
             rendererState = replacement is SceneSnapshotV1
                 ? RendererReadyState
@@ -485,10 +561,16 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         catch (OperationCanceledException) when (componentLifetime.IsCancellationRequested)
         {
         }
-        catch (BrowserPolicyException)
+        catch (BrowserPolicyException exception)
         {
             failedKey = key;
-            FailClosed("browserPolicyExhausted");
+            FailClosed(
+                "browserPolicyExhausted",
+                new BrowserPolicyEvidenceV1(
+                    exception.PolicyId,
+                    exception.PolicyRevision,
+                    exception.Dimension,
+                    exception.Observed));
         }
         catch (BrowserSceneContractException exception)
         {
@@ -530,6 +612,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         publishedKey = null;
         rendererState = RendererStartingState;
         failureCode = null;
+        browserPolicyEvidence = null;
         rendererGeneration = checked(rendererGeneration + 1);
         if (failedAdapter is not null)
         {
@@ -1030,11 +1113,14 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         UiCulture,
         OverlayKey());
 
-    private void FailClosed(string code)
+    private void FailClosed(
+        string code,
+        BrowserPolicyEvidenceV1? policyEvidence = null)
     {
         failureEpoch = checked(failureEpoch + 1);
         currentSnapshot = null;
         failureCode = code;
+        browserPolicyEvidence = policyEvidence;
         rendererState = RendererUnavailableState;
     }
 
@@ -1070,6 +1156,19 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         public Task SceneRendererFailedAsync(string code) =>
             owner.InvokeBrowserCallbackAsync(() =>
                 owner.SceneRendererFailedAsync(rendererGeneration, code));
+
+        [JSInvokable]
+        public Task SceneBrowserPolicyExhaustedAsync(
+            string policyId,
+            string policyRevision,
+            string dimension,
+            string observed) => owner.InvokeBrowserCallbackAsync(() =>
+                owner.SceneBrowserPolicyExhaustedAsync(
+                    rendererGeneration,
+                    policyId,
+                    policyRevision,
+                    dimension,
+                    observed));
 
         [JSInvokable]
         public Task SceneConnectionChangedAsync(bool isConnected) =>

@@ -48,7 +48,13 @@
 
         @if (rendererState != RendererReadyState)
         {
-            <div class="renderer-recovery" role="status" data-scene-recovery="@failureCode">
+            <div class="renderer-recovery"
+                 role="status"
+                 data-scene-recovery="@failureCode"
+                 data-browser-policy-id="@browserPolicyEvidence?.PolicyId"
+                 data-browser-policy-revision="@browserPolicyEvidence?.PolicyRevision"
+                 data-browser-policy-dimension="@browserPolicyEvidence?.DimensionToken"
+                 data-browser-policy-observed="@browserPolicyEvidence?.Observed">
                 <p>@RendererMessage</p>
                 @if (rendererState == RendererUnavailableState)
                 {

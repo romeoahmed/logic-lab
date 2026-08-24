@@ -87,6 +87,58 @@ internal sealed class SceneSnapshotStateTests
     }
 
     [Test]
+    public async Task TryCreate_OverlayChange_EmitsSparseExactBasePatch()
+    {
+        var current = Snapshot(4, [Item("component:a", 0)]);
+        var source = current.Items[0].Source;
+        var next = current with
+        {
+            SceneVersion = 5,
+            ProjectionVersion = 10,
+            Overlays = [new SceneSelectionOverlayV1("selection:a", source, "primary")],
+        };
+
+        var created = ScenePatchV1.TryCreate(current, next, 10, out var patch);
+        var outcome = SceneSnapshotState.From(current).TryApply(patch!, out var applied);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(created).IsTrue();
+            await Assert.That(patch!.BaseSceneVersion).IsEqualTo(4UL);
+            await Assert.That(patch.NextSceneVersion).IsEqualTo(5UL);
+            await Assert.That(patch.ItemUpserts).IsEmpty();
+            await Assert.That(patch.ItemRemovals).IsEmpty();
+            await Assert.That(patch.OverlayUpserts).Count().IsEqualTo(1);
+            await Assert.That(patch.OverlayRemovals).IsEmpty();
+            await Assert.That(outcome).IsEqualTo(ScenePatchOutcome.Applied);
+            await Assert.That(applied.Overlays).Count().IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task TryCreate_ChangedItemExceedsPatchPolicy_RequiresReplacement()
+    {
+        var current = Snapshot(4, [Item("component:a", 0), Item("component:b", 1)]);
+        var next = current with
+        {
+            SceneVersion = 5,
+            ProjectionVersion = 10,
+            Items = [.. current.Items.Select(item => item with
+            {
+                Bounds = new SceneRect(0, 0, 20, 20),
+            })],
+        };
+
+        var created = ScenePatchV1.TryCreate(current, next, 1, out var patch);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(created).IsFalse();
+            await Assert.That(patch).IsNull();
+        }
+    }
+
+    [Test]
     public async Task From_CallerMutatesNestedArrays_PublishedStateRemainsImmutable()
     {
         var commands = new[] { new ScenePathCommandV1("move", 1, 2) };
