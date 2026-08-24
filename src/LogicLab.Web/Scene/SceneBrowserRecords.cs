@@ -68,7 +68,8 @@ public sealed record SceneItemV1(
     ScenePoint Origin,
     IReadOnlyList<SceneDrawOperationV1> Operations,
     IReadOnlyList<SceneHitRegionV1> HitRegions,
-    SceneItemInteractionV1? Interaction = null);
+    SceneItemInteractionV1? Interaction = null,
+    bool HasDrawableTarget = true);
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "interactionKind")]
 [JsonDerivedType(typeof(SceneComponentInteractionV1), "component")]

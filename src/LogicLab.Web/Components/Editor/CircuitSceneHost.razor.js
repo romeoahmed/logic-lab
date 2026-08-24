@@ -3,6 +3,33 @@ const textEncoder = new TextEncoder();
 const spatialCellSize = 400;
 const spatialEntryBaseBytes = 64;
 const contextRestoreTimeoutMilliseconds = 2_000;
+// Generated from the cmap table of the fingerprinted packaged WOFF2 asset. Keep this
+// list in lockstep with --ll-scene-font-asset when replacing that file.
+const packagedFontCodePointRanges = Object.freeze([
+  [0x0020, 0x007e], [0x00a0, 0x00ac], [0x00ae, 0x00b4], [0x00b6, 0x0107],
+  [0x010a, 0x0113], [0x0116, 0x011b], [0x011e, 0x0123], [0x0126, 0x0127],
+  [0x012a, 0x012b], [0x012e, 0x0133], [0x0136, 0x0137], [0x0139, 0x013e],
+  [0x0141, 0x0148], [0x0150, 0x0155], [0x0158, 0x015b], [0x015e, 0x0165],
+  [0x016a, 0x016b], [0x016e, 0x017e], [0x0192, 0x0192], [0x0218, 0x021b],
+  [0x0237, 0x0237], [0x02c6, 0x02c7], [0x02c9, 0x02c9], [0x02d8, 0x02dd],
+  [0x0300, 0x0304], [0x0306, 0x0308], [0x030a, 0x030c], [0x0312, 0x0312],
+  [0x0326, 0x0328], [0x0394, 0x0394], [0x03a9, 0x03a9], [0x03bc, 0x03bc],
+  [0x03c0, 0x03c0], [0x1e80, 0x1e85], [0x1e9e, 0x1e9e], [0x1ef2, 0x1ef3],
+  [0x2009, 0x2009], [0x2013, 0x2014], [0x2018, 0x201a], [0x201c, 0x201e],
+  [0x2020, 0x2022], [0x2026, 0x2026], [0x2030, 0x2030], [0x2039, 0x203a],
+  [0x2044, 0x2044], [0x20ac, 0x20ac], [0x20b9, 0x20b9], [0x2113, 0x2113],
+  [0x2122, 0x2122], [0x212e, 0x212e], [0x2202, 0x2202], [0x220f, 0x220f],
+  [0x2211, 0x2212], [0x2215, 0x2215], [0x2219, 0x221a], [0x221e, 0x221e],
+  [0x222b, 0x222b], [0x2248, 0x2248], [0x2260, 0x2260], [0x2264, 0x2265],
+  [0x25ca, 0x25ca], [0x266a, 0x266a],
+]);
+
+class BrowserPolicyError extends Error {
+  constructor(dimension) {
+    super(`${dimension} policy exhausted`);
+    this.name = "BrowserPolicyError";
+  }
+}
 
 export function mount(host, buildFingerprint, policy, dotnetSink) {
   const existing = mountedHandles.get(host);
@@ -29,6 +56,7 @@ class CircuitSceneHandle {
     this.viewport = { x: 0, y: 0, zoom: 1 };
     this.savedViewports = new Map();
     this.focusedSource = null;
+    this.hoveredSource = null;
     this.selectedSources = new Set();
     this.gesture = null;
     this.activeTool = Object.freeze({ kind: "select" });
@@ -69,34 +97,6 @@ class CircuitSceneHandle {
       throw new Error("invalid text measurement request batch");
     }
 
-    const styles = getComputedStyle(this.canvas);
-    const family = styles.getPropertyValue("--ll-scene-font-family").trim();
-    const assetFingerprint = styles.getPropertyValue("--ll-scene-font-asset").trim();
-    if (family !== "Atkinson Hyperlegible Next" || !isDigest(assetFingerprint)) {
-      await this.notifyFailure("assetFingerprintMismatch");
-      throw new Error("symbol font asset fingerprint is invalid");
-    }
-
-    const font = `400 100px "${family}"`;
-    const glyphs = new Set(requests.flatMap((request) => Array.from(request?.text ?? "")));
-    if (glyphs.size === 0) glyphs.add(" ");
-    for (const glyph of glyphs) {
-      let faces;
-      try {
-        faces = await document.fonts.load(font, glyph);
-      } catch {
-        faces = [];
-      }
-      const exactFaceLoaded = faces.some((face) => face.status === "loaded"
-        && face.family.replaceAll('"', "") === family);
-      if (!exactFaceLoaded || !document.fonts.check(font, glyph)) {
-        await this.notifyFailure("fontUnavailable");
-        throw new Error("symbol font is unavailable");
-      }
-    }
-    this.symbolFontFamily = `"${family}"`;
-
-    const measurements = [];
     const seen = new Set();
     for (const request of requests) {
       if (!request || typeof request.key !== "string" || seen.has(request.key)
@@ -105,8 +105,45 @@ class CircuitSceneHandle {
           || !isDirection(request.direction)) {
         throw new Error("invalid text measurement request");
       }
-
       seen.add(request.key);
+    }
+
+    if (requests.some((request) => !packagedFontSupports(request.text))) {
+      this.failClosed();
+      await this.notifyFailure("fontUnavailable");
+      throw new Error("the packaged symbol font does not cover the requested text");
+    }
+
+    const styles = getComputedStyle(this.canvas);
+    const family = styles.getPropertyValue("--ll-scene-font-family").trim();
+    const assetFingerprint = styles.getPropertyValue("--ll-scene-font-asset").trim();
+    if (family !== "Atkinson Hyperlegible Next" || !isDigest(assetFingerprint)) {
+      this.failClosed();
+      await this.notifyFailure("assetFingerprintMismatch");
+      throw new Error("symbol font asset fingerprint is invalid");
+    }
+
+    const font = `400 100px "${family}"`;
+    let faces;
+    try {
+      faces = await document.fonts.load(font, "Ag0");
+    } catch {
+      faces = [];
+    }
+    const exactFaceLoaded = faces.some((face) => face.status === "loaded"
+      && face.family.replaceAll('"', "") === family);
+    // FontFaceSet.check() only reports whether a future load/font swap is needed; it
+    // explicitly may return true when fallback renders the text, so it cannot prove
+    // glyph coverage. https://www.w3.org/TR/css-font-loading/#font-face-set-check
+    if (!exactFaceLoaded) {
+      this.failClosed();
+      await this.notifyFailure("fontUnavailable");
+      throw new Error("symbol font is unavailable");
+    }
+    this.symbolFontFamily = `"${family}"`;
+
+    const measurements = [];
+    for (const request of requests) {
       this.context.save();
       this.context.font = `100px ${this.symbolFontFamily}`;
       this.context.textAlign = canvasAlignment(request.alignment, request.direction);
@@ -240,7 +277,11 @@ class CircuitSceneHandle {
         this.replace(replacement);
       }
       return true;
-    } catch {
+    } catch (error) {
+      if (error instanceof BrowserPolicyError) {
+        await this.reportPolicyFailure();
+        return false;
+      }
       await this.rejectCandidate(transfer.kind === "patch" ? "invalidPatch" : "invalidSnapshot");
       return false;
     }
@@ -329,6 +370,7 @@ class CircuitSceneHandle {
     this.transfers.clear();
     this.savedViewports.clear();
     this.selectedSources.clear();
+    this.hoveredSource = null;
     this.published = null;
     this.spatialIndex.clear();
     this.context = null;
@@ -344,6 +386,7 @@ class CircuitSceneHandle {
       ? buildSpatialIndex(validated.value, this.policy)
       : new Map();
     this.cancelGesture();
+    this.hoveredSource = null;
     if (this.pendingIntent
         && (validated.value.projectionVersion !== this.pendingIntent.projectionVersion
           || validated.value.sceneVersion > this.pendingIntent.sceneVersion)) {
@@ -359,6 +402,7 @@ class CircuitSceneHandle {
       this.focusedSource = null;
       this.selectedSources.clear();
       this.clearCanvas();
+      this.canvas.dataset.sceneLocalUnavailable = "";
       return;
     }
 
@@ -366,6 +410,7 @@ class CircuitSceneHandle {
     const priorFocusIndex = Math.max(0, priorKeys.indexOf(this.focusedSource));
     const shouldRecoverFocus = this.sceneOwnsDocumentFocus;
     this.published = validated.value;
+    delete this.canvas.dataset.sceneLocalUnavailable;
     this.spatialIndex = spatialIndex;
     const saved = this.savedViewports.get(validated.value.circuitDefinitionId);
     if (saved) {
@@ -387,13 +432,27 @@ class CircuitSceneHandle {
   }
 
   apply(patch) {
-    const candidate = validatePatch(patch, this.published, this.buildFingerprint, this.fontFingerprint, this.policy);
-    if (!candidate) {
-      void this.rejectCandidate("invalidPatch");
-      return;
-    }
+    try {
+      const candidate = validatePatch(
+        patch,
+        this.published,
+        this.buildFingerprint,
+        this.fontFingerprint,
+        this.policy,
+      );
+      if (!candidate) {
+        void this.rejectCandidate("invalidPatch");
+        return;
+      }
 
-    this.replace(candidate);
+      this.replace(candidate);
+    } catch (error) {
+      if (error instanceof BrowserPolicyError) {
+        void this.reportPolicyFailure();
+        return;
+      }
+      throw error;
+    }
   }
 
   installListeners() {
@@ -401,8 +460,9 @@ class CircuitSceneHandle {
     this.canvas.addEventListener("pointerdown", (event) => this.pointerDown(event), { signal });
     this.canvas.addEventListener("pointermove", (event) => this.pointerMove(event), { signal });
     this.canvas.addEventListener("pointerup", (event) => this.pointerUp(event), { signal });
-    this.canvas.addEventListener("pointercancel", () => this.cancelGesture(), { signal });
-    this.canvas.addEventListener("lostpointercapture", () => this.cancelGesture(), { signal });
+    this.canvas.addEventListener("pointercancel", (event) => this.cancelPointer(event), { signal });
+    this.canvas.addEventListener("lostpointercapture", (event) => this.cancelPointer(event), { signal });
+    this.canvas.addEventListener("pointerleave", () => this.clearHover(), { signal });
     this.canvas.addEventListener("wheel", (event) => this.wheel(event), { passive: false, signal });
     this.canvas.addEventListener("keydown", (event) => this.keyDown(event), { signal });
     document.addEventListener("keyup", (event) => this.keyUp(event), { signal });
@@ -416,6 +476,9 @@ class CircuitSceneHandle {
     document.addEventListener("focusin", (event) => {
       this.sceneOwnsDocumentFocus = this.host.contains(event.target);
     }, { signal });
+    for (const control of this.host.querySelectorAll("[data-scene-zoom]")) {
+      control.addEventListener("click", () => this.zoomControl(control.dataset.sceneZoom), { signal });
+    }
 
     this.reconnectModal = document.getElementById("components-reconnect-modal");
     this.reconnectModal?.addEventListener(
@@ -474,7 +537,7 @@ class CircuitSceneHandle {
     const bytes = pixels * 4n;
     if (pixels > BigInt(this.policy.canvasBitmapPixels)
         || bytes > BigInt(this.policy.canvasBitmapBytes)) {
-      void this.notifyFailure("browserPolicyExhausted");
+      void this.reportPolicyFailure();
       return;
     }
 
@@ -540,6 +603,9 @@ class CircuitSceneHandle {
     );
     const visible = expandRect(this.visibleWorldRect(), 4 / this.viewport.zoom);
     for (const item of this.published.items) {
+      if (!item.hasDrawableTarget) {
+        continue;
+      }
       const bounds = translateRect(item.bounds, item.origin);
       if (!intersects(bounds, visible)) {
         continue;
@@ -554,6 +620,7 @@ class CircuitSceneHandle {
     }
 
     this.drawOverlays(context, styles);
+    this.drawTransientPreview(context, styles);
   }
 
   drawOverlays(context, styles) {
@@ -602,7 +669,9 @@ class CircuitSceneHandle {
     }
 
     for (const item of this.published.items) {
-      const targets = [{ source: item.source, bounds: item.bounds }];
+      const targets = item.hasDrawableTarget
+        ? [{ source: item.source, bounds: item.bounds }]
+        : [];
       for (const region of item.hitRegions) {
         if (region.targetSource) {
           targets.push({ source: region.targetSource, bounds: region.bounds });
@@ -654,6 +723,81 @@ class CircuitSceneHandle {
     }
   }
 
+  drawTransientPreview(context, styles) {
+    const hoverSource = this.hoveredSource ? this.sourceByKey(this.hoveredSource) : null;
+    const hoverTarget = hoverSource ? this.targetBySource(hoverSource) : null;
+    if (hoverTarget && !this.gesture) {
+      context.save();
+      context.strokeStyle = cssColor(styles, "--ll-signal", "#08788c");
+      context.globalAlpha = 0.65;
+      context.lineWidth = 2 / this.viewport.zoom;
+      context.setLineDash([5 / this.viewport.zoom, 4 / this.viewport.zoom]);
+      context.strokeRect(
+        hoverTarget.bounds.left,
+        hoverTarget.bounds.top,
+        hoverTarget.bounds.right - hoverTarget.bounds.left,
+        hoverTarget.bounds.bottom - hoverTarget.bounds.top,
+      );
+      context.restore();
+    }
+
+    const gesture = this.gesture;
+    const snapshot = this.published;
+    if (!gesture || !snapshot || gesture.tool.kind === "pan") {
+      return;
+    }
+
+    const start = gridPoint(gesture.startWorld, snapshot, gesture.disableSnap);
+    const end = gridPoint(gesture.currentWorld, snapshot, gesture.disableSnap);
+    const startPoint = gridToWorld(start, snapshot);
+    const endPoint = gridToWorld(end, snapshot);
+    const previewColor = cssColor(styles, "--ll-signal", "#08788c");
+    context.save();
+    context.strokeStyle = previewColor;
+    context.fillStyle = previewColor;
+    context.lineWidth = 3 / this.viewport.zoom;
+    context.setLineDash([8 / this.viewport.zoom, 5 / this.viewport.zoom]);
+
+    if (gesture.tool.kind === "select" && gesture.hit?.item?.hasDrawableTarget
+        && (start.x !== end.x || start.y !== end.y)) {
+      const item = gesture.hit.item;
+      const translateX = endPoint.x - startPoint.x;
+      const translateY = endPoint.y - startPoint.y;
+      context.globalAlpha = 0.55;
+      context.translate(item.origin.x + translateX, item.origin.y + translateY);
+      for (const operation of item.operations) {
+        drawOperation(context, operation, styles, this.symbolFontFamily);
+      }
+    } else if (gesture.tool.kind === "placeComponent") {
+      const halfSize = Math.max(snapshot.gridStepPlanUnits * 0.35, 12 / this.viewport.zoom);
+      context.globalAlpha = 0.75;
+      context.strokeRect(
+        endPoint.x - halfSize,
+        endPoint.y - halfSize,
+        halfSize * 2,
+        halfSize * 2,
+      );
+    } else if (gesture.tool.kind === "wire" && gesture.hit) {
+      context.beginPath();
+      context.moveTo(startPoint.x, startPoint.y);
+      context.lineTo(startPoint.x, endPoint.y);
+      context.lineTo(endPoint.x, endPoint.y);
+      context.stroke();
+    }
+
+    if (["select", "placeComponent", "wire"].includes(gesture.tool.kind)) {
+      const markerSize = 8 / this.viewport.zoom;
+      context.setLineDash([]);
+      context.beginPath();
+      context.moveTo(endPoint.x - markerSize, endPoint.y);
+      context.lineTo(endPoint.x + markerSize, endPoint.y);
+      context.moveTo(endPoint.x, endPoint.y - markerSize);
+      context.lineTo(endPoint.x, endPoint.y + markerSize);
+      context.stroke();
+    }
+    context.restore();
+  }
+
   pointerDown(event) {
     if (this.destroyed || !event.isPrimary || event.button !== 0 || this.gesture) {
       return;
@@ -671,6 +815,7 @@ class CircuitSceneHandle {
       return;
     }
     const hit = tool.kind !== "pan" ? this.hitTest(world) : null;
+    this.hoveredSource = null;
     this.gesture = {
       pointerId: event.pointerId,
       tool,
@@ -679,6 +824,7 @@ class CircuitSceneHandle {
       last: screen,
       startWorld: world,
       currentWorld: world,
+      disableSnap: event.altKey,
       sceneVersion: this.published?.sceneVersion ?? 0,
       projectionVersion: this.published?.projectionVersion ?? 0,
     };
@@ -689,17 +835,26 @@ class CircuitSceneHandle {
   pointerMove(event) {
     const gesture = this.gesture;
     if (!gesture || gesture.pointerId !== event.pointerId) {
+      if (!gesture && this.published) {
+        const hit = this.hitTest(this.screenToWorld(this.pointerScreen(event)));
+        const hoveredSource = hit ? sourceKey(hit.source) : null;
+        if (hoveredSource !== this.hoveredSource) {
+          this.hoveredSource = hoveredSource;
+          this.invalidate();
+        }
+      }
       return;
     }
 
     const screen = this.pointerScreen(event);
     gesture.currentWorld = this.screenToWorld(screen);
+    gesture.disableSnap = event.altKey;
     if (gesture.tool.kind === "pan") {
       this.viewport.x += screen.x - gesture.last.x;
       this.viewport.y += screen.y - gesture.last.y;
       gesture.last = screen;
-      this.invalidate();
     }
+    this.invalidate();
   }
 
   pointerUp(event) {
@@ -711,10 +866,25 @@ class CircuitSceneHandle {
     this.releaseCapture(event.pointerId);
     this.gesture = null;
     gesture.currentWorld = this.screenToWorld(this.pointerScreen(event));
+    gesture.disableSnap = event.altKey;
+    this.invalidate();
     if (this.published && this.connected
         && gesture.sceneVersion === this.published.sceneVersion
         && gesture.projectionVersion === this.published.projectionVersion) {
-      this.commitGesture(gesture, event.altKey);
+      this.commitGesture(gesture, gesture.disableSnap);
+    }
+  }
+
+  cancelPointer(event) {
+    if (this.gesture?.pointerId === event.pointerId) {
+      this.cancelGesture();
+    }
+  }
+
+  clearHover() {
+    if (!this.gesture && this.hoveredSource !== null) {
+      this.hoveredSource = null;
+      this.invalidate();
     }
   }
 
@@ -723,6 +893,7 @@ class CircuitSceneHandle {
     this.gesture = null;
     if (gesture) {
       this.releaseCapture(gesture.pointerId);
+      this.invalidate();
     }
   }
 
@@ -742,11 +913,31 @@ class CircuitSceneHandle {
     }
 
     event.preventDefault();
-    const anchor = this.pointerScreen(event);
+    this.cancelGesture();
+    this.zoomAt(this.pointerScreen(event), this.viewport.zoom * Math.exp(-event.deltaY * 0.001));
+  }
+
+  zoomControl(action) {
+    if (!this.published) {
+      return;
+    }
+    this.cancelGesture();
+    if (action === "fit") {
+      this.fitViewport();
+      this.invalidate();
+      return;
+    }
+    if (action === "in" || action === "out") {
+      const factor = action === "in" ? 1.25 : 0.8;
+      this.zoomAt({ x: this.cssWidth / 2, y: this.cssHeight / 2 }, this.viewport.zoom * factor);
+    }
+  }
+
+  zoomAt(anchor, requestedZoom) {
     const world = this.screenToWorld(anchor);
     const minimum = Number(this.policy.zoomMillionthsMinimum) / 1_000_000;
     const maximum = Number(this.policy.zoomMillionthsMaximum) / 1_000_000;
-    const zoom = Math.min(maximum, Math.max(minimum, this.viewport.zoom * Math.exp(-event.deltaY * 0.001)));
+    const zoom = Math.min(maximum, Math.max(minimum, requestedZoom));
     this.viewport.zoom = zoom;
     this.viewport.x = anchor.x - (world.x * zoom);
     this.viewport.y = anchor.y - (world.y * zoom);
@@ -779,10 +970,8 @@ class CircuitSceneHandle {
       this.invalidate();
       event.preventDefault();
     } else if (event.key === "Enter" && this.focusedSource) {
-      const source = this.sourceByKey(this.focusedSource);
-      if (source) {
-        this.selectSource(source, "replace");
-      }
+      const escaped = CSS.escape(this.focusedSource);
+      this.host.querySelector(`[data-scene-source="${escaped}"]`)?.click();
       event.preventDefault();
     }
   }
@@ -1032,15 +1221,28 @@ class CircuitSceneHandle {
       ...payload,
     };
     if (encodedJsonBytes(intent) > BigInt(this.policy.semanticIntentBytes)) {
-      void this.notifyFailure("browserPolicyExhausted");
+      void this.reportPolicyFailure();
       return false;
     }
-    this.pendingIntent = Object.freeze({
+    const pendingIntent = Object.freeze({
+      kind,
       sceneVersion: gesture.sceneVersion,
       projectionVersion: gesture.projectionVersion,
     });
+    this.pendingIntent = pendingIntent;
     void this.dotnetSink?.invokeMethodAsync("ReceiveSceneIntentAsync", intent)
-      .catch(() => this.notifyFailure("invalidSnapshot"));
+      .then(() => {
+        if (kind === "selectSources" && this.pendingIntent === pendingIntent) {
+          this.pendingIntent = null;
+        }
+      })
+      .catch(() => {
+        if (this.pendingIntent === pendingIntent) {
+          this.pendingIntent = null;
+        }
+        this.failClosed();
+        return this.notifyFailure("web_interop_failure");
+      });
     return true;
   }
 
@@ -1132,15 +1334,15 @@ class CircuitSceneHandle {
     const sourceKeys = [];
     const seen = new Set();
     for (const item of this.published?.items ?? []) {
-      for (const sourceKey of [
+      for (const key of [
         sourceKey(item.source),
         ...item.hitRegions.map((region) => region.targetSource
           ? sourceKey(region.targetSource)
           : null).filter(Boolean),
       ]) {
-        if (!seen.has(sourceKey)) {
-          seen.add(sourceKey);
-          sourceKeys.push(sourceKey);
+        if (!seen.has(key)) {
+          seen.add(key);
+          sourceKeys.push(key);
         }
       }
     }
@@ -1179,7 +1381,10 @@ class CircuitSceneHandle {
     const key = sourceKey(source);
     for (const item of this.published?.items ?? []) {
       if (sourceKey(item.source) === key) {
-        return { bounds: translateRect(item.bounds, item.origin), item };
+        if (item.hasDrawableTarget) {
+          return { bounds: translateRect(item.bounds, item.origin), item };
+        }
+        continue;
       }
       const region = item.hitRegions.find((candidate) => candidate.targetSource
         && sourceKey(candidate.targetSource) === key);
@@ -1206,6 +1411,34 @@ class CircuitSceneHandle {
     }
     this.context.setTransform(1, 0, 0, 1, 0, 0);
     this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  failClosed() {
+    this.cancelGesture();
+    this.hoveredSource = null;
+    this.pendingIntent = null;
+    this.focusedSource = null;
+    this.selectedSources.clear();
+    this.transfers.clear();
+    this.published = null;
+    this.spatialIndex.clear();
+    this.dirty = false;
+    if (this.pendingFrame) {
+      cancelAnimationFrame(this.pendingFrame);
+      this.pendingFrame = 0;
+    }
+    this.clearCanvas();
+    if (this.canvas) {
+      this.canvas.dataset.sceneLocalUnavailable = "";
+    }
+  }
+
+  async reportPolicyFailure() {
+    if (this.canvas?.hasAttribute("data-scene-local-unavailable")) {
+      return;
+    }
+    this.failClosed();
+    await this.notifyFailure("browserPolicyExhausted");
   }
 
   async rejectCandidate(code) {
@@ -1283,18 +1516,15 @@ function validateSnapshot(candidate, fontFingerprint, policy) {
       || !Array.isArray(candidate.items) || !Array.isArray(candidate.overlays)) {
     throw new Error("invalid scene snapshot");
   }
-  if (encodedJsonBytes(candidate) > BigInt(policy.sceneCacheBytes)) {
-    throw new Error("scene cache policy exhausted");
-  }
+  assertPolicyLimit("sceneCacheBytes", encodedJsonBytes(candidate), policy.sceneCacheBytes);
   const displayList = candidate.items.map((item) => ({
     order: item?.order,
     bounds: item?.bounds,
     origin: item?.origin,
+    hasDrawableTarget: item?.hasDrawableTarget,
     operations: item?.operations,
   }));
-  if (encodedJsonBytes(displayList) > BigInt(policy.displayListBytes)) {
-    throw new Error("display list policy exhausted");
-  }
+  assertPolicyLimit("displayListBytes", encodedJsonBytes(displayList), policy.displayListBytes);
 
   const sourceKeys = new Set();
   const orders = new Set();
@@ -1305,7 +1535,9 @@ function validateSnapshot(candidate, fontFingerprint, policy) {
         || sourceKeys.has(sourceKey(item.source)) || !Number.isSafeInteger(item.order)
         || item.order < 0 || item.order <= previousOrder
         || orders.has(item.order) || !validRect(item.bounds) || !validPoint(item.origin)
+        || typeof item.hasDrawableTarget !== "boolean"
         || !Array.isArray(item.operations) || !Array.isArray(item.hitRegions)
+        || (!item.hasDrawableTarget && (item.operations.length > 0 || item.hitRegions.length > 0))
         || !validInteraction(item.interaction, item.source, candidate.circuitDefinitionId)) {
       throw new Error("invalid scene item");
     }
@@ -1330,9 +1562,7 @@ function validateSnapshot(candidate, fontFingerprint, policy) {
     previousOverlayId = overlay.id;
     records++;
   }
-  if (BigInt(records) > BigInt(policy.sceneSnapshotRecordCount)) {
-    throw new Error("scene snapshot record policy exhausted");
-  }
+  assertPolicyLimit("sceneSnapshotRecordCount", records, policy.sceneSnapshotRecordCount);
 }
 
 function validatePatch(patch, published, buildFingerprint, fontFingerprint, policy) {
@@ -1367,7 +1597,7 @@ function validatePatch(patch, published, buildFingerprint, fontFingerprint, poli
     patchRecords += patch.itemUpserts.reduce((sum, item) => sum + item.operations.length
       + item.hitRegions.length
       + item.operations.reduce((commandSum, operation) => commandSum + operation.commands.length, 0), 0);
-    if (BigInt(patchRecords) > BigInt(policy.scenePatchRecordCount)) throw new Error();
+    assertPolicyLimit("scenePatchRecordCount", patchRecords, policy.scenePatchRecordCount);
     const items = new Map(published.items.map((item) => [sourceKey(item.source), item]));
     for (const removal of patch.itemRemovals) {
       if (!validSource(removal, published.circuitDefinitionId)) throw new Error();
@@ -1394,7 +1624,10 @@ function validatePatch(patch, published, buildFingerprint, fontFingerprint, poli
     };
     validateSnapshot(candidate, fontFingerprint, policy);
     return candidate;
-  } catch {
+  } catch (error) {
+    if (error instanceof BrowserPolicyError) {
+      throw error;
+    }
     return null;
   }
 }
@@ -1437,7 +1670,7 @@ function buildSpatialIndex(snapshot, policy) {
         + textEncoder.encode(region.localId).byteLength);
       const candidateBytes = observedBytes + (BigInt(columns) * BigInt(rows) * entryBytes);
       if (candidateBytes > maximumBytes) {
-        throw new Error("spatial index policy exhausted");
+        throw new BrowserPolicyError("spatialIndexBytes");
       }
       observedBytes = candidateBytes;
 
@@ -1765,6 +1998,13 @@ function gridPoint(world, snapshot, disableSnap) {
   };
 }
 
+function gridToWorld(point, snapshot) {
+  return {
+    x: point.x * snapshot.gridStepPlanUnits,
+    y: point.y * snapshot.gridStepPlanUnits,
+  };
+}
+
 function roundHalfNegativeInfinity(value) {
   return Math.ceil(value - 0.5);
 }
@@ -1828,5 +2068,34 @@ function canvasAlignment(value, direction) {
 function cssColor(styles, name, fallback) { return styles.getPropertyValue(name).trim() || fallback; }
 function compareOrdinal(left, right) { return left < right ? -1 : left > right ? 1 : 0; }
 function encodedJsonBytes(value) { return BigInt(textEncoder.encode(JSON.stringify(value)).byteLength); }
+function assertPolicyLimit(dimension, observed, limit) {
+  if (BigInt(observed) > BigInt(limit)) {
+    throw new BrowserPolicyError(dimension);
+  }
+}
+function packagedFontSupports(text) {
+  for (const character of text) {
+    const codePoint = character.codePointAt(0);
+    let lower = 0;
+    let upper = packagedFontCodePointRanges.length - 1;
+    let supported = false;
+    while (lower <= upper) {
+      const middle = Math.floor((lower + upper) / 2);
+      const [minimum, maximum] = packagedFontCodePointRanges[middle];
+      if (codePoint < minimum) {
+        upper = middle - 1;
+      } else if (codePoint > maximum) {
+        lower = middle + 1;
+      } else {
+        supported = true;
+        break;
+      }
+    }
+    if (!supported) {
+      return false;
+    }
+  }
+  return true;
+}
 function decodeBase64(value) { const binary = atob(value); return Uint8Array.from(binary, (character) => character.charCodeAt(0)); }
 async function sha256(bytes) { const digest = await crypto.subtle.digest("SHA-256", bytes); return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join(""); }

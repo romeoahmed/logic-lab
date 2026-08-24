@@ -207,7 +207,8 @@ public static class BrowserSceneProjection
                 default,
                 [],
                 [],
-                new SceneNetInteractionV1(source));
+                new SceneNetInteractionV1(source),
+                HasDrawableTarget: false);
         }
 
         var radius = gridStepPlanUnits / 3d;

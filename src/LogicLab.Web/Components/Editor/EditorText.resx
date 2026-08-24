@@ -219,6 +219,10 @@
   <data name="CircuitCanvasAriaLabel" xml:space="preserve"><value>Interactive Circuit Canvas. Use the semantic circuit outline for the same selectable sources.</value></data>
   <data name="CircuitCanvasFallback" xml:space="preserve"><value>Interactive circuit rendering is unavailable. Use the semantic circuit outline that follows.</value></data>
   <data name="RetryCanvas" xml:space="preserve"><value>Retry Canvas</value></data>
+  <data name="CanvasZoomControls" xml:space="preserve"><value>Canvas zoom controls</value></data>
+  <data name="ZoomOut" xml:space="preserve"><value>Zoom out</value></data>
+  <data name="ZoomToFit" xml:space="preserve"><value>Zoom to fit</value></data>
+  <data name="ZoomIn" xml:space="preserve"><value>Zoom in</value></data>
   <data name="SemanticCircuitOutline" xml:space="preserve"><value>Semantic circuit outline</value></data>
   <data name="SemanticScenePagesAriaLabel" xml:space="preserve"><value>Semantic circuit pages</value></data>
   <data name="SemanticScenePage" xml:space="preserve"><value>Page {0} of {1}</value></data>

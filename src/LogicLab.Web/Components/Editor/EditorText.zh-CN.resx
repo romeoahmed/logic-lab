@@ -219,6 +219,10 @@
   <data name="CircuitCanvasAriaLabel" xml:space="preserve"><value>交互式电路画布。语义电路大纲提供相同的可选择来源。</value></data>
   <data name="CircuitCanvasFallback" xml:space="preserve"><value>交互式电路渲染不可用。请使用后面的语义电路大纲。</value></data>
   <data name="RetryCanvas" xml:space="preserve"><value>重试画布</value></data>
+  <data name="CanvasZoomControls" xml:space="preserve"><value>画布缩放控件</value></data>
+  <data name="ZoomOut" xml:space="preserve"><value>缩小</value></data>
+  <data name="ZoomToFit" xml:space="preserve"><value>缩放至适合</value></data>
+  <data name="ZoomIn" xml:space="preserve"><value>放大</value></data>
   <data name="SemanticCircuitOutline" xml:space="preserve"><value>语义电路大纲</value></data>
   <data name="SemanticScenePagesAriaLabel" xml:space="preserve"><value>语义电路分页</value></data>
   <data name="SemanticScenePage" xml:space="preserve"><value>第 {0} 页，共 {1} 页</value></data>

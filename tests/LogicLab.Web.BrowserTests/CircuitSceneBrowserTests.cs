@@ -29,6 +29,15 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         await Page.Mouse.DownAsync();
         var captured = await Page.EvaluateAsync<bool>(
             "() => window.sceneHandle.canvas.hasPointerCapture(window.sceneHandle.gesture.pointerId)");
+        var unrelatedCancelPreservedGesture = await Page.EvaluateAsync<bool>(
+            """
+            () => {
+              window.sceneHandle.canvas.dispatchEvent(new PointerEvent('pointercancel', {
+                pointerId: 999, isPrimary: false,
+              }));
+              return window.sceneHandle.gesture !== null;
+            }
+            """);
         await Page.Mouse.UpAsync();
         var selected = await Page.EvaluateAsync<bool>(
             "() => window.sceneCalls.some(call => call.name === 'ReceiveSceneIntentAsync')");
@@ -60,6 +69,12 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         await Page.Mouse.WheelAsync(0, -240);
         var afterWheel = await Page.EvaluateAsync<WorldPoint>(
             "() => window.sceneHandle.screenToWorld({ x: 240, y: 160 })");
+        var zoomBeforeControl = await Page.EvaluateAsync<double>(
+            "() => window.sceneHandle.viewport.zoom");
+        await Page.EvaluateAsync(
+            "() => document.querySelector('[data-scene-zoom=\"in\"]').click()");
+        var zoomAfterControl = await Page.EvaluateAsync<double>(
+            "() => window.sceneHandle.viewport.zoom");
 
         await Page.Mouse.MoveAsync((float)hit.X, (float)hit.Y);
         await Page.Mouse.DownAsync();
@@ -104,11 +119,13 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         using (Assert.Multiple())
         {
             await Assert.That(captured).IsTrue();
+            await Assert.That(unrelatedCancelPreservedGesture).IsTrue();
             await Assert.That(selected).IsTrue();
             await Assert.That(keyboardSelection).IsEqualTo("a");
             await Assert.That(spaceGesture).IsEqualTo("pan");
             await Assert.That(afterWheel.X).IsEqualTo(beforeWheel.X).Within(0.000_001);
             await Assert.That(afterWheel.Y).IsEqualTo(beforeWheel.Y).Within(0.000_001);
+            await Assert.That(zoomAfterControl).IsGreaterThan(zoomBeforeControl);
             await Assert.That(disconnected.Connected).IsFalse();
             await Assert.That(disconnected.GestureAbsent).IsTrue();
             await Assert.That(localSelection.IsSelected).IsFalse();
@@ -134,7 +151,16 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             })
             """);
 
-        await Page.Mouse.ClickAsync(300, 200);
+        var beforePreview = await Page.EvaluateAsync<string>(
+            "() => window.sceneHandle.canvas.toDataURL()");
+        await Page.Mouse.MoveAsync(300, 200);
+        await Page.Mouse.DownAsync();
+        await Page.Mouse.MoveAsync(340, 240);
+        await Page.EvaluateAsync(
+            "() => new Promise(resolve => requestAnimationFrame(() => resolve()))");
+        var afterPreview = await Page.EvaluateAsync<string>(
+            "() => window.sceneHandle.canvas.toDataURL()");
+        await Page.Mouse.UpAsync();
         var intent = await Page.EvaluateAsync<SceneIntentResult>(
             """
             () => {
@@ -155,6 +181,45 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             await Assert.That(intent.SceneVersion).IsEqualTo(1);
             await Assert.That(intent.ProjectionVersion).IsEqualTo(1);
             await Assert.That(intent.CircuitDefinitionId).IsEqualTo("definition-a");
+            await Assert.That(afterPreview).IsNotEqualTo(beforePreview);
+        }
+    }
+
+    [Test]
+    public async Task Scene_SelectionAcknowledgmentAndKeyboardActivation_UseAuthoritativePaths()
+    {
+        await MountSceneAsync();
+        await PublishSnapshotAsync();
+        var result = await Page.EvaluateAsync<SelectionAcknowledgmentResult>(
+            """
+            async () => {
+              const source = window.sceneHandle.published.items[0].source;
+              const fallback = document.querySelector('[data-scene-source]');
+              let semanticActivations = 0;
+              fallback.addEventListener('click', () => semanticActivations++);
+              window.sceneHandle.selectSource(source, 'replace');
+              await new Promise(resolve => setTimeout(resolve, 0));
+              window.sceneHandle.selectSource(source, 'replace');
+              await new Promise(resolve => setTimeout(resolve, 0));
+              window.sceneHandle.setTool({ kind: 'wire' });
+              window.sceneHandle.focusedSource = window.sceneHandle.sourceKeys()[0];
+              window.sceneHandle.canvas.focus();
+              window.sceneHandle.canvas.dispatchEvent(new KeyboardEvent('keydown', {
+                key: 'Enter', bubbles: true,
+              }));
+              return {
+                selectionIntents: window.sceneCalls.filter(call =>
+                  call.name === 'ReceiveSceneIntentAsync'
+                    && call.args[0]?.kind === 'selectSources').length,
+                semanticActivations,
+              };
+            }
+            """);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(result.SelectionIntents).IsEqualTo(2);
+            await Assert.That(result.SemanticActivations).IsEqualTo(1);
         }
     }
 
@@ -336,6 +401,43 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     }
 
     [Test]
+    public async Task Scene_UnsupportedPackagedGlyph_RejectsSystemFallback()
+    {
+        await OpenModulePageAsync();
+        await Page.EvaluateAsync(
+            """
+            async () => {
+              const module = await import('/CircuitSceneHost.razor.js');
+              window.sceneCalls = [];
+              const sink = {
+                invokeMethodAsync(name, ...args) {
+                  window.sceneCalls.push({ name, args });
+                  return Promise.resolve();
+                },
+              };
+              window.sceneHandle = module.mount(
+                document.querySelector('#host'), 'build-a', window.scenePolicy, sink);
+              try {
+                await window.sceneHandle.measureText([{
+                  key: 'measurement-a', text: '\u903b\u8f91', fontRole: 'symbol', alignment: 'center',
+                  locale: 'zh-CN', direction: 'ltr',
+                }]);
+              } catch {
+                // The packaged font intentionally has no CJK cmap entries.
+              }
+            }
+            """);
+
+        var failure = await Page.EvaluateAsync<string?>(
+            """
+            () => window.sceneCalls.find(call =>
+              call.name === 'SceneRendererFailedAsync')?.args[0]
+            """);
+
+        await Assert.That(failure).IsEqualTo("fontUnavailable");
+    }
+
+    [Test]
     public async Task Scene_DuplicatePatch_IsAtomicAndRequestsCompleteSnapshot()
     {
         await MountSceneAsync();
@@ -408,7 +510,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     }
 
     [Test]
-    public async Task Scene_SpatialIndexBudgetRejected_OldSceneRemainsPublished()
+    public async Task Scene_SpatialIndexBudgetRejected_FailsClosedWithoutSnapshotLoop()
     {
         await MountSceneAsync();
         await PublishSnapshotAsync();
@@ -446,22 +548,47 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             }
             """);
         await Page.WaitForFunctionAsync(
-            "() => window.sceneCalls.some(call => call.name === 'SceneSnapshotRequiredAsync')");
+            """
+            () => window.sceneCalls.some(call =>
+              call.name === 'SceneRendererFailedAsync'
+                && call.args[0] === 'browserPolicyExhausted')
+            """);
         var result = await Page.EvaluateAsync<SpatialBudgetResult>(
             """
             () => ({
-              sceneVersion: window.sceneHandle.published.sceneVersion,
+              published: window.sceneHandle.published !== null,
               cellCount: window.sceneHandle.spatialIndex.size,
-              hitSource: window.sceneHandle.hitTest({ x: 50, y: 50 })?.source?.entityId,
+              localUnavailable: window.sceneHandle.canvas.hasAttribute(
+                'data-scene-local-unavailable'),
+              snapshotRequired: window.sceneCalls.some(call =>
+                call.name === 'SceneSnapshotRequiredAsync'),
             })
             """);
 
         using (Assert.Multiple())
         {
-            await Assert.That(result.SceneVersion).IsEqualTo(1);
-            await Assert.That(result.CellCount).IsGreaterThan(0);
-            await Assert.That(result.HitSource).IsEqualTo("a");
+            await Assert.That(result.Published).IsFalse();
+            await Assert.That(result.CellCount).IsEqualTo(0);
+            await Assert.That(result.LocalUnavailable).IsTrue();
+            await Assert.That(result.SnapshotRequired).IsFalse();
         }
+    }
+
+    [Test]
+    public async Task Scene_NonDrawableSemanticItem_HasNoCanvasTarget()
+    {
+        await MountSceneAsync();
+        await PublishSnapshotAsync();
+
+        var hasTarget = await Page.EvaluateAsync<bool>(
+            """
+            () => window.sceneHandle.targetBySource({
+              circuitDefinitionId: 'definition-a', entityKind: 'net',
+              entityId: 'net-without-geometry', portId: null,
+            }) !== null
+            """);
+
+        await Assert.That(hasTarget).IsFalse();
     }
 
     [Test]
@@ -575,6 +702,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                   source: { circuitDefinitionId: 'definition-a', entityKind: 'componentInstance',
                     entityId: 'a', portId: null },
                   order: 0, bounds: { left: 20, top: 20, right: 80, bottom: 80 },
+                  hasDrawableTarget: true,
                   origin: { x: 0, y: 0 },
                   operations: [{
                     kind: 'stroke', role: 'outline',
@@ -596,6 +724,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                   source: { circuitDefinitionId: 'definition-a', entityKind: 'componentInstance',
                     entityId: 'b', portId: null },
                   order: 1, bounds: { left: 120, top: 20, right: 180, bottom: 80 },
+                  hasDrawableTarget: true,
                   origin: { x: 0, y: 0 },
                   operations: [{
                     kind: 'stroke', role: 'outline',
@@ -612,6 +741,16 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                   }],
                   interaction: { interactionKind: 'component', placement: {
                     origin: { x: 1, y: 0 }, quarterTurnsClockwise: 0, reflected: false,
+                  } },
+                }, {
+                  source: { circuitDefinitionId: 'definition-a', entityKind: 'net',
+                    entityId: 'net-without-geometry', portId: null },
+                  order: 2, bounds: { left: 0, top: 0, right: 200, bottom: 100 },
+                  hasDrawableTarget: false,
+                  origin: { x: 0, y: 0 }, operations: [], hitRegions: [],
+                  interaction: { interactionKind: 'net', net: {
+                    circuitDefinitionId: 'definition-a', entityKind: 'net',
+                    entityId: 'net-without-geometry', portId: null,
                   } },
                 }], overlays: [],
               };
@@ -659,6 +798,9 @@ internal sealed class CircuitSceneBrowserTests : PageTest
               <div id="scene-page">
                 <section id="host">
                   <canvas data-scene-canvas tabindex="0"></canvas>
+                  <button type="button" data-scene-zoom="out">-</button>
+                  <button type="button" data-scene-zoom="fit">Fit</button>
+                  <button type="button" data-scene-zoom="in">+</button>
                   <button data-scene-source="12:definition-a17:componentInstance1:a0:">Component A</button>
                 </section>
               </div>
@@ -759,7 +901,18 @@ internal sealed class CircuitSceneBrowserTests : PageTest
 
     private sealed class SpatialBudgetResult : SpatialIndexResult
     {
-        public int SceneVersion { get; set; }
+        public bool Published { get; set; }
+
+        public bool LocalUnavailable { get; set; }
+
+        public bool SnapshotRequired { get; set; }
+    }
+
+    private sealed class SelectionAcknowledgmentResult
+    {
+        public int SelectionIntents { get; set; }
+
+        public int SemanticActivations { get; set; }
     }
 
     private sealed class BatchRejectionResult
