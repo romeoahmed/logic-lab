@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("fonts/AtkinsonHyperlegibleNext-Regular.woff2") format("woff2");
+}
+
 :root {
   color-scheme: light;
   --colorBrandBackground: #08788c;

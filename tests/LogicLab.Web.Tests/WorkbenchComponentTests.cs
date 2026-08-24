@@ -524,7 +524,7 @@ internal sealed class WorkbenchComponentTests
                     new SceneSourceRefV1(
                         boundNet.CircuitDefinitionId.Value,
                         "net",
-                        $"net:{boundNet.NetId.Value}"),
+                        boundNet.NetId.Value),
                     new SceneHierarchyPathV1(
                         boundProbe.Source.HierarchyPath.EntryCircuitDefinitionId.Value,
                         [.. boundProbe.Source.HierarchyPath.Steps.Select(step =>

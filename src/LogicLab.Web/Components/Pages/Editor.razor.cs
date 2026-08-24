@@ -1258,19 +1258,40 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
-        var available = Scene.Components.Select(component =>
-                $"component:{component.Source.ComponentInstanceId.Value}")
+        var available = Scene.Components.Select(component => new SceneSourceRefV1(
+                component.Source.CircuitDefinitionId.Value,
+                "componentInstance",
+                component.Source.ComponentInstanceId.Value).Key)
             .Concat(Scene.Components.SelectMany(component => component.Ports.Select(port =>
-                $"instancePort:{port.Source.ComponentInstanceId.Value}:{port.Source.PortId}")))
-            .Concat(Scene.DefinitionPorts.Select(port =>
-                $"definitionPort:{port.Source.DefinitionPortId.Value}"))
-            .Concat(Scene.Connections.Select(connection =>
-                $"net:{connection.Source.NetId.Value}"))
+                new SceneSourceRefV1(
+                    port.Source.CircuitDefinitionId.Value,
+                    "instancePort",
+                    port.Source.ComponentInstanceId.Value,
+                    port.Source.PortId).Key)))
+            .Concat(Scene.DefinitionPorts.Select(port => new SceneSourceRefV1(
+                port.Source.CircuitDefinitionId.Value,
+                "definitionPort",
+                port.Source.DefinitionPortId.Value).Key))
+            .Concat(Scene.Connections.Select(connection => new SceneSourceRefV1(
+                connection.Source.CircuitDefinitionId.Value,
+                "net",
+                connection.Source.NetId.Value).Key))
             .Concat(Scene.Connections.SelectMany(connection => connection.Junctions.Select(junction =>
-                $"junction:{junction.Source.JunctionId.Value}")))
+                new SceneSourceRefV1(
+                    junction.Source.CircuitDefinitionId.Value,
+                    "junction",
+                    junction.Source.JunctionId.Value).Key)))
             .Concat(Scene.Connections.SelectMany(connection =>
-                connection.WireGeometries.Select(wire =>
-                    $"wireGeometry:{wire.Source.WireGeometryId.Value}")))
+                connection.WireGeometries.Select(wire => new SceneSourceRefV1(
+                    wire.Source.CircuitDefinitionId.Value,
+                    "wireGeometry",
+                    wire.Source.WireGeometryId.Value).Key)))
+            .Concat(Projection!.ProjectRevision.Document
+                .FindCircuitDefinition(Scene.CircuitDefinitionId)!.Annotations
+                .Select(annotation => new SceneSourceRefV1(
+                    Scene.CircuitDefinitionId.Value,
+                    "annotation",
+                    annotation.Id.Value).Key))
             .ToHashSet(StringComparer.Ordinal);
         var retained = SceneSelection.Sources
             .Where(source => source.CircuitDefinitionId == SelectedDefinitionId?.Value

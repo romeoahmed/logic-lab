@@ -26,8 +26,9 @@ internal sealed class SceneIntentTests
               "circuitDefinitionId": "definition-a",
               "sources": [{
                 "circuitDefinitionId": "definition-a",
-                "kind": "component",
-                "id": "component:a"
+                "entityKind": "componentInstance",
+                "entityId": "a",
+                "portId": null
               }],
               "selectionMode": "replace"
             }
@@ -43,8 +44,9 @@ internal sealed class SceneIntentTests
               "circuitDefinitionId": "definition-a",
               "sources": [{
                 "circuitDefinitionId": "definition-a",
-                "kind": "component",
-                "id": "component:a"
+                "entityKind": "componentInstance",
+                "entityId": "a",
+                "portId": null
               }],
               "selectionMode": "replace"
             }
@@ -52,7 +54,10 @@ internal sealed class SceneIntentTests
         var hostSelection = CircuitSceneHost.DeserializeSceneIntent(hostRecord.RootElement)
             as SelectSourcesSceneIntentV1;
         var selection = intent as SelectSourcesSceneIntentV1;
-        var source = new SceneSourceRefV1("definition-a", "component", "component:a");
+        var source = new SceneSourceRefV1(
+            "definition-a",
+            "componentInstance",
+            "a");
         var point = new SceneGridPointV1(1, 2);
         var route = new SceneUnroutedWireRouteV1();
         SceneIntentV1[] variants =
@@ -71,12 +76,12 @@ internal sealed class SceneIntentTests
                 "build-a", 7, 11, "definition-a",
                 [new SceneDefinitionPortMoveV1(
                     new SceneSourceRefV1(
-                        "definition-a", "definitionPort", "definitionPort:p"),
+                        "definition-a", "definitionPort", "p"),
                     new SceneDefinitionPortPlacementV1(point, "east"))], "none"),
             new MoveAnnotationsSceneIntentV1(
                 "build-a", 7, 11, "definition-a",
                 [new SceneAnnotationMoveV1(
-                    new SceneSourceRefV1("definition-a", "annotation", "annotation:a"),
+                    new SceneSourceRefV1("definition-a", "annotation", "a"),
                     point)], "none"),
             new CommitWireSceneIntentV1(
                 "build-a", 7, 11, "definition-a",
@@ -84,21 +89,21 @@ internal sealed class SceneIntentTests
                 null, [], [], [], "none"),
             new AddJunctionSceneIntentV1(
                 "build-a", 7, 11, "definition-a",
-                new SceneSourceRefV1("definition-a", "net", "net:n"),
+                new SceneSourceRefV1("definition-a", "net", "n"),
                 point, [], [], [], "none"),
             new RemoveJunctionSceneIntentV1(
                 "build-a", 7, 11, "definition-a",
-                new SceneSourceRefV1("definition-a", "junction", "junction:j"),
+                new SceneSourceRefV1("definition-a", "junction", "j"),
                 [], [], [], "none"),
             new SetWireRouteSceneIntentV1(
                 "build-a", 7, 11, "definition-a",
                 new SceneSourceRefV1(
-                    "definition-a", "wireGeometry", "wireGeometry:w"),
+                    "definition-a", "wireGeometry", "w"),
                 route, "none"),
             new ToggleProbeSceneIntentV1(
                 "build-a", 7, 11, "definition-a",
                 new SceneElaboratedNetRefV1(
-                    new SceneSourceRefV1("definition-a", "net", "net:n"),
+                    new SceneSourceRefV1("definition-a", "net", "n"),
                     new SceneHierarchyPathV1("definition-a", []))),
         ];
 
@@ -114,9 +119,9 @@ internal sealed class SceneIntentTests
             await Assert.That(typeInfo.PolymorphismOptions?.DerivedTypes).Count().IsEqualTo(10);
             await Assert.That(selection).IsNotNull();
             await Assert.That(selection!.Sources).Count().IsEqualTo(1);
-            await Assert.That(selection.Sources[0].Id).IsEqualTo("component:a");
+            await Assert.That(selection.Sources[0].EntityId).IsEqualTo("a");
             await Assert.That(hostSelection).IsNotNull();
-            await Assert.That(hostSelection!.Sources[0].Id).IsEqualTo("component:a");
+            await Assert.That(hostSelection!.Sources[0].EntityId).IsEqualTo("a");
         }
     }
 }

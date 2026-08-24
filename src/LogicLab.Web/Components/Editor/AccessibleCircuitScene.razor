@@ -269,33 +269,34 @@
         AccessibleDefinitionPortProjection port) => new(
             port.Source.CircuitDefinitionId.Value,
             "definitionPort",
-            $"definitionPort:{port.Source.DefinitionPortId.Value}");
+            port.Source.DefinitionPortId.Value);
 
     private static SceneSourceRefV1 ComponentSource(AccessibleComponentProjection component) =>
         new(
             component.Source.CircuitDefinitionId.Value,
-            "component",
-            $"component:{component.Source.ComponentInstanceId.Value}");
+            "componentInstance",
+            component.Source.ComponentInstanceId.Value);
 
     private static SceneSourceRefV1 InstancePortSource(AccessiblePortProjection port) => new(
         port.Source.CircuitDefinitionId.Value,
         "instancePort",
-        $"instancePort:{port.Source.ComponentInstanceId.Value}:{port.Source.PortId}");
+        port.Source.ComponentInstanceId.Value,
+        port.Source.PortId);
 
     private static SceneSourceRefV1 NetSource(AccessibleConnectionProjection connection) => new(
         connection.Source.CircuitDefinitionId.Value,
         "net",
-        $"net:{connection.Source.NetId.Value}");
+        connection.Source.NetId.Value);
 
     private static SceneSourceRefV1 JunctionSource(AccessibleJunctionProjection junction) => new(
         junction.Source.CircuitDefinitionId.Value,
         "junction",
-        $"junction:{junction.Source.JunctionId.Value}");
+        junction.Source.JunctionId.Value);
 
     private static SceneSourceRefV1 WireSource(AccessibleWireGeometryProjection wire) => new(
         wire.Source.CircuitDefinitionId.Value,
         "wireGeometry",
-        $"wireGeometry:{wire.Source.WireGeometryId.Value}");
+        wire.Source.WireGeometryId.Value);
 
     private static string TerminalPath(
         AccessibleSceneProjection scene,

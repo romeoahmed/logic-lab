@@ -37,13 +37,13 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         await Page.Keyboard.PressAsync("ArrowRight");
         await Page.Keyboard.PressAsync("Enter");
         var keyboardSelection = await Page.EvaluateAsync<string?>(
-            "() => window.sceneCalls.filter(call => call.name === 'ReceiveSceneIntentAsync').at(-1)?.args[0]?.sources[0]?.id");
+            "() => window.sceneCalls.filter(call => call.name === 'ReceiveSceneIntentAsync').at(-1)?.args[0]?.sources[0]?.entityId");
 
         await Page.Keyboard.DownAsync(" ");
         await Page.Mouse.MoveAsync((float)hit.X, (float)hit.Y);
         await Page.Mouse.DownAsync();
         var spaceGesture = await Page.EvaluateAsync<string?>(
-            "() => window.sceneHandle.gesture?.kind");
+            "() => window.sceneHandle.gesture?.tool?.kind");
         await Page.Mouse.UpAsync();
         await Page.Keyboard.UpAsync(" ");
 
@@ -81,7 +81,8 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         var localSelection = await Page.EvaluateAsync<LocalSelectionState>(
             """
             () => ({
-              isSelected: window.sceneHandle.selectedSources.has('component:a'),
+              isSelected: window.sceneHandle.selectedSources.has(
+                '12:definition-a17:componentInstance1:a0:'),
               intentCount: window.sceneCalls.filter(call =>
                 call.name === 'ReceiveSceneIntentAsync').length,
             })
@@ -97,22 +98,63 @@ internal sealed class CircuitSceneBrowserTests : PageTest
               }))
             """);
         var localPanGesture = await Page.EvaluateAsync<string?>(
-            "() => window.sceneHandle.gesture?.kind");
+            "() => window.sceneHandle.gesture?.tool?.kind");
         await Page.Mouse.UpAsync();
 
         using (Assert.Multiple())
         {
             await Assert.That(captured).IsTrue();
             await Assert.That(selected).IsTrue();
-            await Assert.That(keyboardSelection).IsEqualTo("component:a");
+            await Assert.That(keyboardSelection).IsEqualTo("a");
             await Assert.That(spaceGesture).IsEqualTo("pan");
             await Assert.That(afterWheel.X).IsEqualTo(beforeWheel.X).Within(0.000_001);
             await Assert.That(afterWheel.Y).IsEqualTo(beforeWheel.Y).Within(0.000_001);
             await Assert.That(disconnected.Connected).IsFalse();
             await Assert.That(disconnected.GestureAbsent).IsTrue();
-            await Assert.That(localSelection.IsSelected).IsTrue();
+            await Assert.That(localSelection.IsSelected).IsFalse();
             await Assert.That(localSelection.IntentCount).IsEqualTo(intentCountBeforeLocalSelection);
             await Assert.That(localPanGesture).IsEqualTo("pan");
+        }
+    }
+
+
+    [Test]
+    public async Task Scene_PlaceTool_EmitsOneCompleteVersionedIntent()
+    {
+        await MountSceneAsync();
+        await PublishSnapshotAsync();
+        await Page.EvaluateAsync(
+            """
+            () => window.sceneHandle.setTool({
+              kind: 'placeComponent',
+              target: { kind: 'libraryContract', libraryId: 'logiclab.core', contractId: 'logic.not' },
+              parameters: [{ parameterId: 'width', value: { kind: 'unsigned32', value: 1 } }],
+              displayName: 'NOT',
+              pinned: false,
+            })
+            """);
+
+        await Page.Mouse.ClickAsync(300, 200);
+        var intent = await Page.EvaluateAsync<SceneIntentResult>(
+            """
+            () => {
+              const value = window.sceneCalls.filter(call =>
+                call.name === 'ReceiveSceneIntentAsync').at(-1)?.args[0];
+              return {
+                kind: value?.kind,
+                sceneVersion: value?.sceneVersion,
+                projectionVersion: value?.projectionVersion,
+                circuitDefinitionId: value?.circuitDefinitionId,
+              };
+            }
+            """);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(intent.Kind).IsEqualTo("placeComponent");
+            await Assert.That(intent.SceneVersion).IsEqualTo(1);
+            await Assert.That(intent.ProjectionVersion).IsEqualTo(1);
+            await Assert.That(intent.CircuitDefinitionId).IsEqualTo("definition-a");
         }
     }
 
@@ -176,6 +218,44 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     }
 
     [Test]
+    public async Task Scene_MissingExactFont_RejectsSystemFallback()
+    {
+        await OpenModulePageAsync();
+        await Page.EvaluateAsync(
+            """
+            async () => {
+              document.styleSheets[0].deleteRule(0);
+              const module = await import('/CircuitSceneHost.razor.js');
+              window.sceneCalls = [];
+              const sink = {
+                invokeMethodAsync(name, ...args) {
+                  window.sceneCalls.push({ name, args });
+                  return Promise.resolve();
+                },
+              };
+              window.sceneHandle = module.mount(
+                document.querySelector('#host'), 'build-a', window.scenePolicy, sink);
+              try {
+                await window.sceneHandle.measureText([{
+                  key: 'measurement-a', text: 'A', fontRole: 'symbol', alignment: 'center',
+                  locale: 'en-US', direction: 'ltr',
+                }]);
+              } catch {
+                // The exact self-hosted face is intentionally absent.
+              }
+            }
+            """);
+
+        var failure = await Page.EvaluateAsync<string?>(
+            """
+            () => window.sceneCalls.find(call =>
+              call.name === 'SceneRendererFailedAsync')?.args[0]
+            """);
+
+        await Assert.That(failure).IsEqualTo("fontUnavailable");
+    }
+
+    [Test]
     public async Task Scene_DuplicatePatch_IsAtomicAndRequestsCompleteSnapshot()
     {
         await MountSceneAsync();
@@ -236,14 +316,14 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             """
             () => ({
               cellCount: window.sceneHandle.spatialIndex.size,
-              hitSource: window.sceneHandle.hitTest({ x: 50, y: 50 })?.source?.id,
+              hitSource: window.sceneHandle.hitTest({ x: 50, y: 50 })?.source?.entityId,
             })
             """);
 
         using (Assert.Multiple())
         {
             await Assert.That(result.CellCount).IsGreaterThan(0);
-            await Assert.That(result.HitSource).IsEqualTo("component:a");
+            await Assert.That(result.HitSource).IsEqualTo("a");
         }
     }
 
@@ -292,7 +372,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             () => ({
               sceneVersion: window.sceneHandle.published.sceneVersion,
               cellCount: window.sceneHandle.spatialIndex.size,
-              hitSource: window.sceneHandle.hitTest({ x: 50, y: 50 })?.source?.id,
+              hitSource: window.sceneHandle.hitTest({ x: 50, y: 50 })?.source?.entityId,
             })
             """);
 
@@ -300,7 +380,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         {
             await Assert.That(result.SceneVersion).IsEqualTo(1);
             await Assert.That(result.CellCount).IsGreaterThan(0);
-            await Assert.That(result.HitSource).IsEqualTo("component:a");
+            await Assert.That(result.HitSource).IsEqualTo("a");
         }
     }
 
@@ -412,7 +492,8 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                 gridStepPlanUnits: 100, snapStepGridUnits: 1,
                 fontFingerprint: window.sceneFontFingerprint,
                 items: [{
-                  source: { circuitDefinitionId: 'definition-a', kind: 'component', id: 'component:a' },
+                  source: { circuitDefinitionId: 'definition-a', entityKind: 'componentInstance',
+                    entityId: 'a', portId: null },
                   order: 0, bounds: { left: 20, top: 20, right: 80, bottom: 80 },
                   origin: { x: 0, y: 0 },
                   operations: [{
@@ -428,8 +509,12 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                     bounds: { left: 20, top: 20, right: 80, bottom: 80 },
                     center: null, radius: 0, points: null, targetSource: null,
                   }],
+                  interaction: { interactionKind: 'component', placement: {
+                    origin: { x: 0, y: 0 }, quarterTurnsClockwise: 0, reflected: false,
+                  } },
                 }, {
-                  source: { circuitDefinitionId: 'definition-a', kind: 'component', id: 'component:b' },
+                  source: { circuitDefinitionId: 'definition-a', entityKind: 'componentInstance',
+                    entityId: 'b', portId: null },
                   order: 1, bounds: { left: 120, top: 20, right: 180, bottom: 80 },
                   origin: { x: 0, y: 0 },
                   operations: [{
@@ -445,6 +530,9 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                     bounds: { left: 120, top: 20, right: 180, bottom: 80 },
                     center: null, radius: 0, points: null, targetSource: null,
                   }],
+                  interaction: { interactionKind: 'component', placement: {
+                    origin: { x: 1, y: 0 }, quarterTurnsClockwise: 0, reflected: false,
+                  } },
                 }], overlays: [],
               };
               const bytes = new TextEncoder().encode(JSON.stringify(snapshot));
@@ -463,32 +551,58 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     {
         var module = await File.ReadAllTextAsync(
             Path.Combine(AppContext.BaseDirectory, "CircuitSceneHost.razor.js"));
-        await Page.RouteAsync($"{Origin}/**", route => route.FulfillAsync(new RouteFulfillOptions
-        {
-            Status = 200,
-            ContentType = route.Request.Url.EndsWith(".js", StringComparison.Ordinal)
-                ? "text/javascript"
-                : "text/html",
-            Body = route.Request.Url.EndsWith(".js", StringComparison.Ordinal)
-                ? module
-                : """
-                  <!doctype html>
-                  <style>
-                    :root { --ll-canvas: #fff; --ll-ink: #172124; --ll-signal: #08788c; }
-                    #host { width: 600px; height: 400px; }
-                    canvas { width: 100%; height: 100%; font-family: sans-serif; }
-                  </style>
-                  <dialog id="components-reconnect-modal"></dialog>
-                  <main id="stable" data-browser-host-ancestor>
-                    <div id="scene-page">
-                      <section id="host">
-                        <canvas data-scene-canvas tabindex="0"></canvas>
-                        <button data-scene-source="component:a">Component A</button>
-                      </section>
-                    </div>
-                  </main>
-                  """,
-        }));
+        var fontPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "AtkinsonHyperlegibleNext-Regular.woff2");
+        const string page = """
+            <!doctype html>
+            <style>
+              @font-face {
+                font-family: "Atkinson Hyperlegible Next";
+                font-style: normal;
+                font-weight: 400;
+                font-display: block;
+                src: url("/AtkinsonHyperlegibleNext-Regular.woff2") format("woff2");
+              }
+              :root { --ll-canvas: #fff; --ll-ink: #172124; --ll-signal: #08788c; }
+              #host { width: 600px; height: 400px; }
+              canvas {
+                --ll-scene-font-family: Atkinson Hyperlegible Next;
+                --ll-scene-font-asset: 378aea0f5c1d179f4e0b5382c06bfc87571b98cfcc4fd1352bc979e2e2259c54;
+                width: 100%;
+                height: 100%;
+                font-family: "Atkinson Hyperlegible Next", sans-serif;
+              }
+            </style>
+            <dialog id="components-reconnect-modal"></dialog>
+            <main id="stable" data-browser-host-ancestor>
+              <div id="scene-page">
+                <section id="host">
+                  <canvas data-scene-canvas tabindex="0"></canvas>
+                  <button data-scene-source="12:definition-a17:componentInstance1:a0:">Component A</button>
+                </section>
+              </div>
+            </main>
+            """;
+        await Page.RouteAsync($"{Origin}/**", route => route.Request.Url.EndsWith(
+                ".woff2",
+                StringComparison.Ordinal)
+            ? route.FulfillAsync(new RouteFulfillOptions
+            {
+                Status = 200,
+                ContentType = "font/woff2",
+                Path = fontPath,
+            })
+            : route.FulfillAsync(new RouteFulfillOptions
+            {
+                Status = 200,
+                ContentType = route.Request.Url.EndsWith(".js", StringComparison.Ordinal)
+                    ? "text/javascript"
+                    : "text/html",
+                Body = route.Request.Url.EndsWith(".js", StringComparison.Ordinal)
+                    ? module
+                    : page,
+            }));
         await Page.GotoAsync($"{Origin}/");
         await Page.EvaluateAsync(
             """
@@ -575,5 +689,16 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         public int TransferCount { get; set; }
 
         public bool SnapshotRequired { get; set; }
+    }
+
+    private sealed class SceneIntentResult
+    {
+        public string? Kind { get; set; }
+
+        public int SceneVersion { get; set; }
+
+        public int ProjectionVersion { get; set; }
+
+        public string? CircuitDefinitionId { get; set; }
     }
 }

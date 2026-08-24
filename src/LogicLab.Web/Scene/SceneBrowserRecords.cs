@@ -1,10 +1,27 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Text.Json.Serialization;
+using LogicLab.Domain;
 
 namespace LogicLab.Web.Scene;
 
-public sealed record SceneSourceRefV1(string CircuitDefinitionId, string Kind, string Id)
+public sealed record SceneSourceRefV1(
+    string CircuitDefinitionId,
+    string EntityKind,
+    string EntityId,
+    string? PortId = null)
 {
-    public string Key => Id;
+    [JsonIgnore]
+    public string Key => string.Concat(
+        Part(CircuitDefinitionId),
+        Part(EntityKind),
+        Part(EntityId),
+        Part(PortId ?? string.Empty));
+
+    private static string Part(string value) => string.Concat(
+        value.Length.ToString(CultureInfo.InvariantCulture),
+        ":",
+        value);
 }
 
 public sealed record ScenePathCommandV1(
@@ -50,13 +67,250 @@ public sealed record SceneItemV1(
     SceneRect Bounds,
     ScenePoint Origin,
     IReadOnlyList<SceneDrawOperationV1> Operations,
-    IReadOnlyList<SceneHitRegionV1> HitRegions);
+    IReadOnlyList<SceneHitRegionV1> HitRegions,
+    SceneItemInteractionV1? Interaction = null);
 
-public sealed record SceneOverlayV1(
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "interactionKind")]
+[JsonDerivedType(typeof(SceneComponentInteractionV1), "component")]
+[JsonDerivedType(typeof(SceneDefinitionPortInteractionV1), "definitionPort")]
+[JsonDerivedType(typeof(SceneAnnotationInteractionV1), "annotation")]
+[JsonDerivedType(typeof(SceneNetInteractionV1), "net")]
+[JsonDerivedType(typeof(SceneWireInteractionV1), "wire")]
+[JsonDerivedType(typeof(SceneJunctionInteractionV1), "junction")]
+public abstract record SceneItemInteractionV1;
+
+public sealed record SceneComponentInteractionV1(SceneComponentPlacementV1 Placement)
+    : SceneItemInteractionV1;
+
+public sealed record SceneDefinitionPortInteractionV1(SceneDefinitionPortPlacementV1 Placement)
+    : SceneItemInteractionV1;
+
+public sealed record SceneAnnotationInteractionV1(SceneGridPointV1 Position)
+    : SceneItemInteractionV1;
+
+public sealed record SceneNetInteractionV1(SceneSourceRefV1 Net)
+    : SceneItemInteractionV1;
+
+public sealed record SceneWireInteractionV1(
+    SceneSourceRefV1 Net,
+    SceneWireRouteV1 Route) : SceneItemInteractionV1;
+
+public sealed record SceneJunctionInteractionV1(SceneSourceRefV1 Net)
+    : SceneItemInteractionV1;
+
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
+[JsonDerivedType(typeof(SceneSelectToolV1), "select")]
+[JsonDerivedType(typeof(ScenePlaceToolV1), "placeComponent")]
+[JsonDerivedType(typeof(SceneWireToolV1), "wire")]
+[JsonDerivedType(typeof(SceneProbeToolV1), "probe")]
+[JsonDerivedType(typeof(ScenePanToolV1), "pan")]
+public abstract record SceneToolV1;
+
+public sealed record SceneSelectToolV1 : SceneToolV1
+{
+    private SceneSelectToolV1()
+    {
+    }
+
+    public static SceneSelectToolV1 Instance { get; } = new();
+}
+
+public sealed record ScenePlaceToolV1 : SceneToolV1
+{
+    public ScenePlaceToolV1(
+        SceneComponentTargetV1 target,
+        IReadOnlyList<SceneParameterBindingV1> parameters,
+        string? displayName,
+        bool pinned)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(parameters);
+        Target = target;
+        Parameters = Array.AsReadOnly(parameters.ToArray());
+        DisplayName = displayName;
+        Pinned = pinned;
+    }
+
+    public SceneComponentTargetV1 Target { get; }
+
+    public ReadOnlyCollection<SceneParameterBindingV1> Parameters { get; }
+
+    public string? DisplayName { get; }
+
+    public bool Pinned { get; }
+}
+
+public sealed record SceneWireToolV1 : SceneToolV1
+{
+    private SceneWireToolV1()
+    {
+    }
+
+    public static SceneWireToolV1 Instance { get; } = new();
+}
+
+public sealed record SceneProbeToolV1(SceneHierarchyPathV1 HierarchyPath) : SceneToolV1;
+
+public sealed record ScenePanToolV1 : SceneToolV1
+{
+    private ScenePanToolV1()
+    {
+    }
+
+    public static ScenePanToolV1 Instance { get; } = new();
+}
+
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
+[JsonDerivedType(typeof(SceneLiveNetValueOverlayV1), "liveNetValue")]
+[JsonDerivedType(typeof(SceneSelectionOverlayV1), "selection")]
+[JsonDerivedType(typeof(SceneKeyboardFocusOverlayV1), "keyboardFocus")]
+[JsonDerivedType(typeof(SceneProbeAnchorOverlayV1), "probeAnchor")]
+[JsonDerivedType(typeof(SceneDiagnosticMarkerOverlayV1), "diagnosticMarker")]
+public abstract record SceneOverlayV1(string Id)
+{
+    public abstract SceneSourceRefV1 Source { get; }
+}
+
+public sealed record SceneLiveNetValueOverlayV1(
     string Id,
-    string Kind,
+    SceneElaboratedNetRefV1 Net,
+    string SessionId,
+    ulong SessionVersion,
+    SceneLogicVectorTransferV1 Value) : SceneOverlayV1(Id)
+{
+    public override SceneSourceRefV1 Source => Net.AuthoredNet;
+}
+
+public sealed record SceneSelectionOverlayV1(
+    string Id,
+    [property: JsonIgnore] SceneSourceRefV1 SelectionSource,
+    string Role) : SceneOverlayV1(Id)
+{
+    public override SceneSourceRefV1 Source => SelectionSource;
+}
+
+public sealed record SceneKeyboardFocusOverlayV1(
+    string Id,
+    [property: JsonIgnore] SceneSourceRefV1 FocusSource) : SceneOverlayV1(Id)
+{
+    public override SceneSourceRefV1 Source => FocusSource;
+}
+
+public sealed record SceneProbeAnchorOverlayV1(
+    string Id,
+    string ProbeId,
+    SceneElaboratedNetRefV1 Net,
+    ScenePoint Point,
+    uint AppearanceOrdinal) : SceneOverlayV1(Id)
+{
+    public override SceneSourceRefV1 Source => Net.AuthoredNet;
+}
+
+public sealed record SceneDiagnosticMarkerOverlayV1(
+    string Id,
+    [property: JsonIgnore] SceneSourceRefV1 DiagnosticSource,
+    string DiagnosticCode,
+    string Severity,
+    uint DiagnosticOrdinal) : SceneOverlayV1(Id)
+{
+    public override SceneSourceRefV1 Source => DiagnosticSource;
+}
+
+public sealed record SceneLogicVectorTransferV1(
+    uint Width,
+    string Encoding,
+    string Data)
+{
+    public static SceneLogicVectorTransferV1 From(IReadOnlyList<LogicValue> values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        ArgumentOutOfRangeException.ThrowIfZero(values.Count);
+        var bytes = new byte[checked((values.Count + 3) / 4)];
+        for (var index = 0; index < values.Count; index++)
+        {
+            var field = values[index] switch
+            {
+                LogicValue.Zero => 0,
+                LogicValue.One => 1,
+                LogicValue.X => 2,
+                LogicValue.Z => 3,
+                _ => throw new ArgumentOutOfRangeException(nameof(values)),
+            };
+            bytes[index / 4] |= checked((byte)(field << ((index % 4) * 2)));
+        }
+
+        return new SceneLogicVectorTransferV1(
+            checked((uint)values.Count),
+            "logic4-2bit-v1",
+            Convert.ToBase64String(bytes));
+    }
+}
+
+public sealed record BrowserSceneProbeInputV1
+{
+    public BrowserSceneProbeInputV1(
+        string probeId,
+        SceneElaboratedNetRefV1 net,
+        IReadOnlyList<LogicValue> value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(probeId);
+        ArgumentNullException.ThrowIfNull(net);
+        ArgumentNullException.ThrowIfNull(value);
+        ProbeId = probeId;
+        Net = net;
+        Value = Array.AsReadOnly(value.ToArray());
+    }
+
+    public string ProbeId { get; }
+
+    public SceneElaboratedNetRefV1 Net { get; }
+
+    public ReadOnlyCollection<LogicValue> Value { get; }
+}
+
+public sealed record BrowserSceneDiagnosticInputV1(
     SceneSourceRefV1 Source,
-    string Role);
+    string DiagnosticCode,
+    string Severity);
+
+public sealed record BrowserSceneOverlayInputV1
+{
+    public BrowserSceneOverlayInputV1(
+        string? sessionId,
+        ulong? sessionVersion,
+        IReadOnlyList<BrowserSceneProbeInputV1> probes,
+        IReadOnlyList<SceneSourceRefV1> selection,
+        IReadOnlyList<BrowserSceneDiagnosticInputV1> diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(probes);
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        if ((sessionId is null) != (sessionVersion is null)
+            || (sessionVersion is 0)
+            || (sessionId is null && probes.Count != 0))
+        {
+            throw new ArgumentException("The Scene overlay Session envelope is invalid.");
+        }
+
+        SessionId = sessionId;
+        SessionVersion = sessionVersion;
+        Probes = Array.AsReadOnly(probes.ToArray());
+        Selection = Array.AsReadOnly(selection.ToArray());
+        Diagnostics = Array.AsReadOnly(diagnostics.ToArray());
+    }
+
+    public string? SessionId { get; }
+
+    public ulong? SessionVersion { get; }
+
+    public ReadOnlyCollection<BrowserSceneProbeInputV1> Probes { get; }
+
+    public ReadOnlyCollection<SceneSourceRefV1> Selection { get; }
+
+    public ReadOnlyCollection<BrowserSceneDiagnosticInputV1> Diagnostics { get; }
+
+    public static BrowserSceneOverlayInputV1 Empty { get; } = new(null, null, [], [], []);
+}
 
 public interface ISceneReplacementV1
 {
@@ -126,21 +380,12 @@ public sealed class SceneSnapshotState
     private static readonly HashSet<string> SourceKinds =
     [
         "definitionPort",
-        "component",
+        "componentInstance",
         "instancePort",
         "net",
         "junction",
         "wireGeometry",
         "annotation",
-    ];
-
-    private static readonly HashSet<string> OverlayKinds =
-    [
-        "liveNetValue",
-        "selection",
-        "keyboardFocus",
-        "probeAnchor",
-        "diagnosticMarker",
     ];
 
     private SceneSnapshotState(SceneSnapshotV1 snapshot)
@@ -276,6 +521,9 @@ public sealed class SceneSnapshotState
             || snapshot.Items.Any(item => !IsValidSource(
                 item.Source,
                 snapshot.CircuitDefinitionId))
+            || snapshot.Items.Any(item => !IsValidInteraction(
+                item,
+                snapshot.CircuitDefinitionId))
             || snapshot.Items.SelectMany(item => item.HitRegions)
                 .Where(region => region.TargetSource is not null)
                 .Any(region => !IsValidSource(
@@ -286,10 +534,9 @@ public sealed class SceneSnapshotState
                     snapshot.Overlays.Select(overlay => overlay.Id)
                         .Order(StringComparer.Ordinal),
                     StringComparer.Ordinal)
-            || snapshot.Overlays.Any(overlay =>
-                !OverlayKinds.Contains(overlay.Kind)
-                || !IsValidSource(overlay.Source, snapshot.CircuitDefinitionId)
-                || string.IsNullOrWhiteSpace(overlay.Role)))
+            || snapshot.Overlays.Any(overlay => !IsValidOverlay(
+                overlay,
+                snapshot.CircuitDefinitionId)))
         {
             throw new ArgumentException("The Scene snapshot is not a complete valid candidate.");
         }
@@ -303,9 +550,96 @@ public sealed class SceneSnapshotState
 
     private static bool IsValidSource(SceneSourceRefV1 source, string circuitDefinitionId) =>
         source.CircuitDefinitionId == circuitDefinitionId
-        && SourceKinds.Contains(source.Kind)
-        && source.Id.StartsWith($"{source.Kind}:", StringComparison.Ordinal)
-        && source.Id.Length > source.Kind.Length + 1;
+        && SourceKinds.Contains(source.EntityKind)
+        && !string.IsNullOrWhiteSpace(source.EntityId)
+        && (source.EntityKind == "instancePort"
+            ? !string.IsNullOrWhiteSpace(source.PortId)
+            : source.PortId is null);
+
+    private static bool IsValidOverlay(SceneOverlayV1 overlay, string circuitDefinitionId)
+    {
+        if (string.IsNullOrWhiteSpace(overlay.Id)
+            || !IsValidSource(overlay.Source, circuitDefinitionId))
+        {
+            return false;
+        }
+
+        return overlay switch
+        {
+            SceneLiveNetValueOverlayV1 live => IsValidElaboratedNet(live.Net)
+                && !string.IsNullOrWhiteSpace(live.SessionId)
+                && live.SessionVersion > 0
+                && live.Value.Width > 0
+                && live.Value.Encoding == "logic4-2bit-v1"
+                && TryDecode(live.Value.Data, out var data)
+                && data.Length == checked((live.Value.Width + 3) / 4),
+            SceneSelectionOverlayV1 selection => selection.Role is "primary" or "member",
+            SceneKeyboardFocusOverlayV1 => true,
+            SceneProbeAnchorOverlayV1 probe => IsValidElaboratedNet(probe.Net)
+                && !string.IsNullOrWhiteSpace(probe.ProbeId)
+                && double.IsFinite(probe.Point.X)
+                && double.IsFinite(probe.Point.Y),
+            SceneDiagnosticMarkerOverlayV1 diagnostic =>
+                !string.IsNullOrWhiteSpace(diagnostic.DiagnosticCode)
+                && diagnostic.Severity is "info" or "warning" or "error",
+            _ => false,
+        };
+    }
+
+    private static bool IsValidInteraction(SceneItemV1 item, string circuitDefinitionId) =>
+        item.Interaction switch
+        {
+            SceneComponentInteractionV1 component =>
+                item.Source.EntityKind == "componentInstance"
+                && component.Placement is not null
+                && component.Placement.Origin is not null
+                && component.Placement.QuarterTurnsClockwise is >= 0 and <= 3,
+            SceneDefinitionPortInteractionV1 port =>
+                item.Source.EntityKind == "definitionPort"
+                && port.Placement is not null
+                && port.Placement.Position is not null
+                && port.Placement.Facing is "north" or "east" or "south" or "west",
+            SceneAnnotationInteractionV1 annotation =>
+                item.Source.EntityKind == "annotation" && annotation.Position is not null,
+            SceneNetInteractionV1 net => item.Source.EntityKind == "net"
+                && net.Net == item.Source,
+            SceneWireInteractionV1 wire => item.Source.EntityKind == "wireGeometry"
+                && IsValidNetSource(wire.Net, circuitDefinitionId)
+                && IsValidRoute(wire.Route),
+            SceneJunctionInteractionV1 junction => item.Source.EntityKind == "junction"
+                && IsValidNetSource(junction.Net, circuitDefinitionId),
+            _ => false,
+        };
+
+    private static bool IsValidNetSource(SceneSourceRefV1 source, string circuitDefinitionId) =>
+        IsValidSource(source, circuitDefinitionId) && source.EntityKind == "net";
+
+    private static bool IsValidRoute(SceneWireRouteV1 route) => route switch
+    {
+        SceneUnroutedWireRouteV1 => true,
+        SceneOrthogonalWireRouteV1 orthogonal => orthogonal.Points is not null,
+        _ => false,
+    };
+
+    private static bool IsValidElaboratedNet(SceneElaboratedNetRefV1 net) =>
+        net.AuthoredNet.EntityKind == "net"
+        && net.HierarchyPath.Steps.All(step =>
+            !string.IsNullOrWhiteSpace(step.ContainingCircuitDefinitionId)
+            && !string.IsNullOrWhiteSpace(step.ComponentInstanceId));
+
+    private static bool TryDecode(string value, out byte[] data)
+    {
+        try
+        {
+            data = Convert.FromBase64String(value);
+            return true;
+        }
+        catch (FormatException)
+        {
+            data = [];
+            return false;
+        }
+    }
 
     private static bool IsStrictlyIncreasing(IEnumerable<int> values)
     {

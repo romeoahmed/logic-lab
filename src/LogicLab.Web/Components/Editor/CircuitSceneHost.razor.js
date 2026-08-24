@@ -31,6 +31,8 @@ class CircuitSceneHandle {
     this.focusedSource = null;
     this.selectedSources = new Set();
     this.gesture = null;
+    this.activeTool = Object.freeze({ kind: "select" });
+    this.activeToolKey = '{"kind":"select"}';
     this.spacePan = false;
     this.connected = true;
     this.sceneOwnsDocumentFocus = false;
@@ -40,6 +42,7 @@ class CircuitSceneHandle {
     this.cssHeight = 0;
     this.density = 1;
     this.fontFingerprint = null;
+    this.symbolFontFamily = null;
     this.transfers = new Map();
     this.destroyed = false;
     this.abortController = new AbortController();
@@ -65,12 +68,32 @@ class CircuitSceneHandle {
       throw new Error("invalid text measurement request batch");
     }
 
-    await document.fonts.ready;
-    const family = getComputedStyle(this.canvas).fontFamily;
-    if (!family) {
-      await this.notifyFailure("fontUnavailable");
-      throw new Error("symbol font is unavailable");
+    const styles = getComputedStyle(this.canvas);
+    const family = styles.getPropertyValue("--ll-scene-font-family").trim();
+    const assetFingerprint = styles.getPropertyValue("--ll-scene-font-asset").trim();
+    if (family !== "Atkinson Hyperlegible Next" || !isDigest(assetFingerprint)) {
+      await this.notifyFailure("assetFingerprintMismatch");
+      throw new Error("symbol font asset fingerprint is invalid");
     }
+
+    const font = `400 100px "${family}"`;
+    const glyphs = new Set(requests.flatMap((request) => Array.from(request?.text ?? "")));
+    if (glyphs.size === 0) glyphs.add(" ");
+    for (const glyph of glyphs) {
+      let faces;
+      try {
+        faces = await document.fonts.load(font, glyph);
+      } catch {
+        faces = [];
+      }
+      const exactFaceLoaded = faces.some((face) => face.status === "loaded"
+        && face.family.replaceAll('"', "") === family);
+      if (!exactFaceLoaded || !document.fonts.check(font, glyph)) {
+        await this.notifyFailure("fontUnavailable");
+        throw new Error("symbol font is unavailable");
+      }
+    }
+    this.symbolFontFamily = `"${family}"`;
 
     const measurements = [];
     const seen = new Set();
@@ -84,7 +107,7 @@ class CircuitSceneHandle {
 
       seen.add(request.key);
       this.context.save();
-      this.context.font = `100px ${family}`;
+      this.context.font = `100px ${this.symbolFontFamily}`;
       this.context.textAlign = canvasAlignment(request.alignment, request.direction);
       this.context.direction = request.direction;
       const metrics = this.context.measureText(request.text);
@@ -110,7 +133,9 @@ class CircuitSceneHandle {
       .sort((left, right) => compareOrdinal(left.key, right.key))
       .map((value) => `${value.key}:${value.advanceWidth}:${value.inkLeft}:${value.inkTop}:${value.inkRight}:${value.inkBottom}`)
       .join("\n");
-    this.fontFingerprint = await sha256(textEncoder.encode(`logiclab-browser-font-v1\n${family}\n${canonical}`));
+    this.fontFingerprint = await sha256(textEncoder.encode(
+      `logiclab-browser-font-v1\n${family}\n${assetFingerprint}\n${canonical}`,
+    ));
     return { fontFingerprint: this.fontFingerprint, measurements };
   }
 
@@ -232,9 +257,25 @@ class CircuitSceneHandle {
   setConnected(isConnected) {
     this.ensureLive();
     this.connected = Boolean(isConnected);
-    if (!this.connected && this.gesture?.kind !== "pan") {
+    if (!this.connected && this.gesture?.tool?.kind !== "pan") {
       this.cancelGesture();
     }
+  }
+
+  setTool(tool) {
+    this.ensureLive();
+    if (!validTool(tool)) {
+      throw new Error("invalid Scene tool");
+    }
+
+    const key = JSON.stringify(tool);
+    if (key === this.activeToolKey) {
+      return;
+    }
+
+    this.cancelGesture();
+    this.activeTool = deepFreeze(structuredClone(tool));
+    this.activeToolKey = key;
   }
 
   focusSource(sourceKey) {
@@ -254,11 +295,11 @@ class CircuitSceneHandle {
         || sources.some((source) => !validSource(
           source,
           this.published.circuitDefinitionId,
-        ) || !available.has(source.id))) {
+        ) || !available.has(sourceKey(source)))) {
       throw new Error("invalid semantic Scene selection");
     }
 
-    const sourceKeys = sources.map((source) => source.id);
+    const sourceKeys = sources.map(sourceKey);
     this.updateSelection(sourceKeys, selectionMode);
     this.focusedSource = sourceKeys[0];
     this.invalidate();
@@ -333,7 +374,9 @@ class CircuitSceneHandle {
       this.recoverDocumentFocus(shouldRecoverFocus);
     }
 
-    this.selectedSources = new Set([...this.selectedSources].filter((key) => keys.includes(key)));
+    this.selectedSources = new Set(validated.value.overlays
+      .filter((overlay) => overlay.kind === "selection")
+      .map((overlay) => sourceKey(overlay.source)));
     this.invalidate();
   }
 
@@ -499,7 +542,7 @@ class CircuitSceneHandle {
       context.save();
       context.translate(item.origin.x, item.origin.y);
       for (const operation of item.operations) {
-        drawOperation(context, operation, styles);
+        drawOperation(context, operation, styles, this.symbolFontFamily);
       }
       context.restore();
     }
@@ -512,9 +555,43 @@ class CircuitSceneHandle {
     let focused = this.focusedSource;
     for (const overlay of this.published.overlays) {
       if (overlay.kind === "selection") {
-        selected.add(overlay.source.id);
+        selected.add(sourceKey(overlay.source));
       } else if (overlay.kind === "keyboardFocus") {
-        focused = overlay.source.id;
+        focused = sourceKey(overlay.source);
+      }
+    }
+
+    for (const overlay of this.published.overlays) {
+      if (overlay.kind === "liveNetValue") {
+        const target = this.targetBySource(overlay.source);
+        if (target) {
+          const point = {
+            x: target.bounds.right + (8 / this.viewport.zoom),
+            y: target.bounds.top - (8 / this.viewport.zoom),
+          };
+          context.save();
+          context.fillStyle = cssColor(styles, "--ll-ink", "#172124");
+          context.font = `${36 / this.viewport.zoom}px ${this.symbolFontFamily}`;
+          context.textAlign = "left";
+          context.textBaseline = "bottom";
+          context.fillText(logicVectorText(overlay.value), point.x, point.y);
+          context.restore();
+        }
+      } else if (overlay.kind === "probeAnchor") {
+        context.save();
+        context.strokeStyle = cssColor(styles, "--ll-signal", "#08788c");
+        context.fillStyle = cssColor(styles, "--ll-canvas", "#ffffff");
+        context.lineWidth = 3 / this.viewport.zoom;
+        context.beginPath();
+        context.arc(overlay.point.x, overlay.point.y, 10 / this.viewport.zoom, 0, Math.PI * 2);
+        context.fill();
+        context.stroke();
+        context.fillStyle = cssColor(styles, "--ll-ink", "#172124");
+        context.font = `${18 / this.viewport.zoom}px ${this.symbolFontFamily}`;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText(String(overlay.appearanceOrdinal + 1), overlay.point.x, overlay.point.y);
+        context.restore();
       }
     }
 
@@ -527,8 +604,9 @@ class CircuitSceneHandle {
       }
 
       for (const target of targets) {
-        const isFocused = target.source.id === focused;
-        if (!isFocused && !selected.has(target.source.id)) {
+        const key = sourceKey(target.source);
+        const isFocused = key === focused;
+        if (!isFocused && !selected.has(key)) {
           continue;
         }
 
@@ -546,6 +624,28 @@ class CircuitSceneHandle {
         context.restore();
       }
     }
+
+
+    for (const overlay of this.published.overlays) {
+      if (overlay.kind !== "diagnosticMarker") {
+        continue;
+      }
+      const target = this.targetBySource(overlay.source);
+      if (!target) {
+        continue;
+      }
+      context.save();
+      context.strokeStyle = overlay.severity === "error"
+        ? cssColor(styles, "--ll-danger", "#b42318")
+        : cssColor(styles, "--ll-warning", "#a15c00");
+      context.lineWidth = 4 / this.viewport.zoom;
+      context.setLineDash([6 / this.viewport.zoom, 4 / this.viewport.zoom]);
+      context.beginPath();
+      context.moveTo(target.bounds.left, target.bounds.bottom + (5 / this.viewport.zoom));
+      context.lineTo(target.bounds.right, target.bounds.bottom + (5 / this.viewport.zoom));
+      context.stroke();
+      context.restore();
+    }
   }
 
   pointerDown(event) {
@@ -554,12 +654,22 @@ class CircuitSceneHandle {
     }
 
     const screen = this.pointerScreen(event);
-    const hit = !this.spacePan ? this.hitTest(this.screenToWorld(screen)) : null;
+    const world = this.screenToWorld(screen);
+    const tool = this.spacePan || !this.connected
+      ? { kind: "pan" }
+      : this.activeTool;
+    if (tool.kind !== "pan" && !this.published) {
+      return;
+    }
+    const hit = tool.kind !== "pan" ? this.hitTest(world) : null;
     this.gesture = {
       pointerId: event.pointerId,
-      kind: hit ? "select" : "pan",
+      tool,
       hit,
+      start: screen,
       last: screen,
+      startWorld: world,
+      currentWorld: world,
       sceneVersion: this.published?.sceneVersion ?? 0,
       projectionVersion: this.published?.projectionVersion ?? 0,
     };
@@ -574,7 +684,8 @@ class CircuitSceneHandle {
     }
 
     const screen = this.pointerScreen(event);
-    if (gesture.kind === "pan") {
+    gesture.currentWorld = this.screenToWorld(screen);
+    if (gesture.tool.kind === "pan") {
       this.viewport.x += screen.x - gesture.last.x;
       this.viewport.y += screen.y - gesture.last.y;
       gesture.last = screen;
@@ -590,10 +701,11 @@ class CircuitSceneHandle {
 
     this.releaseCapture(event.pointerId);
     this.gesture = null;
-    if (gesture.kind === "select" && this.published
+    gesture.currentWorld = this.screenToWorld(this.pointerScreen(event));
+    if (this.published && this.connected
         && gesture.sceneVersion === this.published.sceneVersion
         && gesture.projectionVersion === this.published.projectionVersion) {
-      this.selectSource(gesture.hit.source, "replace");
+      this.commitGesture(gesture, event.altKey);
     }
   }
 
@@ -728,14 +840,15 @@ class CircuitSceneHandle {
   }
 
   selectSource(source, selectionMode) {
-    this.updateSelection([source.id], selectionMode);
-
-    this.focusedSource = source.id;
-    this.invalidate();
     const snapshot = this.published;
     if (!snapshot || !this.connected) {
       return;
     }
+
+    const key = sourceKey(source);
+    this.updateSelection([key], selectionMode);
+    this.focusedSource = key;
+    this.invalidate();
 
     const intent = {
       kind: "selectSources",
@@ -752,6 +865,174 @@ class CircuitSceneHandle {
     }
     void this.dotnetSink?.invokeMethodAsync("ReceiveSceneIntentAsync", intent)
       .catch(() => this.notifyFailure("invalidSnapshot"));
+  }
+
+  commitGesture(gesture, disableSnap) {
+    const hit = gesture.hit;
+    const snapshot = this.published;
+    if (!snapshot) {
+      return;
+    }
+    if (gesture.tool.kind === "select") {
+      if (!hit) return;
+      const start = gridPoint(gesture.startWorld, snapshot, disableSnap);
+      const end = gridPoint(gesture.currentWorld, snapshot, disableSnap);
+      const moved = start.x !== end.x || start.y !== end.y;
+      const interaction = hit.item.interaction;
+      if (moved && interaction?.interactionKind === "component") {
+        this.emitIntent("moveComponents", gesture, {
+          moves: [{
+            component: hit.item.source,
+            placement: translateComponentPlacement(interaction.placement, start, end),
+          }],
+          snapModifier: disableSnap ? "disableSnap" : "none",
+        });
+      } else if (moved && interaction?.interactionKind === "definitionPort") {
+        this.emitIntent("moveDefinitionPorts", gesture, {
+          moves: [{
+            port: hit.item.source,
+            placement: {
+              position: translateGridPoint(interaction.placement.position, start, end),
+              facing: interaction.placement.facing,
+            },
+          }],
+          snapModifier: disableSnap ? "disableSnap" : "none",
+        });
+      } else if (moved && interaction?.interactionKind === "annotation") {
+        this.emitIntent("moveAnnotations", gesture, {
+          moves: [{
+            annotation: hit.item.source,
+            position: translateGridPoint(interaction.position, start, end),
+          }],
+          snapModifier: disableSnap ? "disableSnap" : "none",
+        });
+      } else {
+        this.selectSource(hit.source, "replace");
+      }
+      return;
+    }
+    if (gesture.tool.kind === "placeComponent") {
+      const committed = this.emitIntent("placeComponent", gesture, {
+        target: gesture.tool.target,
+        parameters: gesture.tool.parameters,
+        placement: {
+          origin: gridPoint(gesture.currentWorld, snapshot, disableSnap),
+          quarterTurnsClockwise: 0,
+          reflected: false,
+        },
+        displayName: gesture.tool.displayName,
+        snapModifier: disableSnap ? "disableSnap" : "none",
+      });
+      if (committed && !gesture.tool.pinned) {
+        this.activeTool = Object.freeze({ kind: "select" });
+        this.activeToolKey = '{"kind":"select"}';
+        void this.dotnetSink?.invokeMethodAsync("SceneToolConsumedAsync").catch(() => {});
+      }
+      return;
+    }
+    if (gesture.tool.kind === "probe") {
+      const net = netFromHit(hit);
+      if (net) {
+        this.emitIntent("toggleProbe", gesture, {
+          net: { authoredNet: net, hierarchyPath: gesture.tool.hierarchyPath },
+        });
+      }
+      return;
+    }
+    if (gesture.tool.kind === "wire") {
+      this.commitWireGesture(gesture, disableSnap);
+    }
+  }
+
+  commitWireGesture(gesture, disableSnap) {
+    const snapshot = this.published;
+    const hit = gesture.hit;
+    if (!snapshot || !hit) return;
+    const endHit = this.hitTest(gesture.currentWorld);
+    const startTerminal = terminalFromSource(hit.source);
+    const endTerminal = endHit ? terminalFromSource(endHit.source) : null;
+    if (startTerminal && endTerminal
+        && sourceKey(hit.source) !== sourceKey(endHit.source)) {
+      this.emitIntent("commitWire", gesture, {
+        terminals: [startTerminal, endTerminal],
+        destinationNet: null,
+        newJunctionPositions: [],
+        routeAdditions: [],
+        routeReplacements: [],
+        snapModifier: disableSnap ? "disableSnap" : "none",
+      });
+      return;
+    }
+    if (startTerminal) {
+      const destinationNet = netFromHit(endHit);
+      if (destinationNet) {
+        this.emitIntent("commitWire", gesture, {
+          terminals: [startTerminal],
+          destinationNet,
+          newJunctionPositions: [],
+          routeAdditions: [],
+          routeReplacements: [],
+          snapModifier: disableSnap ? "disableSnap" : "none",
+        });
+      }
+      return;
+    }
+    const interaction = hit.item.interaction;
+    const start = gridPoint(gesture.startWorld, snapshot, disableSnap);
+    const end = gridPoint(gesture.currentWorld, snapshot, disableSnap);
+    const moved = start.x !== end.x || start.y !== end.y;
+    if (interaction?.interactionKind === "wire" && moved) {
+      const corner = { x: start.x, y: end.y };
+      this.emitIntent("setWireRoute", gesture, {
+        wireGeometry: hit.item.source,
+        route: { kind: "orthogonal", points: [start, corner, end] },
+        snapModifier: disableSnap ? "disableSnap" : "none",
+      });
+    } else if (interaction?.interactionKind === "junction") {
+      this.emitIntent("removeJunction", gesture, {
+        junction: hit.item.source,
+        resultingPartitions: [],
+        routeReplacements: [],
+        routeRemovals: [],
+        snapModifier: disableSnap ? "disableSnap" : "none",
+      });
+    } else {
+      const net = netFromHit(hit);
+      if (net) {
+        this.emitIntent("addJunction", gesture, {
+          net,
+          position: end,
+          routeAdditions: [],
+          routeReplacements: [],
+          routeRemovals: [],
+          snapModifier: disableSnap ? "disableSnap" : "none",
+        });
+      }
+    }
+  }
+
+  emitIntent(kind, gesture, payload) {
+    const snapshot = this.published;
+    if (!snapshot || !this.connected
+        || gesture.sceneVersion !== snapshot.sceneVersion
+        || gesture.projectionVersion !== snapshot.projectionVersion) {
+      return false;
+    }
+    const intent = {
+      kind,
+      buildFingerprint: this.buildFingerprint,
+      sceneVersion: gesture.sceneVersion,
+      projectionVersion: gesture.projectionVersion,
+      circuitDefinitionId: snapshot.circuitDefinitionId,
+      ...payload,
+    };
+    if (encodedJsonBytes(intent) > BigInt(this.policy.semanticIntentBytes)) {
+      void this.notifyFailure("browserPolicyExhausted");
+      return false;
+    }
+    void this.dotnetSink?.invokeMethodAsync("ReceiveSceneIntentAsync", intent)
+      .catch(() => this.notifyFailure("invalidSnapshot"));
+    return true;
   }
 
   updateSelection(sourceKeys, selectionMode) {
@@ -782,6 +1063,8 @@ class CircuitSceneHandle {
       if (contains(region, local)) {
         candidates.push({
           source: region.targetSource ?? item.source,
+          item,
+          region,
           priority: hitPriority(item, region),
           order: item.order,
         });
@@ -841,8 +1124,10 @@ class CircuitSceneHandle {
     const seen = new Set();
     for (const item of this.published?.items ?? []) {
       for (const sourceKey of [
-        item.source.id,
-        ...item.hitRegions.map((region) => region.targetSource?.id).filter(Boolean),
+        sourceKey(item.source),
+        ...item.hitRegions.map((region) => region.targetSource
+          ? sourceKey(region.targetSource)
+          : null).filter(Boolean),
       ]) {
         if (!seen.has(sourceKey)) {
           seen.add(sourceKey);
@@ -869,12 +1154,28 @@ class CircuitSceneHandle {
 
   sourceByKey(key) {
     for (const item of this.published?.items ?? []) {
-      if (item.source.id === key) {
+      if (sourceKey(item.source) === key) {
         return item.source;
       }
-      const target = item.hitRegions.find((region) => region.targetSource?.id === key)?.targetSource;
+      const target = item.hitRegions.find((region) => region.targetSource
+        && sourceKey(region.targetSource) === key)?.targetSource;
       if (target) {
         return target;
+      }
+    }
+    return null;
+  }
+
+  targetBySource(source) {
+    const key = sourceKey(source);
+    for (const item of this.published?.items ?? []) {
+      if (sourceKey(item.source) === key) {
+        return { bounds: translateRect(item.bounds, item.origin), item };
+      }
+      const region = item.hitRegions.find((candidate) => candidate.targetSource
+        && sourceKey(candidate.targetSource) === key);
+      if (region) {
+        return { bounds: translateRect(region.bounds, item.origin), item };
       }
     }
     return null;
@@ -992,13 +1293,14 @@ function validateSnapshot(candidate, fontFingerprint, policy) {
   let records = 1;
   for (const item of candidate.items) {
     if (!validSource(item?.source, candidate.circuitDefinitionId)
-        || sourceKeys.has(item.source.id) || !Number.isSafeInteger(item.order)
+        || sourceKeys.has(sourceKey(item.source)) || !Number.isSafeInteger(item.order)
         || item.order < 0 || item.order <= previousOrder
         || orders.has(item.order) || !validRect(item.bounds) || !validPoint(item.origin)
-        || !Array.isArray(item.operations) || !Array.isArray(item.hitRegions)) {
+        || !Array.isArray(item.operations) || !Array.isArray(item.hitRegions)
+        || !validInteraction(item.interaction, item.source, candidate.circuitDefinitionId)) {
       throw new Error("invalid scene item");
     }
-    sourceKeys.add(item.source.id);
+    sourceKeys.add(sourceKey(item.source));
     orders.add(item.order);
     previousOrder = item.order;
     records += 1 + item.operations.length + item.hitRegions.length;
@@ -1012,9 +1314,7 @@ function validateSnapshot(candidate, fontFingerprint, policy) {
     if (!overlay || typeof overlay.id !== "string" || !overlay.id
         || overlayIds.has(overlay.id)
         || (previousOverlayId !== null && compareOrdinal(previousOverlayId, overlay.id) >= 0)
-        || !["liveNetValue", "selection", "keyboardFocus", "probeAnchor", "diagnosticMarker"].includes(overlay.kind)
-        || !validSource(overlay.source, candidate.circuitDefinitionId)
-        || typeof overlay.role !== "string" || !overlay.role) {
+        || !validOverlay(overlay, candidate.circuitDefinitionId)) {
       throw new Error("invalid scene overlay");
     }
     overlayIds.add(overlay.id);
@@ -1041,8 +1341,8 @@ function validatePatch(patch, published, buildFingerprint, fontFingerprint, poli
   }
 
   try {
-    const itemUpsertIds = patch.itemUpserts.map((item) => item?.source?.id);
-    const itemRemovalIds = patch.itemRemovals.map((source) => source?.id);
+    const itemUpsertIds = patch.itemUpserts.map((item) => item?.source && sourceKey(item.source));
+    const itemRemovalIds = patch.itemRemovals.map((source) => source && sourceKey(source));
     const overlayUpsertIds = patch.overlayUpserts.map((overlay) => overlay?.id);
     if (new Set(itemUpsertIds).size !== itemUpsertIds.length
         || new Set(itemRemovalIds).size !== itemRemovalIds.length
@@ -1059,12 +1359,12 @@ function validatePatch(patch, published, buildFingerprint, fontFingerprint, poli
       + item.hitRegions.length
       + item.operations.reduce((commandSum, operation) => commandSum + operation.commands.length, 0), 0);
     if (BigInt(patchRecords) > BigInt(policy.scenePatchRecordCount)) throw new Error();
-    const items = new Map(published.items.map((item) => [item.source.id, item]));
+    const items = new Map(published.items.map((item) => [sourceKey(item.source), item]));
     for (const removal of patch.itemRemovals) {
       if (!validSource(removal, published.circuitDefinitionId)) throw new Error();
-      items.delete(removal.id);
+      items.delete(sourceKey(removal));
     }
-    for (const upsert of patch.itemUpserts) items.set(upsert.source.id, upsert);
+    for (const upsert of patch.itemUpserts) items.set(sourceKey(upsert.source), upsert);
     const overlays = new Map(published.overlays.map((overlay) => [overlay.id, overlay]));
     patch.overlayRemovals.forEach((id) => overlays.delete(id));
     patch.overlayUpserts.forEach((overlay) => overlays.set(overlay.id, overlay));
@@ -1124,7 +1424,7 @@ function buildSpatialIndex(snapshot, policy) {
 
       const source = region.targetSource ?? item.source;
       const entryBytes = BigInt(spatialEntryBaseBytes
-        + textEncoder.encode(source.id).byteLength
+        + textEncoder.encode(sourceKey(source)).byteLength
         + textEncoder.encode(region.localId).byteLength);
       const candidateBytes = observedBytes + (BigInt(columns) * BigInt(rows) * entryBytes);
       if (candidateBytes > maximumBytes) {
@@ -1190,11 +1490,11 @@ function validateHit(region, definitionId) {
       || region.points.some((point) => !validPoint(point)))) throw new Error("invalid polygon hit region");
 }
 
-function drawOperation(context, operation, styles) {
+function drawOperation(context, operation, styles, symbolFontFamily) {
   if (operation.kind === "text") {
     context.save();
     context.fillStyle = cssColor(styles, "--ll-ink", "#172124");
-    context.font = `100px ${getComputedStyle(context.canvas).fontFamily}`;
+    context.font = `100px ${symbolFontFamily}`;
     context.textAlign = canvasAlignment(operation.alignment, operation.direction);
     context.textBaseline = "alphabetic";
     context.direction = operation.direction;
@@ -1252,9 +1552,9 @@ function contains(region, point) {
 
 function hitPriority(item, region) {
   if (region.kind === "port") return 5;
-  if (item.source.kind === "junction") return 4;
-  if (item.source.kind === "component") return 3;
-  if (item.source.kind === "wireGeometry") return 2;
+  if (item.source.entityKind === "junction") return 4;
+  if (item.source.entityKind === "componentInstance") return 3;
+  if (item.source.entityKind === "wireGeometry") return 2;
   return 1;
 }
 
@@ -1278,10 +1578,218 @@ function expandRect(rect, margin) {
 }
 
 function validSource(source, definitionId) {
-  return source && source.circuitDefinitionId === definitionId
-    && ["definitionPort", "component", "instancePort", "net", "junction", "wireGeometry", "annotation"].includes(source.kind)
-    && typeof source.id === "string" && source.id.startsWith(`${source.kind}:`)
-    && source.id.length > source.kind.length + 1;
+  const shape = source && Object.keys(source);
+  return source && shape.length === 4
+    && ["circuitDefinitionId", "entityKind", "entityId", "portId"]
+      .every((field) => shape.includes(field))
+    && source.circuitDefinitionId === definitionId
+    && ["definitionPort", "componentInstance", "instancePort", "net", "junction", "wireGeometry", "annotation"]
+      .includes(source.entityKind)
+    && typeof source.entityId === "string" && source.entityId.length > 0
+    && (source.entityKind === "instancePort"
+      ? typeof source.portId === "string" && source.portId.length > 0
+      : source.portId === null);
+}
+
+function validInteraction(interaction, source, definitionId) {
+  if (!interaction || typeof interaction.interactionKind !== "string") return false;
+  if (interaction.interactionKind === "component") {
+    return source.entityKind === "componentInstance"
+      && validComponentPlacement(interaction.placement);
+  }
+  if (interaction.interactionKind === "definitionPort") {
+    return source.entityKind === "definitionPort"
+      && validGridPoint(interaction.placement?.position)
+      && ["north", "east", "south", "west"].includes(interaction.placement?.facing);
+  }
+  if (interaction.interactionKind === "annotation") {
+    return source.entityKind === "annotation" && validGridPoint(interaction.position);
+  }
+  if (interaction.interactionKind === "net") {
+    return source.entityKind === "net" && sameSource(interaction.net, source);
+  }
+  if (interaction.interactionKind === "wire") {
+    return source.entityKind === "wireGeometry"
+      && validNetSource(interaction.net, definitionId) && validRoute(interaction.route);
+  }
+  return interaction.interactionKind === "junction"
+    && source.entityKind === "junction" && validNetSource(interaction.net, definitionId);
+}
+
+function validOverlay(overlay, definitionId) {
+  if (!overlay || typeof overlay.id !== "string" || !overlay.id
+      || !validSource(overlay.source, definitionId)) return false;
+  if (overlay.kind === "selection") return ["primary", "member"].includes(overlay.role);
+  if (overlay.kind === "keyboardFocus") return true;
+  if (overlay.kind === "diagnosticMarker") {
+    return typeof overlay.diagnosticCode === "string" && overlay.diagnosticCode.length > 0
+      && ["info", "warning", "error"].includes(overlay.severity)
+      && Number.isSafeInteger(overlay.diagnosticOrdinal) && overlay.diagnosticOrdinal >= 0;
+  }
+  if (overlay.kind === "probeAnchor") {
+    return typeof overlay.probeId === "string" && overlay.probeId.length > 0
+      && validElaboratedNet(overlay.net, definitionId)
+      && sameSource(overlay.source, overlay.net.authoredNet)
+      && validPoint(overlay.point)
+      && Number.isSafeInteger(overlay.appearanceOrdinal) && overlay.appearanceOrdinal >= 0;
+  }
+  if (overlay.kind === "liveNetValue") {
+    if (!validElaboratedNet(overlay.net, definitionId)
+        || !sameSource(overlay.source, overlay.net.authoredNet)
+        || typeof overlay.sessionId !== "string" || !overlay.sessionId
+        || !positiveSafeInteger(overlay.sessionVersion)
+        || !positiveSafeInteger(overlay.value?.width)
+        || overlay.value?.encoding !== "logic4-2bit-v1"
+        || typeof overlay.value?.data !== "string") return false;
+    try {
+      return decodeBase64(overlay.value.data).byteLength
+        === Math.ceil(overlay.value.width / 4);
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+function validElaboratedNet(net, definitionId) {
+  return net && validNetSource(net.authoredNet, definitionId)
+    && validHierarchyPath(net.hierarchyPath);
+}
+
+function validNetSource(source, definitionId) {
+  return validSource(source, definitionId) && source.entityKind === "net";
+}
+
+function validHierarchyPath(path) {
+  return path && typeof path.entryCircuitDefinitionId === "string"
+    && path.entryCircuitDefinitionId.length > 0 && Array.isArray(path.steps)
+    && path.steps.every((step) => step
+      && typeof step.containingCircuitDefinitionId === "string"
+      && step.containingCircuitDefinitionId.length > 0
+      && typeof step.componentInstanceId === "string"
+      && step.componentInstanceId.length > 0);
+}
+
+function validRoute(route) {
+  return route?.kind === "unrouted"
+    || (route?.kind === "orthogonal" && Array.isArray(route.points)
+      && route.points.every(validGridPoint));
+}
+
+function validTool(tool) {
+  if (!tool || typeof tool.kind !== "string") return false;
+  if (["select", "wire", "pan"].includes(tool.kind)) {
+    return Object.keys(tool).length === 1;
+  }
+  if (tool.kind === "probe") {
+    return validHierarchyPath(tool.hierarchyPath);
+  }
+  return tool.kind === "placeComponent" && validComponentTarget(tool.target)
+    && Array.isArray(tool.parameters) && tool.parameters.every((parameter) => parameter
+      && typeof parameter.parameterId === "string" && parameter.parameterId.length > 0
+      && parameter.value && typeof parameter.value.kind === "string")
+    && (tool.displayName === null || typeof tool.displayName === "string")
+    && typeof tool.pinned === "boolean";
+}
+
+function validComponentTarget(target) {
+  return target?.kind === "libraryContract"
+    ? typeof target.libraryId === "string" && target.libraryId.length > 0
+      && typeof target.contractId === "string" && target.contractId.length > 0
+    : target?.kind === "circuitDefinition"
+      && typeof target.circuitDefinitionId === "string"
+      && target.circuitDefinitionId.length > 0;
+}
+
+function validComponentPlacement(placement) {
+  return placement && validGridPoint(placement.origin)
+    && Number.isSafeInteger(placement.quarterTurnsClockwise)
+    && placement.quarterTurnsClockwise >= 0 && placement.quarterTurnsClockwise <= 3
+    && typeof placement.reflected === "boolean";
+}
+
+function validGridPoint(point) {
+  return point && Number.isSafeInteger(point.x) && Number.isSafeInteger(point.y)
+    && point.x >= -2147483648 && point.x <= 2147483647
+    && point.y >= -2147483648 && point.y <= 2147483647;
+}
+
+function sameSource(left, right) {
+  return left && right && sourceKey(left) === sourceKey(right);
+}
+
+function terminalFromSource(source) {
+  if (source?.entityKind === "definitionPort") {
+    return {
+      kind: "definitionTerminal",
+      circuitDefinitionId: source.circuitDefinitionId,
+      portId: source.entityId,
+    };
+  }
+  if (source?.entityKind === "instancePort") {
+    return {
+      kind: "instanceTerminal",
+      circuitDefinitionId: source.circuitDefinitionId,
+      componentInstanceId: source.entityId,
+      portId: source.portId,
+    };
+  }
+  return null;
+}
+
+function netFromHit(hit) {
+  if (!hit) return null;
+  if (hit.source.entityKind === "net") return hit.source;
+  const interaction = hit.item?.interaction;
+  return ["wire", "junction", "net"].includes(interaction?.interactionKind)
+    ? interaction.net
+    : null;
+}
+
+function gridPoint(world, snapshot, disableSnap) {
+  const snap = disableSnap ? 1 : snapshot.snapStepGridUnits;
+  return {
+    x: checkedInteger(roundHalfNegativeInfinity(
+      world.x / snapshot.gridStepPlanUnits / snap) * snap),
+    y: checkedInteger(roundHalfNegativeInfinity(
+      world.y / snapshot.gridStepPlanUnits / snap) * snap),
+  };
+}
+
+function roundHalfNegativeInfinity(value) {
+  return Math.ceil(value - 0.5);
+}
+
+function translateGridPoint(point, start, end) {
+  return {
+    x: checkedInteger(point.x + end.x - start.x),
+    y: checkedInteger(point.y + end.y - start.y),
+  };
+}
+
+function translateComponentPlacement(placement, start, end) {
+  return {
+    origin: translateGridPoint(placement.origin, start, end),
+    quarterTurnsClockwise: placement.quarterTurnsClockwise,
+    reflected: placement.reflected,
+  };
+}
+
+function logicVectorText(value) {
+  const symbols = ["0", "1", "X", "Z"];
+  const bytes = decodeBase64(value.data);
+  const bits = [];
+  for (let index = 0; index < value.width; index++) {
+    bits.push(symbols[(bytes[Math.floor(index / 4)] >> ((index % 4) * 2)) & 3]);
+  }
+  const text = bits.reverse().join("");
+  return text.length <= 16 ? text : `${text.slice(0, 7)}…${text.slice(-7)}`;
+}
+
+function sourceKey(source) {
+  return [source.circuitDefinitionId, source.entityKind, source.entityId, source.portId ?? ""]
+    .map((part) => `${part.length}:${part}`)
+    .join("");
 }
 
 function validRect(rect) {
