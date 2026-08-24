@@ -53,7 +53,7 @@ internal sealed class BrowserSceneProjectionTests
     }
 
     [Test]
-    public async Task Project_RecordPolicyExhausted_PublishesUnavailableReplacement()
+    public async Task Project_RecordPolicyExhausted_PreservesExactPolicyEvidence()
     {
         var revision = WebTestCircuit.CreateCompleteCircuit();
         var limits = BrowserPolicy.Development.Limits
@@ -67,19 +67,25 @@ internal sealed class BrowserSceneProjectionTests
             limits,
             BrowserPolicy.Development.ObservationThresholds);
 
-        var replacement = BrowserSceneProjection.Project(
-            "build-a",
-            sceneVersion: 1,
-            projectionVersion: 3,
-            revision,
-            revision.Document.EntryCircuitDefinitionId,
-            "en-US",
-            policy,
-            new TestTextMeasurer());
-        var unavailable = await Assert.That(replacement).IsTypeOf<SceneUnavailableV1>();
+        var exception = await Assert.That(() => BrowserSceneProjection.Project(
+                "build-a",
+                sceneVersion: 1,
+                projectionVersion: 3,
+                revision,
+                revision.Document.EntryCircuitDefinitionId,
+                "en-US",
+                policy,
+                new TestTextMeasurer()))
+            .ThrowsExactly<BrowserPolicyException>();
 
-        await Assert.That(unavailable!.Diagnostics)
-            .Contains("web_browser_policy_exhausted:scene_snapshot_record_count");
+        using (Assert.Multiple())
+        {
+            await Assert.That(exception!.PolicyId).IsEqualTo("logiclab-browser");
+            await Assert.That(exception.PolicyRevision).IsEqualTo("test-1");
+            await Assert.That(exception.Dimension)
+                .IsEqualTo(BrowserLimitDimension.SceneSnapshotRecordCount);
+            await Assert.That(exception.Observed).IsGreaterThan(1UL);
+        }
     }
 
     [Test]

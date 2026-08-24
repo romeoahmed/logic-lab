@@ -42,6 +42,49 @@ public sealed record BrowserObservationThresholdV1(
     BrowserObservationDimension Dimension,
     ulong Value);
 
+internal sealed record BrowserPolicyEvidenceV1(
+    string PolicyId,
+    string PolicyRevision,
+    BrowserLimitDimension Dimension,
+    ulong Observed)
+{
+    public string DimensionToken => BrowserPolicyDimensionTokens.Token(Dimension);
+}
+
+internal static class BrowserPolicyDimensionTokens
+{
+    private static readonly string[] Tokens =
+    [
+        "semantic_intent_bytes",
+        "scene_snapshot_record_count",
+        "scene_patch_record_count",
+        "interop_batch_bytes",
+        "candidate_transfer_bytes",
+        "canvas_bitmap_pixels",
+        "canvas_bitmap_bytes",
+        "effective_density_millionths",
+        "zoom_millionths_minimum",
+        "zoom_millionths_maximum",
+        "semantic_tree_page_items",
+        "display_list_bytes",
+        "spatial_index_bytes",
+        "scene_cache_bytes",
+        "waveform_cache_bytes",
+    ];
+
+    public static string Token(BrowserLimitDimension dimension) =>
+        Enum.IsDefined(dimension)
+            ? Tokens[(int)dimension]
+            : throw new ArgumentOutOfRangeException(nameof(dimension));
+
+    public static bool TryParse(string token, out BrowserLimitDimension dimension)
+    {
+        var index = Array.IndexOf(Tokens, token);
+        dimension = (BrowserLimitDimension)index;
+        return index >= 0;
+    }
+}
+
 public sealed class BrowserPolicy
 {
     private static readonly (BrowserLimitDimension Dimension, BrowserLimitComparison Comparison)[]
@@ -159,6 +202,18 @@ public sealed class BrowserPolicy
     public ReadOnlyCollection<BrowserObservationThresholdV1> ObservationThresholds { get; }
 
     public ulong Limit(BrowserLimitDimension dimension) => Limits[(int)dimension].Value;
+
+    internal bool Rejects(BrowserLimitDimension dimension, ulong observed)
+    {
+        var limit = Limits[(int)dimension];
+        return limit.Comparison switch
+        {
+            BrowserLimitComparison.AtMost => observed > limit.Value,
+            BrowserLimitComparison.AtLeast => observed < limit.Value,
+            _ => throw new InvalidOperationException(
+                "The Browser Policy comparison is undefined."),
+        };
+    }
 
     private static void ValidateStableToken(string value, string parameterName)
     {

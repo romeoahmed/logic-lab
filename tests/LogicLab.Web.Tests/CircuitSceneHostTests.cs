@@ -143,6 +143,39 @@ internal sealed class CircuitSceneHostTests
     }
 
     [Test]
+    public async Task CircuitSceneHost_BrowserPolicyFailure_PreservesExactEvidence()
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        var revision = WebTestCircuit.CreateCompleteCircuit();
+        var rendered = context.Render<CircuitSceneHost>(parameters => parameters
+            .Add(component => component.ProjectRevision, revision)
+            .Add(component => component.ProjectionVersion, 1UL)
+            .Add(component => component.CircuitDefinitionId,
+                revision.Document.EntryCircuitDefinitionId)
+            .Add(component => component.Scene, Project(revision)));
+
+        await rendered.InvokeAsync(() => rendered.Instance.SceneBrowserPolicyExhaustedAsync(
+            BrowserPolicy.Development.PolicyId,
+            BrowserPolicy.Development.PolicyRevision,
+            "spatial_index_bytes",
+            "8388609"));
+
+        var recovery = rendered.Find("[data-scene-recovery]");
+        using (Assert.Multiple())
+        {
+            await Assert.That(recovery.GetAttribute("data-browser-policy-id"))
+                .IsEqualTo("logiclab-browser");
+            await Assert.That(recovery.GetAttribute("data-browser-policy-revision"))
+                .IsEqualTo("development-1");
+            await Assert.That(recovery.GetAttribute("data-browser-policy-dimension"))
+                .IsEqualTo("spatial_index_bytes");
+            await Assert.That(recovery.GetAttribute("data-browser-policy-observed"))
+                .IsEqualTo("8388609");
+        }
+    }
+
+    [Test]
     public async Task CircuitSceneHost_Retry_ReplacesTheFailedBrowserHost()
     {
         await using var context = WebTestContext.CreateBunitContext();

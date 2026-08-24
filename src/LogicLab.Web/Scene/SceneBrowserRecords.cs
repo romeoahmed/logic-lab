@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using LogicLab.Domain;
 
@@ -368,7 +370,130 @@ public sealed record ScenePatchV1(
     IReadOnlyList<SceneItemV1> ItemUpserts,
     IReadOnlyList<SceneSourceRefV1> ItemRemovals,
     IReadOnlyList<SceneOverlayV1> OverlayUpserts,
-    IReadOnlyList<string> OverlayRemovals);
+    IReadOnlyList<string> OverlayRemovals)
+{
+    private static readonly JsonSerializerOptions ComparisonJsonOptions = new(
+        JsonSerializerDefaults.Web);
+
+    internal static bool TryCreate(
+        SceneSnapshotV1 current,
+        SceneSnapshotV1 next,
+        ulong maximumRecords,
+        [NotNullWhen(true)] out ScenePatchV1? patch)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(next);
+        patch = null;
+        try
+        {
+            SceneSnapshotState.ValidateSnapshot(current);
+            SceneSnapshotState.ValidateSnapshot(next);
+            if (current.BuildFingerprint != next.BuildFingerprint
+                || next.SceneVersion <= current.SceneVersion
+                || next.ProjectionVersion < current.ProjectionVersion
+                || current.CircuitDefinitionId != next.CircuitDefinitionId
+                || current.UiCulture != next.UiCulture
+                || current.BaseDirection != next.BaseDirection
+                || current.FontFingerprint != next.FontFingerprint)
+            {
+                return false;
+            }
+
+            var currentItems = current.Items.ToDictionary(
+                item => item.Source.Key,
+                StringComparer.Ordinal);
+            var nextItemKeys = next.Items.Select(item => item.Source.Key)
+                .ToHashSet(StringComparer.Ordinal);
+            var itemUpserts = next.Items
+                .Where(item => !currentItems.TryGetValue(item.Source.Key, out var existing)
+                    || !JsonEquals(existing, item))
+                .ToArray();
+            var itemRemovals = current.Items
+                .Where(item => !nextItemKeys.Contains(item.Source.Key))
+                .Select(item => item.Source)
+                .ToArray();
+
+            var currentOverlays = current.Overlays.ToDictionary(
+                overlay => overlay.Id,
+                StringComparer.Ordinal);
+            var nextOverlayIds = next.Overlays.Select(overlay => overlay.Id)
+                .ToHashSet(StringComparer.Ordinal);
+            var overlayUpserts = next.Overlays
+                .Where(overlay => !currentOverlays.TryGetValue(overlay.Id, out var existing)
+                    || !JsonEquals(existing, overlay))
+                .ToArray();
+            var overlayRemovals = current.Overlays
+                .Where(overlay => !nextOverlayIds.Contains(overlay.Id))
+                .Select(overlay => overlay.Id)
+                .ToArray();
+
+            if (PatchRecordCount(
+                    itemUpserts,
+                    itemRemovals,
+                    overlayUpserts,
+                    overlayRemovals) > maximumRecords)
+            {
+                return false;
+            }
+
+            patch = new ScenePatchV1(
+                next.BuildFingerprint,
+                current.SceneVersion,
+                next.SceneVersion,
+                next.ProjectionVersion,
+                next.CircuitDefinitionId,
+                next.UiCulture,
+                next.BaseDirection,
+                next.SchematicProjectionKey,
+                next.Bounds,
+                next.GridStepPlanUnits,
+                next.SnapStepGridUnits,
+                next.FontFingerprint,
+                itemUpserts,
+                itemRemovals,
+                overlayUpserts,
+                overlayRemovals);
+            return true;
+        }
+        catch (Exception exception) when (exception is ArgumentException
+            or InvalidOperationException
+            or JsonException
+            or OverflowException
+            or NotSupportedException)
+        {
+            patch = null;
+            return false;
+        }
+    }
+
+    private static bool JsonEquals<T>(T left, T right) => JsonElement.DeepEquals(
+        JsonSerializer.SerializeToElement(left, ComparisonJsonOptions),
+        JsonSerializer.SerializeToElement(right, ComparisonJsonOptions));
+
+    private static ulong PatchRecordCount(
+        SceneItemV1[] itemUpserts,
+        SceneSourceRefV1[] itemRemovals,
+        SceneOverlayV1[] overlayUpserts,
+        string[] overlayRemovals)
+    {
+        var count = checked((ulong)itemUpserts.Length
+            + (ulong)itemRemovals.Length
+            + (ulong)overlayUpserts.Length
+            + (ulong)overlayRemovals.Length);
+        foreach (var item in itemUpserts)
+        {
+            count = checked(count
+                + (ulong)item.Operations.Count
+                + (ulong)item.HitRegions.Count);
+            foreach (var operation in item.Operations)
+            {
+                count = checked(count + (ulong)operation.Commands.Count);
+            }
+        }
+
+        return count;
+    }
+}
 
 public enum ScenePatchOutcome
 {
@@ -503,7 +628,7 @@ public sealed class SceneSnapshotState
         && patch.SnapStepGridUnits > 0
         && IsPositiveRect(patch.Bounds);
 
-    private static void ValidateSnapshot(SceneSnapshotV1 snapshot)
+    internal static void ValidateSnapshot(SceneSnapshotV1 snapshot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(snapshot.BuildFingerprint);
         ArgumentException.ThrowIfNullOrWhiteSpace(snapshot.CircuitDefinitionId);

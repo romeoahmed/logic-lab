@@ -81,13 +81,10 @@ public static class BrowserSceneProjection
         var recordCount = checked(CountRecords(items) + (ulong)overlays.Length);
         if (recordCount > policy.Limit(BrowserLimitDimension.SceneSnapshotRecordCount))
         {
-            return Unavailable(
-                buildFingerprint,
-                sceneVersion,
-                projectionVersion,
-                circuitDefinitionId,
-                uiCulture,
-                ["web_browser_policy_exhausted:scene_snapshot_record_count"]);
+            throw new BrowserPolicyException(
+                policy,
+                BrowserLimitDimension.SceneSnapshotRecordCount,
+                recordCount);
         }
 
         return new SceneSnapshotV1(
