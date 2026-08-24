@@ -996,6 +996,7 @@ class CircuitSceneHandle {
   }
 
   keyDown(event) {
+    const canvasIsTarget = event.target === this.canvas;
     if (event.key === "Escape") {
       const cancelledGesture = this.cancelGesture();
       const cancelledPreview = cancelledGesture || this.spacePan;
@@ -1014,7 +1015,7 @@ class CircuitSceneHandle {
       return;
     }
 
-    if (event.key === " ") {
+    if (event.key === " " && canvasIsTarget) {
       if (!this.spacePan) {
         this.cancelGesture();
       }
@@ -1024,9 +1025,12 @@ class CircuitSceneHandle {
     }
 
     const navigationDirection = semanticNavigationDirection(event.key);
-    if (navigationDirection && this.navigateSemanticSource(navigationDirection)) {
+    const semanticSourceTarget = event.target?.closest?.("[data-scene-source]") ?? null;
+    if (navigationDirection
+      && (canvasIsTarget || semanticSourceTarget !== null)
+      && this.navigateSemanticSource(navigationDirection)) {
       event.preventDefault();
-    } else if (event.key === "Enter" && this.focusedSource) {
+    } else if (event.key === "Enter" && canvasIsTarget && this.focusedSource) {
       const escaped = CSS.escape(this.focusedSource);
       this.host.querySelector(`[data-scene-source="${escaped}"]`)?.click();
       event.preventDefault();

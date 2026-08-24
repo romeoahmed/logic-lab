@@ -62,6 +62,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         var keyboardSelection = await Page.EvaluateAsync<string?>(
             "() => window.sceneCalls.filter(call => call.name === 'ReceiveSceneIntentAsync').at(-1)?.args[0]?.sources[0]?.entityId");
 
+        await canvas.FocusAsync();
         await Page.Keyboard.DownAsync(" ");
         await Page.Mouse.MoveAsync((float)hit.X, (float)hit.Y);
         await Page.Mouse.DownAsync();
@@ -332,6 +333,37 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             await Assert.That(result.SelectionAfterGestureCancel).IsEqualTo(1);
             await Assert.That(result.SelectionAfterClear).IsEqualTo(0);
             await Assert.That(result.SemanticActivations).IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task Scene_FallbackAction_EnterAndSpaceRemainNative()
+    {
+        await MountSceneAsync();
+        await PublishSnapshotAsync();
+        await Page.EvaluateAsync(
+            """
+            () => {
+              window.fallbackActivations = { source: 0, action: 0 };
+              document.querySelector(
+                '[data-scene-source="12:definition-a17:componentInstance1:a0:"]')
+                .addEventListener('click', () => window.fallbackActivations.source++);
+              const action = document.querySelector('[data-scene-action="nudge"]');
+              action.addEventListener('click', () => window.fallbackActivations.action++);
+              window.sceneHandle.focusedSource = window.sceneHandle.sourceKeys()[0];
+              action.focus();
+            }
+            """);
+
+        await Page.Keyboard.PressAsync("Enter");
+        await Page.Keyboard.PressAsync(" ");
+        var activations = await Page.EvaluateAsync<int[]>(
+            "() => [window.fallbackActivations.source, window.fallbackActivations.action]");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(activations[0]).IsEqualTo(0);
+            await Assert.That(activations[1]).IsEqualTo(2);
         }
     }
 
@@ -956,6 +988,9 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                             data-scene-navigation-start
                             data-scene-navigation-right="12:definition-a17:componentInstance1:b0:">
                       Component A
+                    </button>
+                    <button type="button" data-scene-action="nudge">
+                      Nudge Component A
                     </button>
                   </canvas>
                   <button type="button" data-scene-zoom="out">-</button>
