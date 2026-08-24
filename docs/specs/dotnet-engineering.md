@@ -131,10 +131,17 @@ The first implementation change establishes these gates before feature breadth:
 ```text
 dotnet restore logic-lab.slnx --locked-mode --nologo
 dotnet build logic-lab.slnx --no-restore --nologo
+pwsh tests/LogicLab.Web.BrowserTests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
 dotnet test --solution logic-lab.slnx --no-build --no-restore
 dotnet format logic-lab.slnx --verify-no-changes --no-restore
 git diff --check
 ```
+
+The Playwright command is an explicit environment-provisioning step and may be
+satisfied instead by a pre-provisioned image with the matching browser build. Test
+hooks and `dotnet test` never download browsers or install operating-system packages.
+Playwright documents browser provisioning as a separate CI step before test execution
+([Playwright .NET CI](https://playwright.dev/dotnet/docs/ci)).
 
 CI additionally verifies the actual SDK feature band, no project-local package version, lock-file closure, NuGet audit, architecture dependency direction, no production reference to a test project, and no unsafe-enabled project without its evidence record. Tests use TUnit on Microsoft Testing Platform and exercise Module interfaces; local adapters replace real seams. `dotnet test --solution logic-lab.slnx` remains the one whole-solution entry point. On the repository's .NET 10 runner, ordinary TUnit/MTP options are passed directly and selection uses `--treenode-filter`, never VSTest `--filter` syntax. A literal `--` is used only when a recognized .NET driver option would otherwise make forwarded option binding ambiguous, as documented by the .NET CLI ([TUnit filters](https://tunit.dev/docs/execution/test-filters), [MTP `dotnet test`](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp#forward-arguments-to-the-test-application)).
 

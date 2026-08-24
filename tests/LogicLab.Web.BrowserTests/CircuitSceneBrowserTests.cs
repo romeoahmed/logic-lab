@@ -8,6 +8,44 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     private const string Origin = "https://logiclab.test";
 
     [Test]
+    public async Task SceneToolStrip_ArrowKeys_MoveOneToolbarFocusStop()
+    {
+        await OpenModulePageAsync();
+        await Page.EvaluateAsync(
+            """
+            async () => {
+              const module = await import('/SceneToolStrip.razor.js');
+              window.sceneToolStripHandle = module.mount(
+                document.querySelector('[data-test-scene-tools]'));
+            }
+            """);
+        await Page.Locator("[data-scene-tool='select']").FocusAsync();
+
+        await Page.Keyboard.PressAsync("ArrowRight");
+        var afterRight = await Page.EvaluateAsync<string>(
+            "() => document.activeElement.dataset.sceneTool");
+        await Page.Keyboard.PressAsync("End");
+        var afterEnd = await Page.EvaluateAsync<string>(
+            "() => document.activeElement.dataset.sceneTool");
+        await Page.Keyboard.PressAsync("ArrowLeft");
+        var selectKeepsArrowKeys = await Page.EvaluateAsync<string>(
+            "() => document.activeElement.dataset.sceneTool");
+        var tabStops = await Page.EvaluateAsync<int>(
+            "() => [...document.querySelectorAll('[data-test-scene-tools] [data-scene-tool]')].filter(control => control.tabIndex === 0).length");
+        var tabStop = await Page.EvaluateAsync<string>(
+            "() => document.querySelector('[data-test-scene-tools] [tabindex=\"0\"]').dataset.sceneTool");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(afterRight).IsEqualTo("wire");
+            await Assert.That(afterEnd).IsEqualTo("place");
+            await Assert.That(selectKeepsArrowKeys).IsEqualTo("place");
+            await Assert.That(tabStops).IsEqualTo(1);
+            await Assert.That(tabStop).IsEqualTo("place");
+        }
+    }
+
+    [Test]
     public async Task SceneFocus_TracksOnlyTheCurrentSemanticPage()
     {
         await MountSceneAsync();
@@ -252,6 +290,45 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             await Assert.That(result.FinalSourceIds).Contains("a");
             await Assert.That(result.FinalSourceIds).Contains("b");
         }
+    }
+
+    [Test]
+    public async Task Scene_LocalSelection_ReplacesPublishedSelectionOverlayImmediately()
+    {
+        await MountSceneAsync();
+        await PublishSnapshotAsync();
+
+        var selectedBounds = await Page.EvaluateAsync<double[]>(
+            """
+            () => {
+              const handle = window.sceneHandle;
+              const sourceA = handle.sourceByKey(
+                '12:definition-a17:componentInstance1:a0:');
+              const sourceBKey = '12:definition-a17:componentInstance1:b0:';
+              handle.published = {
+                ...handle.published,
+                overlays: [{
+                  kind: 'selection', id: 'selection:a', source: sourceA, role: 'primary',
+                }],
+              };
+              handle.selectedSources = new Set([sourceBKey]);
+              handle.focusedSource = null;
+              const strokes = [];
+              const context = {
+                save() {},
+                restore() {},
+                setLineDash() {},
+                strokeRect(...args) { strokes.push(args); },
+                set strokeStyle(value) {},
+                set lineWidth(value) {},
+              };
+
+              handle.drawOverlays(context, getComputedStyle(handle.host));
+              return strokes.map(stroke => stroke[0]);
+            }
+            """);
+
+        await Assert.That(selectedBounds).IsEquivalentTo([120D]);
     }
 
 
@@ -981,6 +1058,8 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     {
         var module = await File.ReadAllTextAsync(
             Path.Combine(AppContext.BaseDirectory, "CircuitSceneHost.razor.js"));
+        var toolbarModule = await File.ReadAllTextAsync(
+            Path.Combine(AppContext.BaseDirectory, "SceneToolStrip.razor.js"));
         var fontPath = Path.Combine(
             AppContext.BaseDirectory,
             "AtkinsonHyperlegibleNext-Regular.woff2");
@@ -1005,6 +1084,18 @@ internal sealed class CircuitSceneBrowserTests : PageTest
               }
             </style>
             <dialog id="components-reconnect-modal"></dialog>
+            <div role="toolbar" aria-label="Scene tools" data-test-scene-tools>
+              <button data-scene-tool="select" tabindex="0">Select</button>
+              <button data-scene-tool="wire" tabindex="-1">Wire</button>
+              <button data-scene-tool="probe" tabindex="-1" disabled>Probe</button>
+              <button data-scene-tool="pan" tabindex="-1">Pan</button>
+              <label>Place
+                <select data-scene-tool="place" tabindex="-1">
+                  <option>Choose component</option>
+                  <option>NOT</option>
+                </select>
+              </label>
+            </div>
             <main id="stable" data-browser-host-ancestor>
               <div id="scene-page">
                 <section id="host">
@@ -1045,7 +1136,11 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                     ? "text/javascript"
                     : "text/html",
                 Body = route.Request.Url.EndsWith(".js", StringComparison.Ordinal)
-                    ? module
+                    ? route.Request.Url.EndsWith(
+                        "SceneToolStrip.razor.js",
+                        StringComparison.Ordinal)
+                        ? toolbarModule
+                        : module
                     : page,
             }));
         await Page.GotoAsync($"{Origin}/");

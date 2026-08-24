@@ -241,6 +241,7 @@
   <data name="PanTool" xml:space="preserve"><value>平移</value></data>
   <data name="PlaceTool" xml:space="preserve"><value>放置</value></data>
   <data name="SceneToolsAriaLabel" xml:space="preserve"><value>电路场景工具</value></data>
+  <data name="Selected" xml:space="preserve"><value>已选择</value></data>
   <data name="SelectTool" xml:space="preserve"><value>选择</value></data>
   <data name="WireTool" xml:space="preserve"><value>连线</value></data>
 </root>

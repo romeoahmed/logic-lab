@@ -166,7 +166,6 @@ public sealed record ScenePanToolV1 : SceneToolV1
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(SceneLiveNetValueOverlayV1), "liveNetValue")]
 [JsonDerivedType(typeof(SceneSelectionOverlayV1), "selection")]
-[JsonDerivedType(typeof(SceneKeyboardFocusOverlayV1), "keyboardFocus")]
 [JsonDerivedType(typeof(SceneProbeAnchorOverlayV1), "probeAnchor")]
 [JsonDerivedType(typeof(SceneDiagnosticMarkerOverlayV1), "diagnosticMarker")]
 public abstract record SceneOverlayV1(string Id)
@@ -190,13 +189,6 @@ public sealed record SceneSelectionOverlayV1(
     string Role) : SceneOverlayV1(Id)
 {
     public override SceneSourceRefV1 Source => SelectionSource;
-}
-
-public sealed record SceneKeyboardFocusOverlayV1(
-    string Id,
-    [property: JsonIgnore] SceneSourceRefV1 FocusSource) : SceneOverlayV1(Id)
-{
-    public override SceneSourceRefV1 Source => FocusSource;
 }
 
 public sealed record SceneProbeAnchorOverlayV1(
@@ -700,7 +692,6 @@ public sealed class SceneSnapshotState
                 && TryDecode(live.Value.Data, out var data)
                 && data.Length == checked((live.Value.Width + 3) / 4),
             SceneSelectionOverlayV1 selection => selection.Role is "primary" or "member",
-            SceneKeyboardFocusOverlayV1 => true,
             SceneProbeAnchorOverlayV1 probe => IsValidElaboratedNet(probe.Net)
                 && !string.IsNullOrWhiteSpace(probe.ProbeId)
                 && double.IsFinite(probe.Point.X)

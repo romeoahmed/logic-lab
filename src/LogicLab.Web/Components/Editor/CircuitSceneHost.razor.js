@@ -657,15 +657,8 @@ class CircuitSceneHandle {
   }
 
   drawOverlays(context, styles) {
-    const selected = new Set(this.selectedSources);
-    let focused = this.focusedSource;
-    for (const overlay of this.published.overlays) {
-      if (overlay.kind === "selection") {
-        selected.add(sourceKey(overlay.source));
-      } else if (overlay.kind === "keyboardFocus") {
-        focused = sourceKey(overlay.source);
-      }
-    }
+    const selected = this.selectedSources;
+    const focused = this.focusedSource;
 
     for (const overlay of this.published.overlays) {
       if (overlay.kind === "liveNetValue") {
@@ -2022,7 +2015,6 @@ function validOverlay(overlay, definitionId) {
   if (!overlay || typeof overlay.id !== "string" || !overlay.id
       || !validSource(overlay.source, definitionId)) return false;
   if (overlay.kind === "selection") return ["primary", "member"].includes(overlay.role);
-  if (overlay.kind === "keyboardFocus") return true;
   if (overlay.kind === "diagnosticMarker") {
     return typeof overlay.diagnosticCode === "string" && overlay.diagnosticCode.length > 0
       && ["info", "warning", "error"].includes(overlay.severity)
