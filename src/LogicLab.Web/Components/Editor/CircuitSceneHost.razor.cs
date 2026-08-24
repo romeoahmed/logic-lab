@@ -48,6 +48,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     private PublicationKey? publishedKey;
     private PublicationKey? failedKey;
     private SceneSnapshotV1? currentSnapshot;
+    private BrowserSceneRecoveryStateV1? recoveryState;
     private ulong nextSceneVersion;
     private bool publishInProgress;
     private string rendererState = RendererStartingState;
@@ -191,7 +192,9 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
                     LogicLabWebBuild.Fingerprint,
                     Policy,
                     callbackReference,
-                    componentLifetime.Token);
+                    componentLifetime.Token,
+                    recoveryState);
+                recoveryState = null;
             }
             catch (Exception exception) when (IsRecoverable(exception))
             {
@@ -659,6 +662,18 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     private async Task RetryAsync()
     {
         var failedAdapter = adapter;
+        if (failedAdapter is not null)
+        {
+            try
+            {
+                recoveryState = await failedAdapter.CaptureRecoveryStateAsync(
+                    componentLifetime.Token);
+            }
+            catch (Exception exception) when (IsRecoverable(exception))
+            {
+            }
+        }
+
         adapter = null;
         callbackReference?.Dispose();
         callbackReference = null;

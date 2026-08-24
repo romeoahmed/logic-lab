@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Components;
@@ -9,6 +10,7 @@ namespace LogicLab.Web.Scene;
 internal sealed class BrowserSceneAdapter : IAsyncDisposable
 {
     internal const string ModulePath = "./Components/Editor/CircuitSceneHost.razor.js";
+    private const ulong InteropEnvelopeBytes = 512;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         AllowDuplicateProperties = false,
@@ -35,7 +37,8 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         string buildFingerprint,
         BrowserPolicy policy,
         DotNetObjectReference<TSink> sink,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        BrowserSceneRecoveryStateV1? recoveryState = null)
         where TSink : class
     {
         ArgumentNullException.ThrowIfNull(js);
@@ -54,7 +57,8 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
                 host,
                 buildFingerprint,
                 PolicyTransfer(policy),
-                sink);
+                sink,
+                recoveryState);
             return new BrowserSceneAdapter(module, handle, policy);
         }
         catch
@@ -144,6 +148,42 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
             selectionMode);
     }
 
+    public async ValueTask<BrowserSceneRecoveryStateV1> CaptureRecoveryStateAsync(
+        CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        var record = await handle.InvokeAsync<JsonElement>(
+            "captureRecoveryState",
+            cancellationToken);
+        try
+        {
+            if ((ulong)Encoding.UTF8.GetByteCount(record.GetRawText()) + InteropEnvelopeBytes
+                    > policy.Limit(BrowserLimitDimension.InteropBatchBytes)
+                || record.Deserialize<BrowserSceneRecoveryStateV1>(JsonOptions)
+                    is not { Viewports: not null } recoveryState
+                || (ulong)recoveryState.Viewports.Count
+                    > policy.Limit(BrowserLimitDimension.SceneSnapshotRecordCount)
+                || recoveryState.Viewports.Select(viewport => viewport.CircuitDefinitionId)
+                    .Distinct(StringComparer.Ordinal).Count() != recoveryState.Viewports.Count
+                || recoveryState.Viewports.Any(viewport => !ValidViewport(viewport)))
+            {
+                throw new JsonException("The browser Scene recovery state is invalid.");
+            }
+
+            return new BrowserSceneRecoveryStateV1(
+                [.. recoveryState.Viewports.Select(viewport => new BrowserSceneViewportV1(
+                    viewport.CircuitDefinitionId,
+                    viewport.TranslateX,
+                    viewport.TranslateY,
+                    viewport.Zoom))]);
+        }
+        catch (Exception exception) when (exception is JsonException
+            or NotSupportedException)
+        {
+            throw new BrowserSceneContractException("recoveryState");
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref isDisposed, 1) != 0)
@@ -207,7 +247,9 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
             var maximumBatch = checked((int)Math.Min(
                 policy.Limit(BrowserLimitDimension.InteropBatchBytes),
                 int.MaxValue));
-            var rawChunkSize = Math.Max(1, ((maximumBatch - 512) / 4) * 3);
+            var rawChunkSize = Math.Max(
+                1,
+                ((maximumBatch - checked((int)InteropEnvelopeBytes)) / 4) * 3);
             var ordinal = 0;
             for (var offset = 0; offset < candidate.Length; offset += rawChunkSize)
             {
@@ -266,6 +308,22 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         policy.Limit(BrowserLimitDimension.SceneCacheBytes),
         policy.Limit(BrowserLimitDimension.WaveformCacheBytes));
 
+    private bool ValidViewport(BrowserSceneViewportV1 viewport)
+    {
+        var minimumZoom = policy.Limit(BrowserLimitDimension.ZoomMillionthsMinimum)
+            / 1_000_000D;
+        var maximumZoom = policy.Limit(BrowserLimitDimension.ZoomMillionthsMaximum)
+            / 1_000_000D;
+        return !string.IsNullOrEmpty(viewport.CircuitDefinitionId)
+            && viewport.CircuitDefinitionId.All(character => char.IsAsciiLetterOrDigit(character)
+                || character is '.' or '-' or '_')
+            && double.IsFinite(viewport.TranslateX)
+            && double.IsFinite(viewport.TranslateY)
+            && double.IsFinite(viewport.Zoom)
+            && viewport.Zoom >= minimumZoom
+            && viewport.Zoom <= maximumZoom;
+    }
+
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(isDisposed != 0, this);
@@ -290,6 +348,23 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         ulong SceneCacheBytes,
         ulong WaveformCacheBytes);
 }
+
+internal sealed record BrowserSceneRecoveryStateV1
+{
+    public BrowserSceneRecoveryStateV1(IReadOnlyList<BrowserSceneViewportV1> viewports)
+    {
+        ArgumentNullException.ThrowIfNull(viewports);
+        Viewports = Array.AsReadOnly(viewports.ToArray());
+    }
+
+    public IReadOnlyList<BrowserSceneViewportV1> Viewports { get; }
+}
+
+internal sealed record BrowserSceneViewportV1(
+    string CircuitDefinitionId,
+    double TranslateX,
+    double TranslateY,
+    double Zoom);
 
 public sealed class BrowserSceneContractException : InvalidOperationException
 {

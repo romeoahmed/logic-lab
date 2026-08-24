@@ -75,6 +75,90 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     }
 
     [Test]
+    public async Task Scene_ResizeWithFocus_PreservesTheFocusedTargetScreenPosition()
+    {
+        await MountSceneAsync();
+        await PublishSnapshotAsync();
+
+        var points = await Page.EvaluateAsync<ViewportPoint[]>(
+            """
+            () => {
+              const handle = window.sceneHandle;
+              handle.viewport = { x: 100, y: 80, zoom: 2 };
+              handle.focusedSource = handle.sourceKeys()[0];
+              const source = handle.sourceByKey(handle.focusedSource);
+              const target = handle.targetBySource(source);
+              const worldFocus = {
+                x: (target.bounds.left * 0.5) + (target.bounds.right * 0.5),
+                y: (target.bounds.top * 0.5) + (target.bounds.bottom * 0.5),
+              };
+              const toScreen = world => ({
+                x: handle.viewport.x + (world.x * handle.viewport.zoom),
+                y: handle.viewport.y + (world.y * handle.viewport.zoom),
+              });
+              const before = toScreen(worldFocus);
+              handle.host.style.width = '800px';
+              handle.host.style.height = '500px';
+              handle.resize();
+              return [before, toScreen(worldFocus)];
+            }
+            """);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(points[1].X).IsEqualTo(points[0].X).Within(0.000_001);
+            await Assert.That(points[1].Y).IsEqualTo(points[0].Y).Within(0.000_001);
+        }
+    }
+
+    [Test]
+    public async Task Scene_RemountWithRecoveryState_RestoresTheSavedViewport()
+    {
+        await MountSceneAsync();
+        await PublishSnapshotAsync();
+
+        await Page.EvaluateAsync(
+            """
+            async () => {
+              const prior = window.sceneHandle;
+              prior.viewport = { x: 125, y: -50, zoom: 2 };
+              const recoveryState = prior.captureRecoveryState();
+              prior.destroy();
+
+              const module = await import('/CircuitSceneHost.razor.js');
+              const sink = {
+                invokeMethodAsync(name, ...args) {
+                  window.sceneCalls.push({ name, args });
+                  return Promise.resolve();
+                },
+              };
+              window.sceneHandle = module.mount(
+                document.querySelector('#host'),
+                'build-a',
+                window.scenePolicy,
+                sink,
+                recoveryState);
+              const measurements = await window.sceneHandle.measureText([{
+                key: 'measurement-a', text: 'A', fontRole: 'symbol', alignment: 'center',
+                locale: 'en-US', direction: 'ltr',
+              }]);
+              window.sceneFontFingerprint = measurements.fontFingerprint;
+            }
+            """);
+        await PublishSnapshotAsync();
+
+        var viewport = await Page.EvaluateAsync<ViewportState>(
+            "() => window.sceneHandle.viewport");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(viewport.X).IsEqualTo(125);
+            await Assert.That(viewport.Y).IsEqualTo(-50);
+            await Assert.That(viewport.Zoom).IsEqualTo(2);
+        }
+    }
+
+    [Test]
     public async Task SceneFocus_TracksOnlyTheCurrentSemanticPage()
     {
         await MountSceneAsync();
@@ -1178,6 +1262,15 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         public double X { get; set; }
 
         public double Y { get; set; }
+    }
+
+    private sealed class ViewportState
+    {
+        public double X { get; set; }
+
+        public double Y { get; set; }
+
+        public double Zoom { get; set; }
     }
 
     private sealed class SelectionPoints
