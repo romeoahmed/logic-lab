@@ -117,6 +117,47 @@ internal sealed class CircuitSceneHostTests
     }
 
     [Test]
+    public async Task CircuitSceneHost_NudgeAtCoordinateLimit_IsUnavailableAndEmitsNoIntent()
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        var revision = WebTestCircuit.CreateCompleteCircuit();
+        var definition = revision.Document.EntryCircuitDefinition;
+        var component = definition.ComponentInstances[0];
+        revision = WebTestCircuit.Commit(ProjectEditor.Apply(
+            revision,
+            new MoveComponentInstancesIntent(
+                definition.Id,
+                [new ComponentMove(
+                    component.Id,
+                    new ComponentPlacement(new GridPoint(int.MaxValue, 0)))])));
+        var scene = Project(revision);
+        var source = new SceneSourceRefV1(
+            definition.Id.Value,
+            "componentInstance",
+            component.Id.Value);
+        SceneIntentV1? received = null;
+        var rendered = context.Render<CircuitSceneHost>(parameters => parameters
+            .Add(host => host.ProjectRevision, revision)
+            .Add(host => host.ProjectionVersion, 1UL)
+            .Add(host => host.CircuitDefinitionId, definition.Id)
+            .Add(host => host.Scene, scene)
+            .Add(host => host.OnIntent,
+                EventCallback.Factory.Create<SceneIntentV1>(this, value => received = value)));
+
+        await rendered.InvokeAsync(() => rendered.FindComponent<AccessibleCircuitScene>()
+            .Instance.OnAction.InvokeAsync(new NudgeSceneSemanticActionV1(source, 1, 0)));
+
+        var rightNudge = rendered.FindAll(
+            $"[data-component='{component.Id.Value}'] [data-scene-action='nudge']")[3];
+        using (Assert.Multiple())
+        {
+            await Assert.That(received).IsNull();
+            await Assert.That(rightNudge.HasAttribute("disabled")).IsTrue();
+        }
+    }
+
+    [Test]
     public async Task CircuitSceneHost_RendererFailure_HidesBitmapAndOpensRecoveryOutline()
     {
         await using var context = WebTestContext.CreateBunitContext();

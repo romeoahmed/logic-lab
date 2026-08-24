@@ -29,11 +29,11 @@
         @if (totalPages > 1)
         {
             <nav class="semantic-pager" aria-label="@Text["SemanticScenePagesAriaLabel"]">
-                <button type="button" disabled="@(pageIndex == 0)" @onclick="PreviousPage">
+                <button type="button" disabled="@(pageIndex == 0)" @onclick="PreviousPageAsync">
                     @Text["Previous"]
                 </button>
                 <span>@Text["SemanticScenePage", pageIndex + 1, totalPages]</span>
-                <button type="button" disabled="@(pageIndex + 1 == totalPages)" @onclick="NextPage">
+                <button type="button" disabled="@(pageIndex + 1 == totalPages)" @onclick="NextPageAsync">
                     @Text["Next"]
                 </button>
             </nav>
@@ -58,6 +58,7 @@
                         </button>
                         <div class="semantic-actions" aria-label="@Text["Move"]">
                             <SceneNudgeButtons Source="DefinitionPortSource(port)"
+                                               Position="port.Placement.Position"
                                                OnAction="OnAction"
                                                OnFocus="OnFocus" />
                         </div>
@@ -93,6 +94,7 @@
                         {
                             <div class="semantic-actions" aria-label="@Text["ActionsFor", component.Label]">
                                 <SceneNudgeButtons Source="ComponentSource(component)"
+                                                   Position="component.Placement.Origin"
                                                    OnAction="OnAction"
                                                    OnFocus="OnFocus" />
                                 <button type="button"
@@ -141,6 +143,7 @@
                         </button>
                         <div class="semantic-actions" aria-label="@Text["ActionsFor", annotation.Text]">
                             <SceneNudgeButtons Source="AnnotationSource(annotation)"
+                                               Position="annotation.Position"
                                                OnAction="OnAction"
                                                OnFocus="OnFocus" />
                             <button type="button"
@@ -241,6 +244,9 @@
     public EventCallback<SceneSemanticActionV1> OnAction { get; set; }
 
     [Parameter]
+    public SceneSourceRefV1? FocusedSource { get; set; }
+
+    [Parameter]
     public int PageSize { get; set; } = int.MaxValue;
 
     private HashSet<string> visibleSourceKeys = new(StringComparer.Ordinal);
@@ -262,7 +268,23 @@
         var sources = SemanticSources().ToArray();
         var pageCount = checked((sources.Length + (long)PageSize - 1) / PageSize);
         totalPages = checked((int)Math.Max(1L, pageCount));
+        var focusedIndex = FocusedSource is null
+            ? -1
+            : Array.FindIndex(sources, source => string.Equals(
+                source.Key,
+                FocusedSource.Key,
+                StringComparison.Ordinal));
+        if (focusedIndex >= 0)
+        {
+            pageIndex = focusedIndex / PageSize;
+        }
+
         pageIndex = Math.Min(pageIndex, totalPages - 1);
+        SetVisibleSources(sources);
+    }
+
+    private SceneSourceRefV1? SetVisibleSources(IReadOnlyList<SceneSourceRefV1> sources)
+    {
         var visibleSources = sources
             .Skip(checked(pageIndex * PageSize))
             .Take(PageSize)
@@ -270,6 +292,7 @@
         visibleSourceKeys = visibleSources.Select(source => source.Key)
             .ToHashSet(StringComparer.Ordinal);
         navigationAttributes = BuildNavigationAttributes(visibleSources);
+        return visibleSources.Length == 0 ? null : visibleSources[0];
     }
 
     private IEnumerable<SceneSourceRefV1> SemanticSources()
@@ -375,16 +398,24 @@
         || connection.Junctions.Any(junction => IsVisible(JunctionSource(junction)))
         || connection.WireGeometries.Any(wire => IsVisible(WireSource(wire)));
 
-    private void PreviousPage()
+    private Task PreviousPageAsync()
     {
         pageIndex = Math.Max(0, pageIndex - 1);
-        OnParametersSet();
+        return PageChangedAsync();
     }
 
-    private void NextPage()
+    private Task NextPageAsync()
     {
         pageIndex = Math.Min(totalPages - 1, pageIndex + 1);
-        OnParametersSet();
+        return PageChangedAsync();
+    }
+
+    private Task PageChangedAsync()
+    {
+        var firstVisibleSource = SetVisibleSources(SemanticSources().ToArray());
+        return firstVisibleSource is null
+            ? Task.CompletedTask
+            : FocusAsync(firstVisibleSource);
     }
 
     private Task ActivateAsync(SceneSourceRefV1 source) => OnAction.HasDelegate
