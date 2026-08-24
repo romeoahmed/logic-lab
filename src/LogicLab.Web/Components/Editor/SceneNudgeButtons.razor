@@ -1,30 +1,38 @@
 @inject IStringLocalizer<EditorText> Text
+@using LogicLab.Domain.Authoring
 @using LogicLab.Web.Scene
 
 <button type="button"
         data-scene-action="nudge"
         aria-label="@Text["NudgeLeft"]"
+        disabled="@(Position.X == int.MinValue)"
         @onfocus="FocusAsync"
         @onclick="@(() => NudgeAsync(-1, 0))">←</button>
 <button type="button"
         data-scene-action="nudge"
         aria-label="@Text["NudgeUp"]"
+        disabled="@(Position.Y == int.MinValue)"
         @onfocus="FocusAsync"
         @onclick="@(() => NudgeAsync(0, -1))">↑</button>
 <button type="button"
         data-scene-action="nudge"
         aria-label="@Text["NudgeDown"]"
+        disabled="@(Position.Y == int.MaxValue)"
         @onfocus="FocusAsync"
         @onclick="@(() => NudgeAsync(0, 1))">↓</button>
 <button type="button"
         data-scene-action="nudge"
         aria-label="@Text["NudgeRight"]"
+        disabled="@(Position.X == int.MaxValue)"
         @onfocus="FocusAsync"
         @onclick="@(() => NudgeAsync(1, 0))">→</button>
 
 @code {
     [Parameter, EditorRequired]
     public SceneSourceRefV1 Source { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public GridPoint Position { get; set; }
 
     [Parameter]
     public EventCallback<SceneSemanticActionV1> OnAction { get; set; }

@@ -10,7 +10,9 @@ public sealed record NudgeSceneSemanticActionV1 : SceneSemanticActionV1
     public NudgeSceneSemanticActionV1(SceneSourceRefV1 source, int deltaX, int deltaY)
         : base(source)
     {
-        if (Math.Abs(deltaX) + Math.Abs(deltaY) != 1)
+        var isHorizontal = deltaX is -1 or 1 && deltaY == 0;
+        var isVertical = deltaX == 0 && deltaY is -1 or 1;
+        if (!isHorizontal && !isVertical)
         {
             throw new ArgumentException("A semantic nudge moves exactly one grid step.");
         }

@@ -187,9 +187,14 @@ internal sealed class AccessibleCircuitSceneTests
     {
         await using var context = CreateContext();
         var scene = Project(WebTestCircuit.CreateCompleteCircuit());
+        SceneSourceRefV1? focusedSource = null;
         var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
             .Add(component => component.Scene, scene)
-            .Add(component => component.PageSize, 1));
+            .Add(component => component.PageSize, 1)
+            .Add(component => component.OnFocus,
+                EventCallback.Factory.Create<SceneSourceRefV1>(
+                    this,
+                    source => focusedSource = source)));
         var firstSource = rendered.Find("[data-scene-source]")
             .GetAttribute("data-scene-source");
 
@@ -201,8 +206,31 @@ internal sealed class AccessibleCircuitSceneTests
         {
             await Assert.That(rendered.FindAll("[data-scene-source]")).Count().IsEqualTo(1);
             await Assert.That(firstSource).IsNotEqualTo(secondSource);
+            await Assert.That(focusedSource?.Key).IsEqualTo(secondSource);
             await Assert.That(rendered.FindAll(".semantic-pager")).Count().IsEqualTo(1);
         }
+    }
+
+    [Test]
+    public async Task AccessibleCircuitScene_FocusedSource_RevealsItsSemanticPage()
+    {
+        await using var context = CreateContext();
+        var scene = Project(WebTestCircuit.CreateCompleteCircuit());
+        var port = scene.Components[0].Ports[0];
+        var focusedSource = new SceneSourceRefV1(
+            port.Source.CircuitDefinitionId.Value,
+            "instancePort",
+            port.Source.ComponentInstanceId.Value,
+            port.Source.PortId);
+
+        var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
+            .Add(component => component.Scene, scene)
+            .Add(component => component.PageSize, 1)
+            .Add(component => component.FocusedSource, focusedSource));
+
+        await Assert.That(rendered.Find("[data-scene-source]")
+                .GetAttribute("data-scene-source"))
+            .IsEqualTo(focusedSource.Key);
     }
 
     [Test]

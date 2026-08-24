@@ -344,7 +344,7 @@ class CircuitSceneHandle {
 
   focusSource(sourceKey) {
     this.ensureLive();
-    if (this.sourceKeys().includes(sourceKey)) {
+    if (this.semanticSourceKeys().includes(sourceKey)) {
       this.focusedSource = sourceKey;
       this.invalidate();
     }
@@ -367,7 +367,9 @@ class CircuitSceneHandle {
     const sourceKeys = sources.map(sourceKey);
     this.updateSelection(sourceKeys, selectionMode);
     if (sourceKeys.length > 0) {
-      this.focusedSource = sourceKeys[0];
+      this.focusedSource = this.semanticSourceKeys().includes(sourceKeys[0])
+        ? sourceKeys[0]
+        : null;
     }
     this.invalidate();
   }
@@ -444,7 +446,7 @@ class CircuitSceneHandle {
       this.fitViewport();
     }
 
-    const keys = this.sourceKeys();
+    const keys = this.semanticSourceKeys();
     if (!keys.includes(this.focusedSource)) {
       this.focusedSource = keys[Math.min(priorFocusIndex, Math.max(0, keys.length - 1))] ?? null;
       this.recoverDocumentFocus(shouldRecoverFocus);
@@ -1152,7 +1154,9 @@ class CircuitSceneHandle {
       const keys = sources.map(sourceKey);
       this.updateSelection(keys, selectionMode);
       if (keys.length > 0) {
-        this.focusedSource = keys[0];
+        this.focusedSource = this.semanticSourceKeys().includes(keys[0])
+          ? keys[0]
+          : null;
       }
       this.invalidate();
     }
@@ -1468,6 +1472,13 @@ class CircuitSceneHandle {
       }
     }
     return sourceKeys;
+  }
+
+  semanticSourceKeys() {
+    const available = new Set(this.sourceKeys());
+    return [...this.host.querySelectorAll("[data-scene-source]")]
+      .map((element) => element.dataset.sceneSource)
+      .filter((key) => key && available.has(key));
   }
 
   sourceByKey(key) {

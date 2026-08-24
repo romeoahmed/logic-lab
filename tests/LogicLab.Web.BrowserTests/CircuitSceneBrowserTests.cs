@@ -8,6 +8,35 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     private const string Origin = "https://logiclab.test";
 
     [Test]
+    public async Task SceneFocus_TracksOnlyTheCurrentSemanticPage()
+    {
+        await MountSceneAsync();
+        await PublishSnapshotAsync();
+
+        var result = await Page.EvaluateAsync<bool[]>(
+            """
+            () => {
+              const handle = window.sceneHandle;
+              const sourceKey = '12:definition-a17:componentInstance1:b0:';
+              const source = handle.sourceByKey(sourceKey);
+              document.querySelector(`[data-scene-source="${sourceKey}"]`).remove();
+
+              handle.selectSource(source, 'replace');
+              const offPageFocusCleared = handle.focusedSource === null;
+
+              const fallback = document.createElement('button');
+              fallback.dataset.sceneSource = sourceKey;
+              handle.canvas.append(fallback);
+              handle.focusSource(sourceKey);
+
+              return [offPageFocusCleared, handle.focusedSource === sourceKey];
+            }
+            """);
+
+        await Assert.That(result).IsEquivalentTo([true, true]);
+    }
+
+    [Test]
     public async Task Scene_PointerKeyboardWheelAndDisconnect_StayCoherent()
     {
         await MountSceneAsync();
