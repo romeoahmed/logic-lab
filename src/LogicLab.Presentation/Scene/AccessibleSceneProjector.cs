@@ -60,13 +60,23 @@ public static class AccessibleSceneProjector
             .OrderBy(net => net.Id.Value, StringComparer.Ordinal)
             .Select(net => ProjectConnection(definition, net))
             .ToArray();
+        var annotations = definition.Annotations
+            .OrderBy(annotation => annotation.Position.X)
+            .ThenBy(annotation => annotation.Position.Y)
+            .ThenBy(annotation => annotation.Id.Value, StringComparer.Ordinal)
+            .Select(annotation => new AccessibleAnnotationProjection(
+                new AnnotationSourceIdentity(definition.Id, annotation.Id),
+                annotation.Text,
+                annotation.Position))
+            .ToArray();
 
         projection = new AccessibleSceneProjection(
             definition.Id,
             definition.DisplayName,
             definitionPorts,
             components,
-            connections);
+            connections,
+            annotations);
         return true;
     }
 

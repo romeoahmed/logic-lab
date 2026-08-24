@@ -33,6 +33,7 @@ class CircuitSceneHandle {
     this.gesture = null;
     this.activeTool = Object.freeze({ kind: "select" });
     this.activeToolKey = '{"kind":"select"}';
+    this.pendingIntent = null;
     this.spacePan = false;
     this.connected = true;
     this.sceneOwnsDocumentFocus = false;
@@ -343,6 +344,11 @@ class CircuitSceneHandle {
       ? buildSpatialIndex(validated.value, this.policy)
       : new Map();
     this.cancelGesture();
+    if (this.pendingIntent
+        && (validated.value.projectionVersion !== this.pendingIntent.projectionVersion
+          || validated.value.sceneVersion > this.pendingIntent.sceneVersion)) {
+      this.pendingIntent = null;
+    }
     if (this.published?.circuitDefinitionId) {
       this.savedViewports.set(this.published.circuitDefinitionId, { ...this.viewport });
     }
@@ -658,6 +664,9 @@ class CircuitSceneHandle {
     const tool = this.spacePan || !this.connected
       ? { kind: "pan" }
       : this.activeTool;
+    if (tool.kind !== "pan" && this.pendingIntent) {
+      return;
+    }
     if (tool.kind !== "pan" && !this.published) {
       return;
     }
@@ -845,26 +854,19 @@ class CircuitSceneHandle {
       return;
     }
 
-    const key = sourceKey(source);
-    this.updateSelection([key], selectionMode);
-    this.focusedSource = key;
-    this.invalidate();
-
-    const intent = {
-      kind: "selectSources",
-      buildFingerprint: this.buildFingerprint,
+    const committed = this.emitIntent("selectSources", {
       sceneVersion: snapshot.sceneVersion,
       projectionVersion: snapshot.projectionVersion,
-      circuitDefinitionId: snapshot.circuitDefinitionId,
+    }, {
       sources: [source],
       selectionMode,
-    };
-    if (encodedJsonBytes(intent) > BigInt(this.policy.semanticIntentBytes)) {
-      void this.notifyFailure("browserPolicyExhausted");
-      return;
+    });
+    if (committed) {
+      const key = sourceKey(source);
+      this.updateSelection([key], selectionMode);
+      this.focusedSource = key;
+      this.invalidate();
     }
-    void this.dotnetSink?.invokeMethodAsync("ReceiveSceneIntentAsync", intent)
-      .catch(() => this.notifyFailure("invalidSnapshot"));
   }
 
   commitGesture(gesture, disableSnap) {
@@ -977,6 +979,18 @@ class CircuitSceneHandle {
       }
       return;
     }
+    const startNet = netFromHit(hit);
+    if (startNet && endTerminal) {
+      this.emitIntent("commitWire", gesture, {
+        terminals: [endTerminal],
+        destinationNet: startNet,
+        newJunctionPositions: [],
+        routeAdditions: [],
+        routeReplacements: [],
+        snapModifier: disableSnap ? "disableSnap" : "none",
+      });
+      return;
+    }
     const interaction = hit.item.interaction;
     const start = gridPoint(gesture.startWorld, snapshot, disableSnap);
     const end = gridPoint(gesture.currentWorld, snapshot, disableSnap);
@@ -988,19 +1002,10 @@ class CircuitSceneHandle {
         route: { kind: "orthogonal", points: [start, corner, end] },
         snapModifier: disableSnap ? "disableSnap" : "none",
       });
-    } else if (interaction?.interactionKind === "junction") {
-      this.emitIntent("removeJunction", gesture, {
-        junction: hit.item.source,
-        resultingPartitions: [],
-        routeReplacements: [],
-        routeRemovals: [],
-        snapModifier: disableSnap ? "disableSnap" : "none",
-      });
-    } else {
-      const net = netFromHit(hit);
-      if (net) {
+    } else if (moved) {
+      if (startNet) {
         this.emitIntent("addJunction", gesture, {
-          net,
+          net: startNet,
           position: end,
           routeAdditions: [],
           routeReplacements: [],
@@ -1013,7 +1018,7 @@ class CircuitSceneHandle {
 
   emitIntent(kind, gesture, payload) {
     const snapshot = this.published;
-    if (!snapshot || !this.connected
+    if (!snapshot || !this.connected || this.pendingIntent
         || gesture.sceneVersion !== snapshot.sceneVersion
         || gesture.projectionVersion !== snapshot.projectionVersion) {
       return false;
@@ -1030,6 +1035,10 @@ class CircuitSceneHandle {
       void this.notifyFailure("browserPolicyExhausted");
       return false;
     }
+    this.pendingIntent = Object.freeze({
+      sceneVersion: gesture.sceneVersion,
+      projectionVersion: gesture.projectionVersion,
+    });
     void this.dotnetSink?.invokeMethodAsync("ReceiveSceneIntentAsync", intent)
       .catch(() => this.notifyFailure("invalidSnapshot"));
     return true;

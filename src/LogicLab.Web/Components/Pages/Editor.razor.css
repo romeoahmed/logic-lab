@@ -154,6 +154,10 @@
   min-inline-size: 0;
 }
 
+.workbench-scene-region {
+  min-inline-size: 0;
+}
+
 .workbench-grid > * {
   min-inline-size: 0;
 }

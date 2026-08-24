@@ -75,7 +75,8 @@
 
 .component-list,
 .connection-list,
-.definition-port-list {
+.definition-port-list,
+.annotation-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -171,6 +172,41 @@
 
 .connections-heading {
   margin: 2rem 0 0.65rem;
+}
+
+.annotations-heading {
+  margin: 2rem 0 0.65rem;
+}
+
+.annotation-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.annotation-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--ll-border);
+  background: var(--ll-panel);
+}
+
+.semantic-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+[data-scene-action="remove"] {
+  min-block-size: 2.25rem;
+  min-inline-size: 2.25rem;
+  border: 1px solid var(--ll-border-strong);
+  border-radius: var(--ll-radius-small);
+  color: var(--ll-ink);
+  background: var(--ll-canvas);
 }
 
 .connection-list {

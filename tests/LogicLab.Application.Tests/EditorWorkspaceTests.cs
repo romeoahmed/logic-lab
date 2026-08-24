@@ -548,6 +548,10 @@ internal sealed class EditorWorkspaceTests
         {
             await Assert.That(rejectedCompilation.RejectionCode)
                 .IsEqualTo("compilation_invalid");
+            await Assert.That(rejectedCompilation.Diagnostics).IsNotEmpty();
+            await Assert.That(rejectedCompilation.Diagnostics.All(diagnostic =>
+                    diagnostic.Source?.Identity is InstancePortSourceIdentity))
+                .IsTrue();
             await Assert.That(sessionRejection.Code).IsEqualTo("session_precondition_failed");
             await Assert.That(projection.Compilation.Status)
                 .IsEqualTo(CompilationPublicationStatus.Rejected);

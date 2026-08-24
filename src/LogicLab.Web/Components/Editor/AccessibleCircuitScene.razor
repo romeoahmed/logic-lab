@@ -19,7 +19,8 @@
     }
     else if (Scene.Components.Count == 0
         && Scene.DefinitionPorts.Count == 0
-        && Scene.Connections.Count == 0)
+        && Scene.Connections.Count == 0
+        && Scene.Annotations.Count == 0)
     {
         <p class="empty-state" role="status">@Text["DefinitionReady"]</p>
     }
@@ -51,9 +52,14 @@
                                 class="scene-action"
                                 data-scene-source="@DefinitionPortSource(port).Key"
                                 @onfocus="@(() => FocusAsync(DefinitionPortSource(port)))"
-                                @onclick="@(() => SelectAsync(DefinitionPortSource(port)))">
+                                @onclick="@(() => ActivateAsync(DefinitionPortSource(port)))">
                             <strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]
                         </button>
+                        <div class="semantic-actions" aria-label="@Text["Move"]">
+                            <SceneNudgeButtons Source="DefinitionPortSource(port)"
+                                               OnAction="OnAction"
+                                               OnFocus="OnFocus" />
+                        </div>
                     </li>
                 }
             </ul>
@@ -71,7 +77,7 @@
                                         class="scene-action"
                                         data-scene-source="@ComponentSource(component).Key"
                                         @onfocus="@(() => FocusAsync(ComponentSource(component)))"
-                                        @onclick="@(() => SelectAsync(ComponentSource(component)))">
+                                        @onclick="@(() => ActivateAsync(ComponentSource(component)))">
                                     @component.Label
                                 </button>
                             </h3>
@@ -81,6 +87,18 @@
                             <h3>@component.Label</h3>
                         }
                         <p>@Text["GridPosition", component.Placement.Origin.X, component.Placement.Origin.Y]</p>
+                        @if (IsVisible(ComponentSource(component)))
+                        {
+                            <div class="semantic-actions" aria-label="@Text["ActionsFor", component.Label]">
+                                <SceneNudgeButtons Source="ComponentSource(component)"
+                                                   OnAction="OnAction"
+                                                   OnFocus="OnFocus" />
+                                <button type="button"
+                                        data-scene-action="remove"
+                                        @onfocus="@(() => FocusAsync(ComponentSource(component)))"
+                                        @onclick="@(() => RemoveAsync(ComponentSource(component)))">@Text["Remove"]</button>
+                            </div>
+                        }
                         <ul aria-label="@Text["PortsAriaLabel", component.Label]">
                             @foreach (var port in component.Ports.Where(port =>
                                 IsVisible(InstancePortSource(port))))
@@ -90,7 +108,7 @@
                                             class="scene-action"
                                             data-scene-source="@InstancePortSource(port).Key"
                                             @onfocus="@(() => FocusAsync(InstancePortSource(port)))"
-                                            @onclick="@(() => SelectAsync(InstancePortSource(port)))">
+                                            @onclick="@(() => ActivateAsync(InstancePortSource(port)))">
                                         <strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]
                                     </button>
                                 </li>
@@ -100,6 +118,36 @@
                 </li>
             }
         </ol>
+
+        @if (Scene.Annotations.Any(annotation => IsVisible(AnnotationSource(annotation))))
+        {
+            <h3 class="annotations-heading">@Text["Annotations"]</h3>
+            <ol class="annotation-list" aria-label="@Text["CircuitAnnotationsAriaLabel"]">
+                @foreach (var annotation in Scene.Annotations.Where(annotation =>
+                    IsVisible(AnnotationSource(annotation))))
+                {
+                    <li @key="annotation.Source"
+                        data-annotation="@annotation.Source.AnnotationId.Value">
+                        <button type="button"
+                                class="scene-action"
+                                data-scene-source="@AnnotationSource(annotation).Key"
+                                @onfocus="@(() => FocusAsync(AnnotationSource(annotation)))"
+                                @onclick="@(() => ActivateAsync(AnnotationSource(annotation)))">
+                            <bdi>@annotation.Text</bdi> · @Text["GridPosition", annotation.Position.X, annotation.Position.Y]
+                        </button>
+                        <div class="semantic-actions" aria-label="@Text["ActionsFor", annotation.Text]">
+                            <SceneNudgeButtons Source="AnnotationSource(annotation)"
+                                               OnAction="OnAction"
+                                               OnFocus="OnFocus" />
+                            <button type="button"
+                                    data-scene-action="remove"
+                                    @onfocus="@(() => FocusAsync(AnnotationSource(annotation)))"
+                                    @onclick="@(() => RemoveAsync(AnnotationSource(annotation)))">@Text["Remove"]</button>
+                        </div>
+                    </li>
+                }
+            </ol>
+        }
 
         <h3 class="connections-heading">@Text["Connections"]</h3>
         <ol class="connection-list" aria-label="@Text["ElectricalConnectionsAriaLabel"]">
@@ -114,7 +162,7 @@
                                         class="scene-action"
                                         data-scene-source="@NetSource(connection).Key"
                                         @onfocus="@(() => FocusAsync(NetSource(connection)))"
-                                        @onclick="@(() => SelectAsync(NetSource(connection)))">
+                                        @onclick="@(() => ActivateAsync(NetSource(connection)))">
                                     @TerminalPath(Scene, connection)
                                 </button>
                             }
@@ -136,7 +184,7 @@
                                             class="scene-action"
                                             data-scene-source="@JunctionSource(junction).Key"
                                             @onfocus="@(() => FocusAsync(JunctionSource(junction)))"
-                                            @onclick="@(() => SelectAsync(JunctionSource(junction)))">
+                                            @onclick="@(() => ActivateAsync(JunctionSource(junction)))">
                                         @Text["JunctionAtGrid", junction.Point.X, junction.Point.Y]
                                     </button>
                                 </li>
@@ -149,9 +197,13 @@
                                             class="scene-action"
                                             data-scene-source="@WireSource(geometry).Key"
                                             @onfocus="@(() => FocusAsync(WireSource(geometry)))"
-                                            @onclick="@(() => SelectAsync(WireSource(geometry)))">
+                                            @onclick="@(() => ActivateAsync(WireSource(geometry)))">
                                         @WireRouteLabel(geometry.Route)
                                     </button>
+                                    <button type="button"
+                                            data-scene-action="remove"
+                                            @onfocus="@(() => FocusAsync(WireSource(geometry)))"
+                                            @onclick="@(() => RemoveAsync(WireSource(geometry)))">@Text["Remove"]</button>
                                 </li>
                             }
                         </ul>
@@ -177,6 +229,9 @@
 
     [Parameter]
     public EventCallback<SceneSourceRefV1> OnFocus { get; set; }
+
+    [Parameter]
+    public EventCallback<SceneSemanticActionV1> OnAction { get; set; }
 
     [Parameter]
     public int PageSize { get; set; } = int.MaxValue;
@@ -222,6 +277,11 @@
             }
         }
 
+        foreach (var annotation in Scene.Annotations)
+        {
+            yield return AnnotationSource(annotation);
+        }
+
         foreach (var connection in Scene.Connections)
         {
             yield return NetSource(connection);
@@ -260,8 +320,12 @@
         OnParametersSet();
     }
 
-    private Task SelectAsync(SceneSourceRefV1 source) =>
-        OnSelect.InvokeAsync(new SceneSelectionV1([source], "replace"));
+    private Task ActivateAsync(SceneSourceRefV1 source) => OnAction.HasDelegate
+        ? OnAction.InvokeAsync(new ActivateSceneSemanticActionV1(source))
+        : OnSelect.InvokeAsync(new SceneSelectionV1([source], "replace"));
+
+    private Task RemoveAsync(SceneSourceRefV1 source) =>
+        OnAction.InvokeAsync(new RemoveSceneSemanticActionV1(source));
 
     private Task FocusAsync(SceneSourceRefV1 source) => OnFocus.InvokeAsync(source);
 
@@ -297,6 +361,12 @@
         wire.Source.CircuitDefinitionId.Value,
         "wireGeometry",
         wire.Source.WireGeometryId.Value);
+
+    private static SceneSourceRefV1 AnnotationSource(
+        AccessibleAnnotationProjection annotation) => new(
+            annotation.Source.CircuitDefinitionId.Value,
+            "annotation",
+            annotation.Source.AnnotationId.Value);
 
     private static string TerminalPath(
         AccessibleSceneProjection scene,

@@ -1,0 +1,39 @@
+.scene-tool-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.4rem;
+  padding: 0.65rem 0.8rem;
+  border-block-end: 1px solid var(--ll-border);
+  background: var(--ll-panel);
+}
+
+.scene-tool-strip label {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--ll-muted);
+  font-size: 0.72rem;
+}
+
+.scene-tool-strip button,
+.scene-tool-strip select {
+  min-block-size: 2.55rem;
+  padding-inline: 0.75rem;
+  border: 1px solid var(--ll-border-strong);
+  border-radius: var(--ll-radius-small);
+  color: var(--ll-ink);
+  background: var(--ll-canvas);
+  font: inherit;
+}
+
+.scene-tool-strip button[aria-pressed="true"],
+.scene-tool-strip select.active {
+  border-color: var(--ll-signal);
+  color: var(--ll-signal-strong);
+  background: var(--ll-signal-soft);
+}
+
+.scene-tool-strip :focus-visible {
+  outline: 3px solid var(--ll-signal);
+  outline-offset: 2px;
+}

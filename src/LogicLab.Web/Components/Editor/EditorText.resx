@@ -224,4 +224,19 @@
   <data name="SemanticScenePage" xml:space="preserve"><value>Page {0} of {1}</value></data>
   <data name="Previous" xml:space="preserve"><value>Previous</value></data>
   <data name="Next" xml:space="preserve"><value>Next</value></data>
+  <data name="ActionsFor" xml:space="preserve"><value>Actions for {0}</value></data>
+  <data name="Annotations" xml:space="preserve"><value>Annotations</value></data>
+  <data name="CircuitAnnotationsAriaLabel" xml:space="preserve"><value>Circuit annotations</value></data>
+  <data name="Move" xml:space="preserve"><value>Move</value></data>
+  <data name="NudgeDown" xml:space="preserve"><value>Move down one grid step</value></data>
+  <data name="NudgeLeft" xml:space="preserve"><value>Move left one grid step</value></data>
+  <data name="NudgeRight" xml:space="preserve"><value>Move right one grid step</value></data>
+  <data name="NudgeUp" xml:space="preserve"><value>Move up one grid step</value></data>
+  <data name="ChooseComponent" xml:space="preserve"><value>Choose component</value></data>
+  <data name="ComponentCatalogAriaLabel" xml:space="preserve"><value>Component catalog for the Place tool</value></data>
+  <data name="PanTool" xml:space="preserve"><value>Pan</value></data>
+  <data name="PlaceTool" xml:space="preserve"><value>Place</value></data>
+  <data name="SceneToolsAriaLabel" xml:space="preserve"><value>Circuit scene tools</value></data>
+  <data name="SelectTool" xml:space="preserve"><value>Select</value></data>
+  <data name="WireTool" xml:space="preserve"><value>Wire</value></data>
 </root>

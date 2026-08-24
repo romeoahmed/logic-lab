@@ -4,6 +4,8 @@ using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Scene;
 using LogicLab.Web.Components.Editor;
+using LogicLab.Web.Scene;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
 using TUnit.Assertions.Enums;
@@ -146,6 +148,44 @@ internal sealed class AccessibleCircuitSceneTests
             await Assert.That(rendered.FindAll("[data-scene-source]")).Count().IsEqualTo(1);
             await Assert.That(firstSource).IsNotEqualTo(secondSource);
             await Assert.That(rendered.FindAll(".semantic-pager")).Count().IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task AccessibleCircuitScene_Annotation_ExposesMoveAndRemoveActions()
+    {
+        await using var context = CreateContext();
+        var revision = WebTestCircuit.CreateCompleteCircuit();
+        revision = WebTestCircuit.Commit(ProjectEditor.Apply(
+            revision,
+            new CreateAnnotationIntent(
+                revision.Document.EntryCircuitDefinitionId,
+                new AnnotationValue(
+                    "Carry output",
+                    new GridPoint(3, 2),
+                    AnnotationAlignment.Start))));
+        var scene = Project(revision);
+        var actions = new List<SceneSemanticActionV1>();
+
+        var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
+            .Add(component => component.Scene, scene)
+            .Add(component => component.OnAction,
+                EventCallback.Factory.Create<SceneSemanticActionV1>(
+                    this,
+                    actions.Add)));
+        var annotation = rendered.Find("[data-annotation]");
+        await annotation.QuerySelector("[data-scene-action='nudge']")!.ClickAsync();
+        await annotation.QuerySelector("[data-scene-action='remove']")!.ClickAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(annotation.TextContent).Contains("Carry output");
+            await Assert.That(annotation.QuerySelectorAll("[data-scene-action='nudge']"))
+                .Count().IsEqualTo(4);
+            await Assert.That(annotation.QuerySelectorAll("[data-scene-action='remove']"))
+                .HasSingleItem();
+            await Assert.That(actions[0]).IsTypeOf<NudgeSceneSemanticActionV1>();
+            await Assert.That(actions[1]).IsTypeOf<RemoveSceneSemanticActionV1>();
         }
     }
 
