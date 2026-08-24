@@ -2,36 +2,54 @@
 
 <div class="scene-tool-strip"
      role="@ToolbarRole"
-     aria-label="@Text["SceneToolsAriaLabel"]"
-     @ref="toolbarElement">
+     aria-label="@Text["SceneToolsAriaLabel"]">
     <button type="button"
+            @ref="selectToolElement"
             data-scene-tool="select"
-            tabindex="@ToolbarTabIndex(isEntry: true)"
+            tabindex="@ToolbarTabIndex(SelectToolKey)"
             aria-pressed="@(ActiveTool is SceneSelectToolV1 ? "true" : "false")"
+            @onfocus="@(() => TrackToolbarFocus(SelectToolKey))"
+            @onblur="ReleaseToolbarFocus"
+            @onkeydown="@(eventArgs => MoveToolbarFocus(eventArgs, SelectToolKey))"
             @onclick="@(() => ChangeToolAsync(SceneSelectToolV1.Instance))">@Text["SelectTool"]</button>
     <button type="button"
+            @ref="wireToolElement"
             data-scene-tool="wire"
-            tabindex="@ToolbarTabIndex(isEntry: false)"
+            tabindex="@ToolbarTabIndex(WireToolKey)"
             aria-pressed="@(ActiveTool is SceneWireToolV1 ? "true" : "false")"
+            @onfocus="@(() => TrackToolbarFocus(WireToolKey))"
+            @onblur="ReleaseToolbarFocus"
+            @onkeydown="@(eventArgs => MoveToolbarFocus(eventArgs, WireToolKey))"
             @onclick="@(() => ChangeToolAsync(SceneWireToolV1.Instance))">@Text["WireTool"]</button>
     <button type="button"
+            @ref="probeToolElement"
             data-scene-tool="probe"
-            tabindex="@ToolbarTabIndex(isEntry: false)"
+            tabindex="@ToolbarTabIndex(ProbeToolKey)"
             disabled="@(!CanProbe || HierarchyPath is null)"
             aria-pressed="@(ActiveTool is SceneProbeToolV1 ? "true" : "false")"
+            @onfocus="@(() => TrackToolbarFocus(ProbeToolKey))"
+            @onblur="ReleaseToolbarFocus"
+            @onkeydown="@(eventArgs => MoveToolbarFocus(eventArgs, ProbeToolKey))"
             @onclick="SelectProbeToolAsync">@Text["Probe"]</button>
     <button type="button"
+            @ref="panToolElement"
             data-scene-tool="pan"
-            tabindex="@ToolbarTabIndex(isEntry: false)"
+            tabindex="@ToolbarTabIndex(PanToolKey)"
             aria-pressed="@(ActiveTool is ScenePanToolV1 ? "true" : "false")"
+            @onfocus="@(() => TrackToolbarFocus(PanToolKey))"
+            @onblur="ReleaseToolbarFocus"
+            @onkeydown="@(eventArgs => MoveToolbarFocus(eventArgs, PanToolKey))"
             @onclick="@(() => ChangeToolAsync(ScenePanToolV1.Instance))">@Text["PanTool"]</button>
     <label>
         <span>@Text["PlaceTool"]</span>
         <select data-scene-tool="place"
-                tabindex="@ToolbarTabIndex(isEntry: false)"
+                @ref="placeToolElement"
+                tabindex="@ToolbarTabIndex(PlaceToolKey)"
                 class="@(ActiveTool is ScenePlaceToolV1 ? "active" : null)"
                 aria-label="@Text["ComponentCatalogAriaLabel"]"
                 value="@SelectedPlaceOptionId"
+                @onfocus="@(() => TrackToolbarFocus(PlaceToolKey))"
+                @onblur="ReleaseToolbarFocus"
                 @onchange="SelectPlaceToolAsync">
             <option value="">@Text["ChooseComponent"]</option>
             @foreach (var option in PlaceOptions)

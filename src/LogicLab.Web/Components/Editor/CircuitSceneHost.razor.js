@@ -553,8 +553,6 @@ class CircuitSceneHandle {
     const rect = this.canvas.getBoundingClientRect();
     if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height)
         || rect.width <= 0 || rect.height <= 0) {
-      this.cssWidth = 0;
-      this.cssHeight = 0;
       return;
     }
 
@@ -2141,13 +2139,21 @@ function netFromHit(hit) {
 }
 
 function gridPoint(world, snapshot, disableSnap) {
-  const snap = disableSnap ? 1 : snapshot.snapStepGridUnits;
   return {
-    x: checkedInteger(roundHalfNegativeInfinity(
-      world.x / snapshot.gridStepPlanUnits / snap) * snap),
-    y: checkedInteger(roundHalfNegativeInfinity(
-      world.y / snapshot.gridStepPlanUnits / snap) * snap),
+    x: gridCoordinate(world.x, snapshot, disableSnap),
+    y: gridCoordinate(world.y, snapshot, disableSnap),
   };
+}
+
+function gridCoordinate(worldCoordinate, snapshot, disableSnap) {
+  const integerGridCoordinate = checkedInteger(roundHalfNegativeInfinity(
+    worldCoordinate / snapshot.gridStepPlanUnits));
+  if (disableSnap) {
+    return integerGridCoordinate;
+  }
+
+  return checkedInteger(roundHalfNegativeInfinity(
+    integerGridCoordinate / snapshot.snapStepGridUnits) * snapshot.snapStepGridUnits);
 }
 
 function gridToWorld(point, snapshot) {
