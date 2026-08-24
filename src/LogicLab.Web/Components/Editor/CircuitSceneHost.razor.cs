@@ -492,10 +492,16 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         }
         catch (BrowserSceneContractException exception)
         {
-            failedKey = key;
-            FailClosed(exception.TransferKind == "patch"
-                ? "invalidPatch"
-                : "invalidSnapshot");
+            // A browser-owned policy failure clears the bitmap and reports its terminal
+            // state before the rejected transfer returns. Preserve that authoritative
+            // classification instead of overwriting it as a malformed candidate.
+            if (observedFailureEpoch == failureEpoch)
+            {
+                failedKey = key;
+                FailClosed(exception.TransferKind == "patch"
+                    ? "invalidPatch"
+                    : "invalidSnapshot");
+            }
         }
         catch (Exception exception) when (IsRecoverable(exception))
         {

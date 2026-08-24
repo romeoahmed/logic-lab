@@ -29,6 +29,23 @@
             <p>@Text["CircuitCanvasFallback"]</p>
         </canvas>
 
+        <div class="scene-zoom-controls"
+             role="group"
+             aria-label="@Text["CanvasZoomControls"]">
+            <button type="button"
+                    data-scene-zoom="out"
+                    title="@Text["ZoomOut"]"
+                    aria-label="@Text["ZoomOut"]">−</button>
+            <button type="button"
+                    data-scene-zoom="fit"
+                    title="@Text["ZoomToFit"]"
+                    aria-label="@Text["ZoomToFit"]">□</button>
+            <button type="button"
+                    data-scene-zoom="in"
+                    title="@Text["ZoomIn"]"
+                    aria-label="@Text["ZoomIn"]">+</button>
+        </div>
+
         @if (rendererState != RendererReadyState)
         {
             <div class="renderer-recovery" role="status" data-scene-recovery="@failureCode">
