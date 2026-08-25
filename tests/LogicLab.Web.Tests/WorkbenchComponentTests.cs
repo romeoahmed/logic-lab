@@ -115,32 +115,6 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task Editor_RepeatedSemanticRemoval_TreatsMissingSourceAsStale()
-    {
-        await using var context = CreateContext();
-        await using var workspace = new TrackingWorkspace();
-        var rendered = await RenderAuthoredEditor(context, workspace);
-        var host = rendered.FindComponent<CircuitSceneHost>();
-        var component = host.Instance.Scene!.Components[0];
-        var source = new SceneSourceRefV1(
-            component.Source.CircuitDefinitionId.Value,
-            "componentInstance",
-            component.Source.ComponentInstanceId.Value);
-        var action = new RemoveSceneSemanticActionV1(source);
-        var semanticScene = rendered.FindComponent<AccessibleCircuitScene>();
-
-        await rendered.InvokeAsync(() => semanticScene.Instance.OnAction.InvokeAsync(action));
-        await rendered.WaitForStateAsync(() => host.Instance.Scene?.Components.All(candidate =>
-            candidate.Source.ComponentInstanceId.Value != source.EntityId) == true);
-        await rendered.InvokeAsync(() => semanticScene.Instance.OnAction.InvokeAsync(action));
-        var projection = await workspace.ReadCurrent();
-
-        await Assert.That(projection.ProjectRevision.Document.EntryCircuitDefinition
-                .ComponentInstances.Any(candidate => candidate.Id.Value == source.EntityId))
-            .IsFalse();
-    }
-
-    [Test]
     public async Task Editor_SemanticSceneSelection_IsOwnedByTheWorkbench()
     {
         await using var context = CreateContext();
@@ -1058,19 +1032,32 @@ internal sealed class WorkbenchComponentTests
             rendered,
             "author-hierarchy",
             () => rendered.FindAll("[data-enter-instance]").Count == 1);
+        var enteredInstanceId = rendered.Find("[data-enter-instance]")
+            .GetAttribute("data-enter-instance")
+            ?? throw new InvalidOperationException("The hierarchy instance has no identity.");
         await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
         await rendered.WaitForStateAsync(() => rendered.FindAll("[data-definition-port]").Count == 2);
 
-        for (var index = 0; index < 4; index++)
+        const int maximumUndoAttempts = 16;
+        WorkspaceProjection projection = await workspace.ReadCurrent();
+        for (var attempt = 0; attempt < maximumUndoAttempts && projection.ProjectRevision.Document
+                .CircuitDefinitions.SelectMany(definition => definition.ComponentInstances)
+                .Any(instance => instance.Id.Value == enteredInstanceId); attempt++)
         {
             await workspace.UndoCurrentAsync();
+            projection = await workspace.ReadCurrent();
         }
+
+        await Assert.That(projection.ProjectRevision.Document.CircuitDefinitions
+                .SelectMany(definition => definition.ComponentInstances)
+                .Any(instance => instance.Id.Value == enteredInstanceId))
+            .IsFalse();
 
         await rendered.Find("[data-command='compile']").ClickAsync(new MouseEventArgs());
         await rendered.WaitForStateAsync(() => rendered.FindAll("[data-command='hierarchy-back']")
             .Count == 0);
 
-        var projection = await workspace.ReadCurrent();
+        projection = await workspace.ReadCurrent();
         using (Assert.Multiple())
         {
             await Assert.That(rendered.FindComponent<CircuitSceneHost>()

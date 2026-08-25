@@ -13,6 +13,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\..\src\LogicLab.Web\Components\Editor\CircuitSceneHost.razor.css"
+             Link="CircuitSceneHost.razor.css"
+             CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\src\LogicLab.Web\Components\Editor\CircuitSceneHost.razor.js"
              Link="CircuitSceneHost.razor.js"
              CopyToOutputDirectory="PreserveNewest" />

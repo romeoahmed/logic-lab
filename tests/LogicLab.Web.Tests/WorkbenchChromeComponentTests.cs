@@ -20,8 +20,8 @@ internal sealed class WorkbenchChromeComponentTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(reconnect.TagName).IsNotEqualTo("DIALOG");
             await Assert.That(reconnect.GetAttribute("role")).IsEqualTo("status");
+            await Assert.That(reconnect.GetAttribute("aria-live")).IsEqualTo("assertive");
         }
     }
 

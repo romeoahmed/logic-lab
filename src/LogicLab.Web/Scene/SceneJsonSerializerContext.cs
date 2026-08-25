@@ -11,6 +11,7 @@ namespace LogicLab.Web.Scene;
 [JsonSerializable(typeof(SceneSnapshotV1))]
 [JsonSerializable(typeof(SceneUnavailableV1))]
 [JsonSerializable(typeof(ScenePatchV1))]
+[JsonSerializable(typeof(SceneToolV1))]
 [JsonSerializable(typeof(SceneItemV1))]
 [JsonSerializable(typeof(SceneOverlayV1))]
 [JsonSerializable(typeof(BrowserSceneRecoveryStateV1))]

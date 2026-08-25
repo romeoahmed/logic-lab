@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="LogicLab.Web.BrowserTests" />
     <InternalsVisibleTo Include="LogicLab.Web.Tests" />
   </ItemGroup>
 
