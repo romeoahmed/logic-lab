@@ -15,7 +15,10 @@
         </div>
         @if (Scene is not null)
         {
-            <span class="scene-count">@Text["SceneCount", Scene.Components.Count, Scene.Connections.Count]</span>
+            <FluentBadge Appearance="BadgeAppearance.Outline"
+                         Color="BadgeColor.Subtle"
+                         Size="BadgeSize.Small"
+                         Content="@Text["SceneCount", Scene.Components.Count, Scene.Connections.Count]" />
         }
     </div>
 
@@ -43,34 +46,58 @@
         <div class="scene-zoom-controls"
              role="group"
              aria-label="@Text["CanvasZoomControls"]">
-            <button type="button"
-                    data-scene-zoom="out"
-                    title="@Text["ZoomOut"]"
-                    aria-label="@Text["ZoomOut"]">−</button>
-            <button type="button"
-                    data-scene-zoom="fit"
-                    title="@Text["ZoomToFit"]"
-                    aria-label="@Text["ZoomToFit"]">□</button>
-            <button type="button"
-                    data-scene-zoom="in"
-                    title="@Text["ZoomIn"]"
-                    aria-label="@Text["ZoomIn"]">+</button>
+            <FluentButton data-scene-zoom="out"
+                          Type="ButtonType.Button"
+                          Shape="ButtonShape.Square"
+                          Appearance="ButtonAppearance.Subtle"
+                          IconOnly="true"
+                          Title="@Text["ZoomOut"]">−</FluentButton>
+            <FluentButton data-scene-zoom="fit"
+                          Type="ButtonType.Button"
+                          Shape="ButtonShape.Square"
+                          Appearance="ButtonAppearance.Subtle"
+                          IconOnly="true"
+                          Title="@Text["ZoomToFit"]">□</FluentButton>
+            <FluentButton data-scene-zoom="in"
+                          Type="ButtonType.Button"
+                          Shape="ButtonShape.Square"
+                          Appearance="ButtonAppearance.Subtle"
+                          IconOnly="true"
+                          Title="@Text["ZoomIn"]">+</FluentButton>
         </div>
 
         @if (rendererState != RendererReadyState)
         {
             <div class="renderer-recovery"
-                 role="status"
                  data-scene-recovery="@failureCode"
                  data-browser-policy-id="@browserPolicyEvidence?.PolicyId"
                  data-browser-policy-revision="@browserPolicyEvidence?.PolicyRevision"
                  data-browser-policy-dimension="@browserPolicyEvidence?.DimensionToken"
                  data-browser-policy-observed="@browserPolicyEvidence?.Observed">
-                <p>@RendererMessage</p>
-                @if (rendererState == RendererUnavailableState)
-                {
-                    <button type="button" @onclick="RetryAsync">@Text["RetryCanvas"]</button>
-                }
+                <FluentMessageBar Class="renderer-message"
+                                  AllowDismiss="false"
+                                  AriaLive="AriaLive.Off"
+                                  Intent="@RendererIntent"
+                                  Layout="MessageBarLayout.Notification"
+                                  Shape="MessageBarShape.Square">
+                    <ChildContent>
+                        @if (rendererState != RendererUnavailableState)
+                        {
+                            <FluentSpinner Size="SpinnerSize.Small" />
+                        }
+                        <span>@RendererMessage</span>
+                    </ChildContent>
+                    <ActionsTemplate>
+                        @if (rendererState == RendererUnavailableState)
+                        {
+                            <FluentButton data-scene-retry
+                                          Type="ButtonType.Button"
+                                          Size="ButtonSize.Small"
+                                          Appearance="ButtonAppearance.Primary"
+                                          OnClick="@(_ => RetryAsync())">@Text["RetryCanvas"]</FluentButton>
+                        }
+                    </ActionsTemplate>
+                </FluentMessageBar>
             </div>
         }
     </div>

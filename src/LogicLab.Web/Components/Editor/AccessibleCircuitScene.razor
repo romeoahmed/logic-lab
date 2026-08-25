@@ -8,7 +8,10 @@
         </div>
         @if (Scene is not null)
         {
-            <span class="scene-count">@Text["SceneCount", Scene.Components.Count, Scene.Connections.Count]</span>
+            <FluentBadge Appearance="BadgeAppearance.Outline"
+                         Color="BadgeColor.Subtle"
+                         Size="BadgeSize.Small"
+                         Content="@Text["SceneCount", Scene.Components.Count, Scene.Connections.Count]" />
         }
     </div>
 
@@ -28,13 +31,23 @@
         @if (totalPages > 1)
         {
             <nav class="semantic-pager" aria-label="@Text["SemanticScenePagesAriaLabel"]">
-                <button type="button" disabled="@(pageIndex == 0)" @onclick="PreviousPage">
+                <FluentButton data-scene-page="previous"
+                              Type="ButtonType.Button"
+                              Size="ButtonSize.Small"
+                              Appearance="ButtonAppearance.Outline"
+                              Disabled="@(pageIndex == 0)"
+                              OnClick="@(_ => PreviousPage())">
                     @Text["Previous"]
-                </button>
+                </FluentButton>
                 <span>@Text["SemanticScenePage", pageIndex + 1, totalPages]</span>
-                <button type="button" disabled="@(pageIndex + 1 == totalPages)" @onclick="NextPage">
+                <FluentButton data-scene-page="next"
+                              Type="ButtonType.Button"
+                              Size="ButtonSize.Small"
+                              Appearance="ButtonAppearance.Outline"
+                              Disabled="@(pageIndex + 1 == totalPages)"
+                              OnClick="@(_ => NextPage())">
                     @Text["Next"]
-                </button>
+                </FluentButton>
             </nav>
         }
 
@@ -56,7 +69,11 @@
                             <strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]
                             @if (IsSelected(DefinitionPortSource(port)))
                             {
-                                <span class="selection-indicator">@Text["Selected"]</span>
+                                <FluentBadge Class="selection-indicator"
+                                             Appearance="BadgeAppearance.Tint"
+                                             Color="BadgeColor.Brand"
+                                             Size="BadgeSize.Tiny"
+                                             Content="@Text["Selected"]" />
                             }
                         </SceneSourceButton>
                         <div class="semantic-actions" aria-label="@Text["Move"]">
@@ -87,7 +104,11 @@
                                     @component.Label
                                     @if (IsSelected(ComponentSource(component)))
                                     {
-                                        <span class="selection-indicator">@Text["Selected"]</span>
+                                        <FluentBadge Class="selection-indicator"
+                                                     Appearance="BadgeAppearance.Tint"
+                                                     Color="BadgeColor.Brand"
+                                                     Size="BadgeSize.Tiny"
+                                                     Content="@Text["Selected"]" />
                                     }
                                 </SceneSourceButton>
                             </h3>
@@ -104,10 +125,12 @@
                                                    Position="component.Placement.Origin"
                                                    OnAction="OnAction"
                                                    OnFocus="OnFocus" />
-                                <button type="button"
-                                        data-scene-action="remove"
-                                        @onfocus="@(() => FocusAsync(ComponentSource(component)))"
-                                        @onclick="@(() => RemoveAsync(ComponentSource(component)))">@Text["Remove"]</button>
+                                <FluentButton data-scene-action="remove"
+                                              Type="ButtonType.Button"
+                                              Size="ButtonSize.Small"
+                                              Appearance="ButtonAppearance.Subtle"
+                                              @onfocus="@(() => FocusAsync(ComponentSource(component)))"
+                                              OnClick="@(_ => RemoveAsync(ComponentSource(component)))">@Text["Remove"]</FluentButton>
                             </div>
                         }
                         <ul aria-label="@Text["PortsAriaLabel", component.Label]">
@@ -124,7 +147,11 @@
                                         <strong>@port.Label</strong> · @PortDirectionText(port.Direction) · @Text["PortCount", port.Width]
                                         @if (IsSelected(InstancePortSource(port)))
                                         {
-                                            <span class="selection-indicator">@Text["Selected"]</span>
+                                            <FluentBadge Class="selection-indicator"
+                                                         Appearance="BadgeAppearance.Tint"
+                                                         Color="BadgeColor.Brand"
+                                                         Size="BadgeSize.Tiny"
+                                                         Content="@Text["Selected"]" />
                                         }
                                     </SceneSourceButton>
                                 </li>
@@ -153,7 +180,11 @@
                             <bdi>@annotation.Text</bdi> · @Text["GridPosition", annotation.Position.X, annotation.Position.Y]
                             @if (IsSelected(AnnotationSource(annotation)))
                             {
-                                <span class="selection-indicator">@Text["Selected"]</span>
+                                <FluentBadge Class="selection-indicator"
+                                             Appearance="BadgeAppearance.Tint"
+                                             Color="BadgeColor.Brand"
+                                             Size="BadgeSize.Tiny"
+                                             Content="@Text["Selected"]" />
                             }
                         </SceneSourceButton>
                         <div class="semantic-actions" aria-label="@Text["ActionsFor", annotation.Text]">
@@ -161,10 +192,12 @@
                                                Position="annotation.Position"
                                                OnAction="OnAction"
                                                OnFocus="OnFocus" />
-                            <button type="button"
-                                    data-scene-action="remove"
-                                    @onfocus="@(() => FocusAsync(AnnotationSource(annotation)))"
-                                    @onclick="@(() => RemoveAsync(AnnotationSource(annotation)))">@Text["Remove"]</button>
+                            <FluentButton data-scene-action="remove"
+                                          Type="ButtonType.Button"
+                                          Size="ButtonSize.Small"
+                                          Appearance="ButtonAppearance.Subtle"
+                                          @onfocus="@(() => FocusAsync(AnnotationSource(annotation)))"
+                                          OnClick="@(_ => RemoveAsync(AnnotationSource(annotation)))">@Text["Remove"]</FluentButton>
                         </div>
                     </li>
                 }
@@ -189,7 +222,11 @@
                                     @TerminalPath(Scene, connection)
                                     @if (IsSelected(NetSource(connection)))
                                     {
-                                        <span class="selection-indicator">@Text["Selected"]</span>
+                                        <FluentBadge Class="selection-indicator"
+                                                     Appearance="BadgeAppearance.Tint"
+                                                     Color="BadgeColor.Brand"
+                                                     Size="BadgeSize.Tiny"
+                                                     Content="@Text["Selected"]" />
                                     }
                                 </SceneSourceButton>
                             }
@@ -216,7 +253,11 @@
                                         @Text["JunctionAtGrid", junction.Point.X, junction.Point.Y]
                                         @if (IsSelected(JunctionSource(junction)))
                                         {
-                                            <span class="selection-indicator">@Text["Selected"]</span>
+                                            <FluentBadge Class="selection-indicator"
+                                                         Appearance="BadgeAppearance.Tint"
+                                                         Color="BadgeColor.Brand"
+                                                         Size="BadgeSize.Tiny"
+                                                         Content="@Text["Selected"]" />
                                         }
                                     </SceneSourceButton>
                                 </li>
@@ -234,13 +275,19 @@
                                         @WireRouteLabel(geometry.Route)
                                         @if (IsSelected(WireSource(geometry)))
                                         {
-                                            <span class="selection-indicator">@Text["Selected"]</span>
+                                            <FluentBadge Class="selection-indicator"
+                                                         Appearance="BadgeAppearance.Tint"
+                                                         Color="BadgeColor.Brand"
+                                                         Size="BadgeSize.Tiny"
+                                                         Content="@Text["Selected"]" />
                                         }
                                     </SceneSourceButton>
-                                    <button type="button"
-                                            data-scene-action="remove"
-                                            @onfocus="@(() => FocusAsync(WireSource(geometry)))"
-                                            @onclick="@(() => RemoveAsync(WireSource(geometry)))">@Text["Remove"]</button>
+                                    <FluentButton data-scene-action="remove"
+                                                  Type="ButtonType.Button"
+                                                  Size="ButtonSize.Small"
+                                                  Appearance="ButtonAppearance.Subtle"
+                                                  @onfocus="@(() => FocusAsync(WireSource(geometry)))"
+                                                  OnClick="@(_ => RemoveAsync(WireSource(geometry)))">@Text["Remove"]</FluentButton>
                                 </li>
                             }
                         </ul>

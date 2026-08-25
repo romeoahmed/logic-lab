@@ -8,7 +8,12 @@
     <dl class="status-facts" aria-label="@Text["WorkbenchStatusAriaLabel"]">
         <div data-status="connection">
             <dt>@Text["Connection"]</dt>
-            <dd><span class="@StatusDotClass" aria-hidden="true"></span>@Connection</dd>
+            <dd>
+                <FluentBadge Appearance="BadgeAppearance.Tint"
+                             Color="@ConnectionBadgeColor"
+                             Size="BadgeSize.Small"
+                             Content="@Connection" />
+            </dd>
         </div>
         <div data-status="logical-time">
             <dt>@Text["LogicalTime"]</dt>

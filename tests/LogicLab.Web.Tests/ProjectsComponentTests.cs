@@ -3,7 +3,6 @@ using LogicLab.Application.Workspaces;
 using LogicLab.Web.Projects;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.FluentUI.AspNetCore.Components;
 using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
@@ -26,7 +25,6 @@ internal sealed class ProjectsComponentTests
             new ProjectCatalogCursor("protected+/cursor="));
         context.Services.AddAuthorizationCore();
         context.Services.AddAntiforgery();
-        context.Services.AddFluentUIComponents();
         context.Services.AddSingleton(new DurableProjectCatalogPageState
         {
             Page = page,
@@ -72,7 +70,6 @@ internal sealed class ProjectsComponentTests
         await using var context = WebTestContext.CreateBunitContext();
         context.Services.AddAuthorizationCore();
         context.Services.AddAntiforgery();
-        context.Services.AddFluentUIComponents();
         context.Services.AddSingleton(new DurableProjectCatalogPageState
         {
             Page = new DurableProjectPage([], next: null),
@@ -98,7 +95,6 @@ internal sealed class ProjectsComponentTests
         await using var context = WebTestContext.CreateBunitContext();
         context.Services.AddAuthorizationCore();
         context.Services.AddAntiforgery();
-        context.Services.AddFluentUIComponents();
         context.Services.AddSingleton(new DurableProjectCatalogPageState
         {
             Page = new DurableProjectPage(

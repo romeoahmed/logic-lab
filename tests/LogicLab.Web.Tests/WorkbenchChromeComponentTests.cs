@@ -140,7 +140,6 @@ internal sealed class WorkbenchChromeComponentTests
             .SetupModule(
                 "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/InputFile/FluentInputFile.razor.js")
             .Mode = JSRuntimeMode.Loose;
-        context.Services.AddFluentUIComponents();
         return context;
     }
 }

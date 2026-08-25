@@ -8,7 +8,6 @@ using LogicLab.Web.Components.Pages;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.FluentUI.AspNetCore.Components;
 
 namespace LogicLab.Web.Tests;
 
@@ -605,7 +604,6 @@ internal sealed class EditorDurableRouteTests
             .SetupModule(
                 "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/KeyCode/FluentKeyCode.razor.js")
             .Mode = JSRuntimeMode.Loose;
-        context.Services.AddFluentUIComponents();
         context.Services.AddSingleton(TimeProvider.System);
         context.Services.AddSingleton(PackagePolicy.Development);
         context.Services.AddSingleton(workspace);

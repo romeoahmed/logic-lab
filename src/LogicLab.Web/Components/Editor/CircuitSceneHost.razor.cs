@@ -7,6 +7,7 @@ using LogicLab.Presentation.Scene;
 using LogicLab.Web.Scene;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Localization;
+using Microsoft.FluentUI.AspNetCore.Components;
 using Microsoft.JSInterop;
 
 namespace LogicLab.Web.Components.Editor;
@@ -108,6 +109,10 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         RendererUnavailableState => Text["CanvasUnavailable"],
         _ => Text["CanvasStarting"],
     };
+
+    private MessageBarIntent RendererIntent => rendererState == RendererUnavailableState
+        ? MessageBarIntent.Error
+        : MessageBarIntent.Info;
 
     private SceneToolV1 EffectiveTool => ActiveTool is SceneProbeToolV1 && Simulation is null
         ? SceneSelectToolV1.Instance

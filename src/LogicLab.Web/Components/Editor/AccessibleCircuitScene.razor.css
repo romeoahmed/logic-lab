@@ -35,20 +35,10 @@
   text-transform: uppercase;
 }
 
-.scene-count,
 .empty-state,
 .component-card p,
 .connection-list small {
   color: var(--ll-muted);
-}
-
-.scene-count {
-  padding: 0.35rem 0.55rem;
-  border: 1px solid var(--ll-border);
-  border-radius: var(--ll-radius-small);
-  background: color-mix(in oklab, var(--ll-canvas) 85%, transparent);
-  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
-  font-size: 0.75rem;
 }
 
 .empty-state {
@@ -130,15 +120,8 @@
   background: color-mix(in oklab, var(--ll-panel) 88%, var(--ll-signal-soft));
 }
 
-.selection-indicator {
-  display: inline-block;
+.scene ::deep .selection-indicator {
   margin-inline-start: 0.4rem;
-  padding: 0.1rem 0.3rem;
-  border: 1px solid currentcolor;
-  border-radius: var(--ll-radius-small);
-  font-size: 0.7em;
-  font-weight: 700;
-  text-decoration: none;
 }
 
 .semantic-pager {
@@ -147,16 +130,6 @@
   justify-content: end;
   gap: 0.75rem;
   margin-block-end: 1rem;
-}
-
-.semantic-pager button {
-  min-block-size: 2.75rem;
-  padding-inline: 0.8rem;
-  border: 1px solid var(--ll-border-strong);
-  border-radius: var(--ll-radius-small);
-  background: var(--ll-panel);
-  color: var(--ll-ink);
-  font: inherit;
 }
 
 .component-card h3,
@@ -197,15 +170,6 @@
   display: inline-flex;
   flex-wrap: wrap;
   gap: 0.25rem;
-}
-
-[data-scene-action="remove"] {
-  min-block-size: 2.25rem;
-  min-inline-size: 2.25rem;
-  border: 1px solid var(--ll-border-strong);
-  border-radius: var(--ll-radius-small);
-  color: var(--ll-ink);
-  background: var(--ll-canvas);
 }
 
 .connection-list {

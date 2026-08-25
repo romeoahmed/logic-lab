@@ -26,15 +26,6 @@
   text-transform: uppercase;
 }
 
-.scene-count {
-  padding: 0.35rem 0.55rem;
-  border: 1px solid var(--ll-border);
-  border-radius: var(--ll-radius-small);
-  color: var(--ll-muted);
-  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
-  font-size: 0.75rem;
-}
-
 .canvas-frame {
   position: relative;
   min-block-size: 30rem;
@@ -77,23 +68,6 @@
   background: color-mix(in oklab, var(--ll-canvas) 92%, transparent);
 }
 
-.scene-zoom-controls button {
-  inline-size: 2.75rem;
-  min-block-size: 2.75rem;
-  border: 1px solid var(--ll-border-strong);
-  border-radius: var(--ll-radius-small);
-  background: var(--ll-canvas);
-  color: var(--ll-ink);
-  font: inherit;
-  font-weight: 700;
-}
-
-.scene-zoom-controls button:hover,
-.scene-zoom-controls button:focus-visible {
-  border-color: var(--ll-signal);
-  color: var(--ll-signal);
-}
-
 .circuit-scene-shell:not([data-scene-renderer="ready"]) .scene-zoom-controls {
   display: none;
 }
@@ -107,24 +81,10 @@
   gap: 1rem;
   padding: 2rem;
   background: color-mix(in oklab, var(--ll-canvas) 92%, transparent);
-  color: var(--ll-muted);
-  text-align: center;
 }
 
-.renderer-recovery p {
-  max-inline-size: 34rem;
-  margin: 0;
-}
-
-.renderer-recovery button {
-  min-block-size: 2.75rem;
-  padding-inline: 1rem;
-  border: 1px solid var(--ll-signal);
-  border-radius: var(--ll-radius-small);
-  background: var(--ll-signal);
-  color: white;
-  font: inherit;
-  font-weight: 700;
+.renderer-recovery ::deep .renderer-message {
+  inline-size: min(34rem, 100%);
 }
 
 .semantic-scene {

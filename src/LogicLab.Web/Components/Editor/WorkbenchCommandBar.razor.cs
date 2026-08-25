@@ -100,6 +100,4 @@ public sealed partial class WorkbenchCommandBar
 
     private bool IsBusy => ActiveCommand is not null;
 
-    private Task ChangeClaimDisplayName(ChangeEventArgs args) =>
-        ClaimDisplayNameChanged.InvokeAsync(args.Value?.ToString() ?? string.Empty);
 }
