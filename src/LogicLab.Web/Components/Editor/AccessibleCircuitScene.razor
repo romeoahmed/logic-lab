@@ -467,9 +467,11 @@
         return Task.CompletedTask;
     }
 
-    private Task ActivateAsync(SceneSourceRefV1 source) => OnAction.HasDelegate
-        ? OnAction.InvokeAsync(new ActivateSceneSemanticActionV1(source))
-        : OnSelect.InvokeAsync(new SceneSelectionV1([source], "replace"));
+    private Task ActivateAsync(ActivateSceneSemanticActionV1 action) => OnAction.HasDelegate
+        ? OnAction.InvokeAsync(action)
+        : OnSelect.InvokeAsync(new SceneSelectionV1(
+            [action.Source],
+            action.SelectionMode));
 
     private Task RemoveAsync(SceneSourceRefV1 source) =>
         OnAction.InvokeAsync(new RemoveSceneSemanticActionV1(source));

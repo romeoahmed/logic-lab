@@ -6,6 +6,8 @@ using LogicLab.Presentation.Scene;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Scene;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
@@ -90,7 +92,7 @@ internal sealed class CircuitSceneHostTests
         context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
         var revision = WebTestCircuit.CreateCompleteCircuit();
         var scene = Project(revision);
-        SceneSelectionV1? selection = null;
+        var selections = new List<SceneSelectionV1>();
 
         var rendered = context.Render<CircuitSceneHost>(parameters => parameters
             .Add(component => component.ProjectRevision, revision)
@@ -99,9 +101,11 @@ internal sealed class CircuitSceneHostTests
                 revision.Document.EntryCircuitDefinitionId)
             .Add(component => component.Scene, scene)
             .Add(component => component.OnSelect,
-                EventCallback.Factory.Create<SceneSelectionV1>(this, value => selection = value)));
-        var firstAction = rendered.Find("[data-scene-source]");
-        await firstAction.ClickAsync();
+                EventCallback.Factory.Create<SceneSelectionV1>(this, selections.Add)));
+        var sourceActions = rendered.FindAll("[data-scene-source]");
+        await sourceActions[0].ClickAsync();
+        await sourceActions[1].ClickAsync(new MouseEventArgs { ShiftKey = true });
+        await sourceActions[0].ClickAsync(new MouseEventArgs { CtrlKey = true });
 
         using (Assert.Multiple())
         {
@@ -111,8 +115,10 @@ internal sealed class CircuitSceneHostTests
                 .IsEqualTo(rendered.FindAll("[data-scene-source]").Count);
             await Assert.That(rendered.FindAll("[data-scene-source]").Count)
                 .IsGreaterThan(0);
-            await Assert.That(selection).IsNotNull();
-            await Assert.That(selection!.Sources).Count().IsEqualTo(1);
+            await Assert.That(selections.Select(selection => selection.SelectionMode))
+                .IsEquivalentTo(["replace", "add", "toggle"], CollectionOrdering.Matching);
+            await Assert.That(selections.All(selection => selection.Sources.Count == 1))
+                .IsTrue();
         }
     }
 
@@ -215,7 +221,7 @@ internal sealed class CircuitSceneHostTests
             await Assert.That(recovery.GetAttribute("data-browser-policy-id"))
                 .IsEqualTo("logiclab-browser");
             await Assert.That(recovery.GetAttribute("data-browser-policy-revision"))
-                .IsEqualTo("development-1");
+                .IsEqualTo("development-2");
             await Assert.That(recovery.GetAttribute("data-browser-policy-dimension"))
                 .IsEqualTo("spatial_index_bytes");
             await Assert.That(recovery.GetAttribute("data-browser-policy-observed"))

@@ -1084,12 +1084,14 @@ public sealed partial class Editor : IAsyncDisposable
         var projectRevisionChanged = Projection?.ProjectRevision.RevisionId
             != projection.ProjectRevision.RevisionId;
         Projection = projection;
-        EnsureSceneToolAvailable();
         if (projectRevisionChanged)
         {
             PreparedExportUrl = null;
             ProjectScene();
+            return;
         }
+
+        EnsureSceneToolAvailable();
     }
 
     public async ValueTask DisposeAsync()
@@ -1194,23 +1196,19 @@ public sealed partial class Editor : IAsyncDisposable
         }
 
         var document = Projection.ProjectRevision.Document;
-        if (SelectedDefinitionId is null
-            || document.FindCircuitDefinition(SelectedDefinitionId) is null)
-        {
-            SelectedDefinitionId = document.EntryCircuitDefinitionId;
-            HierarchyNavigation.Clear();
-        }
-
+        NormalizeHierarchyNavigation(document);
+        var selectedDefinitionId = SelectedDefinitionId
+            ?? throw new InvalidOperationException("The Scene definition is unavailable.");
+        ScenePlaceOptions = ScenePlaceCatalog.Build(document);
         EnsureSceneToolAvailable();
 
         if (AccessibleSceneProjector.TryProject(
                 Projection.ProjectRevision,
-                SelectedDefinitionId,
+                selectedDefinitionId,
                 MaximumScenePortCount,
                 out var scene))
         {
             Scene = scene;
-            ScenePlaceOptions = ScenePlaceCatalog.Build(document, SelectedDefinitionId);
             NormalizeSceneSelection();
             return;
         }
@@ -1233,6 +1231,13 @@ public sealed partial class Editor : IAsyncDisposable
 
     private void EnsureSceneToolAvailable()
     {
+        if (SceneTool is ScenePlaceToolV1 place
+            && !ScenePlaceOptions.Any(option => option.Tool.Target == place.Target))
+        {
+            SceneTool = SceneSelectToolV1.Instance;
+            return;
+        }
+
         if (SceneTool is not SceneProbeToolV1)
         {
             return;

@@ -8,6 +8,51 @@ namespace LogicLab.Web.Components.Pages;
 
 public partial class Editor
 {
+    private void NormalizeHierarchyNavigation(ProjectDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        if (SelectedDefinitionId is null)
+        {
+            SelectedDefinitionId = document.EntryCircuitDefinitionId;
+            HierarchyNavigation.Clear();
+            return;
+        }
+
+        if (HierarchyNavigation.Count == 0)
+        {
+            if (document.FindCircuitDefinition(SelectedDefinitionId) is null)
+            {
+                SelectedDefinitionId = document.EntryCircuitDefinitionId;
+            }
+            return;
+        }
+
+        var current = document.EntryCircuitDefinition;
+        var normalized = new List<HierarchyNavigationStep>(HierarchyNavigation.Count);
+        foreach (var step in HierarchyNavigation)
+        {
+            var instance = step.ContainingCircuitDefinitionId == current.Id
+                ? current.FindComponentInstance(step.ComponentInstanceId)
+                : null;
+            if (instance?.Target is not CircuitDefinitionComponentTarget target
+                || document.FindCircuitDefinition(target.CircuitDefinitionId)
+                    is not { } child)
+            {
+                break;
+            }
+
+            normalized.Add(new HierarchyNavigationStep(
+                current.Id,
+                instance.Id,
+                instance.DisplayName ?? child.DisplayName));
+            current = child;
+        }
+
+        HierarchyNavigation.Clear();
+        HierarchyNavigation.AddRange(normalized);
+        SelectedDefinitionId = current.Id;
+    }
+
     private SceneHierarchyPathV1? CurrentSceneHierarchyPath
     {
         get

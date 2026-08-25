@@ -71,4 +71,28 @@ internal sealed class BrowserPolicyTests
 
         await Assert.That(exception.Message).Contains("minimum");
     }
+
+    [Test]
+    [Arguments(BrowserLimitDimension.SemanticIntentBytes)]
+    [Arguments(BrowserLimitDimension.InteropBatchBytes)]
+    public async Task Create_DirectInteropLimitAboveInteractiveServerBudget_RejectsPolicy(
+        BrowserLimitDimension dimension)
+    {
+        var limits = BrowserPolicy.Development.Limits
+            .Select(limit => limit.Dimension == dimension
+                ? limit with { Value = 32_768 }
+                : limit)
+            .ToArray();
+
+        var exception = Assert.Throws<ArgumentException>(() =>
+        {
+            _ = new BrowserPolicy(
+                "logiclab-browser",
+                "development-1",
+                limits,
+                BrowserPolicy.Development.ObservationThresholds);
+        });
+
+        await Assert.That(exception.Message).Contains("Interactive Server");
+    }
 }

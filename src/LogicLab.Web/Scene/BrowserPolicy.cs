@@ -87,6 +87,11 @@ internal static class BrowserPolicyDimensionTokens
 
 public sealed class BrowserPolicy
 {
+    // Interactive Server defaults to a 32-KB incoming SignalR message, including the
+    // JS interop envelope. Use half that limit as the adapter's conservative direct-
+    // interop payload budget in either direction.
+    // Source: https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#size-limits-on-javascript-interop-calls
+    private const ulong InteractiveServerInteropPayloadBytes = 16_384;
     private static readonly (BrowserLimitDimension Dimension, BrowserLimitComparison Comparison)[]
         RequiredLimits =
         [
@@ -162,6 +167,17 @@ public sealed class BrowserPolicy
                 nameof(limits));
         }
 
+        if (ownedLimits[(int)BrowserLimitDimension.SemanticIntentBytes].Value
+                > InteractiveServerInteropPayloadBytes
+            || ownedLimits[(int)BrowserLimitDimension.InteropBatchBytes].Value
+                > InteractiveServerInteropPayloadBytes)
+        {
+            throw new ArgumentException(
+                "The direct JS interop payload limits must fit the Interactive Server "
+                + "transport budget.",
+                nameof(limits));
+        }
+
         PolicyId = policyId;
         PolicyRevision = policyRevision;
         Limits = Array.AsReadOnly(ownedLimits);
@@ -170,12 +186,18 @@ public sealed class BrowserPolicy
 
     public static BrowserPolicy Development { get; } = new(
         "logiclab-browser",
-        "development-1",
+        "development-2",
         [
-            new(BrowserLimitDimension.SemanticIntentBytes, BrowserLimitComparison.AtMost, 65_536),
+            new(
+                BrowserLimitDimension.SemanticIntentBytes,
+                BrowserLimitComparison.AtMost,
+                InteractiveServerInteropPayloadBytes),
             new(BrowserLimitDimension.SceneSnapshotRecordCount, BrowserLimitComparison.AtMost, 50_000),
             new(BrowserLimitDimension.ScenePatchRecordCount, BrowserLimitComparison.AtMost, 10_000),
-            new(BrowserLimitDimension.InteropBatchBytes, BrowserLimitComparison.AtMost, 16_384),
+            new(
+                BrowserLimitDimension.InteropBatchBytes,
+                BrowserLimitComparison.AtMost,
+                InteractiveServerInteropPayloadBytes),
             new(BrowserLimitDimension.CandidateTransferBytes, BrowserLimitComparison.AtMost, 16_777_216),
             new(BrowserLimitDimension.CanvasBitmapPixels, BrowserLimitComparison.AtMost, 33_554_432),
             new(BrowserLimitDimension.CanvasBitmapBytes, BrowserLimitComparison.AtMost, 134_217_728),

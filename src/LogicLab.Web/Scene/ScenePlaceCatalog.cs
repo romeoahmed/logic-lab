@@ -11,12 +11,9 @@ public sealed record ScenePlaceOptionV1(
 
 public static class ScenePlaceCatalog
 {
-    public static IReadOnlyList<ScenePlaceOptionV1> Build(
-        ProjectDocument document,
-        CircuitDefinitionId currentDefinitionId)
+    public static IReadOnlyList<ScenePlaceOptionV1> Build(ProjectDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
-        ArgumentNullException.ThrowIfNull(currentDefinitionId);
 
         var options = new List<ScenePlaceOptionV1>();
         foreach (var contract in CoreLibrarySchema.Contracts)
@@ -39,7 +36,6 @@ public static class ScenePlaceCatalog
         }
 
         options.AddRange(document.CircuitDefinitions
-            .Where(definition => definition.Id != currentDefinitionId)
             .OrderBy(definition => definition.DisplayName, StringComparer.Ordinal)
             .ThenBy(definition => definition.Id.Value, StringComparer.Ordinal)
             .Select(definition => new ScenePlaceOptionV1(

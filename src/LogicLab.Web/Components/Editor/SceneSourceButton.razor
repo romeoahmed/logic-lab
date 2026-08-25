@@ -5,9 +5,10 @@
         class="scene-action"
         data-scene-source="@Source.Key"
         data-scene-selected="@(Selected ? "true" : null)"
+        aria-keyshortcuts="Enter Shift+Enter Control+Enter Meta+Enter"
         @attributes="NavigationAttributes"
         @onfocus="@(() => OnFocus.InvokeAsync(Source))"
-        @onclick="@(() => OnActivate.InvokeAsync(Source))">
+        @onclick="ActivateAsync">
     @ChildContent
 </button>
 
@@ -28,7 +29,7 @@
     public EventCallback<SceneSourceRefV1> OnFocus { get; set; }
 
     [Parameter]
-    public EventCallback<SceneSourceRefV1> OnActivate { get; set; }
+    public EventCallback<ActivateSceneSemanticActionV1> OnActivate { get; set; }
 
     [Parameter, EditorRequired]
     public RenderFragment? ChildContent { get; set; }
@@ -53,5 +54,15 @@
 
         focusApplied = true;
         await buttonElement.FocusAsync();
+    }
+
+    private Task ActivateAsync(MouseEventArgs eventArgs)
+    {
+        var selectionMode = eventArgs.CtrlKey || eventArgs.MetaKey
+            ? "toggle"
+            : eventArgs.ShiftKey ? "add" : "replace";
+        return OnActivate.InvokeAsync(new ActivateSceneSemanticActionV1(
+            Source,
+            selectionMode));
     }
 }

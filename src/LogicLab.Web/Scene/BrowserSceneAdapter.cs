@@ -11,6 +11,8 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
 {
     internal const string ModulePath = "./Components/Editor/CircuitSceneHost.razor.js";
     private const ulong InteropEnvelopeBytes = 512;
+    private const ulong MaximumMeasurementRecordBytes = 320;
+    private const string SymbolFontFamily = "Atkinson Hyperlegible Next";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         AllowDuplicateProperties = false,
@@ -74,20 +76,73 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(requests);
-        // Blazor interop requires mutable DTO shapes for direct object materialization. Receive
-        // JsonElement and apply this seam's strict immutable contract explicitly instead:
-        // https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#object-serialization
-        var record = await handle.InvokeAsync<JsonElement>(
-            "measureText",
-            cancellationToken,
-            requests);
+        var ownedRequests = requests.ToArray();
+        if (ownedRequests.Any(static request => request is null || !IsDigest(request.Key))
+            || ownedRequests.Select(request => request.Key)
+                .Distinct(StringComparer.Ordinal).Count() != ownedRequests.Length)
+        {
+            throw new ArgumentException(
+                "The text measurement requests require unique digest keys.",
+                nameof(requests));
+        }
+
+        var measurements = new List<BrowserTextMeasurementV1>(ownedRequests.Length);
+        string? assetFingerprint = null;
         try
         {
-            return record.Deserialize<BrowserTextMeasurementBatchV1>(JsonOptions)
-                ?? throw new JsonException("The browser text measurement batch is null.");
+            foreach (var requestBatch in CreateMeasurementBatches(ownedRequests))
+            {
+                // Blazor interop requires mutable DTO shapes for direct object materialization.
+                // Receive JsonElement and apply this seam's strict immutable contract explicitly:
+                // https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#object-serialization
+                var record = await handle.InvokeAsync<JsonElement>(
+                    "measureText",
+                    cancellationToken,
+                    requestBatch);
+                var responseBytes = checked(
+                    (ulong)Encoding.UTF8.GetByteCount(record.GetRawText())
+                    + InteropEnvelopeBytes);
+                if (policy.Rejects(BrowserLimitDimension.InteropBatchBytes, responseBytes))
+                {
+                    throw new BrowserPolicyException(
+                        policy,
+                        BrowserLimitDimension.InteropBatchBytes,
+                        responseBytes);
+                }
+
+                var chunk = DeserializeMeasurementChunk(record);
+                ValidateMeasurementChunk(requestBatch, chunk);
+                if (assetFingerprint is null)
+                {
+                    assetFingerprint = chunk.AssetFingerprint;
+                }
+                else if (!string.Equals(
+                        assetFingerprint,
+                        chunk.AssetFingerprint,
+                        StringComparison.Ordinal))
+                {
+                    throw new JsonException(
+                        "The browser font identity changed during text measurement.");
+                }
+
+                measurements.AddRange(chunk.Measurements);
+            }
+
+            var fingerprint = MeasurementFingerprint(
+                assetFingerprint
+                    ?? throw new JsonException("The browser font identity is missing."),
+                measurements);
+            var batch = new BrowserTextMeasurementBatchV1(fingerprint, measurements);
+            _ = new BrowserMeasuredTextMeasurer(ownedRequests, batch);
+            await handle.InvokeVoidAsync(
+                "commitTextMeasurements",
+                cancellationToken,
+                fingerprint);
+            return batch;
         }
         catch (Exception exception) when (exception is JsonException
-            or NotSupportedException)
+            or NotSupportedException
+            or ArgumentException)
         {
             throw new BrowserSceneContractException("measurement");
         }
@@ -289,6 +344,139 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         }
     }
 
+    private List<IReadOnlyList<BrowserTextMeasurementRequestV1>>
+        CreateMeasurementBatches(IReadOnlyList<BrowserTextMeasurementRequestV1> requests)
+    {
+        var maximumBatch = policy.Limit(BrowserLimitDimension.InteropBatchBytes);
+        var payloadBudget = maximumBatch > InteropEnvelopeBytes
+            ? maximumBatch - InteropEnvelopeBytes
+            : 0;
+        var maximumRecords = checked((int)Math.Min(
+            payloadBudget / MaximumMeasurementRecordBytes,
+            int.MaxValue));
+        if (maximumRecords == 0)
+        {
+            throw new BrowserPolicyException(
+                policy,
+                BrowserLimitDimension.InteropBatchBytes,
+                InteropEnvelopeBytes + MaximumMeasurementRecordBytes);
+        }
+
+        var batches = new List<IReadOnlyList<BrowserTextMeasurementRequestV1>>();
+        var current = new List<BrowserTextMeasurementRequestV1>(maximumRecords);
+        ulong currentJsonBytes = 2;
+        foreach (var request in requests)
+        {
+            var requestBytes = checked((ulong)JsonSerializer.SerializeToUtf8Bytes(
+                request,
+                JsonOptions).Length);
+            var separatorBytes = current.Count == 0 ? 0UL : 1UL;
+            var observed = checked(
+                InteropEnvelopeBytes + currentJsonBytes + separatorBytes + requestBytes);
+            if (current.Count == maximumRecords || observed > maximumBatch)
+            {
+                batches.Add([.. current]);
+                current.Clear();
+                currentJsonBytes = 2;
+                separatorBytes = 0;
+                observed = checked(InteropEnvelopeBytes + currentJsonBytes + requestBytes);
+            }
+
+            if (observed > maximumBatch)
+            {
+                throw new BrowserPolicyException(
+                    policy,
+                    BrowserLimitDimension.InteropBatchBytes,
+                    observed);
+            }
+
+            current.Add(request);
+            currentJsonBytes = checked(currentJsonBytes + separatorBytes + requestBytes);
+        }
+
+        if (current.Count > 0 || batches.Count == 0)
+        {
+            batches.Add([.. current]);
+        }
+
+        return batches;
+    }
+
+    private static BrowserTextMeasurementChunkV1 DeserializeMeasurementChunk(
+        JsonElement record)
+    {
+        var propertyNames = record.ValueKind == JsonValueKind.Object
+            ? record.EnumerateObject().Select(property => property.Name).ToArray()
+            : [];
+        if (propertyNames.Length != 4
+            || propertyNames.Distinct(StringComparer.Ordinal).Count() != propertyNames.Length
+            || !record.TryGetProperty("fontFamily", out var familyProperty)
+            || familyProperty.ValueKind != JsonValueKind.String
+            || !record.TryGetProperty("assetFingerprint", out var assetProperty)
+            || assetProperty.ValueKind != JsonValueKind.String
+            || !record.TryGetProperty("fontFingerprint", out var fingerprintProperty)
+            || fingerprintProperty.ValueKind != JsonValueKind.String
+            || !record.TryGetProperty("measurements", out var measurementsProperty)
+            || measurementsProperty.ValueKind != JsonValueKind.Array)
+        {
+            throw new JsonException("The browser text measurement chunk shape is invalid.");
+        }
+
+        return new BrowserTextMeasurementChunkV1(
+            familyProperty.GetString()!,
+            assetProperty.GetString()!,
+            fingerprintProperty.GetString()!,
+            measurementsProperty.Deserialize<BrowserTextMeasurementV1[]>(JsonOptions)
+                ?? throw new JsonException(
+                    "The browser text measurement records are null."));
+    }
+
+    private static void ValidateMeasurementChunk(
+        IReadOnlyList<BrowserTextMeasurementRequestV1> requests,
+        BrowserTextMeasurementChunkV1 chunk)
+    {
+        var requestedKeys = requests.Select(request => request.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        if (!string.Equals(chunk.FontFamily, SymbolFontFamily, StringComparison.Ordinal)
+            || !IsDigest(chunk.AssetFingerprint)
+            || !IsDigest(chunk.FontFingerprint)
+            || chunk.Measurements is null
+            || chunk.Measurements.Count != requestedKeys.Count
+            || requestedKeys.Count != requests.Count
+            || chunk.Measurements.Any(static measurement => measurement is null)
+            || chunk.Measurements.Select(measurement => measurement.Key)
+                .Distinct(StringComparer.Ordinal).Count() != chunk.Measurements.Count
+            || chunk.Measurements.Any(measurement => !requestedKeys.Contains(measurement.Key)
+                || measurement.AdvanceWidth < 0
+                || measurement.InkRight < measurement.InkLeft
+                || measurement.InkBottom < measurement.InkTop)
+            || !string.Equals(
+                chunk.FontFingerprint,
+                MeasurementFingerprint(chunk.AssetFingerprint, chunk.Measurements),
+                StringComparison.Ordinal))
+        {
+            throw new JsonException(
+                "The browser text measurement chunk does not exactly match its requests.");
+        }
+    }
+
+    private static string MeasurementFingerprint(
+        string assetFingerprint,
+        IEnumerable<BrowserTextMeasurementV1> measurements)
+    {
+        var canonical = string.Join(
+            '\n',
+            measurements.OrderBy(measurement => measurement.Key, StringComparer.Ordinal)
+                .Select(measurement => FormattableString.Invariant(
+                    $"{measurement.Key}:{measurement.AdvanceWidth}:{measurement.InkLeft}:{measurement.InkTop}:{measurement.InkRight}:{measurement.InkBottom}")));
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"logiclab-browser-font-v1\n{SymbolFontFamily}\n{assetFingerprint}\n{canonical}")));
+    }
+
+    private static bool IsDigest(string value) => value is { Length: 64 }
+        && value.All(character => character is >= '0' and <= '9'
+            or >= 'a' and <= 'f');
+
     private static BrowserPolicyTransferV1 PolicyTransfer(BrowserPolicy policy) => new(
         policy.PolicyId,
         policy.PolicyRevision,
@@ -347,6 +535,12 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         ulong SpatialIndexBytes,
         ulong SceneCacheBytes,
         ulong WaveformCacheBytes);
+
+    private sealed record BrowserTextMeasurementChunkV1(
+        string FontFamily,
+        string AssetFingerprint,
+        string FontFingerprint,
+        IReadOnlyList<BrowserTextMeasurementV1> Measurements);
 }
 
 internal sealed record BrowserSceneRecoveryStateV1

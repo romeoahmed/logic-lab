@@ -80,6 +80,8 @@ class CircuitSceneHandle {
     this.context = this.canvas?.getContext("2d", { alpha: false }) ?? null;
     this.published = null;
     this.spatialIndex = new Map();
+    this.sourcesByKey = new Map();
+    this.targetsBySource = new Map();
     this.viewport = { x: 0, y: 0, zoom: 1 };
     this.savedViewports = validateRecoveryState(recoveryState, policy);
     this.focusedSource = null;
@@ -200,10 +202,18 @@ class CircuitSceneHandle {
       .sort((left, right) => compareOrdinal(left.key, right.key))
       .map((value) => `${value.key}:${value.advanceWidth}:${value.inkLeft}:${value.inkTop}:${value.inkRight}:${value.inkBottom}`)
       .join("\n");
-    this.fontFingerprint = await sha256(textEncoder.encode(
+    const fontFingerprint = await sha256(textEncoder.encode(
       `logiclab-browser-font-v1\n${family}\n${assetFingerprint}\n${canonical}`,
     ));
-    return { fontFingerprint: this.fontFingerprint, measurements };
+    return { fontFamily: family, assetFingerprint, fontFingerprint, measurements };
+  }
+
+  commitTextMeasurements(fontFingerprint) {
+    this.ensureLive();
+    if (!isDigest(fontFingerprint)) {
+      throw new Error("invalid text measurement fingerprint");
+    }
+    this.fontFingerprint = fontFingerprint;
   }
 
   beginTransfer(transferId, kind, byteLength, digest) {
@@ -434,6 +444,8 @@ class CircuitSceneHandle {
     this.hoveredSource = null;
     this.published = null;
     this.spatialIndex.clear();
+    this.sourcesByKey.clear();
+    this.targetsBySource.clear();
     this.context = null;
     this.dotnetSink = null;
     if (mountedHandles.get(this.host) === this) {
@@ -443,8 +455,11 @@ class CircuitSceneHandle {
 
   replace(candidate) {
     const validated = validateReplacement(candidate, this.buildFingerprint, this.fontFingerprint, this.policy);
+    const sourceIndex = validated.kind === "snapshot"
+      ? buildSourceIndex(validated.value, this.policy)
+      : { sourcesByKey: new Map(), targetsBySource: new Map(), observedBytes: 0n };
     const spatialIndex = validated.kind === "snapshot"
-      ? buildSpatialIndex(validated.value, this.policy)
+      ? buildSpatialIndex(validated.value, this.policy, sourceIndex.observedBytes)
       : new Map();
     this.cancelGesture();
     this.hoveredSource = null;
@@ -458,6 +473,8 @@ class CircuitSceneHandle {
     if (validated.kind === "unavailable") {
       this.published = null;
       this.spatialIndex = spatialIndex;
+      this.sourcesByKey = sourceIndex.sourcesByKey;
+      this.targetsBySource = sourceIndex.targetsBySource;
       this.focusedSource = null;
       this.selectedSources.clear();
       this.clearCanvas();
@@ -471,6 +488,8 @@ class CircuitSceneHandle {
     this.published = validated.value;
     delete this.canvas.dataset.sceneLocalUnavailable;
     this.spatialIndex = spatialIndex;
+    this.sourcesByKey = sourceIndex.sourcesByKey;
+    this.targetsBySource = sourceIndex.targetsBySource;
     const saved = this.savedViewports.get(validated.value.circuitDefinitionId);
     if (saved) {
       this.viewport = { ...saved };
@@ -809,6 +828,9 @@ class CircuitSceneHandle {
 
     const start = gridPoint(gesture.startWorld, snapshot, gesture.disableSnap);
     const end = gridPoint(gesture.currentWorld, snapshot, gesture.disableSnap);
+    if (!start || !end) {
+      return;
+    }
     const startPoint = gridToWorld(start, snapshot);
     const endPoint = gridToWorld(end, snapshot);
     const previewColor = cssColor(styles, "--ll-signal", "#08788c");
@@ -1205,32 +1227,47 @@ class CircuitSceneHandle {
       }
       const start = gridPoint(gesture.startWorld, snapshot, disableSnap);
       const end = gridPoint(gesture.currentWorld, snapshot, disableSnap);
+      if (!start || !end) {
+        return;
+      }
       const moved = start.x !== end.x || start.y !== end.y;
       const interaction = hit.item.interaction;
       if (moved && interaction?.interactionKind === "component") {
+        const placement = translateComponentPlacement(interaction.placement, start, end);
+        if (!placement) {
+          return;
+        }
         this.emitIntent("moveComponents", gesture, {
           moves: [{
             component: hit.item.source,
-            placement: translateComponentPlacement(interaction.placement, start, end),
+            placement,
           }],
           snapModifier: disableSnap ? "disableSnap" : "none",
         });
       } else if (moved && interaction?.interactionKind === "definitionPort") {
+        const position = translateGridPoint(interaction.placement.position, start, end);
+        if (!position) {
+          return;
+        }
         this.emitIntent("moveDefinitionPorts", gesture, {
           moves: [{
             port: hit.item.source,
             placement: {
-              position: translateGridPoint(interaction.placement.position, start, end),
+              position,
               facing: interaction.placement.facing,
             },
           }],
           snapModifier: disableSnap ? "disableSnap" : "none",
         });
       } else if (moved && interaction?.interactionKind === "annotation") {
+        const position = translateGridPoint(interaction.position, start, end);
+        if (!position) {
+          return;
+        }
         this.emitIntent("moveAnnotations", gesture, {
           moves: [{
             annotation: hit.item.source,
-            position: translateGridPoint(interaction.position, start, end),
+            position,
           }],
           snapModifier: disableSnap ? "disableSnap" : "none",
         });
@@ -1240,11 +1277,15 @@ class CircuitSceneHandle {
       return;
     }
     if (gesture.tool.kind === "placeComponent") {
+      const origin = gridPoint(gesture.currentWorld, snapshot, disableSnap);
+      if (!origin) {
+        return;
+      }
       const committed = this.emitIntent("placeComponent", gesture, {
         target: gesture.tool.target,
         parameters: gesture.tool.parameters,
         placement: {
-          origin: gridPoint(gesture.currentWorld, snapshot, disableSnap),
+          origin,
           quarterTurnsClockwise: 0,
           reflected: false,
         },
@@ -1320,6 +1361,9 @@ class CircuitSceneHandle {
     const interaction = hit.item.interaction;
     const start = gridPoint(gesture.startWorld, snapshot, disableSnap);
     const end = gridPoint(gesture.currentWorld, snapshot, disableSnap);
+    if (!start || !end) {
+      return;
+    }
     const moved = start.x !== end.x || start.y !== end.y;
     if (interaction?.interactionKind === "wire" && moved) {
       const corner = { x: start.x, y: end.y };
@@ -1483,22 +1527,7 @@ class CircuitSceneHandle {
   }
 
   sourceKeys() {
-    const sourceKeys = [];
-    const seen = new Set();
-    for (const item of this.published?.items ?? []) {
-      for (const key of [
-        sourceKey(item.source),
-        ...item.hitRegions.map((region) => region.targetSource
-          ? sourceKey(region.targetSource)
-          : null).filter(Boolean),
-      ]) {
-        if (!seen.has(key)) {
-          seen.add(key);
-          sourceKeys.push(key);
-        }
-      }
-    }
-    return sourceKeys;
+    return [...this.sourcesByKey.keys()];
   }
 
   semanticSourceKeys() {
@@ -1509,35 +1538,11 @@ class CircuitSceneHandle {
   }
 
   sourceByKey(key) {
-    for (const item of this.published?.items ?? []) {
-      if (sourceKey(item.source) === key) {
-        return item.source;
-      }
-      const target = item.hitRegions.find((region) => region.targetSource
-        && sourceKey(region.targetSource) === key)?.targetSource;
-      if (target) {
-        return target;
-      }
-    }
-    return null;
+    return this.sourcesByKey.get(key) ?? null;
   }
 
   targetBySource(source) {
-    const key = sourceKey(source);
-    for (const item of this.published?.items ?? []) {
-      if (sourceKey(item.source) === key) {
-        if (item.hasDrawableTarget) {
-          return { bounds: translateRect(item.bounds, item.origin), item };
-        }
-        continue;
-      }
-      const region = item.hitRegions.find((candidate) => candidate.targetSource
-        && sourceKey(candidate.targetSource) === key);
-      if (region) {
-        return { bounds: translateRect(region.bounds, item.origin), item };
-      }
-    }
-    return null;
+    return this.targetsBySource.get(sourceKey(source)) ?? null;
   }
 
   focusedResizeAnchor() {
@@ -1596,6 +1601,8 @@ class CircuitSceneHandle {
     this.transfers.clear();
     this.published = null;
     this.spatialIndex.clear();
+    this.sourcesByKey.clear();
+    this.targetsBySource.clear();
     this.dirty = false;
     if (this.pendingFrame) {
       cancelAnimationFrame(this.pendingFrame);
@@ -1869,10 +1876,56 @@ function deepFreeze(value) {
   return value;
 }
 
-function buildSpatialIndex(snapshot, policy) {
-  const index = new Map();
+function buildSourceIndex(snapshot, policy) {
+  const sourcesByKey = new Map();
+  const targetsBySource = new Map();
   const maximumBytes = BigInt(policy.spatialIndexBytes);
   let observedBytes = 0n;
+  const chargeEntry = (key) => {
+    observedBytes += BigInt(spatialEntryBaseBytes + textEncoder.encode(key).byteLength);
+    if (observedBytes > maximumBytes) {
+      throw new BrowserPolicyError("spatialIndexBytes", observedBytes);
+    }
+  };
+  for (const item of snapshot.items) {
+    const itemKey = sourceKey(item.source);
+    if (!sourcesByKey.has(itemKey)) {
+      chargeEntry(itemKey);
+      sourcesByKey.set(itemKey, item.source);
+    }
+    if (item.hasDrawableTarget && !targetsBySource.has(itemKey)) {
+      chargeEntry(itemKey);
+      targetsBySource.set(itemKey, {
+        bounds: translateRect(item.bounds, item.origin),
+        item,
+      });
+    }
+
+    for (const region of item.hitRegions) {
+      if (!region.targetSource) {
+        continue;
+      }
+      const targetKey = sourceKey(region.targetSource);
+      if (!sourcesByKey.has(targetKey)) {
+        chargeEntry(targetKey);
+        sourcesByKey.set(targetKey, region.targetSource);
+      }
+      if (!targetsBySource.has(targetKey)) {
+        chargeEntry(targetKey);
+        targetsBySource.set(targetKey, {
+          bounds: translateRect(region.bounds, item.origin),
+          item,
+        });
+      }
+    }
+  }
+  return { sourcesByKey, targetsBySource, observedBytes };
+}
+
+function buildSpatialIndex(snapshot, policy, sourceIndexBytes) {
+  const index = new Map();
+  const maximumBytes = BigInt(policy.spatialIndexBytes);
+  let observedBytes = sourceIndexBytes;
   for (const item of snapshot.items) {
     for (const region of item.hitRegions) {
       const bounds = translateRect(region.bounds, item.origin);
@@ -2241,20 +2294,28 @@ function netFromHit(hit) {
 }
 
 function gridPoint(world, snapshot, disableSnap) {
+  const x = gridCoordinate(world.x, snapshot, disableSnap);
+  const y = gridCoordinate(world.y, snapshot, disableSnap);
+  if (x === null || y === null) {
+    return null;
+  }
   return {
-    x: gridCoordinate(world.x, snapshot, disableSnap),
-    y: gridCoordinate(world.y, snapshot, disableSnap),
+    x,
+    y,
   };
 }
 
 function gridCoordinate(worldCoordinate, snapshot, disableSnap) {
-  const integerGridCoordinate = checkedInteger(roundHalfNegativeInfinity(
+  const integerGridCoordinate = signedIntegerOrNull(roundHalfNegativeInfinity(
     worldCoordinate / snapshot.gridStepPlanUnits));
+  if (integerGridCoordinate === null) {
+    return null;
+  }
   if (disableSnap) {
     return integerGridCoordinate;
   }
 
-  return checkedInteger(roundHalfNegativeInfinity(
+  return signedIntegerOrNull(roundHalfNegativeInfinity(
     integerGridCoordinate / snapshot.snapStepGridUnits) * snapshot.snapStepGridUnits);
 }
 
@@ -2270,15 +2331,24 @@ function roundHalfNegativeInfinity(value) {
 }
 
 function translateGridPoint(point, start, end) {
+  const x = signedIntegerOrNull(point.x + end.x - start.x);
+  const y = signedIntegerOrNull(point.y + end.y - start.y);
+  if (x === null || y === null) {
+    return null;
+  }
   return {
-    x: checkedInteger(point.x + end.x - start.x),
-    y: checkedInteger(point.y + end.y - start.y),
+    x,
+    y,
   };
 }
 
 function translateComponentPlacement(placement, start, end) {
+  const origin = translateGridPoint(placement.origin, start, end);
+  if (!origin) {
+    return null;
+  }
   return {
-    origin: translateGridPoint(placement.origin, start, end),
+    origin,
     quarterTurnsClockwise: placement.quarterTurnsClockwise,
     reflected: placement.reflected,
   };
@@ -2320,6 +2390,7 @@ function isTextRole(value) { return ["symbol", "portlabel", "dependency", "exten
 function isToken(value) { return typeof value === "string" && /^[A-Za-z0-9._-]+$/.test(value); }
 function isDigest(value) { return typeof value === "string" && /^[0-9a-f]{64}$/.test(value); }
 function checkedInteger(value) { if (!Number.isSafeInteger(value) || value < -2147483648 || value > 2147483647) throw new Error("integer overflow"); return value; }
+function signedIntegerOrNull(value) { return Number.isSafeInteger(value) && value >= -2147483648 && value <= 2147483647 ? value : null; }
 function canvasAlignment(value, direction) {
   if (value === "center") return "center";
   if (value === "start") return direction === "ltr" ? "left" : "right";
