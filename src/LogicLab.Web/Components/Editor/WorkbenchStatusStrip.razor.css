@@ -14,7 +14,7 @@
 }
 
 .status-strip[data-connection-state="connected"] {
-  border-inline-start: 3px solid #2f9d60;
+  border-inline-start: 3px solid var(--ll-success);
 }
 
 .status-facts {
@@ -65,8 +65,8 @@
 }
 
 .status-dot.is-connected {
-  background: #2f9d60;
-  box-shadow: 0 0 0 0.18rem rgb(47 157 96 / 12%);
+  background: var(--ll-success);
+  box-shadow: 0 0 0 0.18rem var(--ll-success-soft);
 }
 
 .status-dot.is-connecting {

@@ -42,6 +42,8 @@
   --ll-signal-softer: rgb(8 120 140 / 5%);
   --ll-transition: #a85d00;
   --ll-unknown: #7053a5;
+  --ll-success: #2f9d60;
+  --ll-success-soft: rgb(47 157 96 / 12%);
   --ll-danger: #b4232c;
   --ll-danger-strong: #7a1f25;
   --ll-danger-soft: rgb(180 35 44 / 9%);

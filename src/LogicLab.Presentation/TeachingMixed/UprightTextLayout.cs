@@ -53,11 +53,19 @@ internal static class UprightTextLayout
 
     public static int MaximumSpan(
         string[] portIds,
-        IReadOnlyDictionary<string, TextAxisInterval> intervals) => portIds
-            .Where(intervals.ContainsKey)
-            .Select(portId => intervals[portId].Span)
-            .DefaultIfEmpty()
-            .Max();
+        IReadOnlyDictionary<string, TextAxisInterval> intervals)
+    {
+        var maximum = 0;
+        foreach (var portId in portIds)
+        {
+            if (intervals.TryGetValue(portId, out var interval))
+            {
+                maximum = Math.Max(maximum, interval.Span);
+            }
+        }
+
+        return maximum;
+    }
 
     public static void IncludeRows(
         string[] portIds,
