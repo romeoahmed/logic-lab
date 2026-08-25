@@ -2385,8 +2385,11 @@ function finiteNumbers(...values) { return values.every(Number.isFinite); }
 function positiveSafeInteger(value) { return Number.isSafeInteger(value) && value > 0; }
 function isLocale(value) { return value === "en-US" || value === "zh-CN"; }
 function isDirection(value) { return value === "ltr" || value === "rtl"; }
-function isAlignment(value) { return ["start", "center", "end"].includes(value); }
-function isTextRole(value) { return ["symbol", "portlabel", "dependency", "extensionmark"].includes(value); }
+function isAlignment(value) { return value === "start" || value === "center" || value === "end"; }
+function isTextRole(value) {
+  return value === "symbol" || value === "portlabel"
+    || value === "dependency" || value === "extensionmark";
+}
 function isToken(value) { return typeof value === "string" && /^[A-Za-z0-9._-]+$/.test(value); }
 function isDigest(value) { return typeof value === "string" && /^[0-9a-f]{64}$/.test(value); }
 function checkedInteger(value) { if (!Number.isSafeInteger(value) || value < -2147483648 || value > 2147483647) throw new Error("integer overflow"); return value; }

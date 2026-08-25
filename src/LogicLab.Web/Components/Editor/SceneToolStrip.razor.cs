@@ -5,7 +5,7 @@ using Microsoft.Extensions.Localization;
 
 namespace LogicLab.Web.Components.Editor;
 
-public partial class SceneToolStrip
+public sealed partial class SceneToolStrip
 {
     private const string SelectToolKey = "select";
     private const string WireToolKey = "wire";
@@ -90,9 +90,15 @@ public partial class SceneToolStrip
         await ToolElement(target).FocusAsync();
     }
 
-    private int? ToolbarTabIndex(string toolKey) => toolbarNavigationReady
-        ? string.Equals(toolbarTabStop, toolKey, StringComparison.Ordinal) ? 0 : -1
-        : null;
+    private int? ToolbarTabIndex(string toolKey)
+    {
+        if (!toolbarNavigationReady)
+        {
+            return null;
+        }
+
+        return string.Equals(toolbarTabStop, toolKey, StringComparison.Ordinal) ? 0 : -1;
+    }
 
     private void TrackToolbarFocus(string toolKey)
     {
