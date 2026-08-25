@@ -7,7 +7,6 @@ using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Scene;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.FluentUI.AspNetCore.Components;
 using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
@@ -207,7 +206,7 @@ internal sealed class AccessibleCircuitSceneTests
         var firstSource = rendered.Find("[data-scene-source]")
             .GetAttribute("data-scene-source");
 
-        await rendered.Find(".semantic-pager button:last-of-type").ClickAsync();
+        await rendered.Find("[data-scene-page='next']").ClickAsync();
         var secondSource = rendered.Find("[data-scene-source]")
             .GetAttribute("data-scene-source");
         context.JSInterop.VerifyFocusAsyncInvoke();
@@ -413,8 +412,6 @@ internal sealed class AccessibleCircuitSceneTests
 
     private static BunitContext CreateContext()
     {
-        var context = WebTestContext.CreateBunitContext();
-        context.Services.AddFluentUIComponents();
-        return context;
+        return WebTestContext.CreateBunitContext();
     }
 }

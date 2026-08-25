@@ -56,24 +56,6 @@
   line-height: 1.45;
 }
 
-.status-dot {
-  inline-size: 0.55rem;
-  block-size: 0.55rem;
-  border-radius: 50%;
-  display: inline-block;
-  margin-inline-end: 0.4rem;
-}
-
-.status-dot.is-connected {
-  background: var(--ll-success);
-  box-shadow: 0 0 0 0.18rem var(--ll-success-soft);
-}
-
-.status-dot.is-connecting {
-  border: 1px solid var(--ll-muted);
-  background: transparent;
-}
-
 @media (max-width: 850px) {
   .status-strip {
     grid-template-columns: 1fr;

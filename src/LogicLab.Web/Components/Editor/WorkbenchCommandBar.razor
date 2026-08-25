@@ -39,14 +39,17 @@
                           OnClick="OnPrepareExport">@Text["PrepareExport"]</FluentButton>
             @if (ShowClaim)
             {
-                <label class="claim-project-name">
-                    <span>@Text["DurableProjectName"]</span>
-                    <input data-claim-name
-                           value="@ClaimDisplayName"
-                           maxlength="256"
-                           autocomplete="off"
-                           @oninput="ChangeClaimDisplayName" />
-                </label>
+                <FluentTextInput data-claim-name
+                                 Id="claim-project-name"
+                                 Label="@Text["DurableProjectName"]"
+                                 Value="@ClaimDisplayName"
+                                 ValueChanged="ClaimDisplayNameChanged"
+                                 Immediate="true"
+                                 MaxLength="256"
+                                 AutoComplete="off"
+                                 Disabled="IsBusy"
+                                 Size="TextInputSize.Small"
+                                 Width="12rem" />
                 <FluentButton data-command="claim"
                               Appearance="ButtonAppearance.Primary"
                               Disabled="@(!CanClaim || IsBusy)"

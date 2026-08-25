@@ -1,6 +1,7 @@
 using System.Globalization;
 using LogicLab.Application.Workspaces;
 using Microsoft.AspNetCore.Components;
+using Microsoft.FluentUI.AspNetCore.Components;
 
 namespace LogicLab.Web.Components.Editor;
 
@@ -60,7 +61,7 @@ public sealed partial class WorkbenchStatusStrip
         _ => Text["CompilationNotRequested"],
     };
 
-    private string StatusDotClass => IsConnected
-        ? "status-dot is-connected"
-        : "status-dot is-connecting";
+    private BadgeColor ConnectionBadgeColor => IsConnected
+        ? BadgeColor.Success
+        : BadgeColor.Warning;
 }

@@ -253,7 +253,7 @@ internal sealed class CircuitSceneHostTests
         var failedGeneration = rendered.Find("[data-scene-generation]")
             .GetAttribute("data-scene-generation");
 
-        await rendered.Find("[data-scene-recovery] button").ClickAsync();
+        await rendered.Find("[data-scene-retry]").ClickAsync();
 
         using (Assert.Multiple())
         {

@@ -16,7 +16,6 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.FluentUI.AspNetCore.Components;
 
 namespace LogicLab.Web.Tests;
 
@@ -255,7 +254,8 @@ internal sealed class WorkbenchComponentTests
             "create",
             () => !IsDisabled(rendered, "claim"));
 
-        await rendered.Find("[data-claim-name]").InputAsync(
+        await rendered.Find("[data-claim-name]").TriggerEventAsync(
+            "ontextimmediate",
             new ChangeEventArgs { Value = "Saved circuit" });
         await ClickAndWaitForState(
             rendered,
@@ -1125,7 +1125,6 @@ internal sealed class WorkbenchComponentTests
         attachmentNavigation = context.JSInterop.SetupModule(
             "./Components/Pages/Editor.razor.js");
         attachmentNavigation.Mode = JSRuntimeMode.Loose;
-        context.Services.AddFluentUIComponents();
         context.Services.AddSingleton(TimeProvider.System);
         context.Services.AddSingleton(PackagePolicy.Development);
         context.Services.AddSingleton<ProjectImportWorkflow>();

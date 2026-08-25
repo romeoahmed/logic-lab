@@ -2,30 +2,46 @@
 @using LogicLab.Domain.Authoring
 @using LogicLab.Web.Scene
 
-<button type="button"
-        data-scene-action="nudge"
-        aria-label="@Text["NudgeLeft"]"
-        disabled="@(Position.X == int.MinValue)"
-        @onfocus="FocusAsync"
-        @onclick="@(() => NudgeAsync(-1, 0))">←</button>
-<button type="button"
-        data-scene-action="nudge"
-        aria-label="@Text["NudgeUp"]"
-        disabled="@(Position.Y == int.MinValue)"
-        @onfocus="FocusAsync"
-        @onclick="@(() => NudgeAsync(0, -1))">↑</button>
-<button type="button"
-        data-scene-action="nudge"
-        aria-label="@Text["NudgeDown"]"
-        disabled="@(Position.Y == int.MaxValue)"
-        @onfocus="FocusAsync"
-        @onclick="@(() => NudgeAsync(0, 1))">↓</button>
-<button type="button"
-        data-scene-action="nudge"
-        aria-label="@Text["NudgeRight"]"
-        disabled="@(Position.X == int.MaxValue)"
-        @onfocus="FocusAsync"
-        @onclick="@(() => NudgeAsync(1, 0))">→</button>
+<FluentButton data-scene-action="nudge"
+              Type="ButtonType.Button"
+              Size="ButtonSize.Small"
+              Shape="ButtonShape.Square"
+              Appearance="ButtonAppearance.Subtle"
+              IconOnly="true"
+              Title="@Text["NudgeLeft"]"
+              Disabled="@(Position.X == int.MinValue)"
+              @onfocus="FocusAsync"
+              OnClick="@(_ => NudgeAsync(-1, 0))">←</FluentButton>
+<FluentButton data-scene-action="nudge"
+              Type="ButtonType.Button"
+              Size="ButtonSize.Small"
+              Shape="ButtonShape.Square"
+              Appearance="ButtonAppearance.Subtle"
+              IconOnly="true"
+              Title="@Text["NudgeUp"]"
+              Disabled="@(Position.Y == int.MinValue)"
+              @onfocus="FocusAsync"
+              OnClick="@(_ => NudgeAsync(0, -1))">↑</FluentButton>
+<FluentButton data-scene-action="nudge"
+              Type="ButtonType.Button"
+              Size="ButtonSize.Small"
+              Shape="ButtonShape.Square"
+              Appearance="ButtonAppearance.Subtle"
+              IconOnly="true"
+              Title="@Text["NudgeDown"]"
+              Disabled="@(Position.Y == int.MaxValue)"
+              @onfocus="FocusAsync"
+              OnClick="@(_ => NudgeAsync(0, 1))">↓</FluentButton>
+<FluentButton data-scene-action="nudge"
+              Type="ButtonType.Button"
+              Size="ButtonSize.Small"
+              Shape="ButtonShape.Square"
+              Appearance="ButtonAppearance.Subtle"
+              IconOnly="true"
+              Title="@Text["NudgeRight"]"
+              Disabled="@(Position.X == int.MaxValue)"
+              @onfocus="FocusAsync"
+              OnClick="@(_ => NudgeAsync(1, 0))">→</FluentButton>
 
 @code {
     [Parameter, EditorRequired]
