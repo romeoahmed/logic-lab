@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
@@ -13,11 +12,6 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
     private const ulong InteropEnvelopeBytes = 512;
     private const ulong MaximumMeasurementRecordBytes = 320;
     private const string SymbolFontFamily = "Atkinson Hyperlegible Next";
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        AllowDuplicateProperties = false,
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-    };
     private readonly IJSObjectReference module;
     private readonly IJSObjectReference handle;
     private readonly BrowserPolicy policy;
@@ -149,13 +143,25 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
     }
 
     public Task ReplaceAsync(
-        ISceneReplacementV1 replacement,
+        SceneReplacementV1 replacement,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(replacement);
         return TransferAsync(
             "replacement",
-            JsonSerializer.SerializeToUtf8Bytes(replacement, replacement.GetType(), JsonOptions),
+            replacement switch
+            {
+                SceneSnapshotV1 snapshot => JsonSerializer.SerializeToUtf8Bytes(
+                    snapshot,
+                    SceneJsonSerializerContext.Strict.SceneSnapshotV1),
+                SceneUnavailableV1 unavailable => JsonSerializer.SerializeToUtf8Bytes(
+                    unavailable,
+                    SceneJsonSerializerContext.Strict.SceneUnavailableV1),
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(replacement),
+                    replacement.GetType(),
+                    "The Scene replacement variant is undefined."),
+            },
             cancellationToken);
     }
 
@@ -164,7 +170,9 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(patch);
         return TransferAsync(
             "patch",
-            JsonSerializer.SerializeToUtf8Bytes(patch, JsonOptions),
+            JsonSerializer.SerializeToUtf8Bytes(
+                patch,
+                SceneJsonSerializerContext.Strict.ScenePatchV1),
             cancellationToken);
     }
 
@@ -214,7 +222,8 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         {
             if ((ulong)Encoding.UTF8.GetByteCount(record.GetRawText()) + InteropEnvelopeBytes
                     > policy.Limit(BrowserLimitDimension.InteropBatchBytes)
-                || record.Deserialize<BrowserSceneRecoveryStateV1>(JsonOptions)
+                || record.Deserialize(
+                    SceneJsonSerializerContext.Strict.BrowserSceneRecoveryStateV1)
                     is not { Viewports: not null } recoveryState
                 || (ulong)recoveryState.Viewports.Count
                     > policy.Limit(BrowserLimitDimension.SceneSnapshotRecordCount)
@@ -369,7 +378,7 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         {
             var requestBytes = checked((ulong)JsonSerializer.SerializeToUtf8Bytes(
                 request,
-                JsonOptions).Length);
+                SceneJsonSerializerContext.Strict.BrowserTextMeasurementRequestV1).Length);
             var separatorBytes = current.Count == 0 ? 0UL : 1UL;
             var observed = checked(
                 InteropEnvelopeBytes + currentJsonBytes + separatorBytes + requestBytes);
@@ -426,7 +435,8 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
             familyProperty.GetString()!,
             assetProperty.GetString()!,
             fingerprintProperty.GetString()!,
-            measurementsProperty.Deserialize<BrowserTextMeasurementV1[]>(JsonOptions)
+            measurementsProperty.Deserialize(
+                SceneJsonSerializerContext.Strict.BrowserTextMeasurementV1Array)
                 ?? throw new JsonException(
                     "The browser text measurement records are null."));
     }
@@ -560,7 +570,7 @@ internal sealed record BrowserSceneViewportV1(
     double TranslateY,
     double Zoom);
 
-public sealed class BrowserSceneContractException : InvalidOperationException
+internal sealed class BrowserSceneContractException : InvalidOperationException
 {
     internal BrowserSceneContractException(string transferKind)
         : base($"The browser rejected the terminal '{transferKind}' Scene commit.")
@@ -571,7 +581,7 @@ public sealed class BrowserSceneContractException : InvalidOperationException
     public string TransferKind { get; }
 }
 
-public sealed class BrowserPolicyException : InvalidOperationException
+internal sealed class BrowserPolicyException : InvalidOperationException
 {
     internal BrowserPolicyException(
         BrowserPolicy policy,

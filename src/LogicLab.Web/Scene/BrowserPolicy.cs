@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 namespace LogicLab.Web.Scene;
 
-public enum BrowserLimitDimension
+internal enum BrowserLimitDimension
 {
     SemanticIntentBytes,
     SceneSnapshotRecordCount,
@@ -21,24 +21,24 @@ public enum BrowserLimitDimension
     WaveformCacheBytes,
 }
 
-public enum BrowserLimitComparison
+internal enum BrowserLimitComparison
 {
     AtMost,
     AtLeast,
 }
 
-public enum BrowserObservationDimension
+internal enum BrowserObservationDimension
 {
     FrameWorkMicroseconds,
     LongTaskMicroseconds,
 }
 
-public sealed record BrowserLimitV1(
+internal sealed record BrowserLimitV1(
     BrowserLimitDimension Dimension,
     BrowserLimitComparison Comparison,
     ulong Value);
 
-public sealed record BrowserObservationThresholdV1(
+internal sealed record BrowserObservationThresholdV1(
     BrowserObservationDimension Dimension,
     ulong Value);
 
@@ -85,7 +85,7 @@ internal static class BrowserPolicyDimensionTokens
     }
 }
 
-public sealed class BrowserPolicy
+internal sealed class BrowserPolicy
 {
     // Interactive Server defaults to a 32-KB incoming SignalR message, including the
     // JS interop envelope. Use half that limit as the adapter's conservative direct-
@@ -223,11 +223,11 @@ public sealed class BrowserPolicy
 
     public ReadOnlyCollection<BrowserObservationThresholdV1> ObservationThresholds { get; }
 
-    public ulong Limit(BrowserLimitDimension dimension) => Limits[(int)dimension].Value;
+    public ulong Limit(BrowserLimitDimension dimension) => LimitEntry(dimension).Value;
 
     internal bool Rejects(BrowserLimitDimension dimension, ulong observed)
     {
-        var limit = Limits[(int)dimension];
+        var limit = LimitEntry(dimension);
         return limit.Comparison switch
         {
             BrowserLimitComparison.AtMost => observed > limit.Value,
@@ -236,6 +236,11 @@ public sealed class BrowserPolicy
                 "The Browser Policy comparison is undefined."),
         };
     }
+
+    private BrowserLimitV1 LimitEntry(BrowserLimitDimension dimension) =>
+        Enum.IsDefined(dimension)
+            ? Limits[(int)dimension]
+            : throw new ArgumentOutOfRangeException(nameof(dimension));
 
     private static void ValidateStableToken(string value, string parameterName)
     {

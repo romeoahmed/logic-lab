@@ -4,11 +4,9 @@ using LogicLab.Presentation.Scene;
 
 namespace LogicLab.Web.Scene;
 
-public static class BrowserSceneProjection
+internal static class BrowserSceneProjection
 {
-    private const ulong MaximumPortCount = 100_000;
-
-    public static ISceneReplacementV1 Project(
+    public static SceneReplacementV1 Project(
         string buildFingerprint,
         ulong sceneVersion,
         ulong projectionVersion,
@@ -16,6 +14,7 @@ public static class BrowserSceneProjection
         CircuitDefinitionId circuitDefinitionId,
         string uiCulture,
         BrowserPolicy policy,
+        ulong maximumPortCount,
         ISymbolTextMeasurerV1 textMeasurer,
         BrowserSceneOverlayInputV1? overlayInput = null,
         CancellationToken cancellationToken = default)
@@ -27,6 +26,7 @@ public static class BrowserSceneProjection
         ArgumentNullException.ThrowIfNull(textMeasurer);
         ArgumentOutOfRangeException.ThrowIfZero(sceneVersion);
         ArgumentOutOfRangeException.ThrowIfZero(projectionVersion);
+        ArgumentOutOfRangeException.ThrowIfZero(maximumPortCount);
         if (uiCulture is not ("en-US" or "zh-CN"))
         {
             throw new ArgumentOutOfRangeException(nameof(uiCulture));
@@ -48,7 +48,7 @@ public static class BrowserSceneProjection
             revision,
             circuitDefinitionId,
             fingerprint,
-            MaximumPortCount,
+            maximumPortCount,
             textMeasurer,
             cancellationToken);
         if (outcome is SchematicProjectionRejectedV1 rejected)

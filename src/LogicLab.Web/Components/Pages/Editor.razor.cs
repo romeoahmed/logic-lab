@@ -17,7 +17,6 @@ namespace LogicLab.Web.Components.Pages;
 
 public sealed partial class Editor : IAsyncDisposable
 {
-    private const ulong MaximumScenePortCount = 100_000;
     private static readonly TimeSpan CompilationRefreshInterval =
         TimeSpan.FromMilliseconds(250);
     private readonly IEditorWorkspace workspace;
@@ -119,6 +118,9 @@ public sealed partial class Editor : IAsyncDisposable
 
     [Inject]
     private IStringLocalizer<EditorText> Text { get; set; } = null!;
+
+    [Inject]
+    private WorkspacePolicy WorkspacePolicy { get; set; } = null!;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -1205,7 +1207,7 @@ public sealed partial class Editor : IAsyncDisposable
         if (AccessibleSceneProjector.TryProject(
                 Projection.ProjectRevision,
                 selectedDefinitionId,
-                MaximumScenePortCount,
+                checked((ulong)WorkspacePolicy.AuthoringLimits.EntityCount),
                 out var scene))
         {
             Scene = scene;
@@ -1311,40 +1313,8 @@ public sealed partial class Editor : IAsyncDisposable
             return;
         }
 
-        var available = Scene.Components.Select(component => new SceneSourceRefV1(
-                component.Source.CircuitDefinitionId.Value,
-                "componentInstance",
-                component.Source.ComponentInstanceId.Value).Key)
-            .Concat(Scene.Components.SelectMany(component => component.Ports.Select(port =>
-                new SceneSourceRefV1(
-                    port.Source.CircuitDefinitionId.Value,
-                    "instancePort",
-                    port.Source.ComponentInstanceId.Value,
-                    port.Source.PortId).Key)))
-            .Concat(Scene.DefinitionPorts.Select(port => new SceneSourceRefV1(
-                port.Source.CircuitDefinitionId.Value,
-                "definitionPort",
-                port.Source.DefinitionPortId.Value).Key))
-            .Concat(Scene.Connections.Select(connection => new SceneSourceRefV1(
-                connection.Source.CircuitDefinitionId.Value,
-                "net",
-                connection.Source.NetId.Value).Key))
-            .Concat(Scene.Connections.SelectMany(connection => connection.Junctions.Select(junction =>
-                new SceneSourceRefV1(
-                    junction.Source.CircuitDefinitionId.Value,
-                    "junction",
-                    junction.Source.JunctionId.Value).Key)))
-            .Concat(Scene.Connections.SelectMany(connection =>
-                connection.WireGeometries.Select(wire => new SceneSourceRefV1(
-                    wire.Source.CircuitDefinitionId.Value,
-                    "wireGeometry",
-                    wire.Source.WireGeometryId.Value).Key)))
-            .Concat(Projection!.ProjectRevision.Document
-                .FindCircuitDefinition(Scene.CircuitDefinitionId)!.Annotations
-                .Select(annotation => new SceneSourceRefV1(
-                    Scene.CircuitDefinitionId.Value,
-                    "annotation",
-                    annotation.Id.Value).Key))
+        var available = SceneSourceMap.Enumerate(Scene)
+            .Select(source => source.Key)
             .ToHashSet(StringComparer.Ordinal);
         var retained = SceneSelection.Sources
             .Where(source => source.CircuitDefinitionId == SelectedDefinitionId?.Value

@@ -18,10 +18,10 @@ internal static class SceneSemanticNavigation
         ArgumentNullException.ThrowIfNull(scene);
         var builders = new Dictionary<string, NeighborBuilder>(StringComparer.Ordinal);
 
-        var definitionPorts = scene.DefinitionPorts.Select(DefinitionPortSource).ToArray();
-        var components = scene.Components.Select(ComponentSource).ToArray();
-        var connections = scene.Connections.Select(NetSource).ToArray();
-        var annotations = scene.Annotations.Select(AnnotationSource).ToArray();
+        var definitionPorts = scene.DefinitionPorts.Select(SceneSourceMap.From).ToArray();
+        var components = scene.Components.Select(SceneSourceMap.From).ToArray();
+        var connections = scene.Connections.Select(SceneSourceMap.From).ToArray();
+        var annotations = scene.Annotations.Select(SceneSourceMap.From).ToArray();
         RegisterGroup(definitionPorts, builders);
         RegisterGroup(components, builders);
         RegisterGroup(connections, builders);
@@ -31,19 +31,19 @@ internal static class SceneSemanticNavigation
         var terminalDirections = new Dictionary<string, PortDirection>(StringComparer.Ordinal);
         foreach (var port in scene.DefinitionPorts)
         {
-            terminalDirections.Add(DefinitionPortSource(port).Key, port.Direction);
+            terminalDirections.Add(SceneSourceMap.From(port).Key, port.Direction);
         }
 
         foreach (var port in scene.Components.SelectMany(component => component.Ports))
         {
-            terminalDirections.Add(InstancePortSource(port).Key, port.Direction);
+            terminalDirections.Add(SceneSourceMap.From(port).Key, port.Direction);
         }
 
         foreach (var connection in scene.Connections)
         {
-            var net = NetSource(connection);
-            var topology = connection.Junctions.Select(JunctionSource)
-                .Concat(connection.WireGeometries.Select(WireSource))
+            var net = SceneSourceMap.From(connection);
+            var topology = connection.Junctions.Select(SceneSourceMap.From)
+                .Concat(connection.WireGeometries.Select(SceneSourceMap.From))
                 .ToArray();
             RegisterGroup(topology, builders);
             foreach (var item in topology)
@@ -54,14 +54,14 @@ internal static class SceneSemanticNavigation
 
             foreach (var terminal in connection.Terminals)
             {
-                terminalNets.Add(TerminalSource(scene, terminal).Key, net);
+                terminalNets.Add(SceneSourceMap.From(scene.CircuitDefinitionId, terminal).Key, net);
             }
         }
 
         foreach (var component in scene.Components)
         {
-            var source = ComponentSource(component);
-            var ports = component.Ports.Select(InstancePortSource).ToArray();
+            var source = SceneSourceMap.From(component);
+            var ports = component.Ports.Select(SceneSourceMap.From).ToArray();
             RegisterGroup(ports, builders);
             if (ports.Length > 0)
             {
@@ -88,7 +88,7 @@ internal static class SceneSemanticNavigation
 
         foreach (var port in scene.DefinitionPorts)
         {
-            var source = DefinitionPortSource(port);
+            var source = SceneSourceMap.From(port);
             terminalNets.TryGetValue(source.Key, out var net);
             if (port.Direction == PortDirection.Output)
             {
@@ -102,10 +102,10 @@ internal static class SceneSemanticNavigation
 
         foreach (var connection in scene.Connections)
         {
-            var builder = builders[NetSource(connection).Key];
+            var builder = builders[SceneSourceMap.From(connection).Key];
             var terminals = connection.Terminals.Select(terminal => new
             {
-                Source = TerminalSource(scene, terminal),
+                Source = SceneSourceMap.From(scene.CircuitDefinitionId, terminal),
                 Terminal = terminal,
             }).ToArray();
             builder.Left = terminals.FirstOrDefault(terminal => IsDriver(
@@ -155,62 +155,6 @@ internal static class SceneSemanticNavigation
             _ => throw new InvalidOperationException(
                 "The Terminal Reference variant is undefined."),
         };
-
-    private static SceneSourceRefV1 TerminalSource(
-        AccessibleSceneProjection scene,
-        AuthoredTerminalReference terminal) => terminal switch
-        {
-            DefinitionTerminalReference definition => new SceneSourceRefV1(
-                scene.CircuitDefinitionId.Value,
-                "definitionPort",
-                definition.DefinitionPortId.Value),
-            InstanceTerminalReference instance => new SceneSourceRefV1(
-                scene.CircuitDefinitionId.Value,
-                "instancePort",
-                instance.ComponentInstanceId.Value,
-                instance.PortId),
-            _ => throw new InvalidOperationException(
-                "The Terminal Reference variant is undefined."),
-        };
-
-    private static SceneSourceRefV1 DefinitionPortSource(
-        AccessibleDefinitionPortProjection port) => new(
-            port.Source.CircuitDefinitionId.Value,
-            "definitionPort",
-            port.Source.DefinitionPortId.Value);
-
-    private static SceneSourceRefV1 ComponentSource(AccessibleComponentProjection component) =>
-        new(
-            component.Source.CircuitDefinitionId.Value,
-            "componentInstance",
-            component.Source.ComponentInstanceId.Value);
-
-    private static SceneSourceRefV1 InstancePortSource(AccessiblePortProjection port) => new(
-        port.Source.CircuitDefinitionId.Value,
-        "instancePort",
-        port.Source.ComponentInstanceId.Value,
-        port.Source.PortId);
-
-    private static SceneSourceRefV1 NetSource(AccessibleConnectionProjection connection) => new(
-        connection.Source.CircuitDefinitionId.Value,
-        "net",
-        connection.Source.NetId.Value);
-
-    private static SceneSourceRefV1 JunctionSource(AccessibleJunctionProjection junction) => new(
-        junction.Source.CircuitDefinitionId.Value,
-        "junction",
-        junction.Source.JunctionId.Value);
-
-    private static SceneSourceRefV1 WireSource(AccessibleWireGeometryProjection wire) => new(
-        wire.Source.CircuitDefinitionId.Value,
-        "wireGeometry",
-        wire.Source.WireGeometryId.Value);
-
-    private static SceneSourceRefV1 AnnotationSource(
-        AccessibleAnnotationProjection annotation) => new(
-            annotation.Source.CircuitDefinitionId.Value,
-            "annotation",
-            annotation.Source.AnnotationId.Value);
 
     private sealed class NeighborBuilder
     {
