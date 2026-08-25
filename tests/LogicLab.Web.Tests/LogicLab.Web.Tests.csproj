@@ -16,5 +16,6 @@
     <PackageReference Include="bunit" />
     <PackageReference Include="TUnit" />
     <PackageReference Include="TUnit.AspNetCore" />
+    <PackageReference Include="TUnit.FsCheck" />
   </ItemGroup>
 </Project>

@@ -72,13 +72,11 @@ internal sealed class BrowserTextMeasurementTests
             "ltr");
 
         var exception = Assert.Throws<ArgumentException>(() =>
-        {
             _ = new BrowserMeasuredTextMeasurer(
                 [transferRequest],
-                new BrowserTextMeasurementBatchV1(new string('8', 64), []));
-        });
+                new BrowserTextMeasurementBatchV1(new string('8', 64), [])));
 
-        await Assert.That(exception.Message).Contains("exactly match");
+        await Assert.That(exception.ParamName).IsEqualTo("batch");
     }
 
     private static SymbolTextMeasurementRequestV1 Request() => new(

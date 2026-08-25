@@ -36,16 +36,13 @@ internal sealed class BrowserPolicyTests
         var limits = BrowserPolicy.Development.Limits.ToArray();
         limits[1] = limits[0];
 
-        var exception = Assert.Throws<ArgumentException>(() =>
-        {
-            _ = new BrowserPolicy(
+        var exception = Assert.Throws<ArgumentException>(() => _ = new BrowserPolicy(
                 "logiclab-browser",
                 "development-1",
                 limits,
-                BrowserPolicy.Development.ObservationThresholds);
-        });
+                BrowserPolicy.Development.ObservationThresholds));
 
-        await Assert.That(exception.Message).Contains("exactly once");
+        await Assert.That(exception.ParamName).IsEqualTo("limits");
     }
 
     [Test]
@@ -60,16 +57,13 @@ internal sealed class BrowserPolicyTests
             })
             .ToArray();
 
-        var exception = Assert.Throws<ArgumentException>(() =>
-        {
-            _ = new BrowserPolicy(
+        var exception = Assert.Throws<ArgumentException>(() => _ = new BrowserPolicy(
                 "logiclab-browser",
                 "development-1",
                 limits,
-                BrowserPolicy.Development.ObservationThresholds);
-        });
+                BrowserPolicy.Development.ObservationThresholds));
 
-        await Assert.That(exception.Message).Contains("minimum");
+        await Assert.That(exception.ParamName).IsEqualTo("limits");
     }
 
     [Test]
@@ -84,15 +78,12 @@ internal sealed class BrowserPolicyTests
                 : limit)
             .ToArray();
 
-        var exception = Assert.Throws<ArgumentException>(() =>
-        {
-            _ = new BrowserPolicy(
+        var exception = Assert.Throws<ArgumentException>(() => _ = new BrowserPolicy(
                 "logiclab-browser",
                 "development-1",
                 limits,
-                BrowserPolicy.Development.ObservationThresholds);
-        });
+                BrowserPolicy.Development.ObservationThresholds));
 
-        await Assert.That(exception.Message).Contains("Interactive Server");
+        await Assert.That(exception.ParamName).IsEqualTo("limits");
     }
 }

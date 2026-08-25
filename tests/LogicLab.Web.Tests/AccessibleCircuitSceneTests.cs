@@ -15,7 +15,7 @@ namespace LogicLab.Web.Tests;
 internal sealed class AccessibleCircuitSceneTests
 {
     [Test]
-    public async Task AccessibleCircuitScene_CompleteCircuit_RendersReachableTopology()
+    public async Task AccessibleCircuitScene_CompleteCircuit_RendersProjectedSourcesAndLabels()
     {
         await using var context = CreateContext();
         var scene = Project(WebTestCircuit.CreateCompleteCircuit());
@@ -61,6 +61,15 @@ internal sealed class AccessibleCircuitSceneTests
             }
         }
 
+    }
+
+    [Test]
+    public async Task AccessibleCircuitScene_CompleteCircuit_PublishesKeyboardNavigationGraph()
+    {
+        await using var context = CreateContext();
+        var scene = Project(WebTestCircuit.CreateCompleteCircuit());
+        var rendered = context.Render<AccessibleCircuitScene>(parameters => parameters
+            .Add(component => component.Scene, scene));
         var navigationComponent = scene.Components.First(candidate => candidate.Ports.Count > 1);
         var componentSource = new SceneSourceRefV1(
             navigationComponent.Source.CircuitDefinitionId.Value,
@@ -257,7 +266,10 @@ internal sealed class AccessibleCircuitSceneTests
         {
             await Assert.That(selectedAction.GetAttribute("data-scene-selected"))
                 .IsEqualTo("true");
-            await Assert.That(selectedAction.TextContent).Contains("Selected");
+            await Assert.That(selectedAction.QuerySelectorAll(".selection-indicator"))
+                .HasSingleItem();
+            await Assert.That(selectedAction.QuerySelector(".selection-indicator")!.TextContent)
+                .IsNotEmpty();
         }
     }
 

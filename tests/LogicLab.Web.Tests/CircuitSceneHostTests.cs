@@ -1,3 +1,4 @@
+using System.Globalization;
 using Bunit;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
@@ -202,6 +203,11 @@ internal sealed class CircuitSceneHostTests
         await using var context = WebTestContext.CreateBunitContext();
         context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
         var revision = WebTestCircuit.CreateCompleteCircuit();
+        var policy = BrowserPolicy.Development;
+        var dimension = BrowserLimitDimension.SpatialIndexBytes;
+        var dimensionToken = BrowserPolicyDimensionTokens.Token(dimension);
+        var observed = checked(policy.Limit(dimension) + 1)
+            .ToString(CultureInfo.InvariantCulture);
         var rendered = context.Render<CircuitSceneHost>(parameters => parameters
             .Add(component => component.ProjectRevision, revision)
             .Add(component => component.ProjectionVersion, 1UL)
@@ -210,22 +216,22 @@ internal sealed class CircuitSceneHostTests
             .Add(component => component.Scene, Project(revision)));
 
         await rendered.InvokeAsync(() => rendered.Instance.SceneBrowserPolicyExhaustedAsync(
-            BrowserPolicy.Development.PolicyId,
-            BrowserPolicy.Development.PolicyRevision,
-            "spatial_index_bytes",
-            "8388609"));
+            policy.PolicyId,
+            policy.PolicyRevision,
+            dimensionToken,
+            observed));
 
         var recovery = rendered.Find("[data-scene-recovery]");
         using (Assert.Multiple())
         {
             await Assert.That(recovery.GetAttribute("data-browser-policy-id"))
-                .IsEqualTo("logiclab-browser");
+                .IsEqualTo(policy.PolicyId);
             await Assert.That(recovery.GetAttribute("data-browser-policy-revision"))
-                .IsEqualTo("development-2");
+                .IsEqualTo(policy.PolicyRevision);
             await Assert.That(recovery.GetAttribute("data-browser-policy-dimension"))
-                .IsEqualTo("spatial_index_bytes");
+                .IsEqualTo(dimensionToken);
             await Assert.That(recovery.GetAttribute("data-browser-policy-observed"))
-                .IsEqualTo("8388609");
+                .IsEqualTo(observed);
         }
     }
 

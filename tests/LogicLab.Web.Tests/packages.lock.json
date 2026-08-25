@@ -38,6 +38,16 @@
           "TUnit.AspNetCore.Core": "1.65.38"
         }
       },
+      "TUnit.FsCheck": {
+        "type": "Direct",
+        "requested": "[1.65.38, )",
+        "resolved": "1.65.38",
+        "contentHash": "ldUdocIZp+SB+CNP60N+tdnc+OmKDTsctd3XPM+C1JLWuPnEvC0/Zc8klN7N6ZA+ReqvfMNr92P9qb+Lcqu+WA==",
+        "dependencies": {
+          "FsCheck": "3.3.4",
+          "TUnit": "1.65.38"
+        }
+      },
       "AngleSharp": {
         "type": "Transitive",
         "resolved": "1.7.0",
@@ -59,6 +69,11 @@
           "AngleSharp": "1.1.2",
           "AngleSharp.Css": "1.0.0-beta.144"
         }
+      },
+      "FSharp.Core": {
+        "type": "Transitive",
+        "resolved": "5.0.2",
+        "contentHash": "DpcajqENgb3VXaHw1FKfVS+TWwEzck1PCajqLwBAVrtd1lfxd7T8JISVZBdV1mX9+2g48+tIgpNaVJWObdMrBw=="
       },
       "Microsoft.ApplicationInsights": {
         "type": "Transitive",
@@ -380,6 +395,15 @@
           "LogicLab.Presentation": "[1.0.0, )",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.11, )",
           "Microsoft.FluentUI.AspNetCore.Components": "[5.0.0-rc.5-26219.1, )"
+        }
+      },
+      "FsCheck": {
+        "type": "CentralTransitive",
+        "requested": "[3.4.0, )",
+        "resolved": "3.3.4",
+        "contentHash": "Gintz/p4eTVb3EW3P8tg5wZB66sHbUBO42kHwuDZJ9BRHurOuC3+JF5YPq4rfeURMxuGs5YgzW/DDneIUsTNqA==",
+        "dependencies": {
+          "FSharp.Core": "5.0.2"
         }
       },
       "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {
