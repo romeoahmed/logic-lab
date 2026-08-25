@@ -15,6 +15,9 @@ internal static class AuthoringAdmission
             CreateCircuitDefinitionIntent create => budget.TryConsume(create.Ports.Count),
             SetEntryCircuitDefinitionIntent => budget.TryConsume(1),
             PlaceComponentInstanceIntent place => TryAdmitParameters(place.Parameters, budget),
+            PlaceComponentWithNewMemoryImageIntent place =>
+                TryAdmitParameters(place.Parameters, budget)
+                && TryAdmitMemoryImage(place.MemoryImage.Words, budget),
             ConnectTerminalsIntent connect => budget.TryConsume(connect.Terminals.Count)
                 && budget.TryConsume(connect.NewJunctionPositions.Count)
                 && TryAdmitRoutes(connect.RouteAdditions, budget)

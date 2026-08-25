@@ -30,7 +30,7 @@ public static class ScenePlaceCatalog
                     new SceneLibraryComponentTargetV1(
                         contract.Key.LibraryId,
                         contract.Key.ContractId),
-                    [.. parameters.Select(ToSceneParameter)],
+                    parameters,
                     null,
                     pinned: false)));
         }
@@ -51,27 +51,52 @@ public static class ScenePlaceCatalog
 
     private static bool TryCreateDefaultParameters(
         ComponentContractSchema contract,
-        out IReadOnlyList<ComponentParameterBinding> parameters)
+        out IReadOnlyList<SceneParameterBindingV1> parameters)
     {
-        if (contract.Parameters.Any(parameter =>
-            parameter.Kind == ComponentParameterKind.MemoryImage))
-        {
-            parameters = [];
-            return false;
-        }
-
         var bindings = new List<ComponentParameterBinding>(contract.Parameters.Count);
+        var sceneBindings = new List<SceneParameterBindingV1>(contract.Parameters.Count);
         foreach (var parameter in contract.Parameters)
         {
-            bindings.Add(new ComponentParameterBinding(
+            if (parameter.Kind == ComponentParameterKind.MemoryImage)
+            {
+                var wordWidth = Width(bindings, parameter.MemoryImageWidthParameterId);
+                var addressWidth = Width(
+                    bindings,
+                    parameter.MemoryImageAddressWidthParameterId);
+                if (addressWidth >= 32)
+                {
+                    parameters = [];
+                    return false;
+                }
+
+                var depth = 1u << checked((int)addressWidth);
+                var unknownWord = new string('X', checked((int)wordWidth));
+                sceneBindings.Add(new SceneParameterBindingV1(
+                    parameter.Id,
+                    new SceneNewMemoryImageParameterV1(
+                        $"{contract.Key.ContractId} {parameter.Id}",
+                        wordWidth,
+                        depth,
+                        [.. Enumerable.Repeat(unknownWord, checked((int)depth))])));
+                continue;
+            }
+
+            var binding = new ComponentParameterBinding(
                 parameter.Id,
-                CreateDefaultValue(parameter, bindings)));
+                CreateDefaultValue(parameter, bindings));
+            bindings.Add(binding);
+            sceneBindings.Add(ToSceneParameter(binding));
         }
 
         try
         {
-            _ = contract.ResolvePorts(bindings);
-            parameters = bindings;
+            if (sceneBindings.All(binding =>
+                    binding.Value is not SceneNewMemoryImageParameterV1))
+            {
+                _ = contract.ResolvePorts(bindings);
+            }
+
+            parameters = sceneBindings.AsReadOnly();
             return true;
         }
         catch (ArgumentException)

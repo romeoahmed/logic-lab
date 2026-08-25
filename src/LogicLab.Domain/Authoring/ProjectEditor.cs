@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Text;
 using LogicLab.Domain.Components;
 
@@ -30,6 +31,8 @@ public static partial class ProjectEditor
             SetEntryCircuitDefinitionIntent setEntry =>
                 ApplySetEntryDefinition(revision, setEntry),
             PlaceComponentInstanceIntent place => ApplyPlace(revision, place),
+            PlaceComponentWithNewMemoryImageIntent placeWithImage =>
+                ApplyPlaceWithNewMemoryImage(revision, placeWithImage),
             ConnectTerminalsIntent connect => ApplyConnectTopology(revision, connect),
             MergeNetsIntent merge => ApplyMergeNets(revision, merge),
             SplitNetIntent split => ApplySplitNet(revision, split),
@@ -263,29 +266,96 @@ public static partial class ProjectEditor
 
     private static EditOutcome ApplyPlace(
         ProjectRevision revision,
-        PlaceComponentInstanceIntent intent)
+        PlaceComponentInstanceIntent intent) => ApplyPlace(
+            revision.Document,
+            intent.CircuitDefinitionId,
+            intent.Target,
+            intent.Parameters,
+            intent.Placement,
+            intent.DisplayName,
+            []);
+
+    private static EditOutcome ApplyPlaceWithNewMemoryImage(
+        ProjectRevision revision,
+        PlaceComponentWithNewMemoryImageIntent intent)
     {
-        var definition = revision.Document.FindCircuitDefinition(intent.CircuitDefinitionId);
+        var imageDiagnostics = ValidateMemoryImage(
+            intent.MemoryImage.DisplayName,
+            intent.MemoryImage.Width,
+            intent.MemoryImage.Depth,
+            intent.MemoryImage.Words);
+        if (imageDiagnostics.Count != 0)
+        {
+            return new EditRejected([.. imageDiagnostics]);
+        }
+
+        var image = new MemoryImage(
+            MemoryImageId.Create(),
+            intent.MemoryImage.DisplayName,
+            intent.MemoryImage.Width,
+            intent.MemoryImage.Depth,
+            [.. intent.MemoryImage.Words]);
+        var document = revision.Document.WithMemoryImages(
+            [.. revision.Document.MemoryImages, image]);
+        var schema = document.LibrarySnapshot.ResolveContract(intent.Target.ContractKey);
+        var memoryParameterIndex = schema?.Parameters
+            .Select((parameter, index) => (parameter, index))
+            .Where(item => item.parameter.Kind == ComponentParameterKind.MemoryImage
+                && string.Equals(
+                    item.parameter.Id,
+                    intent.MemoryImage.ParameterId,
+                    StringComparison.Ordinal))
+            .Select(item => item.index)
+            .SingleOrDefault(-1) ?? -1;
+        var parameters = intent.Parameters.ToList();
+        parameters.Insert(
+            memoryParameterIndex is < 0 || memoryParameterIndex > parameters.Count
+                ? parameters.Count
+                : memoryParameterIndex,
+            new ComponentParameterBinding(
+                intent.MemoryImage.ParameterId,
+                new MemoryImageParameterValue(image.Id)));
+
+        return ApplyPlace(
+            document,
+            intent.CircuitDefinitionId,
+            intent.Target,
+            parameters.AsReadOnly(),
+            intent.Placement,
+            intent.DisplayName,
+            [new MemoryImageSourceIdentity(document.ProjectId, image.Id)]);
+    }
+
+    private static EditOutcome ApplyPlace(
+        ProjectDocument document,
+        CircuitDefinitionId circuitDefinitionId,
+        ComponentTarget target,
+        ReadOnlyCollection<ComponentParameterBinding> parameters,
+        ComponentPlacement placement,
+        string? displayName,
+        AuthoredSourceIdentity[] additionalChangedSources)
+    {
+        var definition = document.FindCircuitDefinition(circuitDefinitionId);
         if (definition is null)
         {
             return Reject(MissingReference("circuitDefinition"));
         }
 
         var diagnostics = new List<AuthoringDiagnostic>();
-        if (intent.DisplayName is not null)
+        if (displayName is not null)
         {
-            ValidateDisplayText(intent.DisplayName, "displayName", diagnostics);
+            ValidateDisplayText(displayName, "displayName", diagnostics);
         }
 
-        if (!Enum.IsDefined(intent.Placement.QuarterTurnsClockwise))
+        if (!Enum.IsDefined(placement.QuarterTurnsClockwise))
         {
             diagnostics.Add(InvalidCoordinate("placement", "orientation"));
         }
 
-        switch (intent.Target)
+        switch (target)
         {
             case LibraryComponentTarget library:
-                var schema = revision.Document.LibrarySnapshot.ResolveContract(
+                var schema = document.LibrarySnapshot.ResolveContract(
                     library.ContractKey);
                 if (schema is null)
                 {
@@ -296,19 +366,19 @@ public static partial class ProjectEditor
                     diagnostics.AddRange(ComponentParameterValidator.ValidateForDocument(
                         library.ContractKey,
                         schema,
-                        intent.Parameters,
-                        revision.Document));
+                        parameters,
+                        document));
                 }
 
                 break;
             case CircuitDefinitionComponentTarget definitionTarget:
-                if (revision.Document.FindCircuitDefinition(
+                if (document.FindCircuitDefinition(
                         definitionTarget.CircuitDefinitionId) is null)
                 {
                     diagnostics.Add(MissingReference("circuitDefinitionTarget"));
                 }
 
-                if (intent.Parameters.Count != 0)
+                if (parameters.Count != 0)
                 {
                     diagnostics.Add(new AuthoringDiagnostic(
                         "authoring_invalid_parameter",
@@ -340,15 +410,17 @@ public static partial class ProjectEditor
 
         var instance = new ComponentInstance(
             ComponentInstanceId.Create(),
-            intent.Target,
-            [.. intent.Parameters],
-            intent.Placement,
-            intent.DisplayName);
+            target,
+            [.. parameters],
+            placement,
+            displayName);
         var updatedDefinition = definition.AddComponentInstance(instance);
+        var changedSources = additionalChangedSources
+            .Append(new ComponentInstanceSourceIdentity(definition.Id, instance.Id))
+            .ToArray();
         return Commit(
-            revision,
-            updatedDefinition,
-            [new ComponentInstanceSourceIdentity(definition.Id, instance.Id)]);
+            document.ReplaceCircuitDefinition(updatedDefinition),
+            changedSources);
     }
 
     private static EditOutcome ApplyMove(

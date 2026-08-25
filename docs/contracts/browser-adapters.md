@@ -77,7 +77,7 @@ The Probe point must equal the current Schematic Projection's available `NetTopo
 | Kind | Required payload | Web action |
 |---|---|---|
 | `SelectSources` | ordered `AuthoredSourceRefV1` values and selection mode | update Web selection only |
-| `PlaceComponent` | target Circuit Definition ID, exact target, complete parameters, and final placement | one `PlaceComponentInstance` Edit Intent |
+| `PlaceComponent` | target Circuit Definition ID, exact target, complete parameter authoring values, and final placement | one `PlaceComponentInstance` or `PlaceComponentWithNewMemoryImage` Edit Intent |
 | `MoveComponents` | nonempty scoped Component Instance references and final placements | one `MoveComponentInstances` Edit Intent |
 | `MoveDefinitionPorts` | nonempty scoped definition-Port references and final placements | one `MoveDefinitionPorts` Edit Intent |
 | `MoveAnnotations` | nonempty scoped Annotation references and final positions | one `MoveAnnotations` Edit Intent |
@@ -88,6 +88,8 @@ The Probe point must equal the current Schematic Projection's available `NetTopo
 | `ToggleProbe` | one `ElaboratedNetRefV1` | one complete `ReplaceProbes` command using retain/create binding requests |
 
 Every intent carries the build fingerprint, Scene Version, Projection Version, and Circuit Definition ID from which it began. Every scoped authored reference must name that same Circuit Definition. Coordinate-bearing placement, move, route, and Junction intents additionally carry only their final checked 32-bit grid coordinates and the closed modifier `None | DisableSnap`; `SelectSources` and `ToggleProbe` carry neither gesture coordinates nor a snap modifier. `SelectSources` additionally carries selection mode `Replace | Add | Toggle`. Pan/zoom, hover, marquee preview, route preview, pointer samples, and cancelled gestures remain local and emit no intent.
+
+A `PlaceComponent` parameter value is either one complete persisted parameter value or `newMemoryImage { displayName, width, depth, words }`, whose `words` value is complete. The latter is valid only once, for a library memory-image parameter, and translates to the atomic convenience intent above; Web never first publishes an unbound Memory Image.
 
 Web rejects a stale version, missing source, invalid coordinate, unknown modifier, or intent that cannot translate to exactly one typed Workspace command. It discards the Transient Preview and refreshes the Scene Snapshot; it never guesses a replacement source, splits one gesture into independently committed edits, or forwards the browser record as a Domain patch. An unknown kind or build mismatch requires a hard reload.
 

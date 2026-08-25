@@ -81,6 +81,68 @@ public sealed record PlaceComponentInstanceIntent : EditIntent
     public string? DisplayName { get; }
 }
 
+public sealed record NewMemoryImageBinding
+{
+    public NewMemoryImageBinding(
+        string parameterId,
+        string displayName,
+        uint width,
+        uint depth,
+        IReadOnlyList<MemoryImageWord> words)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(parameterId);
+        ArgumentNullException.ThrowIfNull(displayName);
+        ParameterId = parameterId;
+        DisplayName = displayName;
+        Width = width;
+        Depth = depth;
+        Words = AuthoringInput.CopyRequiredReferences(words, nameof(words));
+    }
+
+    public string ParameterId { get; }
+
+    public string DisplayName { get; }
+
+    public uint Width { get; }
+
+    public uint Depth { get; }
+
+    public ReadOnlyCollection<MemoryImageWord> Words { get; }
+}
+
+public sealed record PlaceComponentWithNewMemoryImageIntent : EditIntent
+{
+    public PlaceComponentWithNewMemoryImageIntent(
+        CircuitDefinitionId circuitDefinitionId,
+        ComponentContractKey contractKey,
+        IReadOnlyList<ComponentParameterBinding> parameters,
+        NewMemoryImageBinding memoryImage,
+        ComponentPlacement placement,
+        string? displayName = null)
+    {
+        ArgumentNullException.ThrowIfNull(circuitDefinitionId);
+        ArgumentNullException.ThrowIfNull(memoryImage);
+        CircuitDefinitionId = circuitDefinitionId;
+        Target = new LibraryComponentTarget(contractKey);
+        Parameters = AuthoringInput.CopyRequiredReferences(parameters, nameof(parameters));
+        MemoryImage = memoryImage;
+        Placement = placement;
+        DisplayName = displayName;
+    }
+
+    public CircuitDefinitionId CircuitDefinitionId { get; }
+
+    public LibraryComponentTarget Target { get; }
+
+    public ReadOnlyCollection<ComponentParameterBinding> Parameters { get; }
+
+    public NewMemoryImageBinding MemoryImage { get; }
+
+    public ComponentPlacement Placement { get; }
+
+    public string? DisplayName { get; }
+}
+
 public sealed record ConnectTerminalsIntent : EditIntent
 {
     public ConnectTerminalsIntent(IReadOnlyList<AuthoredTerminalReference> terminals)
