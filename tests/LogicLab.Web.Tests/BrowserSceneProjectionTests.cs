@@ -8,7 +8,6 @@ namespace LogicLab.Web.Tests;
 internal sealed class BrowserSceneProjectionTests
 {
     private static readonly FontFingerprintV1 FontFingerprint = new(new string('7', 64));
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     [Test]
     public async Task Project_CompleteCircuit_MapsOrderedPresentationWithoutReconstructingGeometry()
@@ -23,6 +22,7 @@ internal sealed class BrowserSceneProjectionTests
             revision.Document.EntryCircuitDefinitionId,
             "en-US",
             BrowserPolicy.Development,
+            maximumPortCount: 10_000,
             new TestTextMeasurer());
         var snapshot = await Assert.That(replacement).IsTypeOf<SceneSnapshotV1>();
         using (Assert.Multiple())
@@ -75,6 +75,7 @@ internal sealed class BrowserSceneProjectionTests
                 revision.Document.EntryCircuitDefinitionId,
                 "en-US",
                 policy,
+                maximumPortCount: 10_000,
                 new TestTextMeasurer()))
             .ThrowsExactly<BrowserPolicyException>();
 
@@ -117,12 +118,13 @@ internal sealed class BrowserSceneProjectionTests
             definition.Id,
             "en-US",
             BrowserPolicy.Development,
+            maximumPortCount: 10_000,
             new TestTextMeasurer(),
             overlayInput);
         var snapshot = await Assert.That(replacement).IsTypeOf<SceneSnapshotV1>();
         var json = JsonSerializer.SerializeToElement(
             snapshot,
-            JsonOptions);
+            SceneJsonSerializerContext.Strict.SceneSnapshotV1);
         var selectionJson = json.GetProperty("overlays")
             .EnumerateArray()
             .Single(overlay => overlay.GetProperty("kind").GetString() == "selection");

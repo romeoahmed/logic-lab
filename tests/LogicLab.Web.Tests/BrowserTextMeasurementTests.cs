@@ -14,11 +14,13 @@ internal sealed class BrowserTextMeasurementTests
             revision,
             revision.Document.EntryCircuitDefinitionId,
             "en-US",
+            maximumPortCount: 10_000,
             CancellationToken.None);
         var second = BrowserTextMeasurements.Collect(
             revision,
             revision.Document.EntryCircuitDefinitionId,
             "en-US",
+            maximumPortCount: 10_000,
             CancellationToken.None);
 
         using (Assert.Multiple())

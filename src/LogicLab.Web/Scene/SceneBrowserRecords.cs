@@ -26,7 +26,7 @@ public sealed record SceneSourceRefV1(
         value);
 }
 
-public sealed record ScenePathCommandV1(
+internal sealed record ScenePathCommandV1(
     string Kind,
     double X,
     double Y,
@@ -35,7 +35,7 @@ public sealed record ScenePathCommandV1(
     double Control2X = 0,
     double Control2Y = 0);
 
-public sealed record SceneDrawOperationV1(
+internal sealed record SceneDrawOperationV1(
     string Kind,
     string Role,
     SceneRect Bounds,
@@ -52,7 +52,7 @@ public sealed record SceneDrawOperationV1(
     string? Direction = null,
     string? Locale = null);
 
-public sealed record SceneHitRegionV1(
+internal sealed record SceneHitRegionV1(
     string LocalId,
     string Kind,
     string? SourcePortId,
@@ -63,7 +63,7 @@ public sealed record SceneHitRegionV1(
     IReadOnlyList<ScenePoint>? Points = null,
     SceneSourceRefV1? TargetSource = null);
 
-public sealed record SceneItemV1(
+internal sealed record SceneItemV1(
     SceneSourceRefV1 Source,
     int Order,
     SceneRect Bounds,
@@ -80,25 +80,25 @@ public sealed record SceneItemV1(
 [JsonDerivedType(typeof(SceneNetInteractionV1), "net")]
 [JsonDerivedType(typeof(SceneWireInteractionV1), "wire")]
 [JsonDerivedType(typeof(SceneJunctionInteractionV1), "junction")]
-public abstract record SceneItemInteractionV1;
+internal abstract record SceneItemInteractionV1;
 
-public sealed record SceneComponentInteractionV1(SceneComponentPlacementV1 Placement)
+internal sealed record SceneComponentInteractionV1(SceneComponentPlacementV1 Placement)
     : SceneItemInteractionV1;
 
-public sealed record SceneDefinitionPortInteractionV1(SceneDefinitionPortPlacementV1 Placement)
+internal sealed record SceneDefinitionPortInteractionV1(SceneDefinitionPortPlacementV1 Placement)
     : SceneItemInteractionV1;
 
-public sealed record SceneAnnotationInteractionV1(SceneGridPointV1 Position)
+internal sealed record SceneAnnotationInteractionV1(SceneGridPointV1 Position)
     : SceneItemInteractionV1;
 
-public sealed record SceneNetInteractionV1(SceneSourceRefV1 Net)
+internal sealed record SceneNetInteractionV1(SceneSourceRefV1 Net)
     : SceneItemInteractionV1;
 
-public sealed record SceneWireInteractionV1(
+internal sealed record SceneWireInteractionV1(
     SceneSourceRefV1 Net,
     SceneWireRouteV1 Route) : SceneItemInteractionV1;
 
-public sealed record SceneJunctionInteractionV1(SceneSourceRefV1 Net)
+internal sealed record SceneJunctionInteractionV1(SceneSourceRefV1 Net)
     : SceneItemInteractionV1;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
@@ -168,12 +168,12 @@ public sealed record ScenePanToolV1 : SceneToolV1
 [JsonDerivedType(typeof(SceneSelectionOverlayV1), "selection")]
 [JsonDerivedType(typeof(SceneProbeAnchorOverlayV1), "probeAnchor")]
 [JsonDerivedType(typeof(SceneDiagnosticMarkerOverlayV1), "diagnosticMarker")]
-public abstract record SceneOverlayV1(string Id)
+internal abstract record SceneOverlayV1(string Id)
 {
     public abstract SceneSourceRefV1 Source { get; }
 }
 
-public sealed record SceneLiveNetValueOverlayV1(
+internal sealed record SceneLiveNetValueOverlayV1(
     string Id,
     SceneElaboratedNetRefV1 Net,
     string SessionId,
@@ -183,7 +183,7 @@ public sealed record SceneLiveNetValueOverlayV1(
     public override SceneSourceRefV1 Source => Net.AuthoredNet;
 }
 
-public sealed record SceneSelectionOverlayV1(
+internal sealed record SceneSelectionOverlayV1(
     string Id,
     [property: JsonIgnore] SceneSourceRefV1 SelectionSource,
     string Role) : SceneOverlayV1(Id)
@@ -191,7 +191,7 @@ public sealed record SceneSelectionOverlayV1(
     public override SceneSourceRefV1 Source => SelectionSource;
 }
 
-public sealed record SceneProbeAnchorOverlayV1(
+internal sealed record SceneProbeAnchorOverlayV1(
     string Id,
     string ProbeId,
     SceneElaboratedNetRefV1 Net,
@@ -201,7 +201,7 @@ public sealed record SceneProbeAnchorOverlayV1(
     public override SceneSourceRefV1 Source => Net.AuthoredNet;
 }
 
-public sealed record SceneDiagnosticMarkerOverlayV1(
+internal sealed record SceneDiagnosticMarkerOverlayV1(
     string Id,
     [property: JsonIgnore] SceneSourceRefV1 DiagnosticSource,
     string DiagnosticCode,
@@ -211,7 +211,7 @@ public sealed record SceneDiagnosticMarkerOverlayV1(
     public override SceneSourceRefV1 Source => DiagnosticSource;
 }
 
-public sealed record SceneLogicVectorTransferV1(
+internal sealed record SceneLogicVectorTransferV1(
     uint Width,
     string Encoding,
     string Data)
@@ -241,7 +241,7 @@ public sealed record SceneLogicVectorTransferV1(
     }
 }
 
-public sealed record BrowserSceneProbeInputV1
+internal sealed record BrowserSceneProbeInputV1
 {
     public BrowserSceneProbeInputV1(
         string probeId,
@@ -263,12 +263,12 @@ public sealed record BrowserSceneProbeInputV1
     public ReadOnlyCollection<LogicValue> Value { get; }
 }
 
-public sealed record BrowserSceneDiagnosticInputV1(
+internal sealed record BrowserSceneDiagnosticInputV1(
     SceneSourceRefV1 Source,
     string DiagnosticCode,
     string Severity);
 
-public sealed record BrowserSceneOverlayInputV1
+internal sealed record BrowserSceneOverlayInputV1
 {
     public BrowserSceneOverlayInputV1(
         string? sessionId,
@@ -307,22 +307,14 @@ public sealed record BrowserSceneOverlayInputV1
     public static BrowserSceneOverlayInputV1 Empty { get; } = new(null, null, [], [], []);
 }
 
-public interface ISceneReplacementV1
+internal abstract record SceneReplacementV1
 {
-    string BuildFingerprint { get; }
-
-    ulong SceneVersion { get; }
-
-    ulong ProjectionVersion { get; }
-
-    string CircuitDefinitionId { get; }
-
-    string UiCulture { get; }
-
-    string BaseDirection { get; }
+    private protected SceneReplacementV1()
+    {
+    }
 }
 
-public sealed record SceneSnapshotV1(
+internal sealed record SceneSnapshotV1(
     string BuildFingerprint,
     ulong SceneVersion,
     ulong ProjectionVersion,
@@ -335,18 +327,18 @@ public sealed record SceneSnapshotV1(
     int SnapStepGridUnits,
     string FontFingerprint,
     IReadOnlyList<SceneItemV1> Items,
-    IReadOnlyList<SceneOverlayV1> Overlays) : ISceneReplacementV1;
+    IReadOnlyList<SceneOverlayV1> Overlays) : SceneReplacementV1;
 
-public sealed record SceneUnavailableV1(
+internal sealed record SceneUnavailableV1(
     string BuildFingerprint,
     ulong SceneVersion,
     ulong ProjectionVersion,
     string CircuitDefinitionId,
     string UiCulture,
     string BaseDirection,
-    IReadOnlyList<string> Diagnostics) : ISceneReplacementV1;
+    IReadOnlyList<string> Diagnostics) : SceneReplacementV1;
 
-public sealed record ScenePatchV1(
+internal sealed record ScenePatchV1(
     string BuildFingerprint,
     ulong BaseSceneVersion,
     ulong NextSceneVersion,
@@ -364,9 +356,6 @@ public sealed record ScenePatchV1(
     IReadOnlyList<SceneOverlayV1> OverlayUpserts,
     IReadOnlyList<string> OverlayRemovals)
 {
-    private static readonly JsonSerializerOptions ComparisonJsonOptions = new(
-        JsonSerializerDefaults.Web);
-
     internal static bool TryCreate(
         SceneSnapshotV1 current,
         SceneSnapshotV1 next,
@@ -378,8 +367,8 @@ public sealed record ScenePatchV1(
         patch = null;
         try
         {
-            SceneSnapshotState.ValidateSnapshot(current);
-            SceneSnapshotState.ValidateSnapshot(next);
+            SceneSnapshotValidator.Validate(current);
+            SceneSnapshotValidator.Validate(next);
             if (current.BuildFingerprint != next.BuildFingerprint
                 || next.SceneVersion <= current.SceneVersion
                 || next.ProjectionVersion < current.ProjectionVersion
@@ -458,9 +447,23 @@ public sealed record ScenePatchV1(
         }
     }
 
-    private static bool JsonEquals<T>(T left, T right) => JsonElement.DeepEquals(
-        JsonSerializer.SerializeToElement(left, ComparisonJsonOptions),
-        JsonSerializer.SerializeToElement(right, ComparisonJsonOptions));
+    private static bool JsonEquals(SceneItemV1 left, SceneItemV1 right) =>
+        JsonElement.DeepEquals(
+            JsonSerializer.SerializeToElement(
+                left,
+                SceneJsonSerializerContext.Strict.SceneItemV1),
+            JsonSerializer.SerializeToElement(
+                right,
+                SceneJsonSerializerContext.Strict.SceneItemV1));
+
+    private static bool JsonEquals(SceneOverlayV1 left, SceneOverlayV1 right) =>
+        JsonElement.DeepEquals(
+            JsonSerializer.SerializeToElement(
+                left,
+                SceneJsonSerializerContext.Strict.SceneOverlayV1),
+            JsonSerializer.SerializeToElement(
+                right,
+                SceneJsonSerializerContext.Strict.SceneOverlayV1));
 
     private static ulong PatchRecordCount(
         SceneItemV1[] itemUpserts,
@@ -487,140 +490,9 @@ public sealed record ScenePatchV1(
     }
 }
 
-public enum ScenePatchOutcome
+internal static class SceneSnapshotValidator
 {
-    Applied,
-    SnapshotRequired,
-}
-
-public sealed class SceneSnapshotState
-{
-    private static readonly HashSet<string> SourceKinds =
-    [
-        "definitionPort",
-        "componentInstance",
-        "instancePort",
-        "net",
-        "junction",
-        "wireGeometry",
-        "annotation",
-    ];
-
-    private SceneSnapshotState(SceneSnapshotV1 snapshot)
-    {
-        var items = snapshot.Items.Select(Own).ToArray();
-        var overlays = snapshot.Overlays.ToArray();
-        Items = Array.AsReadOnly(items);
-        Overlays = Array.AsReadOnly(overlays);
-        Snapshot = snapshot with
-        {
-            Items = Items,
-            Overlays = Overlays,
-        };
-    }
-
-    public ulong Version => Snapshot.SceneVersion;
-
-    public ReadOnlyCollection<SceneItemV1> Items { get; }
-
-    public ReadOnlyCollection<SceneOverlayV1> Overlays { get; }
-
-    internal SceneSnapshotV1 Snapshot { get; }
-
-    public static SceneSnapshotState From(SceneSnapshotV1 snapshot)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-        ValidateSnapshot(snapshot);
-        return new SceneSnapshotState(snapshot);
-    }
-
-    public ScenePatchOutcome TryApply(ScenePatchV1 patch, out SceneSnapshotState next)
-    {
-        ArgumentNullException.ThrowIfNull(patch);
-        next = this;
-        if (!IsValidPatchEnvelope(patch)
-            || patch.ItemRemovals.Any(source => !IsValidSource(
-                source,
-                Snapshot.CircuitDefinitionId))
-            || HasDuplicateKeys(patch.ItemUpserts.Select(item => item.Source.Key))
-            || HasDuplicateKeys(patch.ItemRemovals.Select(source => source.Key))
-            || HasDuplicateKeys(patch.OverlayUpserts.Select(overlay => overlay.Id))
-            || HasDuplicateKeys(patch.OverlayRemovals)
-            || patch.ItemUpserts.Select(item => item.Source.Key)
-                .Intersect(patch.ItemRemovals.Select(source => source.Key), StringComparer.Ordinal)
-                .Any()
-            || patch.OverlayUpserts.Select(overlay => overlay.Id)
-                .Intersect(patch.OverlayRemovals, StringComparer.Ordinal)
-                .Any())
-        {
-            return ScenePatchOutcome.SnapshotRequired;
-        }
-
-        try
-        {
-            var items = Items.ToDictionary(item => item.Source.Key, StringComparer.Ordinal);
-            foreach (var removal in patch.ItemRemovals)
-            {
-                items.Remove(removal.Key);
-            }
-
-            foreach (var upsert in patch.ItemUpserts)
-            {
-                items[upsert.Source.Key] = upsert;
-            }
-
-            var overlays = Overlays.ToDictionary(overlay => overlay.Id, StringComparer.Ordinal);
-            foreach (var removal in patch.OverlayRemovals)
-            {
-                overlays.Remove(removal);
-            }
-
-            foreach (var upsert in patch.OverlayUpserts)
-            {
-                overlays[upsert.Id] = upsert;
-            }
-
-            var candidate = new SceneSnapshotV1(
-                patch.BuildFingerprint,
-                patch.NextSceneVersion,
-                patch.ProjectionVersion,
-                patch.CircuitDefinitionId,
-                patch.UiCulture,
-                patch.BaseDirection,
-                patch.SchematicProjectionKey,
-                patch.Bounds,
-                patch.GridStepPlanUnits,
-                patch.SnapStepGridUnits,
-                patch.FontFingerprint,
-                [.. items.Values.OrderBy(item => item.Order)],
-                [.. overlays.Values.OrderBy(overlay => overlay.Id, StringComparer.Ordinal)]);
-            next = From(candidate);
-            return ScenePatchOutcome.Applied;
-        }
-        catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException
-            or OverflowException)
-        {
-            next = this;
-            return ScenePatchOutcome.SnapshotRequired;
-        }
-    }
-
-    private bool IsValidPatchEnvelope(ScenePatchV1 patch) =>
-        patch.BuildFingerprint == Snapshot.BuildFingerprint
-        && patch.BaseSceneVersion == Snapshot.SceneVersion
-        && patch.NextSceneVersion > patch.BaseSceneVersion
-        && patch.ProjectionVersion >= Snapshot.ProjectionVersion
-        && patch.CircuitDefinitionId == Snapshot.CircuitDefinitionId
-        && patch.UiCulture == Snapshot.UiCulture
-        && patch.BaseDirection == Snapshot.BaseDirection
-        && patch.FontFingerprint == Snapshot.FontFingerprint
-        && !string.IsNullOrWhiteSpace(patch.SchematicProjectionKey)
-        && patch.GridStepPlanUnits > 0
-        && patch.SnapStepGridUnits > 0
-        && IsPositiveRect(patch.Bounds);
-
-    internal static void ValidateSnapshot(SceneSnapshotV1 snapshot)
+    public static void Validate(SceneSnapshotV1 snapshot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(snapshot.BuildFingerprint);
         ArgumentException.ThrowIfNullOrWhiteSpace(snapshot.CircuitDefinitionId);
@@ -668,11 +540,14 @@ public sealed class SceneSnapshotState
 
     private static bool IsValidSource(SceneSourceRefV1 source, string circuitDefinitionId) =>
         source.CircuitDefinitionId == circuitDefinitionId
-        && SourceKinds.Contains(source.EntityKind)
         && !string.IsNullOrWhiteSpace(source.EntityId)
-        && (source.EntityKind == "instancePort"
-            ? !string.IsNullOrWhiteSpace(source.PortId)
-            : source.PortId is null);
+        && source.EntityKind switch
+        {
+            "instancePort" => !string.IsNullOrWhiteSpace(source.PortId),
+            "definitionPort" or "componentInstance" or "net" or "junction"
+                or "wireGeometry" or "annotation" => source.PortId is null,
+            _ => false,
+        };
 
     private static bool IsValidOverlay(SceneOverlayV1 overlay, string circuitDefinitionId)
     {
@@ -773,27 +648,6 @@ public sealed class SceneSnapshotState
 
         return true;
     }
-
-    private static SceneItemV1 Own(SceneItemV1 item) => item with
-    {
-        Operations = Array.AsReadOnly(item.Operations.Select(Own).ToArray()),
-        HitRegions = Array.AsReadOnly(item.HitRegions.Select(Own).ToArray()),
-    };
-
-    private static SceneDrawOperationV1 Own(SceneDrawOperationV1 operation) => operation with
-    {
-        Commands = Array.AsReadOnly(operation.Commands.ToArray()),
-        DashPattern = operation.DashPattern is null
-            ? null
-            : Array.AsReadOnly(operation.DashPattern.ToArray()),
-    };
-
-    private static SceneHitRegionV1 Own(SceneHitRegionV1 region) => region with
-    {
-        Points = region.Points is null
-            ? null
-            : Array.AsReadOnly(region.Points.ToArray()),
-    };
 
     private static bool IsPositiveRect(SceneRect rect) =>
         double.IsFinite(rect.Left)

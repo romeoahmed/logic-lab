@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization.Metadata;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Scene;
 
@@ -7,16 +6,11 @@ namespace LogicLab.Web.Tests;
 
 internal sealed class SceneIntentTests
 {
-    private static readonly JsonSerializerOptions JsonOptions =
-        new(JsonSerializerDefaults.Web);
-
     [Test]
     public async Task SceneIntentV1_Contract_DeclaresEveryClosedVariantAndDeserializesSelection()
     {
-        var typeInfo = new DefaultJsonTypeInfoResolver().GetTypeInfo(
-            typeof(SceneIntentV1),
-            JsonOptions);
-        var intent = JsonSerializer.Deserialize<SceneIntentV1>(
+        var typeInfo = SceneJsonSerializerContext.Strict.SceneIntentV1;
+        var intent = JsonSerializer.Deserialize(
             """
             {
               "kind": "selectSources",
@@ -33,7 +27,7 @@ internal sealed class SceneIntentTests
               "selectionMode": "replace"
             }
             """,
-            JsonOptions);
+            typeInfo);
         using var hostRecord = JsonDocument.Parse(
             """
             {
@@ -118,8 +112,8 @@ internal sealed class SceneIntentTests
 
         foreach (var variant in variants)
         {
-            var json = JsonSerializer.Serialize<SceneIntentV1>(variant, JsonOptions);
-            var roundTrip = JsonSerializer.Deserialize<SceneIntentV1>(json, JsonOptions);
+            var json = JsonSerializer.Serialize(variant, typeInfo);
+            var roundTrip = JsonSerializer.Deserialize(json, typeInfo);
             await Assert.That(roundTrip?.GetType()).IsEqualTo(variant.GetType());
             if (roundTrip is PlaceComponentSceneIntentV1 place)
             {

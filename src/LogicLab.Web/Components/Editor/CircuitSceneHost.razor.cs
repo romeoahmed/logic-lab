@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
 using LogicLab.Engine.Compilation;
@@ -17,29 +16,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     internal const string RendererReadyState = "ready";
     internal const string RendererUnavailableState = "unavailable";
     private const string RendererStartingState = "starting";
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        // The bounded browser record is already materialized as JsonElement. Allowing the
-        // discriminator anywhere in the object preserves JSON object ordering semantics:
-        // https://learn.microsoft.com/en-us/dotnet/api/system.text.json.jsonserializeroptions.allowoutofordermetadataproperties?view=net-10.0
-        AllowOutOfOrderMetadataProperties = true,
-        // https://learn.microsoft.com/en-us/dotnet/api/system.text.json.jsonserializeroptions.allowduplicateproperties?view=net-10.0
-        AllowDuplicateProperties = false,
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-    };
-    private static readonly HashSet<string> KnownIntentKinds =
-    [
-        "selectSources",
-        "placeComponent",
-        "moveComponents",
-        "moveDefinitionPorts",
-        "moveAnnotations",
-        "commitWire",
-        "addJunction",
-        "removeJunction",
-        "setWireRoute",
-        "toggleProbe",
-    ];
     private readonly CancellationTokenSource componentLifetime = new();
     private ElementReference hostElement;
     private BrowserSceneAdapter? adapter;
@@ -104,6 +80,9 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     [Inject]
     private IJSRuntime JS { get; set; } = null!;
+
+    [Inject]
+    private WorkspacePolicy WorkspacePolicy { get; set; } = null!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = null!;
@@ -233,9 +212,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         }
     }
 
-    public Task ReceiveSceneIntentAsync(JsonElement record) =>
-        ReceiveSceneIntentAsync(rendererGeneration, record);
-
     private async Task ReceiveSceneIntentAsync(ulong generation, JsonElement record)
     {
         if (isDisposed != 0 || generation != rendererGeneration)
@@ -252,7 +228,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         }
 
         var kind = kindProperty.GetString();
-        if (kind is null || !KnownIntentKinds.Contains(kind))
+        if (!IsKnownIntentKind(kind))
         {
             Navigation.Refresh(forceReload: true);
             return;
@@ -364,10 +340,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     }
 
     internal static SceneIntentV1? DeserializeSceneIntent(JsonElement record) =>
-        record.Deserialize<SceneIntentV1>(JsonOptions);
-
-    public Task SceneSnapshotRequiredAsync() =>
-        SceneSnapshotRequiredAsync(rendererGeneration);
+        record.Deserialize(SceneJsonSerializerContext.Strict.SceneIntentV1);
 
     private Task SceneSnapshotRequiredAsync(ulong generation)
     {
@@ -380,7 +353,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         return InvokeAsync(StateHasChanged);
     }
 
-    public Task SceneRendererFailedAsync(string code) =>
+    internal Task SceneRendererFailedAsync(string code) =>
         SceneRendererFailedAsync(rendererGeneration, code);
 
     private Task SceneRendererFailedAsync(ulong generation, string code)
@@ -411,7 +384,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         return InvokeAsync(StateHasChanged);
     }
 
-    public Task SceneBrowserPolicyExhaustedAsync(
+    internal Task SceneBrowserPolicyExhaustedAsync(
         string policyId,
         string policyRevision,
         string dimension,
@@ -461,9 +434,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         return InvokeAsync(StateHasChanged);
     }
 
-    public Task SceneConnectionChangedAsync(bool isConnected) =>
-        SceneConnectionChangedAsync(rendererGeneration, isConnected);
-
     private Task SceneConnectionChangedAsync(ulong generation, bool isConnected)
     {
         if (isDisposed != 0 || generation != rendererGeneration || adapter is null)
@@ -483,10 +453,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             await InvokeAsync(StateHasChanged);
         }
     }
-
-    public Task SceneBuildMismatchAsync() => SceneBuildMismatchAsync(rendererGeneration);
-
-    public Task SceneToolConsumedAsync() => SceneToolConsumedAsync(rendererGeneration);
 
     private Task SceneToolConsumedAsync(ulong generation)
     {
@@ -550,10 +516,13 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         publishInProgress = true;
         try
         {
+            var maximumPortCount = checked(
+                (ulong)WorkspacePolicy.AuthoringLimits.EntityCount);
             var requests = BrowserTextMeasurements.Collect(
                 ProjectRevision,
                 CircuitDefinitionId,
                 UiCulture,
+                maximumPortCount,
                 componentLifetime.Token);
             var measurements = await publishingAdapter.MeasureTextAsync(
                 requests,
@@ -568,6 +537,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
                 CircuitDefinitionId,
                 UiCulture,
                 Policy,
+                maximumPortCount,
                 measurer,
                 BuildOverlayInput(),
                 cancellationToken: componentLifetime.Token);
@@ -739,7 +709,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             selection.SelectionMode);
         var payloadBytes = (ulong)JsonSerializer.SerializeToUtf8Bytes<SceneIntentV1>(
             intent,
-            JsonOptions).Length;
+            SceneJsonSerializerContext.Strict.SceneIntentV1).Length;
         await ReceiveSceneIntentCoreAsync(intent, payloadBytes);
     }
 
@@ -990,10 +960,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
                 wire => wire.Source.WireGeometryId.Value == source.EntityId)),
             _ => null,
         };
-        return connection is null ? null : new SceneSourceRefV1(
-            CircuitDefinitionId.Value,
-            "net",
-            connection.Source.NetId.Value);
+        return connection is null ? null : SceneSourceMap.From(connection);
     }
 
     private static SceneTerminalRefV1? Terminal(SceneSourceRefV1 source) =>
@@ -1016,39 +983,8 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             return [];
         }
 
-        return Scene.Components.Select(component => new SceneSourceRefV1(
-                component.Source.CircuitDefinitionId.Value,
-                "componentInstance",
-                component.Source.ComponentInstanceId.Value).Key)
-            .Concat(Scene.Components.SelectMany(component => component.Ports.Select(port =>
-                new SceneSourceRefV1(
-                    port.Source.CircuitDefinitionId.Value,
-                    "instancePort",
-                    port.Source.ComponentInstanceId.Value,
-                    port.Source.PortId).Key)))
-            .Concat(Scene.DefinitionPorts.Select(port => new SceneSourceRefV1(
-                port.Source.CircuitDefinitionId.Value,
-                "definitionPort",
-                port.Source.DefinitionPortId.Value).Key))
-            .Concat(Scene.Connections.Select(connection => new SceneSourceRefV1(
-                connection.Source.CircuitDefinitionId.Value,
-                "net",
-                connection.Source.NetId.Value).Key))
-            .Concat(Scene.Connections.SelectMany(connection => connection.Junctions.Select(junction =>
-                new SceneSourceRefV1(
-                    junction.Source.CircuitDefinitionId.Value,
-                    "junction",
-                    junction.Source.JunctionId.Value).Key)))
-            .Concat(Scene.Connections.SelectMany(connection =>
-                connection.WireGeometries.Select(wire => new SceneSourceRefV1(
-                    wire.Source.CircuitDefinitionId.Value,
-                    "wireGeometry",
-                    wire.Source.WireGeometryId.Value).Key)))
-            .Concat(ProjectRevision.Document.FindCircuitDefinition(CircuitDefinitionId)!
-                .Annotations.Select(annotation => new SceneSourceRefV1(
-                    CircuitDefinitionId.Value,
-                    "annotation",
-                    annotation.Id.Value).Key))
+        return SceneSourceMap.Enumerate(Scene)
+            .Select(source => source.Key)
             .ToHashSet(StringComparer.Ordinal);
     }
 
@@ -1057,6 +993,18 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         publishedKey = null;
         return InvokeAsync(StateHasChanged);
     }
+
+    private static bool IsKnownIntentKind(string? kind) => kind is
+        "selectSources"
+        or "placeComponent"
+        or "moveComponents"
+        or "moveDefinitionPorts"
+        or "moveAnnotations"
+        or "commitWire"
+        or "addJunction"
+        or "removeJunction"
+        or "setWireRoute"
+        or "toggleProbe";
 
     private static bool HasRequiredPayload(SceneIntentV1 intent) => intent switch
     {
@@ -1122,7 +1070,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             .Where(diagnostic => diagnostic.Source is not null
                 && (HierarchyPath is null
                     || IsSamePath(diagnostic.Source.HierarchyPath, HierarchyPath)))
-            .Select(diagnostic => (Diagnostic: diagnostic, Source: SceneSource(
+            .Select(diagnostic => (Diagnostic: diagnostic, Source: SceneSourceMap.TryFrom(
                 diagnostic.Source!.Identity)))
             .Where(item => item.Source is not null)
             .Select(item => new BrowserSceneDiagnosticInputV1(
@@ -1154,10 +1102,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
                 return new BrowserSceneProbeInputV1(
                     probe.ProbeId.Value,
                     new SceneElaboratedNetRefV1(
-                        new SceneSourceRefV1(
-                            source.CircuitDefinitionId.Value,
-                            "net",
-                            source.NetId.Value),
+                        SceneSourceMap.From(source),
                         hierarchyPath),
                     probe.Value);
             })
@@ -1169,41 +1114,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             selection,
             sceneDiagnostics);
     }
-
-    private static SceneSourceRefV1? SceneSource(AuthoredSourceIdentity identity) =>
-        identity switch
-        {
-            DefinitionPortSourceIdentity source => new SceneSourceRefV1(
-                source.CircuitDefinitionId.Value,
-                "definitionPort",
-                source.DefinitionPortId.Value),
-            ComponentInstanceSourceIdentity source => new SceneSourceRefV1(
-                source.CircuitDefinitionId.Value,
-                "componentInstance",
-                source.ComponentInstanceId.Value),
-            InstancePortSourceIdentity source => new SceneSourceRefV1(
-                source.CircuitDefinitionId.Value,
-                "instancePort",
-                source.ComponentInstanceId.Value,
-                source.PortId),
-            NetSourceIdentity source => new SceneSourceRefV1(
-                source.CircuitDefinitionId.Value,
-                "net",
-                source.NetId.Value),
-            JunctionSourceIdentity source => new SceneSourceRefV1(
-                source.CircuitDefinitionId.Value,
-                "junction",
-                source.JunctionId.Value),
-            WireGeometrySourceIdentity source => new SceneSourceRefV1(
-                source.CircuitDefinitionId.Value,
-                "wireGeometry",
-                source.WireGeometryId.Value),
-            AnnotationSourceIdentity source => new SceneSourceRefV1(
-                source.CircuitDefinitionId.Value,
-                "annotation",
-                source.AnnotationId.Value),
-            _ => null,
-        };
 
     private static bool IsSamePath(
         HierarchyPath path,

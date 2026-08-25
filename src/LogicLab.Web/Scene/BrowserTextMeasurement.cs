@@ -8,7 +8,7 @@ using LogicLab.Presentation.Scene;
 
 namespace LogicLab.Web.Scene;
 
-public sealed record BrowserTextMeasurementRequestV1(
+internal sealed record BrowserTextMeasurementRequestV1(
     string Key,
     string Text,
     string FontRole,
@@ -16,7 +16,7 @@ public sealed record BrowserTextMeasurementRequestV1(
     string Locale,
     string Direction);
 
-public sealed record BrowserTextMeasurementV1(
+internal sealed record BrowserTextMeasurementV1(
     string Key,
     int AdvanceWidth,
     int InkLeft,
@@ -24,11 +24,11 @@ public sealed record BrowserTextMeasurementV1(
     int InkRight,
     int InkBottom);
 
-public sealed record BrowserTextMeasurementBatchV1(
+internal sealed record BrowserTextMeasurementBatchV1(
     string FontFingerprint,
     IReadOnlyList<BrowserTextMeasurementV1> Measurements);
 
-public sealed class BrowserMeasuredTextMeasurer : ISymbolTextMeasurerV1
+internal sealed class BrowserMeasuredTextMeasurer : ISymbolTextMeasurerV1
 {
     private readonly ReadOnlyDictionary<string, BrowserTextMeasurementV1> measurements;
 
@@ -103,10 +103,12 @@ internal static class BrowserTextMeasurements
         ProjectRevision revision,
         CircuitDefinitionId circuitDefinitionId,
         string uiCulture,
+        ulong maximumPortCount,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(revision);
         ArgumentNullException.ThrowIfNull(circuitDefinitionId);
+        ArgumentOutOfRangeException.ThrowIfZero(maximumPortCount);
         var locale = uiCulture switch
         {
             "en-US" => PresentationLocaleIdV1.EnglishUnitedStates,
@@ -127,7 +129,7 @@ internal static class BrowserTextMeasurements
             revision,
             circuitDefinitionId,
             fingerprint,
-            100_000,
+            maximumPortCount,
             collector,
             cancellationToken);
         return collector.Requests;
