@@ -91,12 +91,7 @@ public sealed partial class Editor
     {
         return intent switch
         {
-            PlaceComponentSceneIntentV1 place => new PlaceComponentInstanceIntent(
-                definition.Id,
-                TranslateTarget(place.Target),
-                [.. place.Parameters.Select(TranslateParameter)],
-                TranslatePlacement(place.Placement, place.SnapModifier),
-                place.DisplayName),
+            PlaceComponentSceneIntentV1 place => TranslatePlaceIntent(definition, place),
             MoveComponentsSceneIntentV1 move => new MoveComponentInstancesIntent(
                 definition.Id,
                 [.. move.Moves.Select(item => new ComponentMove(
@@ -150,6 +145,50 @@ public sealed partial class Editor
                 "Selection must enter through the Web-owned selection callback."),
             _ => throw new InvalidOperationException("The Scene Intent variant is undefined."),
         };
+    }
+
+    private EditIntent TranslatePlaceIntent(
+        CircuitDefinition definition,
+        PlaceComponentSceneIntentV1 intent)
+    {
+        var target = TranslateTarget(intent.Target);
+        var placement = TranslatePlacement(intent.Placement, intent.SnapModifier);
+        var newMemoryImages = intent.Parameters
+            .Where(binding => binding.Value is SceneNewMemoryImageParameterV1)
+            .ToArray();
+        if (newMemoryImages.Length == 0)
+        {
+            return new PlaceComponentInstanceIntent(
+                definition.Id,
+                target,
+                [.. intent.Parameters.Select(TranslateParameter)],
+                placement,
+                intent.DisplayName);
+        }
+
+        if (target is not LibraryComponentTarget library || newMemoryImages.Length != 1)
+        {
+            throw new InvalidOperationException(
+                "A component placement may create exactly one library Memory Image.");
+        }
+
+        var memoryBinding = newMemoryImages[0];
+        var memory = (SceneNewMemoryImageParameterV1)memoryBinding.Value;
+        return new PlaceComponentWithNewMemoryImageIntent(
+            definition.Id,
+            library.ContractKey,
+            [.. intent.Parameters
+                .Where(binding => binding.Value is not SceneNewMemoryImageParameterV1)
+                .Select(TranslateParameter)],
+            new NewMemoryImageBinding(
+                memoryBinding.ParameterId,
+                memory.DisplayName,
+                memory.Width,
+                memory.Depth,
+                [.. memory.Words.Select(word =>
+                    new MemoryImageWord(ParseLogicVector(word)))]),
+            placement,
+            intent.DisplayName);
     }
 
     private async Task ToggleProbeAsync(

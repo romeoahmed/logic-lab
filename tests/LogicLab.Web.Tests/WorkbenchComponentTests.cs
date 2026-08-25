@@ -58,6 +58,63 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
+    public async Task Editor_PlaceMemoryComponent_CreatesAndBindsAllXImageInOneEdit()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = await RenderAuthoredEditor(context, workspace);
+        var before = await workspace.ReadCurrent();
+        var beforeComponentIds = before.ProjectRevision.Document.EntryCircuitDefinition
+            .ComponentInstances.Select(component => component.Id).ToHashSet();
+        var beforeDispatchCount = workspace.DispatchCount;
+
+        await rendered.Find("[data-scene-tool='place']").ChangeAsync(
+            new ChangeEventArgs
+            {
+                Value = "library:logiclab.core:memory.rom",
+            });
+        var sceneHost = rendered.FindComponent<CircuitSceneHost>();
+        await rendered.WaitForStateAsync(() =>
+            sceneHost.Instance.ActiveTool is ScenePlaceToolV1);
+        var tool = (ScenePlaceToolV1)sceneHost.Instance.ActiveTool;
+
+        await rendered.InvokeAsync(() => sceneHost.Instance.OnIntent.InvokeAsync(
+            new PlaceComponentSceneIntentV1(
+                LogicLabWebBuild.Fingerprint,
+                sceneVersion: 1,
+                before.ProjectionVersion,
+                before.ProjectRevision.Document.EntryCircuitDefinitionId.Value,
+                tool.Target,
+                tool.Parameters,
+                new SceneComponentPlacementV1(
+                    new SceneGridPointV1(8, 4),
+                    QuarterTurnsClockwise: 0,
+                    Reflected: false),
+                tool.DisplayName,
+                "none")));
+        await rendered.WaitForStateAsync(() => workspace.DispatchCount > beforeDispatchCount);
+
+        var after = await workspace.ReadCurrent();
+        var document = after.ProjectRevision.Document;
+        var image = document.MemoryImages.Single();
+        var component = document.EntryCircuitDefinition.ComponentInstances.Single(candidate =>
+            !beforeComponentIds.Contains(candidate.Id));
+        var imageBinding = (MemoryImageParameterValue)component.Parameters.Single(parameter =>
+            string.Equals(parameter.ParameterId, "initialImage", StringComparison.Ordinal)).Value;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(workspace.DispatchCount).IsEqualTo(beforeDispatchCount + 1);
+            await Assert.That(imageBinding.MemoryImageId).IsEqualTo(image.Id);
+            await Assert.That(image.Width).IsEqualTo(1u);
+            await Assert.That(image.Depth).IsEqualTo(2u);
+            await Assert.That(Enumerable.Range(0, checked((int)image.Depth)).All(address =>
+                Enumerable.Range(0, checked((int)image.Width)).All(bit =>
+                    image[(uint)address, (uint)bit] == LogicValue.X))).IsTrue();
+        }
+    }
+
+    [Test]
     public async Task Editor_RepeatedSemanticRemoval_TreatsMissingSourceAsStale()
     {
         await using var context = CreateContext();

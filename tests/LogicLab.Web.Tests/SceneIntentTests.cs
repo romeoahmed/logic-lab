@@ -66,8 +66,17 @@ internal sealed class SceneIntentTests
                 "build-a", 7, 11, "definition-a", [source], "replace"),
             new PlaceComponentSceneIntentV1(
                 "build-a", 7, 11, "definition-a",
-                new SceneLibraryComponentTargetV1("logiclab.core", "logic.not"),
-                [], new SceneComponentPlacementV1(point, 0, false), null, "none"),
+                new SceneLibraryComponentTargetV1("logiclab.core", "memory.rom"),
+                [new SceneParameterBindingV1(
+                    "initialImage",
+                    new SceneNewMemoryImageParameterV1(
+                        "ROM initialImage",
+                        1,
+                        2,
+                        ["X", "X"]))],
+                new SceneComponentPlacementV1(point, 0, false),
+                null,
+                "none"),
             new MoveComponentsSceneIntentV1(
                 "build-a", 7, 11, "definition-a",
                 [new SceneComponentMoveV1(source, new SceneComponentPlacementV1(
@@ -112,6 +121,11 @@ internal sealed class SceneIntentTests
             var json = JsonSerializer.Serialize<SceneIntentV1>(variant, JsonOptions);
             var roundTrip = JsonSerializer.Deserialize<SceneIntentV1>(json, JsonOptions);
             await Assert.That(roundTrip?.GetType()).IsEqualTo(variant.GetType());
+            if (roundTrip is PlaceComponentSceneIntentV1 place)
+            {
+                await Assert.That(place.Parameters.Single().Value)
+                    .IsTypeOf<SceneNewMemoryImageParameterV1>();
+            }
         }
 
         using (Assert.Multiple())

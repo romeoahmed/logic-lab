@@ -375,6 +375,7 @@ public sealed record SceneParameterBindingV1(
 [JsonDerivedType(typeof(SceneWidthsParameterV1), "unsigned32List")]
 [JsonDerivedType(typeof(SceneSlicesParameterV1), "sliceList")]
 [JsonDerivedType(typeof(SceneMemoryImageParameterV1), "memoryImage")]
+[JsonDerivedType(typeof(SceneNewMemoryImageParameterV1), "newMemoryImage")]
 public abstract record SceneParameterValueV1;
 
 public sealed record SceneUnsigned32ParameterV1(uint Value) : SceneParameterValueV1;
@@ -412,6 +413,31 @@ public sealed record SceneSlicesParameterV1 : SceneParameterValueV1
 
 public sealed record SceneMemoryImageParameterV1(string MemoryImageId)
     : SceneParameterValueV1;
+
+public sealed record SceneNewMemoryImageParameterV1 : SceneParameterValueV1
+{
+    [JsonConstructor]
+    public SceneNewMemoryImageParameterV1(
+        string displayName,
+        uint width,
+        uint depth,
+        IReadOnlyList<string> words)
+    {
+        ArgumentNullException.ThrowIfNull(displayName);
+        DisplayName = displayName;
+        Width = width;
+        Depth = depth;
+        Words = SceneIntentCollections.Copy(words);
+    }
+
+    public string DisplayName { get; }
+
+    public uint Width { get; }
+
+    public uint Depth { get; }
+
+    public IReadOnlyList<string> Words { get; }
+}
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(SceneDefinitionTerminalRefV1), "definitionTerminal")]

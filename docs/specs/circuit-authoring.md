@@ -66,6 +66,7 @@ A public Port migration maps each retained old Port ID to exactly one compatible
 | Intent | Required facts | Atomic consequence |
 |---|---|---|
 | `PlaceComponentInstance` | exact target, complete parameters, placement | validates the Component Contract or Circuit Definition and creates one instance |
+| `PlaceComponentWithNewMemoryImage` | exact library target, complete non-memory parameters, one complete new Memory Image binding, placement | validates and creates the explicit Memory Image and bound instance together |
 | `RenameComponentInstance` | instance ID, display name or null | changes no target, Port, or state fact |
 | `SetInstanceParameters` | instance ID, complete parameter set | valid only when resolved Port and state schemas remain identical |
 | `ChangeInstanceContract` | instance ID, new exact target/parameters, complete Terminal migration | changes target, parameters, connections, initial state, and Symbol Variant together |
@@ -104,6 +105,8 @@ Parameter bindings follow the exact [Component Contract Catalog V1](./component-
 | `RemoveAnnotation` | annotation ID | removes authored presentation only |
 
 Memory writes during Simulation are never authoring intents. A Simplification Proposal uses the dedicated `ApplyVerifiedReplacement` intent containing source Project Revision, region digest, replacement graph, and source-identity mapping; Project Editor rechecks local invariants but does not reproduce proof or freshness checks owned by Workspace.
+
+`PlaceComponentWithNewMemoryImage` is the one authoring convenience for a new explicit image. Its binding names the target memory-image parameter and carries the complete display name, width, depth, and words; Project Editor allocates both persistent IDs and rejects the whole intent if either the image or component binding is invalid. It is not a nested `CreateMemoryImage` plus `PlaceComponentInstance` sequence.
 
 An edit cannot leave a dangling reference. Deleting or changing an entity with dependents either uses a dedicated intent whose complete consequence is part of this contract or is rejected; there is no generic cascade-delete flag. A Port- or state-schema change never silently rebinds or truncates authored data.
 

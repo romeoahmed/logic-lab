@@ -491,9 +491,22 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             """
             () => window.sceneHandle.setTool({
               kind: 'placeComponent',
-              target: { kind: 'libraryContract', libraryId: 'logiclab.core', contractId: 'logic.not' },
-              parameters: [{ parameterId: 'width', value: { kind: 'unsigned32', value: 1 } }],
-              displayName: 'NOT',
+              target: { kind: 'libraryContract', libraryId: 'logiclab.core', contractId: 'memory.rom' },
+              parameters: [
+                { parameterId: 'addressWidth', value: { kind: 'unsigned32', value: 1 } },
+                { parameterId: 'wordWidth', value: { kind: 'unsigned32', value: 1 } },
+                {
+                  parameterId: 'initialImage',
+                  value: {
+                    kind: 'newMemoryImage',
+                    displayName: 'memory.rom initialImage',
+                    width: 1,
+                    depth: 2,
+                    words: ['X', 'X'],
+                  },
+                },
+              ],
+              displayName: null,
               pinned: false,
             })
             """);
@@ -518,6 +531,8 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                 sceneVersion: value?.sceneVersion,
                 projectionVersion: value?.projectionVersion,
                 circuitDefinitionId: value?.circuitDefinitionId,
+                parameterKind: value?.parameters?.[2]?.value?.kind,
+                wordCount: value?.parameters?.[2]?.value?.words?.length,
               };
             }
             """);
@@ -528,6 +543,8 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             await Assert.That(intent.SceneVersion).IsEqualTo(1);
             await Assert.That(intent.ProjectionVersion).IsEqualTo(1);
             await Assert.That(intent.CircuitDefinitionId).IsEqualTo("definition-a");
+            await Assert.That(intent.ParameterKind).IsEqualTo("newMemoryImage");
+            await Assert.That(intent.WordCount).IsEqualTo(2);
             await Assert.That(afterPreview).IsNotEqualTo(beforePreview);
         }
     }
@@ -1436,6 +1453,10 @@ internal sealed class CircuitSceneBrowserTests : PageTest
         public int ProjectionVersion { get; set; }
 
         public string? CircuitDefinitionId { get; set; }
+
+        public string? ParameterKind { get; set; }
+
+        public int WordCount { get; set; }
     }
 
     private sealed class PendingIntentResult
