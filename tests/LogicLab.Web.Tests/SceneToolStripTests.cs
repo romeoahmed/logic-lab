@@ -9,6 +9,17 @@ namespace LogicLab.Web.Tests;
 internal sealed class SceneToolStripTests
 {
     [Test]
+    public async Task ScenePlaceCatalog_CurrentDefinition_RemainsAvailableForRecursiveAuthoring()
+    {
+        var document = WebTestCircuit.CreateCompleteCircuit().Document;
+
+        var options = ScenePlaceCatalog.Build(document);
+
+        await Assert.That(options.Select(option => option.Id))
+            .Contains($"definition:{document.EntryCircuitDefinitionId.Value}");
+    }
+
+    [Test]
     public async Task SceneToolStrip_ArrowKey_MovesTheSingleToolbarTabStop()
     {
         await using var context = WebTestContext.CreateBunitContext();

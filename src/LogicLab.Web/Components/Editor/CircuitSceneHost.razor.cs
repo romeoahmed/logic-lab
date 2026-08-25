@@ -761,7 +761,9 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         switch (action)
         {
             case ActivateSceneSemanticActionV1 activate:
-                await ActivateSemanticSourceAsync(activate.Source);
+                await ActivateSemanticSourceAsync(
+                    activate.Source,
+                    activate.SelectionMode);
                 break;
             case NudgeSceneSemanticActionV1 nudge:
                 await NudgeSemanticSourceAsync(nudge);
@@ -774,12 +776,16 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         }
     }
 
-    private async Task ActivateSemanticSourceAsync(SceneSourceRefV1 source)
+    private async Task ActivateSemanticSourceAsync(
+        SceneSourceRefV1 source,
+        string selectionMode)
     {
         switch (EffectiveTool)
         {
             case SceneSelectToolV1:
-                await HandleSemanticSelectionAsync(new SceneSelectionV1([source], "replace"));
+                await HandleSemanticSelectionAsync(new SceneSelectionV1(
+                    [source],
+                    selectionMode));
                 break;
             case SceneProbeToolV1 probe when Simulation is not null
                 && ResolveNetSource(source) is { } net:

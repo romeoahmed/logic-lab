@@ -987,6 +987,44 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
+    public async Task Editor_HierarchyOccurrenceRemovedByUndo_ReturnsToEntryDefinition()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = RenderEditor(context, workspace);
+        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
+        await ClickAndWaitForState(
+            rendered,
+            "create",
+            () => !IsDisabled(rendered, "author-hierarchy"));
+        await ClickAndWaitForState(
+            rendered,
+            "author-hierarchy",
+            () => rendered.FindAll("[data-enter-instance]").Count == 1);
+        await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-definition-port]").Count == 2);
+
+        for (var index = 0; index < 4; index++)
+        {
+            await workspace.UndoCurrentAsync();
+        }
+
+        await rendered.Find("[data-command='compile']").ClickAsync(new MouseEventArgs());
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-command='hierarchy-back']")
+            .Count == 0);
+
+        var projection = await workspace.ReadCurrent();
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.FindComponent<CircuitSceneHost>()
+                    .Instance.CircuitDefinitionId)
+                .IsEqualTo(projection.ProjectRevision.Document.EntryCircuitDefinitionId);
+            await Assert.That(rendered.Find("[data-hierarchy-breadcrumb]").TextContent)
+                .Contains(projection.ProjectRevision.Document.EntryCircuitDefinition.DisplayName);
+        }
+    }
+
+    [Test]
     public async Task Editor_CancelPreparedRoute_SendsNoCommandOrProjectRevision()
     {
         await using var context = CreateContext();
@@ -1715,6 +1753,29 @@ internal sealed class WorkbenchComponentTests
                 ReadProjection.Instance,
                 CancellationToken.None);
             return ((ProjectionSnapshot)outcome).Projection;
+        }
+
+        public async Task UndoCurrentAsync()
+        {
+            var currentWorkspaceId = workspaceId
+                ?? throw new InvalidOperationException("Workspace is not open.");
+            var currentAttachment = attachment
+                ?? throw new InvalidOperationException("Workspace is not attached.");
+            var projection = await ReadCurrent();
+            var outcome = await base.DispatchAsync(
+                new Undo(
+                    new WorkspaceCommandContext(
+                        currentWorkspaceId,
+                        currentAttachment.AttachmentId,
+                        currentAttachment.Generation,
+                        new ClientIntentId(Guid.CreateVersion7().ToString("N")),
+                        AnonymousWorkspaceCaller.Instance),
+                    new AuthoringPrecondition(projection.ProjectRevision.RevisionId)),
+                CancellationToken.None);
+            if (outcome is WorkspaceCommandRejected rejected)
+            {
+                throw new InvalidOperationException($"Undo was rejected: {rejected.Code}");
+            }
         }
     }
 }

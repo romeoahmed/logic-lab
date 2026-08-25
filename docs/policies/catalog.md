@@ -329,6 +329,13 @@ waveform_cache_bytes              AtMost
 
 Both arrays contain every row exactly once in the shown order; values are positive and `zoom_millionths_minimum <= zoom_millionths_maximum`. Millionths encode a positive finite scale without making binary floating-point spelling part of configuration. Observation thresholds emit measured diagnostics/telemetry only; crossing them never authorizes a partial Scene, omitted semantic item, or lower-fidelity Trace representation.
 
+The current Interactive Server adapter additionally requires `semantic_intent_bytes <= 16384`
+and `interop_batch_bytes <= 16384`. The former and browser-to-.NET uses of the latter leave
+room for the Blazor JS-interop envelope below SignalR's default 32-KB incoming-message limit;
+the adapter applies the same conservative batch budget in the opposite direction. These are
+transport invariants, not calibrated circuit-size thresholds
+([Blazor JS interop size limits](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#size-limits-on-javascript-interop-calls)). Larger browser-originated values require the contract's bounded private transfer/streaming mechanism rather than a larger global Hub limit.
+
 ## Measurement discipline
 
 - Keep semantic correctness suites separate from performance suites.

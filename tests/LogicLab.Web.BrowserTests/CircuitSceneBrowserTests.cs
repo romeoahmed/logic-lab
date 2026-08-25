@@ -49,6 +49,42 @@ internal sealed class CircuitSceneBrowserTests : PageTest
     }
 
     [Test]
+    public async Task Scene_MoveBeyondSignedGridRange_CancelsWithoutIntentOrException()
+    {
+        await MountSceneAsync();
+        await PublishSnapshotAsync();
+
+        var intentCounts = await Page.EvaluateAsync<int[]>(
+            """
+            () => {
+              const handle = window.sceneHandle;
+              const replacement = structuredClone(handle.published);
+              replacement.sceneVersion = 2;
+              replacement.projectionVersion = 2;
+              replacement.items[0].interaction.placement.origin.x = 2147483647;
+              handle.replace(replacement);
+              const item = handle.published.items[0];
+              const before = window.sceneCalls.filter(call =>
+                call.name === 'ReceiveSceneIntentAsync').length;
+              handle.commitGesture({
+                tool: { kind: 'select' },
+                hit: { source: item.source, item },
+                startWorld: { x: 0, y: 0 },
+                currentWorld: { x: 100, y: 0 },
+                selectionMode: 'replace',
+                sceneVersion: 2,
+                projectionVersion: 2,
+              }, false);
+              const after = window.sceneCalls.filter(call =>
+                call.name === 'ReceiveSceneIntentAsync').length;
+              return [before, after];
+            }
+            """);
+
+        await Assert.That(intentCounts[1]).IsEqualTo(intentCounts[0]);
+    }
+
+    [Test]
     public async Task Scene_ResizeAcrossZeroSize_PreservesTheWorldCenter()
     {
         await MountSceneAsync();
@@ -143,6 +179,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                 locale: 'en-US', direction: 'ltr',
               }]);
               window.sceneFontFingerprint = measurements.fontFingerprint;
+              window.sceneHandle.commitTextMeasurements(measurements.fontFingerprint);
             }
             """);
         await PublishSnapshotAsync();
@@ -952,7 +989,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
             await Assert.That(result.PolicyId).IsEqualTo("logiclab-browser");
             await Assert.That(result.PolicyRevision).IsEqualTo("test-1");
             await Assert.That(result.Dimension).IsEqualTo("spatial_index_bytes");
-            await Assert.That(result.Observed).IsEqualTo("2700108");
+            await Assert.That(result.Observed).IsEqualTo("2700633");
         }
     }
 
@@ -1080,6 +1117,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
                 locale: 'en-US', direction: 'ltr',
               }]);
               window.sceneFontFingerprint = measurements.fontFingerprint;
+              window.sceneHandle.commitTextMeasurements(measurements.fontFingerprint);
             }
             """);
     }
@@ -1245,7 +1283,7 @@ internal sealed class CircuitSceneBrowserTests : PageTest
               zoomMillionthsMaximum: 4000000,
               policyRevision: 'test-1', policyId: 'logiclab-browser',
               sceneSnapshotRecordCount: 1000, scenePatchRecordCount: 1000,
-              semanticIntentBytes: 65536,
+              semanticIntentBytes: 16384,
               interopBatchBytes: 16384,
               candidateTransferBytes: 1000000, canvasBitmapPixels: 10000000,
               canvasBitmapBytes: 40000000, effectiveDensityMillionths: 3000000,

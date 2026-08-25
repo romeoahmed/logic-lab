@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Scene;
@@ -122,22 +124,8 @@ internal sealed class BrowserSceneAdapterTests
     [Test]
     public async Task MeasureText_JsRecord_IsMaterializedThroughTheStrictJsonBoundary()
     {
-        using var measurementJson = JsonDocument.Parse(
-            $$"""
-            {
-              "fontFingerprint": "{{new string('8', 64)}}",
-              "measurements": [{
-                "key": "measurement-a",
-                "advanceWidth": 120,
-                "inkLeft": -4,
-                "inkTop": -80,
-                "inkRight": 116,
-                "inkBottom": 20
-              }]
-            }
-            """);
         var handle = new RecordingJsObjectReference(
-            measurementRecord: measurementJson.RootElement.Clone());
+            measurementFactory: CreateMeasurementRecord);
         var module = new RecordingJsObjectReference(handle);
         var js = new RecordingJsRuntime(module);
         using var sink = DotNetObjectReference.Create(new Sink());
@@ -151,7 +139,7 @@ internal sealed class BrowserSceneAdapterTests
 
         var batch = await adapter.MeasureTextAsync(
             [new BrowserTextMeasurementRequestV1(
-                "measurement-a", "A", "symbol", "center", "en-US", "ltr")],
+                new string('a', 64), "A", "symbol", "center", "en-US", "ltr")],
             CancellationToken.None);
 
         using (Assert.Multiple())
@@ -159,6 +147,43 @@ internal sealed class BrowserSceneAdapterTests
             await Assert.That(batch.Measurements).Count().IsEqualTo(1);
             await Assert.That(batch.Measurements[0].AdvanceWidth).IsEqualTo(120);
             await Assert.That(handle.Identifiers).Contains("measureText");
+        }
+    }
+
+    [Test]
+    public async Task MeasureText_LargeRequestSet_UsesBoundedBatchesAndReassemblesOneResult()
+    {
+        var handle = new RecordingJsObjectReference(
+            measurementFactory: CreateMeasurementRecord);
+        var module = new RecordingJsObjectReference(handle);
+        var js = new RecordingJsRuntime(module);
+        using var sink = DotNetObjectReference.Create(new Sink());
+        await using var adapter = await BrowserSceneAdapter.MountAsync(
+            js,
+            default(ElementReference),
+            "build-a",
+            BrowserPolicy.Development,
+            sink,
+            CancellationToken.None);
+        var requests = Enumerable.Range(0, 200)
+            .Select(index => new BrowserTextMeasurementRequestV1(
+                index.ToString("x64", System.Globalization.CultureInfo.InvariantCulture),
+                new string('A', 200),
+                "symbol",
+                "center",
+                "en-US",
+                "ltr"))
+            .ToArray();
+
+        var batch = await adapter.MeasureTextAsync(requests, CancellationToken.None);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(batch.Measurements).Count().IsEqualTo(requests.Length);
+            await Assert.That(batch.Measurements.Select(measurement => measurement.Key))
+                .IsEquivalentTo(requests.Select(request => request.Key));
+            await Assert.That(handle.Identifiers.Count(identifier => identifier == "measureText"))
+                .IsGreaterThan(1);
         }
     }
 
@@ -187,6 +212,39 @@ internal sealed class BrowserSceneAdapterTests
                 false)))],
         []);
 
+    private static JsonElement CreateMeasurementRecord(object?[]? arguments)
+    {
+        var requests = arguments?[0]
+            as IReadOnlyList<BrowserTextMeasurementRequestV1>
+            ?? throw new InvalidOperationException("No measurement requests were provided.");
+        var assetFingerprint = new string('8', 64);
+        var measurements = requests.Select(request => new BrowserTextMeasurementV1(
+            request.Key,
+            120,
+            -4,
+            -80,
+            116,
+            20)).ToArray();
+        var canonical = string.Join('\n', measurements
+            .OrderBy(measurement => measurement.Key, StringComparer.Ordinal)
+            .Select(measurement => $"{measurement.Key}:{measurement.AdvanceWidth}:"
+                + $"{measurement.InkLeft}:{measurement.InkTop}:{measurement.InkRight}:"
+                + $"{measurement.InkBottom}"));
+        var fontFingerprint = Convert.ToHexStringLower(SHA256.HashData(
+            Encoding.UTF8.GetBytes(
+                $"logiclab-browser-font-v1\nAtkinson Hyperlegible Next\n"
+                + $"{assetFingerprint}\n{canonical}")));
+        return JsonSerializer.SerializeToElement(
+            new
+            {
+                FontFamily = "Atkinson Hyperlegible Next",
+                AssetFingerprint = assetFingerprint,
+                FontFingerprint = fontFingerprint,
+                Measurements = measurements,
+            },
+            JsonOptions);
+    }
+
     private sealed class Sink;
 
     private sealed class RecordingJsRuntime(IJSObjectReference module) : IJSRuntime
@@ -213,7 +271,8 @@ internal sealed class BrowserSceneAdapterTests
         IJSObjectReference? mountedHandle = null,
         bool commitAccepted = true,
         JsonElement? measurementRecord = null,
-        JsonElement? recoveryStateRecord = null)
+        JsonElement? recoveryStateRecord = null,
+        Func<object?[]?, JsonElement>? measurementFactory = null)
         : IJSObjectReference
     {
         public List<string> Identifiers { get; } = [];
@@ -248,7 +307,8 @@ internal sealed class BrowserSceneAdapterTests
 
             if (identifier == "measureText" && typeof(TValue) == typeof(JsonElement))
             {
-                return ValueTask.FromResult((TValue)(object)(measurementRecord
+                return ValueTask.FromResult((TValue)(object)(measurementFactory?.Invoke(args)
+                    ?? measurementRecord
                     ?? throw new InvalidOperationException(
                         "No text measurement record was configured.")));
             }

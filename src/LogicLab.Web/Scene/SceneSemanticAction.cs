@@ -2,8 +2,21 @@ namespace LogicLab.Web.Scene;
 
 public abstract record SceneSemanticActionV1(SceneSourceRefV1 Source);
 
-public sealed record ActivateSceneSemanticActionV1(SceneSourceRefV1 Source)
-    : SceneSemanticActionV1(Source);
+public sealed record ActivateSceneSemanticActionV1 : SceneSemanticActionV1
+{
+    public ActivateSceneSemanticActionV1(SceneSourceRefV1 source, string selectionMode)
+        : base(source)
+    {
+        if (selectionMode is not ("replace" or "add" or "toggle"))
+        {
+            throw new ArgumentOutOfRangeException(nameof(selectionMode));
+        }
+
+        SelectionMode = selectionMode;
+    }
+
+    public string SelectionMode { get; }
+}
 
 public sealed record NudgeSceneSemanticActionV1 : SceneSemanticActionV1
 {
