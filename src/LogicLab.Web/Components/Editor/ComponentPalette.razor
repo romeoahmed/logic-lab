@@ -1,7 +1,9 @@
 @using LogicLab.Web.Scene
 
-<aside class="component-palette" aria-labelledby="component-palette-title">
-    <div class="palette-controls">
+<aside class="component-palette"
+       data-testid="component-palette"
+       aria-labelledby="component-palette-title">
+    <div class="palette-controls" data-testid="component-palette-controls">
         <header>
             <p>@Text["Library"]</p>
             <h2 id="component-palette-title">@Text["Components"]</h2>

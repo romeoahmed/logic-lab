@@ -1,130 +1,116 @@
 using Microsoft.Playwright;
 using TUnit.Playwright;
+using static Microsoft.Playwright.Assertions;
 
 namespace LogicLab.Web.BrowserTests;
 
-internal sealed class WorkbenchLayoutTests : PageTest
+[ClassDataSource<LogicLabBrowserApplication>]
+internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication application) : PageTest
 {
-    private const string Origin = "https://logiclab.test";
+    public override BrowserNewContextOptions ContextOptions(TestContext testContext)
+    {
+        var options = base.ContextOptions(testContext);
+        options.IgnoreHTTPSErrors = true;
+        return options;
+    }
 
     [Test]
     public async Task ResponsiveWorkbench_NarrowViewport_PlacesLibraryBeforeCanvas()
     {
-        await OpenAsync();
-        await Page.SetViewportSizeAsync(390, 844);
+        await OpenAsync(390, 844);
+        var library = Page.GetByTestId("workbench-library");
+        var canvas = Page.GetByTestId("workbench-canvas");
 
-        var library = await Page.Locator(".library-dock").BoundingBoxAsync();
-        var canvas = await Page.Locator(".canvas-workspace").BoundingBoxAsync();
+        await Expect(library).ToBeVisibleAsync();
+        await Expect(canvas).ToBeVisibleAsync();
+        var palette = Page.GetByTestId("component-palette");
+        var controls = Page.GetByTestId("component-palette-controls");
+        var groups = palette.Locator("details");
+        for (var index = 0; index < await groups.CountAsync(); index++)
+        {
+            var group = groups.Nth(index);
+            if (await group.GetAttributeAsync("open") is null)
+            {
+                await group.Locator("summary").ClickAsync();
+            }
+        }
+
+        var scroll = await palette.EvaluateAsync<PaletteScrollState>(
+            """
+            element => {
+              element.scrollTop = element.scrollHeight;
+              return {
+                clientHeight: element.clientHeight,
+                scrollHeight: element.scrollHeight,
+                scrollTop: element.scrollTop,
+              };
+            }
+            """);
+        await Expect(controls).ToBeVisibleAsync();
+        var libraryBounds = await library.BoundingBoxAsync();
+        var canvasBounds = await canvas.BoundingBoxAsync();
+        var paletteBounds = await palette.BoundingBoxAsync();
+        var controlsBounds = await controls.BoundingBoxAsync();
 
         using (Assert.Multiple())
         {
-            await Assert.That(library).IsNotNull();
-            await Assert.That(canvas).IsNotNull();
-            await Assert.That(library!.Y).IsLessThan(canvas!.Y);
+            await Assert.That(libraryBounds).IsNotNull();
+            await Assert.That(canvasBounds).IsNotNull();
+            await Assert.That(paletteBounds).IsNotNull();
+            await Assert.That(controlsBounds).IsNotNull();
+            await Assert.That(libraryBounds!.Y).IsLessThan(canvasBounds!.Y);
+            await Assert.That(scroll.ScrollHeight).IsGreaterThan(scroll.ClientHeight);
+            await Assert.That(scroll.ScrollTop).IsGreaterThan(0);
+            await Assert.That(controlsBounds!.Y)
+                .IsEqualTo(paletteBounds!.Y).Within(1.5F);
         }
     }
 
     [Test]
     [Arguments(768, 1024)]
     [Arguments(1024, 768)]
-    public async Task ResponsiveWorkbench_MediumViewport_BoundsCanvasToViewport(
+    public async Task ResponsiveWorkbench_MediumViewport_KeepsCanvasInsideViewport(
         int width,
         int height)
     {
-        await OpenAsync();
-        await Page.SetViewportSizeAsync(320, 844);
-        await Page.EvaluateAsync(
-            """
-            () => {
-              const canvas = document.querySelector('canvas');
-              const bounds = canvas.getBoundingClientRect();
-              canvas.width = Math.ceil(bounds.width);
-              canvas.height = Math.ceil(bounds.height);
-            }
-            """);
+        await OpenAsync(width, height);
+        var workspace = Page.GetByTestId("workbench-canvas");
 
-        await Page.SetViewportSizeAsync(width, height);
+        await Expect(workspace).ToBeVisibleAsync();
+        var bounds = await workspace.BoundingBoxAsync();
+        var documentWidth = await Page.EvaluateAsync<double>(
+            "() => document.documentElement.scrollWidth");
 
-        var canvas = await Page.Locator("canvas").BoundingBoxAsync();
-        await Assert.That(canvas).IsNotNull();
-        await Assert.That(canvas!.Height).IsLessThanOrEqualTo(height);
-    }
-
-    private async Task OpenAsync()
-    {
-        var editorStyles = await File.ReadAllTextAsync(
-            Path.Combine(AppContext.BaseDirectory, "Editor.razor.css"));
-        var sceneStyles = await File.ReadAllTextAsync(
-            Path.Combine(AppContext.BaseDirectory, "CircuitSceneHost.razor.css"));
-
-        await Page.RouteAsync($"{Origin}/**", route =>
+        using (Assert.Multiple())
         {
-            var path = new Uri(route.Request.Url).AbsolutePath;
-            return route.FulfillAsync(new RouteFulfillOptions
-            {
-                Status = 200,
-                ContentType = path.EndsWith(".css", StringComparison.Ordinal)
-                    ? "text/css"
-                    : "text/html",
-                Body = path switch
-                {
-                    "/Editor.razor.css" => editorStyles,
-                    "/CircuitSceneHost.razor.css" => sceneStyles,
-                    _ => Document,
-                },
-            });
-        });
-        await Page.GotoAsync(Origin);
+            await Assert.That(bounds).IsNotNull();
+            await Assert.That(bounds!.X).IsGreaterThanOrEqualTo(0);
+            await Assert.That(bounds.X + bounds.Width).IsLessThanOrEqualTo(width);
+            await Assert.That(documentWidth).IsLessThanOrEqualTo(width);
+        }
     }
 
-    private const string Document =
-        """
-        <!doctype html>
-        <html lang="en">
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <link rel="stylesheet" href="/Editor.razor.css">
-          <link rel="stylesheet" href="/CircuitSceneHost.razor.css">
-          <style>
-            :root {
-              --ll-canvas: #fff;
-              --ll-panel: #f7fafb;
-              --ll-border: #ccd5d7;
-              --ll-border-strong: #718085;
-              --ll-signal: #08788c;
-              --ll-muted: #526168;
-            }
-            * { box-sizing: border-box; }
-            body { margin: 0; }
-            .component-palette { height: 100%; overflow: auto; }
-            .library-content { height: 80rem; }
-          </style>
-        </head>
-        <body>
-          <section class="workbench-deck">
-            <div class="workbench-body">
-              <div class="schematic-workspace">
-                <div class="library-dock">
-                  <aside class="component-palette">
-                    <div class="library-content">Components</div>
-                  </aside>
-                </div>
-                <main class="canvas-workspace">
-                  <div>Editing tools</div>
-                  <section class="circuit-scene-shell" data-scene-renderer="ready">
-                    <header class="scene-heading"><h2>Main</h2></header>
-                    <div class="canvas-frame">
-                      <canvas class="scene-canvas" aria-label="Circuit canvas"></canvas>
-                    </div>
-                    <p>Circuit canvas ready.</p>
-                  </section>
-                </main>
-                <aside class="inspector-dock">Inspector</aside>
-              </div>
-            </div>
-          </section>
-        </body>
-        </html>
-        """;
+    private async Task OpenAsync(int width, int height)
+    {
+        await Page.SetViewportSizeAsync(width, height);
+        var response = await Page.GotoAsync(application.EditorUri.ToString());
+
+        await Assert.That(response).IsNotNull();
+        await Assert.That(response!.Ok).IsTrue();
+
+        var createSandbox = Page.Locator("[data-command='create']");
+        await Expect(createSandbox).ToBeVisibleAsync();
+        await createSandbox.ClickAsync();
+        await Expect(Page.Locator("[data-component-search]")).ToBeVisibleAsync();
+        await Expect(Page.Locator("[data-scene-renderer='ready']")).ToBeVisibleAsync();
+    }
+
+    private sealed class PaletteScrollState
+    {
+        public int ClientHeight { get; set; }
+
+        public int ScrollHeight { get; set; }
+
+        public int ScrollTop { get; set; }
+    }
 }

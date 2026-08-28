@@ -9,13 +9,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="TUnit.AspNetCore" />
     <PackageReference Include="TUnit.Playwright" />
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\src\LogicLab.Web\Components\Pages\Editor.razor.css"
-             Link="Editor.razor.css"
-             CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\src\LogicLab.Web\Components\Editor\CircuitSceneHost.razor.css"
              Link="CircuitSceneHost.razor.css"
              CopyToOutputDirectory="PreserveNewest" />
