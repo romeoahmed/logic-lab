@@ -123,16 +123,20 @@ internal sealed class CircuitSceneTestPage(IPage page)
     public async Task PublishAsync(
         ulong sceneVersion = 1,
         ulong projectionVersion = 1,
-        int snapStepGridUnits = 1)
+        int snapStepGridUnits = 1,
+        SceneRect? bounds = null)
     {
         var fingerprint = fontFingerprint
             ?? throw new InvalidOperationException("Mount the available canvas before publishing.");
+        var snapshot = SceneTestSnapshot.Create(
+            fingerprint,
+            sceneVersion,
+            projectionVersion,
+            snapStepGridUnits);
         await TransferAsync(
-            SceneTestSnapshot.Create(
-                fingerprint,
-                sceneVersion,
-                projectionVersion,
-                snapStepGridUnits),
+            bounds is { } requestedBounds
+                ? snapshot with { Bounds = requestedBounds }
+                : snapshot,
             "replacement");
     }
 
@@ -183,16 +187,19 @@ internal sealed class CircuitSceneTestPage(IPage page)
             json);
     }
 
-    public async Task<ViewportPoint> WorldToPageAsync(double x, double y)
+    public async Task<ViewportPoint> WorldToPageAsync(
+        double x,
+        double y,
+        SceneRect? sceneBounds = null)
     {
         var box = await Canvas.BoundingBoxAsync()
             ?? throw new InvalidOperationException("The Scene canvas is not laid out.");
-        var bounds = SceneTestSnapshot.Bounds;
+        var bounds = sceneBounds ?? SceneTestSnapshot.Bounds;
         const double padding = 32;
         var zoom = Math.Min(
-            4,
+            2,
             Math.Max(
-                0.25,
+                0.05,
                 Math.Min(
                     (box.Width - (padding * 2)) / bounds.Width,
                     (box.Height - (padding * 2)) / bounds.Height)));
@@ -351,7 +358,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
         canvasBitmapPixels = 10_000_000,
         canvasBitmapBytes = 40_000_000,
         effectiveDensityMillionths = 3_000_000,
-        zoomMillionthsMinimum = 250_000,
+        zoomMillionthsMinimum = 50_000,
         semanticTreePageItems = 200,
         displayListBytes = 1_000_000,
         spatialIndexBytes = 1_000_000,

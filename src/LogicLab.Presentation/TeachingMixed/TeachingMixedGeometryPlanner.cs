@@ -79,6 +79,22 @@ public static class TeachingMixedGeometryPlanner
                 definitionVersion = basicDefinition.Definition.DefinitionVersion;
                 variantId = basicDefinition.VariantId;
             }
+            else if (TeachingMixedBoundarySymbolRegistry.TryResolve(
+                    request.Contract.Key.ContractId,
+                    ports,
+                    request.SymbolVariantId,
+                    out var boundaryDefinition))
+            {
+                draft = BoundaryTerminalGeometryBuilder.Build(
+                    request,
+                    boundaryDefinition,
+                    ports,
+                    textMeasurer,
+                    cancellationToken);
+                definitionId = boundaryDefinition.DefinitionId;
+                definitionVersion = boundaryDefinition.DefinitionVersion;
+                variantId = SymbolVariantCatalog.BoundaryId;
+            }
             else if (TeachingMixedRectangularSymbolRegistry.TryResolve(
                 request.Contract.Key.ContractId,
                 request.Parameters,

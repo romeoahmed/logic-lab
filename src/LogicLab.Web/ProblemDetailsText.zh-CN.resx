@@ -28,7 +28,7 @@
   <data name="ProjectOpenRateLimited" xml:space="preserve"><value>项目打开请求过多</value></data>
   <data name="ProjectOpenRequest" xml:space="preserve"><value>项目打开请求无效</value></data>
   <data name="RequestBodyTooLarge" xml:space="preserve"><value>请求正文过大</value></data>
-  <data name="CultureRequest" xml:space="preserve"><value>文化请求无效</value></data>
+  <data name="CultureRequest" xml:space="preserve"><value>语言设置请求无效</value></data>
   <data name="WorkspaceAdmission" xml:space="preserve"><value>工作区容量不可用</value></data>
   <data name="WorkspaceCancelled" xml:space="preserve"><value>工作区打开已取消</value></data>
   <data name="WorkspaceInfrastructure" xml:space="preserve"><value>工作区服务不可用</value></data>

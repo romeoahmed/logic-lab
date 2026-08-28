@@ -25,7 +25,6 @@ internal sealed class SceneToolStripTests
         await using var context = WebTestContext.CreateBunitContext();
         context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         var rendered = context.Render<SceneToolStrip>(parameters => parameters
-            .Add(component => component.PlaceOptions, [])
             .Add(component => component.ActiveTool, SceneSelectToolV1.Instance)
             .Add(component => component.HierarchyPath,
                 new SceneHierarchyPathV1("definition-a", []))
@@ -52,14 +51,12 @@ internal sealed class SceneToolStripTests
         context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         var hierarchyPath = new SceneHierarchyPathV1("definition-a", []);
         var rendered = context.Render<SceneToolStrip>(parameters => parameters
-            .Add(component => component.PlaceOptions, [])
             .Add(component => component.ActiveTool, SceneSelectToolV1.Instance)
             .Add(component => component.HierarchyPath, hierarchyPath)
             .Add(component => component.CanProbe, true));
         await rendered.Find("[data-scene-tool='probe']").FocusAsync();
 
         rendered.Render(parameters => parameters
-            .Add(component => component.PlaceOptions, [])
             .Add(component => component.ActiveTool, SceneSelectToolV1.Instance)
             .Add(component => component.HierarchyPath, hierarchyPath)
             .Add(component => component.CanProbe, false));

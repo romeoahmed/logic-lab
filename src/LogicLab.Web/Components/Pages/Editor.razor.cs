@@ -560,7 +560,7 @@ public sealed partial class Editor : IAsyncDisposable
                         "initialValue",
                         new LogicVectorParameterValue([LogicValue.Zero])),
                 ],
-                new ComponentPlacement(new GridPoint(0, 0)),
+                new ComponentPlacement(new GridPoint(0, 5)),
                 "Input")))
         {
             return;
@@ -571,7 +571,7 @@ public sealed partial class Editor : IAsyncDisposable
                 definitionId,
                 Contract("logic.not"),
                 [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
-                new ComponentPlacement(new GridPoint(4, 0)),
+                new ComponentPlacement(new GridPoint(10, 0)),
                 "NOT")))
         {
             return;
@@ -585,21 +585,45 @@ public sealed partial class Editor : IAsyncDisposable
                     new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
                     new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
                 ],
-                new ComponentPlacement(new GridPoint(8, 0)),
+                new ComponentPlacement(new GridPoint(28, 5)),
                 "Output")))
         {
             return;
         }
 
         var output = Find("sink.output");
-        if (!await Apply(new ConnectTerminalsIntent([
-                Terminal(definitionId, input.Id, "Q"),
-                Terminal(definitionId, logicNot.Id, "A"),
-            ]))
-            || !await Apply(new ConnectTerminalsIntent([
-                Terminal(definitionId, logicNot.Id, "Q"),
-                Terminal(definitionId, output.Id, "D"),
-            ])))
+        var inputTerminal = Terminal(definitionId, input.Id, "Q");
+        var notInputTerminal = Terminal(definitionId, logicNot.Id, "A");
+        if (!await Apply(new ConnectTerminalsIntent(
+                [inputTerminal, notInputTerminal],
+                destinationNetId: null,
+                newJunctionPositions: [],
+                routeAdditions:
+                [
+                    new OrthogonalWireRoute([
+                        new GridPoint(7, 7),
+                        new GridPoint(11, 7),
+                    ]),
+                ],
+                routeReplacements: [])))
+        {
+            return;
+        }
+
+        var notOutputTerminal = Terminal(definitionId, logicNot.Id, "Q");
+        var outputTerminal = Terminal(definitionId, output.Id, "D");
+        if (!await Apply(new ConnectTerminalsIntent(
+                [notOutputTerminal, outputTerminal],
+                destinationNetId: null,
+                newJunctionPositions: [],
+                routeAdditions:
+                [
+                    new OrthogonalWireRoute([
+                        new GridPoint(26, 7),
+                        new GridPoint(29, 7),
+                    ]),
+                ],
+                routeReplacements: [])))
         {
             return;
         }

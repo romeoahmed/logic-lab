@@ -1,0 +1,128 @@
+.starter-guide {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.9rem;
+  border-block-end: 1px solid var(--ll-border);
+  background: var(--ll-canvas);
+}
+
+.starter-guide header p,
+.starter-guide header h2,
+.starter-guide header span {
+  margin: 0;
+}
+
+.starter-guide header p {
+  color: var(--ll-signal);
+  font-size: 0.66rem;
+  font-weight: 750;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.starter-guide header h2 {
+  margin-block-start: 0.25rem;
+  font-size: 1rem;
+}
+
+.starter-guide header span {
+  display: block;
+  margin-block-start: 0.35rem;
+  color: var(--ll-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.starter-guide ol {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.starter-guide li {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: center;
+  color: var(--ll-muted);
+  font-size: 0.63rem;
+  text-align: center;
+}
+
+.starter-guide li strong {
+  display: grid;
+  inline-size: 1.35rem;
+  block-size: 1.35rem;
+  place-items: center;
+  border-radius: 50%;
+  color: white;
+  background: var(--ll-signal);
+  font-size: 0.66rem;
+}
+
+.starter-options {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.starter-option {
+  display: block;
+  min-block-size: 4.25rem;
+  inline-size: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--ll-border-strong);
+  border-radius: var(--ll-radius-small);
+  color: var(--ll-ink);
+  background: var(--ll-panel);
+  cursor: pointer;
+  font: inherit;
+  text-align: start;
+}
+
+.starter-option:hover:not(:disabled) {
+  border-color: var(--ll-signal);
+  background: var(--ll-signal-soft);
+}
+
+.starter-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.starter-option:focus-visible {
+  outline: 3px solid var(--ll-signal);
+  outline-offset: 2px;
+}
+
+.starter-option-content {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: start;
+  white-space: normal;
+}
+
+.starter-number {
+  padding-block-start: 0.05rem;
+  color: var(--ll-signal);
+  font-family: "IBM Plex Mono", "Noto Sans Mono CJK", ui-monospace, monospace;
+  font-size: 0.7rem;
+}
+
+.starter-copy {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.starter-copy strong {
+  color: var(--ll-ink);
+  font-size: 0.78rem;
+}
+
+.starter-copy small {
+  color: var(--ll-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}

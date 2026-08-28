@@ -66,12 +66,14 @@ internal static class BasicGateGeometryBuilder
             pair => pair.Key,
             pair => UprightTextLayout.FlowAxis(pair.Value, request.Facing),
             StringComparer.Ordinal);
-        var portPitch = UprightTextLayout.RequiredPitch(
-            inputPortIds,
-            outputPortIds,
-            rowAxisLabels,
-            metrics.MinimumPortPitch,
-            Math.Max(1, h / 2));
+        var portPitch = GridAlignedLayout.AlignUp(
+            UprightTextLayout.RequiredPitch(
+                inputPortIds,
+                outputPortIds,
+                rowAxisLabels,
+                metrics.MinimumPortPitch,
+                Math.Max(1, h / 2)),
+            checked(2 * h));
         var standardBodyHeight = BasicBodyHeight.ScaleUp(h);
         var requestedBodyHeight = inputs.Length == 1
             ? standardBodyHeight
@@ -164,17 +166,22 @@ internal static class BasicGateGeometryBuilder
         var strokeMargin = GeometryPlanValidator.ConservativeStrokeMargin(
             metrics.OutlineStrokeWidth,
             MiterJoin);
-        var planInset = Math.Max(
-            Math.Max(strokeMargin, metrics.PortHitRadius),
-            metrics.BodyHitPadding);
+        var planInset = GridAlignedLayout.AlignUp(
+            Math.Max(
+                Math.Max(strokeMargin, metrics.PortHitRadius),
+                metrics.BodyHitPadding),
+            h);
+        var centerY = GridAlignedLayout.AlignUp(
+            checked(planInset + (bodyHeight / 2)),
+            h);
+        var bodyTop = checked(centerY - (bodyHeight / 2));
         var bodyLeft = checked(planInset + metrics.PortLeadLength);
         var bodyRight = checked(bodyLeft + bodyWidth);
         var body = new RectV1(
             bodyLeft,
-            planInset,
+            bodyTop,
             bodyRight,
-            checked(planInset + bodyHeight));
-        var centerY = checked(body.Top + (bodyHeight / 2));
+            checked(bodyTop + bodyHeight));
         OutputQualifierGeometry? outputQualifier = definition.HasOutputQualifier
             ? BuildOutputQualifier(
                 bodyRight,
@@ -184,12 +191,14 @@ internal static class BasicGateGeometryBuilder
                 metrics.QualifierStrokeWidth)
             : null;
         var outputLeadStart = outputQualifier?.ConnectionX ?? bodyRight;
-        var outputAnchorX = checked(outputLeadStart + metrics.PortLeadLength);
+        var outputAnchorX = GridAlignedLayout.AlignUp(
+            checked(outputLeadStart + metrics.PortLeadLength),
+            h);
         var bounds = new RectV1(
             0,
             0,
-            checked(outputAnchorX + planInset),
-            checked(body.Bottom + planInset));
+            GridAlignedLayout.AlignUp(checked(outputAnchorX + planInset), h),
+            GridAlignedLayout.AlignUp(checked(body.Bottom + planInset), h));
         var operations = new List<DrawOperationV1>();
 
         cancellationToken.ThrowIfCancellationRequested();

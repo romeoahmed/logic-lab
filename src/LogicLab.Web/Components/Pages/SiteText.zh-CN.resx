@@ -4,39 +4,68 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="ErrorDescription" xml:space="preserve"><value>系统没有自动执行恢复操作。准备好后请返回首页并重试。</value></data>
+  <data name="ErrorDescription" xml:space="preserve"><value>你的工作没有被更改。请返回首页，或打开新沙盒继续。</value></data>
   <data name="ErrorEyebrow" xml:space="preserve"><value>请求已中断</value></data>
   <data name="ErrorOpenSandbox" xml:space="preserve"><value>打开新沙盒</value></data>
   <data name="ErrorPageTitle" xml:space="preserve"><value>错误</value></data>
   <data name="ErrorRequestId" xml:space="preserve"><value>请求 ID</value></data>
   <data name="ErrorReturnHome" xml:space="preserve"><value>返回首页</value></data>
-  <data name="ErrorTitle" xml:space="preserve"><value>工作台遇到意外故障。</value></data>
-  <data name="HelpDescriptionClaim" xml:space="preserve"><value>将沙盒保存为持久项目之前请先登录。持久项目可以从项目目录重新打开。</value></data>
-  <data name="HelpDescriptionStart" xml:space="preserve"><value>在工作台中创建沙盒项目、编辑电路、编译，然后运行确定性仿真。</value></data>
+  <data name="ErrorTitle" xml:space="preserve"><value>无法完成请求</value></data>
+  <data name="HelpDescriptionClaim" xml:space="preserve"><value>登录后即可保存沙盒，并从项目列表重新打开。</value></data>
+  <data name="HelpDescriptionStart" xml:space="preserve"><value>创建沙盒、绘制电路、编译，然后运行确定性仿真。</value></data>
   <data name="HelpEyebrow" xml:space="preserve"><value>Logic Lab 帮助</value></data>
   <data name="HelpOpenWorkbench" xml:space="preserve"><value>打开工作台</value></data>
   <data name="HelpPageTitle" xml:space="preserve"><value>帮助 · Logic Lab</value></data>
   <data name="HelpTitle" xml:space="preserve"><value>快速入门</value></data>
-  <data name="HomeCompileDescription" xml:space="preserve"><value>将项目文档解析为确定性的可执行电路。</value></data>
+  <data name="HomeCompileDescription" xml:space="preserve"><value>检查电路图并准备仿真。</value></data>
   <data name="HomeCompileTitle" xml:space="preserve"><value>编译</value></data>
-  <data name="HomeDescription" xml:space="preserve"><value>Logic Lab 在一个工作台中连接电路编辑、确定性编译、同步仿真和无障碍语义探针。</value></data>
-  <data name="HomeEyebrow" xml:space="preserve"><value>以证据为先的电路设计</value></data>
+  <data name="HomeDescription" xml:space="preserve"><value>在同一个工作台中绘制门电路、编译电路并观察信号变化。</value></data>
+  <data name="HomeEyebrow" xml:space="preserve"><value>数字逻辑工作台</value></data>
   <data name="HomeExplore" xml:space="preserve"><value>探索信号路径</value></data>
-  <data name="HomeInspectDescription" xml:space="preserve"><value>通过语义场景读取信号值和拓扑。</value></data>
+  <data name="HomeInspectDescription" xml:space="preserve"><value>读取实时信号值，沿连线检查信号路径。</value></data>
   <data name="HomeInspectTitle" xml:space="preserve"><value>检查</value></data>
   <data name="HomeOpenWorkbench" xml:space="preserve"><value>打开沙盒工作台</value></data>
   <data name="HomeReady" xml:space="preserve"><value>就绪</value></data>
-  <data name="HomeSequenceEyebrow" xml:space="preserve"><value>工作台流程</value></data>
-  <data name="HomeSequenceTitle" xml:space="preserve"><value>一条电路，四个可检查阶段。</value></data>
-  <data name="HomeSimulateDescription" xml:space="preserve"><value>使用带 fence 的同步命令推进逻辑时间。</value></data>
+  <data name="HomeSequenceEyebrow" xml:space="preserve"><value>使用流程</value></data>
+  <data name="HomeSequenceTitle" xml:space="preserve"><value>从电路图到仿真结果。</value></data>
+  <data name="HomeSimulateDescription" xml:space="preserve"><value>推进逻辑时间，得到稳定、可重复的结果。</value></data>
   <data name="HomeSimulateTitle" xml:space="preserve"><value>仿真</value></data>
-  <data name="HomeAuthorDescription" xml:space="preserve"><value>构建定义、端口、实例和显式电气拓扑。</value></data>
-  <data name="HomeAuthorTitle" xml:space="preserve"><value>编辑</value></data>
-  <data name="HomeTitle" xml:space="preserve"><value>构建、编译，观察信号流动。</value></data>
-  <data name="NotFoundDescription" xml:space="preserve"><value>该地址不对应 Logic Lab 的任何界面。请返回工作台或从首页开始。</value></data>
+  <data name="HomeAuthorDescription" xml:space="preserve"><value>在网格上放置逻辑门并连接端口。</value></data>
+  <data name="HomeAuthorTitle" xml:space="preserve"><value>绘制</value></data>
+  <data name="HomeTitle" xml:space="preserve"><value>绘制电路，观察信号变化。</value></data>
+  <data name="NotFoundDescription" xml:space="preserve"><value>这个页面不存在。请返回首页或打开工作台。</value></data>
   <data name="NotFoundEyebrow" xml:space="preserve"><value>页面不存在</value></data>
   <data name="NotFoundOpenWorkbench" xml:space="preserve"><value>打开工作台</value></data>
   <data name="NotFoundPageTitle" xml:space="preserve"><value>未找到页面</value></data>
   <data name="NotFoundReturnHome" xml:space="preserve"><value>返回首页</value></data>
-  <data name="NotFoundTitle" xml:space="preserve"><value>这条路径到此为止。</value></data>
+  <data name="NotFoundTitle" xml:space="preserve"><value>找不到页面</value></data>
+  <data name="HelpFirstCircuitEyebrow" xml:space="preserve"><value>5 分钟上手</value></data>
+  <data name="HelpFirstCircuitTitle" xml:space="preserve"><value>完成第一个可运行电路。</value></data>
+  <data name="HelpStepCreateTitle" xml:space="preserve"><value>创建沙盒</value></data>
+  <data name="HelpStepCreateDescription" xml:space="preserve"><value>沙盒是临时的内存项目，可以放心试验。</value></data>
+  <data name="HelpStepChooseTitle" xml:space="preserve"><value>选择“反相器入门”</value></data>
+  <data name="HelpStepChooseDescription" xml:space="preserve"><value>示例包含一个输入、一个 NOT 门、一个输出和显式导线。</value></data>
+  <data name="HelpStepCompileTitle" xml:space="preserve"><value>编译电路</value></data>
+  <data name="HelpStepCompileDescription" xml:space="preserve"><value>编译会把编辑好的电路图转换为确定性的可执行电路。</value></data>
+  <data name="HelpStepRunTitle" xml:space="preserve"><value>创建会话并步进</value></data>
+  <data name="HelpStepRunDescription" xml:space="preserve"><value>把输入设为 1，推进一个逻辑步，再到探针面板读取输出。</value></data>
+  <data name="HelpExamplesEyebrow" xml:space="preserve"><value>选择合适的示例</value></data>
+  <data name="HelpExamplesTitle" xml:space="preserve"><value>先从小电路开始，再逐步展开结构。</value></data>
+  <data name="HelpInverterTitle" xml:space="preserve"><value>反相器入门</value></data>
+  <data name="HelpInverterDescription" xml:space="preserve"><value>第一次使用请选它：信号路径清楚，并能完整体验编译与步进。</value></data>
+  <data name="HelpGalleryTitle" xml:space="preserve"><value>逻辑与算术示例</value></data>
+  <data name="HelpGalleryDescription" xml:space="preserve"><value>比较逻辑门、复用器、译码器和算术元件。</value></data>
+  <data name="HelpHierarchyTitle" xml:space="preserve"><value>可复用反相器</value></data>
+  <data name="HelpHierarchyDescription" xml:space="preserve"><value>掌握基础后，用它了解主电路如何复用子电路。</value></data>
+  <data name="HelpCanvasEyebrow" xml:space="preserve"><value>画布操作</value></data>
+  <data name="HelpCanvasTitle" xml:space="preserve"><value>选择、平移和缩放电路图。</value></data>
+  <data name="HelpCanvasSelect" xml:space="preserve"><value>选择</value></data>
+  <data name="HelpCanvasSelectDescription" xml:space="preserve"><value>点击元件、端口、导线或网络锚点即可选中，并显示可用操作。</value></data>
+  <data name="HelpCanvasPan" xml:space="preserve"><value>平移</value></data>
+  <data name="HelpCanvasPanDescription" xml:space="preserve"><value>选择“平移”后拖动画布；按住空格键可临时切换到平移。</value></data>
+  <data name="HelpCanvasZoom" xml:space="preserve"><value>缩放</value></data>
+  <data name="HelpCanvasZoomDescription" xml:space="preserve"><value>使用画布内的控件；电路离开视口时，选择“适合窗口”。</value></data>
+  <data name="HelpAdvancedTopologyTitle" xml:space="preserve"><value>高级拓扑</value></data>
+  <data name="HelpAdvancedTopologyDescription" xml:space="preserve"><value>只有需要修改网络成员关系、结点或显式布线几何时才展开。</value></data>
+  <data name="HelpKeepWorkTitle" xml:space="preserve"><value>在沙盒之外保留工作</value></data>
 </root>

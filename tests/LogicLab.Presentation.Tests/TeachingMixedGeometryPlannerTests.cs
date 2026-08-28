@@ -127,6 +127,17 @@ internal sealed class TeachingMixedGeometryPlannerTests
         Check(AllGeometryIsInsideBounds(plan), "published geometry escapes Bounds", violations);
         Check(PortHitRegionsAreDisjoint(plan), "Port hit regions overlap", violations);
         Check(
+            plan.PortAnchors.All(anchor =>
+                anchor.Point.X % TeachingMixedMetricSets.AnnexA100.UnitsPerH == 0
+                && anchor.Point.Y % TeachingMixedMetricSets.AnnexA100.UnitsPerH == 0),
+            "Port anchors are not aligned to the authored routing grid",
+            violations);
+        Check(
+            plan.Bounds.Width % TeachingMixedMetricSets.AnnexA100.UnitsPerH == 0
+                && plan.Bounds.Height % TeachingMixedMetricSets.AnnexA100.UnitsPerH == 0,
+            "plan dimensions do not preserve grid alignment through rotation",
+            violations);
+        Check(
             sample.Width == 1
                 || plan.Key.NormalizedRequestDigest != scalar.Key.NormalizedRequestDigest,
             "vector width did not change the semantic request key",

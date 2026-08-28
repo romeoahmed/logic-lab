@@ -11,20 +11,15 @@ public sealed partial class SceneToolStrip
     private const string WireToolKey = "wire";
     private const string ProbeToolKey = "probe";
     private const string PanToolKey = "pan";
-    private const string PlaceToolKey = "place";
 
     private ElementReference selectToolElement;
     private ElementReference wireToolElement;
     private ElementReference probeToolElement;
     private ElementReference panToolElement;
-    private ElementReference placeToolElement;
     private bool toolbarNavigationReady;
     private bool toolbarHasFocus;
     private string toolbarTabStop = SelectToolKey;
     private string? pendingToolbarFocus;
-
-    [Parameter, EditorRequired]
-    public IReadOnlyList<ScenePlaceOptionV1> PlaceOptions { get; set; } = [];
 
     [Parameter, EditorRequired]
     public SceneToolV1 ActiveTool { get; set; } = SceneSelectToolV1.Instance;
@@ -44,17 +39,6 @@ public sealed partial class SceneToolStrip
     private string ToolbarRole => toolbarNavigationReady ? "toolbar" : "group";
 
     private bool ProbeAvailable => CanProbe && HierarchyPath is not null;
-
-    private string SelectedPlaceOptionId => ActiveTool is ScenePlaceToolV1 place
-        ? place.Target switch
-        {
-            SceneLibraryComponentTargetV1 library =>
-                $"library:{library.LibraryId}:{library.ContractId}",
-            SceneCircuitDefinitionTargetV1 definition =>
-                $"definition:{definition.CircuitDefinitionId}",
-            _ => string.Empty,
-        }
-        : string.Empty;
 
     protected override void OnParametersSet()
     {
@@ -134,8 +118,8 @@ public sealed partial class SceneToolStrip
     }
 
     private string[] AvailableToolKeys() => ProbeAvailable
-        ? [SelectToolKey, WireToolKey, ProbeToolKey, PanToolKey, PlaceToolKey]
-        : [SelectToolKey, WireToolKey, PanToolKey, PlaceToolKey];
+        ? [SelectToolKey, WireToolKey, ProbeToolKey, PanToolKey]
+        : [SelectToolKey, WireToolKey, PanToolKey];
 
     private ElementReference ToolElement(string toolKey) => toolKey switch
     {
@@ -143,7 +127,6 @@ public sealed partial class SceneToolStrip
         WireToolKey => wireToolElement,
         ProbeToolKey => probeToolElement,
         PanToolKey => panToolElement,
-        PlaceToolKey => placeToolElement,
         _ => throw new ArgumentOutOfRangeException(nameof(toolKey)),
     };
 
@@ -153,12 +136,4 @@ public sealed partial class SceneToolStrip
         ? Task.CompletedTask
         : ChangeToolAsync(new SceneProbeToolV1(HierarchyPath));
 
-    private Task SelectPlaceToolAsync(ChangeEventArgs change)
-    {
-        var option = PlaceOptions.FirstOrDefault(candidate => string.Equals(
-            candidate.Id,
-            change.Value?.ToString(),
-            StringComparison.Ordinal));
-        return option is null ? Task.CompletedTask : ChangeToolAsync(option.Tool);
-    }
 }

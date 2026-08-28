@@ -160,9 +160,20 @@ internal sealed class BrowserSceneProjectionTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             var width = checked(Math.Max(70, request.Text.Length * 70));
+            var left = request.Alignment switch
+            {
+                TextAlignmentV1.Center => -(width / 2),
+                TextAlignmentV1.Start
+                    when request.BaseDirection == BaseDirectionV1.LeftToRight => 0,
+                TextAlignmentV1.Start => -width,
+                TextAlignmentV1.End
+                    when request.BaseDirection == BaseDirectionV1.LeftToRight => -width,
+                TextAlignmentV1.End => 0,
+                _ => throw new ArgumentOutOfRangeException(nameof(request)),
+            };
             return new SymbolTextMeasurementV1(
                 width,
-                new RectV1(0, -80, width, 40));
+                new RectV1(left, -80, checked(left + width), 40));
         }
     }
 }

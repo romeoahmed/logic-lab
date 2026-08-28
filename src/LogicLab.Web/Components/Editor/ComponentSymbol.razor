@@ -1,0 +1,99 @@
+<span class="component-symbol" aria-hidden="true">
+<svg viewBox="0 0 36 24" focusable="false">
+    @switch (Kind)
+    {
+        case ComponentSymbolKind.Input:
+            <path d="M3 6 H22 L30 12 L22 18 H3 Z" />
+            <path d="M30 12 H34" />
+            break;
+        case ComponentSymbolKind.Output:
+            <path d="M6 6 H25 L33 12 L25 18 H6 Z" />
+            <path d="M2 12 H6" />
+            break;
+        case ComponentSymbolKind.Constant:
+            <rect x="8" y="5" width="20" height="14" rx="2" />
+            <path d="M28 12 H34" />
+            break;
+        case ComponentSymbolKind.Clock:
+            <rect x="6" y="4" width="24" height="16" rx="2" />
+            <path d="M9 15 H13 V9 H18 V15 H23 V9 H27" />
+            <path d="M30 12 H34" />
+            break;
+        case ComponentSymbolKind.And:
+        case ComponentSymbolKind.Nand:
+            <path d="M2 8 H8 M2 16 H8 M8 4 H17 A10 8 0 0 1 17 20 H8 Z" />
+            @if (Kind is ComponentSymbolKind.Nand)
+            {
+                <circle cx="29" cy="12" r="2" />
+                <path d="M31 12 H34" />
+            }
+            else
+            {
+                <path d="M27 12 H34" />
+            }
+            break;
+        case ComponentSymbolKind.Or:
+        case ComponentSymbolKind.Nor:
+        case ComponentSymbolKind.Xor:
+        case ComponentSymbolKind.Xnor:
+            <path d="M2 8 H10 M2 16 H10" />
+            @if (Kind is ComponentSymbolKind.Xor or ComponentSymbolKind.Xnor)
+            {
+                <path d="M6 4 Q12 12 6 20" />
+            }
+            <path d="M9 4 Q15 12 9 20 Q21 20 29 12 Q21 4 9 4 Z" />
+            @if (Kind is ComponentSymbolKind.Nor or ComponentSymbolKind.Xnor)
+            {
+                <circle cx="31" cy="12" r="2" />
+                <path d="M33 12 H35" />
+            }
+            else
+            {
+                <path d="M29 12 H34" />
+            }
+            break;
+        case ComponentSymbolKind.Not:
+        case ComponentSymbolKind.Buffer:
+            <path d="M2 12 H8 M8 4 L25 12 L8 20 Z" />
+            @if (Kind is ComponentSymbolKind.Not)
+            {
+                <circle cx="28" cy="12" r="2" />
+                <path d="M30 12 H34" />
+            }
+            else
+            {
+                <path d="M25 12 H34" />
+            }
+            break;
+        case ComponentSymbolKind.TriState:
+            <path d="M2 12 H8 M8 4 L25 12 L8 20 Z M25 12 H34 M17 22 V16" />
+            break;
+        case ComponentSymbolKind.Multiplexer:
+            <path d="M2 7 H9 M2 17 H9 M9 3 L27 7 V17 L9 21 Z M27 12 H34" />
+            break;
+        case ComponentSymbolKind.Demultiplexer:
+            <path d="M2 12 H9 M9 7 L27 3 V21 L9 17 Z M27 7 H34 M27 17 H34" />
+            break;
+        case ComponentSymbolKind.Split:
+            <path d="M2 12 H17 M17 12 V6 H34 M17 12 V18 H34" />
+            <circle cx="17" cy="12" r="1.5" class="component-symbol__fill" />
+            break;
+        case ComponentSymbolKind.Combine:
+            <path d="M2 6 H18 V12 H34 M2 18 H18 V12" />
+            <circle cx="18" cy="12" r="1.5" class="component-symbol__fill" />
+            break;
+        case ComponentSymbolKind.Shift:
+            <rect x="7" y="4" width="22" height="16" rx="2" />
+            <path d="M11 12 H24 M20 8 L24 12 L20 16 M2 12 H7 M29 12 H34" />
+            break;
+        default:
+            <path d="M2 12 H7 M29 12 H34" />
+            <rect x="7" y="4" width="22" height="16" rx="2" />
+            break;
+    }
+</svg>
+@if (SymbolLabel is not null)
+{
+    <span class="component-symbol__label">@SymbolLabel</span>
+}
+</span>

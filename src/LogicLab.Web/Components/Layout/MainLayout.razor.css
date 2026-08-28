@@ -90,6 +90,7 @@
   display: flex;
   gap: 0.25rem;
   align-items: center;
+  white-space: nowrap;
 }
 
 .primary-navigation ::deep a {
@@ -223,6 +224,7 @@ main {
   }
 
   .primary-navigation {
+    gap: 0.15rem;
     inline-size: calc(100vw - 2rem);
     overflow-x: auto;
     padding-block-end: 0.15rem;
@@ -236,5 +238,10 @@ main {
   .primary-navigation ::deep a,
   .navigation-button {
     min-block-size: 2.75rem;
+    padding-inline: 0.55rem;
+  }
+
+  .culture-form select {
+    padding-inline: 0.4rem;
   }
 }

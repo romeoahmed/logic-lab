@@ -1,12 +1,10 @@
 .workbench-shell {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.65rem;
   inline-size: 100%;
-  max-inline-size: var(--ll-page-width);
   min-inline-size: 0;
-  margin-block: 0;
   margin-inline: auto;
-  padding: clamp(0.75rem, 2vw, 1.5rem);
+  padding: clamp(0.6rem, 1.5vw, 1rem);
 }
 
 .workbench-heading {
@@ -14,7 +12,7 @@
   grid-template-columns: minmax(0, 1fr) minmax(18rem, 30rem);
   align-items: end;
   gap: 2rem;
-  padding: 0.25rem 0.25rem 0.75rem;
+  padding: 0.25rem 0.25rem 0.65rem;
 }
 
 .workbench-heading h1,
@@ -35,10 +33,11 @@
   border-inline-start: 1px solid var(--ll-border-strong);
 }
 
-.workbench-brief > span {
+.workbench-brief > span,
+.eyebrow {
   color: var(--ll-signal);
-  font-size: 0.66rem;
-  font-weight: 800;
+  font-size: 0.68rem;
+  font-weight: 750;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -51,52 +50,128 @@
   line-height: 1.55;
 }
 
-.workbench-metadata {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.8rem;
-  align-items: center;
-  margin-block-start: 0.7rem;
-  color: var(--ll-subtle);
-  font-size: 0.76rem;
-}
-
-.workbench-metadata > span {
-  display: inline-flex;
-  gap: 0.4rem;
-  align-items: center;
-}
-
-.workbench-metadata > span::before {
-  inline-size: 0.28rem;
-  block-size: 0.28rem;
-  border-radius: 50%;
-  background: var(--ll-border-strong);
-  content: "";
-}
-
-.eyebrow {
-  margin-block-end: 0.5rem;
-  color: var(--ll-signal);
-  font-size: 0.75rem;
-  font-weight: 750;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
 .workbench-deck {
   overflow: clip;
   min-inline-size: 0;
   border: 1px solid var(--ll-border-strong);
   border-radius: var(--ll-radius-medium);
   background: var(--ll-panel);
-  box-shadow: 0 0.35rem 1.25rem rgb(16 42 51 / 6%);
 }
 
 .workbench-command-region,
 .workbench-definition-region {
   min-inline-size: 0;
   border-block-end: 1px solid var(--ll-border);
+}
+
+.workbench-body,
+.schematic-workspace,
+.library-dock,
+.canvas-workspace,
+.inspector-dock {
+  min-inline-size: 0;
+}
+
+.workbench-body {
+  container: workbench / inline-size;
+}
+
+.schematic-workspace {
+  display: grid;
+  grid-template-areas:
+    "canvas"
+    "library"
+    "inspector";
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  min-block-size: 0;
+}
+
+.library-dock {
+  grid-area: library;
+  max-block-size: 24rem;
+  overflow: hidden;
+  border-block-start: 1px solid var(--ll-border);
+}
+
+.library-dock ::deep .component-palette {
+  block-size: 100%;
+  border-inline-end: 0;
+}
+
+.canvas-workspace {
+  display: grid;
+  grid-area: canvas;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-block-size: clamp(30rem, 72svh, 40rem);
+  overflow: hidden;
+  background: var(--ll-canvas);
+}
+
+.inspector-dock {
+  grid-area: inspector;
+  border-block-start: 1px solid var(--ll-border);
+  background: var(--ll-panel);
+}
+
+.inspector-heading {
+  padding: 0.85rem 0.9rem;
+  border-block-end: 1px solid var(--ll-border);
+}
+
+.inspector-heading h2,
+.inspector-heading p {
+  margin: 0;
+}
+
+.inspector-heading h2 {
+  color: var(--ll-signal);
+  font-size: 0.82rem;
+  font-weight: 750;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.inspector-heading p {
+  margin-block-start: 0.25rem;
+  color: var(--ll-muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.advanced-topology {
+  border-block-start: 1px solid var(--ll-border);
+  background: var(--ll-panel);
+}
+
+.advanced-topology > summary {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.8rem 0.9rem;
+  color: var(--ll-signal-strong);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.advanced-topology > summary:hover {
+  background: var(--ll-signal-soft);
+}
+
+.advanced-topology > summary small {
+  color: var(--ll-muted);
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.advanced-topology > div {
+  border-block-start: 1px solid var(--ll-border);
+}
+
+.workbench-status-region {
+  min-inline-size: 0;
+  border-block-start: 1px solid var(--ll-border-strong);
 }
 
 .export-download {
@@ -134,37 +209,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-}
-
-.workbench-body {
-  display: grid;
-  grid-template-columns: minmax(17rem, 20rem) minmax(0, 1fr);
-  min-inline-size: 0;
-}
-
-.workbench-topology-rail {
-  min-inline-size: 0;
-  border-inline-end: 1px solid var(--ll-border);
-  background: var(--ll-panel);
-}
-
-.workbench-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(15rem, 18rem);
-  min-inline-size: 0;
-}
-
-.workbench-scene-region {
-  min-inline-size: 0;
-}
-
-.workbench-grid > * {
-  min-inline-size: 0;
-}
-
-.workbench-status-region {
-  min-inline-size: 0;
-  border-block-start: 1px solid var(--ll-border-strong);
 }
 
 .workspace-recovery {
@@ -238,12 +282,10 @@
 
 .recovery-primary:hover {
   background: var(--ll-signal-strong);
-  transform: translateY(-1px);
 }
 
 .recovery-secondary {
   color: var(--ll-signal-strong);
-  background: transparent;
 }
 
 .recovery-secondary:hover {
@@ -260,21 +302,63 @@
   color: var(--ll-ink);
 }
 
-@media (max-width: 1180px) {
-  .workbench-body {
-    grid-template-columns: 1fr;
+@container workbench (width >= 52rem) {
+  .schematic-workspace {
+    grid-template-areas:
+      "library canvas"
+      "inspector inspector";
+    grid-template-columns: minmax(12rem, 14rem) minmax(0, 1fr);
   }
 
-  .workbench-topology-rail {
-    border-inline-end: 0;
-    border-block-end: 1px solid var(--ll-border);
+  .library-dock {
+    max-block-size: none;
+    border-block-start: 0;
+    border-inline-end: 1px solid var(--ll-border);
+  }
+
+  .canvas-workspace {
+    min-block-size: 36rem;
+  }
+
+  .inspector-dock {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
+  }
+
+  .inspector-heading {
+    grid-column: 1 / -1;
+  }
+
+  .inspector-dock > :not(.inspector-heading) {
+    border-inline-end: 1px solid var(--ll-border);
   }
 }
 
-@media (max-width: 850px) {
-  .workbench-heading,
-  .workbench-grid {
-    display: grid;
+@container workbench (width >= 76rem) {
+  .schematic-workspace {
+    grid-template-areas: "library canvas inspector";
+    grid-template-columns: minmax(12rem, 15rem) minmax(32rem, 1fr) minmax(15rem, 18rem);
+    block-size: clamp(38rem, calc(100dvh - 15rem), 50rem);
+  }
+
+  .canvas-workspace {
+    min-block-size: 0;
+  }
+
+  .inspector-dock {
+    display: block;
+    overflow: auto;
+    border-block-start: 0;
+    border-inline-start: 1px solid var(--ll-border);
+  }
+
+  .inspector-dock > :not(.inspector-heading) {
+    border-inline-end: 0;
+  }
+}
+
+@media (max-width: 800px) {
+  .workbench-heading {
     grid-template-columns: 1fr;
   }
 
@@ -284,15 +368,12 @@
     border-block-start: 1px solid var(--ll-border);
     border-inline-start: 0;
   }
+
 }
 
 @media (max-width: 560px) {
   .workbench-shell {
-    padding: 0.65rem;
-  }
-
-  .workbench-heading h1 {
-    font-size: clamp(2.5rem, 13vw, 3.8rem);
+    padding: 0.4rem;
   }
 
   .workbench-heading {

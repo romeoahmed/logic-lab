@@ -5,29 +5,29 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
   <data name="AccountProtectionsAriaLabel" xml:space="preserve"><value>Account protections</value></data>
-  <data name="AssuranceAttachments" xml:space="preserve"><value>Fenced editor attachments</value></data>
-  <data name="AssuranceCatalog" xml:space="preserve"><value>Private Durable Project catalog</value></data>
-  <data name="AssuranceSessions" xml:space="preserve"><value>Secure, non-sliding sessions</value></data>
+  <data name="AssuranceAttachments" xml:space="preserve"><value>Protected editing sessions</value></data>
+  <data name="AssuranceCatalog" xml:space="preserve"><value>Private saved projects</value></data>
+  <data name="AssuranceSessions" xml:space="preserve"><value>Secure sessions with a fixed lifetime</value></data>
   <data name="ConfirmPassword" xml:space="preserve"><value>Confirm password</value></data>
   <data name="Email" xml:space="preserve"><value>Email</value></data>
   <data name="LoginCreateAccount" xml:space="preserve"><value>Create an account</value></data>
-  <data name="LoginDescription" xml:space="preserve"><value>Sign in to reopen Durable Projects while keeping quick experiments in the Sandbox.</value></data>
+  <data name="LoginDescription" xml:space="preserve"><value>Sign in to reopen saved projects. You can still use a Sandbox for quick experiments.</value></data>
   <data name="LoginEyebrow" xml:space="preserve"><value>Account access</value></data>
   <data name="LoginInvalid" xml:space="preserve"><value>The email or password is invalid.</value></data>
   <data name="LoginNewUser" xml:space="preserve"><value>New to Logic Lab?</value></data>
   <data name="LoginPageTitle" xml:space="preserve"><value>Log in</value></data>
   <data name="LoginRememberMe" xml:space="preserve"><value>Remember me</value></data>
-  <data name="LoginSubmit" xml:space="preserve"><value>Log in securely</value></data>
+  <data name="LoginSubmit" xml:space="preserve"><value>Log in</value></data>
   <data name="LoginTitle" xml:space="preserve"><value>Welcome back.</value></data>
   <data name="Password" xml:space="preserve"><value>Password</value></data>
-  <data name="ProtectedForm" xml:space="preserve"><value>Protected server-rendered form</value></data>
+  <data name="ProtectedForm" xml:space="preserve"><value>Protected form submission</value></data>
   <data name="RegisterAlreadyRegistered" xml:space="preserve"><value>Already registered?</value></data>
-  <data name="RegisterDescription" xml:space="preserve"><value>Create an account to own Durable Projects and reopen them across authenticated sessions.</value></data>
-  <data name="RegisterEyebrow" xml:space="preserve"><value>Durable workspace</value></data>
+  <data name="RegisterDescription" xml:space="preserve"><value>Create an account to save projects and reopen them later.</value></data>
+  <data name="RegisterEyebrow" xml:space="preserve"><value>Saved projects</value></data>
   <data name="RegisterLogIn" xml:space="preserve"><value>Log in</value></data>
   <data name="RegisterPageTitle" xml:space="preserve"><value>Register</value></data>
   <data name="RegisterPasswordHint" xml:space="preserve"><value>Use at least 8 characters.</value></data>
-  <data name="RegisterSubmit" xml:space="preserve"><value>Create secure account</value></data>
+  <data name="RegisterSubmit" xml:space="preserve"><value>Create account</value></data>
   <data name="RegisterTitle" xml:space="preserve"><value>Save the work worth keeping.</value></data>
   <data name="SecureAccess" xml:space="preserve"><value>Secure account access</value></data>
 </root>

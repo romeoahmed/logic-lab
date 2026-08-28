@@ -122,14 +122,14 @@ public partial class Editor
                         PortDirection.Input,
                         1,
                         new DefinitionPortPlacement(
-                            new GridPoint(0, 2),
+                            new GridPoint(0, 7),
                             CardinalDirection.West)),
                     new DefinitionPortDeclaration(
                         "Q",
                         PortDirection.Output,
                         1,
                         new DefinitionPortPlacement(
-                            new GridPoint(8, 2),
+                            new GridPoint(23, 7),
                             CardinalDirection.East)),
                 ])))
         {
@@ -142,7 +142,7 @@ public partial class Editor
                 child.Id,
                 Contract("logic.not"),
                 [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
-                new ComponentPlacement(new GridPoint(4, 2)),
+                new ComponentPlacement(new GridPoint(3, 0)),
                 "NOT")))
         {
             return;
@@ -152,16 +152,38 @@ public partial class Editor
         var childNot = child.ComponentInstances.Single();
         var inputPort = child.Ports.Single(port => port.Direction == PortDirection.Input);
         var outputPort = child.Ports.Single(port => port.Direction == PortDirection.Output);
+        var childInputTerminal = new DefinitionTerminalReference(child.Id, inputPort.Id);
+        var childNotInputTerminal = Terminal(child.Id, childNot.Id, "A");
         if (!await Apply(new ConnectTerminalsIntent(
+                [childInputTerminal, childNotInputTerminal],
+                destinationNetId: null,
+                newJunctionPositions: [],
+                routeAdditions:
                 [
-                    new DefinitionTerminalReference(child.Id, inputPort.Id),
-                    Terminal(child.Id, childNot.Id, "A"),
-                ]))
-            || !await Apply(new ConnectTerminalsIntent(
+                    new OrthogonalWireRoute([
+                        new GridPoint(0, 7),
+                        new GridPoint(4, 7),
+                    ]),
+                ],
+                routeReplacements: [])))
+        {
+            return;
+        }
+
+        var childNotOutputTerminal = Terminal(child.Id, childNot.Id, "Q");
+        var childOutputTerminal = new DefinitionTerminalReference(child.Id, outputPort.Id);
+        if (!await Apply(new ConnectTerminalsIntent(
+                [childNotOutputTerminal, childOutputTerminal],
+                destinationNetId: null,
+                newJunctionPositions: [],
+                routeAdditions:
                 [
-                    Terminal(child.Id, childNot.Id, "Q"),
-                    new DefinitionTerminalReference(child.Id, outputPort.Id),
-                ])))
+                    new OrthogonalWireRoute([
+                        new GridPoint(19, 7),
+                        new GridPoint(23, 7),
+                    ]),
+                ],
+                routeReplacements: [])))
         {
             return;
         }
@@ -175,13 +197,13 @@ public partial class Editor
                         "initialValue",
                         new LogicVectorParameterValue([LogicValue.Zero])),
                 ],
-                new ComponentPlacement(new GridPoint(0, 0)),
+                new ComponentPlacement(new GridPoint(0, 5)),
                 "Input"))
             || !await Apply(new PlaceComponentInstanceIntent(
                 mainId,
                 new CircuitDefinitionComponentTarget(child.Id),
                 [],
-                new ComponentPlacement(new GridPoint(4, 0)),
+                new ComponentPlacement(new GridPoint(10, 2)),
                 "Inverter"))
             || !await Apply(new PlaceComponentInstanceIntent(
                 mainId,
@@ -190,7 +212,7 @@ public partial class Editor
                     new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
                     new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
                 ],
-                new ComponentPlacement(new GridPoint(8, 0)),
+                new ComponentPlacement(new GridPoint(28, 5)),
                 "Output")))
         {
             return;
@@ -201,16 +223,39 @@ public partial class Editor
         var call = main.ComponentInstances.Single(instance =>
             instance.Target is CircuitDefinitionComponentTarget);
         var output = FindLibrary(main, "sink.output");
+        var mainInputTerminal = Terminal(mainId, input.Id, "Q");
+        var callInputTerminal = Terminal(mainId, call.Id, inputPort.Id.Value);
         if (!await Apply(new ConnectTerminalsIntent(
+                [mainInputTerminal, callInputTerminal],
+                destinationNetId: null,
+                newJunctionPositions: [],
+                routeAdditions:
                 [
-                    Terminal(mainId, input.Id, "Q"),
-                    Terminal(mainId, call.Id, inputPort.Id.Value),
-                ]))
-            || !await Apply(new ConnectTerminalsIntent(
+                    new OrthogonalWireRoute([
+                        new GridPoint(7, 7),
+                        new GridPoint(11, 7),
+                    ]),
+                ],
+                routeReplacements: [])))
+        {
+            return;
+        }
+
+
+        var callOutputTerminal = Terminal(mainId, call.Id, outputPort.Id.Value);
+        var mainOutputTerminal = Terminal(mainId, output.Id, "D");
+        if (!await Apply(new ConnectTerminalsIntent(
+                [callOutputTerminal, mainOutputTerminal],
+                destinationNetId: null,
+                newJunctionPositions: [],
+                routeAdditions:
                 [
-                    Terminal(mainId, call.Id, outputPort.Id.Value),
-                    Terminal(mainId, output.Id, "D"),
-                ])))
+                    new OrthogonalWireRoute([
+                        new GridPoint(23, 7),
+                        new GridPoint(29, 7),
+                    ]),
+                ],
+                routeReplacements: [])))
         {
             return;
         }

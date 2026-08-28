@@ -1,7 +1,5 @@
 .probe-panel {
-  min-block-size: 100%;
-  padding: 1rem;
-  border-inline-start: 1px solid var(--ll-border);
+  padding: 0.9rem;
   background: var(--ll-panel);
 }
 
@@ -11,8 +9,8 @@
 }
 
 .probe-panel h2 {
-  font-size: clamp(1.6rem, 3vw, 2rem);
-  letter-spacing: -0.04em;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
 }
 
 .probe-heading {
@@ -36,8 +34,8 @@
 .probe-empty {
   display: grid;
   justify-items: start;
-  margin-block-start: 2rem;
-  padding-block-start: 1rem;
+  margin-block-start: 0.8rem;
+  padding-block-start: 0.7rem;
   border-top: 1px solid var(--ll-border);
 }
 
@@ -93,11 +91,4 @@
   border: 1px solid var(--ll-border);
   border-radius: var(--ll-radius-small);
   background: var(--ll-signal-soft);
-}
-
-@media (max-width: 850px) {
-  .probe-panel {
-    border-block-start: 1px solid var(--ll-border);
-    border-inline-start: 0;
-  }
 }

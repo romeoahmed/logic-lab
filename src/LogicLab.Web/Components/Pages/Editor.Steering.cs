@@ -126,8 +126,8 @@ public partial class Editor
                 Contract(contractId),
                 parameters,
                 new ComponentPlacement(new GridPoint(
-                    checked((placementIndex % 12) * 4),
-                    checked((placementIndex / 12) * 4))),
+                    checked((placementIndex % 4) * 22),
+                    checked((placementIndex / 4) * 16))),
                 displayName)))
         {
             return null;

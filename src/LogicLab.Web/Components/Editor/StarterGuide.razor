@@ -1,0 +1,79 @@
+<section class="starter-guide" aria-labelledby="starter-guide-title">
+    <header>
+        <p>@Text["StarterEyebrow"]</p>
+        <h2 id="starter-guide-title">@Text["StarterTitle"]</h2>
+        <span>@Text["StarterDescription"]</span>
+    </header>
+    <ol aria-label="@Text["LearningPathAriaLabel"]">
+        <li><strong>1</strong><span>@Text["LearningStepChoose"]</span></li>
+        <li><strong>2</strong><span>@Text["LearningStepCompile"]</span></li>
+        <li><strong>3</strong><span>@Text["LearningStepSimulate"]</span></li>
+        <li><strong>4</strong><span>@Text["LearningStepObserve"]</span></li>
+    </ol>
+    <div class="starter-options">
+        <button class="starter-option"
+                type="button"
+                data-command="author"
+                disabled="@(!CanAuthor || BusyCommand is not null)"
+                aria-busy="@(BusyCommand is "author" ? "true" : "false")"
+                @onclick="OnAuthor">
+            <span class="starter-option-content"><strong class="starter-number">01</strong><span class="starter-copy"><strong>@Text["StarterInverterTitle"]</strong><small>@Text["StarterInverterDescription"]</small></span></span>
+        </button>
+        <button class="starter-option"
+                type="button"
+                data-command="author-steering"
+                disabled="@(!CanAuthorSteering || BusyCommand is not null)"
+                aria-busy="@(BusyCommand is "author-steering" ? "true" : "false")"
+                @onclick="OnAuthorSteering">
+            <span class="starter-option-content"><strong class="starter-number">02</strong><span class="starter-copy"><strong>@Text["StarterSteeringTitle"]</strong><small>@Text["StarterSteeringDescription"]</small></span></span>
+        </button>
+        <button class="starter-option"
+                type="button"
+                data-command="author-arithmetic"
+                disabled="@(!CanAuthorArithmetic || BusyCommand is not null)"
+                aria-busy="@(BusyCommand is "author-arithmetic" ? "true" : "false")"
+                @onclick="OnAuthorArithmetic">
+            <span class="starter-option-content"><strong class="starter-number">03</strong><span class="starter-copy"><strong>@Text["StarterArithmeticTitle"]</strong><small>@Text["StarterArithmeticDescription"]</small></span></span>
+        </button>
+        <button class="starter-option"
+                type="button"
+                data-command="author-hierarchy"
+                disabled="@(!CanAuthorHierarchy || BusyCommand is not null)"
+                aria-busy="@(BusyCommand is "author-hierarchy" ? "true" : "false")"
+                @onclick="OnAuthorHierarchy">
+            <span class="starter-option-content"><strong class="starter-number">04</strong><span class="starter-copy"><strong>@Text["StarterHierarchyTitle"]</strong><small>@Text["StarterHierarchyDescription"]</small></span></span>
+        </button>
+    </div>
+</section>
+
+@code {
+    [Parameter]
+    public bool CanAuthor { get; set; }
+
+    [Parameter]
+    public bool CanAuthorSteering { get; set; }
+
+    [Parameter]
+    public bool CanAuthorArithmetic { get; set; }
+
+    [Parameter]
+    public bool CanAuthorHierarchy { get; set; }
+
+    [Parameter]
+    public string? BusyCommand { get; set; }
+
+    [Parameter]
+    public EventCallback OnAuthor { get; set; }
+
+    [Parameter]
+    public EventCallback OnAuthorSteering { get; set; }
+
+    [Parameter]
+    public EventCallback OnAuthorArithmetic { get; set; }
+
+    [Parameter]
+    public EventCallback OnAuthorHierarchy { get; set; }
+
+    [Inject]
+    private IStringLocalizer<EditorText> Text { get; set; } = null!;
+}

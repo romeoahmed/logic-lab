@@ -1,23 +1,20 @@
 .scene-tool-strip {
+  container: scene-tools / inline-size;
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
+  align-items: center;
   gap: 0.4rem;
-  padding: 0.65rem 0.8rem;
+  min-block-size: 3.25rem;
+  padding: 0.4rem 0.65rem;
   border-block-end: 1px solid var(--ll-border);
   background: var(--ll-panel);
 }
 
-.scene-tool-strip label {
-  display: grid;
-  gap: 0.2rem;
-  color: var(--ll-muted);
-  font-size: 0.72rem;
-}
-
-.scene-tool-strip button,
-.scene-tool-strip select {
-  min-block-size: 2.55rem;
+.scene-tool-strip button {
+  display: inline-flex;
+  min-block-size: 2.35rem;
+  align-items: center;
+  gap: 0.45rem;
   padding-inline: 0.75rem;
   border: 1px solid var(--ll-border-strong);
   border-radius: var(--ll-radius-small);
@@ -26,8 +23,17 @@
   font: inherit;
 }
 
-.scene-tool-strip button[aria-pressed="true"],
-.scene-tool-strip select.active {
+.tool-icon {
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.scene-tool-strip button[aria-pressed="true"] {
   border-color: var(--ll-signal);
   color: var(--ll-signal-strong);
   background: var(--ll-signal-soft);
@@ -36,4 +42,21 @@
 .scene-tool-strip :focus-visible {
   outline: 3px solid var(--ll-signal);
   outline-offset: 2px;
+}
+
+@container scene-tools (width < 25rem) {
+  .tool-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .scene-tool-strip button {
+    inline-size: 2.4rem;
+    justify-content: center;
+    padding-inline: 0;
+  }
 }
