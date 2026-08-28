@@ -302,12 +302,20 @@
   color: var(--ll-ink);
 }
 
+@media (min-width: 721px) {
+  .canvas-workspace {
+    block-size: clamp(30rem, 72svh, 40rem);
+    min-block-size: 0;
+  }
+}
+
 @container workbench (width >= 52rem) {
   .schematic-workspace {
     grid-template-areas:
       "library canvas"
       "inspector inspector";
     grid-template-columns: minmax(12rem, 14rem) minmax(0, 1fr);
+    grid-template-rows: clamp(36rem, calc(100dvh - 14rem), 46rem) auto;
   }
 
   .library-dock {
@@ -317,7 +325,8 @@
   }
 
   .canvas-workspace {
-    min-block-size: 36rem;
+    block-size: auto;
+    min-block-size: 0;
   }
 
   .inspector-dock {
@@ -338,6 +347,7 @@
   .schematic-workspace {
     grid-template-areas: "library canvas inspector";
     grid-template-columns: minmax(12rem, 15rem) minmax(32rem, 1fr) minmax(15rem, 18rem);
+    grid-template-rows: minmax(0, 1fr);
     block-size: clamp(38rem, calc(100dvh - 15rem), 50rem);
   }
 

@@ -100,7 +100,7 @@ internal static class TeachingMixedRectangularSymbolRegistry
                 "logic.unsigned_compare",
                 "COMP",
                 ["3.3-31", "3.3-32", "3.3-33", "5.7-1", "5.7-11"]),
-            Standard("logic.adder", "Σ", ["3.3-25", "3.3-26", "5.7-1", "5.7-5"]),
+            Standard("logic.adder", "∑", ["3.3-25", "3.3-26", "5.7-1", "5.7-5"]),
             Standard(
                 "logic.subtractor",
                 "P-Q",
