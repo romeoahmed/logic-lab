@@ -22,23 +22,31 @@ internal static class WebTestCircuit
             new ComponentParameterBinding(
                 "initialValue",
                 new LogicVectorParameterValue([LogicValue.Zero])),
-        ], new GridPoint(0, 0));
+        ], new GridPoint(0, 5));
         var input = Find(revision, "source.input");
         revision = Place(revision, "logic.not", [
             new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-        ], new GridPoint(4, 0));
+        ], new GridPoint(10, 0));
         var logicNot = Find(revision, "logic.not");
         revision = Place(revision, "sink.output", [
             new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
             new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
-        ], new GridPoint(8, 0));
+        ], new GridPoint(28, 5));
         var output = Find(revision, "sink.output");
-        revision = Connect(revision,
-            new InstanceTerminalReference(definitionId, input.Id, "Q"),
-            new InstanceTerminalReference(definitionId, logicNot.Id, "A"));
-        return Connect(revision,
-            new InstanceTerminalReference(definitionId, logicNot.Id, "Q"),
-            new InstanceTerminalReference(definitionId, output.Id, "D"));
+        var inputTerminal = new InstanceTerminalReference(definitionId, input.Id, "Q");
+        var notInputTerminal = new InstanceTerminalReference(definitionId, logicNot.Id, "A");
+        revision = Connect(
+            revision,
+            [inputTerminal, notInputTerminal],
+            new GridPoint(7, 7),
+            new GridPoint(11, 7));
+        var notOutputTerminal = new InstanceTerminalReference(definitionId, logicNot.Id, "Q");
+        var outputTerminal = new InstanceTerminalReference(definitionId, output.Id, "D");
+        return Connect(
+            revision,
+            [notOutputTerminal, outputTerminal],
+            new GridPoint(26, 7),
+            new GridPoint(29, 7));
     }
 
     public static ProjectRevision Place(
@@ -56,11 +64,19 @@ internal static class WebTestCircuit
                 new ComponentPlacement(origin))));
     }
 
-    public static ProjectRevision Connect(
+    private static ProjectRevision Connect(
         ProjectRevision revision,
-        params InstanceTerminalReference[] terminals)
+        IReadOnlyList<InstanceTerminalReference> terminals,
+        params GridPoint[] points)
     {
-        return Commit(ProjectEditor.Apply(revision, new ConnectTerminalsIntent(terminals)));
+        return Commit(ProjectEditor.Apply(
+            revision,
+            new ConnectTerminalsIntent(
+                terminals,
+                destinationNetId: null,
+                newJunctionPositions: [],
+                routeAdditions: [new OrthogonalWireRoute(points)],
+                routeReplacements: [])));
     }
 
     public static ComponentInstance Find(ProjectRevision revision, string contractId)

@@ -18,9 +18,33 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
         new ProportionalTextMeasurer(FontFingerprint);
 
     [Test]
-    [Arguments("source.input", "[IN]", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("source.input", "[IN]", PlanDirectionV1.East)]
+    [Arguments("sink.output", "[OUT]", PlanDirectionV1.West)]
+    public async Task Plan_BoundaryTerminalDefault_UsesCompactSignalTag(
+        string contractId,
+        string label,
+        PlanDirectionV1 direction)
+    {
+        var plan = Plan(Request(contractId));
+        var anchor = await Assert.That(plan.PortAnchors).HasSingleItem();
+        var h = TeachingMixedMetricSets.AnnexA100.UnitsPerH;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Key.SymbolVariantId)
+                .IsEqualTo("logiclab.teachingmixed.boundary");
+            await Assert.That(anchor.OutwardDirection).IsEqualTo(direction);
+            await Assert.That(anchor.Point.X % h).IsEqualTo(0);
+            await Assert.That(anchor.Point.Y % h).IsEqualTo(0);
+            await Assert.That(plan.Bounds.Width).IsLessThanOrEqualTo(8 * h);
+            await Assert.That(plan.Bounds.Height).IsLessThanOrEqualTo(5 * h);
+            await Assert.That(plan.Operations.OfType<DrawTextV1>()
+                .Any(operation => operation.Text == label)).IsTrue();
+        }
+    }
+
+    [Test]
     [Arguments("source.constant", "[CONST]", ConformanceClaimV1.TeachingExtension)]
-    [Arguments("sink.output", "[OUT]", ConformanceClaimV1.TeachingExtension)]
     [Arguments("topology.split", "[SPLIT]", ConformanceClaimV1.TeachingExtension)]
     [Arguments("topology.concat", "[CONCAT]", ConformanceClaimV1.TeachingExtension)]
     [Arguments("topology.zero_extend", "[ZERO EXT]", ConformanceClaimV1.TeachingExtension)]
@@ -305,6 +329,17 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
         Check(
             PortHitRegionsAreDisjoint(plan),
             "Port hit regions overlap",
+            violations);
+        Check(
+            plan.PortAnchors.All(anchor =>
+                anchor.Point.X % TeachingMixedMetricSets.AnnexA100.UnitsPerH == 0
+                && anchor.Point.Y % TeachingMixedMetricSets.AnnexA100.UnitsPerH == 0),
+            "Port anchors are not aligned to the authored routing grid",
+            violations);
+        Check(
+            plan.Bounds.Width % TeachingMixedMetricSets.AnnexA100.UnitsPerH == 0
+                && plan.Bounds.Height % TeachingMixedMetricSets.AnnexA100.UnitsPerH == 0,
+            "plan dimensions do not preserve grid alignment through rotation",
             violations);
         Check(
             plan.Operations.OfType<DrawTextV1>().All(operation =>

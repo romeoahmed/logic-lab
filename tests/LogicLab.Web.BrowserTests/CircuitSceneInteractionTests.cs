@@ -115,15 +115,34 @@ internal sealed class CircuitSceneInteractionTests : PageTest
     }
 
     [Test]
-    public async Task ZoomControls_AccessibleButtons_UpdateRecoverableViewport()
+    public async Task Replacement_AutomaticViewport_RefitsExpandedScene()
     {
         var scene = await ReadySceneAsync();
-        var before = (await scene.CaptureRecoveryStateAsync()).Viewports.Single();
+        var expandedBounds = new SceneRect(0, 0, 3_600, 1_400);
+
+        await scene.PublishAsync(sceneVersion: 2, bounds: expandedBounds);
+        var component = await scene.WorldToPageAsync(150, 50, expandedBounds);
+        await Page.Mouse.ClickAsync((float)component.X, (float)component.Y);
+
+        var intent = await Assert.That(await scene.LatestIntentAsync())
+            .IsTypeOf<SelectSourcesSceneIntentV1>();
+        await Assert.That(intent!.Sources).IsEquivalentTo([SceneTestSnapshot.SourceB]);
+    }
+
+    [Test]
+    public async Task ZoomControls_ManualZoom_PersistsRecoverableViewport()
+    {
+        var scene = await ReadySceneAsync();
+        var automatic = await scene.CaptureRecoveryStateAsync();
 
         await scene.Zoom("Zoom in").ClickAsync();
 
-        var after = (await scene.CaptureRecoveryStateAsync()).Viewports.Single();
-        await Assert.That(after.Zoom).IsGreaterThan(before.Zoom);
+        var customized = (await scene.CaptureRecoveryStateAsync()).Viewports.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(automatic.Viewports).IsEmpty();
+            await Assert.That(customized.Zoom).IsGreaterThan(1);
+        }
     }
 
     private async Task<CircuitSceneTestPage> ReadySceneAsync(int snapStepGridUnits = 1)

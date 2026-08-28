@@ -4,11 +4,49 @@
 <PageTitle>@SiteText["HelpPageTitle"]</PageTitle>
 
 <article class="content-page">
-    <p class="eyebrow">@SiteText["HelpEyebrow"]</p>
-    <h1>@SiteText["HelpTitle"]</h1>
-    <p>@SiteText["HelpDescriptionStart"]</p>
-    <p>@SiteText["HelpDescriptionClaim"]</p>
-    <a href="/editor">@SiteText["HelpOpenWorkbench"]</a>
+    <header class="help-introduction">
+        <p class="eyebrow">@SiteText["HelpEyebrow"]</p>
+        <h1>@SiteText["HelpTitle"]</h1>
+        <p>@SiteText["HelpDescriptionStart"]</p>
+        <a class="help-primary" href="/editor">@SiteText["HelpOpenWorkbench"]</a>
+    </header>
+
+    <section aria-labelledby="help-first-circuit">
+        <p class="section-label">@SiteText["HelpFirstCircuitEyebrow"]</p>
+        <h2 id="help-first-circuit">@SiteText["HelpFirstCircuitTitle"]</h2>
+        <ol class="quick-start">
+            <li><strong>@SiteText["HelpStepCreateTitle"]</strong><span>@SiteText["HelpStepCreateDescription"]</span></li>
+            <li><strong>@SiteText["HelpStepChooseTitle"]</strong><span>@SiteText["HelpStepChooseDescription"]</span></li>
+            <li><strong>@SiteText["HelpStepCompileTitle"]</strong><span>@SiteText["HelpStepCompileDescription"]</span></li>
+            <li><strong>@SiteText["HelpStepRunTitle"]</strong><span>@SiteText["HelpStepRunDescription"]</span></li>
+        </ol>
+    </section>
+
+    <section aria-labelledby="help-examples">
+        <p class="section-label">@SiteText["HelpExamplesEyebrow"]</p>
+        <h2 id="help-examples">@SiteText["HelpExamplesTitle"]</h2>
+        <div class="example-guide">
+            <article><h3>@SiteText["HelpInverterTitle"]</h3><p>@SiteText["HelpInverterDescription"]</p></article>
+            <article><h3>@SiteText["HelpGalleryTitle"]</h3><p>@SiteText["HelpGalleryDescription"]</p></article>
+            <article><h3>@SiteText["HelpHierarchyTitle"]</h3><p>@SiteText["HelpHierarchyDescription"]</p></article>
+        </div>
+    </section>
+
+    <section aria-labelledby="help-canvas">
+        <p class="section-label">@SiteText["HelpCanvasEyebrow"]</p>
+        <h2 id="help-canvas">@SiteText["HelpCanvasTitle"]</h2>
+        <dl class="control-guide">
+            <div><dt>@SiteText["HelpCanvasSelect"]</dt><dd>@SiteText["HelpCanvasSelectDescription"]</dd></div>
+            <div><dt>@SiteText["HelpCanvasPan"]</dt><dd>@SiteText["HelpCanvasPanDescription"]</dd></div>
+            <div><dt>@SiteText["HelpCanvasZoom"]</dt><dd>@SiteText["HelpCanvasZoomDescription"]</dd></div>
+            <div><dt>@SiteText["HelpAdvancedTopologyTitle"]</dt><dd>@SiteText["HelpAdvancedTopologyDescription"]</dd></div>
+        </dl>
+    </section>
+
+    <aside class="durability-note">
+        <h2>@SiteText["HelpKeepWorkTitle"]</h2>
+        <p>@SiteText["HelpDescriptionClaim"]</p>
+    </aside>
 </article>
 
 @code {

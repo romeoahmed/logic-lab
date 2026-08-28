@@ -11,7 +11,12 @@
             @onfocus="@(() => TrackToolbarFocus(SelectToolKey))"
             @onblur="ReleaseToolbarFocus"
             @onkeydown="@(eventArgs => MoveToolbarFocus(eventArgs, SelectToolKey))"
-            @onclick="@(() => ChangeToolAsync(SceneSelectToolV1.Instance))">@Text["SelectTool"]</button>
+            @onclick="@(() => ChangeToolAsync(SceneSelectToolV1.Instance))">
+        <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M5 3 L18 13 L12 14 L9 20 Z" />
+        </svg>
+        <span class="tool-label">@Text["SelectTool"]</span>
+    </button>
     <button type="button"
             @ref="wireToolElement"
             data-scene-tool="wire"
@@ -20,7 +25,14 @@
             @onfocus="@(() => TrackToolbarFocus(WireToolKey))"
             @onblur="ReleaseToolbarFocus"
             @onkeydown="@(eventArgs => MoveToolbarFocus(eventArgs, WireToolKey))"
-            @onclick="@(() => ChangeToolAsync(SceneWireToolV1.Instance))">@Text["WireTool"]</button>
+            @onclick="@(() => ChangeToolAsync(SceneWireToolV1.Instance))">
+        <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 6 H11 V18 H20" />
+            <circle cx="4" cy="6" r="2" />
+            <circle cx="20" cy="18" r="2" />
+        </svg>
+        <span class="tool-label">@Text["WireTool"]</span>
+    </button>
     <button type="button"
             @ref="probeToolElement"
             data-scene-tool="probe"
@@ -30,7 +42,13 @@
             @onfocus="@(() => TrackToolbarFocus(ProbeToolKey))"
             @onblur="ReleaseToolbarFocus"
             @onkeydown="@(eventArgs => MoveToolbarFocus(eventArgs, ProbeToolKey))"
-            @onclick="SelectProbeToolAsync">@Text["Probe"]</button>
+            @onclick="SelectProbeToolAsync">
+        <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M3 17 L8 12 L12 15 L19 7 M19 7 L21 5" />
+            <circle cx="19" cy="7" r="2" />
+        </svg>
+        <span class="tool-label">@Text["Probe"]</span>
+    </button>
     <button type="button"
             @ref="panToolElement"
             data-scene-tool="pan"
@@ -39,23 +57,10 @@
             @onfocus="@(() => TrackToolbarFocus(PanToolKey))"
             @onblur="ReleaseToolbarFocus"
             @onkeydown="@(eventArgs => MoveToolbarFocus(eventArgs, PanToolKey))"
-            @onclick="@(() => ChangeToolAsync(ScenePanToolV1.Instance))">@Text["PanTool"]</button>
-    <label>
-        <span>@Text["PlaceTool"]</span>
-        <select data-scene-tool="place"
-                @ref="placeToolElement"
-                tabindex="@ToolbarTabIndex(PlaceToolKey)"
-                class="@(ActiveTool is ScenePlaceToolV1 ? "active" : null)"
-                aria-label="@Text["ComponentCatalogAriaLabel"]"
-                value="@SelectedPlaceOptionId"
-                @onfocus="@(() => TrackToolbarFocus(PlaceToolKey))"
-                @onblur="ReleaseToolbarFocus"
-                @onchange="SelectPlaceToolAsync">
-            <option value="">@Text["ChooseComponent"]</option>
-            @foreach (var option in PlaceOptions)
-            {
-                <option @key="option.Id" value="@option.Id">@option.Label</option>
-            }
-        </select>
-    </label>
+            @onclick="@(() => ChangeToolAsync(ScenePanToolV1.Instance))">
+        <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 3 V21 M3 12 H21 M9 6 L12 3 L15 6 M9 18 L12 21 L15 18 M6 9 L3 12 L6 15 M18 9 L21 12 L18 15" />
+        </svg>
+        <span class="tool-label">@Text["PanTool"]</span>
+    </button>
 </div>

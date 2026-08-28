@@ -1,0 +1,39 @@
+.component-symbol {
+  display: block;
+  position: relative;
+  inline-size: 2.25rem;
+  block-size: 1.5rem;
+  color: currentcolor;
+}
+
+.component-symbol svg {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.45;
+  vector-effect: non-scaling-stroke;
+}
+
+.component-symbol__label {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  color: currentcolor;
+  fill: currentcolor;
+  stroke: none;
+  font-family: "IBM Plex Mono", "Noto Sans Mono CJK", ui-monospace, monospace;
+  font-size: 0.38rem;
+  font-weight: 750;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+}
+
+.component-symbol__fill {
+  fill: currentcolor;
+  stroke: none;
+}

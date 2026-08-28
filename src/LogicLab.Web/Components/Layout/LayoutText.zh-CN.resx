@@ -7,8 +7,8 @@
   <data name="Apply" xml:space="preserve"><value>应用</value></data>
   <data name="BrandTagline" xml:space="preserve"><value>确定性数字电路</value></data>
   <data name="DismissError" xml:space="preserve"><value>关闭错误提示</value></data>
-  <data name="ErrorMessage" xml:space="preserve"><value>意外的客户端错误中断了当前界面。</value></data>
-  <data name="ErrorTitle" xml:space="preserve"><value>Logic Lab 需要处理一个问题。</value></data>
+  <data name="ErrorMessage" xml:space="preserve"><value>页面意外停止。请重新加载后继续。</value></data>
+  <data name="ErrorTitle" xml:space="preserve"><value>出现了问题</value></data>
   <data name="Help" xml:space="preserve"><value>帮助</value></data>
   <data name="HomeAriaLabel" xml:space="preserve"><value>Logic Lab 首页</value></data>
   <data name="Language" xml:space="preserve"><value>语言</value></data>

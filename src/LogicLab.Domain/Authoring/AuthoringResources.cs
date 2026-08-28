@@ -243,6 +243,7 @@ public sealed class Annotation
 
 public static class SymbolVariantCatalog
 {
+    public const string BoundaryId = "logiclab.teachingmixed.boundary";
     public const string DistinctiveId = "logiclab.teachingmixed.distinctive";
     public const string RectangularId = "logiclab.teachingmixed.rectangular";
 
@@ -260,6 +261,12 @@ public static class SymbolVariantCatalog
         if (string.Equals(variantId, RectangularId, StringComparison.Ordinal))
         {
             return true;
+        }
+
+        if (string.Equals(variantId, BoundaryId, StringComparison.Ordinal))
+        {
+            return target is LibraryComponentTarget boundary
+                && boundary.ContractKey.ContractId is "source.input" or "sink.output";
         }
 
         if (!string.Equals(variantId, DistinctiveId, StringComparison.Ordinal)

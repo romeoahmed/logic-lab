@@ -4,39 +4,68 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="ErrorDescription" xml:space="preserve"><value>No recovery action was applied automatically. Return home and retry the operation when you are ready.</value></data>
+  <data name="ErrorDescription" xml:space="preserve"><value>Your work was not changed. Return home or open a new Sandbox to continue.</value></data>
   <data name="ErrorEyebrow" xml:space="preserve"><value>Request interrupted</value></data>
   <data name="ErrorOpenSandbox" xml:space="preserve"><value>Open a new Sandbox</value></data>
   <data name="ErrorPageTitle" xml:space="preserve"><value>Error</value></data>
   <data name="ErrorRequestId" xml:space="preserve"><value>Request ID</value></data>
   <data name="ErrorReturnHome" xml:space="preserve"><value>Return home</value></data>
-  <data name="ErrorTitle" xml:space="preserve"><value>The workbench hit an unexpected fault.</value></data>
-  <data name="HelpDescriptionClaim" xml:space="preserve"><value>Sign in before claiming a Sandbox as a Durable Project. Durable Projects can be reopened from the Projects catalog.</value></data>
-  <data name="HelpDescriptionStart" xml:space="preserve"><value>Create a Sandbox Project in the Workbench, author a circuit, compile it, and then run a deterministic simulation.</value></data>
+  <data name="ErrorTitle" xml:space="preserve"><value>The request could not be completed.</value></data>
+  <data name="HelpDescriptionClaim" xml:space="preserve"><value>Sign in to save a Sandbox and reopen it later from Projects.</value></data>
+  <data name="HelpDescriptionStart" xml:space="preserve"><value>Create a Sandbox, draw a circuit, compile it, and run a deterministic simulation.</value></data>
   <data name="HelpEyebrow" xml:space="preserve"><value>Logic Lab help</value></data>
   <data name="HelpOpenWorkbench" xml:space="preserve"><value>Open the Workbench</value></data>
   <data name="HelpPageTitle" xml:space="preserve"><value>Help · Logic Lab</value></data>
   <data name="HelpTitle" xml:space="preserve"><value>Getting started</value></data>
-  <data name="HomeCompileDescription" xml:space="preserve"><value>Resolve the document into a deterministic executable circuit.</value></data>
+  <data name="HomeCompileDescription" xml:space="preserve"><value>Check the schematic and prepare it for simulation.</value></data>
   <data name="HomeCompileTitle" xml:space="preserve"><value>Compile</value></data>
-  <data name="HomeDescription" xml:space="preserve"><value>Logic Lab connects circuit authoring, deterministic compilation, synchronous simulation, and an accessible semantic probe in one workbench.</value></data>
-  <data name="HomeEyebrow" xml:space="preserve"><value>Evidence-first circuit design</value></data>
+  <data name="HomeDescription" xml:space="preserve"><value>Draw gate-level circuits, compile them, and inspect signal changes in one focused workbench.</value></data>
+  <data name="HomeEyebrow" xml:space="preserve"><value>Digital logic workbench</value></data>
   <data name="HomeExplore" xml:space="preserve"><value>Explore the signal path</value></data>
-  <data name="HomeInspectDescription" xml:space="preserve"><value>Read signal values and topology through a semantic scene.</value></data>
+  <data name="HomeInspectDescription" xml:space="preserve"><value>Read live signal values and follow each connection.</value></data>
   <data name="HomeInspectTitle" xml:space="preserve"><value>Inspect</value></data>
   <data name="HomeOpenWorkbench" xml:space="preserve"><value>Open the Sandbox Workbench</value></data>
   <data name="HomeReady" xml:space="preserve"><value>Ready</value></data>
-  <data name="HomeSequenceEyebrow" xml:space="preserve"><value>Workbench sequence</value></data>
-  <data name="HomeSequenceTitle" xml:space="preserve"><value>One circuit, four inspectable stages.</value></data>
-  <data name="HomeSimulateDescription" xml:space="preserve"><value>Advance logical time with fenced, synchronous commands.</value></data>
+  <data name="HomeSequenceEyebrow" xml:space="preserve"><value>Workflow</value></data>
+  <data name="HomeSequenceTitle" xml:space="preserve"><value>From schematic to simulation results.</value></data>
+  <data name="HomeSimulateDescription" xml:space="preserve"><value>Advance logical time with repeatable, deterministic results.</value></data>
   <data name="HomeSimulateTitle" xml:space="preserve"><value>Simulate</value></data>
-  <data name="HomeAuthorDescription" xml:space="preserve"><value>Shape definitions, ports, instances, and explicit electrical topology.</value></data>
-  <data name="HomeAuthorTitle" xml:space="preserve"><value>Author</value></data>
-  <data name="HomeTitle" xml:space="preserve"><value>Build it. Compile it. Watch the signal move.</value></data>
-  <data name="NotFoundDescription" xml:space="preserve"><value>The address does not match a Logic Lab surface. Return to the workbench or start from home.</value></data>
+  <data name="HomeAuthorDescription" xml:space="preserve"><value>Place logic gates and connect their terminals on a grid.</value></data>
+  <data name="HomeAuthorTitle" xml:space="preserve"><value>Draw</value></data>
+  <data name="HomeTitle" xml:space="preserve"><value>Draw circuits. See signals change.</value></data>
+  <data name="NotFoundDescription" xml:space="preserve"><value>This page does not exist. Return home or open the Workbench.</value></data>
   <data name="NotFoundEyebrow" xml:space="preserve"><value>Page not found</value></data>
   <data name="NotFoundOpenWorkbench" xml:space="preserve"><value>Open Workbench</value></data>
   <data name="NotFoundPageTitle" xml:space="preserve"><value>Not Found</value></data>
   <data name="NotFoundReturnHome" xml:space="preserve"><value>Return home</value></data>
-  <data name="NotFoundTitle" xml:space="preserve"><value>This path ends here.</value></data>
+  <data name="NotFoundTitle" xml:space="preserve"><value>Page not found</value></data>
+  <data name="HelpFirstCircuitEyebrow" xml:space="preserve"><value>Your first five minutes</value></data>
+  <data name="HelpFirstCircuitTitle" xml:space="preserve"><value>Build your first working circuit.</value></data>
+  <data name="HelpStepCreateTitle" xml:space="preserve"><value>Create a Sandbox</value></data>
+  <data name="HelpStepCreateDescription" xml:space="preserve"><value>A Sandbox is a temporary, in-memory project where you can experiment freely.</value></data>
+  <data name="HelpStepChooseTitle" xml:space="preserve"><value>Choose Inverter basics</value></data>
+  <data name="HelpStepChooseDescription" xml:space="preserve"><value>The starter contains one input, one NOT gate, one output, and explicit wires.</value></data>
+  <data name="HelpStepCompileTitle" xml:space="preserve"><value>Compile the circuit</value></data>
+  <data name="HelpStepCompileDescription" xml:space="preserve"><value>Compilation turns the authored diagram into a deterministic executable circuit.</value></data>
+  <data name="HelpStepRunTitle" xml:space="preserve"><value>Create a session and step</value></data>
+  <data name="HelpStepRunDescription" xml:space="preserve"><value>Set the input to 1, advance one logical step, and read the output in the Probe panel.</value></data>
+  <data name="HelpExamplesEyebrow" xml:space="preserve"><value>Choose the right example</value></data>
+  <data name="HelpExamplesTitle" xml:space="preserve"><value>Start small, then reveal more structure.</value></data>
+  <data name="HelpInverterTitle" xml:space="preserve"><value>Inverter basics</value></data>
+  <data name="HelpInverterDescription" xml:space="preserve"><value>Use this first. It has one obvious signal path and supports the full compile-and-step workflow.</value></data>
+  <data name="HelpGalleryTitle" xml:space="preserve"><value>Logic and arithmetic examples</value></data>
+  <data name="HelpGalleryDescription" xml:space="preserve"><value>Compare gate symbols, multiplexers, decoders, and arithmetic components.</value></data>
+  <data name="HelpHierarchyTitle" xml:space="preserve"><value>Reusable inverter</value></data>
+  <data name="HelpHierarchyDescription" xml:space="preserve"><value>Use this after the basics to see how a child circuit is reused by the main circuit.</value></data>
+  <data name="HelpCanvasEyebrow" xml:space="preserve"><value>Canvas controls</value></data>
+  <data name="HelpCanvasTitle" xml:space="preserve"><value>Select, pan, and zoom the schematic.</value></data>
+  <data name="HelpCanvasSelect" xml:space="preserve"><value>Select</value></data>
+  <data name="HelpCanvasSelectDescription" xml:space="preserve"><value>Click a component, terminal, wire, or net anchor to select it and show its actions.</value></data>
+  <data name="HelpCanvasPan" xml:space="preserve"><value>Pan</value></data>
+  <data name="HelpCanvasPanDescription" xml:space="preserve"><value>Choose Pan and drag the schematic. Holding Space temporarily activates Pan.</value></data>
+  <data name="HelpCanvasZoom" xml:space="preserve"><value>Zoom</value></data>
+  <data name="HelpCanvasZoomDescription" xml:space="preserve"><value>Use the controls inside the Canvas. Fit restores the complete circuit when it leaves the viewport.</value></data>
+  <data name="HelpAdvancedTopologyTitle" xml:space="preserve"><value>Advanced topology</value></data>
+  <data name="HelpAdvancedTopologyDescription" xml:space="preserve"><value>Open this only when you need to edit net membership, junctions, or explicit route geometry.</value></data>
+  <data name="HelpKeepWorkTitle" xml:space="preserve"><value>Keep work beyond this Sandbox</value></data>
 </root>

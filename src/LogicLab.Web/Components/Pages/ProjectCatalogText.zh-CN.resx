@@ -4,19 +4,19 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="CatalogAriaLabel" xml:space="preserve"><value>持久项目</value></data>
-  <data name="Description" xml:space="preserve"><value>在带 fence 的编辑器工作区中重新打开已保存的电路修订。</value></data>
-  <data name="EmptyDescription" xml:space="preserve"><value>从沙盒开始，再将值得保留的工作保存到持久空间。</value></data>
+  <data name="CatalogAriaLabel" xml:space="preserve"><value>已保存项目</value></data>
+  <data name="Description" xml:space="preserve"><value>重新打开电路，继续上次的编辑。</value></data>
+  <data name="EmptyDescription" xml:space="preserve"><value>先在沙盒中试验，再保存想要保留的电路。</value></data>
   <data name="EmptyOpenWorkbench" xml:space="preserve"><value>打开沙盒工作台</value></data>
-  <data name="EmptyTitle" xml:space="preserve"><value>尚无持久项目</value></data>
+  <data name="EmptyTitle" xml:space="preserve"><value>还没有已保存项目</value></data>
   <data name="Eyebrow" xml:space="preserve"><value>已保存的修订</value></data>
   <data name="IndexTitle" xml:space="preserve"><value>你的项目索引</value></data>
   <data name="NextPage" xml:space="preserve"><value>下一页</value></data>
   <data name="OpenProject" xml:space="preserve"><value>打开项目</value></data>
   <data name="OpenProjectAriaLabel" xml:space="preserve"><value>打开 {0}</value></data>
-  <data name="PageTitle" xml:space="preserve"><value>持久项目</value></data>
+  <data name="PageTitle" xml:space="preserve"><value>已保存项目</value></data>
   <data name="PaginationAriaLabel" xml:space="preserve"><value>项目目录分页</value></data>
-  <data name="PrivateCatalog" xml:space="preserve"><value>私有工作区目录</value></data>
+  <data name="PrivateCatalog" xml:space="preserve"><value>仅自己可见</value></data>
   <data name="ProjectCountOne" xml:space="preserve"><value>1 个项目</value></data>
   <data name="ProjectCountOther" xml:space="preserve"><value>{0} 个项目</value></data>
 </root>

@@ -151,7 +151,8 @@ internal sealed class AccessibleCircuitSceneTests
         var junctionIds = rendered.FindAll("[data-junction]")
             .Select(element => element.GetAttribute("data-junction")!)
             .ToArray();
-        var wireGeometryIds = rendered.FindAll("[data-wire-geometry]")
+        var wireGeometryIds = rendered
+            .FindAll($"[data-connection='{net.Id.Value}'] [data-wire-geometry]")
             .Select(element => element.GetAttribute("data-wire-geometry")!)
             .ToArray();
         var projectedConnection = scene.Connections.Single(connection =>

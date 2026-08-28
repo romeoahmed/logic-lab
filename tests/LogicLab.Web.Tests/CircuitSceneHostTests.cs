@@ -87,7 +87,7 @@ internal sealed class CircuitSceneHostTests
     }
 
     [Test]
-    public async Task CircuitSceneHost_StaticRender_PreservesCanvasPurposeAndSemanticActions()
+    public async Task CircuitSceneHost_StaticRender_ProvidesCanvasFallbackAndHiddenRecoveryActions()
     {
         await using var context = WebTestContext.CreateBunitContext();
         context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
@@ -112,8 +112,10 @@ internal sealed class CircuitSceneHostTests
         {
             await Assert.That(rendered.FindAll("canvas[data-scene-canvas]")).Count().IsEqualTo(1);
             await Assert.That(rendered.Find("canvas").TextContent).IsNotEmpty();
-            await Assert.That(rendered.FindAll("canvas [data-scene-source]").Count)
-                .IsEqualTo(rendered.FindAll("[data-scene-source]").Count);
+            await Assert.That(rendered.FindAll("canvas [data-scene-source]")).IsEmpty();
+            await Assert.That(rendered.Find("details.scene-recovery-actions")
+                    .HasAttribute("hidden"))
+                .IsTrue();
             await Assert.That(rendered.FindAll("[data-scene-source]").Count)
                 .IsGreaterThan(0);
             await Assert.That(selections.Select(selection => selection.SelectionMode))
@@ -165,7 +167,7 @@ internal sealed class CircuitSceneHostTests
     }
 
     [Test]
-    public async Task CircuitSceneHost_RendererFailure_HidesBitmapAndOpensRecoveryOutline()
+    public async Task CircuitSceneHost_RendererFailure_HidesCanvasAndOpensRecoveryActions()
     {
         await using var context = WebTestContext.CreateBunitContext();
         context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
@@ -186,11 +188,11 @@ internal sealed class CircuitSceneHostTests
                     .GetAttribute("data-scene-renderer"))
                 .IsEqualTo("unavailable");
             await Assert.That(rendered.Find("canvas").HasAttribute("hidden")).IsTrue();
-            await Assert.That(rendered.Find("details.semantic-scene").HasAttribute("open"))
+            await Assert.That(rendered.Find("details.scene-recovery-actions").HasAttribute("open"))
                 .IsTrue();
             await Assert.That(rendered.FindAll("canvas [data-scene-source]")).IsEmpty();
             await Assert.That(rendered.FindAll(
-                    "details.semantic-scene [data-scene-source]").Count)
+                    "details.scene-recovery-actions [data-scene-source]").Count)
                 .IsGreaterThan(0);
             await Assert.That(rendered.FindAll("[data-scene-recovery='contextUnavailable']"))
                 .Count().IsEqualTo(1);

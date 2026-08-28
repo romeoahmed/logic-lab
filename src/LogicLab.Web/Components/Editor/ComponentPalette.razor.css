@@ -1,0 +1,169 @@
+.component-palette {
+  container: component-palette / inline-size;
+  min-inline-size: 0;
+  overflow: auto;
+  border-inline-end: 1px solid var(--ll-border);
+  background: var(--ll-panel);
+}
+
+.palette-controls header,
+.component-search,
+.component-empty {
+  margin: 0;
+  padding-inline: 0.9rem;
+}
+
+.palette-controls {
+  position: sticky;
+  z-index: 2;
+  inset-block-start: 0;
+  border-block-end: 1px solid var(--ll-border);
+  background: var(--ll-panel);
+}
+
+.palette-controls header {
+  padding-block: 0.9rem 0.55rem;
+}
+
+.palette-controls header p,
+.palette-controls header h2 {
+  margin: 0;
+}
+
+.palette-controls header p {
+  color: var(--ll-signal);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.palette-controls header h2 {
+  margin-block-start: 0.2rem;
+  font-size: 1rem;
+}
+
+.component-search {
+  display: grid;
+  gap: 0.3rem;
+  padding-block-end: 0.8rem;
+  color: var(--ll-muted);
+  font-size: 0.72rem;
+}
+
+.component-search input {
+  min-block-size: 2.45rem;
+  inline-size: 100%;
+  padding-inline: 0.65rem;
+  border: 1px solid var(--ll-border-strong);
+  border-radius: var(--ll-radius-small);
+  color: var(--ll-ink);
+  background: var(--ll-canvas);
+  font: inherit;
+}
+
+.component-groups {
+  border-block-start: 0;
+}
+
+.component-groups details {
+  border-block-end: 1px solid var(--ll-border);
+}
+
+.component-groups summary {
+  display: flex;
+  min-block-size: 2.45rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: 0.9rem;
+  cursor: pointer;
+  color: var(--ll-ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.component-groups summary:hover {
+  background: var(--ll-signal-soft);
+}
+
+.component-groups summary small {
+  color: var(--ll-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.component-groups details > div {
+  display: grid;
+  grid-template-columns: [symbol] 2.5rem [copy] minmax(0, 1fr);
+  column-gap: 0.75rem;
+  padding: 0 0.45rem 0.55rem;
+}
+
+.component-groups button {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+  min-block-size: 2.8rem;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--ll-radius-small);
+  color: var(--ll-ink);
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+}
+
+.component-groups button:hover,
+.component-groups button[aria-pressed="true"] {
+  border-color: var(--ll-border-strong);
+  background: var(--ll-signal-soft);
+}
+
+.component-groups button[aria-pressed="true"] {
+  border-color: var(--ll-signal);
+  color: var(--ll-signal-strong);
+}
+
+.component-groups button ::deep .component-symbol {
+  grid-column: symbol;
+  color: var(--ll-signal-strong);
+}
+
+.component-copy {
+  display: grid;
+  grid-column: copy;
+  min-inline-size: 0;
+  justify-items: start;
+}
+
+.component-groups button strong {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.component-groups button small {
+  color: var(--ll-subtle);
+  font-family: "IBM Plex Mono", "Noto Sans Mono CJK", ui-monospace, monospace;
+  font-size: 0.62rem;
+}
+
+.component-palette :focus-visible {
+  outline: 3px solid var(--ll-signal);
+  outline-offset: -1px;
+}
+
+.component-empty {
+  color: var(--ll-muted);
+  font-size: 0.8rem;
+}
+
+@container component-palette (width < 13rem) {
+  .component-groups details > div {
+    grid-template-columns: [symbol] 2.25rem [copy] minmax(0, 1fr);
+    column-gap: 0.6rem;
+  }
+
+  .component-copy small {
+    display: none;
+  }
+}

@@ -49,9 +49,11 @@ internal static class RectangularSymbolGeometryBuilder
         var leadLength = ScaleUp(h, 2);
         var portHitRadius = Math.Max(1, (basePortPitch - outlineWidth) / 2);
         var bodyHitPadding = ScaleUp(h, 1, 2);
-        var inset = Math.Max(
-            GeometryPlanValidator.ConservativeStrokeMargin(outlineWidth, MiterJoin),
-            Math.Max(portHitRadius, bodyHitPadding));
+        var inset = GridAlignedLayout.AlignUp(
+            Math.Max(
+                GeometryPlanValidator.ConservativeStrokeMargin(outlineWidth, MiterJoin),
+                Math.Max(portHitRadius, bodyHitPadding)),
+            h);
         var functionEnvelope = request.FunctionText is { } functionText
             ? Measure(
                     functionText,
@@ -210,12 +212,14 @@ internal static class RectangularSymbolGeometryBuilder
                 flowAxisLabels[portId].Span + OutputLabelInset(portId)))
             .DefaultIfEmpty(h)
             .Max();
-        var portPitch = UprightTextLayout.RequiredPitch(
-            inputPortIds,
-            outputPortIds,
-            rowAxisLabels,
-            basePortPitch,
-            textClearance);
+        var portPitch = GridAlignedLayout.AlignUp(
+            UprightTextLayout.RequiredPitch(
+                inputPortIds,
+                outputPortIds,
+                rowAxisLabels,
+                basePortPitch,
+                textClearance),
+            checked(2 * h));
 
         var sideTextPadding = ScaleUp(h, 2);
         var requiredLeftHalfWidth = checked(
@@ -235,18 +239,24 @@ internal static class RectangularSymbolGeometryBuilder
             h);
         var bodyHeight = crossAxisLayout.Extent;
 
+        var contentCenterY = GridAlignedLayout.AlignUp(
+            checked(inset + crossAxisLayout.CenterOffset),
+            h);
+        var bodyTop = checked(contentCenterY - crossAxisLayout.CenterOffset);
         var bodyLeft = checked(inset + leadLength);
         var body = new RectV1(
             bodyLeft,
-            inset,
+            bodyTop,
             checked(bodyLeft + bodyWidth),
-            checked(inset + bodyHeight));
-        var outputAnchorX = checked(body.Right + complementedOutputDepth + leadLength);
+            checked(bodyTop + bodyHeight));
+        var outputAnchorX = GridAlignedLayout.AlignUp(
+            checked(body.Right + complementedOutputDepth + leadLength),
+            h);
         var bounds = new RectV1(
             0,
             0,
-            checked(outputAnchorX + inset),
-            checked(body.Bottom + inset));
+            GridAlignedLayout.AlignUp(checked(outputAnchorX + inset), h),
+            GridAlignedLayout.AlignUp(checked(body.Bottom + inset), h));
         var operations = new List<DrawOperationV1>
         {
             Stroke(
@@ -261,7 +271,6 @@ internal static class RectangularSymbolGeometryBuilder
                 StrokeRoleV1.Outline,
                 outlineWidth),
         };
-        var contentCenterY = checked(body.Top + crossAxisLayout.CenterOffset);
         var functionOrigin = new PointV1(
             checked(body.Left + (body.Width / 2)),
             contentCenterY);

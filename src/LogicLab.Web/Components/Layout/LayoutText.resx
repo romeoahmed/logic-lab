@@ -7,8 +7,8 @@
   <data name="Apply" xml:space="preserve"><value>Apply</value></data>
   <data name="BrandTagline" xml:space="preserve"><value>Deterministic circuits</value></data>
   <data name="DismissError" xml:space="preserve"><value>Dismiss error</value></data>
-  <data name="ErrorMessage" xml:space="preserve"><value>An unexpected client error interrupted this surface.</value></data>
-  <data name="ErrorTitle" xml:space="preserve"><value>Logic Lab needs attention.</value></data>
+  <data name="ErrorMessage" xml:space="preserve"><value>The page stopped unexpectedly. Reload it to continue.</value></data>
+  <data name="ErrorTitle" xml:space="preserve"><value>Something went wrong</value></data>
   <data name="Help" xml:space="preserve"><value>Help</value></data>
   <data name="HomeAriaLabel" xml:space="preserve"><value>Logic Lab home</value></data>
   <data name="Language" xml:space="preserve"><value>Language</value></data>

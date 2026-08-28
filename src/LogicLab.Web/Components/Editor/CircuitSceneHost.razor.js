@@ -4,6 +4,7 @@ const spatialCellSize = 400;
 const spatialEntryBaseBytes = 64;
 const contextRestoreTimeoutMilliseconds = 2_000;
 const interopEnvelopeBytes = 512n;
+const maximumAutomaticZoom = 2;
 // Generated from the cmap table of the fingerprinted packaged WOFF2 asset. Keep this
 // list in lockstep with --ll-scene-font-asset when replacing that file.
 const packagedFontCodePointRanges = Object.freeze([
@@ -84,6 +85,7 @@ class CircuitSceneHandle {
     this.targetsBySource = new Map();
     this.viewport = { x: 0, y: 0, zoom: 1 };
     this.savedViewports = validateRecoveryState(recoveryState, policy);
+    this.viewportIsUserControlled = false;
     this.focusedSource = null;
     this.hoveredSource = null;
     this.selectedSources = new Set();
@@ -493,6 +495,7 @@ class CircuitSceneHandle {
     const saved = this.savedViewports.get(validated.value.circuitDefinitionId);
     if (saved) {
       this.viewport = { ...saved };
+      this.viewportIsUserControlled = true;
     } else {
       this.fitViewport();
     }
@@ -552,7 +555,11 @@ class CircuitSceneHandle {
     this.canvas.addEventListener("contextrestored", () => this.contextRestored(), { signal });
     this.host.addEventListener("focusin", (event) => this.semanticFocus(event), { signal });
     document.addEventListener("focusin", (event) => {
-      this.sceneOwnsDocumentFocus = this.host.contains(event.target);
+      const ownsDocumentFocus = this.host.contains(event.target);
+      if (ownsDocumentFocus !== this.sceneOwnsDocumentFocus) {
+        this.sceneOwnsDocumentFocus = ownsDocumentFocus;
+        this.invalidate();
+      }
     }, { signal });
     for (const control of this.host.querySelectorAll("[data-scene-zoom]")) {
       control.addEventListener("click", () => this.zoomControl(control.dataset.sceneZoom), { signal });
@@ -622,8 +629,9 @@ class CircuitSceneHandle {
       return;
     }
 
-    const focusAnchor = this.focusedResizeAnchor();
-    const center = !focusAnchor && this.cssWidth > 0 && this.cssHeight > 0
+    const focusAnchor = this.viewportIsUserControlled ? this.focusedResizeAnchor() : null;
+    const center = this.viewportIsUserControlled
+      && !focusAnchor && this.cssWidth > 0 && this.cssHeight > 0
       ? this.screenToWorld({ x: this.cssWidth / 2, y: this.cssHeight / 2 })
       : null;
     this.cssWidth = rect.width;
@@ -640,7 +648,9 @@ class CircuitSceneHandle {
       }
     }
 
-    if (focusAnchor) {
+    if (!this.viewportIsUserControlled && this.published) {
+      this.fitViewport();
+    } else if (focusAnchor) {
       this.viewport.x = focusAnchor.screen.x - (focusAnchor.world.x * this.viewport.zoom);
       this.viewport.y = focusAnchor.screen.y - (focusAnchor.world.y * this.viewport.zoom);
     } else if (center) {
@@ -711,7 +721,7 @@ class CircuitSceneHandle {
 
   drawOverlays(context, styles) {
     const selected = this.selectedSources;
-    const focused = this.focusedSource;
+    const focused = this.sceneOwnsDocumentFocus ? this.focusedSource : null;
 
     for (const overlay of this.published.overlays) {
       if (overlay.kind === "liveNetValue") {
@@ -950,8 +960,13 @@ class CircuitSceneHandle {
     gesture.disableSnap = event.altKey;
     gesture.selectionMode = selectionModeFromModifiers(event);
     if (gesture.tool.kind === "pan") {
-      this.viewport.x += screen.x - gesture.last.x;
-      this.viewport.y += screen.y - gesture.last.y;
+      const deltaX = screen.x - gesture.last.x;
+      const deltaY = screen.y - gesture.last.y;
+      if (deltaX !== 0 || deltaY !== 0) {
+        this.viewportIsUserControlled = true;
+        this.viewport.x += deltaX;
+        this.viewport.y += deltaY;
+      }
       gesture.last = screen;
     }
     this.invalidate();
@@ -1025,6 +1040,7 @@ class CircuitSceneHandle {
     }
     this.cancelGesture();
     if (action === "fit") {
+      this.forgetPublishedViewport();
       this.fitViewport();
       this.invalidate();
       return;
@@ -1040,6 +1056,7 @@ class CircuitSceneHandle {
     const minimum = Number(this.policy.zoomMillionthsMinimum) / 1_000_000;
     const maximum = Number(this.policy.zoomMillionthsMaximum) / 1_000_000;
     const zoom = Math.min(maximum, Math.max(minimum, requestedZoom));
+    this.viewportIsUserControlled = true;
     this.viewport.zoom = zoom;
     this.viewport.x = anchor.x - (world.x * zoom);
     this.viewport.y = anchor.y - (world.y * zoom);
@@ -1489,15 +1506,21 @@ class CircuitSceneHandle {
 
     const bounds = this.published.bounds;
     const padding = 32;
-    const maximum = Number(this.policy.zoomMillionthsMaximum) / 1_000_000;
-    const minimum = Number(this.policy.zoomMillionthsMinimum) / 1_000_000;
-    const zoom = Math.min(
-      maximum,
-      Math.max(minimum, Math.min(
-        (this.cssWidth - (padding * 2)) / (bounds.right - bounds.left),
-        (this.cssHeight - (padding * 2)) / (bounds.bottom - bounds.top),
-      )),
+    const maximum = Math.min(
+      maximumAutomaticZoom,
+      Number(this.policy.zoomMillionthsMaximum) / 1_000_000,
     );
+    const minimum = Number(this.policy.zoomMillionthsMinimum) / 1_000_000;
+    const boundsWidth = bounds.right - bounds.left;
+    const boundsHeight = bounds.bottom - bounds.top;
+    const fitZoom = boundsWidth > 0 && boundsHeight > 0
+      ? Math.min(
+          (this.cssWidth - (padding * 2)) / boundsWidth,
+          (this.cssHeight - (padding * 2)) / boundsHeight,
+        )
+      : 1;
+    const zoom = Math.min(maximum, Math.max(minimum, fitZoom));
+    this.viewportIsUserControlled = false;
     this.viewport.zoom = zoom;
     this.viewport.x = (this.cssWidth / 2) - (((bounds.left + bounds.right) / 2) * zoom);
     this.viewport.y = (this.cssHeight / 2) - (((bounds.top + bounds.bottom) / 2) * zoom);
@@ -1565,12 +1588,22 @@ class CircuitSceneHandle {
 
   rememberPublishedViewport() {
     const definitionId = this.published?.circuitDefinitionId;
-    if (!definitionId) {
+    if (!this.viewportIsUserControlled
+        || !definitionId
+        || !this.published.items.some((item) => item.hasDrawableTarget)) {
       return;
     }
 
     this.savedViewports.delete(definitionId);
     this.savedViewports.set(definitionId, { ...this.viewport });
+  }
+
+  forgetPublishedViewport() {
+    const definitionId = this.published?.circuitDefinitionId;
+    if (definitionId) {
+      this.savedViewports.delete(definitionId);
+    }
+    this.viewportIsUserControlled = false;
   }
 
   recoverDocumentFocus(shouldRecover) {

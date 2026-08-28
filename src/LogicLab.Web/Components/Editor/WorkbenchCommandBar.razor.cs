@@ -9,9 +9,6 @@ public sealed partial class WorkbenchCommandBar
     public bool CanCreate { get; set; }
 
     [Parameter]
-    public bool CanAuthor { get; set; }
-
-    [Parameter]
     public bool CanImport { get; set; }
 
     [Parameter]
@@ -33,15 +30,6 @@ public sealed partial class WorkbenchCommandBar
     public string ClaimDisplayName { get; set; } = string.Empty;
 
     [Parameter]
-    public bool CanAuthorSteering { get; set; }
-
-    [Parameter]
-    public bool CanAuthorArithmetic { get; set; }
-
-    [Parameter]
-    public bool CanAuthorHierarchy { get; set; }
-
-    [Parameter]
     public bool CanCompile { get; set; }
 
     [Parameter]
@@ -60,9 +48,6 @@ public sealed partial class WorkbenchCommandBar
     public EventCallback OnCreate { get; set; }
 
     [Parameter]
-    public EventCallback OnAuthor { get; set; }
-
-    [Parameter]
     public EventCallback<InputFileChangeEventArgs> OnImport { get; set; }
 
     [Parameter]
@@ -76,15 +61,6 @@ public sealed partial class WorkbenchCommandBar
 
     [Parameter]
     public EventCallback OnSave { get; set; }
-
-    [Parameter]
-    public EventCallback OnAuthorSteering { get; set; }
-
-    [Parameter]
-    public EventCallback OnAuthorArithmetic { get; set; }
-
-    [Parameter]
-    public EventCallback OnAuthorHierarchy { get; set; }
 
     [Parameter]
     public EventCallback OnCompile { get; set; }

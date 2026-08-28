@@ -40,30 +40,23 @@
     }
     else
     {
-        <header class="workbench-heading">
-            <div class="workbench-identity">
-                <p class="eyebrow">@WorkbenchEyebrow</p>
-                <h1>@WorkbenchTitle</h1>
-                <div class="workbench-metadata" aria-label="@Text["WorkbenchCapabilitiesAriaLabel"]">
-                    <FluentBadge Appearance="BadgeAppearance.Tint"
-                                 Color="BadgeColor.Brand"
-                                 Shape="BadgeShape.Rounded"
-                                 Size="BadgeSize.Small"
-                                 Content="@Text["InteractiveServer"]" />
-                    <span>@Text["SemanticScene"]</span>
-                    <span>@Text["FencedCommands"]</span>
+        @if (Projection is null)
+        {
+            <header class="workbench-heading">
+                <div class="workbench-identity">
+                    <p class="eyebrow">@WorkbenchEyebrow</p>
+                    <h1>@WorkbenchTitle</h1>
                 </div>
-            </div>
-            <div class="workbench-brief">
-                <span>@Text["WorkbenchBrief"]</span>
-                <p>@WorkbenchDescription</p>
-            </div>
-        </header>
+                <div class="workbench-brief">
+                    <span>@Text["WorkbenchBrief"]</span>
+                    <p>@WorkbenchDescription</p>
+                </div>
+            </header>
+        }
 
         <section class="workbench-deck" aria-label="@Text["CircuitWorkbenchAriaLabel"]">
             <div class="workbench-command-region">
                 <WorkbenchCommandBar CanCreate="CanCreate"
-                                     CanAuthor="CanAuthor"
                                      CanImport="CanImport"
                                      CanPrepareExport="CanPrepareExport"
                                      ShowClaim="ShowClaim"
@@ -71,24 +64,17 @@
                                      ShowSave="ShowSave"
                                      CanSave="CanSave"
                                      ClaimDisplayName="ClaimDisplayName"
-                                     CanAuthorSteering="CanAuthorSteering"
-                                     CanAuthorArithmetic="CanAuthorArithmetic"
-                                     CanAuthorHierarchy="CanAuthorHierarchy"
                                      CanCompile="CanCompile"
                                      CanCreateSession="CanCreateSession"
                                      CanScheduleStimulus="CanScheduleStimulus"
                                      CanStep="CanStep"
                                      ActiveCommand="@WorkbenchActiveCommand"
                                      OnCreate="@(() => RunCommandAsync("create", () => CanCreate, CreateProject))"
-                                     OnAuthor="@(() => RunCommandAsync("author", () => CanAuthor, AuthorCircuit))"
                                      OnImport="ImportProjectPackage"
                                      OnPrepareExport="@(() => RunCommandAsync("export", () => CanPrepareExport, PrepareProjectExport))"
                                      ClaimDisplayNameChanged="UpdateClaimDisplayName"
                                      OnClaim="@(() => RunCommandAsync("claim", () => CanClaim, ClaimSandboxProject))"
                                      OnSave="@(() => RunCommandAsync("save", () => CanSave, SaveDurableProject))"
-                                     OnAuthorSteering="@(() => RunCommandAsync("author-steering", () => CanAuthorSteering, AuthorSteeringGallery))"
-                                     OnAuthorArithmetic="@(() => RunCommandAsync("author-arithmetic", () => CanAuthorArithmetic, AuthorArithmeticGallery))"
-                                     OnAuthorHierarchy="@(() => RunCommandAsync("author-hierarchy", () => CanAuthorHierarchy, AuthorHierarchy))"
                                      OnCompile="@(() => RunCommandAsync("compile", () => CanCompile, Compile))"
                                      OnCreateSession="@(() => RunCommandAsync("session", () => CanCreateSession, CreateSimulationSession))"
                                      OnScheduleStimulus="@(() => RunCommandAsync("stimulus", () => CanScheduleStimulus, ScheduleStimulus))"
@@ -139,36 +125,19 @@
             </div>
 
             <div class="workbench-body">
-                <div class="workbench-topology-rail">
-                    <TopologyCommandBar CanMerge="CanMergeTopology"
-                                        CanSplit="CanSplitTopology"
-                                        CanAddJunction="CanAddJunction"
-                                        CanRemoveJunction="CanRemoveJunction"
-                                        CanPrepareRoute="CanPrepareRoute"
-                                        CanRoute="CanRoute"
-                                        CanUnroute="CanUnroute"
-                                        RouteDraftActive="RouteDraftActive"
-                                        ActiveCommand="@ActiveCommand"
-                                        OnMerge="@(() => RunCommandAsync("topology-merge", () => CanMergeTopology, MergeTopology))"
-                                        OnSplit="@(() => RunCommandAsync("topology-split", () => CanSplitTopology, SplitTopology))"
-                                        OnAddJunction="@(() => RunCommandAsync("topology-add-junction", () => CanAddJunction, AddJunction))"
-                                        OnRemoveJunction="@(() => RunCommandAsync("topology-remove-junction", () => CanRemoveJunction, RemoveJunction))"
-                                        OnPrepareRoute="PrepareRoute"
-                                        OnCommitRoute="@(() => RunCommandAsync("topology-commit-route", () => RouteDraftActive && CanEditTopology, CommitRoute))"
-                                        OnCancelRoute="CancelRoute"
-                                        OnRoute="@(() => RunCommandAsync("topology-route", () => CanRoute, RouteGeometry))"
-                                        OnUnroute="@(() => RunCommandAsync("topology-unroute", () => CanUnroute, UnrouteGeometry))" />
-                </div>
-
-                <div class="workbench-scene-region">
-                    <SceneToolStrip PlaceOptions="ScenePlaceOptions"
-                                    ActiveTool="SceneTool"
-                                    HierarchyPath="CurrentSceneHierarchyPath"
-                                    CanProbe="CanUseSceneProbe"
-                                    ActiveToolChanged="ChangeSceneToolAsync" />
-                    <div class="workbench-grid">
-                        @if (Projection is not null && SelectedDefinitionId is not null)
-                        {
+                @if (Projection is not null && SelectedDefinitionId is not null)
+                {
+                    <div class="schematic-workspace">
+                        <div class="library-dock">
+                            <ComponentPalette Options="ScenePlaceOptions"
+                                              ActiveTool="SceneTool"
+                                              ActiveToolChanged="ChangeSceneToolAsync" />
+                        </div>
+                        <main class="canvas-workspace">
+                            <SceneToolStrip ActiveTool="SceneTool"
+                                            HierarchyPath="CurrentSceneHierarchyPath"
+                                            CanProbe="CanUseSceneProbe"
+                                            ActiveToolChanged="ChangeSceneToolAsync" />
                             <CircuitSceneHost Scene="Scene"
                                               ProjectRevision="Projection.ProjectRevision"
                                               ProjectionVersion="Projection.ProjectionVersion"
@@ -182,14 +151,54 @@
                                               OnIntent="HandleSceneIntentAsync"
                                               OnSemanticAction="HandleSceneSemanticActionAsync"
                                               OnToolConsumed="ConsumeSceneToolAsync" />
-                        }
-                        else
-                        {
-                            <AccessibleCircuitScene Scene="Scene" />
-                        }
-                        <ProbePanel Simulation="Projection?.Simulation" />
+                        </main>
+                        <aside class="inspector-dock" aria-labelledby="inspector-title">
+                            <header class="inspector-heading">
+                                <h2 id="inspector-title">@Text["Inspector"]</h2>
+                                <p>@Text["InspectorDescription"]</p>
+                            </header>
+                            @if (CanAuthor)
+                            {
+                                <StarterGuide CanAuthor="CanAuthor"
+                                              CanAuthorSteering="CanAuthorSteering"
+                                              CanAuthorArithmetic="CanAuthorArithmetic"
+                                              CanAuthorHierarchy="CanAuthorHierarchy"
+                                              BusyCommand="@ActiveCommand"
+                                              OnAuthor="@(() => RunCommandAsync("author", () => CanAuthor, AuthorCircuit))"
+                                              OnAuthorSteering="@(() => RunCommandAsync("author-steering", () => CanAuthorSteering, AuthorSteeringGallery))"
+                                              OnAuthorArithmetic="@(() => RunCommandAsync("author-arithmetic", () => CanAuthorArithmetic, AuthorArithmeticGallery))"
+                                              OnAuthorHierarchy="@(() => RunCommandAsync("author-hierarchy", () => CanAuthorHierarchy, AuthorHierarchy))" />
+                            }
+                            <ProbePanel Simulation="Projection.Simulation" />
+                            <details class="advanced-topology" open="@RouteDraftActive">
+                                <summary>
+                                    <span>@Text["AdvancedTopology"]</span>
+                                    <small>@Text["AdvancedTopologyDescription"]</small>
+                                </summary>
+                                <div>
+                                    <TopologyCommandBar CanMerge="CanMergeTopology"
+                                                        CanSplit="CanSplitTopology"
+                                                        CanAddJunction="CanAddJunction"
+                                                        CanRemoveJunction="CanRemoveJunction"
+                                                        CanPrepareRoute="CanPrepareRoute"
+                                                        CanRoute="CanRoute"
+                                                        CanUnroute="CanUnroute"
+                                                        RouteDraftActive="RouteDraftActive"
+                                                        ActiveCommand="@ActiveCommand"
+                                                        OnMerge="@(() => RunCommandAsync("topology-merge", () => CanMergeTopology, MergeTopology))"
+                                                        OnSplit="@(() => RunCommandAsync("topology-split", () => CanSplitTopology, SplitTopology))"
+                                                        OnAddJunction="@(() => RunCommandAsync("topology-add-junction", () => CanAddJunction, AddJunction))"
+                                                        OnRemoveJunction="@(() => RunCommandAsync("topology-remove-junction", () => CanRemoveJunction, RemoveJunction))"
+                                                        OnPrepareRoute="PrepareRoute"
+                                                        OnCommitRoute="@(() => RunCommandAsync("topology-commit-route", () => RouteDraftActive && CanEditTopology, CommitRoute))"
+                                                        OnCancelRoute="CancelRoute"
+                                                        OnRoute="@(() => RunCommandAsync("topology-route", () => CanRoute, RouteGeometry))"
+                                                        OnUnroute="@(() => RunCommandAsync("topology-unroute", () => CanUnroute, UnrouteGeometry))" />
+                                </div>
+                            </details>
+                        </aside>
                     </div>
-                </div>
+                }
             </div>
 
             <div class="workbench-status-region">

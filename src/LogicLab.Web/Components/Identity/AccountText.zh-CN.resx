@@ -5,29 +5,29 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
   <data name="AccountProtectionsAriaLabel" xml:space="preserve"><value>账户保护</value></data>
-  <data name="AssuranceAttachments" xml:space="preserve"><value>带 fence 的编辑器 attachment</value></data>
-  <data name="AssuranceCatalog" xml:space="preserve"><value>私有持久项目目录</value></data>
-  <data name="AssuranceSessions" xml:space="preserve"><value>安全且不滑动续期的会话</value></data>
+  <data name="AssuranceAttachments" xml:space="preserve"><value>受保护的编辑会话</value></data>
+  <data name="AssuranceCatalog" xml:space="preserve"><value>仅自己可见的已保存项目</value></data>
+  <data name="AssuranceSessions" xml:space="preserve"><value>安全且有效期固定的会话</value></data>
   <data name="ConfirmPassword" xml:space="preserve"><value>确认密码</value></data>
   <data name="Email" xml:space="preserve"><value>电子邮箱</value></data>
   <data name="LoginCreateAccount" xml:space="preserve"><value>创建账户</value></data>
-  <data name="LoginDescription" xml:space="preserve"><value>登录后可重新打开持久项目，同时继续在沙盒中快速实验。</value></data>
+  <data name="LoginDescription" xml:space="preserve"><value>登录后可重新打开已保存项目；快速试验仍可使用沙盒。</value></data>
   <data name="LoginEyebrow" xml:space="preserve"><value>账户访问</value></data>
   <data name="LoginInvalid" xml:space="preserve"><value>电子邮箱或密码无效。</value></data>
   <data name="LoginNewUser" xml:space="preserve"><value>第一次使用 Logic Lab？</value></data>
   <data name="LoginPageTitle" xml:space="preserve"><value>登录</value></data>
   <data name="LoginRememberMe" xml:space="preserve"><value>记住我</value></data>
-  <data name="LoginSubmit" xml:space="preserve"><value>安全登录</value></data>
+  <data name="LoginSubmit" xml:space="preserve"><value>登录</value></data>
   <data name="LoginTitle" xml:space="preserve"><value>欢迎回来。</value></data>
   <data name="Password" xml:space="preserve"><value>密码</value></data>
-  <data name="ProtectedForm" xml:space="preserve"><value>受保护的服务端渲染表单</value></data>
+  <data name="ProtectedForm" xml:space="preserve"><value>受保护的表单提交</value></data>
   <data name="RegisterAlreadyRegistered" xml:space="preserve"><value>已有账户？</value></data>
-  <data name="RegisterDescription" xml:space="preserve"><value>创建账户以拥有持久项目，并在经过认证的会话之间重新打开它们。</value></data>
-  <data name="RegisterEyebrow" xml:space="preserve"><value>持久工作区</value></data>
+  <data name="RegisterDescription" xml:space="preserve"><value>创建账户即可保存项目，并在以后继续编辑。</value></data>
+  <data name="RegisterEyebrow" xml:space="preserve"><value>保存项目</value></data>
   <data name="RegisterLogIn" xml:space="preserve"><value>登录</value></data>
   <data name="RegisterPageTitle" xml:space="preserve"><value>注册</value></data>
   <data name="RegisterPasswordHint" xml:space="preserve"><value>请至少使用 8 个字符。</value></data>
-  <data name="RegisterSubmit" xml:space="preserve"><value>创建安全账户</value></data>
+  <data name="RegisterSubmit" xml:space="preserve"><value>创建账户</value></data>
   <data name="RegisterTitle" xml:space="preserve"><value>保存值得保留的工作。</value></data>
   <data name="SecureAccess" xml:space="preserve"><value>安全账户访问</value></data>
 </root>

@@ -42,17 +42,17 @@ internal sealed class WorkbenchComponentTests
             await Assert.That(rendered.Find("[data-scene-tool='probe']")
                     .HasAttribute("disabled"))
                 .IsTrue();
-            await Assert.That(toolbarControls).Count().IsEqualTo(5);
+            await Assert.That(toolbarControls).Count().IsEqualTo(4);
             await Assert.That(toolbarControls.Count(control =>
                     control.GetAttribute("tabindex") == "0"))
                 .IsEqualTo(1);
             await Assert.That(toolbarControls.Count(control =>
                     control.GetAttribute("tabindex") == "-1"))
-                .IsEqualTo(4);
+                .IsEqualTo(3);
             await Assert.That(toolbarControls[0].GetAttribute("data-scene-tool"))
                 .IsEqualTo("select");
             await Assert.That(toolbarControls[^1].GetAttribute("data-scene-tool"))
-                .IsEqualTo("place");
+                .IsEqualTo("pan");
         }
     }
 
@@ -67,11 +67,8 @@ internal sealed class WorkbenchComponentTests
             .ComponentInstances.Select(component => component.Id).ToHashSet();
         var beforeDispatchCount = workspace.DispatchCount;
 
-        await rendered.Find("[data-scene-tool='place']").ChangeAsync(
-            new ChangeEventArgs
-            {
-                Value = "library:logiclab.core:memory.rom",
-            });
+        await rendered.Find("[data-place-option='library:logiclab.core:memory.rom']")
+            .ClickAsync();
         var sceneHost = rendered.FindComponent<CircuitSceneHost>();
         await rendered.WaitForStateAsync(() =>
             sceneHost.Instance.ActiveTool is ScenePlaceToolV1);
@@ -867,7 +864,7 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task Editor_TopologyCommands_ExerciseCompleteUserEditingPath()
+    public async Task Editor_TopologyCommands_ExerciseMergeSplitJunctionAndRouting()
     {
         await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
@@ -897,26 +894,12 @@ internal sealed class WorkbenchComponentTests
             "topology-add-junction",
             () => rendered.FindAll("[data-junction]").Count == 1);
 
-        await ClickAndWaitForState(
-            rendered,
-            "topology-prepare-route",
-            () => rendered.FindAll("[data-route-draft]").Count == 1);
-        await Assert.That(rendered.FindAll("[data-wire-geometry]")).IsEmpty();
-
-        await ClickAndWaitForState(
-            rendered,
-            "topology-commit-route",
-            () => rendered.FindAll("[data-route-draft]").Count == 0
-                && rendered.FindAll("[data-wire-geometry]").Count == 1);
-        await Assert.That(await ReadSingleRoute(workspace))
-            .IsTypeOf<OrthogonalWireRoute>();
-
         await rendered.Find("[data-command='topology-unroute']").ClickAsync();
-        await Assert.That(await ReadSingleRoute(workspace))
+        await Assert.That(await ReadFirstRoute(workspace))
             .IsTypeOf<UnroutedWireRoute>();
 
         await rendered.Find("[data-command='topology-route']").ClickAsync();
-        await Assert.That(await ReadSingleRoute(workspace))
+        await Assert.That(await ReadFirstRoute(workspace))
             .IsTypeOf<OrthogonalWireRoute>();
 
         await ClickAndWaitForState(
@@ -1068,43 +1051,6 @@ internal sealed class WorkbenchComponentTests
         }
     }
 
-    [Test]
-    public async Task Editor_CancelPreparedRoute_SendsNoCommandOrProjectRevision()
-    {
-        await using var context = CreateContext();
-        await using var workspace = new TrackingWorkspace();
-        var rendered = RenderEditor(context, workspace);
-        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
-        await ClickAndWaitForState(
-            rendered,
-            "create",
-            () => !IsDisabled(rendered, "author"));
-        await ClickAndWaitForState(
-            rendered,
-            "author",
-            () => !IsDisabled(rendered, "topology-prepare-route"));
-        var before = await workspace.ReadCurrent();
-        var dispatchCount = workspace.DispatchCount;
-
-        await rendered.Find("[data-command='topology-prepare-route']")
-            .ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-route-draft]").Count == 1);
-        await rendered.Find("[data-command='topology-cancel-route']")
-            .ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-route-draft]").Count == 0);
-        var after = await workspace.ReadCurrent();
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(workspace.DispatchCount).IsEqualTo(dispatchCount);
-            await Assert.That(after.ProjectRevision.RevisionId)
-                .IsEqualTo(before.ProjectRevision.RevisionId);
-            await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
-            await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.WireGeometries)
-                .IsEmpty();
-        }
-    }
-
     private static BunitContext CreateContext()
     {
         return CreateContext(out _);
@@ -1218,7 +1164,8 @@ internal sealed class WorkbenchComponentTests
         string command)
         where TComponent : IComponent
     {
-        return rendered.Find($"[data-command='{command}']").HasAttribute("disabled");
+        var commands = rendered.FindAll($"[data-command='{command}']");
+        return commands.Count == 0 || commands[0].HasAttribute("disabled");
     }
 
     private static bool AreAllCommandsDisabled(IRenderedComponent<Editor> rendered)
@@ -1228,11 +1175,12 @@ internal sealed class WorkbenchComponentTests
             && commands.All(command => command.HasAttribute("disabled"));
     }
 
-    private static async Task<WireRoute> ReadSingleRoute(TrackingWorkspace workspace)
+    private static async Task<WireRoute> ReadFirstRoute(TrackingWorkspace workspace)
     {
         var projection = await workspace.ReadCurrent();
         return projection.ProjectRevision.Document.EntryCircuitDefinition
-            .WireGeometries.Single().Route;
+            .WireGeometries.OrderBy(geometry => geometry.Id.Value, StringComparer.Ordinal)
+            .First().Route;
     }
 
     private sealed class PassthroughWorkspace : DelegatingEditorWorkspace

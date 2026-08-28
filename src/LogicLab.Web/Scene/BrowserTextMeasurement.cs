@@ -176,9 +176,23 @@ internal static class BrowserTextMeasurements
                 request.BaseDirection == BaseDirectionV1.LeftToRight ? "ltr" : "rtl"));
             var scalarCount = request.Text.EnumerateRunes().Count();
             var width = checked(Math.Max(70, scalarCount * 70));
+            var left = request.Alignment switch
+            {
+                TextAlignmentV1.Center => -(width / 2),
+                TextAlignmentV1.Start
+                    when request.BaseDirection == BaseDirectionV1.LeftToRight => 0,
+                TextAlignmentV1.Start => -width,
+                TextAlignmentV1.End
+                    when request.BaseDirection == BaseDirectionV1.LeftToRight => -width,
+                TextAlignmentV1.End => 0,
+                _ => throw new ArgumentOutOfRangeException(nameof(request)),
+            };
+
+            // Canvas TextMetrics reports ink distances from the textAlign alignment point.
+            // Source: https://html.spec.whatwg.org/multipage/canvas.html#textmetrics
             return new SymbolTextMeasurementV1(
                 width,
-                new RectV1(0, -80, width, 40));
+                new RectV1(left, -80, checked(left + width), 40));
         }
 
         private static string Token<T>(T value) where T : struct, Enum =>

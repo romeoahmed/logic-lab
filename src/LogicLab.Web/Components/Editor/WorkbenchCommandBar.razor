@@ -5,19 +5,49 @@
      aria-label="@Text["WorkbenchCommandsAriaLabel"]"
      aria-busy="@(IsBusy ? "true" : "false")"
      data-active-command="@ActiveCommand">
-    <div class="command-cluster" role="group" aria-label="@Text["ProjectCommandsAriaLabel"]">
-        <span class="command-cluster-label">@Text["Project"]</span>
-        <div>
+    <div class="command-cluster" role="group" aria-label="@Text["NextStepAriaLabel"]">
+        <span class="command-cluster-label">@Text["NextStep"]</span>
+        <div class="workflow-actions">
             <FluentButton data-command="create"
-                          Appearance="@(CanAuthor ? ButtonAppearance.Outline : ButtonAppearance.Primary)"
+                          hidden="@(!CanCreate)"
+                          Appearance="ButtonAppearance.Primary"
                           Disabled="@(!CanCreate || IsBusy)"
                           Loading="@(ActiveCommand is "create")"
                           OnClick="OnCreate">@Text["CreateSandbox"]</FluentButton>
-            <FluentButton data-command="author"
-                          Appearance="ButtonAppearance.Outline"
-                          Disabled="@(!CanAuthor || IsBusy)"
-                          Loading="@(ActiveCommand is "author")"
-                          OnClick="OnAuthor">@Text["AuthorCircuit"]</FluentButton>
+            <FluentButton data-command="compile"
+                          hidden="@(!CanCompile)"
+                          Appearance="ButtonAppearance.Primary"
+                          Disabled="@(!CanCompile || IsBusy)"
+                          Loading="@(ActiveCommand is "compile")"
+                          OnClick="OnCompile">@Text["Compile"]</FluentButton>
+            <FluentButton data-command="session"
+                          hidden="@(!CanCreateSession)"
+                          Appearance="ButtonAppearance.Primary"
+                          Disabled="@(!CanCreateSession || IsBusy)"
+                          Loading="@(ActiveCommand is "session")"
+                          OnClick="OnCreateSession">@Text["CreateSession"]</FluentButton>
+            <FluentButton data-command="stimulus"
+                          hidden="@(!CanScheduleStimulus)"
+                          Appearance="ButtonAppearance.Primary"
+                          Disabled="@(!CanScheduleStimulus || IsBusy)"
+                          Loading="@(ActiveCommand is "stimulus")"
+                          OnClick="OnScheduleStimulus">@Text["InputsHigh"]</FluentButton>
+            <FluentButton data-command="step"
+                          hidden="@(!CanStep)"
+                          Appearance="ButtonAppearance.Primary"
+                          Disabled="@(!CanStep || IsBusy)"
+                          Loading="@(ActiveCommand is "step")"
+                          OnClick="OnStep">@Text["Step"]</FluentButton>
+            @if (!CanCreate && !CanCompile && !CanCreateSession && !CanScheduleStimulus && !CanStep)
+            {
+                <span class="workflow-hint">@Text["ChooseStarterHint"]</span>
+            }
+        </div>
+    </div>
+
+    <details class="project-options">
+        <summary>@Text["ProjectOptions"]</summary>
+        <div class="project-actions" role="group" aria-label="@Text["ProjectCommandsAriaLabel"]">
             <FluentInputFile Id="logiclab-import-picker"
                              AnchorId="logiclab-import-trigger"
                              Accept=".logiclab,application/vnd.logiclab+zip"
@@ -65,55 +95,5 @@
                               OnClick="OnSave">@Text["SaveDurable"]</FluentButton>
             }
         </div>
-    </div>
-    <div class="command-cluster" role="group" aria-label="@Text["ExampleAuthoringCommandsAriaLabel"]">
-        <span class="command-cluster-label">@Text["Templates"]</span>
-        <div>
-            <FluentButton data-command="author-steering"
-                          Appearance="ButtonAppearance.Subtle"
-                          Disabled="@(!CanAuthorSteering || IsBusy)"
-                          Loading="@(ActiveCommand is "author-steering")"
-                          OnClick="OnAuthorSteering">@Text["Steering"]</FluentButton>
-            <FluentButton data-command="author-arithmetic"
-                          Appearance="ButtonAppearance.Subtle"
-                          Disabled="@(!CanAuthorArithmetic || IsBusy)"
-                          Loading="@(ActiveCommand is "author-arithmetic")"
-                          OnClick="OnAuthorArithmetic">@Text["Arithmetic"]</FluentButton>
-            <FluentButton data-command="author-hierarchy"
-                          Appearance="ButtonAppearance.Subtle"
-                          Disabled="@(!CanAuthorHierarchy || IsBusy)"
-                          Loading="@(ActiveCommand is "author-hierarchy")"
-                          OnClick="OnAuthorHierarchy">@Text["Hierarchy"]</FluentButton>
-        </div>
-    </div>
-    <div class="command-cluster" role="group" aria-label="@Text["BuildCommandAriaLabel"]">
-        <span class="command-cluster-label">@Text["Build"]</span>
-        <div>
-            <FluentButton data-command="compile"
-                          Appearance="ButtonAppearance.Outline"
-                          Disabled="@(!CanCompile || IsBusy)"
-                          Loading="@(ActiveCommand is "compile")"
-                          OnClick="OnCompile">@Text["Compile"]</FluentButton>
-        </div>
-    </div>
-    <div class="command-cluster" role="group" aria-label="@Text["SimulationCommandsAriaLabel"]">
-        <span class="command-cluster-label">@Text["Simulation"]</span>
-        <div>
-            <FluentButton data-command="session"
-                          Appearance="ButtonAppearance.Outline"
-                          Disabled="@(!CanCreateSession || IsBusy)"
-                          Loading="@(ActiveCommand is "session")"
-                          OnClick="OnCreateSession">@Text["CreateSession"]</FluentButton>
-            <FluentButton data-command="stimulus"
-                          Appearance="ButtonAppearance.Outline"
-                          Disabled="@(!CanScheduleStimulus || IsBusy)"
-                          Loading="@(ActiveCommand is "stimulus")"
-                          OnClick="OnScheduleStimulus">@Text["InputsHigh"]</FluentButton>
-            <FluentButton data-command="step"
-                          Appearance="@(CanStep ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
-                          Disabled="@(!CanStep || IsBusy)"
-                          Loading="@(ActiveCommand is "step")"
-                          OnClick="OnStep">@Text["Step"]</FluentButton>
-        </div>
-    </div>
+    </details>
 </div>

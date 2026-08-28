@@ -1,7 +1,9 @@
 .circuit-scene-shell {
   display: grid;
-  min-block-size: 38rem;
-  padding: clamp(1rem, 2vw, 1.5rem);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  block-size: 100%;
+  min-block-size: 0;
+  padding: 0.7rem;
   background: var(--ll-canvas);
 }
 
@@ -10,7 +12,7 @@
   align-items: end;
   justify-content: space-between;
   gap: 1rem;
-  margin-block-end: 1rem;
+  margin-block-end: 0.65rem;
 }
 
 .scene-heading h2,
@@ -28,7 +30,8 @@
 
 .canvas-frame {
   position: relative;
-  min-block-size: 30rem;
+  block-size: auto;
+  min-block-size: 0;
   overflow: hidden;
   border: 1px solid var(--ll-border-strong);
   background: var(--ll-canvas);
@@ -41,7 +44,7 @@
   display: block;
   inline-size: 100%;
   block-size: 100%;
-  min-block-size: 30rem;
+  min-block-size: 0;
   font-family: "Atkinson Hyperlegible Next", sans-serif;
   touch-action: none;
 }
@@ -87,11 +90,11 @@
   inline-size: min(34rem, 100%);
 }
 
-.semantic-scene {
+.scene-recovery-actions {
   margin-block-start: 0.75rem;
 }
 
-.semantic-scene > summary {
+.scene-recovery-actions > summary {
   min-block-size: 2.75rem;
   cursor: pointer;
   color: var(--ll-signal);
@@ -100,7 +103,7 @@
 
 @media (max-width: 720px) {
   .circuit-scene-shell {
-    min-block-size: 28rem;
+    padding: 0.4rem;
   }
 
   .scene-heading {
@@ -110,6 +113,7 @@
 
   .canvas-frame,
   .scene-canvas {
+    block-size: min(62dvh, 34rem);
     min-block-size: 22rem;
   }
 }
