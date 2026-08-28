@@ -30,6 +30,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     private bool publishInProgress;
     private string rendererState = RendererStartingState;
     private string? failureCode;
+    private IReadOnlyList<string> projectionDiagnostics = [];
     private BrowserPolicyEvidenceV1? browserPolicyEvidence;
     private SceneSourceRefV1? semanticWireStart;
     private SceneSourceRefV1? semanticFocusSource;
@@ -113,6 +114,10 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     private MessageBarIntent RendererIntent => rendererState == RendererUnavailableState
         ? MessageBarIntent.Error
         : MessageBarIntent.Info;
+
+    private string? ProjectionDiagnosticCodes => projectionDiagnostics.Count == 0
+        ? null
+        : string.Join(' ', projectionDiagnostics);
 
     private SceneToolV1 EffectiveTool => ActiveTool is SceneProbeToolV1 && Simulation is null
         ? SceneSelectToolV1.Instance
@@ -583,14 +588,10 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
                 return;
             }
 
-            currentSnapshot = replacement as SceneSnapshotV1;
+            UpdateRendererState(replacement);
             publishedKey = key;
             failedKey = null;
             browserPolicyEvidence = null;
-            failureCode = replacement is SceneSnapshotV1 ? null : "projectionUnavailable";
-            rendererState = replacement is SceneSnapshotV1
-                ? RendererReadyState
-                : RendererUnavailableState;
         }
         catch (OperationCanceledException) when (componentLifetime.IsCancellationRequested)
         {
@@ -658,6 +659,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         publishedKey = null;
         rendererState = RendererStartingState;
         failureCode = null;
+        projectionDiagnostics = [];
         browserPolicyEvidence = null;
         rendererGeneration = checked(rendererGeneration + 1);
         if (failedAdapter is not null)
@@ -1158,8 +1160,26 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         failureEpoch = checked(failureEpoch + 1);
         currentSnapshot = null;
         failureCode = code;
+        projectionDiagnostics = [];
         browserPolicyEvidence = policyEvidence;
         rendererState = RendererUnavailableState;
+    }
+
+    internal void UpdateRendererState(SceneReplacementV1 replacement)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        currentSnapshot = replacement as SceneSnapshotV1;
+        if (replacement is SceneUnavailableV1 unavailable)
+        {
+            projectionDiagnostics = [.. unavailable.Diagnostics];
+            failureCode = "projectionUnavailable";
+            rendererState = RendererUnavailableState;
+            return;
+        }
+
+        projectionDiagnostics = [];
+        failureCode = null;
+        rendererState = RendererReadyState;
     }
 
     private Task InvokeBrowserCallbackAsync(Func<Task> callback) => InvokeAsync(callback);

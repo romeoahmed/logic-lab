@@ -31,10 +31,10 @@
   <data name="Connecting" xml:space="preserve"><value>正在连接</value></data>
   <data name="Connection" xml:space="preserve"><value>连接</value></data>
   <data name="Connections" xml:space="preserve"><value>连接</value></data>
-  <data name="CreateSandbox" xml:space="preserve"><value>创建沙盒项目</value></data>
-  <data name="CreateSandboxToBegin" xml:space="preserve"><value>创建沙盒项目以开始。</value></data>
-  <data name="CreateSession" xml:space="preserve"><value>创建会话</value></data>
-  <data name="DefinitionContext" xml:space="preserve"><value>定义上下文</value></data>
+  <data name="CreateSandbox" xml:space="preserve"><value>创建沙盒</value></data>
+  <data name="CreateSandboxToBegin" xml:space="preserve"><value>请先创建沙盒。</value></data>
+  <data name="CreateSession" xml:space="preserve"><value>开始仿真</value></data>
+  <data name="DefinitionContext" xml:space="preserve"><value>电路导航</value></data>
   <data name="DefinitionPorts" xml:space="preserve"><value>定义端口</value></data>
   <data name="DefinitionReady" xml:space="preserve"><value>项目已就绪。请绘制电路，或从示例开始。</value></data>
   <data name="DefinitionView" xml:space="preserve"><value>定义视图</value></data>
@@ -60,7 +60,7 @@
   <data name="JunctionEditingAriaLabel" xml:space="preserve"><value>结点编辑</value></data>
   <data name="Junctions" xml:space="preserve"><value>结点</value></data>
   <data name="KeepDurable" xml:space="preserve"><value>保存项目</value></data>
-  <data name="LiveReadout" xml:space="preserve"><value>实时读数</value></data>
+  <data name="LiveReadout" xml:space="preserve"><value>实时</value></data>
   <data name="LogicalTime" xml:space="preserve"><value>逻辑时间</value></data>
   <data name="Membership" xml:space="preserve"><value>成员关系</value></data>
   <data name="MergeNets" xml:space="preserve"><value>合并网络</value></data>
@@ -69,6 +69,7 @@
   <data name="ObservedProbesAriaLabel" xml:space="preserve"><value>已观测探针</value></data>
   <data name="OpenDefinitionsAriaLabel" xml:space="preserve"><value>打开的电路定义</value></data>
   <data name="Output" xml:space="preserve"><value>输出</value></data>
+  <data name="SignalOrdinal" xml:space="preserve"><value>信号 {0}</value></data>
   <data name="PortCount" xml:space="preserve"><value>{0} 位</value></data>
   <data name="PortDirectionInput" xml:space="preserve"><value>输入</value></data>
   <data name="PortDirectionOutput" xml:space="preserve"><value>输出</value></data>
@@ -76,7 +77,7 @@
   <data name="Prepare" xml:space="preserve"><value>准备</value></data>
   <data name="PrepareExport" xml:space="preserve"><value>导出项目</value></data>
   <data name="Probe" xml:space="preserve"><value>探针</value></data>
-  <data name="ProbeEmptyHelp" xml:space="preserve"><value>请先编译电路，再创建仿真会话。</value></data>
+  <data name="ProbeEmptyHelp" xml:space="preserve"><value>请先编译电路，再开始仿真。</value></data>
   <data name="Project" xml:space="preserve"><value>项目</value></data>
   <data name="ProjectCommandsAriaLabel" xml:space="preserve"><value>项目命令</value></data>
   <data name="Quiescence" xml:space="preserve"><value>求值状态</value></data>
@@ -101,12 +102,12 @@
   <data name="SplitNet" xml:space="preserve"><value>拆分网络</value></data>
   <data name="Steering" xml:space="preserve"><value>信号选择</value></data>
   <data name="Step" xml:space="preserve"><value>步进</value></data>
-  <data name="TabsHierarchyEntry" xml:space="preserve"><value>标签页 · 层级 · 入口</value></data>
+  <data name="TabsHierarchyEntry" xml:space="preserve"><value>电路定义 · 层级 · 入口</value></data>
   <data name="Templates" xml:space="preserve"><value>模板</value></data>
   <data name="TopologyCommandsAriaLabel" xml:space="preserve"><value>拓扑命令</value></data>
   <data name="TopologyForNetAriaLabel" xml:space="preserve"><value>网络 {0} 的拓扑</value></data>
-  <data name="TopologyHeading" xml:space="preserve"><value>网络与布线编辑</value></data>
-  <data name="TopologyEyebrow" xml:space="preserve"><value>显式拓扑</value></data>
+  <data name="TopologyHeading" xml:space="preserve"><value>网络与布线工具</value></data>
+  <data name="TopologyEyebrow" xml:space="preserve"><value>网络结构</value></data>
   <data name="TraceRange" xml:space="preserve"><value>跟踪范围</value></data>
   <data name="Unavailable" xml:space="preserve"><value>不可用</value></data>
   <data name="Unroute" xml:space="preserve"><value>取消布线</value></data>
@@ -175,7 +176,7 @@
   <data name="SessionCreatedNoInputs" xml:space="preserve"><value>仿真已启动，逻辑时间为 0。此电路没有可编程输入。</value></data>
   <data name="SessionRejected" xml:space="preserve"><value>无法启动仿真：{0}。</value></data>
   <data name="StatusConnecting" xml:space="preserve"><value>正在连接交互式工作台…</value></data>
-  <data name="StatusReady" xml:space="preserve"><value>已就绪，可以创建沙盒项目。</value></data>
+  <data name="StatusReady" xml:space="preserve"><value>已就绪，可以创建沙盒。</value></data>
   <data name="StatusReopenedDurable" xml:space="preserve"><value>已重新打开项目。</value></data>
   <data name="StatusReopenedSandbox" xml:space="preserve"><value>已重新打开沙盒。</value></data>
   <data name="StatusSandboxCreated" xml:space="preserve"><value>沙盒已创建。请选择示例或绘制电路。</value></data>
@@ -187,7 +188,7 @@
   <data name="TitleDurable" xml:space="preserve"><value>项目工作台</value></data>
   <data name="TitleOpening" xml:space="preserve"><value>工作区工作台</value></data>
   <data name="TitleSandbox" xml:space="preserve"><value>沙盒工作台</value></data>
-  <data name="WorkspaceClosed" xml:space="preserve"><value>沙盒工作区已关闭：{0}。请创建新沙盒项目。</value></data>
+  <data name="WorkspaceClosed" xml:space="preserve"><value>沙盒工作区已关闭：{0}。请创建新沙盒。</value></data>
   <data name="FailureZeroTimeOscillation" xml:space="preserve"><value>零时间振荡</value></data>
   <data name="FailureSimulationResourceLimit" xml:space="preserve"><value>仿真资源上限</value></data>
   <data name="FailureSimulationCancelled" xml:space="preserve"><value>仿真已取消</value></data>
@@ -199,15 +200,15 @@
   <data name="HierarchyAuthored" xml:space="preserve"><value>可复用反相器已创建。可打开子电路，或编译主电路。</value></data>
   <data name="HierarchyObserving" xml:space="preserve"><value>正在查看实例 {0}。</value></data>
   <data name="HierarchyReturned" xml:space="preserve"><value>已返回 {0}。</value></data>
-  <data name="JunctionAdded" xml:space="preserve"><value>已在网格 4, 2 添加显式结点。</value></data>
+  <data name="JunctionAdded" xml:space="preserve"><value>已在网格 4, 2 添加结点。</value></data>
   <data name="JunctionRemoved" xml:space="preserve"><value>已移除结点，未从几何形状推断连接关系。</value></data>
   <data name="NetMerged" xml:space="preserve"><value>网络已合并。</value></data>
   <data name="NetSplit" xml:space="preserve"><value>网络已拆分。</value></data>
-  <data name="RouteCancelled" xml:space="preserve"><value>布线编辑已取消；未发送工作区命令。</value></data>
+  <data name="RouteCancelled" xml:space="preserve"><value>已取消布线编辑。</value></data>
   <data name="RouteCommitted" xml:space="preserve"><value>正交布线已提交。</value></data>
-  <data name="RouteDraftPrepared" xml:space="preserve"><value>布线草稿已在本地准备。请提交或取消。</value></data>
-  <data name="RouteMarkedUnrouted" xml:space="preserve"><value>导线几何已显式标记为未布线。</value></data>
-  <data name="RouteRouted" xml:space="preserve"><value>导线几何已正交布线。</value></data>
+  <data name="RouteDraftPrepared" xml:space="preserve"><value>布线预览已就绪。请提交或取消。</value></data>
+  <data name="RouteMarkedUnrouted" xml:space="preserve"><value>导线已标记为未布线。</value></data>
+  <data name="RouteRouted" xml:space="preserve"><value>导线已完成正交布线。</value></data>
   <data name="SteeringGalleryAuthored" xml:space="preserve"><value>逻辑与信号选择示例已创建。请编译电路。</value></data>
   <data name="CanvasReady" xml:space="preserve"><value>电路画布已就绪。</value></data>
   <data name="CanvasStarting" xml:space="preserve"><value>正在准备电路画布。</value></data>
@@ -260,12 +261,12 @@
   <data name="StarterArithmeticDescription" xml:space="preserve"><value>用三位信号体验比较、算术与移位。</value></data>
   <data name="StarterHierarchyTitle" xml:space="preserve"><value>可复用反相器</value></data>
   <data name="StarterHierarchyDescription" xml:space="preserve"><value>把反相器封装为子电路，并在主电路中复用。</value></data>
-  <data name="AdvancedTopology" xml:space="preserve"><value>高级拓扑</value></data>
-  <data name="AdvancedTopologyDescription" xml:space="preserve"><value>手动编辑网络、结点和导线路径</value></data>
+  <data name="AdvancedTopology" xml:space="preserve"><value>高级布线</value></data>
+  <data name="AdvancedTopologyDescription" xml:space="preserve"><value>编辑网络、结点与导线路径</value></data>
   <data name="Library" xml:space="preserve"><value>元件库</value></data>
   <data name="Components" xml:space="preserve"><value>元件</value></data>
-  <data name="Inspector" xml:space="preserve"><value>检查器</value></data>
-  <data name="InspectorDescription" xml:space="preserve"><value>示例、信号与电路操作</value></data>
+  <data name="Inspector" xml:space="preserve"><value>学习与观察</value></data>
+  <data name="InspectorDescription" xml:space="preserve"><value>示例、信号值与高级布线</value></data>
   <data name="SearchComponents" xml:space="preserve"><value>搜索元件</value></data>
   <data name="SearchComponentsPlaceholder" xml:space="preserve"><value>门、时钟、寄存器…</value></data>
   <data name="NoMatchingComponents" xml:space="preserve"><value>没有匹配的元件。</value></data>

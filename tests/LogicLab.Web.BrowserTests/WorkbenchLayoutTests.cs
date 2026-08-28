@@ -8,6 +8,23 @@ internal sealed class WorkbenchLayoutTests : PageTest
     private const string Origin = "https://logiclab.test";
 
     [Test]
+    public async Task ResponsiveWorkbench_NarrowViewport_PlacesLibraryBeforeCanvas()
+    {
+        await OpenAsync();
+        await Page.SetViewportSizeAsync(390, 844);
+
+        var library = await Page.Locator(".library-dock").BoundingBoxAsync();
+        var canvas = await Page.Locator(".canvas-workspace").BoundingBoxAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(library).IsNotNull();
+            await Assert.That(canvas).IsNotNull();
+            await Assert.That(library!.Y).IsLessThan(canvas!.Y);
+        }
+    }
+
+    [Test]
     [Arguments(768, 1024)]
     [Arguments(1024, 768)]
     public async Task ResponsiveWorkbench_MediumViewport_BoundsCanvasToViewport(

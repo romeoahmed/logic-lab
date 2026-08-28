@@ -12,7 +12,7 @@
   <data name="ErrorReturnHome" xml:space="preserve"><value>返回首页</value></data>
   <data name="ErrorTitle" xml:space="preserve"><value>无法完成请求</value></data>
   <data name="HelpDescriptionClaim" xml:space="preserve"><value>登录后即可保存沙盒，并从项目列表重新打开。</value></data>
-  <data name="HelpDescriptionStart" xml:space="preserve"><value>创建沙盒、绘制电路、编译，然后运行确定性仿真。</value></data>
+  <data name="HelpDescriptionStart" xml:space="preserve"><value>创建沙盒，选择示例或自行绘制电路，再编译并运行仿真。</value></data>
   <data name="HelpEyebrow" xml:space="preserve"><value>Logic Lab 帮助</value></data>
   <data name="HelpOpenWorkbench" xml:space="preserve"><value>打开工作台</value></data>
   <data name="HelpPageTitle" xml:space="preserve"><value>帮助 · Logic Lab</value></data>
@@ -44,15 +44,15 @@
   <data name="HelpStepCreateTitle" xml:space="preserve"><value>创建沙盒</value></data>
   <data name="HelpStepCreateDescription" xml:space="preserve"><value>沙盒是临时的内存项目，可以放心试验。</value></data>
   <data name="HelpStepChooseTitle" xml:space="preserve"><value>选择“反相器入门”</value></data>
-  <data name="HelpStepChooseDescription" xml:space="preserve"><value>示例包含一个输入、一个 NOT 门、一个输出和显式导线。</value></data>
+  <data name="HelpStepChooseDescription" xml:space="preserve"><value>示例包含一个输入端、一个非门和一个输出端，并已用导线连接。</value></data>
   <data name="HelpStepCompileTitle" xml:space="preserve"><value>编译电路</value></data>
   <data name="HelpStepCompileDescription" xml:space="preserve"><value>编译会把编辑好的电路图转换为确定性的可执行电路。</value></data>
-  <data name="HelpStepRunTitle" xml:space="preserve"><value>创建会话并步进</value></data>
-  <data name="HelpStepRunDescription" xml:space="preserve"><value>把输入设为 1，推进一个逻辑步，再到探针面板读取输出。</value></data>
+  <data name="HelpStepRunTitle" xml:space="preserve"><value>开始仿真并步进</value></data>
+  <data name="HelpStepRunDescription" xml:space="preserve"><value>把输入设为 1，步进一次，再到信号监视区读取输出。</value></data>
   <data name="HelpExamplesEyebrow" xml:space="preserve"><value>选择合适的示例</value></data>
   <data name="HelpExamplesTitle" xml:space="preserve"><value>先从小电路开始，再逐步展开结构。</value></data>
   <data name="HelpInverterTitle" xml:space="preserve"><value>反相器入门</value></data>
-  <data name="HelpInverterDescription" xml:space="preserve"><value>第一次使用请选它：信号路径清楚，并能完整体验编译与步进。</value></data>
+  <data name="HelpInverterDescription" xml:space="preserve"><value>建议从这里开始：一条清晰的信号路径即可完整体验编译与步进。</value></data>
   <data name="HelpGalleryTitle" xml:space="preserve"><value>逻辑与算术示例</value></data>
   <data name="HelpGalleryDescription" xml:space="preserve"><value>比较逻辑门、复用器、译码器和算术元件。</value></data>
   <data name="HelpHierarchyTitle" xml:space="preserve"><value>可复用反相器</value></data>
@@ -64,8 +64,8 @@
   <data name="HelpCanvasPan" xml:space="preserve"><value>平移</value></data>
   <data name="HelpCanvasPanDescription" xml:space="preserve"><value>选择“平移”后拖动画布；按住空格键可临时切换到平移。</value></data>
   <data name="HelpCanvasZoom" xml:space="preserve"><value>缩放</value></data>
-  <data name="HelpCanvasZoomDescription" xml:space="preserve"><value>使用画布内的控件；电路离开视口时，选择“适合窗口”。</value></data>
-  <data name="HelpAdvancedTopologyTitle" xml:space="preserve"><value>高级拓扑</value></data>
-  <data name="HelpAdvancedTopologyDescription" xml:space="preserve"><value>只有需要修改网络成员关系、结点或显式布线几何时才展开。</value></data>
+  <data name="HelpCanvasZoomDescription" xml:space="preserve"><value>使用画布内的控件；电路超出画布时，选择“适合窗口”恢复全图。</value></data>
+  <data name="HelpAdvancedTopologyTitle" xml:space="preserve"><value>高级布线</value></data>
+  <data name="HelpAdvancedTopologyDescription" xml:space="preserve"><value>仅在需要修改网络成员关系、结点或精确导线路径时展开。</value></data>
   <data name="HelpKeepWorkTitle" xml:space="preserve"><value>在沙盒之外保留工作</value></data>
 </root>

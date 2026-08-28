@@ -12,7 +12,7 @@
   <data name="ErrorReturnHome" xml:space="preserve"><value>Return home</value></data>
   <data name="ErrorTitle" xml:space="preserve"><value>The request could not be completed.</value></data>
   <data name="HelpDescriptionClaim" xml:space="preserve"><value>Sign in to save a Sandbox and reopen it later from Projects.</value></data>
-  <data name="HelpDescriptionStart" xml:space="preserve"><value>Create a Sandbox, draw a circuit, compile it, and run a deterministic simulation.</value></data>
+  <data name="HelpDescriptionStart" xml:space="preserve"><value>Create a Sandbox, choose an example or draw a circuit, then compile and simulate it.</value></data>
   <data name="HelpEyebrow" xml:space="preserve"><value>Logic Lab help</value></data>
   <data name="HelpOpenWorkbench" xml:space="preserve"><value>Open the Workbench</value></data>
   <data name="HelpPageTitle" xml:space="preserve"><value>Help · Logic Lab</value></data>
@@ -47,12 +47,12 @@
   <data name="HelpStepChooseDescription" xml:space="preserve"><value>The starter contains one input, one NOT gate, one output, and explicit wires.</value></data>
   <data name="HelpStepCompileTitle" xml:space="preserve"><value>Compile the circuit</value></data>
   <data name="HelpStepCompileDescription" xml:space="preserve"><value>Compilation turns the authored diagram into a deterministic executable circuit.</value></data>
-  <data name="HelpStepRunTitle" xml:space="preserve"><value>Create a session and step</value></data>
-  <data name="HelpStepRunDescription" xml:space="preserve"><value>Set the input to 1, advance one logical step, and read the output in the Probe panel.</value></data>
+  <data name="HelpStepRunTitle" xml:space="preserve"><value>Start the simulation and step</value></data>
+  <data name="HelpStepRunDescription" xml:space="preserve"><value>Set the input to 1, step once, and read the output in the signal monitor.</value></data>
   <data name="HelpExamplesEyebrow" xml:space="preserve"><value>Choose the right example</value></data>
   <data name="HelpExamplesTitle" xml:space="preserve"><value>Start small, then reveal more structure.</value></data>
   <data name="HelpInverterTitle" xml:space="preserve"><value>Inverter basics</value></data>
-  <data name="HelpInverterDescription" xml:space="preserve"><value>Use this first. It has one obvious signal path and supports the full compile-and-step workflow.</value></data>
+  <data name="HelpInverterDescription" xml:space="preserve"><value>Start here. One clear signal path demonstrates the complete compile-and-step workflow.</value></data>
   <data name="HelpGalleryTitle" xml:space="preserve"><value>Logic and arithmetic examples</value></data>
   <data name="HelpGalleryDescription" xml:space="preserve"><value>Compare gate symbols, multiplexers, decoders, and arithmetic components.</value></data>
   <data name="HelpHierarchyTitle" xml:space="preserve"><value>Reusable inverter</value></data>
@@ -65,7 +65,7 @@
   <data name="HelpCanvasPanDescription" xml:space="preserve"><value>Choose Pan and drag the schematic. Holding Space temporarily activates Pan.</value></data>
   <data name="HelpCanvasZoom" xml:space="preserve"><value>Zoom</value></data>
   <data name="HelpCanvasZoomDescription" xml:space="preserve"><value>Use the controls inside the Canvas. Fit restores the complete circuit when it leaves the viewport.</value></data>
-  <data name="HelpAdvancedTopologyTitle" xml:space="preserve"><value>Advanced topology</value></data>
-  <data name="HelpAdvancedTopologyDescription" xml:space="preserve"><value>Open this only when you need to edit net membership, junctions, or explicit route geometry.</value></data>
+  <data name="HelpAdvancedTopologyTitle" xml:space="preserve"><value>Advanced wiring</value></data>
+  <data name="HelpAdvancedTopologyDescription" xml:space="preserve"><value>Open this only to edit net membership, junctions, or exact wire routes.</value></data>
   <data name="HelpKeepWorkTitle" xml:space="preserve"><value>Keep work beyond this Sandbox</value></data>
 </root>

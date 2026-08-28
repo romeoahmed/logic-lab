@@ -68,6 +68,33 @@ internal sealed class CircuitSceneInteractionTests : PageTest
     }
 
     [Test]
+    public async Task WireTool_TerminalDrag_EmitsOrthogonalRouteBetweenPortAnchors()
+    {
+        var scene = await ReadySceneAsync(gridStepPlanUnits: 10);
+        await scene.SetToolAsync(SceneWireToolV1.Instance);
+        var start = await scene.WorldToPageAsync(80, 50);
+        var end = await scene.WorldToPageAsync(120, 50);
+
+        await Page.Mouse.MoveAsync((float)start.X, (float)start.Y);
+        await Page.Mouse.DownAsync();
+        await Page.Mouse.MoveAsync((float)end.X, (float)end.Y);
+        await Page.Mouse.UpAsync();
+
+        var intent = await Assert.That(await scene.LatestIntentAsync())
+            .IsTypeOf<CommitWireSceneIntentV1>();
+        var route = await Assert.That(intent!.RouteAdditions.Single())
+            .IsTypeOf<SceneOrthogonalWireRouteV1>();
+        using (Assert.Multiple())
+        {
+            await Assert.That(intent.Terminals).Count().IsEqualTo(2);
+            await Assert.That(route!.Points).IsEquivalentTo([
+                new SceneGridPointV1(8, 5),
+                new SceneGridPointV1(12, 5),
+            ]);
+        }
+    }
+
+    [Test]
     public async Task CanvasKeyboardNavigation_CurrentSemanticPage_FocusesAndActivatesTarget()
     {
         var scene = await ReadySceneAsync();
@@ -130,6 +157,32 @@ internal sealed class CircuitSceneInteractionTests : PageTest
     }
 
     [Test]
+    public async Task AuthoringGesture_Replacement_PreservesTheWorkingViewport()
+    {
+        var scene = await ReadySceneAsync();
+        await scene.PublishAsync(sceneVersion: 2, empty: true);
+        await scene.SetToolAsync(new ScenePlaceToolV1(
+            new SceneLibraryComponentTargetV1("logiclab.core", "logic.not"),
+            [],
+            "NOT",
+            pinned: false));
+        var placement = await scene.WorldToPageAsync(249, 49);
+
+        await Page.Mouse.ClickAsync((float)placement.X, (float)placement.Y);
+        var workingViewport = (await scene.CaptureRecoveryStateAsync()).Viewports.Single();
+        await scene.PublishAsync(
+            sceneVersion: 3,
+            bounds: new SceneRect(0, 0, 3_600, 1_400));
+
+        var recoveredViewport = (await scene.CaptureRecoveryStateAsync()).Viewports.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(workingViewport.Zoom).IsLessThanOrEqualTo(1);
+            await Assert.That(recoveredViewport).IsEqualTo(workingViewport);
+        }
+    }
+
+    [Test]
     public async Task ZoomControls_ManualZoom_PersistsRecoverableViewport()
     {
         var scene = await ReadySceneAsync();
@@ -141,16 +194,20 @@ internal sealed class CircuitSceneInteractionTests : PageTest
         using (Assert.Multiple())
         {
             await Assert.That(automatic.Viewports).IsEmpty();
-            await Assert.That(customized.Zoom).IsGreaterThan(1);
+            await Assert.That(customized.Zoom).IsGreaterThan(0.16);
         }
     }
 
-    private async Task<CircuitSceneTestPage> ReadySceneAsync(int snapStepGridUnits = 1)
+    private async Task<CircuitSceneTestPage> ReadySceneAsync(
+        int snapStepGridUnits = 1,
+        int gridStepPlanUnits = 100)
     {
         var scene = new CircuitSceneTestPage(Page);
         await scene.OpenAsync();
         await scene.MountAsync();
-        await scene.PublishAsync(snapStepGridUnits: snapStepGridUnits);
+        await scene.PublishAsync(
+            snapStepGridUnits: snapStepGridUnits,
+            gridStepPlanUnits: gridStepPlanUnits);
         return scene;
     }
 }
