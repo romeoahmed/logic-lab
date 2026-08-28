@@ -128,12 +128,12 @@
                 @if (Projection is not null && SelectedDefinitionId is not null)
                 {
                     <div class="schematic-workspace">
-                        <div class="library-dock">
+                        <div class="library-dock" data-testid="workbench-library">
                             <ComponentPalette Options="ScenePlaceOptions"
                                               ActiveTool="SceneTool"
                                               ActiveToolChanged="ChangeSceneToolAsync" />
                         </div>
-                        <main class="canvas-workspace">
+                        <main class="canvas-workspace" data-testid="workbench-canvas">
                             <SceneToolStrip ActiveTool="SceneTool"
                                             HierarchyPath="CurrentSceneHierarchyPath"
                                             CanProbe="CanUseSceneProbe"

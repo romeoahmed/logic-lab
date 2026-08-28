@@ -239,6 +239,86 @@ internal sealed class CircuitSceneTestPage(IPage page)
             "method => window.sceneCalls.filter(call => call.name === method).length",
             method);
 
+    public async Task<CanvasInkCluster[]> CanvasInkClustersAsync()
+    {
+        await page.WaitForFunctionAsync(
+            """
+            () => {
+              const canvas = document.querySelector('[data-testid="scene-canvas"]');
+              const context = canvas?.getContext('2d');
+              if (!context) return false;
+              const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+              const red = data[0];
+              const green = data[1];
+              const blue = data[2];
+              for (let index = 0; index < data.length; index += 4) {
+                if (Math.abs(data[index] - red)
+                    + Math.abs(data[index + 1] - green)
+                    + Math.abs(data[index + 2] - blue) > 30) return true;
+              }
+              return false;
+            }
+            """);
+
+        return await page.EvaluateAsync<CanvasInkCluster[]>(
+            """
+            () => {
+              const canvas = document.querySelector('[data-testid="scene-canvas"]');
+              const context = canvas.getContext('2d');
+              const { data, width, height } = context.getImageData(
+                0, 0, canvas.width, canvas.height);
+              const background = [data[0], data[1], data[2]];
+              const columns = Array.from({ length: width }, () => null);
+              for (let y = 0; y < height; y += 1) {
+                for (let x = 0; x < width; x += 1) {
+                  const index = ((y * width) + x) * 4;
+                  const distance = Math.abs(data[index] - background[0])
+                    + Math.abs(data[index + 1] - background[1])
+                    + Math.abs(data[index + 2] - background[2]);
+                  if (distance <= 30) continue;
+                  const column = columns[x] ?? { top: y, bottom: y, pixelCount: 0 };
+                  column.top = Math.min(column.top, y);
+                  column.bottom = Math.max(column.bottom, y);
+                  column.pixelCount += 1;
+                  columns[x] = column;
+                }
+              }
+
+              const clusters = [];
+              let cluster = null;
+              for (let x = 0; x <= width; x += 1) {
+                const column = columns[x] ?? null;
+                if (column && !cluster) {
+                  cluster = {
+                    left: x, right: x, top: column.top, bottom: column.bottom,
+                    pixelCount: column.pixelCount,
+                  };
+                } else if (column) {
+                  cluster.right = x;
+                  cluster.top = Math.min(cluster.top, column.top);
+                  cluster.bottom = Math.max(cluster.bottom, column.bottom);
+                  cluster.pixelCount += column.pixelCount;
+                } else if (cluster) {
+                  clusters.push(cluster);
+                  cluster = null;
+                }
+              }
+              return clusters;
+            }
+            """);
+    }
+
+    public async Task ReleasePointerCaptureAsync() =>
+        await Canvas.EvaluateAsync(
+            """
+            canvas => {
+              if (window.scenePointerId !== undefined
+                  && canvas.hasPointerCapture(window.scenePointerId)) {
+                canvas.releasePointerCapture(window.scenePointerId);
+              }
+            }
+            """);
+
     public async Task<JsonElement> LatestCallbackArgumentAsync(string method, int ordinal = 0)
     {
         var json = await page.EvaluateAsync<string>(
@@ -438,6 +518,10 @@ internal sealed class CircuitSceneTestPage(IPage page)
           </main>
           <output data-testid="scene-events" aria-live="polite"></output>
           <script>
+            document.querySelector('[data-testid="scene-canvas"]')
+              .addEventListener('pointerdown', event => {
+                window.scenePointerId = event.pointerId;
+              });
             document.addEventListener('click', event => {
               const source = event.target.closest?.('[data-scene-source]');
               const action = event.target.closest?.('[data-scene-action]');
@@ -593,4 +677,17 @@ internal sealed class ViewportPoint
     public double X { get; set; }
 
     public double Y { get; set; }
+}
+
+internal sealed class CanvasInkCluster
+{
+    public int Left { get; set; }
+
+    public int Right { get; set; }
+
+    public int Top { get; set; }
+
+    public int Bottom { get; set; }
+
+    public int PixelCount { get; set; }
 }

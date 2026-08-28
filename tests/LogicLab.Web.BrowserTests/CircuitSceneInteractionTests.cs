@@ -95,6 +95,43 @@ internal sealed class CircuitSceneInteractionTests : PageTest
     }
 
     [Test]
+    public async Task WireGesture_Escape_CancelsBeforeCommit()
+    {
+        var scene = await ReadySceneAsync(gridStepPlanUnits: 10);
+        await scene.SetToolAsync(SceneWireToolV1.Instance);
+        await scene.Canvas.FocusAsync();
+        var start = await scene.WorldToPageAsync(80, 50);
+        var end = await scene.WorldToPageAsync(120, 50);
+
+        await Page.Mouse.MoveAsync((float)start.X, (float)start.Y);
+        await Page.Mouse.DownAsync();
+        await Page.Mouse.MoveAsync((float)end.X, (float)end.Y);
+        await Page.Keyboard.PressAsync("Escape");
+        await Page.Mouse.UpAsync();
+
+        await Assert.That(await scene.CallbackCountAsync("ReceiveSceneIntentAsync"))
+            .IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task WireGesture_LostPointerCapture_CancelsBeforeCommit()
+    {
+        var scene = await ReadySceneAsync(gridStepPlanUnits: 10);
+        await scene.SetToolAsync(SceneWireToolV1.Instance);
+        var start = await scene.WorldToPageAsync(80, 50);
+        var end = await scene.WorldToPageAsync(120, 50);
+
+        await Page.Mouse.MoveAsync((float)start.X, (float)start.Y);
+        await Page.Mouse.DownAsync();
+        await Page.Mouse.MoveAsync((float)end.X, (float)end.Y);
+        await scene.ReleasePointerCaptureAsync();
+        await Page.Mouse.UpAsync();
+
+        await Assert.That(await scene.CallbackCountAsync("ReceiveSceneIntentAsync"))
+            .IsEqualTo(0);
+    }
+
+    [Test]
     public async Task CanvasKeyboardNavigation_CurrentSemanticPage_FocusesAndActivatesTarget()
     {
         var scene = await ReadySceneAsync();
