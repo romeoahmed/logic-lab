@@ -7,44 +7,21 @@ using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.ProjectFormat;
 using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 using static LogicLab.ProjectFormat.Tests.ProjectPackageTestFixture;
 
 namespace LogicLab.ProjectFormat.Tests;
 
 internal sealed class ProjectPackageWriterTests
 {
-    [Test]
-    public async Task PackagePolicy_InvalidStableTokens_ThrowArgumentException()
+    [Test, FsCheckProperty(MaxTest = 200)]
+    public bool PackagePolicy_StableTokens_FollowDiagnosticsLexicalForm(string? candidate)
     {
-        string[] invalidTokens =
-        [
-            "_leading",
-            ".leading",
-            "-leading",
-            "contains/slash",
-            "contains space",
-            "nonascii-\u00e9",
-            "control\u0001",
-            new string('a', 97),
-        ];
         var limits = PackagePolicy.Development.Limits;
+        var expected = IsStableToken(candidate);
 
-        using (Assert.Multiple())
-        {
-            foreach (var invalidToken in invalidTokens)
-            {
-                await Assert.That(() => new PackagePolicy(
-                        invalidToken,
-                        "1",
-                        limits))
-                    .ThrowsExactly<ArgumentException>();
-                await Assert.That(() => new PackagePolicy(
-                        "valid",
-                        invalidToken,
-                        limits))
-                    .ThrowsExactly<ArgumentException>();
-            }
-        }
+        return Accepts(() => new PackagePolicy(candidate!, "1", limits)) == expected
+            && Accepts(() => new PackagePolicy("valid", candidate!, limits)) == expected;
     }
 
     [Test]
@@ -720,6 +697,30 @@ internal sealed class ProjectPackageWriterTests
 
         return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
+
+    private static bool Accepts<T>(Func<T> create)
+    {
+        try
+        {
+            _ = create();
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsStableToken(string? value) =>
+        value is { Length: >= 1 and <= 96 }
+        && IsAsciiLetterOrDigit(value[0])
+        && value.All(static character =>
+            IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
+
+    private static bool IsAsciiLetterOrDigit(char value) =>
+        value is >= 'A' and <= 'Z'
+            or >= 'a' and <= 'z'
+            or >= '0' and <= '9';
 
     private sealed class AsyncOnlyWriteStream : Stream
     {
