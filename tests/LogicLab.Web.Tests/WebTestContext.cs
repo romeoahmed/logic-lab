@@ -22,10 +22,16 @@ internal static class WebTestContext
         context.Services.AddSingleton(WorkspacePolicy.Default);
         context.JSInterop.SetupVoid(
             "Microsoft.FluentUI.Blazor.Utilities.Attributes.copyToShadow",
-            static _ => true);
+            static _ => true)
+            .SetVoidResult();
         context.JSInterop.SetupVoid(
             "Microsoft.FluentUI.Blazor.Utilities.Attributes.observeAttributeChange",
-            static _ => true);
+            static _ => true)
+            .SetVoidResult();
+        context.JSInterop.SetupVoid(
+            "Microsoft.FluentUI.Blazor.Components.TextInput.attachImmediateEvent",
+            static _ => true)
+            .SetVoidResult();
         context.JSInterop.SetupModule(BrowserSceneAdapter.ModulePath).Mode =
             JSRuntimeMode.Loose;
         if (configureAttachmentNavigation)
