@@ -55,7 +55,7 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
     [Arguments("logic.decoder", "BIN/4", ConformanceClaimV1.TeachingExtension)]
     [Arguments("logic.priority_encoder", "[HPRI/BIN]", ConformanceClaimV1.TeachingExtension)]
     [Arguments("logic.unsigned_compare", "COMP", ConformanceClaimV1.TeachingExtension)]
-    [Arguments("logic.adder", "Σ", ConformanceClaimV1.TeachingExtension)]
+    [Arguments("logic.adder", "∑", ConformanceClaimV1.TeachingExtension)]
     [Arguments("logic.subtractor", "P-Q", ConformanceClaimV1.TeachingExtension)]
     [Arguments("logic.shift", "[SHL]", ConformanceClaimV1.TeachingExtension)]
     public async Task Plan_Item24LibraryContract_EmitsParameterizedRectangleAndExactPorts(
