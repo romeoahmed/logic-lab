@@ -41,9 +41,7 @@
   --ll-signal-soft: rgb(8 120 140 / 10%);
   --ll-signal-softer: rgb(8 120 140 / 5%);
   --ll-transition: #a85d00;
-  --ll-unknown: #7053a5;
   --ll-success: #2f9d60;
-  --ll-success-soft: rgb(47 157 96 / 12%);
   --ll-danger: #b4232c;
   --ll-danger-strong: #7a1f25;
   --ll-danger-soft: rgb(180 35 44 / 9%);
@@ -53,6 +51,7 @@
   --ll-shadow-panel: 0 0.5rem 1.75rem rgb(16 42 51 / 8%);
   --ll-shadow-float: 0 1.5rem 4rem rgb(16 42 51 / 14%);
   --ll-page-width: 96rem;
+  --ll-font-mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
   font-family: "Atkinson Hyperlegible Next", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -121,7 +120,7 @@ a {
 }
 
 code {
-  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-family: var(--ll-font-mono);
   font-size: 0.9em;
 }
 
