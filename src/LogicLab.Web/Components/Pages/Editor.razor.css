@@ -79,8 +79,8 @@
 .schematic-workspace {
   display: grid;
   grid-template-areas:
-    "canvas"
     "library"
+    "canvas"
     "inspector";
   grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
@@ -91,7 +91,7 @@
   grid-area: library;
   max-block-size: 24rem;
   overflow: hidden;
-  border-block-start: 1px solid var(--ll-border);
+  border-block-end: 1px solid var(--ll-border);
 }
 
 .library-dock ::deep .component-palette {
@@ -320,7 +320,7 @@
 
   .library-dock {
     max-block-size: none;
-    border-block-start: 0;
+    border-block-end: 0;
     border-inline-end: 1px solid var(--ll-border);
   }
 

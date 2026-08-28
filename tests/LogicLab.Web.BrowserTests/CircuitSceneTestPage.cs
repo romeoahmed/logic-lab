@@ -11,6 +11,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
     private const string Origin = "https://logiclab.test";
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
     private string? fontFingerprint;
+    private int gridStepPlanUnits = 100;
 
     public ILocator Canvas => page.GetByTestId("scene-canvas");
 
@@ -124,19 +125,26 @@ internal sealed class CircuitSceneTestPage(IPage page)
         ulong sceneVersion = 1,
         ulong projectionVersion = 1,
         int snapStepGridUnits = 1,
-        SceneRect? bounds = null)
+        int gridStepPlanUnits = 100,
+        SceneRect? bounds = null,
+        bool empty = false)
     {
         var fingerprint = fontFingerprint
             ?? throw new InvalidOperationException("Mount the available canvas before publishing.");
+        this.gridStepPlanUnits = gridStepPlanUnits;
         var snapshot = SceneTestSnapshot.Create(
             fingerprint,
             sceneVersion,
             projectionVersion,
-            snapStepGridUnits);
+            snapStepGridUnits,
+            gridStepPlanUnits);
         await TransferAsync(
-            bounds is { } requestedBounds
+            (bounds is { } requestedBounds
                 ? snapshot with { Bounds = requestedBounds }
-                : snapshot,
+                : snapshot) with
+            {
+                Items = empty ? [] : snapshot.Items,
+            },
             "replacement");
     }
 
@@ -197,7 +205,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
         var bounds = sceneBounds ?? SceneTestSnapshot.Bounds;
         const double padding = 32;
         var zoom = Math.Min(
-            2,
+            16d / gridStepPlanUnits,
             Math.Max(
                 0.05,
                 Math.Min(
@@ -465,11 +473,24 @@ internal static class SceneTestSnapshot
         "componentInstance",
         "b");
 
+    public static SceneSourceRefV1 TerminalA { get; } = new(
+        "definition-a",
+        "instancePort",
+        "a",
+        "Q");
+
+    public static SceneSourceRefV1 TerminalB { get; } = new(
+        "definition-a",
+        "instancePort",
+        "b",
+        "A");
+
     public static SceneSnapshotV1 Create(
         string fontFingerprint,
         ulong sceneVersion,
         ulong projectionVersion,
-        int snapStepGridUnits) => new(
+        int snapStepGridUnits,
+        int gridStepPlanUnits) => new(
             "build-a",
             sceneVersion,
             projectionVersion,
@@ -478,12 +499,24 @@ internal static class SceneTestSnapshot
             "leftToRight",
             "projection-a",
             Bounds,
-            100,
+            gridStepPlanUnits,
             snapStepGridUnits,
             fontFingerprint,
             [
-                Component(SourceA, 0, new SceneRect(20, 20, 80, 80), 0),
-                Component(SourceB, 1, new SceneRect(120, 20, 180, 80), 1),
+                Component(
+                    SourceA,
+                    TerminalA,
+                    new ScenePoint(80, 50),
+                    0,
+                    new SceneRect(20, 20, 80, 80),
+                    0),
+                Component(
+                    SourceB,
+                    TerminalB,
+                    new ScenePoint(120, 50),
+                    1,
+                    new SceneRect(120, 20, 180, 80),
+                    1),
                 new SceneItemV1(
                     new SceneSourceRefV1(
                         "definition-a",
@@ -504,6 +537,8 @@ internal static class SceneTestSnapshot
 
     private static SceneItemV1 Component(
         SceneSourceRefV1 source,
+        SceneSourceRefV1 terminal,
+        ScenePoint terminalPoint,
         int order,
         SceneRect bounds,
         int gridX) => new(
@@ -526,12 +561,27 @@ internal static class SceneTestSnapshot
                 DashPattern: [],
                 LineCap: "round",
                 LineJoin: "round")],
-            [new SceneHitRegionV1(
-                "body",
-                "body",
-                null,
-                "rect",
-                bounds)],
+            [
+                new SceneHitRegionV1(
+                    "body",
+                    "body",
+                    null,
+                    "rect",
+                    bounds),
+                new SceneHitRegionV1(
+                    "port",
+                    "port",
+                    terminal.PortId,
+                    "circle",
+                    new SceneRect(
+                        terminalPoint.X - 6,
+                        terminalPoint.Y - 6,
+                        terminalPoint.X + 6,
+                        terminalPoint.Y + 6),
+                    terminalPoint,
+                    Radius: 6,
+                    TargetSource: terminal),
+            ],
             new SceneComponentInteractionV1(new SceneComponentPlacementV1(
                 new SceneGridPointV1(gridX, 0),
                 0,

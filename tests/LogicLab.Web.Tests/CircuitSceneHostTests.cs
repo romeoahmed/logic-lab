@@ -238,6 +238,42 @@ internal sealed class CircuitSceneHostTests
     }
 
     [Test]
+    public async Task CircuitSceneHost_ProjectionUnavailable_PreservesDiagnosticCodes()
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        var revision = WebTestCircuit.CreateCompleteCircuit();
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        var rendered = context.Render<CircuitSceneHost>(parameters => parameters
+            .Add(component => component.ProjectRevision, revision)
+            .Add(component => component.ProjectionVersion, 1UL)
+            .Add(component => component.CircuitDefinitionId, definitionId)
+            .Add(component => component.Scene, Project(revision)));
+        var unavailable = new SceneUnavailableV1(
+            "build-fingerprint",
+            1,
+            1,
+            definitionId.Value,
+            "en-US",
+            "leftToRight",
+            ["presentation_constraint_unsatisfied", "presentation_variant_unresolved"]);
+
+        await rendered.InvokeAsync(() => rendered.Instance.UpdateRendererState(unavailable));
+        rendered.Render();
+
+        var host = rendered.Find("[data-scene-renderer]");
+        using (Assert.Multiple())
+        {
+            await Assert.That(host.GetAttribute("data-scene-renderer"))
+                .IsEqualTo("unavailable");
+            await Assert.That(host.GetAttribute("data-scene-diagnostics"))
+                .IsEqualTo(
+                    "presentation_constraint_unsatisfied presentation_variant_unresolved");
+            await Assert.That(rendered.Find("canvas").HasAttribute("hidden")).IsTrue();
+        }
+    }
+
+    [Test]
     public async Task CircuitSceneHost_Retry_ReplacesTheFailedBrowserHost()
     {
         await using var context = WebTestContext.CreateBunitContext();

@@ -4,7 +4,7 @@ const spatialCellSize = 400;
 const spatialEntryBaseBytes = 64;
 const contextRestoreTimeoutMilliseconds = 2_000;
 const interopEnvelopeBytes = 512n;
-const maximumAutomaticZoom = 2;
+const maximumAutomaticGridStepCssPixels = 16;
 // Generated from the cmap table of the fingerprinted packaged WOFF2 asset. Keep this
 // list in lockstep with --ll-scene-font-asset when replacing that file.
 const packagedFontCodePointRanges = Object.freeze([
@@ -922,6 +922,9 @@ class CircuitSceneHandle {
     if (tool.kind !== "pan" && !this.published) {
       return;
     }
+    if (tool.kind !== "pan") {
+      this.viewportIsUserControlled = true;
+    }
     const hit = tool.kind !== "pan" ? this.hitTest(world) : null;
     this.hoveredSource = null;
     this.gesture = {
@@ -1337,13 +1340,21 @@ class CircuitSceneHandle {
     const endHit = this.hitTest(gesture.currentWorld);
     const startTerminal = terminalFromSource(hit.source);
     const endTerminal = endHit ? terminalFromSource(endHit.source) : null;
+    const route = terminalWireRoute(
+      snapshot,
+      hit,
+      endHit,
+      gesture.startWorld,
+      gesture.currentWorld,
+      disableSnap,
+    );
     if (startTerminal && endTerminal
         && sourceKey(hit.source) !== sourceKey(endHit.source)) {
       this.emitIntent("commitWire", gesture, {
         terminals: [startTerminal, endTerminal],
         destinationNet: null,
         newJunctionPositions: [],
-        routeAdditions: [],
+        routeAdditions: route ? [route] : [],
         routeReplacements: [],
         snapModifier: disableSnap ? "disableSnap" : "none",
       });
@@ -1356,7 +1367,7 @@ class CircuitSceneHandle {
           terminals: [startTerminal],
           destinationNet,
           newJunctionPositions: [],
-          routeAdditions: [],
+          routeAdditions: route ? [route] : [],
           routeReplacements: [],
           snapModifier: disableSnap ? "disableSnap" : "none",
         });
@@ -1369,7 +1380,7 @@ class CircuitSceneHandle {
         terminals: [endTerminal],
         destinationNet: startNet,
         newJunctionPositions: [],
-        routeAdditions: [],
+        routeAdditions: route ? [route] : [],
         routeReplacements: [],
         snapModifier: disableSnap ? "disableSnap" : "none",
       });
@@ -1507,7 +1518,7 @@ class CircuitSceneHandle {
     const bounds = this.published.bounds;
     const padding = 32;
     const maximum = Math.min(
-      maximumAutomaticZoom,
+      maximumAutomaticGridStepCssPixels / this.published.gridStepPlanUnits,
       Number(this.policy.zoomMillionthsMaximum) / 1_000_000,
     );
     const minimum = Number(this.policy.zoomMillionthsMinimum) / 1_000_000;
@@ -1589,8 +1600,7 @@ class CircuitSceneHandle {
   rememberPublishedViewport() {
     const definitionId = this.published?.circuitDefinitionId;
     if (!this.viewportIsUserControlled
-        || !definitionId
-        || !this.published.items.some((item) => item.hasDrawableTarget)) {
+        || !definitionId) {
       return;
     }
 
@@ -2357,6 +2367,174 @@ function gridToWorld(point, snapshot) {
     x: point.x * snapshot.gridStepPlanUnits,
     y: point.y * snapshot.gridStepPlanUnits,
   };
+}
+
+function terminalWireRoute(snapshot, startHit, endHit, startWorld, endWorld, disableSnap) {
+  const start = wireEndpoint(startHit, startWorld, snapshot, disableSnap);
+  const end = wireEndpoint(endHit, endWorld, snapshot, disableSnap);
+  if (!start || !end || samePoint(start, end)) {
+    return null;
+  }
+
+  const points = orthogonalWirePoints(
+    start,
+    end,
+    terminalDirection(startHit),
+    terminalDirection(endHit),
+    disableSnap ? 1 : snapshot.snapStepGridUnits,
+  );
+  return points.length >= 2 ? { kind: "orthogonal", points } : null;
+}
+
+function wireEndpoint(hit, fallback, snapshot, disableSnap) {
+  if (!terminalFromSource(hit?.source)) {
+    return gridPoint(fallback, snapshot, disableSnap);
+  }
+
+  const local = hitRegionCenter(hit.region);
+  return gridPoint({
+    x: local.x + hit.item.origin.x,
+    y: local.y + hit.item.origin.y,
+  }, snapshot, disableSnap);
+}
+
+function hitRegionCenter(region) {
+  if (region.shape === "circle") {
+    return region.center;
+  }
+  return {
+    x: (region.bounds.left + region.bounds.right) / 2,
+    y: (region.bounds.top + region.bounds.bottom) / 2,
+  };
+}
+
+function terminalDirection(hit) {
+  if (!terminalFromSource(hit?.source) || hit.region.kind !== "port") {
+    return null;
+  }
+
+  const facing = hit.item.interaction?.interactionKind === "definitionPort"
+    ? hit.item.interaction.placement.facing
+    : null;
+  if (facing === "north") return { x: 0, y: -1 };
+  if (facing === "east") return { x: 1, y: 0 };
+  if (facing === "south") return { x: 0, y: 1 };
+  if (facing === "west") return { x: -1, y: 0 };
+
+  const anchor = hitRegionCenter(hit.region);
+  const bounds = hit.item.bounds;
+  const distances = [
+    { distance: Math.abs(anchor.x - bounds.left), direction: { x: -1, y: 0 } },
+    { distance: Math.abs(anchor.x - bounds.right), direction: { x: 1, y: 0 } },
+    { distance: Math.abs(anchor.y - bounds.top), direction: { x: 0, y: -1 } },
+    { distance: Math.abs(anchor.y - bounds.bottom), direction: { x: 0, y: 1 } },
+  ];
+  distances.sort((left, right) => left.distance - right.distance);
+  return distances[0].direction;
+}
+
+function orthogonalWirePoints(start, end, startDirection, endDirection, lead) {
+  if (canRouteDirectly(start, end, startDirection, endDirection)) {
+    return [start, end];
+  }
+
+  const step = Math.max(1, lead);
+  const startLead = offsetPoint(start, startDirection, step);
+  const endLead = offsetPoint(end, endDirection, step);
+  const points = [start, startLead];
+  const startIsHorizontal = startDirection?.x !== 0;
+  const endIsHorizontal = endDirection?.x !== 0;
+  const startIsVertical = startDirection?.y !== 0;
+  const endIsVertical = endDirection?.y !== 0;
+
+  if (startLead.x === endLead.x || startLead.y === endLead.y) {
+    points.push(endLead);
+  } else if (startIsHorizontal && endIsHorizontal) {
+    const delta = end.x - start.x;
+    const faceEachOther = Math.sign(delta) === startDirection.x
+      && Math.sign(-delta) === endDirection.x
+      && Math.abs(delta) >= step * 2;
+    const channelX = faceEachOther
+      ? snapMidpoint(startLead.x, endLead.x, step)
+      : startDirection.x > 0
+        ? Math.max(startLead.x, endLead.x) + step
+        : Math.min(startLead.x, endLead.x) - step;
+    points.push(
+      { x: channelX, y: startLead.y },
+      { x: channelX, y: endLead.y },
+      endLead,
+    );
+  } else if (startIsVertical && endIsVertical) {
+    const delta = end.y - start.y;
+    const faceEachOther = Math.sign(delta) === startDirection.y
+      && Math.sign(-delta) === endDirection.y
+      && Math.abs(delta) >= step * 2;
+    const channelY = faceEachOther
+      ? snapMidpoint(startLead.y, endLead.y, step)
+      : startDirection.y > 0
+        ? Math.max(startLead.y, endLead.y) + step
+        : Math.min(startLead.y, endLead.y) - step;
+    points.push(
+      { x: startLead.x, y: channelY },
+      { x: endLead.x, y: channelY },
+      endLead,
+    );
+  } else if (endIsHorizontal) {
+    points.push({ x: startLead.x, y: endLead.y }, endLead);
+  } else {
+    points.push({ x: endLead.x, y: startLead.y }, endLead);
+  }
+  points.push(end);
+  return compactOrthogonalPoints(points);
+}
+
+function canRouteDirectly(start, end, startDirection, endDirection) {
+  if (start.y === end.y) {
+    const direction = Math.sign(end.x - start.x);
+    return (!startDirection || (startDirection.y === 0 && startDirection.x === direction))
+      && (!endDirection || (endDirection.y === 0 && endDirection.x === -direction));
+  }
+  if (start.x === end.x) {
+    const direction = Math.sign(end.y - start.y);
+    return (!startDirection || (startDirection.x === 0 && startDirection.y === direction))
+      && (!endDirection || (endDirection.x === 0 && endDirection.y === -direction));
+  }
+  return false;
+}
+
+function offsetPoint(point, direction, distance) {
+  return direction
+    ? { x: point.x + (direction.x * distance), y: point.y + (direction.y * distance) }
+    : point;
+}
+
+function snapMidpoint(first, second, step) {
+  return roundHalfNegativeInfinity(((first + second) / 2) / step) * step;
+}
+
+function compactOrthogonalPoints(points) {
+  const compacted = [];
+  for (const point of points) {
+    if (samePoint(compacted.at(-1), point)) {
+      continue;
+    }
+    while (compacted.length >= 2) {
+      const previous = compacted.at(-2);
+      const current = compacted.at(-1);
+      if ((previous.x === current.x && current.x === point.x)
+          || (previous.y === current.y && current.y === point.y)) {
+        compacted.pop();
+      } else {
+        break;
+      }
+    }
+    compacted.push(point);
+  }
+  return compacted;
+}
+
+function samePoint(left, right) {
+  return left?.x === right?.x && left?.y === right?.y;
 }
 
 function roundHalfNegativeInfinity(value) {

@@ -3,8 +3,8 @@
 <aside class="probe-panel" aria-labelledby="probe-panel-heading">
     <header class="probe-heading">
         <div>
-            <p class="eyebrow">@Text["InstrumentBay"]</p>
-            <h2 id="probe-panel-heading">@Text["Probe"]</h2>
+            <p class="eyebrow">@Text["Simulation"]</p>
+            <h2 id="probe-panel-heading">@Text["InstrumentBay"]</h2>
         </div>
         <span>@Text["LiveReadout"]</span>
     </header>
@@ -29,10 +29,11 @@
             </div>
         </dl>
         <ul aria-label="@Text["ObservedProbesAriaLabel"]">
-            @foreach (var probe in Simulation.Probes)
+            @for (var index = 0; index < Simulation.Probes.Count; index++)
             {
+                var probe = Simulation.Probes[index];
                 <li @key="probe.ProbeId" data-probe="@probe.ProbeId.Value">
-                    <span>@Text["Output"]</span>
+                    <span>@ProbeLabel(probe, index)</span>
                     <strong>@Format(probe.Value)</strong>
                 </li>
             }
@@ -43,6 +44,62 @@
 @code {
     [Parameter]
     public SimulationProjection? Simulation { get; set; }
+
+    [Parameter, EditorRequired]
+    public ProjectRevision? ProjectRevision { get; set; }
+
+    private string ProbeLabel(ProbeProjection probe, int ordinal)
+    {
+        if (ProjectRevision is not { } revision
+            || probe.Source.Identity is not NetSourceIdentity source
+            || revision.Document.FindCircuitDefinition(source.CircuitDefinitionId)
+                is not { } definition
+            || definition.FindNet(source.NetId) is not { } net)
+        {
+            return Text["SignalOrdinal", ordinal + 1];
+        }
+
+        var boundaryPorts = net.Terminals
+            .OfType<DefinitionTerminalReference>()
+            .Select(terminal => definition.FindPort(terminal.DefinitionPortId))
+            .OfType<DefinitionPort>()
+            .ToArray();
+        var outputPort = boundaryPorts.FirstOrDefault(port =>
+            port.Direction == PortDirection.Output);
+        if (outputPort is not null)
+        {
+            return outputPort.DisplayName;
+        }
+
+        var boundaryComponents = net.Terminals
+            .OfType<InstanceTerminalReference>()
+            .Select(terminal => definition.FindComponentInstance(
+                terminal.ComponentInstanceId))
+            .OfType<ComponentInstance>()
+            .Select(instance => (Instance: instance, Contract: instance.Target
+                as LibraryComponentTarget))
+            .Where(item => item.Contract is not null)
+            .ToArray();
+        var output = boundaryComponents.FirstOrDefault(item =>
+            item.Contract!.ContractKey.ContractId == "sink.output").Instance;
+        if (output is not null)
+        {
+            return output.DisplayName ?? Text["ComponentOutput"];
+        }
+
+        var inputPort = boundaryPorts.FirstOrDefault(port =>
+            port.Direction == PortDirection.Input);
+        if (inputPort is not null)
+        {
+            return inputPort.DisplayName;
+        }
+
+        var input = boundaryComponents.FirstOrDefault(item =>
+            item.Contract!.ContractKey.ContractId == "source.input").Instance;
+        return input is not null
+            ? input.DisplayName ?? Text["ComponentInput"]
+            : Text["SignalOrdinal", ordinal + 1];
+    }
 
     private static string Format(IEnumerable<LogicValue> values)
     {

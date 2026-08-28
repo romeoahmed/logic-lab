@@ -602,29 +602,42 @@ internal sealed class WorkbenchComponentTests
         var definition = beforeToggle.ProjectRevision.Document.EntryCircuitDefinition;
         var boundProbe = beforeToggle.Simulation!.Probes.Single();
         var boundNet = (NetSourceIdentity)boundProbe.Source.Identity;
+        var inputNet = definition.Nets.Single(net => net.Id != boundNet.NetId);
         var sceneHost = rendered.FindComponent<CircuitSceneHost>();
         await rendered.InvokeAsync(() => sceneHost.Instance.OnIntent.InvokeAsync(
-            new ToggleProbeSceneIntentV1(
-                LogicLabWebBuild.Fingerprint,
-                sceneVersion: 1,
-                beforeToggle.ProjectionVersion,
-                definition.Id.Value,
-                new SceneElaboratedNetRefV1(
-                    new SceneSourceRefV1(
-                        boundNet.CircuitDefinitionId.Value,
-                        "net",
-                        boundNet.NetId.Value),
-                    new SceneHierarchyPathV1(
-                        boundProbe.Source.HierarchyPath.EntryCircuitDefinitionId.Value,
-                        [.. boundProbe.Source.HierarchyPath.Steps.Select(step =>
-                            new SceneHierarchyStepV1(
-                                step.ContainingCircuitDefinitionId.Value,
-                                step.ComponentInstanceId.Value))])))));
+            ToggleProbeIntent(beforeToggle, definition, inputNet.Id)));
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-probe]").Count == 2);
+        await Assert.That(rendered.FindAll("[data-probe] span").Select(item => item.TextContent))
+            .IsEquivalentTo(["Input", "Output"]);
+
+        var beforeRemovingInput = await workspace.ReadCurrent();
+        await rendered.InvokeAsync(() => sceneHost.Instance.OnIntent.InvokeAsync(
+            ToggleProbeIntent(beforeRemovingInput, definition, inputNet.Id)));
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-probe]").Count == 1);
+
+        var beforeRemovingOutput = await workspace.ReadCurrent();
+        await rendered.InvokeAsync(() => sceneHost.Instance.OnIntent.InvokeAsync(
+            ToggleProbeIntent(beforeRemovingOutput, definition, boundNet.NetId)));
         await rendered.WaitForStateAsync(() => rendered.FindAll("[data-probe]").Count == 0);
         var afterToggle = await workspace.ReadCurrent();
 
         await Assert.That(afterToggle.Simulation!.Probes).IsEmpty();
     }
+
+    private static ToggleProbeSceneIntentV1 ToggleProbeIntent(
+        WorkspaceProjection projection,
+        CircuitDefinition definition,
+        NetId netId) => new(
+            LogicLabWebBuild.Fingerprint,
+            sceneVersion: 1,
+            projection.ProjectionVersion,
+            definition.Id.Value,
+            new SceneElaboratedNetRefV1(
+                new SceneSourceRefV1(
+                    definition.Id.Value,
+                    "net",
+                    netId.Value),
+                new SceneHierarchyPathV1(definition.Id.Value, [])));
 
     [Test]
     public async Task Editor_AdvanceFailure_RestoresInteractiveCommandState()

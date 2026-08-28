@@ -31,10 +31,10 @@
   <data name="Connecting" xml:space="preserve"><value>Connecting</value></data>
   <data name="Connection" xml:space="preserve"><value>Connection</value></data>
   <data name="Connections" xml:space="preserve"><value>Connections</value></data>
-  <data name="CreateSandbox" xml:space="preserve"><value>Create Sandbox Project</value></data>
-  <data name="CreateSandboxToBegin" xml:space="preserve"><value>Create a Sandbox Project to begin.</value></data>
-  <data name="CreateSession" xml:space="preserve"><value>Create Session</value></data>
-  <data name="DefinitionContext" xml:space="preserve"><value>Definition context</value></data>
+  <data name="CreateSandbox" xml:space="preserve"><value>Create Sandbox</value></data>
+  <data name="CreateSandboxToBegin" xml:space="preserve"><value>Create a Sandbox to begin.</value></data>
+  <data name="CreateSession" xml:space="preserve"><value>Start simulation</value></data>
+  <data name="DefinitionContext" xml:space="preserve"><value>Circuit navigation</value></data>
   <data name="DefinitionPorts" xml:space="preserve"><value>Definition ports</value></data>
   <data name="DefinitionReady" xml:space="preserve"><value>Your project is ready. Draw a circuit or start from an example.</value></data>
   <data name="DefinitionView" xml:space="preserve"><value>Definition view</value></data>
@@ -55,12 +55,12 @@
   <data name="ImportAriaLabel" xml:space="preserve"><value>Import a .logiclab project package</value></data>
   <data name="ImportProject" xml:space="preserve"><value>Import project</value></data>
   <data name="InputsHigh" xml:space="preserve"><value>Inputs = 1</value></data>
-  <data name="InstrumentBay" xml:space="preserve"><value>Instrument Bay</value></data>
+  <data name="InstrumentBay" xml:space="preserve"><value>Signal monitor</value></data>
   <data name="JunctionAtGrid" xml:space="preserve"><value>Junction at grid {0}, {1}</value></data>
   <data name="JunctionEditingAriaLabel" xml:space="preserve"><value>Junction editing</value></data>
   <data name="Junctions" xml:space="preserve"><value>Junctions</value></data>
   <data name="KeepDurable" xml:space="preserve"><value>Save project</value></data>
-  <data name="LiveReadout" xml:space="preserve"><value>Live readout</value></data>
+  <data name="LiveReadout" xml:space="preserve"><value>Live</value></data>
   <data name="LogicalTime" xml:space="preserve"><value>Logical time</value></data>
   <data name="Membership" xml:space="preserve"><value>Membership</value></data>
   <data name="MergeNets" xml:space="preserve"><value>Merge Nets</value></data>
@@ -69,6 +69,7 @@
   <data name="ObservedProbesAriaLabel" xml:space="preserve"><value>Observed probes</value></data>
   <data name="OpenDefinitionsAriaLabel" xml:space="preserve"><value>Open Circuit Definitions</value></data>
   <data name="Output" xml:space="preserve"><value>Output</value></data>
+  <data name="SignalOrdinal" xml:space="preserve"><value>Signal {0}</value></data>
   <data name="PortCount" xml:space="preserve"><value>{0} bit</value></data>
   <data name="PortDirectionInput" xml:space="preserve"><value>Input</value></data>
   <data name="PortDirectionOutput" xml:space="preserve"><value>Output</value></data>
@@ -76,7 +77,7 @@
   <data name="Prepare" xml:space="preserve"><value>Prepare</value></data>
   <data name="PrepareExport" xml:space="preserve"><value>Export project</value></data>
   <data name="Probe" xml:space="preserve"><value>Probe</value></data>
-  <data name="ProbeEmptyHelp" xml:space="preserve"><value>Compile the circuit, then create a simulation session.</value></data>
+  <data name="ProbeEmptyHelp" xml:space="preserve"><value>Compile the circuit, then start the simulation.</value></data>
   <data name="Project" xml:space="preserve"><value>Project</value></data>
   <data name="ProjectCommandsAriaLabel" xml:space="preserve"><value>Project commands</value></data>
   <data name="Quiescence" xml:space="preserve"><value>Quiescence</value></data>
@@ -101,12 +102,12 @@
   <data name="SplitNet" xml:space="preserve"><value>Split Net</value></data>
   <data name="Steering" xml:space="preserve"><value>Signal routing</value></data>
   <data name="Step" xml:space="preserve"><value>Step</value></data>
-  <data name="TabsHierarchyEntry" xml:space="preserve"><value>Tabs · hierarchy · entry</value></data>
+  <data name="TabsHierarchyEntry" xml:space="preserve"><value>Definitions · hierarchy · entry</value></data>
   <data name="Templates" xml:space="preserve"><value>Templates</value></data>
   <data name="TopologyCommandsAriaLabel" xml:space="preserve"><value>Topology commands</value></data>
   <data name="TopologyForNetAriaLabel" xml:space="preserve"><value>Topology for net {0}</value></data>
-  <data name="TopologyHeading" xml:space="preserve"><value>Net and route editing</value></data>
-  <data name="TopologyEyebrow" xml:space="preserve"><value>Explicit topology</value></data>
+  <data name="TopologyHeading" xml:space="preserve"><value>Net and route tools</value></data>
+  <data name="TopologyEyebrow" xml:space="preserve"><value>Net structure</value></data>
   <data name="TraceRange" xml:space="preserve"><value>Trace range</value></data>
   <data name="Unavailable" xml:space="preserve"><value>Unavailable</value></data>
   <data name="Unroute" xml:space="preserve"><value>Unroute</value></data>
@@ -175,7 +176,7 @@
   <data name="SessionCreatedNoInputs" xml:space="preserve"><value>Simulation started at logical time 0. This circuit has no programmable inputs.</value></data>
   <data name="SessionRejected" xml:space="preserve"><value>Could not start the simulation: {0}.</value></data>
   <data name="StatusConnecting" xml:space="preserve"><value>Connecting to the interactive workbench…</value></data>
-  <data name="StatusReady" xml:space="preserve"><value>Ready to create a sandbox project.</value></data>
+  <data name="StatusReady" xml:space="preserve"><value>Ready to create a Sandbox.</value></data>
   <data name="StatusReopenedDurable" xml:space="preserve"><value>Project reopened.</value></data>
   <data name="StatusReopenedSandbox" xml:space="preserve"><value>Sandbox reopened.</value></data>
   <data name="StatusSandboxCreated" xml:space="preserve"><value>Sandbox created. Choose an example or draw a circuit.</value></data>
@@ -187,7 +188,7 @@
   <data name="TitleDurable" xml:space="preserve"><value>Project Workbench</value></data>
   <data name="TitleOpening" xml:space="preserve"><value>Workspace Workbench</value></data>
   <data name="TitleSandbox" xml:space="preserve"><value>Sandbox Workbench</value></data>
-  <data name="WorkspaceClosed" xml:space="preserve"><value>Sandbox Workspace closed: {0}. Create a new Sandbox Project.</value></data>
+  <data name="WorkspaceClosed" xml:space="preserve"><value>Sandbox workspace closed: {0}. Create a new Sandbox.</value></data>
   <data name="FailureZeroTimeOscillation" xml:space="preserve"><value>zero-time oscillation</value></data>
   <data name="FailureSimulationResourceLimit" xml:space="preserve"><value>simulation resource limit</value></data>
   <data name="FailureSimulationCancelled" xml:space="preserve"><value>simulation cancelled</value></data>
@@ -199,15 +200,15 @@
   <data name="HierarchyAuthored" xml:space="preserve"><value>Reusable inverter created. Open the child circuit or compile the main circuit.</value></data>
   <data name="HierarchyObserving" xml:space="preserve"><value>Viewing instance {0}.</value></data>
   <data name="HierarchyReturned" xml:space="preserve"><value>Returned to {0}.</value></data>
-  <data name="JunctionAdded" xml:space="preserve"><value>Explicit Junction added at grid 4, 2.</value></data>
+  <data name="JunctionAdded" xml:space="preserve"><value>Junction added at grid 4, 2.</value></data>
   <data name="JunctionRemoved" xml:space="preserve"><value>Junction removed without inferring connectivity from geometry.</value></data>
   <data name="NetMerged" xml:space="preserve"><value>Nets merged.</value></data>
   <data name="NetSplit" xml:space="preserve"><value>Net split.</value></data>
-  <data name="RouteCancelled" xml:space="preserve"><value>Route edit cancelled; no Workspace command was sent.</value></data>
+  <data name="RouteCancelled" xml:space="preserve"><value>Route edit cancelled.</value></data>
   <data name="RouteCommitted" xml:space="preserve"><value>Orthogonal route committed.</value></data>
-  <data name="RouteDraftPrepared" xml:space="preserve"><value>Route draft prepared locally. Commit or cancel it.</value></data>
-  <data name="RouteMarkedUnrouted" xml:space="preserve"><value>Wire Geometry marked explicitly unrouted.</value></data>
-  <data name="RouteRouted" xml:space="preserve"><value>Wire Geometry routed orthogonally.</value></data>
+  <data name="RouteDraftPrepared" xml:space="preserve"><value>Route preview ready. Commit or cancel it.</value></data>
+  <data name="RouteMarkedUnrouted" xml:space="preserve"><value>Wire route marked as unrouted.</value></data>
+  <data name="RouteRouted" xml:space="preserve"><value>Wire routed orthogonally.</value></data>
   <data name="SteeringGalleryAuthored" xml:space="preserve"><value>Logic and signal-routing example created. Compile the circuit to continue.</value></data>
   <data name="CanvasReady" xml:space="preserve"><value>Circuit canvas ready.</value></data>
   <data name="CanvasStarting" xml:space="preserve"><value>Preparing the circuit canvas.</value></data>
@@ -260,12 +261,12 @@
   <data name="StarterArithmeticDescription" xml:space="preserve"><value>Explore comparison, arithmetic, and shifts with three-bit signals.</value></data>
   <data name="StarterHierarchyTitle" xml:space="preserve"><value>Reusable inverter</value></data>
   <data name="StarterHierarchyDescription" xml:space="preserve"><value>Package an inverter as a child circuit and reuse it from the main circuit.</value></data>
-  <data name="AdvancedTopology" xml:space="preserve"><value>Advanced topology</value></data>
-  <data name="AdvancedTopologyDescription" xml:space="preserve"><value>Edit nets, junctions, and wire paths manually</value></data>
+  <data name="AdvancedTopology" xml:space="preserve"><value>Advanced wiring</value></data>
+  <data name="AdvancedTopologyDescription" xml:space="preserve"><value>Edit nets, junctions, and wire routes</value></data>
   <data name="Library" xml:space="preserve"><value>Library</value></data>
   <data name="Components" xml:space="preserve"><value>Components</value></data>
-  <data name="Inspector" xml:space="preserve"><value>Inspector</value></data>
-  <data name="InspectorDescription" xml:space="preserve"><value>Examples, signals, and circuit operations</value></data>
+  <data name="Inspector" xml:space="preserve"><value>Learn and inspect</value></data>
+  <data name="InspectorDescription" xml:space="preserve"><value>Examples, signal values, and advanced wiring</value></data>
   <data name="SearchComponents" xml:space="preserve"><value>Search components</value></data>
   <data name="SearchComponentsPlaceholder" xml:space="preserve"><value>Gate, clock, register…</value></data>
   <data name="NoMatchingComponents" xml:space="preserve"><value>No matching components.</value></data>

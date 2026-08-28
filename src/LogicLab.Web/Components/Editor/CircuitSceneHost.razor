@@ -5,6 +5,7 @@
          class="circuit-scene-shell"
          aria-labelledby="circuit-canvas-heading"
          data-scene-renderer="@rendererState"
+         data-scene-diagnostics="@ProjectionDiagnosticCodes"
          data-scene-generation="@rendererGeneration"
          data-scene-selection-count="@(Selection?.Sources.Count ?? 0)"
          @ref="hostElement">

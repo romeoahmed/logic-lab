@@ -94,7 +94,7 @@
 .component-groups details > div {
   display: grid;
   grid-template-columns: [symbol] 2.5rem [copy] minmax(0, 1fr);
-  column-gap: 0.75rem;
+  column-gap: 1rem;
   padding: 0 0.45rem 0.55rem;
 }
 
@@ -160,7 +160,7 @@
 @container component-palette (width < 13rem) {
   .component-groups details > div {
     grid-template-columns: [symbol] 2.25rem [copy] minmax(0, 1fr);
-    column-gap: 0.6rem;
+    column-gap: 0.85rem;
   }
 
   .component-copy small {

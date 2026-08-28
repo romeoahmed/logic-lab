@@ -169,7 +169,8 @@
                                               OnAuthorArithmetic="@(() => RunCommandAsync("author-arithmetic", () => CanAuthorArithmetic, AuthorArithmeticGallery))"
                                               OnAuthorHierarchy="@(() => RunCommandAsync("author-hierarchy", () => CanAuthorHierarchy, AuthorHierarchy))" />
                             }
-                            <ProbePanel Simulation="Projection.Simulation" />
+                            <ProbePanel Simulation="Projection.Simulation"
+                                        ProjectRevision="Projection.ProjectRevision" />
                             <details class="advanced-topology" open="@RouteDraftActive">
                                 <summary>
                                     <span>@Text["AdvancedTopology"]</span>
