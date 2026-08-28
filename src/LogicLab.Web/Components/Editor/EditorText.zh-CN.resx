@@ -9,7 +9,6 @@
   <data name="AuthorCircuit" xml:space="preserve"><value>编辑电路</value></data>
   <data name="Back" xml:space="preserve"><value>返回</value></data>
   <data name="Build" xml:space="preserve"><value>构建</value></data>
-  <data name="BuildCommandAriaLabel" xml:space="preserve"><value>构建命令</value></data>
   <data name="Cancel" xml:space="preserve"><value>取消</value></data>
   <data name="ChildOccurrencesAriaLabel" xml:space="preserve"><value>子电路实例</value></data>
   <data name="Circuit" xml:space="preserve"><value>电路</value></data>
@@ -46,11 +45,9 @@
   <data name="EnterDefinition" xml:space="preserve"><value>进入 {0}</value></data>
   <data name="Entry" xml:space="preserve"><value>入口</value></data>
   <data name="EntryCircuitDefinition" xml:space="preserve"><value>入口电路定义</value></data>
-  <data name="ExampleAuthoringCommandsAriaLabel" xml:space="preserve"><value>示例编辑命令</value></data>
   <data name="Geometry" xml:space="preserve"><value>几何</value></data>
   <data name="GeometryRule" xml:space="preserve"><value>只有端口连接会改变电气网络；线条外观不会。</value></data>
   <data name="GridPosition" xml:space="preserve"><value>网格 {0}, {1}</value></data>
-  <data name="Hierarchy" xml:space="preserve"><value>层级</value></data>
   <data name="HierarchyPathAriaLabel" xml:space="preserve"><value>层级路径</value></data>
   <data name="ImportAriaLabel" xml:space="preserve"><value>导入 .logiclab 项目包</value></data>
   <data name="ImportProject" xml:space="preserve"><value>导入项目</value></data>
@@ -98,12 +95,9 @@
   <data name="SessionVersion" xml:space="preserve"><value>会话版本</value></data>
   <data name="SetAsEntry" xml:space="preserve"><value>设为入口</value></data>
   <data name="Simulation" xml:space="preserve"><value>仿真</value></data>
-  <data name="SimulationCommandsAriaLabel" xml:space="preserve"><value>仿真命令</value></data>
   <data name="SplitNet" xml:space="preserve"><value>拆分网络</value></data>
-  <data name="Steering" xml:space="preserve"><value>信号选择</value></data>
   <data name="Step" xml:space="preserve"><value>步进</value></data>
   <data name="TabsHierarchyEntry" xml:space="preserve"><value>电路定义 · 层级 · 入口</value></data>
-  <data name="Templates" xml:space="preserve"><value>模板</value></data>
   <data name="TopologyCommandsAriaLabel" xml:space="preserve"><value>拓扑命令</value></data>
   <data name="TopologyForNetAriaLabel" xml:space="preserve"><value>网络 {0} 的拓扑</value></data>
   <data name="TopologyHeading" xml:space="preserve"><value>网络与布线工具</value></data>
@@ -233,10 +227,7 @@
   <data name="NudgeLeft" xml:space="preserve"><value>向左移动一个网格</value></data>
   <data name="NudgeRight" xml:space="preserve"><value>向右移动一个网格</value></data>
   <data name="NudgeUp" xml:space="preserve"><value>向上移动一个网格</value></data>
-  <data name="ChooseComponent" xml:space="preserve"><value>选择元件</value></data>
-  <data name="ComponentCatalogAriaLabel" xml:space="preserve"><value>可放置的元件</value></data>
   <data name="PanTool" xml:space="preserve"><value>平移</value></data>
-  <data name="PlaceTool" xml:space="preserve"><value>放置</value></data>
   <data name="SceneToolsAriaLabel" xml:space="preserve"><value>电路编辑工具</value></data>
   <data name="Selected" xml:space="preserve"><value>已选择</value></data>
   <data name="SelectTool" xml:space="preserve"><value>选择</value></data>

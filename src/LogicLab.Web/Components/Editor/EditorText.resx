@@ -9,7 +9,6 @@
   <data name="AuthorCircuit" xml:space="preserve"><value>Author circuit</value></data>
   <data name="Back" xml:space="preserve"><value>Back</value></data>
   <data name="Build" xml:space="preserve"><value>Build</value></data>
-  <data name="BuildCommandAriaLabel" xml:space="preserve"><value>Build command</value></data>
   <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="ChildOccurrencesAriaLabel" xml:space="preserve"><value>Child-circuit instances</value></data>
   <data name="Circuit" xml:space="preserve"><value>Circuit</value></data>
@@ -46,11 +45,9 @@
   <data name="EnterDefinition" xml:space="preserve"><value>Enter {0}</value></data>
   <data name="Entry" xml:space="preserve"><value>Entry</value></data>
   <data name="EntryCircuitDefinition" xml:space="preserve"><value>Entry Circuit Definition</value></data>
-  <data name="ExampleAuthoringCommandsAriaLabel" xml:space="preserve"><value>Example authoring commands</value></data>
   <data name="Geometry" xml:space="preserve"><value>Geometry</value></data>
   <data name="GeometryRule" xml:space="preserve"><value>Only terminal connections change a net; line appearance does not.</value></data>
   <data name="GridPosition" xml:space="preserve"><value>Grid {0}, {1}</value></data>
-  <data name="Hierarchy" xml:space="preserve"><value>Hierarchy</value></data>
   <data name="HierarchyPathAriaLabel" xml:space="preserve"><value>Hierarchy path</value></data>
   <data name="ImportAriaLabel" xml:space="preserve"><value>Import a .logiclab project package</value></data>
   <data name="ImportProject" xml:space="preserve"><value>Import project</value></data>
@@ -98,12 +95,9 @@
   <data name="SessionVersion" xml:space="preserve"><value>Session version</value></data>
   <data name="SetAsEntry" xml:space="preserve"><value>Set as entry</value></data>
   <data name="Simulation" xml:space="preserve"><value>Simulation</value></data>
-  <data name="SimulationCommandsAriaLabel" xml:space="preserve"><value>Simulation commands</value></data>
   <data name="SplitNet" xml:space="preserve"><value>Split Net</value></data>
-  <data name="Steering" xml:space="preserve"><value>Signal routing</value></data>
   <data name="Step" xml:space="preserve"><value>Step</value></data>
   <data name="TabsHierarchyEntry" xml:space="preserve"><value>Definitions · hierarchy · entry</value></data>
-  <data name="Templates" xml:space="preserve"><value>Templates</value></data>
   <data name="TopologyCommandsAriaLabel" xml:space="preserve"><value>Topology commands</value></data>
   <data name="TopologyForNetAriaLabel" xml:space="preserve"><value>Topology for net {0}</value></data>
   <data name="TopologyHeading" xml:space="preserve"><value>Net and route tools</value></data>
@@ -233,10 +227,7 @@
   <data name="NudgeLeft" xml:space="preserve"><value>Move left one grid step</value></data>
   <data name="NudgeRight" xml:space="preserve"><value>Move right one grid step</value></data>
   <data name="NudgeUp" xml:space="preserve"><value>Move up one grid step</value></data>
-  <data name="ChooseComponent" xml:space="preserve"><value>Choose component</value></data>
-  <data name="ComponentCatalogAriaLabel" xml:space="preserve"><value>Components available to place</value></data>
   <data name="PanTool" xml:space="preserve"><value>Pan</value></data>
-  <data name="PlaceTool" xml:space="preserve"><value>Place</value></data>
   <data name="SceneToolsAriaLabel" xml:space="preserve"><value>Circuit editing tools</value></data>
   <data name="Selected" xml:space="preserve"><value>Selected</value></data>
   <data name="SelectTool" xml:space="preserve"><value>Select</value></data>

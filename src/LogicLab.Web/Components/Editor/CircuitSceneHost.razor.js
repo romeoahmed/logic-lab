@@ -788,8 +788,6 @@ class CircuitSceneHandle {
         context.restore();
       }
     }
-
-
     for (const overlay of this.published.overlays) {
       if (overlay.kind !== "diagnosticMarker") {
         continue;
@@ -801,7 +799,7 @@ class CircuitSceneHandle {
       context.save();
       context.strokeStyle = overlay.severity === "error"
         ? cssColor(styles, "--ll-danger", "#b42318")
-        : cssColor(styles, "--ll-warning", "#a15c00");
+        : cssColor(styles, "--ll-transition", "#a85d00");
       context.lineWidth = 4 / this.viewport.zoom;
       context.setLineDash([6 / this.viewport.zoom, 4 / this.viewport.zoom]);
       context.beginPath();
