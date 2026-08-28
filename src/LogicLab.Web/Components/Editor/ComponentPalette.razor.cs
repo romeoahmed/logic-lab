@@ -6,24 +6,6 @@ namespace LogicLab.Web.Components.Editor;
 
 public sealed partial class ComponentPalette
 {
-    private static readonly PaletteGroupDefinition[] GroupDefinitions =
-    [
-        new("essentials", "ComponentGroupEssentials", "ComponentHintInterface", true,
-            ["source.input", "sink.output", "source.constant", "source.clock"]),
-        new("gates", "ComponentGroupGates", "ComponentHintGate", true,
-            ["logic.and", "logic.or", "logic.not", "logic.buffer", "logic.nand", "logic.nor", "logic.xor", "logic.xnor", "logic.tristate"]),
-        new("steering", "ComponentGroupSteering", "ComponentHintSteering", false,
-            ["logic.mux", "logic.demux", "logic.decoder", "logic.priority_encoder"]),
-        new("arithmetic", "ComponentGroupArithmetic", "ComponentHintArithmetic", false,
-            ["logic.adder", "logic.subtractor", "logic.unsigned_compare", "logic.shift"]),
-        new("sequential", "ComponentGroupSequential", "ComponentHintSequential", false,
-            ["sequential.d_latch", "sequential.sr_latch", "sequential.dff", "sequential.jkff", "sequential.tff", "sequential.register", "sequential.shift_register", "sequential.counter"]),
-        new("memory", "ComponentGroupMemory", "ComponentHintMemory", false,
-            ["memory.rom", "memory.ram_single_port"]),
-        new("routing", "ComponentGroupRouting", "ComponentHintRouting", false,
-            ["topology.split", "topology.concat", "topology.zero_extend", "topology.sign_extend"]),
-    ];
-
     private string searchTerm = string.Empty;
 
     [Parameter, EditorRequired]
@@ -51,12 +33,12 @@ public sealed partial class ComponentPalette
         get
         {
             var unassigned = Options.ToDictionary(option => option.Id, StringComparer.Ordinal);
-            var groups = new List<PaletteGroup>(GroupDefinitions.Length + 2);
-            foreach (var definition in GroupDefinitions)
+            var groups = new List<PaletteGroup>(ComponentPresentationCatalog.Groups.Count + 2);
+            foreach (var definition in ComponentPresentationCatalog.Groups)
             {
-                var options = definition.ContractIds
-                    .Select(contractId => unassigned.GetValueOrDefault(
-                        $"library:logiclab.core:{contractId}"))
+                var options = definition.Components
+                    .Select(component => unassigned.GetValueOrDefault(
+                        $"library:logiclab.core:{component.ContractId}"))
                     .Where(option => option is not null)
                     .Select(option => option!)
                     .Where(MatchesSearch)
@@ -115,17 +97,18 @@ public sealed partial class ComponentPalette
 
     private string DisplayName(ScenePlaceOptionV1 option) => option.Tool.Target switch
     {
-        SceneLibraryComponentTargetV1 library => Text[ComponentResourceKey(library.ContractId)],
+        SceneLibraryComponentTargetV1 library => Text[
+            ComponentPresentationCatalog.Find(library.ContractId)?.Component.NameResourceKey
+                ?? library.ContractId],
         SceneCircuitDefinitionTargetV1 => option.Label,
         _ => option.Label,
     };
 
     private string ComponentHint(ScenePlaceOptionV1 option) => option.Tool.Target switch
     {
-        SceneLibraryComponentTargetV1 library => Text[GroupDefinitions
-            .FirstOrDefault(definition => definition.ContractIds.Contains(
-                library.ContractId,
-                StringComparer.Ordinal))?.HintResourceKey ?? "ComponentHintOther"],
+        SceneLibraryComponentTargetV1 library => Text[
+            ComponentPresentationCatalog.Find(library.ContractId)?.Group.HintResourceKey
+                ?? "ComponentHintOther"],
         SceneCircuitDefinitionTargetV1 => Text["ComponentHintDefinition"],
         _ => option.Label,
     };
@@ -151,53 +134,6 @@ public sealed partial class ComponentPalette
             $"definition:{definition.CircuitDefinitionId}",
         _ => string.Empty,
     };
-
-    private static string ComponentResourceKey(string contractId) => contractId switch
-    {
-        "source.input" => "ComponentInput",
-        "sink.output" => "ComponentOutput",
-        "source.constant" => "ComponentConstant",
-        "source.clock" => "ComponentClock",
-        "logic.and" => "ComponentAnd",
-        "logic.or" => "ComponentOr",
-        "logic.not" => "ComponentNot",
-        "logic.buffer" => "ComponentBuffer",
-        "logic.nand" => "ComponentNand",
-        "logic.nor" => "ComponentNor",
-        "logic.xor" => "ComponentXor",
-        "logic.xnor" => "ComponentXnor",
-        "logic.tristate" => "ComponentTriState",
-        "logic.mux" => "ComponentMultiplexer",
-        "logic.demux" => "ComponentDemultiplexer",
-        "logic.decoder" => "ComponentDecoder",
-        "logic.priority_encoder" => "ComponentPriorityEncoder",
-        "logic.adder" => "ComponentAdder",
-        "logic.subtractor" => "ComponentSubtractor",
-        "logic.unsigned_compare" => "ComponentUnsignedComparator",
-        "logic.shift" => "ComponentShift",
-        "sequential.d_latch" => "ComponentDLatch",
-        "sequential.sr_latch" => "ComponentSRLatch",
-        "sequential.dff" => "ComponentDFlipFlop",
-        "sequential.jkff" => "ComponentJKFlipFlop",
-        "sequential.tff" => "ComponentTFlipFlop",
-        "sequential.register" => "ComponentRegister",
-        "sequential.shift_register" => "ComponentShiftRegister",
-        "sequential.counter" => "ComponentCounter",
-        "memory.rom" => "ComponentRom",
-        "memory.ram_single_port" => "ComponentSinglePortRam",
-        "topology.split" => "ComponentSplitter",
-        "topology.concat" => "ComponentCombiner",
-        "topology.zero_extend" => "ComponentZeroExtend",
-        "topology.sign_extend" => "ComponentSignExtend",
-        _ => contractId,
-    };
-
-    private sealed record PaletteGroupDefinition(
-        string Id,
-        string ResourceKey,
-        string HintResourceKey,
-        bool ExpandedByDefault,
-        IReadOnlyList<string> ContractIds);
 
     private sealed record PaletteGroup(
         string Id,
