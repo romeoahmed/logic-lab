@@ -114,7 +114,6 @@ public static class TeachingMixedGeometryPlanner
                 var layoutRequest = new RectangularSymbolLayoutRequest(
                     rectangularDefinition.FunctionText,
                     rectangularDefinition.FunctionFontRole,
-                    rectangularDefinition.AccessibilityKey,
                     rectangularDefinition.Dependencies,
                     request.MetricSet,
                     request.LocaleId,
@@ -249,7 +248,6 @@ public static class TeachingMixedGeometryPlanner
             var layoutRequest = new RectangularSymbolLayoutRequest(
                 request.DisplayName,
                 FontRoleV1.ExtensionMark,
-                "presentation.symbol.circuit-definition",
                 [],
                 request.MetricSet,
                 request.LocaleId,
@@ -364,7 +362,6 @@ public static class TeachingMixedGeometryPlanner
             transformed.Operations,
             transformed.PortAnchors,
             transformed.HitRegions,
-            transformed.AccessibilityNodes,
             transformed.Conformance);
         cancellationToken.ThrowIfCancellationRequested();
         return new GeometryPlanSucceededV1(plan);

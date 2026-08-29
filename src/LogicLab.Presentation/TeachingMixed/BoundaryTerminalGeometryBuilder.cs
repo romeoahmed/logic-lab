@@ -106,16 +106,13 @@ internal static class BoundaryTerminalGeometryBuilder
         var bodyHitPadding = Math.Max(1, h / 2);
         const string bodyHitId = "body";
         const string portHitId = "hit-port";
-        const string symbolNodeId = "symbol";
-        const string portNodeId = "port";
         var anchors = new[]
         {
             new PortAnchorV1(
                 port.Id,
                 anchor,
                 isSource ? PlanDirectionV1.East : PlanDirectionV1.West,
-                portHitId,
-                portNodeId),
+                portHitId),
         };
         var hitRegions = new HitRegionV1[]
         {
@@ -130,35 +127,6 @@ internal static class BoundaryTerminalGeometryBuilder
                 port.Id,
                 new CircleHitShapeV1(anchor, portHitRadius)),
         };
-        var accessibility = new AccessibilityNodeV1[]
-        {
-            new(
-                symbolNodeId,
-                AccessibilityNodeKindV1.Symbol,
-                null,
-                0,
-                tagBounds,
-                definition.AccessibilityKey,
-                [],
-                [
-                    AccessibilityActionV1.Focus,
-                    AccessibilityActionV1.Select,
-                    AccessibilityActionV1.OpenInspector,
-                ]),
-            new(
-                portNodeId,
-                AccessibilityNodeKindV1.Port,
-                symbolNodeId,
-                1,
-                CircleBounds(anchor, portHitRadius),
-                AccessibilityLocalization.PortKey,
-                AccessibilityLocalization.PortArguments(port.Id, port.Width),
-                [
-                    AccessibilityActionV1.Focus,
-                    AccessibilityActionV1.BeginConnection,
-                    AccessibilityActionV1.OpenInspector,
-                ]),
-        };
         var conformance = new ConformanceEvidenceV1(
             ConformanceClaimV1.TeachingExtension,
             [new StandardReferenceV1("IEEE-91A", "1991", ["2.1.2", "2.2"])],
@@ -169,7 +137,6 @@ internal static class BoundaryTerminalGeometryBuilder
             operations,
             anchors,
             hitRegions,
-            accessibility,
             conformance);
     }
 
@@ -193,9 +160,4 @@ internal static class BoundaryTerminalGeometryBuilder
         checked(bounds.Right + padding),
         checked(bounds.Bottom + padding));
 
-    private static RectV1 CircleBounds(PointV1 center, int radius) => new(
-        checked(center.X - radius),
-        checked(center.Y - radius),
-        checked(center.X + radius),
-        checked(center.Y + radius));
 }

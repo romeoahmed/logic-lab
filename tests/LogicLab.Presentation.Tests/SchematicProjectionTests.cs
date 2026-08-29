@@ -62,12 +62,12 @@ internal sealed class SchematicProjectionTests
             await Assert.That(projection.Items.OfType<DefinitionPortItemV1>().All(item =>
             {
                 var port = fixture.Definition.Ports.Single(candidate => candidate.Id == item.PortId);
-                var textArguments = item.AccessibilityNodes.Single().Arguments
-                    .OfType<TextLocalizationArgumentV1>()
+                var labels = item.Operations.OfType<DrawTextV1>()
+                    .Select(operation => operation.Text)
                     .ToArray();
-                return textArguments.Any(argument =>
-                        argument.Name == "label" && argument.Value == port.DisplayName)
-                    && textArguments.All(argument => argument.Value != port.Id.Value);
+                return labels.Contains(port.DisplayName, StringComparer.Ordinal)
+                    && (port.DisplayName == port.Id.Value
+                        || !labels.Contains(port.Id.Value, StringComparer.Ordinal));
             })).IsTrue();
         }
 
@@ -110,8 +110,6 @@ internal sealed class SchematicProjectionTests
                 rect.Contains(new PointV1(300, 400)))).IsFalse();
             await Assert.That(segmentHitBounds.All(rect =>
                 Contains(projection.Bounds, rect))).IsTrue();
-            await Assert.That(routedWire.AccessibilityNodes.All(node =>
-                Contains(projection.Bounds, node.Bounds))).IsTrue();
         }
     }
 
@@ -229,19 +227,12 @@ internal sealed class SchematicProjectionTests
         var projection = Project(revision, definition.Id, Fingerprint());
         var annotation = projection.Items.OfType<AnnotationItemV1>().Single();
         var hitBounds = ((RectHitShapeV1)annotation.HitRegions.Single().Shape).Rect;
-        var accessibilityBounds = annotation.AccessibilityNodes.Single().Bounds;
 
         using (Assert.Multiple())
         {
             await Assert.That(annotation.Operations).IsEmpty();
             await Assert.That(annotation.HitRegions).HasSingleItem();
-            await Assert.That(annotation.AccessibilityNodes).HasSingleItem();
-            await Assert.That(annotation.AccessibilityNodes[0].Arguments
-                    .OfType<TextLocalizationArgumentV1>()
-                    .Single(argument => argument.Name == "text").Value)
-                .IsEqualTo(string.Empty);
             await Assert.That(Contains(projection.Bounds, hitBounds)).IsTrue();
-            await Assert.That(Contains(projection.Bounds, accessibilityBounds)).IsTrue();
         }
     }
 
@@ -270,14 +261,12 @@ internal sealed class SchematicProjectionTests
             new ZeroInkTextMeasurer(FontFingerprint));
         var annotation = projection.Items.OfType<AnnotationItemV1>().Single();
         var hitBounds = ((RectHitShapeV1)annotation.HitRegions.Single().Shape).Rect;
-        var accessibilityBounds = annotation.AccessibilityNodes.Single().Bounds;
 
         using (Assert.Multiple())
         {
             await Assert.That(annotation.Operations.OfType<DrawTextV1>()).HasSingleItem();
             await Assert.That(hitBounds.Width).IsGreaterThan(0);
             await Assert.That(hitBounds.Height).IsGreaterThan(0);
-            await Assert.That(accessibilityBounds).IsEqualTo(hitBounds);
             await Assert.That(Contains(projection.Bounds, hitBounds)).IsTrue();
         }
     }
@@ -363,7 +352,6 @@ internal sealed class SchematicProjectionTests
                     sample.Alignment))
                 .Annotation.Operations.OfType<DrawTextV1>().ToArray();
         var hitBounds = ((RectHitShapeV1)annotation.HitRegions.Single().Shape).Rect;
-        var accessibility = annotation.AccessibilityNodes.Single();
         var violations = new List<string>();
 
         Check(
@@ -391,19 +379,12 @@ internal sealed class SchematicProjectionTests
             violations);
         Check(
             annotation.HitRegions.Count == 1
-                && annotation.AccessibilityNodes.Count == 1
                 && hitBounds.Width > 0
                 && hitBounds.Height > 0,
-            "the Annotation is not one selectable accessible item",
-            violations);
-        Check(
-            accessibility.Arguments.OfType<TextLocalizationArgumentV1>()
-                .Single(argument => argument.Name == "text").Value == sample.Text,
-            "accessibility text differs from the authored Annotation",
+            "the Annotation does not expose one usable interaction region",
             violations);
         Check(
             Contains(projection.Bounds, hitBounds)
-                && Contains(projection.Bounds, accessibility.Bounds)
                 && visibleLines.All(line => Contains(projection.Bounds, line.Bounds)),
             "published Annotation geometry escapes Projection Bounds",
             violations);

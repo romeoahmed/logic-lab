@@ -192,22 +192,18 @@ public abstract record StaticSchematicItemV1 : SchematicItemV1
 {
     private protected StaticSchematicItemV1(
         IReadOnlyList<DrawOperationV1> operations,
-        IReadOnlyList<HitRegionV1> hitRegions,
-        IReadOnlyList<AccessibilityNodeV1> accessibilityNodes)
+        IReadOnlyList<HitRegionV1> hitRegions)
     {
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(hitRegions);
-        ArgumentNullException.ThrowIfNull(accessibilityNodes);
         Operations = Array.AsReadOnly(operations.ToArray());
         HitRegions = Array.AsReadOnly(hitRegions.ToArray());
-        AccessibilityNodes = Array.AsReadOnly(accessibilityNodes.ToArray());
     }
 
     public ReadOnlyCollection<DrawOperationV1> Operations { get; }
 
     public ReadOnlyCollection<HitRegionV1> HitRegions { get; }
 
-    public ReadOnlyCollection<AccessibilityNodeV1> AccessibilityNodes { get; }
 }
 
 public sealed record ComponentSymbolItemV1 : SchematicItemV1
@@ -237,9 +233,8 @@ public sealed record DefinitionPortItemV1 : StaticSchematicItemV1
         DefinitionPortId portId,
         IReadOnlyList<DrawOperationV1> operations,
         PortAnchorV1 anchor,
-        IReadOnlyList<HitRegionV1> hitRegions,
-        IReadOnlyList<AccessibilityNodeV1> accessibilityNodes)
-        : base(operations, hitRegions, accessibilityNodes)
+        IReadOnlyList<HitRegionV1> hitRegions)
+        : base(operations, hitRegions)
     {
         ArgumentNullException.ThrowIfNull(portId);
         ArgumentNullException.ThrowIfNull(anchor);
@@ -332,9 +327,8 @@ public sealed record WireGeometryItemV1 : StaticSchematicItemV1
         NetId netId,
         ProjectedWireRouteV1 route,
         IReadOnlyList<DrawOperationV1> operations,
-        IReadOnlyList<HitRegionV1> hitRegions,
-        IReadOnlyList<AccessibilityNodeV1> accessibilityNodes)
-        : base(operations, hitRegions, accessibilityNodes)
+        IReadOnlyList<HitRegionV1> hitRegions)
+        : base(operations, hitRegions)
     {
         ArgumentNullException.ThrowIfNull(wireGeometryId);
         ArgumentNullException.ThrowIfNull(netId);
@@ -359,9 +353,8 @@ public sealed record JunctionItemV1 : StaticSchematicItemV1
         NetId netId,
         PointV1 point,
         IReadOnlyList<DrawOperationV1> operations,
-        IReadOnlyList<HitRegionV1> hitRegions,
-        IReadOnlyList<AccessibilityNodeV1> accessibilityNodes)
-        : base(operations, hitRegions, accessibilityNodes)
+        IReadOnlyList<HitRegionV1> hitRegions)
+        : base(operations, hitRegions)
     {
         ArgumentNullException.ThrowIfNull(junctionId);
         ArgumentNullException.ThrowIfNull(netId);
@@ -383,9 +376,8 @@ public sealed record AnnotationItemV1 : StaticSchematicItemV1
     internal AnnotationItemV1(
         AnnotationId annotationId,
         IReadOnlyList<DrawOperationV1> operations,
-        IReadOnlyList<HitRegionV1> hitRegions,
-        IReadOnlyList<AccessibilityNodeV1> accessibilityNodes)
-        : base(operations, hitRegions, accessibilityNodes)
+        IReadOnlyList<HitRegionV1> hitRegions)
+        : base(operations, hitRegions)
     {
         ArgumentNullException.ThrowIfNull(annotationId);
         AnnotationId = annotationId;

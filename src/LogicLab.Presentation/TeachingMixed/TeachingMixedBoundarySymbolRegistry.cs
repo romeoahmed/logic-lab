@@ -7,7 +7,6 @@ namespace LogicLab.Presentation.TeachingMixed;
 internal sealed record ResolvedBoundarySymbolDefinition(
     string DefinitionId,
     string DefinitionVersion,
-    string AccessibilityKey,
     string Label,
     PortDirection PortDirection,
     string DeviationCode);
@@ -44,7 +43,6 @@ internal static class TeachingMixedBoundarySymbolRegistry
         PortDirection direction) => new(
             $"logiclab.teachingmixed.{contractId}.boundary",
             "1.0.0",
-            $"presentation.symbol.{contractId}",
             label,
             direction,
             $"teachingmixed-{contractId.Replace(".", "-", StringComparison.Ordinal)}");

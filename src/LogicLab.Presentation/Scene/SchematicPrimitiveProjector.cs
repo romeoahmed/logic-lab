@@ -54,33 +54,16 @@ internal static class SchematicPrimitiveProjector
             port.Id.Value,
             point,
             direction,
-            "hit-port",
-            "port");
+            "hit-port");
         var hitRegions = new HitRegionV1[]
         {
             new("hit-port", HitRegionKindV1.Port, port.Id.Value, new CircleHitShapeV1(point, radius)),
-        };
-        var accessibility = new AccessibilityNodeV1[]
-        {
-            new(
-                "port",
-                AccessibilityNodeKindV1.Port,
-                null,
-                0,
-                SchematicGeometry.CircleBounds(point, radius),
-                "presentation.definitionPort",
-                [
-                    new TextLocalizationArgumentV1("label", port.DisplayName),
-                    new UnsignedLocalizationArgumentV1("width", port.Width),
-                ],
-                [AccessibilityActionV1.Focus, AccessibilityActionV1.BeginConnection]),
         };
         return new DefinitionPortItemV1(
             port.Id,
             operations,
             anchor,
-            hitRegions,
-            accessibility);
+            hitRegions);
     }
 
     public static WireGeometryItemV1 ProjectWire(
@@ -96,14 +79,12 @@ internal static class SchematicPrimitiveProjector
                     wire.NetId,
                     new ProjectedUnroutedWireRouteV1(),
                     [],
-                    [],
                     []);
             case OrthogonalWireRoute orthogonal:
                 var points = orthogonal.Points
                     .Select(point => SchematicGeometry.ToPlanPoint(point, fingerprint))
                     .ToArray();
                 var route = new ProjectedOrthogonalWireRouteV1(points);
-                var pathBounds = SchematicGeometry.Inflate(RectV1.Enclose(points), width);
                 var hitPadding = Math.Max(1, fingerprint.MetricSet.UnitsPerH / 2);
                 var hitRegions = new HitRegionV1[points.Length - 1];
                 for (var index = 0; index < hitRegions.Length; index++)
@@ -122,16 +103,7 @@ internal static class SchematicPrimitiveProjector
                     wire.NetId,
                     route,
                     [Stroke(points, StrokeRoleV1.Outline, width)],
-                    hitRegions,
-                    [new AccessibilityNodeV1(
-                        "wire",
-                        AccessibilityNodeKindV1.Group,
-                        null,
-                        0,
-                        pathBounds,
-                        "presentation.wireGeometry",
-                        [],
-                        [AccessibilityActionV1.Focus, AccessibilityActionV1.Select])]);
+                    hitRegions);
             default:
                 throw new InvalidOperationException("The Wire Route variant is undefined.");
         }
@@ -143,7 +115,6 @@ internal static class SchematicPrimitiveProjector
     {
         var point = SchematicGeometry.ToPlanPoint(junction.Position, fingerprint);
         var radius = Math.Max(1, fingerprint.MetricSet.UnitsPerH / 3);
-        var bounds = SchematicGeometry.CircleBounds(point, radius);
         var path = new PathV1(
         [
             new MoveToV1(new PointV1(point.X, checked(point.Y - radius))),
@@ -161,16 +132,7 @@ internal static class SchematicPrimitiveProjector
                 "junction",
                 HitRegionKindV1.Body,
                 null,
-                new CircleHitShapeV1(point, radius))],
-            [new AccessibilityNodeV1(
-                "junction",
-                AccessibilityNodeKindV1.Group,
-                null,
-                0,
-                bounds,
-                "presentation.junction",
-                [],
-                [AccessibilityActionV1.Focus, AccessibilityActionV1.Select])]);
+                new CircleHitShapeV1(point, radius))]);
     }
 
     public static AnnotationItemV1 ProjectAnnotation(
@@ -266,16 +228,7 @@ internal static class SchematicPrimitiveProjector
                 "annotation",
                 HitRegionKindV1.Label,
                 null,
-                new RectHitShapeV1(interactionBounds))],
-            [new AccessibilityNodeV1(
-                "annotation",
-                AccessibilityNodeKindV1.Label,
-                null,
-                0,
-                interactionBounds,
-                "presentation.annotation",
-                [new TextLocalizationArgumentV1("text", annotation.Text)],
-                [AccessibilityActionV1.Focus, AccessibilityActionV1.Select])]);
+                new RectHitShapeV1(interactionBounds))]);
     }
 
     private static RectV1 EnsureMinimumInteractionExtent(

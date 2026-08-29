@@ -45,7 +45,6 @@ internal sealed record RectangularSymbolThreeStateOutputQualifier(string PortId)
 internal sealed record RectangularSymbolLayoutRequest(
     string? FunctionText,
     FontRoleV1 FunctionFontRole,
-    string AccessibilityKey,
     RectangularSymbolDependency[] Dependencies,
     SymbolMetricSetV1 MetricSet,
     PresentationLocaleIdV1 LocaleId,

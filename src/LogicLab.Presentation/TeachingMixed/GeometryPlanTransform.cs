@@ -16,7 +16,6 @@ internal static class GeometryPlanTransform
             [.. source.Operations.Select(transform.Apply)],
             [.. source.PortAnchors.Select(transform.Apply)],
             [.. source.HitRegions.Select(transform.Apply)],
-            [.. source.AccessibilityNodes.Select(transform.Apply)],
             source.Conformance);
     }
 
@@ -91,8 +90,7 @@ internal static class GeometryPlanTransform
             anchor.PortId,
             Apply(anchor.Point),
             Apply(anchor.OutwardDirection),
-            anchor.HitRegionId,
-            anchor.AccessibilityNodeId);
+            anchor.HitRegionId);
 
         public HitRegionV1 Apply(HitRegionV1 hitRegion) => new(
             hitRegion.LocalId,
@@ -109,16 +107,6 @@ internal static class GeometryPlanTransform
                 _ => throw new InvalidOperationException(
                     "The Geometry Plan hit shape variant is undefined."),
             });
-
-        public AccessibilityNodeV1 Apply(AccessibilityNodeV1 node) => new(
-            node.LocalId,
-            node.Kind,
-            node.ParentId,
-            node.ChildOrder,
-            Apply(node.Bounds),
-            node.LocalizationKey,
-            node.Arguments,
-            node.Actions);
 
         private PathV1 Apply(PathV1 path)
         {

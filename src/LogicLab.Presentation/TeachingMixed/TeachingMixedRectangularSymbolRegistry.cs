@@ -39,7 +39,6 @@ internal enum RectangularSymbolPortFunctionRecipe
 internal sealed record RectangularSymbolDefinition(
     string DefinitionId,
     string DefinitionVersion,
-    string AccessibilityKey,
     RectangularSymbolFunctionRecipe FunctionRecipe,
     string? LiteralFunctionText,
     ConformanceClaimV1 Claim,
@@ -51,7 +50,6 @@ internal sealed record RectangularSymbolDefinition(
 internal sealed record ResolvedRectangularSymbolDefinition(
     string DefinitionId,
     string DefinitionVersion,
-    string AccessibilityKey,
     string VariantId,
     string? FunctionText,
     FontRoleV1 FunctionFontRole,
@@ -235,7 +233,6 @@ internal static class TeachingMixedRectangularSymbolRegistry
         resolved = new ResolvedRectangularSymbolDefinition(
             definition.DefinitionId,
             definition.DefinitionVersion,
-            definition.AccessibilityKey,
             SymbolVariantCatalog.RectangularId,
             functionText,
             functionFontRole,
@@ -374,7 +371,6 @@ internal static class TeachingMixedRectangularSymbolRegistry
             new RectangularSymbolDefinition(
                 $"logiclab.teachingmixed.{contractId}",
                 definitionVersion,
-                $"presentation.symbol.{contractId}",
                 functionRecipe,
                 literalFunctionText,
                 claim,

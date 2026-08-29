@@ -328,22 +328,6 @@ internal static class RectangularSymbolGeometryBuilder
                 null,
                 new RectHitShapeV1(Inflate(body, bodyHitPadding))),
         };
-        var accessibilityNodes = new List<AccessibilityNodeV1>(ports.Count + 1)
-        {
-            new(
-                "symbol",
-                AccessibilityNodeKindV1.Symbol,
-                null,
-                0,
-                bounds,
-                request.AccessibilityKey,
-                [],
-                [
-                    AccessibilityActionV1.Focus,
-                    AccessibilityActionV1.Select,
-                    AccessibilityActionV1.OpenInspector,
-                ]),
-        };
         var inputIndex = 0;
         var outputIndex = 0;
         foreach (var port in ports)
@@ -353,32 +337,16 @@ internal static class RectangularSymbolGeometryBuilder
             var y = isInput ? inputRows[inputIndex++] : outputRows[outputIndex++];
             var point = new PointV1(isInput ? inset : outputAnchorX, y);
             var hitId = $"hit-port-{port.Id}";
-            var nodeId = $"port-{port.Id}";
             anchors.Add(new PortAnchorV1(
                 port.Id,
                 point,
                 isInput ? PlanDirectionV1.West : PlanDirectionV1.East,
-                hitId,
-                nodeId));
+                hitId));
             hitRegions.Add(new HitRegionV1(
                 hitId,
                 HitRegionKindV1.Port,
                 port.Id,
                 new CircleHitShapeV1(point, portHitRadius)));
-            accessibilityNodes.Add(new AccessibilityNodeV1(
-                nodeId,
-                AccessibilityNodeKindV1.Port,
-                "symbol",
-                accessibilityNodes.Count,
-                CircleBounds(point, portHitRadius),
-                AccessibilityLocalization.PortKey,
-                AccessibilityLocalization.PortArguments(port.DisplayName, port.Width),
-                [
-                    AccessibilityActionV1.Focus,
-                    AccessibilityActionV1.BeginConnection,
-                    AccessibilityActionV1.OpenInspector,
-                ]));
-
             var labelEnvelope = labelEnvelopes[port.Id];
             var flowAxisLabel = flowAxisLabels[port.Id];
             var labelOrigin = new PointV1(
@@ -510,7 +478,6 @@ internal static class RectangularSymbolGeometryBuilder
             operations,
             anchors,
             hitRegions,
-            accessibilityNodes,
             request.Conformance);
     }
 
@@ -651,12 +618,6 @@ internal static class RectangularSymbolGeometryBuilder
         checked(bounds.Top - padding),
         checked(bounds.Right + padding),
         checked(bounds.Bottom + padding));
-
-    private static RectV1 CircleBounds(PointV1 center, int radius) => new(
-        checked(center.X - radius),
-        checked(center.Y - radius),
-        checked(center.X + radius),
-        checked(center.Y + radius));
 
     private static int ScaleUp(int value, int numerator, int denominator = 1) =>
         checked((int)((((long)value * numerator) + denominator - 1) / denominator));
