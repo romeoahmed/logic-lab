@@ -38,65 +38,18 @@
   font-size: 0.85rem;
 }
 
-.project-options-trigger {
-  anchor-name: --project-options-trigger;
-  display: inline-flex;
-  min-block-size: 2.4rem;
-  align-items: center;
-  gap: 0.55rem;
-  padding-inline: 0.7rem;
-  border: 1px solid transparent;
-  border-radius: var(--ll-radius-small);
+::deep .project-options-trigger {
+  inline-size: 10rem;
   color: var(--ll-signal-strong);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
   font-size: 0.82rem;
   font-weight: 750;
 }
 
-.project-options-trigger::after {
-  inline-size: 0.45rem;
-  block-size: 0.45rem;
-  border-inline-end: 0.12rem solid currentcolor;
-  border-block-end: 0.12rem solid currentcolor;
-  content: "";
-  rotate: 45deg;
-  translate: 0 -0.12rem;
-}
-
-.project-options-trigger:hover,
-.project-options-trigger:has(+ .project-options-panel:popover-open) {
-  border-color: var(--ll-border);
-  background: var(--ll-signal-soft);
-}
-
-.project-options-trigger:has(+ .project-options-panel:popover-open)::after {
-  rotate: 225deg;
-  translate: 0 0.12rem;
-}
-
-.project-options-panel {
-  position: fixed;
-  position-anchor: --project-options-trigger;
-  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
-  inset: auto;
-  inset-block-start: anchor(bottom);
-  inset-inline-end: anchor(right);
-  inline-size: min(42rem, calc(100vi - 1rem));
-  max-block-size: min(70dvb, 36rem);
-  margin: 0.4rem 0 0;
-  padding: 0.75rem;
-  overflow: auto;
-  border: 1px solid var(--ll-border-strong);
-  border-radius: var(--ll-radius-medium);
-  color: var(--ll-ink);
-  background: var(--ll-panel);
-  box-shadow: var(--ll-shadow-float);
-}
-
 .project-actions {
-  justify-content: flex-end;
+  display: grid;
+  inline-size: auto;
+  align-items: stretch;
+  padding: 0.55rem;
 }
 
 @media (max-width: 700px) {
@@ -118,7 +71,7 @@
     justify-content: flex-start;
   }
 
-  .project-options-trigger {
+  ::deep .project-options-trigger {
     justify-self: start;
   }
 }

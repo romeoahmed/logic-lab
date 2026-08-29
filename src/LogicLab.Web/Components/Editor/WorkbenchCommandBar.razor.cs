@@ -5,6 +5,8 @@ namespace LogicLab.Web.Components.Editor;
 
 public sealed partial class WorkbenchCommandBar
 {
+    private bool projectOptionsOpened;
+
     [Parameter]
     public CommandBarModel Model { get; set; } = new();
 
@@ -18,6 +20,14 @@ public sealed partial class WorkbenchCommandBar
     public EventCallback<string> ClaimDisplayNameChanged { get; set; }
 
     private bool IsBusy => Model.ActiveCommand is not null;
+
+    private void ToggleProjectOptions() => projectOptionsOpened = !projectOptionsOpened;
+
+    private Task InvokeProjectCommandAsync(WorkbenchCommand command)
+    {
+        projectOptionsOpened = false;
+        return OnCommand.InvokeAsync(command);
+    }
 
     public enum WorkbenchCommand
     {
