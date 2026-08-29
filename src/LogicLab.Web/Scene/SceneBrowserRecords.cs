@@ -61,7 +61,9 @@ internal sealed record SceneHitRegionV1(
     ScenePoint? Center = null,
     double Radius = 0,
     IReadOnlyList<ScenePoint>? Points = null,
-    SceneSourceRefV1? TargetSource = null);
+    SceneSourceRefV1? TargetSource = null,
+    ScenePoint? Anchor = null,
+    string? OutwardDirection = null);
 
 internal sealed record SceneItemV1(
     SceneSourceRefV1 Source,
@@ -515,9 +517,8 @@ internal static class SceneSnapshotValidator
                 item,
                 snapshot.CircuitDefinitionId))
             || snapshot.Items.SelectMany(item => item.HitRegions)
-                .Where(region => region.TargetSource is not null)
-                .Any(region => !IsValidSource(
-                    region.TargetSource!,
+                .Any(region => !IsValidHitRegion(
+                    region,
                     snapshot.CircuitDefinitionId))
             || !snapshot.Overlays.Select(overlay => overlay.Id)
                 .SequenceEqual(
@@ -548,6 +549,22 @@ internal static class SceneSnapshotValidator
                 or "wireGeometry" or "annotation" => source.PortId is null,
             _ => false,
         };
+
+    private static bool IsValidHitRegion(
+        SceneHitRegionV1 region,
+        string circuitDefinitionId)
+    {
+        var targetsTerminal = region.TargetSource is { } target
+            && target.EntityKind is "instancePort" or "definitionPort";
+        return (region.TargetSource is null
+                || IsValidSource(region.TargetSource, circuitDefinitionId))
+            && targetsTerminal == (region.Anchor is not null)
+            && targetsTerminal == (region.OutwardDirection is not null)
+            && (region.Anchor is not { } anchor
+                || double.IsFinite(anchor.X) && double.IsFinite(anchor.Y))
+            && (region.OutwardDirection is null
+                || region.OutwardDirection is "north" or "east" or "south" or "west");
+    }
 
     private static bool IsValidOverlay(SceneOverlayV1 overlay, string circuitDefinitionId)
     {

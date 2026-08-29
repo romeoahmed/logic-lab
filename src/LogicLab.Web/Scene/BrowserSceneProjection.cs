@@ -140,6 +140,9 @@ internal static class BrowserSceneProjection
                     "instancePort",
                     component.ComponentInstanceId.Value,
                     sourcePortId),
+                component.Plan.PortAnchors.ToDictionary(
+                    anchor => anchor.PortId,
+                    StringComparer.Ordinal),
                 ComponentInteraction(definition, component.ComponentInstanceId)),
             DefinitionPortItemV1 port => Map(
                 Source(definitionId, "definitionPort", port.PortId.Value),
@@ -149,6 +152,10 @@ internal static class BrowserSceneProjection
                 port.Operations,
                 port.HitRegions,
                 _ => Source(definitionId, "definitionPort", port.PortId.Value),
+                new Dictionary<string, PortAnchorV1>(StringComparer.Ordinal)
+                {
+                    [port.Anchor.PortId] = port.Anchor,
+                },
                 DefinitionPortInteraction(definition, port.PortId)),
             WireGeometryItemV1 wire => Map(
                 Source(definitionId, "wireGeometry", wire.WireGeometryId.Value),
@@ -158,6 +165,7 @@ internal static class BrowserSceneProjection
                 wire.Operations,
                 wire.HitRegions,
                 _ => null,
+                null,
                 WireInteraction(definition, wire.WireGeometryId)),
             JunctionItemV1 junction => Map(
                 Source(definitionId, "junction", junction.JunctionId.Value),
@@ -167,6 +175,7 @@ internal static class BrowserSceneProjection
                 junction.Operations,
                 junction.HitRegions,
                 _ => null,
+                null,
                 JunctionInteraction(definition, junction.JunctionId)),
             AnnotationItemV1 annotation => Map(
                 Source(definitionId, "annotation", annotation.AnnotationId.Value),
@@ -176,6 +185,7 @@ internal static class BrowserSceneProjection
                 annotation.Operations,
                 annotation.HitRegions,
                 _ => null,
+                null,
                 AnnotationInteraction(definition, annotation.AnnotationId)),
             NetTopologyItemV1 topology => MapNetTopology(
                 definitionId,
@@ -239,13 +249,14 @@ internal static class BrowserSceneProjection
         IReadOnlyList<DrawOperationV1> operations,
         IReadOnlyList<HitRegionV1> hitRegions,
         Func<string, SceneSourceRefV1?> portSource,
+        IReadOnlyDictionary<string, PortAnchorV1>? portAnchors,
         SceneItemInteractionV1 interaction) => new(
             source,
             order,
             Rect(bounds),
         Point(origin),
         [.. operations.Select(MapOperation)],
-        [.. hitRegions.Select(region => MapHit(region, portSource))],
+        [.. hitRegions.Select(region => MapHit(region, portSource, portAnchors))],
         interaction);
 
     private static SceneDrawOperationV1 MapOperation(DrawOperationV1 operation) => operation switch
@@ -283,9 +294,20 @@ internal static class BrowserSceneProjection
 
     private static SceneHitRegionV1 MapHit(
         HitRegionV1 region,
-        Func<string, SceneSourceRefV1?> portSource)
+        Func<string, SceneSourceRefV1?> portSource,
+        IReadOnlyDictionary<string, PortAnchorV1>? portAnchors)
     {
         var target = region.SourcePortId is null ? null : portSource(region.SourcePortId);
+        var anchor = region.SourcePortId is not null
+            && portAnchors?.TryGetValue(region.SourcePortId, out var resolvedAnchor) is true
+                ? resolvedAnchor
+                : null;
+        if (target is not null && anchor is null)
+        {
+            throw new InvalidOperationException(
+                "A projected terminal hit region requires its authoritative Port anchor.");
+        }
+
         return region.Shape switch
         {
             RectHitShapeV1 rectangle => new SceneHitRegionV1(
@@ -294,7 +316,9 @@ internal static class BrowserSceneProjection
                 region.SourcePortId,
                 "rect",
                 Rect(rectangle.Rect),
-                TargetSource: target),
+                TargetSource: target,
+                Anchor: anchor is null ? null : Point(anchor.Point),
+                OutwardDirection: anchor is null ? null : Token(anchor.OutwardDirection)),
             CircleHitShapeV1 circle => new SceneHitRegionV1(
                 region.LocalId,
                 Token(region.Kind),
@@ -307,7 +331,9 @@ internal static class BrowserSceneProjection
                     circle.Center.Y + circle.Radius),
                 Point(circle.Center),
                 circle.Radius,
-                TargetSource: target),
+                TargetSource: target,
+                Anchor: anchor is null ? null : Point(anchor.Point),
+                OutwardDirection: anchor is null ? null : Token(anchor.OutwardDirection)),
             PolygonHitShapeV1 polygon => new SceneHitRegionV1(
                 region.LocalId,
                 Token(region.Kind),
@@ -315,7 +341,9 @@ internal static class BrowserSceneProjection
                 "polygon",
                 PointsBounds(polygon.Points),
                 Points: [.. polygon.Points.Select(Point)],
-                TargetSource: target),
+                TargetSource: target,
+                Anchor: anchor is null ? null : Point(anchor.Point),
+                OutwardDirection: anchor is null ? null : Token(anchor.OutwardDirection)),
             _ => throw new InvalidOperationException("The Hit Shape variant is undefined."),
         };
     }

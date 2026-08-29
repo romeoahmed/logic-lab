@@ -2075,10 +2075,13 @@ function validateOperation(operation) {
 }
 
 function validateHit(region, definitionId) {
+  const targetsTerminal = Boolean(terminalFromSource(region?.targetSource));
   if (!region || typeof region.localId !== "string" || !["port", "body", "label"].includes(region.kind)
       || !["rect", "circle", "polygon"].includes(region.shape)
       || !validRectAllowDegenerate(region.bounds)
-      || (region.targetSource && !validSource(region.targetSource, definitionId))) {
+      || (region.targetSource && !validSource(region.targetSource, definitionId))
+      || targetsTerminal !== Boolean(validPoint(region.anchor))
+      || targetsTerminal !== isPlanDirection(region.outwardDirection)) {
     throw new Error("invalid hit region");
   }
   if (region.shape === "circle" && (!validPoint(region.center) || !Number.isFinite(region.radius)
@@ -2446,46 +2449,20 @@ function wireEndpoint(hit, fallback, snapshot, disableSnap) {
     return gridPoint(fallback, snapshot, disableSnap);
   }
 
-  const local = hitRegionCenter(hit.region);
+  const local = hit.region.anchor;
   return gridPoint({
     x: local.x + hit.item.origin.x,
     y: local.y + hit.item.origin.y,
   }, snapshot, disableSnap);
 }
 
-function hitRegionCenter(region) {
-  if (region.shape === "circle") {
-    return region.center;
-  }
-  return {
-    x: (region.bounds.left + region.bounds.right) / 2,
-    y: (region.bounds.top + region.bounds.bottom) / 2,
-  };
-}
-
 function terminalDirection(hit) {
-  if (!terminalFromSource(hit?.source) || hit.region.kind !== "port") {
-    return null;
-  }
-
-  const facing = hit.item.interaction?.interactionKind === "definitionPort"
-    ? hit.item.interaction.placement.facing
-    : null;
-  if (facing === "north") return { x: 0, y: -1 };
-  if (facing === "east") return { x: 1, y: 0 };
-  if (facing === "south") return { x: 0, y: 1 };
-  if (facing === "west") return { x: -1, y: 0 };
-
-  const anchor = hitRegionCenter(hit.region);
-  const bounds = hit.item.bounds;
-  const distances = [
-    { distance: Math.abs(anchor.x - bounds.left), direction: { x: -1, y: 0 } },
-    { distance: Math.abs(anchor.x - bounds.right), direction: { x: 1, y: 0 } },
-    { distance: Math.abs(anchor.y - bounds.top), direction: { x: 0, y: -1 } },
-    { distance: Math.abs(anchor.y - bounds.bottom), direction: { x: 0, y: 1 } },
-  ];
-  distances.sort((left, right) => left.distance - right.distance);
-  return distances[0].direction;
+  if (!terminalFromSource(hit?.source)) return null;
+  if (hit.region.outwardDirection === "north") return { x: 0, y: -1 };
+  if (hit.region.outwardDirection === "east") return { x: 1, y: 0 };
+  if (hit.region.outwardDirection === "south") return { x: 0, y: 1 };
+  if (hit.region.outwardDirection === "west") return { x: -1, y: 0 };
+  return null;
 }
 
 function orthogonalWirePoints(start, end, startDirection, endDirection, lead) {
@@ -2658,6 +2635,9 @@ function finiteNumbers(...values) { return values.every(Number.isFinite); }
 function positiveSafeInteger(value) { return Number.isSafeInteger(value) && value > 0; }
 function isLocale(value) { return value === "en-US" || value === "zh-CN"; }
 function isDirection(value) { return value === "ltr" || value === "rtl"; }
+function isPlanDirection(value) {
+  return value === "north" || value === "east" || value === "south" || value === "west";
+}
 function isAlignment(value) { return value === "start" || value === "center" || value === "end"; }
 function isTextRole(value) {
   return value === "symbol" || value === "portlabel"
