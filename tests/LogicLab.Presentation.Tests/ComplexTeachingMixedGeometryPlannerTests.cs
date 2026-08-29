@@ -89,17 +89,12 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
         foreach (var port in materialized)
         {
             var anchor = plan.PortAnchors.Single(candidate => candidate.PortId == port.Id);
-            var node = plan.AccessibilityNodes.Single(candidate =>
-                candidate.LocalId == anchor.AccessibilityNodeId);
-            var width = (UnsignedLocalizationArgumentV1)node.Arguments.Single(argument =>
-                argument.Name == "width");
 
             using (Assert.Multiple())
             {
                 await Assert.That(plan.HitRegions.Any(region =>
                     region.LocalId == anchor.HitRegionId
                     && region.SourcePortId == port.Id)).IsTrue();
-                await Assert.That(width.Value).IsEqualTo(port.Width);
                 await Assert.That(plan.Operations.OfType<DrawTextV1>()
                     .Any(operation => operation.FontRole is
                             FontRoleV1.PortLabel or FontRoleV1.Dependency
@@ -321,10 +316,6 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
                 && plan.Key.LocaleId == sample.LocaleId
                 && plan.Key.BaseDirection == sample.BaseDirection,
             "the plan key lost a presentation input",
-            violations);
-        Check(
-            PortAccessibilityWidthsMatch(plan, ports),
-            "an accessibility Port width differs from the resolved contract",
             violations);
         Check(
             PortHitRegionsAreDisjoint(plan),
@@ -612,15 +603,6 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
                 && plan.Operations.OfType<DrawTextV1>().All(operation =>
                     !operation.Text.Contains(port.Id.Value, StringComparison.Ordinal))))
                 .IsTrue();
-            await Assert.That(definition.Ports.All(port =>
-            {
-                var anchor = plan.PortAnchors.Single(candidate =>
-                    candidate.PortId == port.Id.Value);
-                var node = plan.AccessibilityNodes.Single(candidate =>
-                    candidate.LocalId == anchor.AccessibilityNodeId);
-                return node.Arguments.OfType<TextLocalizationArgumentV1>().Any(argument =>
-                    argument.Value == port.DisplayName);
-            })).IsTrue();
         }
     }
 
@@ -930,24 +912,6 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
 
     private static ComponentParameterBinding Choice(string id, string value) =>
         new(id, new ChoiceParameterValue(value));
-
-    private static bool PortAccessibilityWidthsMatch(
-        GeometryPlanV1 plan,
-        IReadOnlyList<ResolvedComponentPortSchema> ports)
-    {
-        var widthsByPortId = ports.ToDictionary(
-            port => port.Id,
-            port => port.Width,
-            StringComparer.Ordinal);
-        return plan.PortAnchors.All(anchor =>
-        {
-            var node = plan.AccessibilityNodes.Single(candidate =>
-                candidate.LocalId == anchor.AccessibilityNodeId);
-            return node.Arguments.SingleOrDefault(argument => argument.Name == "width")
-                is UnsignedLocalizationArgumentV1 width
-                && width.Value == widthsByPortId[anchor.PortId];
-        });
-    }
 
     private static bool TextInteriorsAreDisjoint(DrawTextV1[] text)
     {

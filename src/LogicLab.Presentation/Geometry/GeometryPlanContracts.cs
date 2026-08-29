@@ -210,8 +210,7 @@ public sealed record PortAnchorV1(
     string PortId,
     PointV1 Point,
     PlanDirectionV1 OutwardDirection,
-    string HitRegionId,
-    string AccessibilityNodeId);
+    string HitRegionId);
 
 public enum ConformanceClaimV1
 {
@@ -328,21 +327,18 @@ public sealed class GeometryPlanV1
         IReadOnlyList<DrawOperationV1> operations,
         IReadOnlyList<PortAnchorV1> portAnchors,
         IReadOnlyList<HitRegionV1> hitRegions,
-        IReadOnlyList<AccessibilityNodeV1> accessibilityNodes,
         ConformanceEvidenceV1 conformance)
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(portAnchors);
         ArgumentNullException.ThrowIfNull(hitRegions);
-        ArgumentNullException.ThrowIfNull(accessibilityNodes);
         ArgumentNullException.ThrowIfNull(conformance);
         Key = key;
         Bounds = bounds;
         Operations = Array.AsReadOnly(operations.ToArray());
         PortAnchors = Array.AsReadOnly(portAnchors.ToArray());
         HitRegions = Array.AsReadOnly(hitRegions.ToArray());
-        AccessibilityNodes = Array.AsReadOnly(accessibilityNodes.ToArray());
         Conformance = conformance;
         GeometryPlanValidator.Validate(this);
     }
@@ -356,8 +352,6 @@ public sealed class GeometryPlanV1
     public ReadOnlyCollection<PortAnchorV1> PortAnchors { get; }
 
     public ReadOnlyCollection<HitRegionV1> HitRegions { get; }
-
-    public ReadOnlyCollection<AccessibilityNodeV1> AccessibilityNodes { get; }
 
     public ConformanceEvidenceV1 Conformance { get; }
 }
@@ -411,13 +405,11 @@ internal static class GeometryPlanValidator
             || plan.Bounds.Height <= 0
             || plan.Operations.Count == 0
             || HasDuplicates(plan.PortAnchors.Select(anchor => anchor.PortId))
-            || HasDuplicates(plan.HitRegions.Select(region => region.LocalId))
-            || HasDuplicates(plan.AccessibilityNodes.Select(node => node.LocalId)))
+            || HasDuplicates(plan.HitRegions.Select(region => region.LocalId)))
         {
             throw new InvalidOperationException("The Geometry Plan has invalid bounds or IDs.");
         }
 
-        ValidateAccessibilityTree(plan.AccessibilityNodes);
         ValidatePortBindings(plan);
         ValidateConformanceBindings(plan);
 
@@ -451,23 +443,14 @@ internal static class GeometryPlanValidator
             .ToDictionary(
             region => region.LocalId,
             StringComparer.Ordinal);
-        var portAccessibilityNodeIds = plan.AccessibilityNodes
-            .Where(node => node.Kind == AccessibilityNodeKindV1.Port)
-            .Select(node => node.LocalId)
-            .ToHashSet(StringComparer.Ordinal);
         var referencedHitRegionIds = plan.PortAnchors
             .Select(anchor => anchor.HitRegionId)
             .ToHashSet(StringComparer.Ordinal);
-        var referencedAccessibilityNodeIds = plan.PortAnchors
-            .Select(anchor => anchor.AccessibilityNodeId)
-            .ToHashSet(StringComparer.Ordinal);
         if (referencedHitRegionIds.Count != plan.PortAnchors.Count
-            || referencedAccessibilityNodeIds.Count != plan.PortAnchors.Count
-            || !referencedHitRegionIds.SetEquals(portHitRegionsById.Keys)
-            || !referencedAccessibilityNodeIds.SetEquals(portAccessibilityNodeIds))
+            || !referencedHitRegionIds.SetEquals(portHitRegionsById.Keys))
         {
             throw new InvalidOperationException(
-                "Port anchors, hit regions, and accessibility nodes must form one-to-one bindings.");
+                "Port anchors and Hit Regions must form one-to-one bindings.");
         }
 
         foreach (var anchor in plan.PortAnchors)
@@ -527,68 +510,6 @@ internal static class GeometryPlanValidator
         && inner.Top >= outer.Top
         && inner.Right <= outer.Right
         && inner.Bottom <= outer.Bottom;
-
-    private static void ValidateAccessibilityTree(
-        ReadOnlyCollection<AccessibilityNodeV1> nodes)
-    {
-        var roots = nodes.Where(node => node.ParentId is null).ToArray();
-        if (roots.Length != 1)
-        {
-            throw new InvalidOperationException(
-                "A Geometry Plan accessibility tree requires exactly one root.");
-        }
-
-        var nodesById = nodes.ToDictionary(
-            node => node.LocalId,
-            StringComparer.Ordinal);
-        foreach (var node in nodes)
-        {
-            if (node.ParentId is not null
-                && !nodesById.ContainsKey(node.ParentId))
-            {
-                throw new InvalidOperationException(
-                    "A Geometry Plan accessibility parent is unresolved.");
-            }
-        }
-
-        if (nodes
-            .Where(node => node.ParentId is not null)
-            .GroupBy(node => node.ParentId!, StringComparer.Ordinal)
-            .Any(HasDuplicateChildOrder))
-        {
-            throw new InvalidOperationException(
-                "Accessibility siblings require unique child orders.");
-        }
-
-        var childrenByParent = nodes
-            .Where(node => node.ParentId is not null)
-            .ToLookup(node => node.ParentId!, StringComparer.Ordinal);
-        var reachableIds = new HashSet<string>(StringComparer.Ordinal);
-        var pending = new Stack<AccessibilityNodeV1>();
-        pending.Push(roots[0]);
-        while (pending.TryPop(out var node))
-        {
-            reachableIds.Add(node.LocalId);
-
-            foreach (var child in childrenByParent[node.LocalId])
-            {
-                pending.Push(child);
-            }
-        }
-
-        if (reachableIds.Count != nodes.Count)
-        {
-            throw new InvalidOperationException(
-                "Every accessibility node must be reachable from the root; disconnected cycles are invalid.");
-        }
-    }
-
-    private static bool HasDuplicateChildOrder(
-        IEnumerable<AccessibilityNodeV1> siblings)
-    {
-        var childOrders = new HashSet<int>();
-        return siblings.Any(node => !childOrders.Add(node.ChildOrder));
-    }
 
     private static bool HasDuplicates(IEnumerable<string> values)
     {

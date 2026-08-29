@@ -142,10 +142,6 @@ internal sealed class TeachingMixedGeometryPlannerTests
                 || plan.Key.NormalizedRequestDigest != scalar.Key.NormalizedRequestDigest,
             "vector width did not change the semantic request key",
             violations);
-        Check(
-            AccessibilityWidthsMatch(plan, sample.Width),
-            "accessibility Port width differs from the request",
-            violations);
 
         return (violations.Count == 0).Label(string.Join("; ", violations));
     }
@@ -429,18 +425,6 @@ internal sealed class TeachingMixedGeometryPlannerTests
                     .IsEquivalentTo(
                         plan.PortAnchors.Select(anchor => anchor.PortId),
                         CollectionOrdering.Matching);
-                await Assert.That(plan.PortAnchors.All(anchor =>
-                {
-                    var node = plan.AccessibilityNodes.Single(candidate =>
-                        candidate.LocalId == anchor.AccessibilityNodeId);
-                    return node.LocalizationKey == "presentation.port"
-                        && node.Arguments is
-                        [
-                            TextLocalizationArgumentV1 { Name: "label", Value: var label },
-                            UnsignedLocalizationArgumentV1 { Name: "width", Value: 8 },
-                        ]
-                        && label == anchor.PortId;
-                })).IsTrue();
             }
         }
     }
@@ -805,36 +789,6 @@ internal sealed class TeachingMixedGeometryPlannerTests
     }
 
     [Test]
-    public async Task GeometryPlan_DisconnectedAccessibilityCycle_RejectsAtBoundary()
-    {
-        var plan = Plan(Request("logic.and", 2));
-        var nodes = plan.AccessibilityNodes.Concat(
-        [
-            AccessibilityGroup("cycle-a", "cycle-b", 0, plan.Bounds),
-            AccessibilityGroup("cycle-b", "cycle-a", 0, plan.Bounds),
-        ]).ToArray();
-
-        await Assert.That(() => RebuildPlan(plan, accessibilityNodes: nodes))
-            .ThrowsExactly<InvalidOperationException>();
-    }
-
-    [Test]
-    public async Task GeometryPlan_DuplicateSiblingOrder_RejectsAtBoundary()
-    {
-        var plan = Plan(Request("logic.and", 2));
-        var firstPort = plan.AccessibilityNodes.First(node =>
-            node.Kind == AccessibilityNodeKindV1.Port);
-        var nodes = plan.AccessibilityNodes.Append(AccessibilityGroup(
-            "ambiguous-order",
-            firstPort.ParentId!,
-            firstPort.ChildOrder,
-            plan.Bounds)).ToArray();
-
-        await Assert.That(() => RebuildPlan(plan, accessibilityNodes: nodes))
-            .ThrowsExactly<InvalidOperationException>();
-    }
-
-    [Test]
     public async Task GeometryPlan_UnreferencedPortInteractionRecord_RejectsAtBoundary()
     {
         var plan = Plan(Request("logic.and", 2));
@@ -850,23 +804,6 @@ internal sealed class TeachingMixedGeometryPlannerTests
         await Assert.That(() => RebuildPlan(
             plan,
             hitRegions: [.. plan.HitRegions, extraHitRegion]))
-            .ThrowsExactly<InvalidOperationException>();
-
-        var firstNode = plan.AccessibilityNodes.Single(node =>
-            node.LocalId == firstAnchor.AccessibilityNodeId);
-        var extraNode = new AccessibilityNodeV1(
-            $"{firstNode.LocalId}-duplicate",
-            AccessibilityNodeKindV1.Port,
-            firstNode.ParentId,
-            plan.AccessibilityNodes.Max(node => node.ChildOrder) + 1,
-            firstNode.Bounds,
-            firstNode.LocalizationKey,
-            firstNode.Arguments,
-            firstNode.Actions);
-
-        await Assert.That(() => RebuildPlan(
-            plan,
-            accessibilityNodes: [.. plan.AccessibilityNodes, extraNode]))
             .ThrowsExactly<InvalidOperationException>();
     }
 
@@ -1016,17 +953,10 @@ internal sealed class TeachingMixedGeometryPlannerTests
 
     private static bool HasCompleteCrossReferences(GeometryPlanV1 plan)
     {
-        var roots = plan.AccessibilityNodes
-            .Where(node => node.ParentId is null)
-            .ToArray();
-        if (roots is not [{ Kind: AccessibilityNodeKindV1.Symbol }]
-            || !roots[0].Actions.Contains(AccessibilityActionV1.Select)
-            || plan.PortAnchors.Select(anchor => anchor.PortId).Distinct().Count()
+        if (plan.PortAnchors.Select(anchor => anchor.PortId).Distinct().Count()
                 != plan.PortAnchors.Count
             || plan.HitRegions.Select(region => region.LocalId).Distinct().Count()
-                != plan.HitRegions.Count
-            || plan.AccessibilityNodes.Select(node => node.LocalId).Distinct().Count()
-                != plan.AccessibilityNodes.Count)
+                != plan.HitRegions.Count)
         {
             return false;
         }
@@ -1036,32 +966,16 @@ internal sealed class TeachingMixedGeometryPlannerTests
             var hitRegions = plan.HitRegions
                 .Where(region => region.LocalId == anchor.HitRegionId)
                 .ToArray();
-            var nodes = plan.AccessibilityNodes
-                .Where(node => node.LocalId == anchor.AccessibilityNodeId)
-                .ToArray();
             return hitRegions is
                 [{ Kind: HitRegionKindV1.Port, SourcePortId: not null }]
-                && hitRegions[0].SourcePortId == anchor.PortId
-                && nodes is [{ Kind: AccessibilityNodeKindV1.Port }]
-                && nodes[0].ParentId == roots[0].LocalId;
+                && hitRegions[0].SourcePortId == anchor.PortId;
         });
     }
-
-    private static bool AccessibilityWidthsMatch(GeometryPlanV1 plan, uint width) =>
-        plan.PortAnchors.All(anchor =>
-        {
-            var node = plan.AccessibilityNodes.Single(candidate =>
-                candidate.LocalId == anchor.AccessibilityNodeId);
-            return node.Arguments.SingleOrDefault(argument => argument.Name == "width")
-                is UnsignedLocalizationArgumentV1 argument
-                && argument.Value == width;
-        });
 
     private static bool AllGeometryIsInsideBounds(GeometryPlanV1 plan)
     {
         if (plan.Bounds.Width <= 0 || plan.Bounds.Height <= 0
-            || plan.PortAnchors.Any(anchor => !plan.Bounds.Contains(anchor.Point))
-            || plan.AccessibilityNodes.Any(node => !Contains(plan.Bounds, node.Bounds)))
+            || plan.PortAnchors.Any(anchor => !plan.Bounds.Contains(anchor.Point)))
         {
             return false;
         }
@@ -1145,8 +1059,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
                     == pair.Second.Point
                 && Transform(pair.First.OutwardDirection, facing, isReflected)
                     == pair.Second.OutwardDirection
-                && pair.First.HitRegionId == pair.Second.HitRegionId
-                && pair.First.AccessibilityNodeId == pair.Second.AccessibilityNodeId)
+                && pair.First.HitRegionId == pair.Second.HitRegionId)
             && source.HitRegions.Count == actual.HitRegions.Count
             && source.HitRegions.Zip(actual.HitRegions).All(pair =>
                 pair.First.LocalId == pair.Second.LocalId
@@ -1157,17 +1070,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
                     pair.Second.Shape,
                     source.Bounds,
                     facing,
-                    isReflected))
-            && source.AccessibilityNodes.Count == actual.AccessibilityNodes.Count
-            && source.AccessibilityNodes.Zip(actual.AccessibilityNodes).All(pair =>
-                pair.First.LocalId == pair.Second.LocalId
-                && pair.First.Kind == pair.Second.Kind
-                && pair.First.ParentId == pair.Second.ParentId
-                && pair.First.ChildOrder == pair.Second.ChildOrder
-                && Transform(pair.First.Bounds, source.Bounds, facing, isReflected)
-                    == pair.Second.Bounds
-                && pair.First.LocalizationKey == pair.Second.LocalizationKey
-                && pair.First.Actions.SequenceEqual(pair.Second.Actions));
+                    isReflected));
     }
 
     private static bool OperationMatches(
@@ -1369,29 +1272,13 @@ internal sealed class TeachingMixedGeometryPlannerTests
 
     private static GeometryPlanV1 RebuildPlan(
         GeometryPlanV1 plan,
-        IReadOnlyList<HitRegionV1>? hitRegions = null,
-        IReadOnlyList<AccessibilityNodeV1>? accessibilityNodes = null) => new(
+        IReadOnlyList<HitRegionV1>? hitRegions = null) => new(
         plan.Key,
         plan.Bounds,
         plan.Operations,
         plan.PortAnchors,
         hitRegions ?? plan.HitRegions,
-        accessibilityNodes ?? plan.AccessibilityNodes,
         plan.Conformance);
-
-    private static AccessibilityNodeV1 AccessibilityGroup(
-        string localId,
-        string parentId,
-        int childOrder,
-        RectV1 bounds) => new(
-        localId,
-        AccessibilityNodeKindV1.Group,
-        parentId,
-        childOrder,
-        bounds,
-        "presentation.group",
-        [],
-        []);
 
     private static ComponentSymbolRequestV1 Request(BasicSymbolPlanCase sample) => Request(
         sample.ContractId,

@@ -472,8 +472,7 @@ public static class TeachingMixedSchematicProjector
                     AddStaticBounds(
                         bounds,
                         staticItem.Operations,
-                        staticItem.HitRegions,
-                        staticItem.AccessibilityNodes);
+                        staticItem.HitRegions);
                     break;
                 case NetTopologyItemV1:
                     break;
@@ -489,12 +488,10 @@ public static class TeachingMixedSchematicProjector
     private static void AddStaticBounds(
         List<RectV1> bounds,
         IReadOnlyList<DrawOperationV1> operations,
-        IReadOnlyList<HitRegionV1> hitRegions,
-        IReadOnlyList<AccessibilityNodeV1> accessibilityNodes)
+        IReadOnlyList<HitRegionV1> hitRegions)
     {
         bounds.AddRange(operations.Select(OperationBounds));
         bounds.AddRange(hitRegions.Select(HitBounds));
-        bounds.AddRange(accessibilityNodes.Select(node => node.Bounds));
     }
 
     private static RectV1 OperationBounds(DrawOperationV1 operation) => operation switch

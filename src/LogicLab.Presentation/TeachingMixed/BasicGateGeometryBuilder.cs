@@ -9,7 +9,6 @@ internal sealed record GeometryPlanDraft(
     IReadOnlyList<DrawOperationV1> Operations,
     IReadOnlyList<PortAnchorV1> PortAnchors,
     IReadOnlyList<HitRegionV1> HitRegions,
-    IReadOnlyList<AccessibilityNodeV1> AccessibilityNodes,
     ConformanceEvidenceV1 Conformance);
 
 internal static class BasicGateGeometryBuilder
@@ -248,23 +247,6 @@ internal static class BasicGateGeometryBuilder
                 null,
                 new RectHitShapeV1(Inflate(body, metrics.BodyHitPadding))),
         };
-        var accessibilityNodes = new List<AccessibilityNodeV1>(ports.Count + 1)
-        {
-            new(
-                "symbol",
-                AccessibilityNodeKindV1.Symbol,
-                null,
-                0,
-                bounds,
-                definition.Definition.AccessibilityKey,
-                [],
-                [
-                    AccessibilityActionV1.Focus,
-                    AccessibilityActionV1.Select,
-                    AccessibilityActionV1.OpenInspector,
-                ]),
-        };
-
         var inputIndex = 0;
         foreach (var port in ports)
         {
@@ -279,32 +261,16 @@ internal static class BasicGateGeometryBuilder
                 ? PlanDirectionV1.West
                 : PlanDirectionV1.East;
             var hitRegionId = $"hit-port-{port.Id}";
-            var accessibilityNodeId = $"port-{port.Id}";
             anchors.Add(new PortAnchorV1(
                 port.Id,
                 point,
                 direction,
-                hitRegionId,
-                accessibilityNodeId));
+                hitRegionId));
             hitRegions.Add(new HitRegionV1(
                 hitRegionId,
                 HitRegionKindV1.Port,
                 port.Id,
                 new CircleHitShapeV1(point, metrics.PortHitRadius)));
-            accessibilityNodes.Add(new AccessibilityNodeV1(
-                accessibilityNodeId,
-                AccessibilityNodeKindV1.Port,
-                "symbol",
-                accessibilityNodes.Count,
-                CircleBounds(point, metrics.PortHitRadius),
-                AccessibilityLocalization.PortKey,
-                AccessibilityLocalization.PortArguments(port.Id, port.Width),
-                [
-                    AccessibilityActionV1.Focus,
-                    AccessibilityActionV1.BeginConnection,
-                    AccessibilityActionV1.OpenInspector,
-                ]));
-
             if (portLabelEnvelopes.TryGetValue(port.Id, out var labelEnvelope))
             {
                 var flowAxisLabel = flowAxisLabels[port.Id];
@@ -347,7 +313,6 @@ internal static class BasicGateGeometryBuilder
             operations,
             anchors,
             hitRegions,
-            accessibilityNodes,
             conformance);
     }
 
@@ -648,12 +613,6 @@ internal static class BasicGateGeometryBuilder
         checked(bounds.Top + origin.Y),
         checked(bounds.Right + origin.X),
         checked(bounds.Bottom + origin.Y));
-
-    private static RectV1 CircleBounds(PointV1 center, int radius) => new(
-        checked(center.X - radius),
-        checked(center.Y - radius),
-        checked(center.X + radius),
-        checked(center.Y + radius));
 
     private static RectV1 Inflate(RectV1 bounds, int padding) => new(
         checked(bounds.Left - padding),

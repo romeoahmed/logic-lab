@@ -352,7 +352,6 @@ internal static class BrowserSceneProjection
     {
         var rectangles = item.Operations.Select(OperationRect)
             .Concat(item.HitRegions.Select(HitRect))
-            .Concat(item.AccessibilityNodes.Select(node => node.Bounds))
             .ToArray();
         return rectangles.Length == 0 ? fallback : Enclose(rectangles);
     }

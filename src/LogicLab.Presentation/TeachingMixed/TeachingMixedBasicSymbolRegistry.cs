@@ -22,8 +22,7 @@ internal sealed record BasicSymbolDefinition(
     bool HasOutputQualifier,
     string NegationPrimaryClause,
     string DirectPolarityPrimaryClause,
-    string RectangularFunction,
-    string AccessibilityKey);
+    string RectangularFunction);
 
 internal sealed record ResolvedBasicSymbolDefinition(
     BasicSymbolDefinition Definition,
@@ -195,6 +194,5 @@ internal static class TeachingMixedBasicSymbolRegistry
                 hasOutputQualifier,
                 negationPrimaryClause,
                 directPolarityPrimaryClause,
-                rectangularFunction,
-                $"presentation.symbol.{contractId}"));
+                rectangularFunction));
 }
