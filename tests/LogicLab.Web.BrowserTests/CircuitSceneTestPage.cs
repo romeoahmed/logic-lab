@@ -152,12 +152,33 @@ internal sealed class CircuitSceneTestPage(IPage page)
             "replacement");
     }
 
-    public async Task TransferAsync(SceneSnapshotV1 snapshot, string kind) =>
+    public async Task TransferAsync(SceneSnapshotV1 snapshot, string kind)
+    {
+        gridStepPlanUnits = snapshot.GridStepPlanUnits;
         await TransferBytesAsync(
             JsonSerializer.SerializeToUtf8Bytes(
                 snapshot,
                 SceneJsonSerializerContext.Strict.SceneSnapshotV1),
             kind);
+    }
+
+    public async Task<BrowserTextMeasurementBatchV1> MeasureTextAsync(
+        IReadOnlyList<BrowserTextMeasurementRequestV1> requests)
+    {
+        var requestJson = JsonSerializer.Serialize(requests, WebJson);
+        var responseJson = await page.EvaluateAsync<string>(
+            "async json => JSON.stringify(await window.sceneHandle.measureText(JSON.parse(json)))",
+            requestJson);
+        var batch = JsonSerializer.Deserialize<BrowserTextMeasurementBatchV1>(
+                responseJson,
+                WebJson)
+            ?? throw new InvalidOperationException("The browser returned no text measurements.");
+        await page.EvaluateAsync(
+            "fingerprint => window.sceneHandle.commitTextMeasurements(fingerprint)",
+            batch.FontFingerprint);
+        fontFingerprint = batch.FontFingerprint;
+        return batch;
+    }
 
     public async Task TransferAsync(ScenePatchV1 patch, string kind) =>
         await TransferBytesAsync(
@@ -445,27 +466,36 @@ internal sealed class CircuitSceneTestPage(IPage page)
 
     private async Task TransferBytesAsync(byte[] bytes, string kind)
     {
+        const int maximumBatchBytes = 16_384;
+        const int interopEnvelopeBytes = 512;
+        var rawChunkSize = ((maximumBatchBytes - interopEnvelopeBytes) / 4) * 3;
         var request = new
         {
             transferId = $"test-{Guid.CreateVersion7():N}",
             kind,
             byteLength = bytes.Length,
             digest = Convert.ToHexStringLower(SHA256.HashData(bytes)),
-            base64 = Convert.ToBase64String(bytes),
+            chunks = bytes.Chunk(rawChunkSize)
+                .Select(Convert.ToBase64String)
+                .ToArray(),
         };
         var committed = await page.EvaluateAsync<bool>(
             """
             async request => {
               window.sceneHandle.beginTransfer(
                 request.transferId, request.kind, request.byteLength, request.digest);
-              window.sceneHandle.appendTransfer(request.transferId, 0, request.base64);
+              request.chunks.forEach((chunk, ordinal) =>
+                window.sceneHandle.appendTransfer(request.transferId, ordinal, chunk));
               return await window.sceneHandle.commitTransfer(request.transferId);
             }
             """,
             request);
         if (!committed && kind == "replacement")
         {
-            throw new InvalidOperationException("The replacement snapshot was rejected.");
+            var callbacks = await page.EvaluateAsync<string>(
+                "() => JSON.stringify(window.sceneCalls ?? [])");
+            throw new InvalidOperationException(
+                $"The replacement snapshot was rejected. Renderer callbacks: {callbacks}");
         }
     }
 
