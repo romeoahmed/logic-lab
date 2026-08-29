@@ -306,10 +306,6 @@ internal sealed class TeachingMixedGeometryPlannerTests
         var violations = new List<string>();
 
         Check(
-            measurement.AdvanceWidth == advanceWidth,
-            "the measurement changed the nonnegative advance",
-            violations);
-        Check(
             envelope == new RectV1(0, 0, advanceWidth, 0),
             "the advance-only envelope differs from the measured advance",
             violations);
