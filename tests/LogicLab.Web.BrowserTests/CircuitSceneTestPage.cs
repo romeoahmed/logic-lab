@@ -35,6 +35,10 @@ internal sealed class CircuitSceneTestPage(IPage page)
     {
         var module = await File.ReadAllTextAsync(
             Path.Combine(AppContext.BaseDirectory, "CircuitSceneHost.razor.js"));
+        var drawingModule = await File.ReadAllTextAsync(
+            Path.Combine(AppContext.BaseDirectory, "drawing.js"));
+        var geometryModule = await File.ReadAllTextAsync(
+            Path.Combine(AppContext.BaseDirectory, "geometry.js"));
         var styles = await File.ReadAllTextAsync(
             Path.Combine(AppContext.BaseDirectory, "CircuitSceneHost.razor.css"));
         var fontPath = Path.Combine(
@@ -49,11 +53,24 @@ internal sealed class CircuitSceneTestPage(IPage page)
             var path = new Uri(route.Request.Url).AbsolutePath;
             return path switch
             {
-                "/CircuitSceneHost.razor.js" => route.FulfillAsync(new RouteFulfillOptions
+                "/Components/Editor/CircuitSceneHost.razor.js" => route.FulfillAsync(
+                    new RouteFulfillOptions
+                    {
+                        Status = 200,
+                        ContentType = "text/javascript",
+                        Body = module,
+                    }),
+                "/js/circuit-scene/drawing.js" => route.FulfillAsync(new RouteFulfillOptions
                 {
                     Status = 200,
                     ContentType = "text/javascript",
-                    Body = module,
+                    Body = drawingModule,
+                }),
+                "/js/circuit-scene/geometry.js" => route.FulfillAsync(new RouteFulfillOptions
+                {
+                    Status = 200,
+                    ContentType = "text/javascript",
+                    Body = geometryModule,
                 }),
                 "/CircuitSceneHost.razor.css" => route.FulfillAsync(new RouteFulfillOptions
                 {
@@ -91,7 +108,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
         fontFingerprint = await page.EvaluateAsync<string?>(
             """
             async contextAvailable => {
-              const module = await import('/CircuitSceneHost.razor.js');
+              const module = await import('/Components/Editor/CircuitSceneHost.razor.js');
               const sink = {
                 invokeMethodAsync(name, ...args) {
                   window.sceneCalls.push({ name, args });
@@ -408,7 +425,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
             async json => {
               const recoveryState = JSON.parse(json);
               window.sceneHandle.destroy();
-              const module = await import('/CircuitSceneHost.razor.js');
+              const module = await import('/Components/Editor/CircuitSceneHost.razor.js');
               const sink = {
                 invokeMethodAsync(name, ...args) {
                   window.sceneCalls.push({ name, args });

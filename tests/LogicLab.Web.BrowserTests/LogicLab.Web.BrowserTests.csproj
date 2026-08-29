@@ -20,6 +20,12 @@
     <Content Include="..\..\src\LogicLab.Web\Components\Editor\CircuitSceneHost.razor.js"
              Link="CircuitSceneHost.razor.js"
              CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\src\LogicLab.Web\wwwroot\js\circuit-scene\drawing.js"
+             Link="drawing.js"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\src\LogicLab.Web\wwwroot\js\circuit-scene\geometry.js"
+             Link="geometry.js"
+             CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\src\LogicLab.Web\wwwroot\fonts\AtkinsonHyperlegibleNext-Regular.woff2"
              Link="AtkinsonHyperlegibleNext-Regular.woff2"
              CopyToOutputDirectory="PreserveNewest" />

@@ -1,3 +1,35 @@
+import {
+  canvasAlignment,
+  cssColor,
+  drawGridLines,
+  drawOperation,
+} from "../../js/circuit-scene/drawing.js";
+import {
+  contains,
+  expandRect,
+  finiteNumbers,
+  gestureMoved,
+  gridPoint,
+  gridToWorld,
+  hitPriority,
+  intersects,
+  netFromHit,
+  orthogonalDragRoute,
+  rectFromPoints,
+  selectionModeFromModifiers,
+  semanticNavigationDirection,
+  terminalFromSource,
+  terminalWireRoute,
+  translateComponentPlacement,
+  translateGridPoint,
+  translateRect,
+  validComponentPlacement,
+  validGridPoint,
+  validPoint,
+  validRect,
+  validRectAllowDegenerate,
+} from "../../js/circuit-scene/geometry.js";
+
 const mountedHandles = new WeakMap();
 const textEncoder = new TextEncoder();
 const spatialCellSize = 400;
@@ -2090,142 +2122,6 @@ function validateHit(region, definitionId) {
       || region.points.some((point) => !validPoint(point)))) throw new Error("invalid polygon hit region");
 }
 
-function drawOperation(context, operation, styles, symbolFontFamily) {
-  if (operation.kind === "text") {
-    context.save();
-    context.fillStyle = cssColor(styles, "--ll-ink", "#172124");
-    context.font = `100px ${symbolFontFamily}`;
-    context.textAlign = canvasAlignment(operation.alignment, operation.direction);
-    context.textBaseline = "alphabetic";
-    context.direction = operation.direction;
-    context.fillText(operation.text, operation.origin.x, operation.origin.y);
-    context.restore();
-    return;
-  }
-
-  context.beginPath();
-  for (const command of operation.commands) {
-    if (command.kind === "move") context.moveTo(command.x, command.y);
-    else if (command.kind === "line") context.lineTo(command.x, command.y);
-    else if (command.kind === "cubic") context.bezierCurveTo(
-      command.control1X, command.control1Y, command.control2X, command.control2Y,
-      command.x, command.y,
-    );
-    else context.closePath();
-  }
-  if (operation.kind === "stroke") {
-    context.strokeStyle = cssColor(styles, "--ll-ink", "#172124");
-    context.lineWidth = operation.width;
-    context.lineCap = operation.lineCap;
-    context.lineJoin = operation.lineJoin;
-    if (operation.lineJoin === "miter") {
-      context.miterLimit = operation.miterLimitRatio;
-    }
-    context.setLineDash(operation.dashPattern);
-    context.stroke();
-  } else {
-    context.fillStyle = operation.role === "background"
-      ? cssColor(styles, "--ll-canvas", "#ffffff")
-      : cssColor(styles, "--ll-ink", "#172124");
-    context.fill(operation.fillRule);
-  }
-}
-
-function contains(region, point) {
-  if (region.shape === "rect") return point.x >= region.bounds.left && point.x <= region.bounds.right
-    && point.y >= region.bounds.top && point.y <= region.bounds.bottom;
-  if (region.shape === "circle") {
-    const x = point.x - region.center.x;
-    const y = point.y - region.center.y;
-    return (x * x) + (y * y) <= region.radius * region.radius;
-  }
-  let inside = false;
-  for (let index = 0, previous = region.points.length - 1; index < region.points.length; previous = index++) {
-    const currentPoint = region.points[index];
-    const priorPoint = region.points[previous];
-    if (((currentPoint.y > point.y) !== (priorPoint.y > point.y))
-        && point.x < ((priorPoint.x - currentPoint.x) * (point.y - currentPoint.y)
-          / (priorPoint.y - currentPoint.y)) + currentPoint.x) inside = !inside;
-  }
-  return inside;
-}
-
-function hitPriority(item, region) {
-  if (region.kind === "port") return 5;
-  if (item.source.entityKind === "junction") return 4;
-  if (item.source.entityKind === "componentInstance") return 3;
-  if (item.source.entityKind === "wireGeometry") return 2;
-  return 1;
-}
-
-function translateRect(rect, origin) {
-  return { left: rect.left + origin.x, top: rect.top + origin.y,
-    right: rect.right + origin.x, bottom: rect.bottom + origin.y };
-}
-
-function rectFromPoints(first, second) {
-  return {
-    left: Math.min(first.x, second.x),
-    top: Math.min(first.y, second.y),
-    right: Math.max(first.x, second.x),
-    bottom: Math.max(first.y, second.y),
-  };
-}
-
-function gestureMoved(gesture) {
-  return gesture.startWorld.x !== gesture.currentWorld.x
-    || gesture.startWorld.y !== gesture.currentWorld.y;
-}
-
-function selectionModeFromModifiers(event) {
-  if (event.ctrlKey || event.metaKey) return "toggle";
-  if (event.shiftKey) return "add";
-  return "replace";
-}
-
-function semanticNavigationDirection(key) {
-  if (key === "ArrowUp") return "up";
-  if (key === "ArrowDown") return "down";
-  if (key === "ArrowLeft") return "left";
-  if (key === "ArrowRight") return "right";
-  return null;
-}
-
-function intersects(left, right) {
-  return left.left <= right.right && left.right >= right.left
-    && left.top <= right.bottom && left.bottom >= right.top;
-}
-
-function drawGridLines(context, visible, interval, color, width) {
-  context.save();
-  context.strokeStyle = color;
-  context.lineWidth = width;
-  context.beginPath();
-  for (let x = Math.ceil(visible.left / interval) * interval;
-    x <= visible.right;
-    x += interval) {
-    context.moveTo(x, visible.top);
-    context.lineTo(x, visible.bottom);
-  }
-  for (let y = Math.ceil(visible.top / interval) * interval;
-    y <= visible.bottom;
-    y += interval) {
-    context.moveTo(visible.left, y);
-    context.lineTo(visible.right, y);
-  }
-  context.stroke();
-  context.restore();
-}
-
-function expandRect(rect, margin) {
-  return {
-    left: rect.left - margin,
-    top: rect.top - margin,
-    right: rect.right + margin,
-    bottom: rect.bottom + margin,
-  };
-}
-
 function validSource(source, definitionId) {
   const shape = source && Object.keys(source);
   return source && shape.length === 4
@@ -2349,259 +2245,8 @@ function validComponentTarget(target) {
       && target.circuitDefinitionId.length > 0;
 }
 
-function validComponentPlacement(placement) {
-  return placement && validGridPoint(placement.origin)
-    && Number.isSafeInteger(placement.quarterTurnsClockwise)
-    && placement.quarterTurnsClockwise >= 0 && placement.quarterTurnsClockwise <= 3
-    && typeof placement.reflected === "boolean";
-}
-
-function validGridPoint(point) {
-  return point && Number.isSafeInteger(point.x) && Number.isSafeInteger(point.y)
-    && point.x >= -2147483648 && point.x <= 2147483647
-    && point.y >= -2147483648 && point.y <= 2147483647;
-}
-
 function sameSource(left, right) {
   return left && right && sourceKey(left) === sourceKey(right);
-}
-
-function terminalFromSource(source) {
-  if (source?.entityKind === "definitionPort") {
-    return {
-      kind: "definitionTerminal",
-      circuitDefinitionId: source.circuitDefinitionId,
-      portId: source.entityId,
-    };
-  }
-  if (source?.entityKind === "instancePort") {
-    return {
-      kind: "instanceTerminal",
-      circuitDefinitionId: source.circuitDefinitionId,
-      componentInstanceId: source.entityId,
-      portId: source.portId,
-    };
-  }
-  return null;
-}
-
-function netFromHit(hit) {
-  if (!hit) return null;
-  if (hit.source.entityKind === "net") return hit.source;
-  const interaction = hit.item?.interaction;
-  return ["wire", "junction", "net"].includes(interaction?.interactionKind)
-    ? interaction.net
-    : null;
-}
-
-function gridPoint(world, snapshot, disableSnap) {
-  const x = gridCoordinate(world.x, snapshot, disableSnap);
-  const y = gridCoordinate(world.y, snapshot, disableSnap);
-  if (x === null || y === null) {
-    return null;
-  }
-  return {
-    x,
-    y,
-  };
-}
-
-function gridCoordinate(worldCoordinate, snapshot, disableSnap) {
-  const integerGridCoordinate = signedIntegerOrNull(roundHalfNegativeInfinity(
-    worldCoordinate / snapshot.gridStepPlanUnits));
-  if (integerGridCoordinate === null) {
-    return null;
-  }
-  if (disableSnap) {
-    return integerGridCoordinate;
-  }
-
-  return signedIntegerOrNull(roundHalfNegativeInfinity(
-    integerGridCoordinate / snapshot.snapStepGridUnits) * snapshot.snapStepGridUnits);
-}
-
-function gridToWorld(point, snapshot) {
-  return {
-    x: point.x * snapshot.gridStepPlanUnits,
-    y: point.y * snapshot.gridStepPlanUnits,
-  };
-}
-
-function terminalWireRoute(snapshot, startHit, endHit, startWorld, endWorld, disableSnap) {
-  const start = wireEndpoint(startHit, startWorld, snapshot, disableSnap);
-  const end = wireEndpoint(endHit, endWorld, snapshot, disableSnap);
-  if (!start || !end || samePoint(start, end)) {
-    return null;
-  }
-
-  const points = orthogonalWirePoints(
-    start,
-    end,
-    terminalDirection(startHit),
-    terminalDirection(endHit),
-    disableSnap ? 1 : snapshot.snapStepGridUnits,
-  );
-  return points.length >= 2 ? { kind: "orthogonal", points } : null;
-}
-
-function wireEndpoint(hit, fallback, snapshot, disableSnap) {
-  if (!terminalFromSource(hit?.source)) {
-    return gridPoint(fallback, snapshot, disableSnap);
-  }
-
-  const local = hit.region.anchor;
-  return gridPoint({
-    x: local.x + hit.item.origin.x,
-    y: local.y + hit.item.origin.y,
-  }, snapshot, disableSnap);
-}
-
-function terminalDirection(hit) {
-  if (!terminalFromSource(hit?.source)) return null;
-  if (hit.region.outwardDirection === "north") return { x: 0, y: -1 };
-  if (hit.region.outwardDirection === "east") return { x: 1, y: 0 };
-  if (hit.region.outwardDirection === "south") return { x: 0, y: 1 };
-  if (hit.region.outwardDirection === "west") return { x: -1, y: 0 };
-  return null;
-}
-
-function orthogonalWirePoints(start, end, startDirection, endDirection, lead) {
-  if (canRouteDirectly(start, end, startDirection, endDirection)) {
-    return [start, end];
-  }
-
-  const step = Math.max(1, lead);
-  const startLead = offsetPoint(start, startDirection, step);
-  const endLead = offsetPoint(end, endDirection, step);
-  const points = [start, startLead];
-  const startIsHorizontal = Boolean(startDirection?.x);
-  const endIsHorizontal = Boolean(endDirection?.x);
-  const startIsVertical = Boolean(startDirection?.y);
-  const endIsVertical = Boolean(endDirection?.y);
-
-  if (startLead.x === endLead.x || startLead.y === endLead.y) {
-    points.push(endLead);
-  } else if (startIsHorizontal && endIsHorizontal) {
-    const delta = end.x - start.x;
-    const faceEachOther = Math.sign(delta) === startDirection.x
-      && Math.sign(-delta) === endDirection.x
-      && Math.abs(delta) >= step * 2;
-    const channelX = faceEachOther
-      ? snapMidpoint(startLead.x, endLead.x, step)
-      : startDirection.x > 0
-        ? Math.max(startLead.x, endLead.x) + step
-        : Math.min(startLead.x, endLead.x) - step;
-    points.push(
-      { x: channelX, y: startLead.y },
-      { x: channelX, y: endLead.y },
-      endLead,
-    );
-  } else if (startIsVertical && endIsVertical) {
-    const delta = end.y - start.y;
-    const faceEachOther = Math.sign(delta) === startDirection.y
-      && Math.sign(-delta) === endDirection.y
-      && Math.abs(delta) >= step * 2;
-    const channelY = faceEachOther
-      ? snapMidpoint(startLead.y, endLead.y, step)
-      : startDirection.y > 0
-        ? Math.max(startLead.y, endLead.y) + step
-        : Math.min(startLead.y, endLead.y) - step;
-    points.push(
-      { x: startLead.x, y: channelY },
-      { x: endLead.x, y: channelY },
-      endLead,
-    );
-  } else if (endIsHorizontal) {
-    points.push({ x: startLead.x, y: endLead.y }, endLead);
-  } else {
-    points.push({ x: endLead.x, y: startLead.y }, endLead);
-  }
-  points.push(end);
-  return compactOrthogonalPoints(points);
-}
-
-function orthogonalDragRoute(start, end) {
-  return {
-    kind: "orthogonal",
-    points: compactOrthogonalPoints([start, { x: start.x, y: end.y }, end]),
-  };
-}
-
-function canRouteDirectly(start, end, startDirection, endDirection) {
-  if (start.y === end.y) {
-    const direction = Math.sign(end.x - start.x);
-    return (!startDirection || (startDirection.y === 0 && startDirection.x === direction))
-      && (!endDirection || (endDirection.y === 0 && endDirection.x === -direction));
-  }
-  if (start.x === end.x) {
-    const direction = Math.sign(end.y - start.y);
-    return (!startDirection || (startDirection.x === 0 && startDirection.y === direction))
-      && (!endDirection || (endDirection.x === 0 && endDirection.y === -direction));
-  }
-  return false;
-}
-
-function offsetPoint(point, direction, distance) {
-  return direction
-    ? { x: point.x + (direction.x * distance), y: point.y + (direction.y * distance) }
-    : point;
-}
-
-function snapMidpoint(first, second, step) {
-  return roundHalfNegativeInfinity(((first + second) / 2) / step) * step;
-}
-
-function compactOrthogonalPoints(points) {
-  const compacted = [];
-  for (const point of points) {
-    if (samePoint(compacted.at(-1), point)) {
-      continue;
-    }
-    while (compacted.length >= 2) {
-      const previous = compacted.at(-2);
-      const current = compacted.at(-1);
-      if ((previous.x === current.x && current.x === point.x)
-          || (previous.y === current.y && current.y === point.y)) {
-        compacted.pop();
-      } else {
-        break;
-      }
-    }
-    compacted.push(point);
-  }
-  return compacted;
-}
-
-function samePoint(left, right) {
-  return left?.x === right?.x && left?.y === right?.y;
-}
-
-function roundHalfNegativeInfinity(value) {
-  return Math.ceil(value - 0.5);
-}
-
-function translateGridPoint(point, start, end) {
-  const x = signedIntegerOrNull(point.x + end.x - start.x);
-  const y = signedIntegerOrNull(point.y + end.y - start.y);
-  if (x === null || y === null) {
-    return null;
-  }
-  return {
-    x,
-    y,
-  };
-}
-
-function translateComponentPlacement(placement, start, end) {
-  const origin = translateGridPoint(placement.origin, start, end);
-  if (!origin) {
-    return null;
-  }
-  return {
-    origin,
-    quarterTurnsClockwise: placement.quarterTurnsClockwise,
-    reflected: placement.reflected,
-  };
 }
 
 function logicVectorText(value) {
@@ -2621,17 +2266,6 @@ function sourceKey(source) {
     .join("");
 }
 
-function validRect(rect) {
-  return validRectAllowDegenerate(rect) && rect.right > rect.left && rect.bottom > rect.top;
-}
-
-function validRectAllowDegenerate(rect) {
-  return rect && finiteNumbers(rect.left, rect.top, rect.right, rect.bottom)
-    && rect.right >= rect.left && rect.bottom >= rect.top;
-}
-
-function validPoint(point) { return point && finiteNumbers(point.x, point.y); }
-function finiteNumbers(...values) { return values.every(Number.isFinite); }
 function positiveSafeInteger(value) { return Number.isSafeInteger(value) && value > 0; }
 function isLocale(value) { return value === "en-US" || value === "zh-CN"; }
 function isDirection(value) { return value === "ltr" || value === "rtl"; }
@@ -2646,13 +2280,6 @@ function isTextRole(value) {
 function isToken(value) { return typeof value === "string" && /^[A-Za-z0-9._-]+$/.test(value); }
 function isDigest(value) { return typeof value === "string" && /^[0-9a-f]{64}$/.test(value); }
 function checkedInteger(value) { if (!Number.isSafeInteger(value) || value < -2147483648 || value > 2147483647) throw new Error("integer overflow"); return value; }
-function signedIntegerOrNull(value) { return Number.isSafeInteger(value) && value >= -2147483648 && value <= 2147483647 ? value : null; }
-function canvasAlignment(value, direction) {
-  if (value === "center") return "center";
-  if (value === "start") return direction === "ltr" ? "left" : "right";
-  return direction === "ltr" ? "right" : "left";
-}
-function cssColor(styles, name, fallback) { return styles.getPropertyValue(name).trim() || fallback; }
 function compareOrdinal(left, right) { return left < right ? -1 : left > right ? 1 : 0; }
 function encodedJsonBytes(value) { return BigInt(textEncoder.encode(JSON.stringify(value)).byteLength); }
 function assertPolicyLimit(dimension, observed, limit) {
