@@ -24,7 +24,7 @@ Do not copy a provisional value into an ADR, Project Document, or public compati
 | Analysis Policy | Boolean Analysis | rows, cubes, primes, chart edges, Petrick terms, AIG/cut/mapping work, BDD work |
 | Scheduling Policy | Application | admission rate, per-identity fairness, queue capacity, worker concurrency, result retention |
 | Workspace Policy | Application | Workspace and authoring admission, history retention, detached recovery, hot-swap peak, sandbox lifetime, Durable Display Name scalar/UTF-8 bytes, catalog page size/cursor bytes |
-| Browser Policy | Web | semantic-intent bytes, snapshot/patch records, candidate-transfer bytes, bitmap pixels/bytes, effective density, zoom, semantic-tree paging, scene/waveform caches |
+| Browser Policy | Web | Scene-intent bytes, snapshot/patch records, candidate-transfer bytes, bitmap pixels/bytes, effective density, zoom, and scene/waveform caches |
 
 Each policy has a stable ID and revision. A policy failure reports the policy revision, dimension, observed work, and stable reason. It does not expose sensitive fleet capacity.
 
@@ -320,7 +320,6 @@ canvas_bitmap_bytes               AtMost
 effective_density_millionths      AtMost
 zoom_millionths_minimum           AtLeast
 zoom_millionths_maximum           AtMost
-semantic_tree_page_items          AtMost
 display_list_bytes                AtMost
 spatial_index_bytes               AtMost
 scene_cache_bytes                 AtMost
@@ -344,7 +343,7 @@ transport invariants, not calibrated circuit-size thresholds
 - Validate benchmark compilation and execution with a dry job, use short jobs only for iteration, and record final Release-mode artifacts from the declared measurement job.
 - Keep input construction out of measured methods, return observable results, avoid manual timing/loop amplification, and use deterministic nonconstant inputs that prevent folding.
 - Use browser traces and Playwright scenarios for scene and interaction performance.
-- Measure browser intent/snapshot sizes, bitmap allocations, frame/long-task distributions, idle activity, and semantic-tree paging before calibrating Browser Policy.
+- Measure browser intent/snapshot sizes, bitmap allocations, frame/long-task distributions, and idle activity before calibrating Browser Policy.
 - Use load tests for Blazor circuit, queue, database, and memory capacity.
 - Record runtime, build mode, hardware, operating system, corpus revision, cold/warm state, and outcome distribution.
 - Prefer work counters and allocation profiles over wall-clock time for deterministic algorithm envelopes.

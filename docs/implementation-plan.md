@@ -35,7 +35,7 @@ Every completed item must:
 | 03 | Create the first immutable Project lineage | 01 | Project Genesis and a narrow Edit Intent set create, place, connect, and move an input–NOT–output circuit as atomic Project Revisions with stable source identities. |
 | 04 | Compile one flat combinational circuit | 03 | A valid Project Revision produces one sealed Compilation Artifact, Simulation IR, and total Source Map; invalid input produces deterministic source-bound Diagnostics and no artifact. |
 | 05 | Advance and observe the first Simulation Session | 02, 04 | A Session opens at time zero, accepts a future Stimulus Batch, advances atomically to the next Quiescent Boundary, and exposes the result through a Probe and Trace. |
-| 06 | Deliver the first Sandbox Workbench tracer | 05 | `/editor` lets a user create a Sandbox Project, author the narrow circuit, Compile, create a Session, Step, and observe it through Interactive Server, an accessible Scene adapter, and the intended Application seams. |
+| 06 | Deliver the first Sandbox Workbench tracer | 05 | `/editor` lets a user create a Sandbox Project, author the narrow circuit, Compile, create a Session, Step, and observe it through Interactive Server, one Canvas Scene adapter, and the intended Application seams. |
 
 The first required product tracer is complete at item `06`. Infrastructure breadth or a polished empty shell does not substitute for it.
 
@@ -75,10 +75,10 @@ Items `15` and `16` do not claim sequential or memory rendering and browser work
 
 | ID | Slice | Blocked by | Independently delivers |
 |---:|---|---|---|
-| 23 | Generate basic TeachingMixed Geometry Plans | 10, 12 | Familiar basic gates are generated declaratively with shared renderer-neutral operations, Port anchors, hit regions, accessibility trees, metric fingerprints, and per-symbol IEEE 91A evidence. |
+| 23 | Generate basic TeachingMixed Geometry Plans | 10, 12 | Familiar basic gates are generated declaratively with shared renderer-neutral operations, Port anchors, Hit Regions, metric fingerprints, and per-symbol IEEE 91A evidence. |
 | 24 | Project complex combinational and hierarchical symbols | 08, 09, 11, 23 | Steering, arithmetic, topology, and user Circuit Definition symbols receive parameterized rectangular Geometry Plans and complete Schematic Projection behavior. |
 | 25 | Project sequential and memory symbols with conformance exports | 15, 16, 24 | Sequential and memory qualifiers, dependencies, array information, explicit Teaching Extension downgrades, and atomic TeachingMixed/strict conformance preflight are complete; strict fallback requires a newly selected compatible variant and projection. |
-| 26 | Complete responsive Scene interaction and recovery | 07, 17, 25 | Atomic snapshots/patches, Canvas sizing and density, transforms, culling, hit priority, pointer capture, keyboard actions, semantic fallback, focus recovery, local-only disconnect, teardown, and renderer failures satisfy the Scene contract. |
+| 26 | Complete responsive Scene interaction and recovery | 07, 17, 25 | Atomic snapshots/patches, Canvas sizing and density, transforms, culling, hit priority, pointer capture, shared shortcuts, local-only disconnect, teardown, and explicit renderer recovery satisfy the Scene contract. |
 | 27 | Deliver the complete Logic Analyzer | 18, 26 | Probe Spine identity, waveform rows, radix/order, cursors, live follow, transition and summary windows, Trace Gaps, Reveal Net, retention, and Hot Swap recovery work without exposing Runtime chunks. |
 
 ## Phase E — Boolean explanation and proof-gated simplification
@@ -101,9 +101,9 @@ V1 is implementation- and conformance-complete at item `33`, but it is not yet p
 | 34 | Freeze the representative corpus and observability catalog | 20, 33 | A versioned circuit/browser/load corpus and a stable, low-cardinality, redacted Activity, metric, log, and benchmark catalog make later measurements reproducible. |
 | 35 | Calibrate core Module policies | 34 | Package, Project Scale, Simulation, Trace, and Analysis limits receive corpus-, environment-, and method-linked evidence without changing successful semantics. |
 | 36 | Calibrate Scheduling and Workspace policies | 20, 34 | Queue, fairness, worker, retention, history, idempotency, Workspace, catalog, and Hot Swap envelopes are tied to repeatable load and storage evidence. |
-| 37 | Qualify Workbench accessibility | 26, 27, 29, 31, 32 | WCAG 2.2 AA automation plus keyboard, screen-reader, forced-colors, reduced-motion, focus recovery, and 200% text-zoom task scripts pass. |
+| 37 | Qualify Workbench interaction and visual integrity | 26, 27, 29, 31, 32 | Primary authoring, inspection, simulation, recovery, responsive-layout, text-zoom, and curated visual task scripts pass with qualified Canvas geometry and no parallel circuit editor. |
 | 38 | Qualify localization and the supported browser matrix | 26, 27, 29, 31, 32 | `en-US`/`zh-CN`, resource parity, long labels, bidi isolation, font fingerprints, zoom, density, reconnect, and supported browser/device scenarios pass. |
-| 39 | Calibrate Browser Policy and frame thresholds | 34, 37, 38 | Intent and snapshot sizes, bitmap and cache allocations, semantic-tree paging, frame/long-task distributions, and idle behavior establish versioned browser limits and observation thresholds. |
+| 39 | Calibrate Browser Policy and frame thresholds | 34, 37, 38 | Intent and snapshot sizes, bitmap and cache allocations, frame/long-task distributions, and idle behavior establish versioned browser limits and observation thresholds. |
 | 40 | Qualify Web and transfer security | 20, 22, 26, 27, 29, 31, 32 | Authentication, authorization concealment, antiforgery, CSP, Problem Details, upload/download limits, build mismatch, transport bounds, cookies, and redaction fail closed. |
 | 41 | Qualify host lifecycle and operational behavior | 19, 20, 40 | Readiness/liveness, migration-before-readiness, short-lived contexts, graceful shutdown, attachment loss, process restart, auth expiry, and abandoned migration-lock recovery pass integration evidence. |
 | 42 | Define one concrete production deployment profile | 35, 36, 37, 38, 39, 40, 41 | One named environment fixes public origin, TLS/proxy trust, secret provider, Data Protection store, database volume and policy, runtime image, resource limits, telemetry backend, and operational ownership. |
