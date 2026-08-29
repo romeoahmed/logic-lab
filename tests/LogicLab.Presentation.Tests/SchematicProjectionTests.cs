@@ -119,6 +119,7 @@ internal sealed class SchematicProjectionTests
         var fixture = CreateDefinitionPortDefinition();
         var projection = Project(fixture.Revision, fixture.Definition.Id, Fingerprint());
         var clearance = TeachingMixedMetricSets.AnnexA100.UnitsPerH;
+        var horizontalLabelClearance = Math.Max(1, clearance / 10);
         foreach (var port in projection.Items.OfType<DefinitionPortItemV1>())
         {
             var lead = port.Operations.OfType<StrokePathV1>().Single();
@@ -134,6 +135,11 @@ internal sealed class SchematicProjectionTests
             };
 
             await Assert.That(actualClearance).IsGreaterThanOrEqualTo(clearance);
+            if (port.Anchor.OutwardDirection is PlanDirectionV1.East or PlanDirectionV1.West)
+            {
+                await Assert.That(inward.Y - label.Bounds.Bottom)
+                    .IsGreaterThanOrEqualTo(horizontalLabelClearance);
+            }
         }
     }
 

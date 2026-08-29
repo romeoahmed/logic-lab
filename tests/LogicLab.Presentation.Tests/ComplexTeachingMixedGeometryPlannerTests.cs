@@ -28,6 +28,14 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
         var plan = Plan(Request(contractId));
         var anchor = await Assert.That(plan.PortAnchors).HasSingleItem();
         var h = TeachingMixedMetricSets.AnnexA100.UnitsPerH;
+        var labelOperation = plan.Operations.OfType<DrawTextV1>()
+            .Single(operation => operation.Text == label);
+        var labelCenter = new PointV1(
+            (labelOperation.Bounds.Left + labelOperation.Bounds.Right) / 2,
+            (labelOperation.Bounds.Top + labelOperation.Bounds.Bottom) / 2);
+        var expectedLabelCenter = new PointV1(
+            direction == PlanDirectionV1.East ? 3 * h : 5 * h,
+            2 * h);
 
         using (Assert.Multiple())
         {
@@ -38,8 +46,7 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
             await Assert.That(anchor.Point.Y % h).IsEqualTo(0);
             await Assert.That(plan.Bounds.Width).IsLessThanOrEqualTo(8 * h);
             await Assert.That(plan.Bounds.Height).IsLessThanOrEqualTo(5 * h);
-            await Assert.That(plan.Operations.OfType<DrawTextV1>()
-                .Any(operation => operation.Text == label)).IsTrue();
+            await Assert.That(labelCenter).IsEqualTo(expectedLabelCenter);
         }
     }
 
