@@ -28,6 +28,20 @@ internal sealed class CircuitSceneRenderingTests : PageTest
         }
     }
 
+    [Test]
+    public async Task PublishedScene_CanvasRendersVisibleSnapGrid()
+    {
+        var scene = new CircuitSceneTestPage(Page);
+        await scene.OpenAsync();
+        await scene.MountAsync();
+        await scene.PublishAsync();
+
+        var contrast = await scene.MaximumCanvasColumnContrastAsync(
+            SceneTestSnapshot.Bounds.Left);
+
+        await Assert.That(contrast).IsGreaterThan(0.5);
+    }
+
     private static int Width(CanvasInkCluster cluster) => cluster.Right - cluster.Left + 1;
 
     private static int Height(CanvasInkCluster cluster) => cluster.Bottom - cluster.Top + 1;

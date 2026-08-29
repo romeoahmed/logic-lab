@@ -188,7 +188,18 @@
   <data name="FailureSimulationCancelled" xml:space="preserve"><value>simulation cancelled</value></data>
   <data name="FailureSimulationInfrastructure" xml:space="preserve"><value>simulation infrastructure failure</value></data>
   <data name="FailureSimulationInternal" xml:space="preserve"><value>simulation internal defect</value></data>
-  <data name="ArithmeticGalleryAuthored" xml:space="preserve"><value>Arithmetic example created. Compile the circuit to continue.</value></data>
+  <data name="ArithmeticExampleAuthored" xml:space="preserve"><value>Three-bit adder created. Compile it, then change an input to explore sum and carry.</value></data>
+  <data name="ExampleAdder" xml:space="preserve"><value>Three-bit adder</value></data>
+  <data name="ExampleCarryIn" xml:space="preserve"><value>Carry in</value></data>
+  <data name="ExampleCarryOut" xml:space="preserve"><value>Carry out</value></data>
+  <data name="ExampleData0" xml:space="preserve"><value>Data 0</value></data>
+  <data name="ExampleData1" xml:space="preserve"><value>Data 1</value></data>
+  <data name="ExampleInputA" xml:space="preserve"><value>A = 101</value></data>
+  <data name="ExampleInputB" xml:space="preserve"><value>B = 011</value></data>
+  <data name="ExampleMultiplexer" xml:space="preserve"><value>2-to-1 multiplexer</value></data>
+  <data name="ExampleSelect" xml:space="preserve"><value>Select</value></data>
+  <data name="ExampleSelectedOutput" xml:space="preserve"><value>Selected output</value></data>
+  <data name="ExampleSum" xml:space="preserve"><value>Sum</value></data>
   <data name="EditingDefinition" xml:space="preserve"><value>Editing Circuit Definition {0}.</value></data>
   <data name="EntryDefinitionChanged" xml:space="preserve"><value>{0} is now the entry Circuit Definition.</value></data>
   <data name="HierarchyAuthored" xml:space="preserve"><value>Reusable inverter created. Open the child circuit or compile the main circuit.</value></data>
@@ -203,7 +214,7 @@
   <data name="RouteDraftPrepared" xml:space="preserve"><value>Route preview ready. Commit or cancel it.</value></data>
   <data name="RouteMarkedUnrouted" xml:space="preserve"><value>Wire route marked as unrouted.</value></data>
   <data name="RouteRouted" xml:space="preserve"><value>Wire routed orthogonally.</value></data>
-  <data name="SteeringGalleryAuthored" xml:space="preserve"><value>Logic and signal-routing example created. Compile the circuit to continue.</value></data>
+  <data name="SteeringExampleAuthored" xml:space="preserve"><value>2-to-1 multiplexer created. Compile it, then change Select to choose an input.</value></data>
   <data name="CanvasReady" xml:space="preserve"><value>Circuit canvas ready.</value></data>
   <data name="CanvasStarting" xml:space="preserve"><value>Preparing the circuit canvas.</value></data>
   <data name="CanvasUnavailable" xml:space="preserve"><value>The circuit canvas is unavailable. Retry it, or use the circuit actions below.</value></data>
@@ -246,10 +257,10 @@
   <data name="LearningStepObserve" xml:space="preserve"><value>Observe</value></data>
   <data name="StarterInverterTitle" xml:space="preserve"><value>Inverter basics</value></data>
   <data name="StarterInverterDescription" xml:space="preserve"><value>See how a NOT gate inverts an input before it reaches the output.</value></data>
-  <data name="StarterSteeringTitle" xml:space="preserve"><value>Logic and signal routing</value></data>
-  <data name="StarterSteeringDescription" xml:space="preserve"><value>Explore gates, multiplexers, and decoders.</value></data>
-  <data name="StarterArithmeticTitle" xml:space="preserve"><value>Arithmetic circuits</value></data>
-  <data name="StarterArithmeticDescription" xml:space="preserve"><value>Explore comparison, arithmetic, and shifts with three-bit signals.</value></data>
+  <data name="StarterSteeringTitle" xml:space="preserve"><value>Choose between two signals</value></data>
+  <data name="StarterSteeringDescription" xml:space="preserve"><value>Build an interactive 2-to-1 multiplexer.</value></data>
+  <data name="StarterArithmeticTitle" xml:space="preserve"><value>Add two three-bit values</value></data>
+  <data name="StarterArithmeticDescription" xml:space="preserve"><value>Build an interactive adder with sum and carry outputs.</value></data>
   <data name="StarterHierarchyTitle" xml:space="preserve"><value>Reusable inverter</value></data>
   <data name="StarterHierarchyDescription" xml:space="preserve"><value>Package an inverter as a child circuit and reuse it from the main circuit.</value></data>
   <data name="AdvancedTopology" xml:space="preserve"><value>Advanced wiring</value></data>

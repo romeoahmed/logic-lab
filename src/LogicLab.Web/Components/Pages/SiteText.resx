@@ -53,8 +53,8 @@
   <data name="HelpExamplesTitle" xml:space="preserve"><value>Start small, then reveal more structure.</value></data>
   <data name="HelpInverterTitle" xml:space="preserve"><value>Inverter basics</value></data>
   <data name="HelpInverterDescription" xml:space="preserve"><value>Start here. One clear signal path demonstrates the complete compile-and-step workflow.</value></data>
-  <data name="HelpGalleryTitle" xml:space="preserve"><value>Logic and arithmetic examples</value></data>
-  <data name="HelpGalleryDescription" xml:space="preserve"><value>Compare gate symbols, multiplexers, decoders, and arithmetic components.</value></data>
+  <data name="HelpInteractiveExamplesTitle" xml:space="preserve"><value>Interactive examples</value></data>
+  <data name="HelpInteractiveExamplesDescription" xml:space="preserve"><value>The multiplexer and three-bit adder are connected and ready to compile. Change their inputs to see how each output responds.</value></data>
   <data name="HelpHierarchyTitle" xml:space="preserve"><value>Reusable inverter</value></data>
   <data name="HelpHierarchyDescription" xml:space="preserve"><value>Use this after the basics to see how a child circuit is reused by the main circuit.</value></data>
   <data name="HelpCanvasEyebrow" xml:space="preserve"><value>Canvas controls</value></data>

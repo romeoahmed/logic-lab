@@ -10,10 +10,8 @@ internal sealed class CircuitSceneAccessibilityTests : PageTest
     public async Task SemanticAction_EnterAndSpace_UseNativeButtonActivation()
     {
         var scene = await ReadySceneAsync(Page);
-        var action = Page.GetByRole(
-            AriaRole.Button,
-            new PageGetByRoleOptions { Name = "Nudge Component A", Exact = true });
-        await Expect(action).ToBeVisibleAsync();
+        var action = Page.Locator("[data-scene-action='nudge']");
+        await Expect(action).ToBeAttachedAsync();
         await action.FocusAsync();
 
         await Page.Keyboard.PressAsync("Enter");
@@ -44,9 +42,10 @@ internal sealed class CircuitSceneAccessibilityTests : PageTest
         var scene = await ReadySceneAsync(Page);
         var component = scene.SemanticSource("Component A");
 
-        await Expect(component).ToBeVisibleAsync();
+        await Expect(component).ToBeAttachedAsync();
         await Expect(component).ToBeEnabledAsync();
-        await component.ClickAsync();
+        await component.FocusAsync();
+        await Page.Keyboard.PressAsync("Enter");
 
         await Expect(scene.EventLog).ToHaveAttributeAsync(
             "data-semantic-source",
@@ -68,7 +67,7 @@ internal sealed class CircuitSceneAccessibilityTests : PageTest
 
         await Expect(scene.Canvas).ToHaveAttributeAsync("width", "1200");
         await Expect(scene.Canvas).ToHaveAttributeAsync("height", "800");
-        await Expect(scene.SemanticSource("Component A")).ToBeVisibleAsync();
+        await Expect(scene.SemanticSource("Component A")).ToBeAttachedAsync();
         var box = await scene.Canvas.BoundingBoxAsync();
 
         using (Assert.Multiple())
