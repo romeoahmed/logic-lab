@@ -1,11 +1,8 @@
 @inject IStringLocalizer<EditorText> Text
 
 <div class="status-strip"
-     role="region"
-     aria-label="@Text["WorkbenchTelemetryAriaLabel"]"
-     aria-busy="@(!IsConnected)"
      data-connection-state="@(IsConnected ? "connected" : "connecting")">
-    <dl class="status-facts" aria-label="@Text["WorkbenchStatusAriaLabel"]">
+    <dl class="status-facts">
         <div data-status="connection">
             <dt>@Text["Connection"]</dt>
             <dd>

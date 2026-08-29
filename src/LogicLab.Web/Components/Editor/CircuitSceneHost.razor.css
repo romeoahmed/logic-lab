@@ -90,17 +90,6 @@
   inline-size: min(34rem, 100%);
 }
 
-.scene-recovery-actions {
-  margin-block-start: 0.75rem;
-}
-
-.scene-recovery-actions > summary {
-  min-block-size: 2.75rem;
-  cursor: pointer;
-  color: var(--ll-signal);
-  font-weight: 700;
-}
-
 @media (max-width: 720px) {
   .circuit-scene-shell {
     padding: 0.4rem;

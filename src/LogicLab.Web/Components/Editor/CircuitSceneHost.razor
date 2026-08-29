@@ -12,15 +12,12 @@
     <div class="scene-heading">
         <div>
             <p class="eyebrow">@Text["CircuitSceneEyebrow"]</p>
-            <h2 id="circuit-canvas-heading">@(Scene?.DisplayName ?? Text["Circuit"])</h2>
+            <h2 id="circuit-canvas-heading">@Definition.DisplayName</h2>
         </div>
-        @if (Scene is not null)
-        {
-            <FluentBadge Appearance="BadgeAppearance.Outline"
-                         Color="BadgeColor.Subtle"
-                         Size="BadgeSize.Small"
-                         Content="@Text["SceneCount", Scene.Components.Count, Scene.Connections.Count]" />
-        }
+        <FluentBadge Appearance="BadgeAppearance.Outline"
+                     Color="BadgeColor.Subtle"
+                     Size="BadgeSize.Small"
+                     Content="@Text["SceneCount", Definition.ComponentInstances.Count, Definition.Nets.Count]" />
     </div>
 
     <div class="canvas-frame">
@@ -28,29 +25,11 @@
                 data-scene-canvas
                 tabindex="0"
                 hidden="@(rendererState == RendererUnavailableState)"
-                aria-label="@Text["CircuitCanvasAriaLabel"]"
-                aria-describedby="scene-renderer-status">
-            @if (Scene is not null && rendererState != RendererUnavailableState)
-            {
-                <AccessibleCircuitScene Scene="Scene"
-                                        Selection="Selection"
-                                        ShowHeading="false"
-                                        HeadingId="semantic-circuit-heading"
-                                        PageSize="SemanticPageSize"
-                                        FocusedSource="semanticFocusSource"
-                                        OnSelect="HandleSemanticSelectionAsync"
-                                        OnFocus="HandleSemanticFocusAsync"
-                                        OnAction="HandleSemanticActionAsync" />
-            }
-            else
-            {
-                <span>@Text["CircuitCanvasFallback"]</span>
-            }
+                aria-labelledby="circuit-canvas-heading">
+            <span>@Text["CircuitCanvasFallback"]</span>
         </canvas>
 
-        <div class="scene-zoom-controls"
-             role="group"
-             aria-label="@Text["CanvasZoomControls"]">
+        <div class="scene-zoom-controls">
             <FluentButton data-scene-zoom="out"
                           Type="ButtonType.Button"
                           Shape="ButtonShape.Square"
@@ -81,7 +60,6 @@
                  data-browser-policy-observed="@browserPolicyEvidence?.Observed">
                 <FluentMessageBar Class="renderer-message"
                                   AllowDismiss="false"
-                                  AriaLive="AriaLive.Off"
                                   Intent="@RendererIntent"
                                   Layout="MessageBarLayout.Notification"
                                   Shape="MessageBarShape.Square">
@@ -106,22 +84,4 @@
             </div>
         }
     </div>
-
-    <p id="scene-renderer-status" class="visually-hidden" aria-live="polite">@RendererMessage</p>
-
-    @if (Scene is not null && rendererState == RendererUnavailableState)
-    {
-        <details class="scene-recovery-actions" open>
-            <summary>@Text["SceneRecoveryActions"]</summary>
-            <AccessibleCircuitScene Scene="Scene"
-                                    Selection="Selection"
-                                    ShowHeading="false"
-                                    HeadingId="semantic-circuit-heading"
-                                    PageSize="SemanticPageSize"
-                                    FocusedSource="semanticFocusSource"
-                                    OnSelect="HandleSemanticSelectionAsync"
-                                    OnFocus="HandleSemanticFocusAsync"
-                                    OnAction="HandleSemanticActionAsync" />
-        </details>
-    }
 </section>

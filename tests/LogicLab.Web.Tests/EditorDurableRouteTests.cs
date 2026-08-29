@@ -128,8 +128,8 @@ internal sealed class EditorDurableRouteTests
         var attached = (Attached)workspace.AttachOutcomes.Single();
         var initialProjection = rendered.FindComponent<WorkbenchStatusStrip>()
             .Instance.Projection!;
-        var initialScene = rendered.FindComponent<AccessibleCircuitScene>()
-            .Instance.Scene!;
+        var initialDefinitionId = rendered.FindComponent<CircuitSceneHost>()
+            .Instance.CircuitDefinitionId;
 
         rendered.Render(parameters => parameters
             .Add(value => value.Value, AuthenticationStateFor(replacementSubject))
@@ -144,8 +144,8 @@ internal sealed class EditorDurableRouteTests
             "[data-command='author']:not([disabled])");
         var retainedProjection = rendered.FindComponent<WorkbenchStatusStrip>()
             .Instance.Projection!;
-        var retainedScene = rendered.FindComponent<AccessibleCircuitScene>()
-            .Instance.Scene!;
+        var retainedDefinitionId = rendered.FindComponent<CircuitSceneHost>()
+            .Instance.CircuitDefinitionId;
         using (Assert.Multiple())
         {
             await Assert.That(rendered.Find("[data-command='author']")
@@ -160,9 +160,7 @@ internal sealed class EditorDurableRouteTests
                 .IsEqualTo(initialProjection.WorkspaceId);
             await Assert.That(retainedProjection.ProjectRevision.RevisionId)
                 .IsEqualTo(initialProjection.ProjectRevision.RevisionId);
-            await Assert.That(retainedScene).IsNotNull();
-            await Assert.That(retainedScene.CircuitDefinitionId)
-                .IsEqualTo(initialScene.CircuitDefinitionId);
+            await Assert.That(retainedDefinitionId).IsEqualTo(initialDefinitionId);
         }
 
         await rendered.Find("[data-command='author']").ClickAsync();
@@ -177,9 +175,8 @@ internal sealed class EditorDurableRouteTests
                 .IsEqualTo(attached.AttachmentId);
             await Assert.That(command.Context.AttachmentGeneration)
                 .IsEqualTo(attached.Generation);
-            await Assert.That(rendered.FindComponent<AccessibleCircuitScene>()
-                    .Instance.Scene)
-                .IsNotNull();
+            await Assert.That(rendered.FindComponents<CircuitSceneHost>())
+                .Count().IsEqualTo(1);
         }
 
         if (replacementSubject is null)
@@ -302,9 +299,8 @@ internal sealed class EditorDurableRouteTests
             await Assert.That(rendered.FindComponent<WorkbenchStatusStrip>()
                     .Instance.Projection)
                 .IsNotNull();
-            await Assert.That(rendered.FindComponent<AccessibleCircuitScene>()
-                    .Instance.Scene)
-                .IsNotNull();
+            await Assert.That(rendered.FindComponents<CircuitSceneHost>())
+                .Count().IsEqualTo(1);
         }
     }
 
@@ -640,7 +636,7 @@ internal sealed class EditorDurableRouteTests
         return rendered.FindAll("[data-workspace-attachment-error]").Count == 1
             && rendered.FindAll("[data-command]").Count == 0
             && rendered.FindComponents<WorkbenchStatusStrip>().Count == 0
-            && rendered.FindComponents<AccessibleCircuitScene>().Count == 0;
+            && rendered.FindComponents<CircuitSceneHost>().Count == 0;
     }
 
     private static FixedDurableProjectLoader DurableLoader(DurableProjectId projectId)

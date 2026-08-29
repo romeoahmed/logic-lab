@@ -9,7 +9,7 @@
   font-size: 0.875rem;
 }
 
-.status-strip[aria-busy="true"] {
+.status-strip[data-connection-state="connecting"] {
   border-inline-start: 3px solid var(--ll-transition);
 }
 

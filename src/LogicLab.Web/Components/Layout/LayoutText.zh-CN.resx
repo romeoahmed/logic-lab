@@ -10,11 +10,9 @@
   <data name="ErrorMessage" xml:space="preserve"><value>页面意外停止。请重新加载后继续。</value></data>
   <data name="ErrorTitle" xml:space="preserve"><value>出现了问题</value></data>
   <data name="Help" xml:space="preserve"><value>帮助</value></data>
-  <data name="HomeAriaLabel" xml:space="preserve"><value>Logic Lab 首页</value></data>
   <data name="Language" xml:space="preserve"><value>语言</value></data>
   <data name="LogIn" xml:space="preserve"><value>登录</value></data>
   <data name="LogOut" xml:space="preserve"><value>退出登录</value></data>
-  <data name="PrimaryNavigationAriaLabel" xml:space="preserve"><value>主导航</value></data>
   <data name="Projects" xml:space="preserve"><value>项目</value></data>
   <data name="ReconnectEyebrow" xml:space="preserve"><value>连接状态</value></data>
   <data name="ReconnectFailed" xml:space="preserve"><value>重新加入失败。</value></data>
@@ -27,7 +25,6 @@
   <data name="Resume" xml:space="preserve"><value>恢复</value></data>
   <data name="Reload" xml:space="preserve"><value>重新加载</value></data>
   <data name="ResumeFailed" xml:space="preserve"><value>恢复会话失败。</value></data>
-  <data name="SkipToContent" xml:space="preserve"><value>跳到主要内容</value></data>
   <data name="Retry" xml:space="preserve"><value>重试</value></data>
   <data name="SessionPaused" xml:space="preserve"><value>会话已被服务器暂停。</value></data>
   <data name="Workbench" xml:space="preserve"><value>工作台</value></data>

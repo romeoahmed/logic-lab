@@ -48,11 +48,6 @@ internal sealed class ProjectsComponentTests
             await Assert.That(rendered.FindAll("form[action='/projects/open']").Count)
                 .IsEqualTo(2);
             await Assert.That(openButtons.Count).IsEqualTo(2);
-            await Assert.That(openButtons.Select((button, index) =>
-                    button.GetAttribute("aria-label")?.Contains(
-                        page.Items[index].DisplayName.Value,
-                        StringComparison.Ordinal) is true)
-                .All(static hasAuthoredName => hasAuthoredName)).IsTrue();
             await Assert.That(rendered.FindAll("input[name='durableProjectId']")
                     .Select(input => input.GetAttribute("value")!))
                 .IsEquivalentTo(
@@ -76,7 +71,7 @@ internal sealed class ProjectsComponentTests
         });
 
         var rendered = context.Render<LogicLab.Web.Components.Pages.Projects>();
-        var empty = rendered.Find("[data-catalog-empty][role='status']");
+        var empty = rendered.Find("[data-catalog-empty]");
         var recovery = empty.QuerySelector("a[href='/editor']")
             ?? throw new InvalidOperationException(
                 "The empty catalog did not provide a Sandbox recovery action.");

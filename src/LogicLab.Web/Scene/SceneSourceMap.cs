@@ -1,66 +1,77 @@
 using LogicLab.Domain.Authoring;
-using LogicLab.Presentation.Scene;
+using LogicLab.Domain.Components;
 
 namespace LogicLab.Web.Scene;
 
 internal static class SceneSourceMap
 {
-    public static IEnumerable<SceneSourceRefV1> Enumerate(AccessibleSceneProjection scene)
+    public static bool Contains(ProjectRevision revision, SceneSourceRefV1 source)
     {
-        ArgumentNullException.ThrowIfNull(scene);
-        foreach (var port in scene.DefinitionPorts)
+        ArgumentNullException.ThrowIfNull(revision);
+        if (source is null)
         {
-            yield return From(port);
+            return false;
         }
 
-        foreach (var component in scene.Components)
+        var definition = revision.Document.CircuitDefinitions.FirstOrDefault(candidate =>
+            string.Equals(
+                candidate.Id.Value,
+                source.CircuitDefinitionId,
+                StringComparison.Ordinal));
+        if (definition is null)
         {
-            yield return From(component);
-            foreach (var port in component.Ports)
-            {
-                yield return From(port);
-            }
+            return false;
         }
 
-        foreach (var annotation in scene.Annotations)
+        return source.EntityKind switch
         {
-            yield return From(annotation);
-        }
-
-        foreach (var connection in scene.Connections)
-        {
-            yield return From(connection);
-            foreach (var junction in connection.Junctions)
-            {
-                yield return From(junction);
-            }
-
-            foreach (var wire in connection.WireGeometries)
-            {
-                yield return From(wire);
-            }
-        }
+            "definitionPort" => HasNoPort(source)
+                && definition.Ports.Any(port => HasId(port.Id.Value, source)),
+            "componentInstance" => HasNoPort(source)
+                && definition.ComponentInstances.Any(instance =>
+                    HasId(instance.Id.Value, source)),
+            "instancePort" => source.PortId is { Length: > 0 } portId
+                && definition.ComponentInstances.FirstOrDefault(instance =>
+                    HasId(instance.Id.Value, source)) is { } instance
+                && ContainsPort(revision, instance, portId),
+            "net" => HasNoPort(source)
+                && definition.Nets.Any(net => HasId(net.Id.Value, source)),
+            "junction" => HasNoPort(source)
+                && definition.Junctions.Any(junction => HasId(junction.Id.Value, source)),
+            "wireGeometry" => HasNoPort(source)
+                && definition.WireGeometries.Any(geometry =>
+                    HasId(geometry.Id.Value, source)),
+            "annotation" => HasNoPort(source)
+                && definition.Annotations.Any(annotation =>
+                    HasId(annotation.Id.Value, source)),
+            _ => false,
+        };
     }
 
-    public static SceneSourceRefV1 From(AccessibleDefinitionPortProjection port) =>
-        From(port.Source);
+    private static bool ContainsPort(
+        ProjectRevision revision,
+        ComponentInstance instance,
+        string portId)
+    {
+        return instance.Target switch
+        {
+            LibraryComponentTarget library => revision.Document.LibrarySnapshot
+                .ResolveContract(library.ContractKey)?
+                .TryResolvePort(instance.Parameters, portId, out _) is true,
+            CircuitDefinitionComponentTarget target => revision.Document
+                .FindCircuitDefinition(target.CircuitDefinitionId)?
+                .Ports.Any(port => string.Equals(
+                    port.Id.Value,
+                    portId,
+                    StringComparison.Ordinal)) is true,
+            _ => false,
+        };
+    }
 
-    public static SceneSourceRefV1 From(AccessibleComponentProjection component) =>
-        From(component.Source);
+    private static bool HasId(string candidate, SceneSourceRefV1 source) =>
+        string.Equals(candidate, source.EntityId, StringComparison.Ordinal);
 
-    public static SceneSourceRefV1 From(AccessiblePortProjection port) => From(port.Source);
-
-    public static SceneSourceRefV1 From(AccessibleConnectionProjection connection) =>
-        From(connection.Source);
-
-    public static SceneSourceRefV1 From(AccessibleJunctionProjection junction) =>
-        From(junction.Source);
-
-    public static SceneSourceRefV1 From(AccessibleWireGeometryProjection wire) =>
-        From(wire.Source);
-
-    public static SceneSourceRefV1 From(AccessibleAnnotationProjection annotation) =>
-        From(annotation.Source);
+    private static bool HasNoPort(SceneSourceRefV1 source) => source.PortId is null;
 
     public static SceneSourceRefV1 From(DefinitionPortSourceIdentity source) => new(
         source.CircuitDefinitionId.Value,

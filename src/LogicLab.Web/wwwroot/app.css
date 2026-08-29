@@ -124,29 +124,11 @@ code {
   font-size: 0.9em;
 }
 
-h1:focus {
-  outline: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a,
-  button {
-    transition:
-      color 120ms ease,
-      background-color 120ms ease,
-      border-color 120ms ease,
-      transform 120ms ease;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-}
-
-@media (forced-colors: active) {
-  :focus-visible {
-    outline-color: Highlight;
-  }
+a,
+button {
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    border-color 120ms ease,
+    transform 120ms ease;
 }

@@ -162,27 +162,3 @@
     opacity: 0;
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  #components-reconnect-modal,
-  #components-reconnect-modal.components-reconnect-show,
-  .components-rejoining-animation div {
-    transition: none;
-    animation: none;
-  }
-
-  .components-rejoining-animation div {
-    inset-block-start: 0.75rem;
-    inset-inline-start: 0.75rem;
-    inline-size: 3.5rem;
-    block-size: 3.5rem;
-    opacity: 0.4;
-  }
-
-  .components-rejoining-animation div:nth-child(2) {
-    inset-block-start: 1.25rem;
-    inset-inline-start: 1.25rem;
-    inline-size: 2.5rem;
-    block-size: 2.5rem;
-  }
-}

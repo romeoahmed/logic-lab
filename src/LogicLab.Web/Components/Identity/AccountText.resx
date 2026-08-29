@@ -4,7 +4,6 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="AccountProtectionsAriaLabel" xml:space="preserve"><value>Account protections</value></data>
   <data name="AssuranceAttachments" xml:space="preserve"><value>Protected editing sessions</value></data>
   <data name="AssuranceCatalog" xml:space="preserve"><value>Private saved projects</value></data>
   <data name="AssuranceSessions" xml:space="preserve"><value>Secure sessions with a fixed lifetime</value></data>

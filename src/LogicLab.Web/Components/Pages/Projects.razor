@@ -44,7 +44,7 @@
         }
         else
         {
-            <ul class="project-catalog" aria-label="@Text["CatalogAriaLabel"]">
+            <ul class="project-catalog">
                 @foreach (var item in Page.Items)
                 {
                     <li data-project-id="@item.DurableProjectId.Value">
@@ -55,8 +55,7 @@
                             <input type="hidden"
                                    name="durableProjectId"
                                    value="@item.DurableProjectId.Value" />
-                            <button type="submit"
-                                    aria-label="@Text["OpenProjectAriaLabel", item.DisplayName.Value]">
+                            <button type="submit">
                                 @Text["OpenProject"] <span aria-hidden="true">→</span>
                             </button>
                         </form>
@@ -68,7 +67,7 @@
 
     @if (Page.Next is not null)
     {
-        <nav class="catalog-pagination" aria-label="@Text["PaginationAriaLabel"]">
+        <nav class="catalog-pagination">
             <FluentAnchorButton data-projects-next
                                 Href="@NextPage(Page.Next)"
                                 Appearance="ButtonAppearance.Outline">

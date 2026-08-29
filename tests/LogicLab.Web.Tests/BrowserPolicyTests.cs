@@ -22,7 +22,6 @@ internal sealed class BrowserPolicyTests
                 (BrowserLimitDimension.EffectiveDensityMillionths, BrowserLimitComparison.AtMost),
                 (BrowserLimitDimension.ZoomMillionthsMinimum, BrowserLimitComparison.AtLeast),
                 (BrowserLimitDimension.ZoomMillionthsMaximum, BrowserLimitComparison.AtMost),
-                (BrowserLimitDimension.SemanticTreePageItems, BrowserLimitComparison.AtMost),
                 (BrowserLimitDimension.DisplayListBytes, BrowserLimitComparison.AtMost),
                 (BrowserLimitDimension.SpatialIndexBytes, BrowserLimitComparison.AtMost),
                 (BrowserLimitDimension.SceneCacheBytes, BrowserLimitComparison.AtMost),

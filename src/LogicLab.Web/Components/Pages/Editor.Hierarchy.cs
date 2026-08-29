@@ -276,7 +276,7 @@ public partial class Editor
         SelectedDefinitionId = definitionId;
         HierarchyNavigation.Clear();
         ProjectScene();
-        Status = Text["EditingDefinition", Scene!.DisplayName];
+        Status = Text["EditingDefinition", SelectedDefinition!.DisplayName];
     }
 
     private Task SetEntryDefinition(CircuitDefinitionId definitionId)
@@ -297,7 +297,7 @@ public partial class Editor
             SelectedDefinitionId = definitionId;
             HierarchyNavigation.Clear();
             ProjectScene();
-            Status = Text["EntryDefinitionChanged", Scene!.DisplayName];
+            Status = Text["EntryDefinitionChanged", SelectedDefinition!.DisplayName];
         }
     }
 
@@ -347,7 +347,7 @@ public partial class Editor
         HierarchyNavigation.RemoveAt(HierarchyNavigation.Count - 1);
         SelectedDefinitionId = last.ContainingCircuitDefinitionId;
         ProjectScene();
-        Status = Text["HierarchyReturned", Scene!.DisplayName];
+        Status = Text["HierarchyReturned", SelectedDefinition!.DisplayName];
     }
 
     private static ComponentInstance FindLibrary(

@@ -120,7 +120,7 @@ internal sealed class CircuitSceneRecoveryTests : PageTest
     public async Task Remount_RecoveryState_RestoresViewportThroughInteropContract()
     {
         var scene = await ReadySceneAsync();
-        await scene.Zoom("Zoom in").ClickAsync();
+        await scene.Zoom("in").ClickAsync();
         var before = (await scene.CaptureRecoveryStateAsync()).Viewports.Single();
 
         await scene.RemountAsync(new BrowserSceneRecoveryStateV1([before]));

@@ -54,7 +54,7 @@
             </header>
         }
 
-        <section class="workbench-deck" aria-label="@Text["CircuitWorkbenchAriaLabel"]">
+        <section class="workbench-deck">
             <div class="workbench-command-region">
                 <WorkbenchCommandBar Model="CommandBarModel"
                                      OnCommand="RunWorkbenchCommandAsync"
@@ -114,8 +114,7 @@
                                             HierarchyPath="CurrentSceneHierarchyPath"
                                             CanProbe="CanUseSceneProbe"
                                             ActiveToolChanged="ChangeSceneToolAsync" />
-                            <CircuitSceneHost Scene="Scene"
-                                              ProjectRevision="Projection.ProjectRevision"
+                            <CircuitSceneHost ProjectRevision="Projection.ProjectRevision"
                                               ProjectionVersion="Projection.ProjectionVersion"
                                               CircuitDefinitionId="SelectedDefinitionId"
                                               Selection="SceneSelection"
@@ -125,7 +124,6 @@
                                               HierarchyPath="CurrentSceneHierarchyPath"
                                               OnSelect="HandleSceneSelectionAsync"
                                               OnIntent="HandleSceneIntentAsync"
-                                              OnSemanticAction="HandleSceneSemanticActionAsync"
                                               OnToolConsumed="ConsumeSceneToolAsync" />
                         </main>
                         <div class="library-dock" data-testid="workbench-library">
