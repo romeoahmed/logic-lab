@@ -202,7 +202,7 @@ No browser failure mutates the Project Document, Session, Trace, or Workspace. A
 
 ## 12. Browser Policy and measurement
 
-Browser Policy is deployment configuration, not circuit semantics. Its exact shape, dimension tokens, integer scale encoding, order, and observation thresholds are owned by the [Policy Catalog](../policies/catalog.md). The browser validates the complete captured policy before mount and does not change it beneath a published adapter handle.
+Browser Policy is deployment configuration, not circuit semantics. Its exact shape, dimension tokens, integer scale encoding, and order are owned by the [Policy Catalog](../policies/catalog.md). The browser validates the complete captured policy before mount and does not change it beneath a published adapter handle. Measurement-only frame and long-task evidence remains outside the policy until qualification establishes a consumer and a versioned threshold.
 
 No numeric default becomes normative until the versioned circuit corpus, supported browser/device matrix, measurement method, and evidence record exist. A policy failure is structured and doesn't silently reduce geometry, omit an item, lower required display density, or summarize Trace without an explicit request.
 

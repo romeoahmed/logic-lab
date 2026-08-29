@@ -20,6 +20,7 @@ internal static class WebTestContext
         context.Services.AddLocalization();
         context.Services.AddFluentUIComponents();
         context.Services.AddSingleton(WorkspacePolicy.Default);
+        context.Services.AddSingleton(BrowserPolicy.Default);
         context.JSInterop.SetupVoid(
             "Microsoft.FluentUI.Blazor.Utilities.Attributes.copyToShadow",
             static _ => true)

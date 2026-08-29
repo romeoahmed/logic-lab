@@ -44,22 +44,7 @@
 }
 
 .component-search {
-  display: grid;
-  gap: 0.3rem;
   padding-block-end: 0.8rem;
-  color: var(--ll-muted);
-  font-size: 0.72rem;
-}
-
-.component-search input {
-  min-block-size: 2.45rem;
-  inline-size: 100%;
-  padding-inline: 0.65rem;
-  border: 1px solid var(--ll-border-strong);
-  border-radius: var(--ll-radius-small);
-  color: var(--ll-ink);
-  background: var(--ll-canvas);
-  font: inherit;
 }
 
 .component-groups {

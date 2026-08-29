@@ -118,31 +118,6 @@
   margin: 0;
 }
 
-.project-catalog button,
-.catalog-action {
-  display: inline-flex;
-  min-block-size: 2.45rem;
-  align-items: center;
-  padding-inline: 1rem;
-  border: 1px solid var(--ll-signal);
-  border-radius: var(--ll-radius-small);
-  color: white;
-  background: var(--ll-signal);
-  font-weight: 750;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.project-catalog button span {
-  margin-inline-start: 0.45rem;
-}
-
-.project-catalog button:hover,
-.catalog-action:hover {
-  background: var(--ll-signal-strong);
-  transform: translateY(-1px);
-}
-
 .catalog-empty {
   display: grid;
   justify-items: center;
@@ -204,7 +179,7 @@
     grid-column: title;
   }
 
-  .project-catalog button {
+  .project-catalog ::deep .project-open {
     inline-size: 100%;
     justify-content: center;
   }

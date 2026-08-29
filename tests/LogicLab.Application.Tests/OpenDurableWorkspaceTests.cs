@@ -22,7 +22,7 @@ internal sealed class OpenDurableWorkspaceTests
             new DurableVersion("version-7"),
             revision));
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             durableProjectLoader: loader);
 
         var outcome = await workspace.OpenAsync(
@@ -54,7 +54,7 @@ internal sealed class OpenDurableWorkspaceTests
     {
         var loader = new RecordingLoader(new DurableProjectOpenNotFound());
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             durableProjectLoader: loader);
 
         var outcome = await workspace.OpenAsync(
@@ -75,7 +75,7 @@ internal sealed class OpenDurableWorkspaceTests
     {
         var loader = new RecordingLoader(new DurableProjectOpenNotFound());
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             durableProjectLoader: loader);
 
         var outcome = await workspace.OpenAsync(
@@ -99,7 +99,7 @@ internal sealed class OpenDurableWorkspaceTests
             new DurableVersion("version-invalid"),
             CreateIncompleteRevision()));
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             workspacePolicy: SingleWorkspacePolicy(),
             durableProjectLoader: loader);
 
@@ -129,7 +129,7 @@ internal sealed class OpenDurableWorkspaceTests
             new DurableVersion("version-mismatch"),
             CreateCompleteRevision()));
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             workspacePolicy: SingleWorkspacePolicy(),
             durableProjectLoader: loader);
 
@@ -160,7 +160,7 @@ internal sealed class OpenDurableWorkspaceTests
         using var cancellation = new CancellationTokenSource();
         var loader = new RecordingLoader(failure, cancellation);
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             workspacePolicy: SingleWorkspacePolicy(),
             durableProjectLoader: loader);
 
@@ -183,14 +183,14 @@ internal sealed class OpenDurableWorkspaceTests
     [Test]
     public async Task OpenAsync_LoaderDefect_LogsClosedOutcomeWithCurrentTrace()
     {
-        using var activity = new Activity("open-durable-test")
-            .SetIdFormat(ActivityIdFormat.W3C)
-            .Start();
+        using var activity = new Activity("open-durable-test");
+        activity.SetIdFormat(ActivityIdFormat.W3C);
+        activity.Start();
         using var loggerFactory = new RecordingLoggerFactory();
         using var cancellation = new CancellationTokenSource();
         var loader = new RecordingLoader(LoaderFailure.Defect, cancellation);
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             loggerFactory: loggerFactory,
             durableProjectLoader: loader);
 
@@ -471,7 +471,7 @@ internal sealed class OpenDurableWorkspaceTests
         bool replacementCompletedBeforeRelease;
         try
         {
-            queuedCancellation.Cancel();
+            await queuedCancellation.CancelAsync();
             cancelledOutcome = await cancelled.WaitAsync(cancellationToken);
             replacement = workspace.OpenAsync(
                 new OpenDurable(ProjectId, Owner),
@@ -554,13 +554,13 @@ internal sealed class OpenDurableWorkspaceTests
         var activeAttachment = await workspace.AttachAsync(
             new InitialAttach(
                 activeOpened.WorkspaceId,
-                WorkspaceBuild.DevelopmentFingerprint,
+                WorkspaceBuild.TestFingerprint,
                 Owner),
             cancellationToken);
         var queuedAttachment = await workspace.AttachAsync(
             new InitialAttach(
                 queuedOpened.WorkspaceId,
-                WorkspaceBuild.DevelopmentFingerprint,
+                WorkspaceBuild.TestFingerprint,
                 Owner),
             cancellationToken);
 

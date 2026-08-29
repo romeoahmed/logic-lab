@@ -1187,7 +1187,9 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
-            if (Context.Request.Path.StartsWithSegments("/account"))
+            if (Context.Request.Path.StartsWithSegments(
+                    "/account",
+                    StringComparison.OrdinalIgnoreCase))
             {
                 return Task.FromResult(AuthenticateResult.NoResult());
             }

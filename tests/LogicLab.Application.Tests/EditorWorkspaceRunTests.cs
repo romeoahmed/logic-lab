@@ -306,7 +306,7 @@ internal sealed partial class EditorWorkspaceRunTests
                 controlled.WorkspaceId,
                 controlled.Attached.AttachmentId,
                 controlled.Attached.Generation,
-                WorkspaceBuild.DevelopmentFingerprint,
+                WorkspaceBuild.TestFingerprint,
                 AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         await Assert.That(reattach.IsCompleted).IsFalse();
@@ -838,7 +838,7 @@ internal sealed partial class EditorWorkspaceRunTests
                     controlled.WorkspaceId,
                     controlled.Attached.AttachmentId,
                     controlled.Attached.Generation,
-                    WorkspaceBuild.DevelopmentFingerprint,
+                    WorkspaceBuild.TestFingerprint,
                     AnonymousWorkspaceCaller.Instance),
                 cancellationToken))
             .IsTypeOf<Attached>())!;
@@ -986,7 +986,7 @@ internal sealed partial class EditorWorkspaceRunTests
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
         var controlled = await CreateInputWorkspace(workspace, cancellationToken);
         var beforeEdit = await Read(workspace, controlled, cancellationToken);
         var sink = beforeEdit.ProjectRevision.Document.EntryCircuitDefinition
@@ -1052,7 +1052,7 @@ internal sealed partial class EditorWorkspaceRunTests
             durableDisplayNameLimits: DurableDisplayNameLimits.Default,
             durableProjectCatalogLimits: DurableProjectCatalogLimits.Default);
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             policy);
         var controlled = await CreateInputWorkspace(workspace, cancellationToken);
         var beforeEdit = await Read(workspace, controlled, cancellationToken);

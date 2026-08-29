@@ -743,27 +743,27 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     [Test]
     [Arguments(
         "/account/login",
-        "login-email",
+        "Input.Email",
         AccountInputLimits.MaximumEmailLength)]
     [Arguments(
         "/account/login",
-        "login-password",
+        "Input.Password",
         AccountInputLimits.MaximumPasswordLength)]
     [Arguments(
         "/account/register",
-        "register-email",
+        "Input.Email",
         AccountInputLimits.MaximumEmailLength)]
     [Arguments(
         "/account/register",
-        "register-password",
+        "Input.Password",
         AccountInputLimits.MaximumPasswordLength)]
     [Arguments(
         "/account/register",
-        "register-confirm-password",
+        "Input.ConfirmPassword",
         AccountInputLimits.MaximumPasswordLength)]
     public async Task Get_IdentityEntry_RendersApplicationMaximumLength(
         string path,
-        string inputId,
+        string fieldName,
         int expectedMaximum)
     {
         var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
@@ -774,11 +774,11 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
-        var input = WebTestMarkup.RequireElement(
+        var field = WebTestMarkup.RequireElement(
             WebTestMarkup.Parse(html),
-            $"input#{inputId}");
+            $"[name='{fieldName}']");
 
-        await Assert.That(input.GetAttribute("maxlength"))
+        await Assert.That(field.GetAttribute("maxlength"))
             .IsEqualTo(expectedMaximum.ToString(CultureInfo.InvariantCulture));
     }
 

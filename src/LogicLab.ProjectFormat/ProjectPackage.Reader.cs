@@ -1391,9 +1391,9 @@ public static partial class ProjectPackage
     private static string RequireStableName(string value)
     {
         return value is { Length: >= 1 and <= 96 }
-            && IsAsciiLetter(value[0])
+            && char.IsAsciiLetter(value[0])
             && value.All(character =>
-                IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-')
+                char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-')
             ? value
             : throw Invalid("package_json_invalid", ("rule", "stableName"));
     }
@@ -1401,26 +1401,19 @@ public static partial class ProjectPackage
     private static string RequireStableVersion(string value)
     {
         return value is { Length: >= 1 and <= 64 }
-            && IsAsciiLetterOrDigit(value[0])
+            && char.IsAsciiLetterOrDigit(value[0])
             && value.All(character =>
-                IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-')
+                char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-')
             ? value
             : throw Invalid("package_json_invalid", ("rule", "stableVersion"));
     }
 
     private static bool IsSha256(string? value) =>
         value is { Length: 64 }
-        && value.All(character => character is >= '0' and <= '9'
-            or >= 'a' and <= 'f');
+        && value.All(char.IsAsciiHexDigitLower);
 
     private static bool IsAsciiLowerOrDigit(char value) =>
-        value is >= 'a' and <= 'z' or >= '0' and <= '9';
-
-    private static bool IsAsciiLetterOrDigit(char value) =>
-        IsAsciiLetter(value) || value is >= '0' and <= '9';
-
-    private static bool IsAsciiLetter(char value) =>
-        value is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
+        char.IsAsciiLetterLower(value) || char.IsAsciiDigit(value);
 
     private static ulong ParseCanonicalUnsigned64(string value, string rule)
     {

@@ -2,8 +2,6 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-    <!-- BenchmarkDotNet discovers public benchmark classes and parameter members. -->
-    <NoWarn>$(NoWarn);CA1515</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

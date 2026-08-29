@@ -8,7 +8,7 @@ internal sealed class EditorWorkspaceLifecycleTests
     public async Task OpenAsync_GlobalLimitReached_RejectsAdditionalWorkspace()
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             Policy(globalWorkspaceLimit: 2, TimeSpan.FromHours(1)));
 
         var first = await Open(workspace);
@@ -40,7 +40,7 @@ internal sealed class EditorWorkspaceLifecycleTests
         var secondCaller = new AuthenticatedWorkspaceCaller(
             new AuthenticatedSubjectId("second-subject"));
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             Policy(
                 globalWorkspaceLimit: 3,
                 TimeSpan.FromHours(1),
@@ -77,7 +77,7 @@ internal sealed class EditorWorkspaceLifecycleTests
         var authenticated = new AuthenticatedWorkspaceCaller(
             new AuthenticatedSubjectId("authenticated-subject"));
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             Policy(
                 globalWorkspaceLimit: 2,
                 TimeSpan.FromHours(1),
@@ -110,7 +110,7 @@ internal sealed class EditorWorkspaceLifecycleTests
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 2, 0, 0, 0, TimeSpan.Zero));
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider);
         var opened = (WorkspaceOpened)await Open(workspace);
@@ -130,7 +130,7 @@ internal sealed class EditorWorkspaceLifecycleTests
     public async Task ReadAsync_CurrentProjectionVersion_ReturnsUnchanged()
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromHours(1)));
         var opened = (WorkspaceOpened)await Open(workspace);
         var attached = await Attach(workspace, opened.WorkspaceId);
@@ -151,7 +151,7 @@ internal sealed class EditorWorkspaceLifecycleTests
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 2, 0, 0, 0, TimeSpan.Zero));
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromMinutes(5)),
             timeProvider: timeProvider);
         var initial = await Open(workspace);
@@ -170,7 +170,7 @@ internal sealed class EditorWorkspaceLifecycleTests
     public async Task OpenAsync_RejectedGenesis_ReleasesReservedCapacity()
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromHours(1)));
 
         var rejected = await workspace.OpenAsync(
@@ -189,7 +189,7 @@ internal sealed class EditorWorkspaceLifecycleTests
     public async Task DispatchAsync_CloseWorkspace_ReleasesCapacityAndRemovesProjection()
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             Policy(globalWorkspaceLimit: 1, TimeSpan.FromHours(1)));
         var opened = (WorkspaceOpened)await Open(workspace);
         var attached = await Attach(workspace, opened.WorkspaceId);
@@ -218,7 +218,7 @@ internal sealed class EditorWorkspaceLifecycleTests
     {
         const int limit = 4;
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             Policy(limit, TimeSpan.FromHours(1)));
 
         var outcomes = await OpenSimultaneously(
@@ -245,7 +245,7 @@ internal sealed class EditorWorkspaceLifecycleTests
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 2, 0, 0, 0, TimeSpan.Zero));
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             Policy(limit, TimeSpan.FromMinutes(1)),
             timeProvider: timeProvider);
         var initial = await Task.WhenAll(
@@ -288,7 +288,7 @@ internal sealed class EditorWorkspaceLifecycleTests
         return (Attached)await workspace.AttachAsync(
             new InitialAttach(
                 workspaceId,
-                WorkspaceBuild.DevelopmentFingerprint,
+                WorkspaceBuild.TestFingerprint,
                 AnonymousWorkspaceCaller.Instance),
             CancellationToken.None);
     }

@@ -18,6 +18,11 @@ internal static class SchematicPrimitiveProjector
         var radius = Math.Max(1, h / 2);
         var direction = Direction(port.Placement.Facing);
         var inward = Offset(point, Opposite(direction), h);
+        var terminalHalfExtent = Math.Max(1, h / 4);
+        var (terminalStart, terminalEnd) = TerminalCap(
+            point,
+            direction,
+            terminalHalfExtent);
         var measurement = TextMeasurementBoundary.Measure(
             textMeasurer,
             new SymbolTextMeasurementRequestV1(
@@ -39,7 +44,12 @@ internal static class SchematicPrimitiveProjector
         var labelBounds = SchematicGeometry.Translate(labelEnvelope, labelOrigin);
         var operations = new DrawOperationV1[]
         {
-            Stroke([point, inward], StrokeRoleV1.Outline, Math.Max(1, h / 10)),
+            DefinitionPortStroke(
+                point,
+                inward,
+                terminalStart,
+                terminalEnd,
+                Math.Max(1, h / 10)),
             new DrawTextV1(
                 port.DisplayName,
                 FontRoleV1.PortLabel,
@@ -274,6 +284,20 @@ internal static class SchematicPrimitiveProjector
             _ => throw new InvalidOperationException("The plan direction is undefined."),
         };
 
+    private static (PointV1 Start, PointV1 End) TerminalCap(
+        PointV1 point,
+        PlanDirectionV1 direction,
+        int halfExtent) => direction switch
+        {
+            PlanDirectionV1.North or PlanDirectionV1.South =>
+                (new PointV1(checked(point.X - halfExtent), point.Y),
+                    new PointV1(checked(point.X + halfExtent), point.Y)),
+            PlanDirectionV1.East or PlanDirectionV1.West =>
+                (new PointV1(point.X, checked(point.Y - halfExtent)),
+                    new PointV1(point.X, checked(point.Y + halfExtent))),
+            _ => throw new InvalidOperationException("The plan direction is undefined."),
+        };
+
     private static PointV1 PlaceBeyond(
         PointV1 point,
         RectV1 envelope,
@@ -294,6 +318,25 @@ internal static class SchematicPrimitiveProjector
                 point.Y),
             _ => throw new InvalidOperationException("The plan direction is undefined."),
         };
+
+    private static StrokePathV1 DefinitionPortStroke(
+        PointV1 point,
+        PointV1 inward,
+        PointV1 terminalStart,
+        PointV1 terminalEnd,
+        int width) => new(
+        new PathV1(
+        [
+            new MoveToV1(point),
+            new LineToV1(inward),
+            new MoveToV1(terminalStart),
+            new LineToV1(terminalEnd),
+        ]),
+        StrokeRoleV1.Outline,
+        width,
+        [],
+        LineCapV1.Round,
+        RoundJoin);
 
     private static StrokePathV1 Stroke(
         PointV1[] points,

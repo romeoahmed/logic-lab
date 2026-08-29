@@ -21,7 +21,8 @@ internal sealed class ComponentPaletteTests
             .Add(component => component.ActiveToolChanged,
                 EventCallback.Factory.Create<SceneToolV1>(this, tool => selected = tool)));
 
-        await rendered.Find("[data-component-search]").InputAsync(
+        await rendered.Find("[data-component-search]").TriggerEventAsync(
+            "ontextimmediate",
             new ChangeEventArgs { Value = "register" });
         var matches = rendered.FindAll("[data-place-option]");
         await matches[0].ClickAsync(new MouseEventArgs());

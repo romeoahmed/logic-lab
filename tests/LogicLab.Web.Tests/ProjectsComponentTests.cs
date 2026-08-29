@@ -33,7 +33,8 @@ internal sealed class ProjectsComponentTests
         var rendered = context.Render<LogicLab.Web.Components.Pages.Projects>();
 
         var items = rendered.FindAll("[data-project-id]");
-        var openButtons = rendered.FindAll("button[type='submit']");
+        var openButtons = rendered.FindAll(
+            "form[action='/projects/open'] [type='submit']");
         using (Assert.Multiple())
         {
             await Assert.That(items.Select(item => item.GetAttribute("data-project-id")!))
@@ -72,7 +73,7 @@ internal sealed class ProjectsComponentTests
 
         var rendered = context.Render<LogicLab.Web.Components.Pages.Projects>();
         var empty = rendered.Find("[data-catalog-empty]");
-        var recovery = empty.QuerySelector("a[href='/editor']")
+        var recovery = empty.QuerySelector("[href='/editor']")
             ?? throw new InvalidOperationException(
                 "The empty catalog did not provide a Sandbox recovery action.");
 

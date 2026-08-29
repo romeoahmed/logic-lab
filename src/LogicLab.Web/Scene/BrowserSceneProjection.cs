@@ -541,8 +541,7 @@ internal static class BrowserSceneProjection
         var overlays = new List<SceneOverlayV1>();
         if (input.SessionId is not null && input.SessionVersion is { } sessionVersion)
         {
-            foreach (var (probe, ordinal) in input.Probes.Select((probe, ordinal) =>
-                         (probe, checked((uint)ordinal))))
+            foreach (var probe in input.Probes)
             {
                 var source = probe.Net.AuthoredNet;
                 if (source.CircuitDefinitionId != definitionId
@@ -564,8 +563,7 @@ internal static class BrowserSceneProjection
                         $"1-probe:{probe.ProbeId}",
                         probe.ProbeId,
                         probe.Net,
-                        Point(anchor),
-                        ordinal));
+                        Point(anchor)));
                 }
             }
         }

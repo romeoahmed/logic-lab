@@ -74,8 +74,8 @@ public sealed class PackagePolicy
         Limits = Array.AsReadOnly(this.limits);
     }
 
-    public static PackagePolicy Development { get; } = new(
-        "logiclab-development-package",
+    public static PackagePolicy Default { get; } = new(
+        "logiclab-package",
         "1",
         [
             new(PackageDimension.CarrierBytes, 64UL * 1024 * 1024),
@@ -111,16 +111,9 @@ public sealed class PackagePolicy
     private static bool IsStableToken(string value)
     {
         return value.Length <= 96
-            && IsAsciiLetterOrDigit(value[0])
+            && char.IsAsciiLetterOrDigit(value[0])
             && value.All(character =>
-                IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
-    }
-
-    private static bool IsAsciiLetterOrDigit(char value)
-    {
-        return value is >= 'A' and <= 'Z'
-            or >= 'a' and <= 'z'
-            or >= '0' and <= '9';
+                char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
     }
 }
 

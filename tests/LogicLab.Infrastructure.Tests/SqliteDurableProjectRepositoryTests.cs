@@ -881,16 +881,16 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         public LogicLabDbContext CreateDbContext()
             => inner.CreateDbContext();
 
-        public Task<LogicLabDbContext> CreateDbContextAsync(
+        public async Task<LogicLabDbContext> CreateDbContextAsync(
             CancellationToken cancellationToken = default)
         {
             if (Interlocked.Exchange(ref cancelNextCreation, 0) == 1)
             {
-                cancellation.Cancel();
+                await cancellation.CancelAsync();
                 throw new OperationCanceledException(cancellationToken);
             }
 
-            return inner.CreateDbContextAsync(cancellationToken);
+            return await inner.CreateDbContextAsync(cancellationToken);
         }
     }
 

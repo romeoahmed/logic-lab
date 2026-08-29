@@ -10,6 +10,7 @@ using LogicLab.Web.Data;
 using LogicLab.Web.Health;
 using LogicLab.Web.Identity;
 using LogicLab.Web.Projects;
+using LogicLab.Web.Scene;
 using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -27,13 +28,14 @@ var connectionString = builder.Configuration.GetConnectionString("LogicLab")
     ?? throw new InvalidOperationException(
         "ConnectionStrings:LogicLab must be configured.");
 var workspacePolicy = WorkspacePolicy.Default;
-var packagePolicy = PackagePolicy.Development;
+var packagePolicy = PackagePolicy.Default;
 var accountIngressPolicy = AccountIngressPolicy.Default;
 var durableProjectIngressPolicy = DurableProjectIngressPolicy.Default;
 var anonymousWorkspaceIngressPolicy = AnonymousWorkspaceIngressPolicy.Default;
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(workspacePolicy);
+builder.Services.AddSingleton(BrowserPolicy.Default);
 builder.Services.AddSingleton(anonymousWorkspaceIngressPolicy);
 builder.Services.AddSingleton<RateLimiter>(services => services
     .GetRequiredService<AnonymousWorkspaceIngressPolicy>()
@@ -129,7 +131,7 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 });
 builder.Services.AddSingleton<LogicLabReadinessHealthCheck>(services => new(
     services.GetRequiredService<IEditorWorkspaceReadiness>(),
-    services.GetRequiredService<ILogicLabPersistenceReadiness>(),
+    services.GetRequiredService<LogicLabPersistenceReadiness>(),
     services.GetRequiredService<IServiceScopeFactory>(),
     services.GetRequiredService<IHostApplicationLifetime>()));
 builder.Services.AddHealthChecks()

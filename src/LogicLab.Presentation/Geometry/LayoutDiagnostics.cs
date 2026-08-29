@@ -257,9 +257,9 @@ internal static class PresentationDiagnosticLexemes
 {
     public static bool IsStableToken(string? value) =>
         value is { Length: >= 1 and <= 96 }
-        && IsAsciiAlphaNumeric(value[0])
+        && char.IsAsciiLetterOrDigit(value[0])
         && value.Skip(1).All(character =>
-            IsAsciiAlphaNumeric(character) || character is '.' or '_' or '-');
+            char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
 
     public static bool IsCorrelationToken(string? value) =>
         value is { Length: >= 16 and <= 64 }
@@ -267,12 +267,6 @@ internal static class PresentationDiagnosticLexemes
         && value.Skip(1).All(character =>
             IsAsciiLowerAlphaNumeric(character) || character is '_' or '-');
 
-    private static bool IsAsciiAlphaNumeric(char value) =>
-        value is >= 'A' and <= 'Z'
-            or >= 'a' and <= 'z'
-            or >= '0' and <= '9';
-
     private static bool IsAsciiLowerAlphaNumeric(char value) =>
-        value is >= 'a' and <= 'z'
-            or >= '0' and <= '9';
+        char.IsAsciiLetterLower(value) || char.IsAsciiDigit(value);
 }

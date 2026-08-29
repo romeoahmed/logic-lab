@@ -51,14 +51,12 @@ export const browserPolicyDimensionTokens = Object.freeze({
   interopBatchBytes: "interop_batch_bytes",
   candidateTransferBytes: "candidate_transfer_bytes",
   canvasBitmapPixels: "canvas_bitmap_pixels",
-  canvasBitmapBytes: "canvas_bitmap_bytes",
   effectiveDensityMillionths: "effective_density_millionths",
   zoomMillionthsMinimum: "zoom_millionths_minimum",
   zoomMillionthsMaximum: "zoom_millionths_maximum",
   displayListBytes: "display_list_bytes",
   spatialIndexBytes: "spatial_index_bytes",
   sceneCacheBytes: "scene_cache_bytes",
-  waveformCacheBytes: "waveform_cache_bytes",
 });
 
 export function validatePolicy(policy) {
@@ -69,14 +67,12 @@ export function validatePolicy(policy) {
     "interopBatchBytes",
     "candidateTransferBytes",
     "canvasBitmapPixels",
-    "canvasBitmapBytes",
     "effectiveDensityMillionths",
     "zoomMillionthsMinimum",
     "zoomMillionthsMaximum",
     "displayListBytes",
     "spatialIndexBytes",
     "sceneCacheBytes",
-    "waveformCacheBytes",
   ];
   const exactShape = new Set(["policyId", "policyRevision", ...fields]);
   const actualShape = policy ? Object.keys(policy) : [];
@@ -472,8 +468,7 @@ function validOverlay(overlay, definitionId) {
     return typeof overlay.probeId === "string" && overlay.probeId.length > 0
       && validElaboratedNet(overlay.net, definitionId)
       && sameSource(overlay.source, overlay.net.authoredNet)
-      && validPoint(overlay.point)
-      && Number.isSafeInteger(overlay.appearanceOrdinal) && overlay.appearanceOrdinal >= 0;
+      && validPoint(overlay.point);
   }
   if (overlay.kind === "liveNetValue") {
     if (!validElaboratedNet(overlay.net, definitionId)

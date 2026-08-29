@@ -66,7 +66,7 @@ internal sealed class EditorWorkspaceTests
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
         var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
         var before = await Read(workspace, opened);
 
@@ -130,7 +130,7 @@ internal sealed class EditorWorkspaceTests
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
         var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
         var before = await Read(workspace, opened);
         var attachment = opened.Attachment;
@@ -277,7 +277,7 @@ internal sealed class EditorWorkspaceTests
             await compilationGate.Started.WaitAsync(cancellationToken);
             using var replayCancellation = new CancellationTokenSource();
             var pendingReplay = workspace.DispatchAsync(command, replayCancellation.Token);
-            replayCancellation.Cancel();
+            await replayCancellation.CancelAsync();
             replay = await pendingReplay.WaitAsync(
                 TimeSpan.FromSeconds(5),
                 cancellationToken);
@@ -335,7 +335,7 @@ internal sealed class EditorWorkspaceTests
                         opened.WorkspaceId,
                         firstAttachment.AttachmentId,
                         firstAttachment.Generation,
-                        WorkspaceBuild.DevelopmentFingerprint,
+                        WorkspaceBuild.TestFingerprint,
                         AnonymousWorkspaceCaller.Instance),
                     cancellationToken))
                 .IsTypeOf<Attached>();
@@ -380,7 +380,7 @@ internal sealed class EditorWorkspaceTests
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
         var opened = await Open(workspace, cancellationToken);
         var revision = opened.Projection.ProjectRevision;
         var definitionId = revision.Document.EntryCircuitDefinitionId;
@@ -480,7 +480,7 @@ internal sealed class EditorWorkspaceTests
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
         var (opened, _) = await OpenInputOutputSession(workspace, cancellationToken);
         var before = await Read(workspace, opened);
         var simulation = before.Simulation!;
@@ -508,7 +508,7 @@ internal sealed class EditorWorkspaceTests
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
         var opened = await Open(workspace, cancellationToken);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
         await Apply(workspace, opened, Place(
@@ -564,7 +564,7 @@ internal sealed class EditorWorkspaceTests
         CancellationToken testCancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
         var opened = await Open(workspace, testCancellationToken);
         var before = await Read(workspace, opened);
         var cancellationToken = new CancellationToken(canceled: true);
@@ -589,7 +589,7 @@ internal sealed class EditorWorkspaceTests
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
         var opened = await Open(workspace, cancellationToken);
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
         await Apply(workspace, opened, Place(
@@ -654,7 +654,7 @@ internal sealed class EditorWorkspaceTests
         CancellationToken testCancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
         var (opened, _) = await OpenInputOutputSession(workspace, testCancellationToken);
         var before = await Read(workspace, opened);
         var definition = before.ProjectRevision.Document.EntryCircuitDefinition;
@@ -764,7 +764,7 @@ internal sealed class EditorWorkspaceTests
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
         var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
 
         var outcome = await workspace.DispatchAsync(
@@ -785,7 +785,7 @@ internal sealed class EditorWorkspaceTests
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
         var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
 
         var outcome = await workspace.DispatchAsync(
@@ -806,7 +806,7 @@ internal sealed class EditorWorkspaceTests
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
         var (opened, _) = await OpenInputOutputSession(workspace, cancellationToken);
 
         var outcome = await workspace.DispatchAsync(
@@ -1041,7 +1041,7 @@ internal sealed class EditorWorkspaceTests
             await sessionGate.Started.WaitAsync(cancellationToken);
             using var replayCancellation = new CancellationTokenSource();
             var pendingReplay = workspace.DispatchAsync(command, replayCancellation.Token);
-            replayCancellation.Cancel();
+            await replayCancellation.CancelAsync();
             replay = await pendingReplay.WaitAsync(
                 TimeSpan.FromSeconds(5),
                 cancellationToken);
@@ -1124,7 +1124,7 @@ internal sealed class EditorWorkspaceTests
         var outcome = await workspace.AttachAsync(
             new InitialAttach(
                 workspaceId,
-                WorkspaceBuild.DevelopmentFingerprint,
+                WorkspaceBuild.TestFingerprint,
                 AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         var attached = await Assert.That(outcome).IsTypeOf<Attached>();

@@ -10,14 +10,12 @@ internal enum BrowserLimitDimension
     InteropBatchBytes,
     CandidateTransferBytes,
     CanvasBitmapPixels,
-    CanvasBitmapBytes,
     EffectiveDensityMillionths,
     ZoomMillionthsMinimum,
     ZoomMillionthsMaximum,
     DisplayListBytes,
     SpatialIndexBytes,
     SceneCacheBytes,
-    WaveformCacheBytes,
 }
 
 internal enum BrowserLimitComparison
@@ -26,19 +24,9 @@ internal enum BrowserLimitComparison
     AtLeast,
 }
 
-internal enum BrowserObservationDimension
-{
-    FrameWorkMicroseconds,
-    LongTaskMicroseconds,
-}
-
 internal sealed record BrowserLimitV1(
     BrowserLimitDimension Dimension,
     BrowserLimitComparison Comparison,
-    ulong Value);
-
-internal sealed record BrowserObservationThresholdV1(
-    BrowserObservationDimension Dimension,
     ulong Value);
 
 internal sealed record BrowserPolicyEvidenceV1(
@@ -60,14 +48,12 @@ internal static class BrowserPolicyDimensionTokens
         "interop_batch_bytes",
         "candidate_transfer_bytes",
         "canvas_bitmap_pixels",
-        "canvas_bitmap_bytes",
         "effective_density_millionths",
         "zoom_millionths_minimum",
         "zoom_millionths_maximum",
         "display_list_bytes",
         "spatial_index_bytes",
         "scene_cache_bytes",
-        "waveform_cache_bytes",
     ];
 
     public static string Token(BrowserLimitDimension dimension) =>
@@ -99,32 +85,22 @@ internal sealed class BrowserPolicy
             (BrowserLimitDimension.InteropBatchBytes, BrowserLimitComparison.AtMost),
             (BrowserLimitDimension.CandidateTransferBytes, BrowserLimitComparison.AtMost),
             (BrowserLimitDimension.CanvasBitmapPixels, BrowserLimitComparison.AtMost),
-            (BrowserLimitDimension.CanvasBitmapBytes, BrowserLimitComparison.AtMost),
             (BrowserLimitDimension.EffectiveDensityMillionths, BrowserLimitComparison.AtMost),
             (BrowserLimitDimension.ZoomMillionthsMinimum, BrowserLimitComparison.AtLeast),
             (BrowserLimitDimension.ZoomMillionthsMaximum, BrowserLimitComparison.AtMost),
             (BrowserLimitDimension.DisplayListBytes, BrowserLimitComparison.AtMost),
             (BrowserLimitDimension.SpatialIndexBytes, BrowserLimitComparison.AtMost),
             (BrowserLimitDimension.SceneCacheBytes, BrowserLimitComparison.AtMost),
-            (BrowserLimitDimension.WaveformCacheBytes, BrowserLimitComparison.AtMost),
         ];
-
-    private static readonly BrowserObservationDimension[] RequiredThresholds =
-    [
-        BrowserObservationDimension.FrameWorkMicroseconds,
-        BrowserObservationDimension.LongTaskMicroseconds,
-    ];
 
     public BrowserPolicy(
         string policyId,
         string policyRevision,
-        IReadOnlyList<BrowserLimitV1> limits,
-        IReadOnlyList<BrowserObservationThresholdV1> observationThresholds)
+        IReadOnlyList<BrowserLimitV1> limits)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(policyId);
         ArgumentException.ThrowIfNullOrWhiteSpace(policyRevision);
         ArgumentNullException.ThrowIfNull(limits);
-        ArgumentNullException.ThrowIfNull(observationThresholds);
         ValidateStableToken(policyId, nameof(policyId));
         ValidateStableToken(policyRevision, nameof(policyRevision));
 
@@ -140,19 +116,6 @@ internal sealed class BrowserPolicy
                 "Every Browser Policy limit must appear exactly once in the required order "
                 + "with its required comparison and a positive value.",
                 nameof(limits));
-        }
-
-        var ownedThresholds = observationThresholds.ToArray();
-        if (ownedThresholds.Length != RequiredThresholds.Length
-            || ownedThresholds.Where((threshold, index) =>
-                    threshold.Dimension != RequiredThresholds[index]
-                    || threshold.Value == 0)
-                .Any())
-        {
-            throw new ArgumentException(
-                "Every Browser Policy observation threshold must appear exactly once in the "
-                + "required order with a positive value.",
-                nameof(observationThresholds));
         }
 
         var minimumZoom = ownedLimits[(int)BrowserLimitDimension.ZoomMillionthsMinimum].Value;
@@ -178,12 +141,11 @@ internal sealed class BrowserPolicy
         PolicyId = policyId;
         PolicyRevision = policyRevision;
         Limits = Array.AsReadOnly(ownedLimits);
-        ObservationThresholds = Array.AsReadOnly(ownedThresholds);
     }
 
-    public static BrowserPolicy Development { get; } = new(
+    public static BrowserPolicy Default { get; } = new(
         "logiclab-browser",
-        "development-3",
+        "4",
         [
             new(
                 BrowserLimitDimension.SemanticIntentBytes,
@@ -197,18 +159,12 @@ internal sealed class BrowserPolicy
                 InteractiveServerInteropPayloadBytes),
             new(BrowserLimitDimension.CandidateTransferBytes, BrowserLimitComparison.AtMost, 16_777_216),
             new(BrowserLimitDimension.CanvasBitmapPixels, BrowserLimitComparison.AtMost, 33_554_432),
-            new(BrowserLimitDimension.CanvasBitmapBytes, BrowserLimitComparison.AtMost, 134_217_728),
             new(BrowserLimitDimension.EffectiveDensityMillionths, BrowserLimitComparison.AtMost, 3_000_000),
             new(BrowserLimitDimension.ZoomMillionthsMinimum, BrowserLimitComparison.AtLeast, 50_000),
             new(BrowserLimitDimension.ZoomMillionthsMaximum, BrowserLimitComparison.AtMost, 4_000_000),
             new(BrowserLimitDimension.DisplayListBytes, BrowserLimitComparison.AtMost, 16_777_216),
             new(BrowserLimitDimension.SpatialIndexBytes, BrowserLimitComparison.AtMost, 8_388_608),
             new(BrowserLimitDimension.SceneCacheBytes, BrowserLimitComparison.AtMost, 67_108_864),
-            new(BrowserLimitDimension.WaveformCacheBytes, BrowserLimitComparison.AtMost, 67_108_864),
-        ],
-        [
-            new(BrowserObservationDimension.FrameWorkMicroseconds, 12_000),
-            new(BrowserObservationDimension.LongTaskMicroseconds, 50_000),
         ]);
 
     public string PolicyId { get; }
@@ -216,8 +172,6 @@ internal sealed class BrowserPolicy
     public string PolicyRevision { get; }
 
     public ReadOnlyCollection<BrowserLimitV1> Limits { get; }
-
-    public ReadOnlyCollection<BrowserObservationThresholdV1> ObservationThresholds { get; }
 
     public ulong Limit(BrowserLimitDimension dimension) => LimitEntry(dimension).Value;
 

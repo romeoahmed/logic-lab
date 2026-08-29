@@ -331,9 +331,9 @@ internal sealed class DurableProjectCatalogTests
     [Test]
     public async Task ListAsync_RepositoryDefect_LogsClosedOutcomeWithCurrentTrace()
     {
-        using var activity = new Activity("durable-catalog-test")
-            .SetIdFormat(ActivityIdFormat.W3C)
-            .Start();
+        using var activity = new Activity("durable-catalog-test");
+        activity.SetIdFormat(ActivityIdFormat.W3C);
+        activity.Start();
         using var loggerFactory = new RecordingLoggerFactory();
         using var cancellation = new CancellationTokenSource();
         var repository = new RecordingCatalogRepository(

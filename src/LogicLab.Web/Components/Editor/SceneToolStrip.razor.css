@@ -10,17 +10,8 @@
   background: var(--ll-panel);
 }
 
-.scene-tool-strip button {
-  display: inline-flex;
+.scene-tool-strip ::deep .scene-tool {
   min-block-size: 2.35rem;
-  align-items: center;
-  gap: 0.45rem;
-  padding-inline: 0.75rem;
-  border: 1px solid var(--ll-border-strong);
-  border-radius: var(--ll-radius-small);
-  color: var(--ll-ink);
-  background: var(--ll-canvas);
-  font: inherit;
 }
 
 .tool-icon {
@@ -33,28 +24,12 @@
   stroke-width: 1.6;
 }
 
-.scene-tool-strip button[aria-pressed="true"] {
-  border-color: var(--ll-signal);
-  color: var(--ll-signal-strong);
-  background: var(--ll-signal-soft);
-}
-
-.scene-tool-strip :focus-visible {
-  outline: 3px solid var(--ll-signal);
-  outline-offset: 2px;
-}
-
 @container scene-tools (width < 25rem) {
   .tool-label {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+    display: none;
   }
 
-  .scene-tool-strip button {
+  .scene-tool-strip ::deep .scene-tool {
     inline-size: 2.4rem;
     justify-content: center;
     padding-inline: 0;

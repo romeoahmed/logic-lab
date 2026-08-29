@@ -24,7 +24,7 @@ internal sealed class BrowserSceneAdapterTests
             new RecordingJsRuntime(module),
             default(ElementReference),
             "build-a",
-            BrowserPolicy.Development,
+            BrowserPolicy.Default,
             sink,
             CancellationToken.None,
             recovery);
@@ -37,7 +37,7 @@ internal sealed class BrowserSceneAdapterTests
         using (Assert.Multiple())
         {
             await Assert.That(policy).IsEqualTo(BrowserPolicyPayload.From(
-                BrowserPolicy.Development));
+                BrowserPolicy.Default));
             await Assert.That(mountedRecovery.Viewports).IsEquivalentTo(recovery.Viewports);
         }
     }
@@ -74,7 +74,7 @@ internal sealed class BrowserSceneAdapterTests
             await Assert.That(chunks.All(call =>
                     Encoding.UTF8.GetByteCount((string)call.Arguments[2]!)
                         + InteropEnvelopeBytes
-                    <= (int)BrowserPolicy.Development.Limit(
+                    <= (int)BrowserPolicy.Default.Limit(
                         BrowserLimitDimension.InteropBatchBytes)))
                 .IsTrue();
             await Assert.That(reconstructed.SequenceEqual(expected)).IsTrue();
@@ -134,7 +134,7 @@ internal sealed class BrowserSceneAdapterTests
             await Assert.That(batches.All(call =>
                     Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(call.Arguments[0], WebJson))
                         + InteropEnvelopeBytes
-                    <= (int)BrowserPolicy.Development.Limit(
+                    <= (int)BrowserPolicy.Default.Limit(
                         BrowserLimitDimension.InteropBatchBytes)))
                 .IsTrue();
             await Assert.That(result.Measurements.Select(measurement => measurement.Key))
@@ -152,7 +152,7 @@ internal sealed class BrowserSceneAdapterTests
             new RecordingJsRuntime(module),
             default(ElementReference),
             "build-a",
-            BrowserPolicy.Development,
+            BrowserPolicy.Default,
             sink,
             CancellationToken.None);
 
@@ -209,7 +209,7 @@ internal sealed class BrowserSceneAdapterTests
                 new RecordingJsRuntime(module),
                 default(ElementReference),
                 "build-a",
-                BrowserPolicy.Development,
+                BrowserPolicy.Default,
                 sink,
                 CancellationToken.None);
             return new MountedAdapter(adapter, sink);
@@ -360,14 +360,12 @@ internal sealed class BrowserSceneAdapterTests
         ulong InteropBatchBytes,
         ulong CandidateTransferBytes,
         ulong CanvasBitmapPixels,
-        ulong CanvasBitmapBytes,
         ulong EffectiveDensityMillionths,
         ulong ZoomMillionthsMinimum,
         ulong ZoomMillionthsMaximum,
         ulong DisplayListBytes,
         ulong SpatialIndexBytes,
-        ulong SceneCacheBytes,
-        ulong WaveformCacheBytes)
+        ulong SceneCacheBytes)
     {
         public static BrowserPolicyPayload From(BrowserPolicy policy) => new(
             policy.PolicyId,
@@ -378,13 +376,11 @@ internal sealed class BrowserSceneAdapterTests
             policy.Limit(BrowserLimitDimension.InteropBatchBytes),
             policy.Limit(BrowserLimitDimension.CandidateTransferBytes),
             policy.Limit(BrowserLimitDimension.CanvasBitmapPixels),
-            policy.Limit(BrowserLimitDimension.CanvasBitmapBytes),
             policy.Limit(BrowserLimitDimension.EffectiveDensityMillionths),
             policy.Limit(BrowserLimitDimension.ZoomMillionthsMinimum),
             policy.Limit(BrowserLimitDimension.ZoomMillionthsMaximum),
             policy.Limit(BrowserLimitDimension.DisplayListBytes),
             policy.Limit(BrowserLimitDimension.SpatialIndexBytes),
-            policy.Limit(BrowserLimitDimension.SceneCacheBytes),
-            policy.Limit(BrowserLimitDimension.WaveformCacheBytes));
+            policy.Limit(BrowserLimitDimension.SceneCacheBytes));
     }
 }

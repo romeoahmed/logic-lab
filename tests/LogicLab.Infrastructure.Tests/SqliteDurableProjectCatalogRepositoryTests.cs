@@ -124,7 +124,7 @@ internal sealed class SqliteDurableProjectCatalogRepositoryTests : IAsyncDisposa
     {
         var (repository, _) = await CreateRepositoryAsync();
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        await cancellation.CancelAsync();
 
         await Assert.That(async () => await repository.ListAuthorizedAsync(
                 new DurableProjectCatalogRepositoryRequest(

@@ -804,7 +804,6 @@ public sealed record CompilationPublishedProjection : CompilationProjection
         Generation = generation;
         ArtifactKey = artifactKey;
         Diagnostics = Array.AsReadOnly(diagnostics.ToArray());
-        DiagnosticCodes = Array.AsReadOnly(diagnostics.Select(item => item.Code).ToArray());
     }
 
     public override CompilationGeneration Generation { get; }
@@ -812,8 +811,6 @@ public sealed record CompilationPublishedProjection : CompilationProjection
     public CompilationArtifactKey ArtifactKey { get; }
 
     public ReadOnlyCollection<CompilationDiagnosticProjection> Diagnostics { get; }
-
-    public ReadOnlyCollection<string> DiagnosticCodes { get; }
 }
 
 public sealed record CompilationRejectedProjection : CompilationProjection
@@ -831,15 +828,12 @@ public sealed record CompilationRejectedProjection : CompilationProjection
         ArgumentException.ThrowIfNullOrEmpty(rejectionCode);
         Generation = generation;
         Diagnostics = Array.AsReadOnly(diagnostics.ToArray());
-        DiagnosticCodes = Array.AsReadOnly(diagnostics.Select(item => item.Code).ToArray());
         RejectionCode = rejectionCode;
         RetryDisposition = retryDisposition;
         PolicyEvidence = policyEvidence;
     }
 
     public override CompilationGeneration Generation { get; }
-
-    public ReadOnlyCollection<string> DiagnosticCodes { get; }
 
     public ReadOnlyCollection<CompilationDiagnosticProjection> Diagnostics { get; }
 

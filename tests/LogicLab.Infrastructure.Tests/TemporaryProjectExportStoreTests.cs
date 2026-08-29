@@ -433,7 +433,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
             var cancelledRedeem = store.RedeemAsync(
                 new ProjectExportDownloadRequest(ticket, owner),
                 cancellation.Token).AsTask();
-            cancellation.Cancel();
+            await cancellation.CancelAsync();
             await Assert.That(async () => await cancelledRedeem)
                 .ThrowsExactly<OperationCanceledException>();
         }

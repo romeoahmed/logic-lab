@@ -43,7 +43,7 @@ internal sealed class EditorWorkspaceFailureTests
                 .IsEqualTo(accepted.CompilationGeneration);
             await Assert.That(rejected.RejectionCode)
                 .IsEqualTo("workspace_internal_defect");
-            await Assert.That(rejected.DiagnosticCodes).IsEmpty();
+            await Assert.That(rejected.Diagnostics).IsEmpty();
         }
     }
 
@@ -86,7 +86,7 @@ internal sealed class EditorWorkspaceFailureTests
             await Assert.That(after.Compilation.Generation)
                 .IsEqualTo(accepted.CompilationGeneration);
             await Assert.That(rejected.RejectionCode).IsEqualTo(expectedCode);
-            await Assert.That(rejected.DiagnosticCodes).IsEmpty();
+            await Assert.That(rejected.Diagnostics).IsEmpty();
         }
     }
 
@@ -132,9 +132,9 @@ internal sealed class EditorWorkspaceFailureTests
                 .IsEqualTo(before.Compilation.Status);
             await Assert.That(afterCompilation.ArtifactKey)
                 .IsEqualTo(beforeCompilation.ArtifactKey);
-            await Assert.That(afterCompilation.DiagnosticCodes)
+            await Assert.That(afterCompilation.Diagnostics)
                 .IsEquivalentTo(
-                    beforeCompilation.DiagnosticCodes,
+                    beforeCompilation.Diagnostics,
                     CollectionOrdering.Matching);
             await Assert.That(after.Simulation).IsNull();
         }

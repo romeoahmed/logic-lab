@@ -7,7 +7,7 @@ namespace LogicLab.Application.Workspaces;
 
 internal static class WorkspaceBuild
 {
-    public const string DevelopmentFingerprint = "logiclab-development";
+    public const string TestFingerprint = "logiclab-test";
 }
 
 public sealed record WorkspaceAttachmentId

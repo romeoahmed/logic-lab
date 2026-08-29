@@ -579,13 +579,8 @@ class CircuitSceneHandle {
     const width = Math.ceil(rect.width * density);
     const height = Math.ceil(rect.height * density);
     const pixels = BigInt(width) * BigInt(height);
-    const bytes = pixels * 4n;
     if (pixels > BigInt(this.policy.canvasBitmapPixels)) {
       void this.reportPolicyFailure(new BrowserPolicyError("canvasBitmapPixels", pixels));
-      return;
-    }
-    if (bytes > BigInt(this.policy.canvasBitmapBytes)) {
-      void this.reportPolicyFailure(new BrowserPolicyError("canvasBitmapBytes", bytes));
       return;
     }
 
@@ -718,37 +713,36 @@ class CircuitSceneHandle {
   drawOverlays(context, styles) {
     const selected = this.selectedSources;
     const primary = this.primarySelectionSource;
+    const probePoints = new Map(this.published.overlays
+      .filter((overlay) => overlay.kind === "probeAnchor")
+      .map((overlay) => [sourceKey(overlay.source), overlay.point]));
 
     for (const overlay of this.published.overlays) {
       if (overlay.kind === "liveNetValue") {
-        const target = this.targetBySource(overlay.source);
-        if (target) {
-          const point = {
-            x: target.bounds.right + (8 / this.viewport.zoom),
-            y: target.bounds.top - (8 / this.viewport.zoom),
-          };
-          context.save();
-          context.fillStyle = cssColor(styles, "--ll-ink", "#172124");
-          context.font = `${36 / this.viewport.zoom}px ${this.symbolFontFamily}`;
-          context.textAlign = "left";
-          context.textBaseline = "bottom";
-          context.fillText(logicVectorText(overlay.value), point.x, point.y);
-          context.restore();
+        const point = probePoints.get(sourceKey(overlay.source));
+        if (point) {
+          drawLiveNetValue(
+            context,
+            styles,
+            this.symbolFontFamily,
+            point,
+            overlay.value,
+            this.viewport.zoom,
+          );
         }
       } else if (overlay.kind === "probeAnchor") {
         context.save();
         context.strokeStyle = cssColor(styles, "--ll-signal", "#08788c");
         context.fillStyle = cssColor(styles, "--ll-canvas", "#ffffff");
-        context.lineWidth = 3 / this.viewport.zoom;
+        context.lineWidth = 2 / this.viewport.zoom;
         context.beginPath();
-        context.arc(overlay.point.x, overlay.point.y, 10 / this.viewport.zoom, 0, Math.PI * 2);
+        context.arc(overlay.point.x, overlay.point.y, 7 / this.viewport.zoom, 0, Math.PI * 2);
         context.fill();
         context.stroke();
-        context.fillStyle = cssColor(styles, "--ll-ink", "#172124");
-        context.font = `${18 / this.viewport.zoom}px ${this.symbolFontFamily}`;
-        context.textAlign = "center";
-        context.textBaseline = "middle";
-        context.fillText(String(overlay.appearanceOrdinal + 1), overlay.point.x, overlay.point.y);
+        context.fillStyle = cssColor(styles, "--ll-signal", "#08788c");
+        context.beginPath();
+        context.arc(overlay.point.x, overlay.point.y, 2.5 / this.viewport.zoom, 0, Math.PI * 2);
+        context.fill();
         context.restore();
       }
     }
@@ -1636,6 +1630,31 @@ function logicVectorText(value) {
   }
   const text = bits.reverse().join("");
   return text.length <= 16 ? text : `${text.slice(0, 7)}…${text.slice(-7)}`;
+}
+
+function drawLiveNetValue(context, styles, fontFamily, point, value, zoom) {
+  const scale = 1 / zoom;
+  const text = logicVectorText(value);
+  const height = 24 * scale;
+  const padding = 7 * scale;
+  const x = point.x + (10 * scale);
+  const y = point.y - height - (10 * scale);
+
+  context.save();
+  context.font = `600 ${16 * scale}px ${fontFamily}`;
+  const width = Math.max(height, context.measureText(text).width + (padding * 2));
+  context.beginPath();
+  context.roundRect(x, y, width, height, 6 * scale);
+  context.fillStyle = cssColor(styles, "--ll-canvas", "#ffffff");
+  context.fill();
+  context.strokeStyle = cssColor(styles, "--ll-signal", "#08788c");
+  context.lineWidth = 1.5 * scale;
+  context.stroke();
+  context.fillStyle = cssColor(styles, "--ll-ink", "#172124");
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(text, x + (width / 2), y + (height / 2));
+  context.restore();
 }
 
 function checkedInteger(value) { if (!Number.isSafeInteger(value) || value < -2147483648 || value > 2147483647) throw new Error("integer overflow"); return value; }

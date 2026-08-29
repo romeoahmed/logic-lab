@@ -19,8 +19,7 @@ public sealed record FontFingerprintV1
 
     internal static bool IsDigest(string? value) =>
         value is { Length: 64 }
-        && value.All(character => character is >= '0' and <= '9'
-            or >= 'a' and <= 'f');
+        && value.All(char.IsAsciiHexDigitLower);
 
     public override string ToString() => Digest;
 }

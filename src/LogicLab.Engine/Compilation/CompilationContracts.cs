@@ -194,16 +194,9 @@ internal static class StableToken
     public static bool IsValid(string? value)
     {
         return value is { Length: >= 1 and <= 96 }
-            && IsAsciiLetterOrDigit(value[0])
+            && char.IsAsciiLetterOrDigit(value[0])
             && value.All(character =>
-                IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
-    }
-
-    private static bool IsAsciiLetterOrDigit(char value)
-    {
-        return value is >= 'A' and <= 'Z'
-            or >= 'a' and <= 'z'
-            or >= '0' and <= '9';
+                char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
     }
 }
 

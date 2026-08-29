@@ -30,12 +30,15 @@
         <DataAnnotationsValidator />
         <ValidationSummary class="validation-summary" />
         <div class="form-field">
-            <label for="login-email">@Text["Email"]</label>
-            <InputText id="login-email"
-                       aria-describedby="login-email-validation"
-                       autocomplete="username"
-                       maxlength="@AccountInputLimits.MaximumEmailLength"
-                       @bind-Value="Input.Email" />
+            <FluentTextInput Id="login-email"
+                             Name="Input.Email"
+                             Label="@Text["Email"]"
+                             aria-describedby="login-email-validation"
+                             AutoComplete="username"
+                             MaxLength="@AccountInputLimits.MaximumEmailLength"
+                             Size="TextInputSize.Large"
+                             Width="100%"
+                             @bind-Value="Input.Email" />
             <div class="field-validation"
                  id="login-email-validation"
                  aria-live="polite">
@@ -43,23 +46,28 @@
             </div>
         </div>
         <div class="form-field">
-            <label for="login-password">@Text["Password"]</label>
-            <InputText id="login-password"
-                       aria-describedby="login-password-validation"
-                       type="password"
-                       autocomplete="current-password"
-                       maxlength="@AccountInputLimits.MaximumPasswordLength"
-                       @bind-Value="Input.Password" />
+            <FluentTextInput Id="login-password"
+                             Name="Input.Password"
+                             Label="@Text["Password"]"
+                             aria-describedby="login-password-validation"
+                             TextInputType="TextInputType.Password"
+                             AutoComplete="current-password"
+                             MaxLength="@AccountInputLimits.MaximumPasswordLength"
+                             Size="TextInputSize.Large"
+                             Width="100%"
+                             @bind-Value="Input.Password" />
             <div class="field-validation"
                  id="login-password-validation"
                  aria-live="polite">
                 <ValidationMessage For="@(() => Input.Password)" />
             </div>
         </div>
-        <label class="remember-field">
-            <InputCheckbox @bind-Value="Input.RememberMe" /> @Text["LoginRememberMe"]
-        </label>
-        <button class="primary-action" type="submit">@Text["LoginSubmit"]</button>
+        <FluentCheckbox Name="Input.RememberMe"
+                        Size="CheckboxSize.Large"
+                        @bind-Value="Input.RememberMe">@Text["LoginRememberMe"]</FluentCheckbox>
+        <FluentButton Type="ButtonType.Submit"
+                      Size="ButtonSize.Large"
+                      Appearance="ButtonAppearance.Primary">@Text["LoginSubmit"]</FluentButton>
     </EditForm>
 
     <p class="account-switch">@Text["LoginNewUser"] <a href="/account/register">@Text["LoginCreateAccount"]</a></p>

@@ -1,44 +1,56 @@
 @using LogicLab.Web.Scene
 
 <div class="scene-tool-strip">
-    <button type="button"
-            data-scene-tool="select"
-            aria-pressed="@(ActiveTool is SceneSelectToolV1 ? "true" : "false")"
-            @onclick="@(() => ChangeToolAsync(SceneSelectToolV1.Instance))">
+    <FluentButton Class="scene-tool"
+                  data-scene-tool="select"
+                  Title="@Text["SelectTool"]"
+                  Size="ButtonSize.Small"
+                  Appearance="@(ActiveTool is SceneSelectToolV1 ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
+                  aria-pressed="@(ActiveTool is SceneSelectToolV1 ? "true" : "false")"
+                  OnClick="@(() => ChangeToolAsync(SceneSelectToolV1.Instance))">
         <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M5 3 L18 13 L12 14 L9 20 Z" />
         </svg>
         <span class="tool-label">@Text["SelectTool"]</span>
-    </button>
-    <button type="button"
-            data-scene-tool="wire"
-            aria-pressed="@(ActiveTool is SceneWireToolV1 ? "true" : "false")"
-            @onclick="@(() => ChangeToolAsync(SceneWireToolV1.Instance))">
+    </FluentButton>
+    <FluentButton Class="scene-tool"
+                  data-scene-tool="wire"
+                  Title="@Text["WireTool"]"
+                  Size="ButtonSize.Small"
+                  Appearance="@(ActiveTool is SceneWireToolV1 ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
+                  aria-pressed="@(ActiveTool is SceneWireToolV1 ? "true" : "false")"
+                  OnClick="@(() => ChangeToolAsync(SceneWireToolV1.Instance))">
         <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M4 6 H11 V18 H20" />
             <circle cx="4" cy="6" r="2" />
             <circle cx="20" cy="18" r="2" />
         </svg>
         <span class="tool-label">@Text["WireTool"]</span>
-    </button>
-    <button type="button"
-            data-scene-tool="probe"
-            disabled="@(!CanProbe || HierarchyPath is null)"
-            aria-pressed="@(ActiveTool is SceneProbeToolV1 ? "true" : "false")"
-            @onclick="SelectProbeToolAsync">
+    </FluentButton>
+    <FluentButton Class="scene-tool"
+                  data-scene-tool="probe"
+                  Title="@Text["Probe"]"
+                  Size="ButtonSize.Small"
+                  Appearance="@(ActiveTool is SceneProbeToolV1 ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
+                  Disabled="@(!CanProbe || HierarchyPath is null)"
+                  aria-pressed="@(ActiveTool is SceneProbeToolV1 ? "true" : "false")"
+                  OnClick="SelectProbeToolAsync">
         <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M3 17 L8 12 L12 15 L19 7 M19 7 L21 5" />
             <circle cx="19" cy="7" r="2" />
         </svg>
         <span class="tool-label">@Text["Probe"]</span>
-    </button>
-    <button type="button"
-            data-scene-tool="pan"
-            aria-pressed="@(ActiveTool is ScenePanToolV1 ? "true" : "false")"
-            @onclick="@(() => ChangeToolAsync(ScenePanToolV1.Instance))">
+    </FluentButton>
+    <FluentButton Class="scene-tool"
+                  data-scene-tool="pan"
+                  Title="@Text["PanTool"]"
+                  Size="ButtonSize.Small"
+                  Appearance="@(ActiveTool is ScenePanToolV1 ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
+                  aria-pressed="@(ActiveTool is ScenePanToolV1 ? "true" : "false")"
+                  OnClick="@(() => ChangeToolAsync(ScenePanToolV1.Instance))">
         <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M12 3 V21 M3 12 H21 M9 6 L12 3 L15 6 M9 18 L12 21 L15 18 M6 9 L3 12 L6 15 M18 9 L21 12 L18 15" />
         </svg>
         <span class="tool-label">@Text["PanTool"]</span>
-    </button>
+    </FluentButton>
 </div>

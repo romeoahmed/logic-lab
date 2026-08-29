@@ -523,13 +523,11 @@ internal sealed class CircuitSceneTestPage(IPage page)
         interopBatchBytes = 16_384,
         candidateTransferBytes = 1_000_000,
         canvasBitmapPixels = 10_000_000,
-        canvasBitmapBytes = 40_000_000,
         effectiveDensityMillionths = 3_000_000,
         zoomMillionthsMinimum = 50_000,
         displayListBytes = 1_000_000,
         spatialIndexBytes = 1_000_000,
         sceneCacheBytes = 4_000_000,
-        waveformCacheBytes = 4_000_000,
     };
 
     private static string TestDocument() =>

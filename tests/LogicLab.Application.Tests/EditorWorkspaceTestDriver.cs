@@ -12,7 +12,7 @@ internal static class EditorWorkspaceTestDriver
         var outcome = await workspace.AttachAsync(
             new InitialAttach(
                 workspaceId,
-                WorkspaceBuild.DevelopmentFingerprint,
+                WorkspaceBuild.TestFingerprint,
                 AnonymousWorkspaceCaller.Instance),
             cancellationToken);
         return outcome as Attached

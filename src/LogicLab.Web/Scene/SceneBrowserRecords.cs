@@ -197,8 +197,7 @@ internal sealed record SceneProbeAnchorOverlayV1(
     string Id,
     string ProbeId,
     SceneElaboratedNetRefV1 Net,
-    ScenePoint Point,
-    uint AppearanceOrdinal) : SceneOverlayV1(Id)
+    ScenePoint Point) : SceneOverlayV1(Id)
 {
     public override SceneSourceRefV1 Source => Net.AuthoredNet;
 }

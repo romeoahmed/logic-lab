@@ -603,7 +603,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
                 requestedRevision,
                 requestedRevision.Document.EntryCircuitDefinitionId,
                 requestedRevision.Document.LibrarySnapshot,
-                DevelopmentProjectScalePolicy),
+                DefaultProjectScalePolicy),
             context.CancellationToken);
         await state.CommandGate.WaitAsync(context.CancellationToken).ConfigureAwait(false);
 
@@ -745,8 +745,8 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
                     new SimulationPolicyReference("workbench-simulation", "2"),
                     new TracePolicyReference("workbench-trace", "1"),
                     probeSources),
-                DevelopmentSimulationPolicy,
-                DevelopmentTracePolicy),
+                DefaultSimulationPolicy,
+                DefaultTracePolicy),
             cancellationToken);
         if (outcome is InitialProbeBindingsInvalid invalid)
         {
@@ -1414,7 +1414,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
         return new AttachRejected(code, [], WorkspaceOutcomeReasons.RetryFor(code));
     }
 
-    private static ProjectScalePolicy DevelopmentProjectScalePolicy { get; } = new(
+    private static ProjectScalePolicy DefaultProjectScalePolicy { get; } = new(
         "workbench-project-scale",
         "1",
         [
@@ -1425,7 +1425,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
             new ProjectScaleLimit(ProjectScaleDimension.MemoryCellCount, 100_000),
         ]);
 
-    private static SimulationPolicy DevelopmentSimulationPolicy { get; } = new(
+    private static SimulationPolicy DefaultSimulationPolicy { get; } = new(
         "workbench-simulation",
         "2",
         [
@@ -1441,7 +1441,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
                 10_000_000),
         ]);
 
-    private static TracePolicy DevelopmentTracePolicy { get; } = new(
+    private static TracePolicy DefaultTracePolicy { get; } = new(
         "workbench-trace",
         "1",
         [
