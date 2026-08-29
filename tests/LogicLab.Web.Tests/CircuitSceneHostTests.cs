@@ -40,12 +40,23 @@ internal sealed class CircuitSceneHostTests
                 port.Source.ComponentInstanceId.Value,
                 port.Source.PortId))
             .ToArray();
+        await rendered.InvokeAsync(() => rendered.Instance.UpdateRendererState(
+            TerminalSnapshot(revision.Document.EntryCircuitDefinitionId.Value, terminals)));
 
         await rendered.Find($"[data-scene-source='{terminals[0].Key}']").ClickAsync();
         await rendered.Find($"[data-scene-source='{terminals[1].Key}']").ClickAsync();
 
         var wire = await Assert.That(received).IsTypeOf<CommitWireSceneIntentV1>();
-        await Assert.That(wire!.Terminals).Count().IsEqualTo(2);
+        var route = await Assert.That(wire!.RouteAdditions.Single())
+            .IsTypeOf<SceneOrthogonalWireRouteV1>();
+        using (Assert.Multiple())
+        {
+            await Assert.That(wire.Terminals).Count().IsEqualTo(2);
+            await Assert.That(route!.Points).IsEquivalentTo([
+                new SceneGridPointV1(8, 5),
+                new SceneGridPointV1(12, 5),
+            ]);
+        }
     }
 
     [Test]
@@ -308,4 +319,61 @@ internal sealed class CircuitSceneHostTests
         AccessibleSceneProjector.TryProject(revision, 10_000, out var scene)
             ? scene
             : throw new InvalidOperationException("The test Scene could not be projected.");
+
+    private static SceneSnapshotV1 TerminalSnapshot(
+        string circuitDefinitionId,
+        SceneSourceRefV1[] terminals) => new(
+            "build-a",
+            SceneVersion: 1,
+            ProjectionVersion: 1,
+            circuitDefinitionId,
+            "en-US",
+            "leftToRight",
+            "projection-a",
+            new SceneRect(0, 0, 200, 100),
+            GridStepPlanUnits: 10,
+            SnapStepGridUnits: 1,
+            new string('7', 64),
+            [
+                TerminalItem(
+                    terminals[0],
+                    new ScenePoint(80, 50),
+                    "east",
+                    order: 0),
+                TerminalItem(
+                    terminals[1],
+                    new ScenePoint(120, 50),
+                    "west",
+                    order: 1),
+            ],
+            []);
+
+    private static SceneItemV1 TerminalItem(
+        SceneSourceRefV1 terminal,
+        ScenePoint anchor,
+        string outwardDirection,
+        int order)
+    {
+        var component = new SceneSourceRefV1(
+            terminal.CircuitDefinitionId,
+            "componentInstance",
+            terminal.EntityId);
+        return new SceneItemV1(
+            component,
+            order,
+            new SceneRect(anchor.X - 40, anchor.Y - 30, anchor.X, anchor.Y + 30),
+            default,
+            [],
+            [new SceneHitRegionV1(
+                "port",
+                "port",
+                terminal.PortId,
+                "circle",
+                new SceneRect(anchor.X - 8, anchor.Y - 8, anchor.X + 8, anchor.Y + 8),
+                anchor,
+                Radius: 8,
+                TargetSource: terminal,
+                Anchor: anchor,
+                OutwardDirection: outwardDirection)]);
+    }
 }

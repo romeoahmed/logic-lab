@@ -829,7 +829,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             terminals,
             destinationNet,
             [],
-            [],
+            [SceneWireRouting.Between(currentSnapshot, start, source)],
             [],
             "none"));
     }
