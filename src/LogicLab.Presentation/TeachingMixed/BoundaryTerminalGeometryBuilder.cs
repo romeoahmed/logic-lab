@@ -54,7 +54,6 @@ internal static class BoundaryTerminalGeometryBuilder
             ];
             tagTip = tag[0];
         }
-        var labelOrigin = new PointV1(isSource ? checked(3 * h) : checked(5 * h), centerY);
         var labelEnvelope = TextMeasurementBoundary.Measure(
             textMeasurer,
             new SymbolTextMeasurementRequestV1(
@@ -67,6 +66,11 @@ internal static class BoundaryTerminalGeometryBuilder
             cancellationToken).InkAndAdvanceBounds(
                 TextAlignmentV1.Center,
                 request.BaseDirection);
+        var verticalCenterOffset = checked((int)(
+            ((long)labelEnvelope.Top + labelEnvelope.Bottom) / 2));
+        var labelOrigin = new PointV1(
+            isSource ? checked(3 * h) : checked(5 * h),
+            checked(centerY - verticalCenterOffset));
         var labelBounds = Translate(labelEnvelope, labelOrigin);
         var tagBounds = RectV1.Enclose(tag);
         if (!tagBounds.Contains(new PointV1(labelBounds.Left, labelBounds.Top))

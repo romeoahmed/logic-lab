@@ -36,7 +36,7 @@ internal static class SchematicPrimitiveProjector
         var labelEnvelope = measurement.InkAndAdvanceBounds(
             TextAlignmentV1.Center,
             fingerprint.BaseDirection);
-        var labelOrigin = PlaceBeyond(
+        var labelOrigin = PlaceDefinitionPortLabel(
             inward,
             labelEnvelope,
             Opposite(direction),
@@ -318,6 +318,21 @@ internal static class SchematicPrimitiveProjector
                 point.Y),
             _ => throw new InvalidOperationException("The plan direction is undefined."),
         };
+
+    private static PointV1 PlaceDefinitionPortLabel(
+        PointV1 leadEnd,
+        RectV1 envelope,
+        PlanDirectionV1 direction,
+        int h)
+    {
+        var origin = PlaceBeyond(leadEnd, envelope, direction, h);
+        return direction is PlanDirectionV1.East or PlanDirectionV1.West
+            ? origin with
+            {
+                Y = checked(leadEnd.Y - Math.Max(1, h / 10) - envelope.Bottom),
+            }
+            : origin;
+    }
 
     private static StrokePathV1 DefinitionPortStroke(
         PointV1 point,
