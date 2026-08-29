@@ -39,6 +39,8 @@ internal sealed class CircuitSceneTestPage(IPage page)
             Path.Combine(AppContext.BaseDirectory, "drawing.js"));
         var geometryModule = await File.ReadAllTextAsync(
             Path.Combine(AppContext.BaseDirectory, "geometry.js"));
+        var protocolModule = await File.ReadAllTextAsync(
+            Path.Combine(AppContext.BaseDirectory, "protocol.js"));
         var styles = await File.ReadAllTextAsync(
             Path.Combine(AppContext.BaseDirectory, "CircuitSceneHost.razor.css"));
         var fontPath = Path.Combine(
@@ -71,6 +73,12 @@ internal sealed class CircuitSceneTestPage(IPage page)
                     Status = 200,
                     ContentType = "text/javascript",
                     Body = geometryModule,
+                }),
+                "/js/circuit-scene/protocol.js" => route.FulfillAsync(new RouteFulfillOptions
+                {
+                    Status = 200,
+                    ContentType = "text/javascript",
+                    Body = protocolModule,
                 }),
                 "/CircuitSceneHost.razor.css" => route.FulfillAsync(new RouteFulfillOptions
                 {
