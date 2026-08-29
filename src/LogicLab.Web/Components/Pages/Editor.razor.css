@@ -79,8 +79,8 @@
 .schematic-workspace {
   display: grid;
   grid-template-areas:
-    "library"
     "canvas"
+    "library"
     "inspector";
   grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
@@ -302,14 +302,7 @@
   color: var(--ll-ink);
 }
 
-@media (min-width: 721px) {
-  .canvas-workspace {
-    block-size: clamp(30rem, 72svh, 40rem);
-    min-block-size: 0;
-  }
-}
-
-@container workbench (width >= 52rem) {
+@container workbench (inline-size >= 44rem) {
   .schematic-workspace {
     grid-template-areas:
       "library canvas"
@@ -343,7 +336,7 @@
   }
 }
 
-@container workbench (width >= 76rem) {
+@container workbench (inline-size >= 70rem) {
   .schematic-workspace {
     grid-template-areas: "library canvas inspector";
     grid-template-columns: minmax(12rem, 15rem) minmax(32rem, 1fr) minmax(15rem, 18rem);

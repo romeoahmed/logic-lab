@@ -15,7 +15,7 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
     }
 
     [Test]
-    public async Task ResponsiveWorkbench_NarrowViewport_PlacesLibraryBeforeCanvas()
+    public async Task ResponsiveWorkbench_NarrowViewport_PrioritizesCanvasAndKeepsLibraryControlsVisible()
     {
         await OpenAsync(390, 844);
         var library = Page.GetByTestId("workbench-library");
@@ -58,7 +58,7 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
             await Assert.That(canvasBounds).IsNotNull();
             await Assert.That(paletteBounds).IsNotNull();
             await Assert.That(controlsBounds).IsNotNull();
-            await Assert.That(libraryBounds!.Y).IsLessThan(canvasBounds!.Y);
+            await Assert.That(canvasBounds!.Y).IsLessThan(libraryBounds!.Y);
             await Assert.That(scroll.ScrollHeight).IsGreaterThan(scroll.ClientHeight);
             await Assert.That(scroll.ScrollTop).IsGreaterThan(0);
             await Assert.That(controlsBounds!.Y)
@@ -74,20 +74,41 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
         int height)
     {
         await OpenAsync(width, height);
-        var workspace = Page.GetByTestId("workbench-canvas");
+        var library = Page.GetByTestId("workbench-library");
+        var canvas = Page.GetByTestId("workbench-canvas");
 
-        await Expect(workspace).ToBeVisibleAsync();
-        var bounds = await workspace.BoundingBoxAsync();
+        await Expect(library).ToBeVisibleAsync();
+        await Expect(canvas).ToBeVisibleAsync();
+        var libraryBounds = await library.BoundingBoxAsync();
+        var canvasBounds = await canvas.BoundingBoxAsync();
         var documentWidth = await Page.EvaluateAsync<double>(
             "() => document.documentElement.scrollWidth");
 
         using (Assert.Multiple())
         {
-            await Assert.That(bounds).IsNotNull();
-            await Assert.That(bounds!.X).IsGreaterThanOrEqualTo(0);
-            await Assert.That(bounds.X + bounds.Width).IsLessThanOrEqualTo(width);
+            await Assert.That(libraryBounds).IsNotNull();
+            await Assert.That(canvasBounds).IsNotNull();
+            await Assert.That(libraryBounds!.Y).IsEqualTo(canvasBounds!.Y).Within(1.5F);
+            await Assert.That(libraryBounds.X).IsLessThan(canvasBounds.X);
+            await Assert.That(canvasBounds.X).IsGreaterThanOrEqualTo(0);
+            await Assert.That(canvasBounds.X + canvasBounds.Width).IsLessThanOrEqualTo(width);
             await Assert.That(documentWidth).IsLessThanOrEqualTo(width);
         }
+    }
+
+    [Test]
+    public async Task ProjectOptions_AutoPopover_OpensAndLightDismisses()
+    {
+        await OpenAsync(1024, 768);
+        var trigger = Page.GetByRole(AriaRole.Button, new() { Name = "Project options" });
+        var panel = Page.Locator(".project-options-panel");
+
+        await Expect(panel).ToBeHiddenAsync();
+        await trigger.ClickAsync();
+        await Expect(panel).ToBeVisibleAsync();
+
+        await Page.Keyboard.PressAsync("Escape");
+        await Expect(panel).ToBeHiddenAsync();
     }
 
     private async Task OpenAsync(int width, int height)
