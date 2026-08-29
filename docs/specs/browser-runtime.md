@@ -31,7 +31,7 @@ WaveformHandle : IAsyncDisposable
 
 These are semantic interfaces, not requirements to publish TypeScript declarations or one interop call per method. The C# adapters hide JavaScript module import, batching, serialization, object references, retry, and teardown. Callers never drive a paint pass, manipulate a spatial index, or send pointer samples.
 
-`CommitEnabled` permits a new gesture only while Web has a current attachment and exact published versions. Entering `LocalOnly` cancels any commit-capable gesture without an intent and retains pan, zoom, viewport, waveform cursor, and semantic inspection. The module doesn't infer connection or authorization from elapsed time.
+`CommitEnabled` permits a new gesture only while Web has a current attachment and exact published versions. Entering `LocalOnly` cancels any commit-capable gesture without an intent and retains pan, zoom, viewport, waveform cursor, and inspection. The module doesn't infer connection or authorization from elapsed time.
 
 JavaScript returns exactly one closed Scene or Waveform intent for a committed browser action. The sink validates the build and version envelope before translating it into Web state or one Workspace command. Interop is asynchronous because Interactive Server calls cross the circuit; related work is batched rather than split into fine-grained calls ([Blazor interop performance](https://learn.microsoft.com/en-us/aspnet/core/blazor/performance/javascript-interoperability?view=aspnetcore-10.0#avoid-excessively-fine-grained-calls)).
 
@@ -44,13 +44,12 @@ V1 uses modern ECMAScript modules in collocated `.razor.js` files. There is no g
 ```text
 scene host
 ├── canvas bitmap and focus surface
-├── focusable semantic fallback descendants
 └── Razor-owned status and recovery surface
 ```
 
-Razor creates and updates the host, Canvas element, semantic fallback tree, status, dialogs, and HTML editors. JavaScript receives only the host `ElementReference`, obtains the Canvas context, and owns bitmap drawing plus listeners attached to its own host. It never adds, removes, reparents, or edits Blazor-owned DOM. Blazor explicitly warns that external DOM mutation can invalidate its internal representation ([DOM interaction](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#interaction-with-the-dom)).
+Razor creates and updates the host, Canvas element, status, recovery actions, dialogs, and HTML editors. JavaScript receives only the host `ElementReference`, obtains the Canvas context, and owns bitmap drawing plus listeners attached to its own host. It never adds, removes, reparents, or edits Blazor-owned DOM. Blazor explicitly warns that external DOM mutation can invalidate its internal representation ([DOM interaction](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#interaction-with-the-dom)).
 
-Menus, tooltips, property forms, label editors, confirmation, and text input are HTML/Razor surfaces. Canvas contains no editable text field, hidden authority, or click-only action. `WaveformHost` follows the same ownership rule with its own Canvas and semantic row projection.
+Menus, tooltips, property forms, label editors, confirmation, and text input are HTML/Razor surfaces. Canvas contains no editable text field or hidden authority. `WaveformHost` follows the same ownership rule with its own Canvas and Razor-owned controls.
 
 `MountAsync` occurs once after an interactive first render with a valid `ElementReference`. Mounting is idempotent by host and build fingerprint: repeating it returns the existing live handle or destroys an incompatible stale instance before replacement. Prerender never imports or mounts a module.
 
@@ -85,7 +84,7 @@ authored grid integers
 - Coordinate commit divides by `gridStepPlanUnits` and rounds to the nearest authored integer grid unit, with exact halves toward negative infinity. Normal snapping then rounds to the nearest multiple of `snapStepGridUnits` with the same tie rule; `DisableSnap` retains the first integer result. Every result is checked to signed 32-bit range. A route preview may remain sub-grid until commit.
 - Panning and zooming change only the viewport. They never mutate Schematic items, authored coordinates, hit regions, or the Project Document.
 
-Fit, reveal, and focus use the supplied projection bounds and hit/accessibility bounds. A browser never reconstructs bounds from painted pixels. World-to-screen and screen-to-world functions are pure and receive property tests for round trip, negative coordinates, extreme legal values, zoom limits, and content-box offsets.
+Fit and reveal use the supplied projection and Hit Region bounds. A browser never reconstructs bounds from painted pixels. World-to-screen and screen-to-world functions are pure and receive property tests for round trip, negative coordinates, extreme legal values, zoom limits, and content-box offsets.
 
 ## 5. Canvas sizing and display density
 
@@ -119,7 +118,7 @@ At frame start, the renderer clears the pending token, snapshots one coherent pu
 
 `requestAnimationFrame` is one-shot, normally aligns with repaint, and is commonly paused in background tabs ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame)). It controls paint only. It never advances Logical Time, clocks a circuit, polls Workspace, estimates a server result, or turns elapsed wall time into semantic state.
 
-The only V1 animation is the Design-owned, reduced-motion-aware single change pulse after an acknowledged Session commit. It uses the frame timestamp and stops at its bounded terminal state. Hidden-tab resumption jumps to the correct final presentation rather than replaying semantic transitions.
+V1 has no time-based Canvas animation. An acknowledged Session commit invalidates the affected overlay and the next frame paints its final state. Hidden-tab resumption therefore never replays presentation-only transitions.
 
 ## 7. Drawing, culling, and caches
 
@@ -157,19 +156,17 @@ Idle
 - `touch-action` is set deliberately per supported host interaction so browser scroll/zoom takeover and scene gestures don't compete. V1 narrow layouts support review, pan/zoom, Probe, Step, Run, and waveform navigation; precision touch wiring is not implied.
 - Wheel and trackpad zoom are anchored at the pointer, clamped by Browser Policy, and browser-local. Page/browser text zoom remains independent.
 
-Keyboard actions enter through the focusable semantic projection and the same tool controller, not a parallel edit implementation. Tab reaches the Canvas region; topology/Port navigation, tool shortcuts, Enter/Space actions, Escape cancellation, and focus recovery follow [Workbench](../../WORKBENCH.md). Text and IME input always use an HTML control.
+Keyboard shortcuts enter through the Canvas host and the same tool controller as pointer actions. Tab reaches the Canvas region; Space temporarily pans, Escape cancels, and the documented tool and command shortcuts follow [Workbench](../../WORKBENCH.md). There is no keyboard-only topology navigator or parallel edit implementation. Text and IME input always use an HTML control.
 
-## 9. Semantic fallback, localization, and focus
+## 9. Localization and focus
 
-HTML requires Canvas fallback content that conveys essentially the same purpose as the bitmap. Focusable descendants can remain keyboard event targets while the bitmap is displayed. Each current focusable Canvas region therefore maps to exactly one fallback action and vice versa ([HTML Canvas fallback and focus](https://html.spec.whatwg.org/multipage/canvas.html#the-canvas-element)).
+Canvas is the sole dense schematic editor. Razor supplies the host's localizable name, status, and explicit recovery actions, but does not reconstruct Scene items as fallback descendants. Standard HTML and Fluent UI controls retain their native focus behavior; the Canvas has one focus target for shared shortcuts and visible focus state.
 
-Razor owns a bounded semantic projection containing the current Circuit Definition outline, one deterministic page of ordered navigable components, Ports, Nets or route actions needed for the current task, selection, diagnostics, and available commands. That page defines the current focusable Canvas regions. Every authored entity remains reachable through next/previous page, search, or topology navigation without losing stable identity or focus. The projection doesn't create one live Razor component per painted segment or sample.
+Selection identity is shared by Canvas, Inspector, Diagnostics, Probe Spine, and waveform navigation. When a snapshot removes the selected identity, Web clears selection or chooses the owning source defined by the Workspace projection. Browser-local hover and focus never become Project state.
 
-Every semantic action names the same scoped source identity as hit testing. Browser focus updates the Canvas focus overlay locally; selection changes emit `SelectSources`. When a snapshot removes the focused identity, focus moves to the nearest surviving semantic owner defined by Design. Canvas, semantic fallback, Inspector, Diagnostics, Probe Spine, and waveform row expose one selected identity and one action vocabulary.
+Every Scene and Waveform replacement carries the resolved BCP-47 UI culture and base direction from [Web Host §5](./web-host.md#5-culture-localization-and-direction). Canvas text sets its explicit language/direction state, uses supplied Geometry Plan text and alignment, and never generates a localized diagnostic. Stable protocol values remain invariant. Geometry Plan owns measured Canvas shaping and direction for user-authored text.
 
-Every Scene and Waveform replacement carries the resolved BCP-47 UI culture and base direction from [Web Host §5](./web-host.md#5-culture-localization-and-direction). Canvas text sets its explicit language/direction state, uses supplied Geometry Plan text and alignment, and never generates a localized diagnostic. Stable protocol values remain invariant. User-authored bidirectional text is isolated in the semantic fallback projection, while Geometry Plan owns its measured Canvas shaping and direction.
-
-`prefers-reduced-motion`, forced-colors/high-contrast behavior, 200% browser text zoom, schematic zoom, long English/Chinese labels, bidirectional content, and non-color Logic Value/Probe recipes are browser acceptance scenarios. If Canvas cannot honor a user-agent contrast mode, the semantic fallback and Inspector remain a complete usable path rather than presenting a misleading bitmap.
+Browser text zoom, schematic zoom, long English/Chinese labels, bidirectional content, and non-color Logic Value/Probe recipes are layout and visual-correctness scenarios. Logic Lab does not require a parallel screen-reader editor, forced-colors renderer, or full keyboard authoring path.
 
 ## 10. Lifecycle and resource ownership
 
@@ -177,7 +174,7 @@ One mounted handle owns exactly:
 
 - event listeners and pointer capture on its host;
 - `ResizeObserver`, density-change observation, and host-removal observation;
-- pending animation-frame identifier and bounded animation state;
+- pending animation-frame identifier;
 - published/transient scene state, display lists, spatial index, and caches;
 - optional JavaScript-to-.NET callback reference; and
 - Canvas contexts and any private offscreen resources.
@@ -192,14 +189,14 @@ The C# adapter implements asynchronous disposal, releases every `IJSObjectRefere
 
 | Failure | Stable evidence | Required behavior |
 |---|---|---|
-| 2D context unavailable | `web_renderer_unavailable(contextUnavailable)` | hide the bitmap; keep the semantic fallback and recovery action |
-| effective size/pixel policy exceeded | `web_browser_policy_exhausted` with exact policy evidence | don't allocate or degrade silently; hide any noncurrent bitmap and keep semantic recovery UI |
+| 2D context unavailable | `web_renderer_unavailable(contextUnavailable)` | hide the bitmap; show the renderer-unavailable state and recovery actions |
+| effective size/pixel policy exceeded | `web_browser_policy_exhausted` with exact policy evidence | don't allocate or degrade silently; hide any noncurrent bitmap and show recovery actions |
 | invalid snapshot, patch, or private batch | `web_browser_contract_rejected(invalidSnapshot \| invalidPatch \| invalidBatch, correlation)` | apply nothing; request one complete replacement; never log the record |
 | build mismatch | `build_fingerprint_mismatch` attachment/outcome reason | cancel the gesture, destroy handles, and force a hard reload |
 | browser font unavailable or asset fingerprint mismatch | `web_renderer_unavailable(fontUnavailable \| assetFingerprintMismatch)` | publish local renderer unavailable; use no substitute geometry |
 | context loss/restoration when supported | no evidence if restored; otherwise `web_renderer_unavailable(contextLost)` | cancel paint, invalidate caches, and perform a full redraw after restoration; fail closed if restoration doesn't complete |
 | circuit disconnect | Web-owned connection state, not a Diagnostic | freeze acknowledged semantic state, cancel the commit-capable gesture, and allow local pan/zoom only |
-| JavaScript exception | `web_interop_failure(correlation)` | fail the affected adapter closed, retain semantic recovery UI, and expose no payload or exception text |
+| JavaScript exception | `web_interop_failure(correlation)` | fail the affected adapter closed, show recovery UI, and expose no payload or exception text |
 
 No browser failure mutates the Project Document, Session, Trace, or Workspace. A prior bitmap may remain visible only while it is explicitly identified as the last acknowledged version; it is hidden as soon as it could be mistaken for a rejected newer Project Revision. Reload and snapshot refresh are explicit recovery actions; repeated exceptions are bounded and never create a hot retry/frame loop.
 
@@ -207,7 +204,7 @@ No browser failure mutates the Project Document, Session, Trace, or Workspace. A
 
 Browser Policy is deployment configuration, not circuit semantics. Its exact shape, dimension tokens, integer scale encoding, order, and observation thresholds are owned by the [Policy Catalog](../policies/catalog.md). The browser validates the complete captured policy before mount and does not change it beneath a published adapter handle.
 
-No numeric default becomes normative until the versioned circuit corpus, supported browser/device matrix, measurement method, and evidence record exist. A policy failure is structured and doesn't silently reduce geometry, omit an item, lower display density below accessibility needs, or summarize Trace without an explicit request.
+No numeric default becomes normative until the versioned circuit corpus, supported browser/device matrix, measurement method, and evidence record exist. A policy failure is structured and doesn't silently reduce geometry, omit an item, lower required display density, or summarize Trace without an explicit request.
 
 Browser traces record input-to-preview, acknowledged-intent-to-overlay, scene replacement, patch apply, frame script/render, long tasks, allocations/heap, cache behavior, and idle activity. `requestAnimationFrame` cadence is display-dependent; acceptance uses distributions on declared environments, not a universal 16.7 ms promise.
 
@@ -217,10 +214,10 @@ Browser traces record input-to-preview, acknowledged-intent-to-overlay, scene re
 - snapshot/patch atomicity, build/version mismatch, duplicate/out-of-order batch, and complete-replacement recovery;
 - transform round trips, grid tie rule, negative/extreme coordinates, hit priority, culling, and viewport fit/reveal properties;
 - CSS size, fractional size, DPR, page zoom, monitor-density change, zero-size suspension, bitmap policy, and context-reset scenarios;
-- dirty-mask/rAF tests proving at most one pending frame, no idle loop, coherent frame state, hidden-tab final state, and no relation to Logical Time;
+- dirty-mask/rAF tests proving at most one pending frame, no idle loop, coherent frame state, and no relation to Logical Time;
 - Canvas/SVG parity for operations, text metrics, anchors, bounds, hit regions, and ordering;
-- pointer capture/up/cancel/lost capture, coalesced samples, disconnect, stale version, Escape, keyboard, wheel, and touch-action browser scenarios;
-- one-to-one fallback focus/actions, screen-reader tasks, focus recovery, forced colors, reduced motion, 200% text zoom, `en-US`/`zh-CN`, long labels, and bidi fixtures;
+- pointer capture/up/cancel/lost capture, coalesced samples, disconnect, stale version, Escape, shared shortcuts, wheel, and touch-action browser scenarios;
+- Canvas focus, renderer recovery, browser text zoom, `en-US`/`zh-CN`, long labels, and bidi fixtures;
 - Trace Gap, summary/transitions separation, Probe reorder/radix/reveal, context loss, font failure, and scene-unavailable recovery; and
 - corpus traces comparing the simple baseline with any retained offscreen, layered, dirty-rectangle, Worker, or cache optimization.
 

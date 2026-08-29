@@ -84,7 +84,7 @@ Component Contract + presentation request
   -> structured qualifiers and Port groups
   -> constraint solve using actual font metrics
   -> immutable Geometry Plan
-  -> SVG | Canvas | print | hit test | accessibility projection
+  -> SVG | Canvas | print | hit test
 ```
 
 Caching the complete Geometry Plan key is safe because it is derived. Caching or persisting a hand-edited picture as the contract is not.
@@ -119,16 +119,18 @@ Probe ID remains stable while display order may change. Redundant color, pattern
 
 ## 11. Browser and accessibility evidence
 
+> Historical research retained for source traceability. [ADR 0008](../adr/0008-use-one-canvas-editor-surface.md) supersedes the former semantic-fallback architecture because Logic Lab has no accessibility-compliance target.
+
 SVG 2 hit testing is based on rendered geometry and `pointer-events`; `title` and `desc` provide textual description. Graphics ARIA defines graphics roles, but real assistive-technology support still needs product testing.
 
 The HTML standard requires Canvas fallback content that conveys equivalent purpose and maps interactive regions to focusable fallback areas. One `aria-label` on the entire Canvas is insufficient for authoring.
 
-Consequences:
+The standards evidence remains valid, but the project no longer treats equivalent fallback authoring as a product requirement. Current consequences are:
 
 - Geometry Plan supplies exact visual paths and enlarged hit regions;
 - SVG groups expose meaningful identity and description;
-- Canvas is paired with synchronized focusable fallback descendants and actions;
-- keyboard navigation follows circuit topology and stable Port order;
+- Canvas is the sole dense editor and has one host focus target for shared shortcuts;
+- renderer failure produces an explicit Razor recovery surface rather than a second editor;
 - logic states, active-low, selection, and Trace Gaps never rely on color alone.
 
 Route preview and scene indexing remain evidence-gated implementation choices. Orthogonal A* may search `(grid point, arrival direction)` only with nonnegative costs and an admissible heuristic; graph search also needs consistency or a reopen policy ([Hart, Nilsson, Raphael](https://ai.stanford.edu/~nilsson/OnlinePubs-Nils/PublishedPapers/astar.pdf)). A uniform spatial hash is the simple baseline for local edits; an R*-tree earns a seam only if skewed-scene traces justify its update cost ([Beckmann et al.](https://doi.org/10.1145/93597.98741)). Neither structure enters the Diagram Presentation interface.

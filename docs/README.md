@@ -7,12 +7,12 @@ Logic Lab has a closed V1 design baseline. Read each document according to its a
 | Subject | Authority |
 |---|---|
 | system ownership, dependency direction, Module seams, deployment shape | [ARCHITECTURE.md](../ARCHITECTURE.md) |
-| workbench layout, interaction, visual language, responsive and accessibility behavior | [WORKBENCH.md](../WORKBENCH.md) |
+| workbench layout, interaction, visual language, responsive behavior, and product priorities | [WORKBENCH.md](../WORKBENCH.md) |
 | domain words and context translations | [CONTEXT-MAP.md](../CONTEXT-MAP.md) and [bounded-context glossaries](./domain/) |
 | observable circuit, component, analysis, symbol, package, and policy behavior | [specifications](./specs/) and [policies](./policies/catalog.md) |
 | Application, browser, and HTTP seam values | [seam contracts](./contracts/README.md) |
 | ASP.NET Core routes, render modes, culture, circuits, security, and host operations | [Web Host](./specs/web-host.md) |
-| Canvas/waveform transforms, frames, input, accessibility, and browser resources | [Browser Runtime](./specs/browser-runtime.md) |
+| Canvas/waveform transforms, frames, input, focus, and browser resources | [Browser Runtime](./specs/browser-runtime.md) |
 | .NET SDK, build, dependency, C#, async, DI, configuration, serialization, observability, and publication rules | [.NET Engineering Baseline](./specs/dotnet-engineering.md) |
 | delivery order, completion status, and blocking frontier | [Implementation Plan](./implementation-plan.md) |
 | hard-to-reverse decision rationale | [ADRs](./adr/README.md) |

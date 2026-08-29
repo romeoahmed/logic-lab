@@ -16,6 +16,20 @@ The schematic is the specimen, the command strip is the control surface, the Ins
 
 The signature interaction is the **Probe Spine**: one stable Probe identity appears at its Net, in the Inspector, and beside its waveform row. Color, pattern, label, and navigation reinforce the relation; color never carries identity alone.
 
+### Product priorities and implementation restraint
+
+When goals conflict, the Workbench optimizes in this order:
+
+1. electrically correct circuits and faithful schematic drawing;
+2. direct Canvas-first authoring with progressive disclosure;
+3. coherent, modern, maintainable implementation;
+4. responsive and localized presentation; and
+5. baseline semantics that add no parallel interaction system.
+
+Logic Lab has no mandatory accessibility-compliance target. Accessibility must not justify a duplicate circuit representation, a second action/state model, compatibility scaffolding, inferior component selection, or visual and interaction compromises in the primary workflow. Labels, native semantics, predictable focus, and common shortcuts remain valuable when they reuse the same product path at negligible architectural cost.
+
+For standard Web chrome, use the centrally pinned Fluent UI Blazor component when it fits the required behavior. Prefer a native HTML or modern CSS primitive when it is materially simpler. Build a custom control only for domain-specific interaction or after confirming that neither option fits; do not recreate Fluent UI controls with bespoke Razor, JavaScript, and CSS.
+
 ### Design direction
 
 The visual direction is **instrument enamel**: cool low-chroma framing surfaces, a bright schematic field, graphite technical ink, and restrained signal accents. The aesthetic risk is the Probe Spine itself—a visible vertical continuity between topology and waveform—while the surrounding chrome remains quiet.
@@ -61,7 +75,7 @@ Fonts are self-hosted, licensed, fingerprinted, and subset after localization co
 
 - Base spacing is 4 CSS pixels; major rhythm is 8.
 - Straight resize seams separate Canvas, side panels, and Instrument Bay.
-- Visual glyph size and accessible hit size are separate tokens.
+- Visual glyph size and pointer hit size are separate tokens.
 
 ### Workbench layout
 
@@ -154,7 +168,7 @@ The Canvas is an instrument surface, not an image viewer. It remains crisp acros
 
 Resize preserves the world point under focus or the viewport center and never performs an unsolicited fit. A complete definition switch may fit only when that definition has no saved browser viewport. HTML owns menus, tooltips, text entry, and confirmations so Canvas pixels never become the only route to an action.
 
-If the bitmap renderer is unavailable, too large for active Browser Policy, or rejected by presentation validation, the semantic circuit outline, Inspector, Diagnostics, and recovery actions remain usable. The UI does not show a blank rectangle or pretend that the last bitmap represents the new Project Revision. Exact sizing, density, frame, input, fallback, and cleanup rules are in [Browser Runtime](./docs/specs/browser-runtime.md).
+If the bitmap renderer is unavailable, too large for active Browser Policy, or rejected by presentation validation, the Canvas is replaced by a concise unavailable state with Diagnostics and explicit retry, reload, or project-preservation actions. The UI does not show a blank rectangle, pretend that the last bitmap represents the new Project Revision, or activate a second circuit editor. Exact sizing, density, frame, input, recovery, and cleanup rules are in [Browser Runtime](./docs/specs/browser-runtime.md).
 
 ## Inspector and diagnostics
 
@@ -243,50 +257,42 @@ The Canvas remains editable, but Step and Run are disabled. The user can Compile
 
 Errors use active, specific language and one available recovery action. They do not apologize or say only “Something went wrong.”
 
-## Keyboard and accessibility
+## Keyboard efficiency and baseline semantics
 
-The target is WCAG 2.2 AA.
+Keyboard behavior accelerates the primary editor; it is not a parallel editor. Space temporarily pans, Escape cancels the current preview, and the documented undo, redo, delete, tool, compile, and run shortcuts invoke the same command path as pointer actions. Tab reaches standard HTML and Fluent UI controls and one Canvas host. The Canvas does not publish focusable descendants for every circuit entity, semantic paging, or a second topology-navigation vocabulary.
 
-- Landmarks and skip links reach Library, Canvas, Inspector, Instrument Bay, and status.
-- The command strip follows the WAI-ARIA toolbar pattern; arrow keys move within it and Tab exits.
-- The Canvas has one primary focus target plus synchronized focusable fallback descendants and an Inspector path.
-- Keyboard users can enumerate components and Ports, connect, move, delete, add Probes, and navigate to waveform rows.
-- Focus returns to the nearest logical owner when a selected entity is deleted or a panel closes.
-- Active-low, `0/1/X/Z`, selection, diagnostics, and Trace Gaps have non-color encodings.
-- The current focusable Canvas regions map one-to-one to semantic fallback actions; every authored entity remains reachable through deterministic paging and topology navigation.
-- Reduced motion disables value-change pulses and panel transitions.
-- Browser text zoom and schematic zoom are independent.
-- English, Simplified Chinese, long-label, and bidirectional-text fixtures are included before localization release.
+Standard controls keep their native or Fluent UI semantics, concise labels, and ordinary focus behavior. Active-low notation, `0/1/X/Z`, selection, diagnostics, and Trace Gaps retain visually useful non-color distinctions. These choices improve comprehension for the main audience; they are not a WCAG claim or a commitment to complete screen-reader, keyboard-only, forced-colors, or reduced-motion parity.
+
+Browser text zoom and schematic zoom remain independent. English, Simplified Chinese, long-label, and bidirectional-text fixtures qualify layout and text correctness before localization release.
 
 ## Responsive behavior
 
 | Class | Product behavior |
 |---|---|
 | wide desktop | three-column authoring, visible Probe Spine, resizable Instrument Bay |
-| laptop | one pinned side panel, one overlay drawer, full keyboard/mouse authoring |
+| laptop | one pinned side panel, one overlay drawer, pointer authoring plus common keyboard shortcuts |
 | narrow/touch | Canvas-first review, Probe, Step, Run, and full-screen waveform; panels become sheets |
 
 V1 does not promise precision touch wiring or dense property editing on narrow screens. Responsive layouts never hide save state, diagnostics, logical time, or connection state.
 
 ## Motion
 
-After a server-acknowledged Session commit, changed Probe markers and corresponding waveform rows may pulse once. The UI does not animate a “causal path” unless a future Runtime contract supplies bounded causal evidence; changed values alone do not prove causality.
+After a server-acknowledged Session commit, changed Probe markers and corresponding waveform rows update immediately. The UI does not animate a “causal path” unless a future Runtime contract supplies bounded causal evidence; changed values alone do not prove causality.
 
 Pointer previews follow locally without decorative easing. There is no ambient animation.
 
 ## Fluent UI boundary
 
-Use the centrally pinned Fluent UI Blazor package only for Web chrome. Geometry Plans and Scene code never depend on Fluent DOM or CSS internals. [Architecture](./ARCHITECTURE.md#82-net-and-dependencies) owns package containment; package qualification and the exact build are implementation evidence, not design invariants.
+Use the centrally pinned Fluent UI Blazor package for standard Web chrome whenever its component behavior fits. Native HTML and modern CSS remain preferable for a simpler platform primitive; custom controls require domain-specific behavior or a documented Fluent/native gap. Geometry Plans and Scene code never depend on Fluent DOM or CSS internals. [Architecture](./ARCHITECTURE.md#82-net-and-dependencies) owns package containment; package qualification and the exact build are implementation evidence, not design invariants.
 
 ## Verification
 
 | Layer | Evidence |
 |---|---|
 | pure Web projection | command availability, labels, state mapping, diagnostics, proposal freshness |
-| Razor/Fluent | bUnit forms, menus, dialogs, focus, empty/failure states, prerender handoff |
+| Razor/Fluent | bUnit forms, menus, dialogs, commands, empty/failure states, prerender handoff |
 | browser adapters | [Browser Runtime](./docs/specs/browser-runtime.md) and [Browser Adapter](./docs/contracts/browser-adapters.md) conformance |
-| browser | Playwright pointer, keyboard, zoom, resize, reconnect, transfer, and conflict workflows |
-| accessibility | automated audit plus keyboard and screen-reader task scripts |
+| browser | Playwright primary pointer workflows, shared shortcuts, zoom, resize, reconnect, transfer, and conflicts |
 | visual | Geometry Plan/SVG goldens and a small curated chrome screenshot set |
 | performance | browser traces on a versioned circuit corpus; measured thresholds only |
 
@@ -295,9 +301,8 @@ A screenshot cannot prove electrical semantics, and a Razor test cannot prove Ca
 ## Sources
 
 - [Fluent UI Blazor v5](https://v5.fluentui-blazor.net/)
+- [Microsoft Learn: Fluent UI Web Components with Blazor](https://learn.microsoft.com/fluent-ui/web-components/integrations/blazor)
 - [Blazor rendering performance](https://learn.microsoft.com/en-us/aspnet/core/blazor/performance/rendering?view=aspnetcore-10.0)
 - [Blazor JavaScript interop](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0)
 - [HTML Canvas](https://html.spec.whatwg.org/multipage/canvas.html#the-canvas-element)
 - [Pointer Events](https://www.w3.org/TR/pointerevents3/)
-- [WCAG 2.2](https://www.w3.org/TR/WCAG22/)
-- [WAI-ARIA Toolbar Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/)

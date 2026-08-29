@@ -155,7 +155,7 @@ CPU modules are synchronous. Async appears at I/O, cancellation, admission, and 
 
 Durable storage keeps immutable Project Revision payloads and a current pointer under optimistic concurrency. It is not event sourcing and does not map gates/wires as one mutable EF graph. Infrastructure owns storage encoding; `.logiclab` remains the only native carrier. The SQLite adapter uses `IDbContextFactory<T>` and one short-lived context per operation.
 
-Public/help/account/project pages use Static SSR; `/editor` uses per-page Interactive Server. Application-owned Workspaces can outlive circuits. Razor owns layout, forms, commands, navigation, dialogs, and semantic projections; browser adapters own frame-rate pixels and input inside their hosts. Pointer samples never cross the circuit. V1 has no `.Client` project, Interactive Auto, public REST interface, custom Hub, offline runtime, or browser execution of engine modules.
+Public/help/account/project pages use Static SSR; `/editor` uses per-page Interactive Server. Application-owned Workspaces can outlive circuits. Razor owns layout, forms, commands, navigation, dialogs, status, and recovery; browser adapters own frame-rate pixels and input inside their hosts. Canvas is the only dense circuit editor, and pointer samples never cross the circuit. V1 has no `.Client` project, Interactive Auto, public REST interface, custom Hub, offline runtime, or browser execution of engine modules.
 
 ## 8. Cross-cutting engineering
 
@@ -202,7 +202,7 @@ Evidence follows fact ownership.
 | Simulation Runtime | scalar oracle, packed differential properties, fixed-point/Trigger Batch/rollback/Trace cases |
 | Boolean Analysis | brute-force oracles, mapping/proof invariants, verifier mutation tests |
 | Project Format | golden/unsupported-version/adversarial packages, strict JSON, ZIP and memory properties |
-| Diagram Presentation | rule/property tests, Geometry Plan/SVG goldens, accessibility projection |
+| Diagram Presentation | rule/property tests, Geometry Plan/SVG goldens, Port anchors, and Hit Regions |
 | Editor Workspace/Infrastructure | attachment, idempotency, concurrency, work lanes, authorized catalog paging, repository integration |
 | Web | host integration, bUnit projections, browser adapter contract tests, Playwright workflows |
 | Performance | comparative BenchmarkDotNet, browser traces, and load tests on a versioned corpus |

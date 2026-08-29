@@ -43,7 +43,6 @@ SymbolVariantDefinition
   qualifier slots and ordering
   dependency rules
   layout constraints
-  accessibility recipe
   standard references
 
 Symbol Request
@@ -58,7 +57,6 @@ Geometry Plan
   bounds and drawing operations
   Port anchors keyed by Port ID
   visual and interaction hit regions
-  accessibility nodes
   conformance evidence
 ```
 
@@ -78,7 +76,7 @@ An unsatisfied higher-priority constraint returns a structured layout diagnostic
 
 Port groups declare edge, role, stable order, pitch, clearance, grouping, and label policy. Bit groups use explicit ascending or descending weight order. Coordinate order is never used to reconstruct Port identity.
 
-Qualifier and dependency composition is structured. Component Contract Port IDs remain identity and accessibility values; a registered function recipe must explicitly authorize any identical visible function text.
+Qualifier and dependency composition is structured. Component Contract Port IDs remain identity values; a registered function recipe must explicitly authorize any identical visible function text.
 
 - negation and direct-polarity indication are diagram-wide alternatives and are not mixed;
 - dynamic, active-low, complemented-output, three-state, bit-grouping, common-control, and common-output marks bind to explicit Ports or groups;
@@ -139,11 +137,11 @@ SchematicProjectionKeyV1
 
 SchematicItemV1 =
   ComponentSymbol { componentInstanceId, origin, GeometryPlanV1 }
-  | DefinitionPort { portId, operations, PortAnchorV1, hitRegions, accessibilityNodes }
+  | DefinitionPort { portId, operations, PortAnchorV1, hitRegions }
   | NetTopology { netId, terminalAnchors, junctionIds, wireGeometryIds, probeAnchor }
-  | WireGeometry { wireGeometryId, netId, route, operations, hitRegions, accessibilityNodes }
-  | Junction { junctionId, netId, point, operations, hitRegions, accessibilityNodes }
-  | Annotation { annotationId, operations, hitRegions, accessibilityNodes }
+  | WireGeometry { wireGeometryId, netId, route, operations, hitRegions }
+  | Junction { junctionId, netId, point, operations, hitRegions }
+  | Annotation { annotationId, operations, hitRegions }
 
 ProjectedTerminalAnchorV1 =
   DefinitionTerminal { portId, point }
@@ -152,7 +150,7 @@ ProjectedTerminalAnchorV1 =
 probeAnchor = Available(PointV1) | Unavailable(NoVisibleGeometry)
 ```
 
-`PresentationFingerprint` is a canonical digest over the Diagram Presentation semantic version, Metric Set ID/version, font fingerprint, localization-bundle ID/version, locale, and base-direction policy. The projection key therefore changes whenever geometry, localized text, shaping, grid conversion, snapping, or ordering can change. It scopes every item ID, so a local ID is never a cross-definition identity. `gridStepPlanUnits` converts one authored grid-coordinate unit into the common projection coordinate system; every projected coordinate and bound uses that system. `snapStepGridUnits` is the default positive snapping interval expressed in authored grid units. `origin` translates plan-local coordinates into projection plan units; facing and reflection are already part of the Geometry Plan key. Wire routes are exactly `Unrouted` or `Orthogonal(PointV1[])`; each routed segment owns one narrow rectangular hit region, with adjacent regions overlapping only around their shared joint. `NetTopology` repeats the authoritative ordered membership with projected Terminal anchors and provides one deterministic Probe anchor: first Terminal membership, then first Junction membership, then the first point of the lowest canonical routed Wire Geometry. A Net with none of those has `Unavailable`; it is not given an invented coordinate. Annotation LF boundaries are projected as explicit baseline-positioned nonempty DisplayText lines, while empty logical lines advance layout without creating a text measurement or drawing operation; an Annotation with no visible lines remains selectable with no visible geometry. Definition Port accessibility names use authored `DisplayName`; opaque Port IDs remain identity values only. Definition Ports, Junctions, Wire Geometry, and Annotations carry complete renderer-neutral drawing, hit, and accessibility values rather than requiring an adapter to reconstruct them from the Project Document.
+`PresentationFingerprint` is a canonical digest over the Diagram Presentation semantic version, Metric Set ID/version, font fingerprint, localization-bundle ID/version, locale, and base-direction policy. The projection key therefore changes whenever geometry, localized text, shaping, grid conversion, snapping, or ordering can change. It scopes every item ID, so a local ID is never a cross-definition identity. `gridStepPlanUnits` converts one authored grid-coordinate unit into the common projection coordinate system; every projected coordinate and bound uses that system. `snapStepGridUnits` is the default positive snapping interval expressed in authored grid units. `origin` translates plan-local coordinates into projection plan units; facing and reflection are already part of the Geometry Plan key. Wire routes are exactly `Unrouted` or `Orthogonal(PointV1[])`; each routed segment owns one narrow rectangular hit region, with adjacent regions overlapping only around their shared joint. `NetTopology` repeats the authoritative ordered membership with projected Terminal anchors and provides one deterministic Probe anchor: first Terminal membership, then first Junction membership, then the first point of the lowest canonical routed Wire Geometry. A Net with none of those has `Unavailable`; it is not given an invented coordinate. Annotation LF boundaries are projected as explicit baseline-positioned nonempty DisplayText lines, while empty logical lines advance layout without creating a text measurement or drawing operation; an Annotation with no visible lines remains selectable with no visible geometry. Definition Ports, Junctions, Wire Geometry, and Annotations carry complete renderer-neutral drawing and hit values rather than requiring an adapter to reconstruct them from the Project Document.
 
 Items use the back-to-front layer order in [Workbench](../../WORKBENCH.md), canonical source order within a layer, and authored Annotation z-order where it is semantic. All coordinate translation uses checked arithmetic. Validation rejects a missing or duplicate authored item, a dangling Net reference, an omitted placement, an out-of-scope ID, a failed Geometry Plan, or an overflow. Selection, focus, probes, live values, diagnostics, and Transient Preview are not Schematic items.
 
@@ -167,7 +165,6 @@ GeometryPlanV1
   operations: DrawOperationV1[]
   portAnchors: PortAnchorV1[]
   hitRegions: HitRegionV1[]
-  accessibilityNodes: AccessibilityNodeV1[]
   conformance: ConformanceEvidenceV1
 
 GeometryPlanKeyV1
@@ -208,12 +205,9 @@ PortAnchorV1
   point
   outwardDirection: North | East | South | West
   hitRegionId
-  accessibilityNodeId
 ```
 
 Each semantic Port appears exactly once. A `HitRegionV1` has a stable local ID, kind `Port | Body | Label`, source Port ID when applicable, and one closed shape: `Rect(rect)`, `Circle(center, positiveRadius)`, or `Polygon(points[])`. Polygons are simple and contain at least three points. Hit regions may be larger than visible geometry but may not move the Port anchor or overlap another Port region ambiguously.
-
-`AccessibilityNodeV1` has a stable local ID, kind `Symbol | Port | Label | Group`, parent ID or root, stable child order, bounds, a localization key with typed safe arguments, and actions drawn from `Focus | Select | BeginConnection | OpenInspector`. Exactly one root exists. Every Port anchor references one Port node, and adapters preserve the same tree and actions even when their native accessibility mechanism differs.
 
 Conformance evidence is closed:
 
@@ -228,7 +222,7 @@ StandardReferenceV1 { publicationId, edition, nonempty ordered clauseIds[] }
 ConformanceDeviationV1 { registered deviationCode, ordered affectedPortIds[] }
 ```
 
-Publication, edition, clause, and deviation values come from the versioned Symbol Definition registry, not free-form prose. A standardized claim requires a nonempty reference list; `UnverifiedFallback` requires an empty list and `NotEvaluated`. Validation rejects duplicate IDs, unresolved cross-references, out-of-range arithmetic, missing Ports, renderer-specific data, unknown union variants, and operation order that violates qualifier/dependency composition. An adapter consumes the value as given; it does not reconstruct anchors, reorder operations, remeasure text, or infer accessibility from pixels.
+Publication, edition, clause, and deviation values come from the versioned Symbol Definition registry, not free-form prose. A standardized claim requires a nonempty reference list; `UnverifiedFallback` requires an empty list and `NotEvaluated`. Validation rejects duplicate IDs, unresolved cross-references, out-of-range arithmetic, missing Ports, renderer-specific data, unknown union variants, and operation order that violates qualifier/dependency composition. An adapter consumes the value as given; it does not reconstruct anchors, reorder operations, or remeasure text.
 
 ## 5. Generation pipeline
 
@@ -255,8 +249,8 @@ SVG, Canvas, print, and export consume the same Schematic Projection and Geometr
 - hit priority is Port, handle, component body, Wire Geometry, then background;
 - hit results carry stable source identity, never pixel color or runtime ordinal;
 - SVG groups expose useful title, description, and semantic identity;
-- Canvas has synchronized focusable fallback descendants with equivalent identity and actions;
-- keyboard navigation follows topology and stable Port order, not renderer element order.
+- Canvas is the sole dense schematic editor and consumes the same Port anchors and Hit Regions;
+- shared shortcuts invoke the same tool controller as pointer actions rather than a parallel topology navigator.
 
 Selection, live Logic Values, probes, diagnostics, and the Probe Spine are editor overlays. They are not IEEE symbol content and are omitted from plain schematic export. An annotated teaching export marks them as extensions.
 
@@ -307,11 +301,11 @@ Manifest entries use ordinal Component Instance ID order and own their nested ar
 - property matrices across facing, fan-in, width, Port groups, clock edges, polarity, and localized labels;
 - canonical Geometry Plan and SVG goldens keyed by Component Contract and standard reference;
 - atomic Schematic Projection cases covering positioned components, definition Ports, Net topology/navigation anchor points, Junctions, routed and unrouted Wire Geometry, Annotations, and invalid/cancelled rejection without a partial scene;
-- closed-operation, nonpositive-stroke, cross-reference, overflow, unknown-variant, and invalid-tree rejection tests;
-- SVG/Canvas/print parity for bounds, ordered drawing operations, text metrics, Port anchors, hit regions, and accessibility trees;
+- closed-operation, nonpositive-stroke, cross-reference, overflow, and unknown-variant rejection tests;
+- SVG/Canvas/print parity for bounds, ordered drawing operations, text metrics, Port anchors, and Hit Regions;
 - profile mapping tests, especially two-input XOR versus multi-input odd/even;
 - negative conformance tests that reject illegal combinations or missing extension marks;
-- keyboard, focus, screen-reader, text expansion, bidirectional text, and high-zoom scenarios;
+- text expansion, bidirectional text, and high-zoom scenarios;
 - export manifests for strict, TeachingMixed, and extension-containing projects.
 
 Standard clauses, optional local-reference details, page mapping, and reference-implementation observations are documented in [symbol research](../research/diagram-presentation.md).

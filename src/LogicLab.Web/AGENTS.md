@@ -27,7 +27,9 @@ Pages are Static SSR by default. Only components that explicitly add `@rendermod
 
 ## Ownership
 
-- Razor owns commands, navigation, semantic fallback, and low-rate state.
+- Razor owns commands, navigation, recovery surfaces, and low-rate state. Canvas is the only dense circuit editor; do not add a parallel semantic circuit tree or action model.
+- Prefer the centrally pinned Fluent UI component for standard Web chrome when it fits, then a simpler native HTML/CSS primitive. Add a custom control only for domain-specific interaction or a documented component gap.
+- Accessibility is not a compliance gate. Keep inexpensive native semantics and shared shortcuts, but never trade Canvas correctness, workflow ergonomics, or module clarity for a duplicate accessibility path.
 - Application owns Editor Workspaces and calls Domain/Engine modules.
 - Presentation owns renderer-neutral static scene projection.
 - Browser adapters own frame-rate pixels and pointer samples.

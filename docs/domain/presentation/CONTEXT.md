@@ -1,6 +1,6 @@
 # Diagram Presentation
 
-Diagram Presentation projects authored semantics into reproducible, renderable, hittable, exportable, and accessible schematic geometry without changing circuit behavior.
+Diagram Presentation projects authored semantics into reproducible, renderable, hittable, and exportable schematic geometry without changing circuit behavior.
 
 ## Language
 
@@ -13,7 +13,7 @@ One template-constrained graphical representation of the same Component Contract
 _Avoid_: Component Contract, Symbol Profile
 
 **Geometry Plan**:
-An immutable, renderer-neutral result containing drawing operations, Port anchors, bounds, hit regions, accessibility nodes, and conformance evidence.
+An immutable, renderer-neutral result containing drawing operations, Port anchors, bounds, Hit Regions, and conformance evidence.
 _Avoid_: rendered image, pre-drawn asset
 
 **Schematic Projection**:

@@ -90,7 +90,7 @@ V1 supports exactly these UI cultures:
 | `en-US` | English | left-to-right |
 | `zh-CN` | Simplified Chinese | left-to-right |
 
-The first request selects the first supported `Accept-Language` match or `en-US`. An explicit user choice writes the standard localization cookie through a same-origin, antiforgery-protected endpoint with a validated local return URL, then performs a full reload. The reload intentionally creates a culture-consistent HTTP document, circuit, localization scope, Diagram Presentation fingerprint, Canvas text state, and semantic tree.
+The first request selects the first supported `Accept-Language` match or `en-US`. An explicit user choice writes the standard localization cookie through a same-origin, antiforgery-protected endpoint with a validated local return URL, then performs a full reload. The reload intentionally creates a culture-consistent HTTP document, circuit, localization scope, Diagram Presentation fingerprint, Canvas text state, and Razor chrome.
 
 Request-localization middleware runs before Razor endpoints. Web uses .NET resources through `IStringLocalizer`; stable codes, IDs, enum values, JSON member names, logical-time decimal strings, and digests remain culture-invariant. The host sets `<html lang>` and `dir` explicitly because culture selection doesn't set the HTML language attribute automatically. These rules follow [Blazor globalization and localization](https://learn.microsoft.com/en-us/aspnet/core/blazor/globalization-localization?view=aspnetcore-10.0) and [ASP.NET Core localization](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/localization?view=aspnetcore-10.0).
 

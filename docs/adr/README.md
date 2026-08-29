@@ -19,6 +19,7 @@ ADRs record hard-to-reverse, non-obvious trade-offs. Specifications define curre
 
 - [0006 — Keep simplification managed and proof-gated](./0006-keep-simplification-managed-and-proof-gated.md)
 - [0007 — Generate TeachingMixed symbols declaratively](./0007-generate-teachingmixed-symbols-declaratively.md)
+- [0008 — Use one Canvas editor surface](./0008-use-one-canvas-editor-surface.md)
 
 ## Rule for new records
 
