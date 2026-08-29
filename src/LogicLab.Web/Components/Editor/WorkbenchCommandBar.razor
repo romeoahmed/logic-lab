@@ -45,9 +45,16 @@
         </div>
     </div>
 
-    <details class="project-options">
-        <summary>@Text["ProjectOptions"]</summary>
-        <div class="project-actions" role="group" aria-label="@Text["ProjectCommandsAriaLabel"]">
+    <button class="project-options-trigger"
+            type="button"
+            popovertarget="project-options-popover"
+            aria-haspopup="dialog">@Text["ProjectOptions"]</button>
+    <div id="project-options-popover"
+         class="project-options-panel"
+         popover="auto"
+         role="dialog"
+         aria-label="@Text["ProjectCommandsAriaLabel"]">
+        <div class="project-actions" role="group">
             <FluentInputFile Id="logiclab-import-picker"
                              AnchorId="logiclab-import-trigger"
                              Accept=".logiclab,application/vnd.logiclab+zip"
@@ -95,5 +102,5 @@
                               OnClick="@(() => OnCommand.InvokeAsync(WorkbenchCommand.Save))">@Text["SaveDurable"]</FluentButton>
             }
         </div>
-    </details>
+    </div>
 </div>

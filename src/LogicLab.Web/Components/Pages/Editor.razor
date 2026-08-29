@@ -109,11 +109,6 @@
                 @if (Projection is not null && SelectedDefinitionId is not null)
                 {
                     <div class="schematic-workspace">
-                        <div class="library-dock" data-testid="workbench-library">
-                            <ComponentPalette Options="ScenePlaceOptions"
-                                              ActiveTool="SceneTool"
-                                              ActiveToolChanged="ChangeSceneToolAsync" />
-                        </div>
                         <main class="canvas-workspace" data-testid="workbench-canvas">
                             <SceneToolStrip ActiveTool="SceneTool"
                                             HierarchyPath="CurrentSceneHierarchyPath"
@@ -133,6 +128,11 @@
                                               OnSemanticAction="HandleSceneSemanticActionAsync"
                                               OnToolConsumed="ConsumeSceneToolAsync" />
                         </main>
+                        <div class="library-dock" data-testid="workbench-library">
+                            <ComponentPalette Options="ScenePlaceOptions"
+                                              ActiveTool="SceneTool"
+                                              ActiveToolChanged="ChangeSceneToolAsync" />
+                        </div>
                         <aside class="inspector-dock" aria-labelledby="inspector-title">
                             <header class="inspector-heading">
                                 <h2 id="inspector-title">@Text["Inspector"]</h2>
