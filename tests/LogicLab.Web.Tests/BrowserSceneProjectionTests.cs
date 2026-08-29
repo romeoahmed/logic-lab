@@ -53,6 +53,34 @@ internal sealed class BrowserSceneProjectionTests
     }
 
     [Test]
+    public async Task Project_PortHitRegions_PublishAuthoritativeTerminalGeometry()
+    {
+        var revision = WebTestCircuit.CreateCompleteCircuit();
+        var replacement = BrowserSceneProjection.Project(
+            "build-a",
+            sceneVersion: 1,
+            projectionVersion: 3,
+            revision,
+            revision.Document.EntryCircuitDefinitionId,
+            "en-US",
+            BrowserPolicy.Development,
+            maximumPortCount: 10_000,
+            new TestTextMeasurer());
+        var snapshot = await Assert.That(replacement).IsTypeOf<SceneSnapshotV1>();
+        var json = JsonSerializer.SerializeToElement(
+            snapshot,
+            SceneJsonSerializerContext.Strict.SceneSnapshotV1);
+        var ports = json.GetProperty("items")
+            .EnumerateArray()
+            .SelectMany(item => item.GetProperty("hitRegions").EnumerateArray())
+            .Where(region => region.GetProperty("kind").GetString() == "port")
+            .ToArray();
+
+        await Assert.That(ports).IsNotEmpty();
+        await Assert.That(ports.All(HasAuthoritativeTerminalGeometry)).IsTrue();
+    }
+
+    [Test]
     public async Task Project_RecordPolicyExhausted_PreservesExactPolicyEvidence()
     {
         var revision = WebTestCircuit.CreateCompleteCircuit();
@@ -175,5 +203,18 @@ internal sealed class BrowserSceneProjectionTests
                 width,
                 new RectV1(left, -80, checked(left + width), 40));
         }
+    }
+
+    private static bool HasAuthoritativeTerminalGeometry(JsonElement region)
+    {
+        return region.TryGetProperty("anchor", out var anchor)
+            && anchor.TryGetProperty("x", out var x)
+            && x.TryGetDouble(out var xValue)
+            && double.IsFinite(xValue)
+            && anchor.TryGetProperty("y", out var y)
+            && y.TryGetDouble(out var yValue)
+            && double.IsFinite(yValue)
+            && region.TryGetProperty("outwardDirection", out var direction)
+            && direction.GetString() is "north" or "east" or "south" or "west";
     }
 }
