@@ -6,9 +6,26 @@ namespace LogicLab.Web.Components.Pages;
 
 public partial class Editor
 {
-    private Task AuthorSteeringExample() => AuthorStarterCircuit(StarterCircuitCatalog.Steering);
-
-    private Task AuthorArithmeticExample() => AuthorStarterCircuit(StarterCircuitCatalog.Arithmetic);
+    private Task RunStarterExampleAsync(StarterGuide.Example example) => example switch
+    {
+        StarterGuide.Example.Inverter => RunCommandAsync(
+            "author",
+            () => CanAuthor,
+            () => AuthorStarterCircuit(StarterCircuitCatalog.Inverter)),
+        StarterGuide.Example.Steering => RunCommandAsync(
+            "author-steering",
+            () => CanAuthor,
+            () => AuthorStarterCircuit(StarterCircuitCatalog.Steering)),
+        StarterGuide.Example.Arithmetic => RunCommandAsync(
+            "author-arithmetic",
+            () => CanAuthor,
+            () => AuthorStarterCircuit(StarterCircuitCatalog.Arithmetic)),
+        StarterGuide.Example.Hierarchy => RunCommandAsync(
+            "author-hierarchy",
+            () => CanAuthor,
+            AuthorHierarchy),
+        _ => throw new ArgumentOutOfRangeException(nameof(example), example, null),
+    };
 
     private async Task AuthorStarterCircuit(StarterCircuitRecipe recipe)
     {

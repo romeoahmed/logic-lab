@@ -1,3 +1,4 @@
+using LogicLab.Domain.Components;
 using LogicLab.Web.Scene;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Localization;
@@ -6,8 +7,6 @@ namespace LogicLab.Web.Components.Editor;
 
 public sealed partial class ComponentPalette
 {
-    private string searchTerm = string.Empty;
-
     [Parameter, EditorRequired]
     public IReadOnlyList<ScenePlaceOptionV1> Options { get; set; } = [];
 
@@ -20,80 +19,90 @@ public sealed partial class ComponentPalette
     [Inject]
     private IStringLocalizer<EditorText> Text { get; set; } = null!;
 
-    private string SearchTerm
-    {
-        get => searchTerm;
-        set => searchTerm = value?.Trim() ?? string.Empty;
-    }
+    private string SearchTerm { get; set; } = string.Empty;
 
-    private bool HasSearchTerm => searchTerm.Length != 0;
+    private string NormalizedSearchTerm => SearchTerm.Trim();
 
-    private IReadOnlyList<PaletteGroup> Groups
+    private bool HasSearchTerm => NormalizedSearchTerm.Length != 0;
+
+    private List<PaletteGroup> BuildGroups()
     {
-        get
+        var catalogOptions = Options
+            .Select(option => new PresentedOption(
+                option,
+                option.Tool.Target is SceneLibraryComponentTargetV1 library
+                    && string.Equals(
+                        library.LibraryId,
+                        CoreLibrarySchema.LibraryId,
+                        StringComparison.Ordinal)
+                    ? ComponentPresentationCatalog.Find(library.ContractId)
+                    : null))
+            .Where(item => item.Presentation is not null)
+            .ToArray();
+        var presentedIds = catalogOptions
+            .Select(item => item.Option.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        var groups = new List<PaletteGroup>(ComponentPresentationCatalog.Groups.Count + 2);
+        foreach (var definition in ComponentPresentationCatalog.Groups)
         {
-            var unassigned = Options.ToDictionary(option => option.Id, StringComparer.Ordinal);
-            var groups = new List<PaletteGroup>(ComponentPresentationCatalog.Groups.Count + 2);
-            foreach (var definition in ComponentPresentationCatalog.Groups)
-            {
-                var options = definition.Components
-                    .Select(component => unassigned.GetValueOrDefault(
-                        $"library:logiclab.core:{component.ContractId}"))
-                    .Where(option => option is not null)
-                    .Select(option => option!)
-                    .Where(MatchesSearch)
-                    .ToArray();
-                foreach (var option in options)
-                {
-                    unassigned.Remove(option.Id);
-                }
-
-                if (options.Length != 0)
-                {
-                    groups.Add(new PaletteGroup(
-                        definition.Id,
-                        definition.ResourceKey,
-                        definition.ExpandedByDefault,
-                        options));
-                }
-            }
-
-            var definitions = unassigned.Values
-                .Where(option => option.Tool.Target is SceneCircuitDefinitionTargetV1)
+            var options = catalogOptions
+                .Where(item => string.Equals(
+                    item.Presentation!.Group.Id,
+                    definition.Id,
+                    StringComparison.Ordinal))
+                .Select(item => item.Option)
                 .Where(MatchesSearch)
-                .OrderBy(DisplayName, StringComparer.CurrentCulture)
                 .ToArray();
-            if (definitions.Length != 0)
+            if (options.Length != 0)
             {
                 groups.Add(new PaletteGroup(
-                    "definitions",
-                    "ComponentGroupDefinitions",
-                    false,
-                    definitions));
+                    definition.Id,
+                    definition.ResourceKey,
+                    definition.ExpandedByDefault,
+                    options));
             }
-
-            var remaining = unassigned.Values
-                .Where(option => option.Tool.Target is not SceneCircuitDefinitionTargetV1)
-                .Where(MatchesSearch)
-                .OrderBy(DisplayName, StringComparer.CurrentCulture)
-                .ToArray();
-            if (remaining.Length != 0)
-            {
-                groups.Add(new PaletteGroup(
-                    "other",
-                    "ComponentGroupOther",
-                    false,
-                    remaining));
-            }
-
-            return groups;
         }
+
+        var definitions = Options
+            .Where(option => option.Tool.Target is SceneCircuitDefinitionTargetV1)
+            .Where(MatchesSearch)
+            .OrderBy(DisplayName, StringComparer.CurrentCulture)
+            .ToArray();
+        if (definitions.Length != 0)
+        {
+            groups.Add(new PaletteGroup(
+                "definitions",
+                "ComponentGroupDefinitions",
+                false,
+                definitions));
+        }
+
+        var remaining = Options
+            .Where(option => !presentedIds.Contains(option.Id))
+            .Where(option => option.Tool.Target is not SceneCircuitDefinitionTargetV1)
+            .Where(MatchesSearch)
+            .OrderBy(DisplayName, StringComparer.CurrentCulture)
+            .ToArray();
+        if (remaining.Length != 0)
+        {
+            groups.Add(new PaletteGroup(
+                "other",
+                "ComponentGroupOther",
+                false,
+                remaining));
+        }
+
+        return groups;
     }
 
     private bool MatchesSearch(ScenePlaceOptionV1 option) => !HasSearchTerm
-        || DisplayName(option).Contains(searchTerm, StringComparison.CurrentCultureIgnoreCase)
-        || ComponentHint(option).Contains(searchTerm, StringComparison.CurrentCultureIgnoreCase)
-        || option.Label.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
+        || DisplayName(option).Contains(
+            NormalizedSearchTerm,
+            StringComparison.CurrentCultureIgnoreCase)
+        || ComponentHint(option).Contains(
+            NormalizedSearchTerm,
+            StringComparison.CurrentCultureIgnoreCase)
+        || option.Label.Contains(NormalizedSearchTerm, StringComparison.OrdinalIgnoreCase);
 
     private string DisplayName(ScenePlaceOptionV1 option) => option.Tool.Target switch
     {
@@ -121,23 +130,18 @@ public sealed partial class ComponentPalette
     };
 
     private bool IsActive(ScenePlaceOptionV1 option) => ActiveTool is ScenePlaceToolV1 place
-        && string.Equals(ToolId(place), option.Id, StringComparison.Ordinal);
+        && place.Target == option.Tool.Target;
 
     private Task SelectAsync(ScenePlaceOptionV1 option) =>
         ActiveToolChanged.InvokeAsync(option.Tool);
-
-    private static string ToolId(ScenePlaceToolV1 tool) => tool.Target switch
-    {
-        SceneLibraryComponentTargetV1 library =>
-            $"library:{library.LibraryId}:{library.ContractId}",
-        SceneCircuitDefinitionTargetV1 definition =>
-            $"definition:{definition.CircuitDefinitionId}",
-        _ => string.Empty,
-    };
 
     private sealed record PaletteGroup(
         string Id,
         string ResourceKey,
         bool ExpandedByDefault,
         IReadOnlyList<ScenePlaceOptionV1> Options);
+
+    private sealed record PresentedOption(
+        ScenePlaceOptionV1 Option,
+        ComponentPresentation? Presentation);
 }

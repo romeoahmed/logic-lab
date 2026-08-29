@@ -11,69 +11,59 @@
         <li><strong>4</strong><span>@Text["LearningStepObserve"]</span></li>
     </ol>
     <div class="starter-options">
-        <button class="starter-option"
-                type="button"
-                data-command="author"
-                disabled="@(!CanAuthor || BusyCommand is not null)"
-                aria-busy="@(BusyCommand is "author" ? "true" : "false")"
-                @onclick="OnAuthor">
-            <span class="starter-option-content"><strong class="starter-number">01</strong><span class="starter-copy"><strong>@Text["StarterInverterTitle"]</strong><small>@Text["StarterInverterDescription"]</small></span></span>
-        </button>
-        <button class="starter-option"
-                type="button"
-                data-command="author-steering"
-                disabled="@(!CanAuthorSteering || BusyCommand is not null)"
-                aria-busy="@(BusyCommand is "author-steering" ? "true" : "false")"
-                @onclick="OnAuthorSteering">
-            <span class="starter-option-content"><strong class="starter-number">02</strong><span class="starter-copy"><strong>@Text["StarterSteeringTitle"]</strong><small>@Text["StarterSteeringDescription"]</small></span></span>
-        </button>
-        <button class="starter-option"
-                type="button"
-                data-command="author-arithmetic"
-                disabled="@(!CanAuthorArithmetic || BusyCommand is not null)"
-                aria-busy="@(BusyCommand is "author-arithmetic" ? "true" : "false")"
-                @onclick="OnAuthorArithmetic">
-            <span class="starter-option-content"><strong class="starter-number">03</strong><span class="starter-copy"><strong>@Text["StarterArithmeticTitle"]</strong><small>@Text["StarterArithmeticDescription"]</small></span></span>
-        </button>
-        <button class="starter-option"
-                type="button"
-                data-command="author-hierarchy"
-                disabled="@(!CanAuthorHierarchy || BusyCommand is not null)"
-                aria-busy="@(BusyCommand is "author-hierarchy" ? "true" : "false")"
-                @onclick="OnAuthorHierarchy">
-            <span class="starter-option-content"><strong class="starter-number">04</strong><span class="starter-copy"><strong>@Text["StarterHierarchyTitle"]</strong><small>@Text["StarterHierarchyDescription"]</small></span></span>
-        </button>
+        @foreach (var option in Options)
+        {
+            <button class="starter-option"
+                    type="button"
+                    @key="option.Example"
+                    data-command="@option.Command"
+                    disabled="@(BusyCommand is not null)"
+                    aria-busy="@(BusyCommand == option.Command ? "true" : "false")"
+                    @onclick="@(() => OnSelect.InvokeAsync(option.Example))">
+                <span class="starter-option-content">
+                    <span class="starter-symbol">
+                        <ComponentSymbol ContractId="@option.SymbolContractId" />
+                    </span>
+                    <span class="starter-copy">
+                        <strong>@Text[option.TitleResourceKey]</strong>
+                        <small>@Text[option.DescriptionResourceKey]</small>
+                    </span>
+                </span>
+            </button>
+        }
     </div>
 </section>
 
 @code {
-    [Parameter]
-    public bool CanAuthor { get; set; }
-
-    [Parameter]
-    public bool CanAuthorSteering { get; set; }
-
-    [Parameter]
-    public bool CanAuthorArithmetic { get; set; }
-
-    [Parameter]
-    public bool CanAuthorHierarchy { get; set; }
+    private static readonly StarterOption[] Options =
+    [
+        new(Example.Inverter, "author", "logic.not", "StarterInverterTitle", "StarterInverterDescription"),
+        new(Example.Steering, "author-steering", "logic.mux", "StarterSteeringTitle", "StarterSteeringDescription"),
+        new(Example.Arithmetic, "author-arithmetic", "logic.adder", "StarterArithmeticTitle", "StarterArithmeticDescription"),
+        new(Example.Hierarchy, "author-hierarchy", "circuit.definition", "StarterHierarchyTitle", "StarterHierarchyDescription"),
+    ];
 
     [Parameter]
     public string? BusyCommand { get; set; }
 
     [Parameter]
-    public EventCallback OnAuthor { get; set; }
-
-    [Parameter]
-    public EventCallback OnAuthorSteering { get; set; }
-
-    [Parameter]
-    public EventCallback OnAuthorArithmetic { get; set; }
-
-    [Parameter]
-    public EventCallback OnAuthorHierarchy { get; set; }
+    public EventCallback<Example> OnSelect { get; set; }
 
     [Inject]
     private IStringLocalizer<EditorText> Text { get; set; } = null!;
+
+    public enum Example
+    {
+        Inverter,
+        Steering,
+        Arithmetic,
+        Hierarchy,
+    }
+
+    private sealed record StarterOption(
+        Example Example,
+        string Command,
+        string SymbolContractId,
+        string TitleResourceKey,
+        string DescriptionResourceKey);
 }

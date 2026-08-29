@@ -7,6 +7,34 @@ namespace LogicLab.Web.Components.Editor;
 
 internal static class StarterCircuitCatalog
 {
+    public static StarterCircuitRecipe Inverter { get; } = new(
+        "CircuitAuthored",
+        [
+            new(
+                "input",
+                "source.input",
+                InputParameters(LogicValue.Zero),
+                "ComponentInput",
+                new GridPoint(0, 5)),
+            new(
+                "inverter",
+                "logic.not",
+                WidthParameters(1),
+                "ComponentNot",
+                new GridPoint(10, 0)),
+            new(
+                "output",
+                "sink.output",
+                OutputParameters(1),
+                "ComponentOutput",
+                new GridPoint(28, 5)),
+        ],
+        [],
+        [
+            new("input", "Q", "inverter", "A", [new(7, 7), new(11, 7)]),
+            new("inverter", "Q", "output", "D", [new(26, 7), new(29, 7)]),
+        ]);
+
     public static StarterCircuitRecipe Steering { get; } = new(
         "SteeringExampleAuthored",
         [
@@ -159,6 +187,11 @@ internal static class StarterCircuitCatalog
     [
         new("width", new Unsigned32ParameterValue(width)),
         new("radix", new ChoiceParameterValue("binary")),
+    ];
+
+    private static ComponentParameterBinding[] WidthParameters(uint width) =>
+    [
+        new("width", new Unsigned32ParameterValue(width)),
     ];
 }
 

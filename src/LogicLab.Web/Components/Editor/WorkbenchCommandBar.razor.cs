@@ -6,74 +6,57 @@ namespace LogicLab.Web.Components.Editor;
 public sealed partial class WorkbenchCommandBar
 {
     [Parameter]
-    public bool CanCreate { get; set; }
+    public CommandBarModel Model { get; set; } = new();
 
     [Parameter]
-    public bool CanImport { get; set; }
-
-    [Parameter]
-    public bool CanPrepareExport { get; set; }
-
-    [Parameter]
-    public bool ShowClaim { get; set; }
-
-    [Parameter]
-    public bool CanClaim { get; set; }
-
-    [Parameter]
-    public bool ShowSave { get; set; }
-
-    [Parameter]
-    public bool CanSave { get; set; }
-
-    [Parameter]
-    public string ClaimDisplayName { get; set; } = string.Empty;
-
-    [Parameter]
-    public bool CanCompile { get; set; }
-
-    [Parameter]
-    public bool CanCreateSession { get; set; }
-
-    [Parameter]
-    public bool CanScheduleStimulus { get; set; }
-
-    [Parameter]
-    public bool CanStep { get; set; }
-
-    [Parameter]
-    public string? ActiveCommand { get; set; }
-
-    [Parameter]
-    public EventCallback OnCreate { get; set; }
+    public EventCallback<WorkbenchCommand> OnCommand { get; set; }
 
     [Parameter]
     public EventCallback<InputFileChangeEventArgs> OnImport { get; set; }
 
     [Parameter]
-    public EventCallback OnPrepareExport { get; set; }
-
-    [Parameter]
     public EventCallback<string> ClaimDisplayNameChanged { get; set; }
 
-    [Parameter]
-    public EventCallback OnClaim { get; set; }
+    private bool IsBusy => Model.ActiveCommand is not null;
 
-    [Parameter]
-    public EventCallback OnSave { get; set; }
+    public enum WorkbenchCommand
+    {
+        Create,
+        PrepareExport,
+        Claim,
+        Save,
+        Compile,
+        CreateSession,
+        ScheduleStimulus,
+        Step,
+    }
 
-    [Parameter]
-    public EventCallback OnCompile { get; set; }
+    public sealed record CommandBarModel
+    {
+        public bool CanCreate { get; init; }
 
-    [Parameter]
-    public EventCallback OnCreateSession { get; set; }
+        public bool CanImport { get; init; }
 
-    [Parameter]
-    public EventCallback OnScheduleStimulus { get; set; }
+        public bool CanPrepareExport { get; init; }
 
-    [Parameter]
-    public EventCallback OnStep { get; set; }
+        public bool ShowClaim { get; init; }
 
-    private bool IsBusy => ActiveCommand is not null;
+        public bool CanClaim { get; init; }
 
+        public bool ShowSave { get; init; }
+
+        public bool CanSave { get; init; }
+
+        public string ClaimDisplayName { get; init; } = string.Empty;
+
+        public bool CanCompile { get; init; }
+
+        public bool CanCreateSession { get; init; }
+
+        public bool CanScheduleStimulus { get; init; }
+
+        public bool CanStep { get; init; }
+
+        public string? ActiveCommand { get; init; }
+    }
 }
