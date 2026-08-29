@@ -98,17 +98,16 @@
 
 .starter-option-content {
   display: grid;
-  grid-template-columns: 1.6rem minmax(0, 1fr);
-  gap: 0.55rem;
-  align-items: start;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: center;
   white-space: normal;
 }
 
-.starter-number {
-  padding-block-start: 0.05rem;
+.starter-symbol {
+  display: grid;
+  place-items: center;
   color: var(--ll-signal);
-  font-family: "IBM Plex Mono", "Noto Sans Mono CJK", ui-monospace, monospace;
-  font-size: 0.7rem;
 }
 
 .starter-copy {

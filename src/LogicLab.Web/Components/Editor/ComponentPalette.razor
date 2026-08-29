@@ -17,14 +17,15 @@
                    @bind:event="oninput" />
         </label>
     </div>
-    @if (Groups is [])
+    @{ var groups = BuildGroups(); }
+    @if (groups.Count == 0)
     {
         <p class="component-empty" role="status">@Text["NoMatchingComponents"]</p>
     }
     else
     {
         <div class="component-groups">
-            @foreach (var group in Groups)
+            @foreach (var group in groups)
             {
                 <details @key="group.Id" open="@(group.ExpandedByDefault || HasSearchTerm)">
                     <summary>

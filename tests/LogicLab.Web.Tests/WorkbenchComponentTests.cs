@@ -789,7 +789,8 @@ internal sealed class WorkbenchComponentTests
         await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
         await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
         var commandBar = rendered.FindComponent<WorkbenchCommandBar>();
-        await rendered.InvokeAsync(() => commandBar.Instance.OnCreate.InvokeAsync());
+        await rendered.InvokeAsync(() => commandBar.Instance.OnCommand.InvokeAsync(
+            WorkbenchCommandBar.WorkbenchCommand.Create));
 
         await Assert.That(workspace.OpenCount).IsEqualTo(1);
     }

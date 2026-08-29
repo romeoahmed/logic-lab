@@ -6,6 +6,8 @@ namespace LogicLab.Web.BrowserTests;
 
 internal static class StarterCircuitFixture
 {
+    public static ProjectRevision CreateInverter() => Create(StarterCircuitCatalog.Inverter);
+
     public static ProjectRevision CreateSteering() => Create(StarterCircuitCatalog.Steering);
 
     public static ProjectRevision CreateArithmetic() => Create(StarterCircuitCatalog.Arithmetic);

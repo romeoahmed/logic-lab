@@ -75,6 +75,23 @@ public sealed partial class Editor : IAsyncDisposable
 
     private string ClaimDisplayName { get; set; } = string.Empty;
 
+    private WorkbenchCommandBar.CommandBarModel CommandBarModel => new()
+    {
+        CanCreate = CanCreate,
+        CanImport = CanImport,
+        CanPrepareExport = CanPrepareExport,
+        ShowClaim = ShowClaim,
+        CanClaim = CanClaim,
+        ShowSave = ShowSave,
+        CanSave = CanSave,
+        ClaimDisplayName = ClaimDisplayName,
+        CanCompile = CanCompile,
+        CanCreateSession = CanCreateSession,
+        CanScheduleStimulus = CanScheduleStimulus,
+        CanStep = CanStep,
+        ActiveCommand = WorkbenchActiveCommand,
+    };
+
     private WorkspaceCaller CurrentCaller { get; set; } =
         AnonymousWorkspaceCaller.Instance;
 
@@ -224,12 +241,6 @@ public sealed partial class Editor : IAsyncDisposable
 
     private bool CanImport => CommandsAvailable;
 
-    private bool CanAuthorHierarchy => CanAuthor;
-
-    private bool CanAuthorSteering => CanAuthor;
-
-    private bool CanAuthorArithmetic => CanAuthor;
-
     private bool CanSetEntryDefinition => CommandsAvailable
         && ActiveCommand is null
         && Projection?.Simulation is null;
@@ -376,6 +387,44 @@ public sealed partial class Editor : IAsyncDisposable
         ShowAttachmentFailure(rejectionCode);
         Status = Text["AttachmentRejected", rejectionCode];
     }
+
+    private Task RunWorkbenchCommandAsync(
+        WorkbenchCommandBar.WorkbenchCommand command) => command switch
+        {
+            WorkbenchCommandBar.WorkbenchCommand.Create => RunCommandAsync(
+                "create",
+                () => CanCreate,
+                CreateProject),
+            WorkbenchCommandBar.WorkbenchCommand.PrepareExport => RunCommandAsync(
+                "export",
+                () => CanPrepareExport,
+                PrepareProjectExport),
+            WorkbenchCommandBar.WorkbenchCommand.Claim => RunCommandAsync(
+                "claim",
+                () => CanClaim,
+                ClaimSandboxProject),
+            WorkbenchCommandBar.WorkbenchCommand.Save => RunCommandAsync(
+                "save",
+                () => CanSave,
+                SaveDurableProject),
+            WorkbenchCommandBar.WorkbenchCommand.Compile => RunCommandAsync(
+                "compile",
+                () => CanCompile,
+                Compile),
+            WorkbenchCommandBar.WorkbenchCommand.CreateSession => RunCommandAsync(
+                "session",
+                () => CanCreateSession,
+                CreateSimulationSession),
+            WorkbenchCommandBar.WorkbenchCommand.ScheduleStimulus => RunCommandAsync(
+                "stimulus",
+                () => CanScheduleStimulus,
+                ScheduleStimulus),
+            WorkbenchCommandBar.WorkbenchCommand.Step => RunCommandAsync(
+                "step",
+                () => CanStep,
+                Step),
+            _ => throw new ArgumentOutOfRangeException(nameof(command), command, null),
+        };
 
     private async Task RunCommandAsync(
         string command,
@@ -543,93 +592,6 @@ public sealed partial class Editor : IAsyncDisposable
             });
     }
 
-    private async Task AuthorCircuit()
-    {
-        if (Projection is null)
-        {
-            return;
-        }
-
-        var definitionId = Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
-        if (!await Apply(new PlaceComponentInstanceIntent(
-                definitionId,
-                Contract("source.input"),
-                [
-                    new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-                    new ComponentParameterBinding(
-                        "initialValue",
-                        new LogicVectorParameterValue([LogicValue.Zero])),
-                ],
-                new ComponentPlacement(new GridPoint(0, 5)),
-                "Input")))
-        {
-            return;
-        }
-
-        var input = Find("source.input");
-        if (!await Apply(new PlaceComponentInstanceIntent(
-                definitionId,
-                Contract("logic.not"),
-                [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
-                new ComponentPlacement(new GridPoint(10, 0)),
-                "NOT")))
-        {
-            return;
-        }
-
-        var logicNot = Find("logic.not");
-        if (!await Apply(new PlaceComponentInstanceIntent(
-                definitionId,
-                Contract("sink.output"),
-                [
-                    new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-                    new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),
-                ],
-                new ComponentPlacement(new GridPoint(28, 5)),
-                "Output")))
-        {
-            return;
-        }
-
-        var output = Find("sink.output");
-        var inputTerminal = Terminal(definitionId, input.Id, "Q");
-        var notInputTerminal = Terminal(definitionId, logicNot.Id, "A");
-        if (!await Apply(new ConnectTerminalsIntent(
-                [inputTerminal, notInputTerminal],
-                destinationNetId: null,
-                newJunctionPositions: [],
-                routeAdditions:
-                [
-                    new OrthogonalWireRoute([
-                        new GridPoint(7, 7),
-                        new GridPoint(11, 7),
-                    ]),
-                ],
-                routeReplacements: [])))
-        {
-            return;
-        }
-
-        var notOutputTerminal = Terminal(definitionId, logicNot.Id, "Q");
-        var outputTerminal = Terminal(definitionId, output.Id, "D");
-        if (!await Apply(new ConnectTerminalsIntent(
-                [notOutputTerminal, outputTerminal],
-                destinationNetId: null,
-                newJunctionPositions: [],
-                routeAdditions:
-                [
-                    new OrthogonalWireRoute([
-                        new GridPoint(26, 7),
-                        new GridPoint(29, 7),
-                    ]),
-                ],
-                routeReplacements: [])))
-        {
-            return;
-        }
-
-        Status = Text["CircuitAuthored"];
-    }
 
     private async Task Compile()
     {
@@ -1347,14 +1309,6 @@ public sealed partial class Editor : IAsyncDisposable
         SceneSelection = retained.Length == 0
             ? null
             : new SceneSelectionV1(retained, "replace");
-    }
-
-    private ComponentInstance Find(string contractId)
-    {
-        var key = Contract(contractId);
-        return Projection!.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances
-            .Single(instance => instance.Target is LibraryComponentTarget library
-                && library.ContractKey == key);
     }
 
     private static bool IsProgrammableInput(ComponentInstance instance)

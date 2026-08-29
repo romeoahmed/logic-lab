@@ -31,8 +31,11 @@ internal sealed class WorkbenchChromeComponentTests
         await using var context = CreateContext();
 
         var rendered = context.Render<WorkbenchCommandBar>(parameters => parameters
-            .Add(component => component.CanCreate, true)
-            .Add(component => component.ActiveCommand, "create"));
+            .Add(component => component.Model, new WorkbenchCommandBar.CommandBarModel
+            {
+                CanCreate = true,
+                ActiveCommand = "create",
+            }));
         var commands = rendered.Find("[aria-label='Workbench commands']");
 
         using (Assert.Multiple())
@@ -48,7 +51,10 @@ internal sealed class WorkbenchChromeComponentTests
         await using var context = CreateContext();
 
         var rendered = context.Render<WorkbenchCommandBar>(parameters => parameters
-            .Add(component => component.CanImport, true));
+            .Add(component => component.Model, new WorkbenchCommandBar.CommandBarModel
+            {
+                CanImport = true,
+            }));
         var picker = rendered.FindComponent<FluentInputFile>().Instance;
         var nativeInput = rendered.Find("input[type='file']");
         var trigger = rendered.Find("fluent-button[data-command='import']");

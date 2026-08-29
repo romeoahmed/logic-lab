@@ -45,6 +45,7 @@ internal sealed class CircuitSceneRenderingTests : PageTest
     }
 
     [Test]
+    [Arguments("inverter")]
     [Arguments("steering")]
     [Arguments("arithmetic")]
     public async Task ProjectedStarter_RoutedWireEndpointsMatchPublishedPortAnchors(
@@ -55,6 +56,7 @@ internal sealed class CircuitSceneRenderingTests : PageTest
         await scene.MountAsync();
         var revision = starter switch
         {
+            "inverter" => StarterCircuitFixture.CreateInverter(),
             "steering" => StarterCircuitFixture.CreateSteering(),
             "arithmetic" => StarterCircuitFixture.CreateArithmetic(),
             _ => throw new ArgumentOutOfRangeException(nameof(starter)),
