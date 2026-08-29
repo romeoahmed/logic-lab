@@ -165,8 +165,8 @@
                                               CanAuthorHierarchy="CanAuthorHierarchy"
                                               BusyCommand="@ActiveCommand"
                                               OnAuthor="@(() => RunCommandAsync("author", () => CanAuthor, AuthorCircuit))"
-                                              OnAuthorSteering="@(() => RunCommandAsync("author-steering", () => CanAuthorSteering, AuthorSteeringGallery))"
-                                              OnAuthorArithmetic="@(() => RunCommandAsync("author-arithmetic", () => CanAuthorArithmetic, AuthorArithmeticGallery))"
+                                              OnAuthorSteering="@(() => RunCommandAsync("author-steering", () => CanAuthorSteering, AuthorSteeringExample))"
+                                              OnAuthorArithmetic="@(() => RunCommandAsync("author-arithmetic", () => CanAuthorArithmetic, AuthorArithmeticExample))"
                                               OnAuthorHierarchy="@(() => RunCommandAsync("author-hierarchy", () => CanAuthorHierarchy, AuthorHierarchy))" />
                             }
                             <ProbePanel Simulation="Projection.Simulation"

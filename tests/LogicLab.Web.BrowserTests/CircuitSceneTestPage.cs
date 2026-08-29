@@ -19,9 +19,13 @@ internal sealed class CircuitSceneTestPage(IPage page)
 
     public ILocator ScenePage => page.GetByTestId("scene-page");
 
-    public ILocator SemanticSource(string name) => page.GetByRole(
-        AriaRole.Button,
-        new PageGetByRoleOptions { Name = name, Exact = true });
+    public ILocator SemanticSource(string name) => page.Locator(
+        $"[data-scene-source='{name switch
+        {
+            "Component A" => SceneTestSnapshot.SourceA.Key,
+            "Component B" => SceneTestSnapshot.SourceB.Key,
+            _ => throw new ArgumentOutOfRangeException(nameof(name)),
+        }}']");
 
     public ILocator Zoom(string name) => page.GetByRole(
         AriaRole.Button,
@@ -254,7 +258,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
               for (let index = 0; index < data.length; index += 4) {
                 if (Math.abs(data[index] - red)
                     + Math.abs(data[index + 1] - green)
-                    + Math.abs(data[index + 2] - blue) > 30) return true;
+                    + Math.abs(data[index + 2] - blue) > 100) return true;
               }
               return false;
             }
@@ -275,7 +279,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
                   const distance = Math.abs(data[index] - background[0])
                     + Math.abs(data[index + 1] - background[1])
                     + Math.abs(data[index + 2] - background[2]);
-                  if (distance <= 30) continue;
+                  if (distance <= 100) continue;
                   const column = columns[x] ?? { top: y, bottom: y, pixelCount: 0 };
                   column.top = Math.min(column.top, y);
                   column.bottom = Math.max(column.bottom, y);
@@ -306,6 +310,38 @@ internal sealed class CircuitSceneTestPage(IPage page)
               return clusters;
             }
             """);
+    }
+
+    public async Task<double> MaximumCanvasColumnContrastAsync(double worldX)
+    {
+        var point = await WorldToPageAsync(worldX, SceneTestSnapshot.Bounds.Top);
+        return await Canvas.EvaluateAsync<double>(
+            """
+            (canvas, pageX) => {
+              const context = canvas.getContext('2d');
+              const rect = canvas.getBoundingClientRect();
+              const centerX = Math.round((pageX - rect.left) * canvas.width / rect.width);
+              const { data, width, height } = context.getImageData(
+                0, 0, canvas.width, canvas.height);
+              const background = [data[0], data[1], data[2]];
+              let maximum = 0;
+              for (let x = Math.max(0, centerX - 2);
+                x <= Math.min(width - 1, centerX + 2);
+                x += 1) {
+                let contrastingPixels = 0;
+                for (let y = 0; y < height; y += 1) {
+                  const index = ((y * width) + x) * 4;
+                  const distance = Math.abs(data[index] - background[0])
+                    + Math.abs(data[index + 1] - background[1])
+                    + Math.abs(data[index + 2] - background[2]);
+                  if (distance > 5) contrastingPixels += 1;
+                }
+                maximum = Math.max(maximum, contrastingPixels / height);
+              }
+              return maximum;
+            }
+            """,
+            point.X);
     }
 
     public async Task ReleasePointerCaptureAsync() =>
@@ -480,7 +516,6 @@ internal sealed class CircuitSceneTestPage(IPage page)
             [data-testid="scene-host"] { width: 600px; height: 400px; padding: 0; }
             .canvas-frame { width: 600px; height: 400px; min-block-size: 0; }
             .scene-canvas { min-block-size: 0; }
-            .semantic-fixture { position: fixed; inset-inline-start: 620px; inset-block-start: 0; }
             [data-testid="scene-events"] { position: fixed; inset: auto 0 0; }
           </style>
         </head>
@@ -496,23 +531,22 @@ internal sealed class CircuitSceneTestPage(IPage page)
                           data-testid="scene-canvas"
                           data-scene-canvas
                           tabindex="0"
-                          aria-label="Interactive circuit scene"></canvas>
+                          aria-label="Interactive circuit scene">
+                    <button type="button"
+                            data-scene-source="{{SOURCE_A}}"
+                            data-scene-navigation-start
+                            data-scene-navigation-right="{{SOURCE_B}}">Component A</button>
+                    <button type="button"
+                            data-scene-source="{{SOURCE_B}}"
+                            data-scene-navigation-left="{{SOURCE_A}}">Component B</button>
+                    <button type="button" data-scene-action="nudge">Nudge Component A</button>
+                  </canvas>
                   <div class="scene-zoom-controls" role="group" aria-label="Canvas zoom">
                     <button type="button" data-scene-zoom="out" aria-label="Zoom out">−</button>
                     <button type="button" data-scene-zoom="fit" aria-label="Zoom to fit">□</button>
                     <button type="button" data-scene-zoom="in" aria-label="Zoom in">+</button>
                   </div>
                 </div>
-                <section class="semantic-fixture" aria-label="Semantic circuit outline">
-                  <button type="button"
-                          data-scene-source="{{SOURCE_A}}"
-                          data-scene-navigation-start
-                          data-scene-navigation-right="{{SOURCE_B}}">Component A</button>
-                  <button type="button"
-                          data-scene-source="{{SOURCE_B}}"
-                          data-scene-navigation-left="{{SOURCE_A}}">Component B</button>
-                  <button type="button" data-scene-action="nudge">Nudge Component A</button>
-                </section>
               </section>
             </div>
           </main>
@@ -569,6 +603,16 @@ internal static class SceneTestSnapshot
         "b",
         "A");
 
+    public static SceneSourceRefV1 Junction { get; } = new(
+        "definition-a",
+        "junction",
+        "junction-a");
+
+    public static SceneSourceRefV1 Net { get; } = new(
+        "definition-a",
+        "net",
+        "net-a");
+
     public static SceneSnapshotV1 Create(
         string fontFingerprint,
         ulong sceneVersion,
@@ -602,19 +646,29 @@ internal static class SceneTestSnapshot
                     new SceneRect(120, 20, 180, 80),
                     1),
                 new SceneItemV1(
-                    new SceneSourceRefV1(
-                        "definition-a",
-                        "net",
-                        "net-without-geometry"),
+                    Junction,
                     2,
+                    new SceneRect(194, 44, 206, 56),
+                    new ScenePoint(0, 0),
+                    [],
+                    [new SceneHitRegionV1(
+                        "junction",
+                        "body",
+                        null,
+                        "circle",
+                        new SceneRect(194, 44, 206, 56),
+                        new ScenePoint(200, 50),
+                        Radius: 6)],
+                    new SceneJunctionInteractionV1(Net),
+                    HasDrawableTarget: true),
+                new SceneItemV1(
+                    Net,
+                    3,
                     Bounds,
                     new ScenePoint(0, 0),
                     [],
                     [],
-                    new SceneNetInteractionV1(new SceneSourceRefV1(
-                        "definition-a",
-                        "net",
-                        "net-without-geometry")),
+                    new SceneNetInteractionV1(Net),
                     HasDrawableTarget: false),
             ],
             []);

@@ -698,6 +698,7 @@ class CircuitSceneHandle {
       this.density * this.viewport.y,
     );
     const visible = expandRect(this.visibleWorldRect(), 4 / this.viewport.zoom);
+    this.drawGrid(context, styles, visible);
     for (const item of this.published.items) {
       if (!item.hasDrawableTarget) {
         continue;
@@ -717,6 +718,41 @@ class CircuitSceneHandle {
 
     this.drawOverlays(context, styles);
     this.drawTransientPreview(context, styles);
+  }
+
+  drawGrid(context, styles, visible) {
+    const snapStep = this.published.gridStepPlanUnits * this.published.snapStepGridUnits;
+    if (!Number.isSafeInteger(snapStep) || snapStep <= 0) {
+      return;
+    }
+
+    const minimumSpacingCssPixels = 12;
+    const intervalMultiplier = Math.max(
+      1,
+      Math.ceil(minimumSpacingCssPixels / (snapStep * this.viewport.zoom)),
+    );
+    const interval = snapStep * intervalMultiplier;
+    if (!Number.isSafeInteger(interval)) {
+      return;
+    }
+
+    drawGridLines(
+      context,
+      visible,
+      interval,
+      cssColor(styles, "--ll-grid", "rgb(16 42 51 / 7%)"),
+      1 / this.viewport.zoom,
+    );
+    const strongInterval = interval * 5;
+    if (Number.isSafeInteger(strongInterval)) {
+      drawGridLines(
+        context,
+        visible,
+        strongInterval,
+        cssColor(styles, "--ll-grid-strong", "rgb(8 120 140 / 13%)"),
+        1.25 / this.viewport.zoom,
+      );
+    }
   }
 
   drawOverlays(context, styles) {
@@ -1338,7 +1374,7 @@ class CircuitSceneHandle {
     const endHit = this.hitTest(gesture.currentWorld);
     const startTerminal = terminalFromSource(hit.source);
     const endTerminal = endHit ? terminalFromSource(endHit.source) : null;
-    const route = terminalWireRoute(
+    const terminalRoute = terminalWireRoute(
       snapshot,
       hit,
       endHit,
@@ -1352,7 +1388,7 @@ class CircuitSceneHandle {
         terminals: [startTerminal, endTerminal],
         destinationNet: null,
         newJunctionPositions: [],
-        routeAdditions: route ? [route] : [],
+        routeAdditions: terminalRoute ? [terminalRoute] : [],
         routeReplacements: [],
         snapModifier: disableSnap ? "disableSnap" : "none",
       });
@@ -1365,7 +1401,7 @@ class CircuitSceneHandle {
           terminals: [startTerminal],
           destinationNet,
           newJunctionPositions: [],
-          routeAdditions: route ? [route] : [],
+          routeAdditions: terminalRoute ? [terminalRoute] : [],
           routeReplacements: [],
           snapModifier: disableSnap ? "disableSnap" : "none",
         });
@@ -1378,7 +1414,7 @@ class CircuitSceneHandle {
         terminals: [endTerminal],
         destinationNet: startNet,
         newJunctionPositions: [],
-        routeAdditions: route ? [route] : [],
+        routeAdditions: terminalRoute ? [terminalRoute] : [],
         routeReplacements: [],
         snapModifier: disableSnap ? "disableSnap" : "none",
       });
@@ -1391,11 +1427,11 @@ class CircuitSceneHandle {
       return;
     }
     const moved = start.x !== end.x || start.y !== end.y;
+    const dragRoute = orthogonalDragRoute(start, end);
     if (interaction?.interactionKind === "wire" && moved) {
-      const corner = { x: start.x, y: end.y };
       this.emitIntent("setWireRoute", gesture, {
         wireGeometry: hit.item.source,
-        route: { kind: "orthogonal", points: [start, corner, end] },
+        route: dragRoute,
         snapModifier: disableSnap ? "disableSnap" : "none",
       });
     } else if (moved) {
@@ -1403,7 +1439,7 @@ class CircuitSceneHandle {
         this.emitIntent("addJunction", gesture, {
           net: startNet,
           position: end,
-          routeAdditions: [],
+          routeAdditions: [dragRoute],
           routeReplacements: [],
           routeRemovals: [],
           snapModifier: disableSnap ? "disableSnap" : "none",
@@ -2157,6 +2193,27 @@ function intersects(left, right) {
     && left.top <= right.bottom && left.bottom >= right.top;
 }
 
+function drawGridLines(context, visible, interval, color, width) {
+  context.save();
+  context.strokeStyle = color;
+  context.lineWidth = width;
+  context.beginPath();
+  for (let x = Math.ceil(visible.left / interval) * interval;
+    x <= visible.right;
+    x += interval) {
+    context.moveTo(x, visible.top);
+    context.lineTo(x, visible.bottom);
+  }
+  for (let y = Math.ceil(visible.top / interval) * interval;
+    y <= visible.bottom;
+    y += interval) {
+    context.moveTo(visible.left, y);
+    context.lineTo(visible.right, y);
+  }
+  context.stroke();
+  context.restore();
+}
+
 function expandRect(rect, margin) {
   return {
     left: rect.left - margin,
@@ -2440,10 +2497,10 @@ function orthogonalWirePoints(start, end, startDirection, endDirection, lead) {
   const startLead = offsetPoint(start, startDirection, step);
   const endLead = offsetPoint(end, endDirection, step);
   const points = [start, startLead];
-  const startIsHorizontal = startDirection?.x !== 0;
-  const endIsHorizontal = endDirection?.x !== 0;
-  const startIsVertical = startDirection?.y !== 0;
-  const endIsVertical = endDirection?.y !== 0;
+  const startIsHorizontal = Boolean(startDirection?.x);
+  const endIsHorizontal = Boolean(endDirection?.x);
+  const startIsVertical = Boolean(startDirection?.y);
+  const endIsVertical = Boolean(endDirection?.y);
 
   if (startLead.x === endLead.x || startLead.y === endLead.y) {
     points.push(endLead);
@@ -2484,6 +2541,13 @@ function orthogonalWirePoints(start, end, startDirection, endDirection, lead) {
   }
   points.push(end);
   return compactOrthogonalPoints(points);
+}
+
+function orthogonalDragRoute(start, end) {
+  return {
+    kind: "orthogonal",
+    points: compactOrthogonalPoints([start, { x: start.x, y: end.y }, end]),
+  };
 }
 
 function canRouteDirectly(start, end, startDirection, endDirection) {

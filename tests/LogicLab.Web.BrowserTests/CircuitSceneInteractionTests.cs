@@ -95,6 +95,35 @@ internal sealed class CircuitSceneInteractionTests : PageTest
     }
 
     [Test]
+    public async Task WireTool_JunctionDrag_CommitsThePreviewedOrthogonalRoute()
+    {
+        var scene = await ReadySceneAsync(gridStepPlanUnits: 10);
+        await scene.SetToolAsync(SceneWireToolV1.Instance);
+        var start = await scene.WorldToPageAsync(200, 50);
+        var end = await scene.WorldToPageAsync(240, 70);
+
+        await Page.Mouse.MoveAsync((float)start.X, (float)start.Y);
+        await Page.Mouse.DownAsync();
+        await Page.Mouse.MoveAsync((float)end.X, (float)end.Y);
+        await Page.Mouse.UpAsync();
+
+        var intent = await Assert.That(await scene.LatestIntentAsync())
+            .IsTypeOf<AddJunctionSceneIntentV1>();
+        var route = await Assert.That(intent!.RouteAdditions.Single())
+            .IsTypeOf<SceneOrthogonalWireRouteV1>();
+        using (Assert.Multiple())
+        {
+            await Assert.That(intent.Net).IsEqualTo(SceneTestSnapshot.Net);
+            await Assert.That(intent.Position).IsEqualTo(new SceneGridPointV1(24, 7));
+            await Assert.That(route!.Points).IsEquivalentTo([
+                new SceneGridPointV1(20, 5),
+                new SceneGridPointV1(20, 7),
+                new SceneGridPointV1(24, 7),
+            ]);
+        }
+    }
+
+    [Test]
     public async Task WireGesture_Escape_CancelsBeforeCommit()
     {
         var scene = await ReadySceneAsync(gridStepPlanUnits: 10);

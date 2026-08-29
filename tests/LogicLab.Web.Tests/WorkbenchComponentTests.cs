@@ -683,7 +683,7 @@ internal sealed class WorkbenchComponentTests
     [Test]
     [Arguments("author-steering")]
     [Arguments("author-arithmetic")]
-    public async Task Editor_GalleryWithoutProgrammableInputs_DisablesStimulus(
+    public async Task Editor_InteractiveStarter_CreatesRoutedCircuitAndEnablesStimulus(
         string authorCommand)
     {
         await using var context = CreateContext();
@@ -700,6 +700,16 @@ internal sealed class WorkbenchComponentTests
             authorCommand,
             () => !IsDisabled(rendered, "compile"));
 
+        var definition = (await workspace.ReadCurrent())
+            .ProjectRevision.Document.EntryCircuitDefinition;
+        await Assert.That(definition.Nets).IsNotEmpty();
+        await Assert.That(definition.Nets.All(net => definition.WireGeometries.Any(
+                geometry => geometry.NetId == net.Id)))
+            .IsTrue();
+        await Assert.That(definition.WireGeometries.All(geometry =>
+                geometry.Route is OrthogonalWireRoute { Points.Count: >= 2 }))
+            .IsTrue();
+
         await ClickAndWaitForState(
             rendered,
             "compile",
@@ -708,13 +718,13 @@ internal sealed class WorkbenchComponentTests
             rendered,
             "session",
             () => IsDisabled(rendered, "session")
-                && IsDisabled(rendered, "stimulus"));
+                && !IsDisabled(rendered, "stimulus"));
 
-        await Assert.That(IsDisabled(rendered, "stimulus")).IsTrue();
+        await Assert.That(IsDisabled(rendered, "stimulus")).IsFalse();
     }
 
     [Test]
-    public async Task Editor_ArithmeticGalleryWithMixedNetWidths_DisablesMergeCommand()
+    public async Task Editor_ArithmeticStarterWithMixedNetWidths_DisablesMergeCommand()
     {
         await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();

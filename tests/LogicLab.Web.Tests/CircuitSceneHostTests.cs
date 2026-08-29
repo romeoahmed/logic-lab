@@ -87,7 +87,7 @@ internal sealed class CircuitSceneHostTests
     }
 
     [Test]
-    public async Task CircuitSceneHost_StaticRender_ProvidesCanvasFallbackAndHiddenRecoveryActions()
+    public async Task CircuitSceneHost_StaticRender_EmbedsFocusableCanvasFallback()
     {
         await using var context = WebTestContext.CreateBunitContext();
         context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
@@ -112,10 +112,9 @@ internal sealed class CircuitSceneHostTests
         {
             await Assert.That(rendered.FindAll("canvas[data-scene-canvas]")).Count().IsEqualTo(1);
             await Assert.That(rendered.Find("canvas").TextContent).IsNotEmpty();
-            await Assert.That(rendered.FindAll("canvas [data-scene-source]")).IsEmpty();
-            await Assert.That(rendered.Find("details.scene-recovery-actions")
-                    .HasAttribute("hidden"))
-                .IsTrue();
+            await Assert.That(rendered.FindAll("canvas [data-scene-source]").Count)
+                .IsGreaterThan(0);
+            await Assert.That(rendered.FindAll("details.scene-recovery-actions")).IsEmpty();
             await Assert.That(rendered.FindAll("[data-scene-source]").Count)
                 .IsGreaterThan(0);
             await Assert.That(selections.Select(selection => selection.SelectionMode))

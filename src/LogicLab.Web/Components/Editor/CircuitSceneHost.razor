@@ -30,7 +30,22 @@
                 hidden="@(rendererState == RendererUnavailableState)"
                 aria-label="@Text["CircuitCanvasAriaLabel"]"
                 aria-describedby="scene-renderer-status">
-            <span>@Text["CircuitCanvasFallback"]</span>
+            @if (Scene is not null && rendererState != RendererUnavailableState)
+            {
+                <AccessibleCircuitScene Scene="Scene"
+                                        Selection="Selection"
+                                        ShowHeading="false"
+                                        HeadingId="semantic-circuit-heading"
+                                        PageSize="SemanticPageSize"
+                                        FocusedSource="semanticFocusSource"
+                                        OnSelect="HandleSemanticSelectionAsync"
+                                        OnFocus="HandleSemanticFocusAsync"
+                                        OnAction="HandleSemanticActionAsync" />
+            }
+            else
+            {
+                <span>@Text["CircuitCanvasFallback"]</span>
+            }
         </canvas>
 
         <div class="scene-zoom-controls"
@@ -94,11 +109,9 @@
 
     <p id="scene-renderer-status" class="visually-hidden" aria-live="polite">@RendererMessage</p>
 
-    @if (Scene is not null)
+    @if (Scene is not null && rendererState == RendererUnavailableState)
     {
-        <details class="scene-recovery-actions"
-                 hidden="@(rendererState != RendererUnavailableState)"
-                 open>
+        <details class="scene-recovery-actions" open>
             <summary>@Text["SceneRecoveryActions"]</summary>
             <AccessibleCircuitScene Scene="Scene"
                                     Selection="Selection"

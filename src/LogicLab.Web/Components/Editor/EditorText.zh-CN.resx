@@ -188,7 +188,18 @@
   <data name="FailureSimulationCancelled" xml:space="preserve"><value>仿真已取消</value></data>
   <data name="FailureSimulationInfrastructure" xml:space="preserve"><value>仿真基础设施故障</value></data>
   <data name="FailureSimulationInternal" xml:space="preserve"><value>仿真内部缺陷</value></data>
-  <data name="ArithmeticGalleryAuthored" xml:space="preserve"><value>算术示例已创建。请编译电路。</value></data>
+  <data name="ArithmeticExampleAuthored" xml:space="preserve"><value>三位加法器已创建。编译后可修改输入，观察和与进位。</value></data>
+  <data name="ExampleAdder" xml:space="preserve"><value>三位加法器</value></data>
+  <data name="ExampleCarryIn" xml:space="preserve"><value>进位输入</value></data>
+  <data name="ExampleCarryOut" xml:space="preserve"><value>进位输出</value></data>
+  <data name="ExampleData0" xml:space="preserve"><value>数据 0</value></data>
+  <data name="ExampleData1" xml:space="preserve"><value>数据 1</value></data>
+  <data name="ExampleInputA" xml:space="preserve"><value>输入 A = 101</value></data>
+  <data name="ExampleInputB" xml:space="preserve"><value>输入 B = 011</value></data>
+  <data name="ExampleMultiplexer" xml:space="preserve"><value>二选一复用器</value></data>
+  <data name="ExampleSelect" xml:space="preserve"><value>选择端</value></data>
+  <data name="ExampleSelectedOutput" xml:space="preserve"><value>选择结果</value></data>
+  <data name="ExampleSum" xml:space="preserve"><value>和</value></data>
   <data name="EditingDefinition" xml:space="preserve"><value>正在编辑电路定义 {0}。</value></data>
   <data name="EntryDefinitionChanged" xml:space="preserve"><value>{0} 现在是入口电路定义。</value></data>
   <data name="HierarchyAuthored" xml:space="preserve"><value>可复用反相器已创建。可打开子电路，或编译主电路。</value></data>
@@ -203,7 +214,7 @@
   <data name="RouteDraftPrepared" xml:space="preserve"><value>布线预览已就绪。请提交或取消。</value></data>
   <data name="RouteMarkedUnrouted" xml:space="preserve"><value>导线已标记为未布线。</value></data>
   <data name="RouteRouted" xml:space="preserve"><value>导线已完成正交布线。</value></data>
-  <data name="SteeringGalleryAuthored" xml:space="preserve"><value>逻辑与信号选择示例已创建。请编译电路。</value></data>
+  <data name="SteeringExampleAuthored" xml:space="preserve"><value>二选一复用器已创建。编译后可切换选择端，观察输出。</value></data>
   <data name="CanvasReady" xml:space="preserve"><value>电路画布已就绪。</value></data>
   <data name="CanvasStarting" xml:space="preserve"><value>正在准备电路画布。</value></data>
   <data name="CanvasUnavailable" xml:space="preserve"><value>电路画布暂不可用。请重试，或使用下方电路操作。</value></data>
@@ -246,10 +257,10 @@
   <data name="LearningStepObserve" xml:space="preserve"><value>观察结果</value></data>
   <data name="StarterInverterTitle" xml:space="preserve"><value>反相器入门</value></data>
   <data name="StarterInverterDescription" xml:space="preserve"><value>观察非门如何把输入反相后送到输出。</value></data>
-  <data name="StarterSteeringTitle" xml:space="preserve"><value>逻辑与信号选择</value></data>
-  <data name="StarterSteeringDescription" xml:space="preserve"><value>体验逻辑门、复用器和译码器。</value></data>
-  <data name="StarterArithmeticTitle" xml:space="preserve"><value>算术电路</value></data>
-  <data name="StarterArithmeticDescription" xml:space="preserve"><value>用三位信号体验比较、算术与移位。</value></data>
+  <data name="StarterSteeringTitle" xml:space="preserve"><value>在两路信号中选择</value></data>
+  <data name="StarterSteeringDescription" xml:space="preserve"><value>创建可交互的二选一复用器。</value></data>
+  <data name="StarterArithmeticTitle" xml:space="preserve"><value>两个三位数相加</value></data>
+  <data name="StarterArithmeticDescription" xml:space="preserve"><value>创建带和与进位输出的可交互加法器。</value></data>
   <data name="StarterHierarchyTitle" xml:space="preserve"><value>可复用反相器</value></data>
   <data name="StarterHierarchyDescription" xml:space="preserve"><value>把反相器封装为子电路，并在主电路中复用。</value></data>
   <data name="AdvancedTopology" xml:space="preserve"><value>高级布线</value></data>
