@@ -48,7 +48,7 @@ internal sealed class CircuitSceneRenderingTests : PageTest
     [Arguments("inverter")]
     [Arguments("steering")]
     [Arguments("arithmetic")]
-    public async Task ProjectedStarter_RoutedWireEndpointsMatchPublishedPortAnchors(
+    public async Task ProjectedStarter_RoutedWiresConnectPortsAndReachTheCanvasBitmap(
         string starter)
     {
         var scene = new CircuitSceneTestPage(Page);
@@ -92,6 +92,31 @@ internal sealed class CircuitSceneRenderingTests : PageTest
                     region.Anchor.Value.Y + item.Origin.Y))))
             .ToDictionary(StringComparer.Ordinal);
         var gridStep = projected.GridStepPlanUnits;
+        var missingWireInk = new List<string>();
+        foreach (var geometry in definition.WireGeometries)
+        {
+            if (geometry.Route is not OrthogonalWireRoute route)
+            {
+                continue;
+            }
+
+            for (var index = 0; index < route.Points.Count - 1; index++)
+            {
+                var start = route.Points[index];
+                var end = route.Points[index + 1];
+                var midpointX = ((start.X + end.X) / 2d) * gridStep;
+                var midpointY = ((start.Y + end.Y) / 2d) * gridStep;
+                var contrast = await scene.MaximumCanvasContrastNearWorldPointAsync(
+                    midpointX,
+                    midpointY,
+                    projected.Bounds);
+                if (contrast <= 300)
+                {
+                    missingWireInk.Add($"{geometry.Id.Value}:{index} ({contrast:F0})");
+                }
+            }
+        }
+
         var mismatches = definition.WireGeometries
             .Select(geometry => (Geometry: geometry, Route: geometry.Route as OrthogonalWireRoute))
             .Where(pair => pair.Route is not null)
@@ -120,7 +145,11 @@ internal sealed class CircuitSceneRenderingTests : PageTest
             .Where(static mismatch => mismatch is not null)
             .ToArray();
 
-        await Assert.That(mismatches).IsEmpty();
+        using (Assert.Multiple())
+        {
+            await Assert.That(mismatches).IsEmpty();
+            await Assert.That(missingWireInk).IsEmpty();
+        }
     }
 
     private static int Width(CanvasInkCluster cluster) => cluster.Right - cluster.Left + 1;

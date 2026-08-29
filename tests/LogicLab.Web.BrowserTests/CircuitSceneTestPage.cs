@@ -378,6 +378,44 @@ internal sealed class CircuitSceneTestPage(IPage page)
             point.X);
     }
 
+    public async Task<double> MaximumCanvasContrastNearWorldPointAsync(
+        double worldX,
+        double worldY,
+        SceneRect sceneBounds)
+    {
+        var point = await WorldToPageAsync(worldX, worldY, sceneBounds);
+        return await Canvas.EvaluateAsync<double>(
+            """
+            (canvas, point) => {
+              const context = canvas.getContext('2d');
+              const rect = canvas.getBoundingClientRect();
+              const centerX = Math.round(
+                (point.pageX - rect.left) * canvas.width / rect.width);
+              const centerY = Math.round(
+                (point.pageY - rect.top) * canvas.height / rect.height);
+              const { data, width, height } = context.getImageData(
+                0, 0, canvas.width, canvas.height);
+              const background = [data[0], data[1], data[2]];
+              let maximum = 0;
+              for (let y = Math.max(0, centerY - 3);
+                y <= Math.min(height - 1, centerY + 3);
+                y += 1) {
+                for (let x = Math.max(0, centerX - 3);
+                  x <= Math.min(width - 1, centerX + 3);
+                  x += 1) {
+                  const index = ((y * width) + x) * 4;
+                  const distance = Math.abs(data[index] - background[0])
+                    + Math.abs(data[index + 1] - background[1])
+                    + Math.abs(data[index + 2] - background[2]);
+                  maximum = Math.max(maximum, distance);
+                }
+              }
+              return maximum;
+            }
+            """,
+            new { pageX = point.X, pageY = point.Y });
+    }
+
     public async Task ReleasePointerCaptureAsync() =>
         await Canvas.EvaluateAsync(
             """

@@ -42,6 +42,7 @@
     </div>
 
     <FluentMenuButton Id="project-options-trigger"
+                      data-testid="project-options-trigger"
                       Class="project-options-trigger"
                       Appearance="ButtonAppearance.Subtle"
                       Disabled="IsBusy"
@@ -52,7 +53,7 @@
                    OffsetVertical="6"
                    Width="10rem"
                    @bind-Opened="projectOptionsOpened">
-        <div class="project-options-panel">
+        <div class="project-options-panel" data-testid="project-options-panel">
             <div class="project-actions">
                 <FluentInputFile Id="logiclab-import-picker"
                                  AnchorId="logiclab-import-trigger"

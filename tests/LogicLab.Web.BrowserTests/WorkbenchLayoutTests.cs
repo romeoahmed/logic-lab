@@ -100,8 +100,8 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
     public async Task ProjectOptions_FluentPopover_OpensAndLightDismisses()
     {
         await OpenAsync(1024, 768);
-        var trigger = Page.Locator("#project-options-trigger");
-        var panel = Page.Locator(".project-options-panel");
+        var trigger = Page.GetByTestId("project-options-trigger");
+        var panel = Page.GetByTestId("project-options-panel");
 
         await Expect(panel).ToBeHiddenAsync();
         await trigger.ClickAsync();
