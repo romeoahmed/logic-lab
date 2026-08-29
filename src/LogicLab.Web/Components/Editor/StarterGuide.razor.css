@@ -67,33 +67,11 @@
   gap: 0.4rem;
 }
 
-.starter-option {
-  display: block;
+.starter-options ::deep .starter-option {
   min-block-size: 4.25rem;
   inline-size: 100%;
-  padding: 0.6rem 0.7rem;
-  border: 1px solid var(--ll-border-strong);
-  border-radius: var(--ll-radius-small);
-  color: var(--ll-ink);
-  background: var(--ll-panel);
-  cursor: pointer;
-  font: inherit;
+  justify-content: start;
   text-align: start;
-}
-
-.starter-option:hover:not(:disabled) {
-  border-color: var(--ll-signal);
-  background: var(--ll-signal-soft);
-}
-
-.starter-option:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.starter-option:focus-visible {
-  outline: 3px solid var(--ll-signal);
-  outline-offset: 2px;
 }
 
 .starter-option-content {

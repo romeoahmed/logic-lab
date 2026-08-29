@@ -36,8 +36,7 @@ public sealed record AnonymousBrowserId
     {
         ArgumentException.ThrowIfNullOrEmpty(value);
         if (value.Length != 64
-            || value.Any(static character => character is not (>= '0' and <= '9')
-                and not (>= 'a' and <= 'f')))
+            || !value.All(char.IsAsciiHexDigitLower))
         {
             throw new ArgumentException(
                 "An Anonymous Browser ID must be lowercase 256-bit hexadecimal.",
@@ -156,8 +155,7 @@ public sealed record DurableCommandFingerprint
     {
         ArgumentException.ThrowIfNullOrEmpty(value);
         if (value.Length != 64
-            || value.Any(character => character is not (>= '0' and <= '9')
-                and not (>= 'a' and <= 'f')))
+            || !value.All(char.IsAsciiHexDigitLower))
         {
             throw new ArgumentException(
                 "A Durable command fingerprint must be lowercase SHA-256 hexadecimal.",

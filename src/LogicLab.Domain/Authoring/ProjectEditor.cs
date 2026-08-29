@@ -657,7 +657,7 @@ public static partial class ProjectEditor
     private static bool IsStableName(string? value)
     {
         if (value is null or { Length: < 1 or > 96 }
-            || !IsAsciiLetter(value[0]))
+            || !char.IsAsciiLetter(value[0]))
         {
             return false;
         }
@@ -668,22 +668,12 @@ public static partial class ProjectEditor
     private static bool IsStableVersion(string? value)
     {
         return value is { Length: >= 1 and <= 64 }
-            && IsAsciiLetterOrDigit(value[0])
+            && char.IsAsciiLetterOrDigit(value[0])
             && value.All(IsStableNameCharacter);
     }
 
     private static bool IsStableNameCharacter(char value)
     {
-        return IsAsciiLetterOrDigit(value) || value is '.' or '_' or '-';
-    }
-
-    private static bool IsAsciiLetterOrDigit(char value)
-    {
-        return IsAsciiLetter(value) || value is >= '0' and <= '9';
-    }
-
-    private static bool IsAsciiLetter(char value)
-    {
-        return value is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
+        return char.IsAsciiLetterOrDigit(value) || value is '.' or '_' or '-';
     }
 }

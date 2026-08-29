@@ -8,7 +8,7 @@ namespace LogicLab.Web.Health;
 
 internal sealed class LogicLabReadinessHealthCheck(
     IEditorWorkspaceReadiness workspace,
-    ILogicLabPersistenceReadiness persistence,
+    LogicLabPersistenceReadiness persistence,
     IServiceScopeFactory scopeFactory,
     IHostApplicationLifetime lifetime) : IHealthCheck
 {

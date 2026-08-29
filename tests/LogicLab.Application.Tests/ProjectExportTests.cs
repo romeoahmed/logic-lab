@@ -219,7 +219,7 @@ internal sealed class ProjectExportTests
     {
         var store = new RecordingExportStore();
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             projectExportStore: store);
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Stale export", "Main", AnonymousWorkspaceCaller.Instance),

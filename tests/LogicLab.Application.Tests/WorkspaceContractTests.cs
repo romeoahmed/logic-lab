@@ -8,7 +8,7 @@ internal sealed class WorkspaceContractTests
     public async Task EditorWorkspaceFactory_NullDurableRepository_ThrowsArgumentNullException()
     {
         await Assert.That(() => EditorWorkspaceFactory.Create(
-                WorkspaceBuild.DevelopmentFingerprint,
+                WorkspaceBuild.TestFingerprint,
                 durableProjectRepository: null!,
                 durableProjectLoader: TestEditorWorkspaceFactory.UnexpectedLoader,
                 projectExportStore: TestEditorWorkspaceFactory.UnexpectedExportStore))
@@ -19,7 +19,7 @@ internal sealed class WorkspaceContractTests
     public async Task EditorWorkspaceFactory_NullDurableProjectLoader_ThrowsArgumentNullException()
     {
         await Assert.That(() => EditorWorkspaceFactory.Create(
-                WorkspaceBuild.DevelopmentFingerprint,
+                WorkspaceBuild.TestFingerprint,
                 durableProjectRepository: TestEditorWorkspaceFactory.UnexpectedRepository,
                 durableProjectLoader: null!,
                 projectExportStore: TestEditorWorkspaceFactory.UnexpectedExportStore))
@@ -30,7 +30,7 @@ internal sealed class WorkspaceContractTests
     public async Task EditorWorkspaceFactory_NullProjectExportStore_ThrowsArgumentNullException()
     {
         await Assert.That(() => EditorWorkspaceFactory.Create(
-                WorkspaceBuild.DevelopmentFingerprint,
+                WorkspaceBuild.TestFingerprint,
                 durableProjectRepository: TestEditorWorkspaceFactory.UnexpectedRepository,
                 durableProjectLoader: TestEditorWorkspaceFactory.UnexpectedLoader,
                 projectExportStore: null!))

@@ -75,12 +75,13 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     private WorkspacePolicy WorkspacePolicy { get; set; } = null!;
 
     [Inject]
+    private BrowserPolicy Policy { get; set; } = null!;
+
+    [Inject]
     private NavigationManager Navigation { get; set; } = null!;
 
     [Inject]
     private IStringLocalizer<EditorText> Text { get; set; } = null!;
-
-    private BrowserPolicy Policy { get; } = BrowserPolicy.Development;
 
     private CircuitDefinition Definition => ProjectRevision.Document
         .FindCircuitDefinition(CircuitDefinitionId)

@@ -99,22 +99,6 @@
   gap: 0.45rem;
 }
 
-.account-shell ::deep .form-field label,
-.account-shell ::deep .remember-field {
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-.account-shell ::deep .form-field input {
-  inline-size: 100%;
-  min-block-size: 3rem;
-  padding-inline: 0.85rem;
-  color: var(--ll-ink);
-  border: 1px solid var(--ll-border-strong);
-  border-radius: var(--ll-radius-small);
-  background: var(--ll-canvas);
-}
-
 .account-shell ::deep .field-hint,
 .account-shell ::deep .validation-message {
   margin: 0;
@@ -137,47 +121,6 @@
 
 .account-shell ::deep .validation-message:empty {
   display: none;
-}
-
-.account-shell ::deep .form-field input:hover {
-  border-color: var(--ll-signal);
-}
-
-.account-shell ::deep .form-field input:focus {
-  border-color: var(--ll-signal);
-  box-shadow: 0 0 0 0.2rem var(--ll-signal-soft);
-  outline: none;
-}
-
-.account-shell ::deep .form-field input.invalid {
-  border-color: var(--ll-danger);
-}
-
-.account-shell ::deep .remember-field {
-  display: inline-flex;
-  gap: 0.65rem;
-  align-items: center;
-  color: var(--ll-muted);
-}
-
-.account-shell ::deep .primary-action {
-  min-block-size: 3rem;
-  padding-inline: 1rem;
-  border: 1px solid var(--ll-signal);
-  border-radius: var(--ll-radius-small);
-  color: white;
-  background: var(--ll-signal);
-  font-weight: 750;
-  cursor: pointer;
-}
-
-.account-shell ::deep .primary-action:active {
-  transform: translateY(0);
-}
-
-.account-shell ::deep .primary-action:hover {
-  background: var(--ll-signal-strong);
-  transform: translateY(-1px);
 }
 
 .account-shell ::deep .validation-summary:empty {

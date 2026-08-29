@@ -2,15 +2,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LogicLab.Infrastructure.Persistence;
 
-public interface ILogicLabPersistenceReadiness
+public sealed class LogicLabPersistenceReadiness
 {
-    Task<bool> IsReadyAsync(CancellationToken cancellationToken);
-}
+    private readonly IDbContextFactory<LogicLabDbContext> contextFactory;
 
-internal sealed class LogicLabPersistenceReadiness(
-    IDbContextFactory<LogicLabDbContext> contextFactory)
-    : ILogicLabPersistenceReadiness
-{
+    internal LogicLabPersistenceReadiness(
+        IDbContextFactory<LogicLabDbContext> contextFactory)
+    {
+        this.contextFactory = contextFactory;
+    }
+
     public async Task<bool> IsReadyAsync(CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(

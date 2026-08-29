@@ -14,7 +14,7 @@ internal sealed class ImportProjectWorkspaceTests
         var exported = BeginProject("Imported project");
         var candidate = await RoundTripCandidateAsync(exported);
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
 
         var outcome = await workspace.OpenAsync(
             new ImportProject(candidate, AnonymousWorkspaceCaller.Instance),
@@ -40,7 +40,7 @@ internal sealed class ImportProjectWorkspaceTests
     {
         var candidate = await RoundTripCandidateAsync(CreateIncompleteRevision());
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             workspacePolicy: WorkspacePolicyWithLimit(2));
         var origin = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Origin", "Main", AnonymousWorkspaceCaller.Instance),
@@ -72,7 +72,7 @@ internal sealed class ImportProjectWorkspaceTests
     {
         var candidate = await RoundTripCandidateAsync(CreateIncompleteRevision());
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             workspacePolicy: WorkspacePolicyWithLimit(1));
 
         var rejected = await workspace.OpenAsync(
@@ -141,9 +141,9 @@ internal sealed class ImportProjectWorkspaceTests
     public async Task ImportAsync_CarrierLimitRejectsBeforeWorkspaceAllocation()
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint,
+            WorkspaceBuild.TestFingerprint,
             workspacePolicy: WorkspacePolicyWithLimit(1));
-        var limits = PackagePolicy.Development.Limits.ToArray();
+        var limits = PackagePolicy.Default.Limits.ToArray();
         limits[(int)PackageDimension.CarrierBytes] = new PackageLimit(
             PackageDimension.CarrierBytes,
             4);
@@ -311,7 +311,7 @@ internal sealed class ImportProjectWorkspaceTests
             new ProjectPackageWriteRequest(
                 revision,
                 carrier,
-                PackagePolicy.Development),
+                PackagePolicy.Default),
             CancellationToken.None);
         if (write is not PackageWriteSucceeded)
         {
@@ -320,7 +320,7 @@ internal sealed class ImportProjectWorkspaceTests
 
         carrier.Position = 0;
         var read = await ProjectPackage.ReadAsync(
-            new ProjectPackageReadRequest(carrier, PackagePolicy.Development),
+            new ProjectPackageReadRequest(carrier, PackagePolicy.Default),
             CancellationToken.None);
         return read is PackageReadSucceeded succeeded
             ? succeeded.ImportCandidate

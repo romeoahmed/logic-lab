@@ -25,7 +25,10 @@
                         <option value="@LogicLabCultures.English" selected="@(CultureInfo.CurrentUICulture.Name == LogicLabCultures.English)">English</option>
                         <option value="@LogicLabCultures.SimplifiedChinese" selected="@(CultureInfo.CurrentUICulture.Name == LogicLabCultures.SimplifiedChinese)">简体中文</option>
                     </select>
-                    <button class="navigation-button" type="submit">@Text["Apply"]</button>
+                    <FluentButton Class="navigation-button"
+                                  Type="ButtonType.Submit"
+                                  Size="ButtonSize.Small"
+                                  Appearance="ButtonAppearance.Subtle">@Text["Apply"]</FluentButton>
                 </form>
             }
             <AuthorizeView>
@@ -33,7 +36,10 @@
                     <NavLink href="/projects">@Text["Projects"]</NavLink>
                     <form class="logout-form" action="/account/logout" method="post">
                         <AntiforgeryToken />
-                        <button class="navigation-button" type="submit">@Text["LogOut"]</button>
+                        <FluentButton Class="navigation-button"
+                                      Type="ButtonType.Submit"
+                                      Size="ButtonSize.Small"
+                                      Appearance="ButtonAppearance.Subtle">@Text["LogOut"]</FluentButton>
                     </form>
                 </Authorized>
                 <NotAuthorized>

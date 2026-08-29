@@ -462,8 +462,7 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
     }
 
     private static bool IsDigest(string value) => value is { Length: 64 }
-        && value.All(character => character is >= '0' and <= '9'
-            or >= 'a' and <= 'f');
+        && value.All(char.IsAsciiHexDigitLower);
 
     private static BrowserPolicyTransferV1 PolicyTransfer(BrowserPolicy policy) => new(
         policy.PolicyId,
@@ -474,14 +473,12 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         policy.Limit(BrowserLimitDimension.InteropBatchBytes),
         policy.Limit(BrowserLimitDimension.CandidateTransferBytes),
         policy.Limit(BrowserLimitDimension.CanvasBitmapPixels),
-        policy.Limit(BrowserLimitDimension.CanvasBitmapBytes),
         policy.Limit(BrowserLimitDimension.EffectiveDensityMillionths),
         policy.Limit(BrowserLimitDimension.ZoomMillionthsMinimum),
         policy.Limit(BrowserLimitDimension.ZoomMillionthsMaximum),
         policy.Limit(BrowserLimitDimension.DisplayListBytes),
         policy.Limit(BrowserLimitDimension.SpatialIndexBytes),
-        policy.Limit(BrowserLimitDimension.SceneCacheBytes),
-        policy.Limit(BrowserLimitDimension.WaveformCacheBytes));
+        policy.Limit(BrowserLimitDimension.SceneCacheBytes));
 
     private bool ValidViewport(BrowserSceneViewportV1 viewport)
     {
@@ -513,14 +510,12 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         ulong InteropBatchBytes,
         ulong CandidateTransferBytes,
         ulong CanvasBitmapPixels,
-        ulong CanvasBitmapBytes,
         ulong EffectiveDensityMillionths,
         ulong ZoomMillionthsMinimum,
         ulong ZoomMillionthsMaximum,
         ulong DisplayListBytes,
         ulong SpatialIndexBytes,
-        ulong SceneCacheBytes,
-        ulong WaveformCacheBytes);
+        ulong SceneCacheBytes);
 
     private sealed record BrowserTextMeasurementChunkV1(
         string FontFamily,

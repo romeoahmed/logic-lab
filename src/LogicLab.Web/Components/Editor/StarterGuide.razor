@@ -13,12 +13,13 @@
     <div class="starter-options">
         @foreach (var option in Options)
         {
-            <button class="starter-option"
-                    type="button"
-                    @key="option.Example"
-                    data-command="@option.Command"
-                    disabled="@(BusyCommand is not null)"
-                    @onclick="@(() => OnSelect.InvokeAsync(option.Example))">
+            <FluentCompoundButton Class="starter-option"
+                                  Appearance="ButtonAppearance.Outline"
+                                  Size="ButtonSize.Large"
+                                  @key="option.Example"
+                                  data-command="@option.Command"
+                                  Disabled="@(BusyCommand is not null)"
+                                  OnClick="@(() => OnSelect.InvokeAsync(option.Example))">
                 <span class="starter-option-content">
                     <span class="starter-symbol">
                         <ComponentSymbol ContractId="@option.SymbolContractId" />
@@ -28,7 +29,7 @@
                         <small>@Text[option.DescriptionResourceKey]</small>
                     </span>
                 </span>
-            </button>
+            </FluentCompoundButton>
         }
     </div>
 </section>

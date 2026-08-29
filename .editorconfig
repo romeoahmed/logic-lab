@@ -26,25 +26,18 @@ dotnet_diagnostic.SYSLIB1045.severity = warning
 # Production dead-code checks must not be disabled by test friend assemblies.
 [src/**/*.cs]
 dotnet_diagnostic.CA1812.severity = warning
-dotnet_diagnostic.CA1852.severity = warning
 dotnet_diagnostic.CA2000.severity = warning
 dotnet_diagnostic.CA2213.severity = warning
 dotnet_code_quality.CA1812.ignore_internalsvisibleto = true
 dotnet_code_quality.CA1852.ignore_internalsvisibleto = true
 
-# Activated by UseMiddleware<T>, which CA1812 cannot observe.
+# ASP.NET Core and Microsoft.Extensions.DependencyInjection create these internal
+# middleware, options, Identity, EF Core, and service types at runtime.
 [src/LogicLab.Web/{AntiforgeryProblemDetailsMiddleware.cs,RequestBodyBufferingMiddleware.cs,RequestBodyLimitProblemDetailsMiddleware.cs,SecurityHeadersMiddleware.cs,Transfers/AnonymousWorkspaceCallerMiddleware.cs}]
 dotnet_diagnostic.CA1812.severity = none
 
-# Activated by ASP.NET Core DI, Options binding, or EF Core, which CA1812 cannot observe.
 [src/LogicLab.Web/{Data/ApplicationIdentityDbContext.cs,Identity/IdentityRedirectManager.cs,Identity/IdentityRevalidatingAuthenticationStateProvider.cs,Projects/DataProtectionProjectCatalogCursorProtector.cs,Transfers/ProjectExportOptions.cs}]
 dotnet_diagnostic.CA1812.severity = none
-
-# Test executables expose no reusable API; keep their implementation types internal.
-# Test names intentionally follow the repository's Method_Scenario_Outcome contract.
-[tests/**/*.cs]
-dotnet_diagnostic.CA1515.severity = warning
-dotnet_diagnostic.CA1707.severity = none
 
 [*.{json,yml,yaml}]
 indent_size = 2

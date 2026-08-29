@@ -9,7 +9,7 @@ public sealed record ScenePlaceOptionV1(
     string Label,
     ScenePlaceToolV1 Tool);
 
-public static class ScenePlaceCatalog
+internal static class ScenePlaceCatalog
 {
     public static IReadOnlyList<ScenePlaceOptionV1> Build(ProjectDocument document)
     {

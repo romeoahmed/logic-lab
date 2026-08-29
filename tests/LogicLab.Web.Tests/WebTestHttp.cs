@@ -58,12 +58,10 @@ internal static class WebTestHttp
     {
         return value is { Length: >= 16 and <= 64 }
             && IsLowercaseLetterOrDigit(value[0])
-            && value.All(character => IsLowercaseLetterOrDigit(character)
+            && value.All(static character => IsLowercaseLetterOrDigit(character)
                 || character is '_' or '-');
     }
 
-    private static bool IsLowercaseLetterOrDigit(char value)
-    {
-        return value is >= 'a' and <= 'z' or >= '0' and <= '9';
-    }
+    private static bool IsLowercaseLetterOrDigit(char value) =>
+        char.IsAsciiLetterLower(value) || char.IsAsciiDigit(value);
 }

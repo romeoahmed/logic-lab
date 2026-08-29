@@ -20,17 +20,18 @@
                     .OrderBy(item => item.DisplayName, StringComparer.Ordinal)
                     .ThenBy(item => item.Id.Value, StringComparer.Ordinal))
                 {
-                    <button @key="definition.Id"
-                            type="button"
-                            data-definition="@definition.Id.Value"
-                            aria-current="@(definition.Id == SelectedDefinitionId ? "page" : null)"
-                            @onclick="@(() => OnSelect.InvokeAsync(definition.Id))">
+                    <FluentButton @key="definition.Id"
+                                  data-definition="@definition.Id.Value"
+                                  Size="ButtonSize.Small"
+                                  Appearance="@(definition.Id == SelectedDefinitionId ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
+                                  aria-current="@(definition.Id == SelectedDefinitionId ? "page" : null)"
+                                  OnClick="@(() => OnSelect.InvokeAsync(definition.Id))">
                         @definition.DisplayName
                         @if (definition.Id == Document.EntryCircuitDefinitionId)
                         {
                             <span data-entry-marker title="@Text["EntryCircuitDefinition"]">@Text["Entry"]</span>
                         }
-                    </button>
+                    </FluentButton>
                 }
             </nav>
 
@@ -46,18 +47,20 @@
                 <span class="view-kind">@(IsOccurrence ? Text["ElaboratedOccurrence"] : Text["DefinitionView"])</span>
                 @if (IsOccurrence)
                 {
-                    <button type="button"
-                            data-command="hierarchy-back"
-                            @onclick="OnBack">@Text["Back"]</button>
+                    <FluentButton data-command="hierarchy-back"
+                                  Size="ButtonSize.Small"
+                                  Appearance="ButtonAppearance.Outline"
+                                  OnClick="OnBack">@Text["Back"]</FluentButton>
                 }
                 @if (SelectedDefinitionId != Document.EntryCircuitDefinitionId)
                 {
-                    <button type="button"
-                            data-command="set-entry"
-                            disabled="@(!CanSetEntry)"
-                            @onclick="@(() => OnSetEntry.InvokeAsync(SelectedDefinitionId))">
+                    <FluentButton data-command="set-entry"
+                                  Size="ButtonSize.Small"
+                                  Appearance="ButtonAppearance.Outline"
+                                  Disabled="@(!CanSetEntry)"
+                                  OnClick="@(() => OnSetEntry.InvokeAsync(SelectedDefinitionId))">
                         @Text["SetAsEntry"]
-                    </button>
+                    </FluentButton>
                 }
             </div>
 
@@ -72,12 +75,13 @@
                     <div class="occurrence-links">
                         @foreach (var call in calls)
                         {
-                            <button @key="call.Id"
-                                    type="button"
-                                    data-enter-instance="@call.Id.Value"
-                                    @onclick="@(() => OnEnter.InvokeAsync(call.Id))">
+                            <FluentButton @key="call.Id"
+                                          data-enter-instance="@call.Id.Value"
+                                          Size="ButtonSize.Small"
+                                          Appearance="ButtonAppearance.Subtle"
+                                          OnClick="@(() => OnEnter.InvokeAsync(call.Id))">
                                 @Text["EnterDefinition", call.DisplayName ?? Text["CircuitDefinitionInstance"]]
-                            </button>
+                            </FluentButton>
                         }
                     </div>
                 }

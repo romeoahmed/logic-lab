@@ -12,7 +12,7 @@ internal sealed class EditorWorkspaceHierarchyTests
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.DevelopmentFingerprint);
+            WorkspaceBuild.TestFingerprint);
         var opened = (WorkspaceOpened)await workspace.OpenAsync(
             new CreateSandbox("Hierarchy project", "Main", AnonymousWorkspaceCaller.Instance),
             cancellationToken);

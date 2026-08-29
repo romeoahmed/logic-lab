@@ -39,7 +39,10 @@
                 <span class="catalog-empty-mark" aria-hidden="true">◇</span>
                 <h2>@Text["EmptyTitle"]</h2>
                 <p>@Text["EmptyDescription"]</p>
-                <a class="catalog-action" href="/editor">@Text["EmptyOpenWorkbench"]</a>
+                <FluentAnchorButton Href="/editor"
+                                    Appearance="ButtonAppearance.Primary">
+                    @Text["EmptyOpenWorkbench"]
+                </FluentAnchorButton>
             </div>
         }
         else
@@ -55,9 +58,11 @@
                             <input type="hidden"
                                    name="durableProjectId"
                                    value="@item.DurableProjectId.Value" />
-                            <button type="submit">
-                                @Text["OpenProject"] <span aria-hidden="true">→</span>
-                            </button>
+                            <FluentButton Class="project-open"
+                                          Type="ButtonType.Submit"
+                                          Appearance="ButtonAppearance.Primary">
+                                @Text["OpenProject"]
+                            </FluentButton>
                         </form>
                     </li>
                 }

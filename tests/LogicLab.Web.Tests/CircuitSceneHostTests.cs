@@ -103,7 +103,7 @@ internal sealed class CircuitSceneHostTests
         await using var context = WebTestContext.CreateBunitContext();
         context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
         var revision = WebTestCircuit.CreateCompleteCircuit();
-        var policy = BrowserPolicy.Development;
+        var policy = BrowserPolicy.Default;
         var dimension = BrowserLimitDimension.SpatialIndexBytes;
         var dimensionToken = BrowserPolicyDimensionTokens.Token(dimension);
         var observed = checked(policy.Limit(dimension) + 1)

@@ -76,7 +76,7 @@ internal sealed class CircuitSceneRenderingTests : PageTest
             revision,
             definition.Id,
             "en-US",
-            BrowserPolicy.Development,
+            BrowserPolicy.Default,
             maximumPortCount: 10_000,
             new BrowserMeasuredTextMeasurer(requests, measurements));
         var snapshot = await Assert.That(replacement).IsTypeOf<SceneSnapshotV1>();

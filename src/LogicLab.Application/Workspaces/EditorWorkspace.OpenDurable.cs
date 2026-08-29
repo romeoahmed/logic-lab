@@ -105,7 +105,7 @@ internal sealed partial class EditorWorkspace
                 return compilation is CompilationRejectedProjection rejected
                     ? RejectOpen(
                         rejected.RejectionCode,
-                        rejected.DiagnosticCodes,
+                        [.. rejected.Diagnostics.Select(diagnostic => diagnostic.Code)],
                         rejected.PolicyEvidence)
                     : RejectOpen(WorkspaceOutcomeReasons.WorkspaceCancelled);
             }

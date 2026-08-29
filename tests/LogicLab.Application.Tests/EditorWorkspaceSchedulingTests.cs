@@ -623,7 +623,7 @@ internal sealed class EditorWorkspaceSchedulingTests
                 requestCancellation.Token);
             var accepted = (await Assert.That(outcome).IsTypeOf<CompilationAccepted>())!;
             acceptedGeneration = accepted.CompilationGeneration;
-            requestCancellation.Cancel();
+            await requestCancellation.CancelAsync();
         }
         finally
         {

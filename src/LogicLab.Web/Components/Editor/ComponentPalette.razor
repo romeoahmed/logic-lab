@@ -8,14 +8,16 @@
             <p>@Text["Library"]</p>
             <h2 id="component-palette-title">@Text["Components"]</h2>
         </header>
-        <label class="component-search">
-            <span>@Text["SearchComponents"]</span>
-            <input type="search"
-                   data-component-search
-                   placeholder="@Text["SearchComponentsPlaceholder"]"
-                   @bind="SearchTerm"
-                   @bind:event="oninput" />
-        </label>
+        <div class="component-search">
+            <FluentTextInput data-component-search
+                             Label="@Text["SearchComponents"]"
+                             Placeholder="@Text["SearchComponentsPlaceholder"]"
+                             TextInputType="TextInputType.Search"
+                             Size="TextInputSize.Small"
+                             Immediate="true"
+                             Width="100%"
+                             @bind-Value="SearchTerm" />
+        </div>
     </div>
     @{ var groups = BuildGroups(); }
     @if (groups.Count == 0)

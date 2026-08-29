@@ -17,7 +17,7 @@ internal sealed class ProjectPackageWriterTests
     [Test, FsCheckProperty(MaxTest = 200)]
     public bool PackagePolicy_StableTokens_FollowDiagnosticsLexicalForm(string? candidate)
     {
-        var limits = PackagePolicy.Development.Limits;
+        var limits = PackagePolicy.Default.Limits;
         var expected = IsStableToken(candidate);
 
         return Accepts(() => new PackagePolicy(candidate!, "1", limits)) == expected
@@ -29,7 +29,7 @@ internal sealed class ProjectPackageWriterTests
     {
         var oneCharacter = "A";
         var maximumLength = $"A._-{new string('z', 92)}";
-        var limits = PackagePolicy.Development.Limits;
+        var limits = PackagePolicy.Default.Limits;
 
         var first = new PackagePolicy(oneCharacter, maximumLength, limits);
         var second = new PackagePolicy(maximumLength, oneCharacter, limits);
@@ -53,7 +53,7 @@ internal sealed class ProjectPackageWriterTests
             new ProjectPackageWriteRequest(
                 revision,
                 destination,
-                PackagePolicy.Development),
+                PackagePolicy.Default),
             CancellationToken.None);
 
         var succeeded = (await Assert.That(outcome).IsTypeOf<PackageWriteSucceeded>())!;
@@ -164,7 +164,7 @@ internal sealed class ProjectPackageWriterTests
             new ProjectPackageWriteRequest(
                 revision,
                 destination,
-                PackagePolicy.Development),
+                PackagePolicy.Default),
             CancellationToken.None);
 
         var succeeded = (await Assert.That(outcome).IsTypeOf<PackageWriteSucceeded>())!;
@@ -241,7 +241,7 @@ internal sealed class ProjectPackageWriterTests
             new ProjectPackageWriteRequest(
                 revision,
                 destination,
-                PackagePolicy.Development),
+                PackagePolicy.Default),
             CancellationToken.None);
 
         _ = (await Assert.That(outcome).IsTypeOf<PackageWriteSucceeded>())!;
@@ -284,7 +284,7 @@ internal sealed class ProjectPackageWriterTests
     public async Task WriteAsync_PackageLimitExceeded_RejectsBeforeWritingCarrier()
     {
         var revision = BeginProject("Limit project", "Main");
-        var limits = PackagePolicy.Development.Limits.ToArray();
+        var limits = PackagePolicy.Default.Limits.ToArray();
         limits[(int)PackageDimension.EntityCount] = new PackageLimit(
             PackageDimension.EntityCount,
             1);
@@ -322,7 +322,7 @@ internal sealed class ProjectPackageWriterTests
             + revision.Document.ProjectId.Value.Length
             + "displayName".Length
             + 1));
-        var limits = PackagePolicy.Development.Limits.ToArray();
+        var limits = PackagePolicy.Default.Limits.ToArray();
         limits[(int)PackageDimension.StringScalarCount] = new PackageLimit(
             PackageDimension.StringScalarCount,
             maximum);
@@ -349,7 +349,7 @@ internal sealed class ProjectPackageWriterTests
     public async Task WriteAsync_PackageLimitExactlyMet_AllowsCarrierPublication()
     {
         var revision = BeginProject("Exact limit project", "Main");
-        var limits = PackagePolicy.Development.Limits.ToArray();
+        var limits = PackagePolicy.Default.Limits.ToArray();
         limits[(int)PackageDimension.EntityCount] = new PackageLimit(
             PackageDimension.EntityCount,
             2);
@@ -377,13 +377,13 @@ internal sealed class ProjectPackageWriterTests
         var revision = BeginProject("Cancelled project", "Main");
         await using var destination = new MemoryStream();
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        await cancellation.CancelAsync();
 
         var outcome = await ProjectPackage.WriteAsync(
             new ProjectPackageWriteRequest(
                 revision,
                 destination,
-                PackagePolicy.Development),
+                PackagePolicy.Default),
             cancellation.Token);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<PackageWriteRejected>())!;
@@ -406,7 +406,7 @@ internal sealed class ProjectPackageWriterTests
             new ProjectPackageWriteRequest(
                 revision,
                 destination,
-                PackagePolicy.Development),
+                PackagePolicy.Default),
             CancellationToken.None);
 
         await Assert.That(outcome).IsTypeOf<PackageWriteSucceeded>();
@@ -429,7 +429,7 @@ internal sealed class ProjectPackageWriterTests
             new ProjectPackageWriteRequest(
                 revision,
                 destination,
-                PackagePolicy.Development),
+                PackagePolicy.Default),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<PackageWriteRejected>())!;
@@ -713,14 +713,10 @@ internal sealed class ProjectPackageWriterTests
 
     private static bool IsStableToken(string? value) =>
         value is { Length: >= 1 and <= 96 }
-        && IsAsciiLetterOrDigit(value[0])
+        && char.IsAsciiLetterOrDigit(value[0])
         && value.All(static character =>
-            IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
-
-    private static bool IsAsciiLetterOrDigit(char value) =>
-        value is >= 'A' and <= 'Z'
-            or >= 'a' and <= 'z'
-            or >= '0' and <= '9';
+            char.IsAsciiLetterOrDigit(character)
+            || character is '.' or '_' or '-');
 
     private sealed class AsyncOnlyWriteStream : Stream
     {

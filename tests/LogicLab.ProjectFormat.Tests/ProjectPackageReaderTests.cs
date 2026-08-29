@@ -23,7 +23,7 @@ internal sealed class ProjectPackageReaderTests
         var written = (PackageWriteSucceeded)carrier.Outcome;
 
         var outcome = await ProjectPackage.ReadAsync(
-            new ProjectPackageReadRequest(carrier.Stream, PackagePolicy.Development),
+            new ProjectPackageReadRequest(carrier.Stream, PackagePolicy.Default),
             CancellationToken.None);
 
         ThrowIfRejected(outcome);
@@ -392,7 +392,7 @@ internal sealed class ProjectPackageReaderTests
             ("manifest.json", Encoding.UTF8.GetBytes(manifest)));
 
         var outcome = await ProjectPackage.ReadAsync(
-            new ProjectPackageReadRequest(tampered, PackagePolicy.Development),
+            new ProjectPackageReadRequest(tampered, PackagePolicy.Default),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
@@ -472,7 +472,7 @@ internal sealed class ProjectPackageReaderTests
             ("project.json", Encoding.UTF8.GetBytes(project)));
 
         var outcome = await ProjectPackage.ReadAsync(
-            new ProjectPackageReadRequest(tampered, PackagePolicy.Development),
+            new ProjectPackageReadRequest(tampered, PackagePolicy.Default),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
@@ -510,7 +510,7 @@ internal sealed class ProjectPackageReaderTests
         await using var carrier = await WriteAsync(revision);
 
         var outcome = await ProjectPackage.ReadAsync(
-            new ProjectPackageReadRequest(carrier.Stream, PackagePolicy.Development),
+            new ProjectPackageReadRequest(carrier.Stream, PackagePolicy.Default),
             CancellationToken.None);
 
         ThrowIfRejected(outcome);
@@ -541,7 +541,9 @@ internal sealed class ProjectPackageReaderTests
         var entries = ReadEntries(carrier.Stream);
         var project = Encoding.UTF8.GetString(entries["project.json"]);
         entries["project.json"] = Encoding.UTF8.GetBytes(
-            project.Insert(project.IndexOf('{') + 1, "\"unexpected\":0,"));
+            project.Insert(
+                project.IndexOf('{', StringComparison.Ordinal) + 1,
+                "\"unexpected\":0,"));
         RefreshIntegrity(entries);
         await using var tampered = WriteEntries(entries);
 
@@ -801,10 +803,10 @@ internal sealed class ProjectPackageReaderTests
     {
         await using var source = new MemoryStream([1, 2, 3]);
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        await cancellation.CancelAsync();
 
         var outcome = await ProjectPackage.ReadAsync(
-            new ProjectPackageReadRequest(source, PackagePolicy.Development),
+            new ProjectPackageReadRequest(source, PackagePolicy.Default),
             cancellation.Token);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
@@ -945,7 +947,7 @@ internal sealed class ProjectPackageReaderTests
             new ProjectPackageWriteRequest(
                 revision,
                 stream,
-                PackagePolicy.Development),
+                PackagePolicy.Default),
             CancellationToken.None);
         stream.Position = 0;
         return new WrittenCarrier(stream, outcome);
@@ -955,7 +957,7 @@ internal sealed class ProjectPackageReaderTests
     {
         source.Position = 0;
         return ProjectPackage.ReadAsync(
-            new ProjectPackageReadRequest(source, PackagePolicy.Development),
+            new ProjectPackageReadRequest(source, PackagePolicy.Default),
             CancellationToken.None);
     }
 
@@ -976,7 +978,7 @@ internal sealed class ProjectPackageReaderTests
         PackageDimension dimension,
         ulong maximum)
     {
-        var limits = PackagePolicy.Development.Limits.ToArray();
+        var limits = PackagePolicy.Default.Limits.ToArray();
         limits[(int)dimension] = new PackageLimit(dimension, maximum);
         return new PackagePolicy("test-package", "1", limits);
     }

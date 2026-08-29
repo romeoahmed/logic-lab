@@ -8,10 +8,9 @@ public sealed record ExportTicket
     {
         ArgumentException.ThrowIfNullOrEmpty(value);
         if (value.Length is < 16 or > 128
-            || !value.All(static character => character is >= 'a' and <= 'z'
-                or >= '0' and <= '9'
-                or '_'
-                or '-'))
+            || !value.All(static character => char.IsAsciiLetterLower(character)
+                || char.IsAsciiDigit(character)
+                || character is '_' or '-'))
         {
             throw new ArgumentException(
                 "An Export Ticket must be an opaque lowercase URL token.",

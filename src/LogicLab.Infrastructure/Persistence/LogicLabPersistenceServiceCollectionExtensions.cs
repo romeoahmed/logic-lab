@@ -27,7 +27,7 @@ public static class LogicLabPersistenceServiceCollectionExtensions
             provider.GetRequiredService<SqliteDurableProjectRepository>());
         services.AddSingleton<IDurableProjectLoader>(provider =>
             provider.GetRequiredService<SqliteDurableProjectRepository>());
-        services.AddSingleton<ILogicLabPersistenceReadiness>(provider =>
+        services.AddSingleton(provider =>
             new LogicLabPersistenceReadiness(
                 provider.GetRequiredService<IDbContextFactory<LogicLabDbContext>>()));
         return services;

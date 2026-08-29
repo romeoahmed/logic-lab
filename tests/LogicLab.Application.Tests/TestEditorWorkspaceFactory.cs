@@ -70,7 +70,7 @@ internal static class TestEditorWorkspaceFactory
         ProjectExportPreparationPolicy? projectExportPreparationPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
-        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint,
+        string buildFingerprint = WorkspaceBuild.TestFingerprint,
         IDurableProjectRepository? durableProjectRepository = null,
         IDurableProjectLoader? durableProjectLoader = null,
         IProjectExportStore? projectExportStore = null)

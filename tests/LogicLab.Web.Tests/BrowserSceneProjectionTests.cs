@@ -21,7 +21,7 @@ internal sealed class BrowserSceneProjectionTests
             revision,
             revision.Document.EntryCircuitDefinitionId,
             "en-US",
-            BrowserPolicy.Development,
+            BrowserPolicy.Default,
             maximumPortCount: 10_000,
             new TestTextMeasurer());
         var snapshot = await Assert.That(replacement).IsTypeOf<SceneSnapshotV1>();
@@ -63,7 +63,7 @@ internal sealed class BrowserSceneProjectionTests
             revision,
             revision.Document.EntryCircuitDefinitionId,
             "en-US",
-            BrowserPolicy.Development,
+            BrowserPolicy.Default,
             maximumPortCount: 10_000,
             new TestTextMeasurer());
         var snapshot = await Assert.That(replacement).IsTypeOf<SceneSnapshotV1>();
@@ -84,7 +84,7 @@ internal sealed class BrowserSceneProjectionTests
     public async Task Project_RecordPolicyExhausted_PreservesExactPolicyEvidence()
     {
         var revision = WebTestCircuit.CreateCompleteCircuit();
-        var limits = BrowserPolicy.Development.Limits
+        var limits = BrowserPolicy.Default.Limits
             .Select(limit => limit.Dimension == BrowserLimitDimension.SceneSnapshotRecordCount
                 ? limit with { Value = 1 }
                 : limit)
@@ -92,8 +92,7 @@ internal sealed class BrowserSceneProjectionTests
         var policy = new BrowserPolicy(
             "logiclab-browser",
             "test-1",
-            limits,
-            BrowserPolicy.Development.ObservationThresholds);
+            limits);
 
         var exception = await Assert.That(() => BrowserSceneProjection.Project(
                 "build-a",
@@ -145,7 +144,7 @@ internal sealed class BrowserSceneProjectionTests
             revision,
             definition.Id,
             "en-US",
-            BrowserPolicy.Development,
+            BrowserPolicy.Default,
             maximumPortCount: 10_000,
             new TestTextMeasurer(),
             overlayInput);
@@ -156,6 +155,9 @@ internal sealed class BrowserSceneProjectionTests
         var selectionJson = json.GetProperty("overlays")
             .EnumerateArray()
             .Single(overlay => overlay.GetProperty("kind").GetString() == "selection");
+        var probeJson = json.GetProperty("overlays")
+            .EnumerateArray()
+            .Single(overlay => overlay.GetProperty("kind").GetString() == "probeAnchor");
         var sourceJson = selectionJson.GetProperty("source");
 
         using (Assert.Multiple())
@@ -169,6 +171,7 @@ internal sealed class BrowserSceneProjectionTests
             await Assert.That(snapshot.Overlays.OfType<SceneLiveNetValueOverlayV1>()
                     .Single().Value.Encoding)
                 .IsEqualTo("logic4-2bit-v1");
+            await Assert.That(probeJson.TryGetProperty("appearanceOrdinal", out _)).IsFalse();
             await Assert.That(selectionJson.TryGetProperty("selectionSource", out _)).IsFalse();
             await Assert.That(sourceJson.TryGetProperty("key", out _)).IsFalse();
             await Assert.That(sourceJson.GetProperty("entityKind").GetString())

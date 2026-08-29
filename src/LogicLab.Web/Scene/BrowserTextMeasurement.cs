@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using LogicLab.Domain.Authoring;
@@ -195,7 +194,21 @@ internal static class BrowserTextMeasurements
                 new RectV1(left, -80, checked(left + width), 40));
         }
 
-        private static string Token<T>(T value) where T : struct, Enum =>
-            value.ToString().ToLower(CultureInfo.InvariantCulture);
+        private static string Token(FontRoleV1 value) => value switch
+        {
+            FontRoleV1.Symbol => "symbol",
+            FontRoleV1.PortLabel => "portlabel",
+            FontRoleV1.Dependency => "dependency",
+            FontRoleV1.ExtensionMark => "extensionmark",
+            _ => throw new ArgumentOutOfRangeException(nameof(value)),
+        };
+
+        private static string Token(TextAlignmentV1 value) => value switch
+        {
+            TextAlignmentV1.Start => "start",
+            TextAlignmentV1.Center => "center",
+            TextAlignmentV1.End => "end",
+            _ => throw new ArgumentOutOfRangeException(nameof(value)),
+        };
     }
 }

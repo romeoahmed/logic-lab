@@ -259,13 +259,13 @@ internal sealed class WorkCoordinatorTests
             out var constructionTrace);
         await using var coordinatorLifetime = coordinator;
         var schedulingTrace = ActivityTraceId.CreateRandom();
-        using var schedulingActivity = new Activity("scheduling-request")
-            .SetIdFormat(ActivityIdFormat.W3C)
-            .SetParentId(
-                schedulingTrace,
-                ActivitySpanId.CreateRandom(),
-                ActivityTraceFlags.Recorded)
-            .Start();
+        using var schedulingActivity = new Activity("scheduling-request");
+        schedulingActivity.SetIdFormat(ActivityIdFormat.W3C);
+        schedulingActivity.SetParentId(
+            schedulingTrace,
+            ActivitySpanId.CreateRandom(),
+            ActivityTraceFlags.Recorded);
+        schedulingActivity.Start();
 
         WorkCoordinator.SchedulingRejection? rejection;
         if (lane == "compilation")
@@ -312,13 +312,13 @@ internal sealed class WorkCoordinatorTests
         out ActivityTraceId constructionTrace)
     {
         var parentTrace = ActivityTraceId.CreateRandom();
-        using var activity = new Activity("coordinator-construction")
-            .SetIdFormat(ActivityIdFormat.W3C)
-            .SetParentId(
-                parentTrace,
-                ActivitySpanId.CreateRandom(),
-                ActivityTraceFlags.Recorded)
-            .Start();
+        using var activity = new Activity("coordinator-construction");
+        activity.SetIdFormat(ActivityIdFormat.W3C);
+        activity.SetParentId(
+            parentTrace,
+            ActivitySpanId.CreateRandom(),
+            ActivityTraceFlags.Recorded);
+        activity.Start();
         constructionTrace = activity.TraceId;
         return new WorkCoordinator(SchedulingPolicy.Default, TimeProvider.System, logger);
     }

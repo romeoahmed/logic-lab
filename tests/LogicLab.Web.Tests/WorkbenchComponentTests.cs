@@ -296,7 +296,7 @@ internal sealed class WorkbenchComponentTests
         await using var context = CreateContext();
         await using var workspace = new PassthroughWorkspace();
         var package = await CreatePackageAsync();
-        var limits = PackagePolicy.Development.Limits.ToArray();
+        var limits = PackagePolicy.Default.Limits.ToArray();
         limits[(int)PackageDimension.CarrierBytes] = new PackageLimit(
             PackageDimension.CarrierBytes,
             checked((ulong)package.Length - 1));
@@ -1069,7 +1069,7 @@ internal sealed class WorkbenchComponentTests
             "./Components/Pages/Editor.razor.js");
         attachmentNavigation.Mode = JSRuntimeMode.Loose;
         context.Services.AddSingleton(TimeProvider.System);
-        context.Services.AddSingleton(PackagePolicy.Development);
+        context.Services.AddSingleton(PackagePolicy.Default);
         context.Services.AddSingleton<ProjectImportWorkflow>();
         return context;
     }
@@ -1090,7 +1090,7 @@ internal sealed class WorkbenchComponentTests
             new ProjectPackageWriteRequest(
                 revision,
                 carrier,
-                PackagePolicy.Development),
+                PackagePolicy.Default),
             CancellationToken.None);
         if (outcome is not PackageWriteSucceeded)
         {

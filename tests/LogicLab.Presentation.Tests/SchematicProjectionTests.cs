@@ -361,7 +361,7 @@ internal sealed class SchematicProjectionTests
         Check(
             annotation.Operations.Count == visibleLines.Length
                 && visibleLines.All(line =>
-                    !line.Text.Contains('\n')
+                    !line.Text.Contains('\n', StringComparison.Ordinal)
                     && line.Alignment == TextAlignment(sample.Alignment)),
             "a drawing operation is not one explicit authorized line",
             violations);
@@ -399,7 +399,7 @@ internal sealed class SchematicProjectionTests
         var other = CreateCompleteDefinition();
         var primitiveFixture = CreateDefinitionPortDefinition();
         using var cancelled = new CancellationTokenSource();
-        cancelled.Cancel();
+        await cancelled.CancelAsync();
 
         var missingDefinition = TeachingMixedSchematicProjector.Project(
             fixture.Revision,

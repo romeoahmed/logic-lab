@@ -601,7 +601,7 @@ internal sealed class EditorDurableRouteTests
                 "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/KeyCode/FluentKeyCode.razor.js")
             .Mode = JSRuntimeMode.Loose;
         context.Services.AddSingleton(TimeProvider.System);
-        context.Services.AddSingleton(PackagePolicy.Development);
+        context.Services.AddSingleton(PackagePolicy.Default);
         context.Services.AddSingleton(workspace);
         context.Services.AddSingleton<ProjectImportWorkflow>();
         context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));

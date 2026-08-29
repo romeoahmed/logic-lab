@@ -383,16 +383,9 @@ file static class StableToken
     public static bool IsValid(string value)
     {
         return value.Length <= 96
-            && IsAsciiLetterOrDigit(value[0])
+            && char.IsAsciiLetterOrDigit(value[0])
             && value.All(character =>
-                IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
-    }
-
-    private static bool IsAsciiLetterOrDigit(char value)
-    {
-        return value is >= 'A' and <= 'Z'
-            or >= 'a' and <= 'z'
-            or >= '0' and <= '9';
+                char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
     }
 }
 
@@ -437,7 +430,7 @@ public static class EditorWorkspaceFactory
         ProjectExportPreparationPolicy? projectExportPreparationPolicy = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
-        string buildFingerprint = WorkspaceBuild.DevelopmentFingerprint,
+        string buildFingerprint = WorkspaceBuild.TestFingerprint,
         PackagePolicy? packagePolicy = null)
     {
         ArgumentNullException.ThrowIfNull(durableProjectRepository);
@@ -480,7 +473,7 @@ public static class EditorWorkspaceFactory
             operations,
             durableProjectRepository,
             durableProjectLoader,
-            packagePolicy ?? PackagePolicy.Development,
+            packagePolicy ?? PackagePolicy.Default,
             projectExportPreparationPolicy ?? ProjectExportPreparationPolicy.Default,
             projectExportStore,
             resolvedLoggerFactory.CreateLogger<Work.WorkCoordinator>(),

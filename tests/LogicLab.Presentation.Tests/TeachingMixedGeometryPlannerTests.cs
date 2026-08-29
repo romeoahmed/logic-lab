@@ -572,7 +572,7 @@ internal sealed class TeachingMixedGeometryPlannerTests
     public async Task Plan_CancelledRequest_ReturnsCancelledWithoutGeometryPlan()
     {
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        await cancellation.CancelAsync();
 
         var outcome = TeachingMixedGeometryPlanner.Plan(
             Request("logic.and", 2),

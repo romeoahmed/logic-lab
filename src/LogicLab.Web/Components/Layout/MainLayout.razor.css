@@ -94,7 +94,7 @@
 }
 
 .primary-navigation ::deep a,
-.navigation-button {
+.primary-navigation ::deep .navigation-button {
   font-size: 0.9rem;
   font-weight: 650;
 }
@@ -129,22 +129,6 @@
   color: var(--ll-muted);
   background: var(--ll-canvas);
   font: inherit;
-}
-
-.navigation-button {
-  min-block-size: 2.4rem;
-  padding-inline: 0.75rem;
-  border: 1px solid transparent;
-  border-radius: var(--ll-radius-small);
-  color: var(--ll-muted);
-  background: transparent;
-  cursor: pointer;
-}
-
-.navigation-button:hover,
-.navigation-button:focus-visible {
-  color: var(--ll-ink);
-  background: color-mix(in oklab, var(--ll-canvas) 72%, transparent);
 }
 
 .primary-navigation ::deep a:hover,
@@ -198,11 +182,9 @@ main {
   }
 
   .primary-navigation {
+    flex-wrap: wrap;
     gap: 0.15rem;
-    inline-size: calc(100vw - 2rem);
-    overflow-x: auto;
-    padding-block-end: 0.15rem;
-    scrollbar-width: thin;
+    inline-size: 100%;
   }
 
   .primary-navigation > * {
@@ -210,7 +192,7 @@ main {
   }
 
   .primary-navigation ::deep a,
-  .navigation-button {
+  .primary-navigation ::deep .navigation-button {
     min-block-size: 2.75rem;
     padding-inline: 0.55rem;
   }
