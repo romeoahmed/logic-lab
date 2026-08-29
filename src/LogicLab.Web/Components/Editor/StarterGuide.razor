@@ -4,7 +4,7 @@
         <h2 id="starter-guide-title">@Text["StarterTitle"]</h2>
         <span>@Text["StarterDescription"]</span>
     </header>
-    <ol aria-label="@Text["LearningPathAriaLabel"]">
+    <ol>
         <li><strong>1</strong><span>@Text["LearningStepChoose"]</span></li>
         <li><strong>2</strong><span>@Text["LearningStepCompile"]</span></li>
         <li><strong>3</strong><span>@Text["LearningStepSimulate"]</span></li>
@@ -18,7 +18,6 @@
                     @key="option.Example"
                     data-command="@option.Command"
                     disabled="@(BusyCommand is not null)"
-                    aria-busy="@(BusyCommand == option.Command ? "true" : "false")"
                     @onclick="@(() => OnSelect.InvokeAsync(option.Example))">
                 <span class="starter-option-content">
                     <span class="starter-symbol">

@@ -61,14 +61,6 @@ export function selectionModeFromModifiers(event) {
   return "replace";
 }
 
-export function semanticNavigationDirection(key) {
-  if (key === "ArrowUp") return "up";
-  if (key === "ArrowDown") return "down";
-  if (key === "ArrowLeft") return "left";
-  if (key === "ArrowRight") return "right";
-  return null;
-}
-
 export function intersects(left, right) {
   return left.left <= right.right && left.right >= right.left
     && left.top <= right.bottom && left.bottom >= right.top;

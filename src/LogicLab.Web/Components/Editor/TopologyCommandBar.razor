@@ -8,8 +8,8 @@
         </div>
         <small>@Text["GeometryRule"]</small>
     </div>
-    <div class="topology-command-bar" role="group" aria-label="@Text["TopologyCommandsAriaLabel"]">
-        <div class="topology-command-group" role="group" aria-label="@Text["ElectricalMembershipAriaLabel"]">
+    <div class="topology-command-bar">
+        <div class="topology-command-group">
             <span>@Text["Membership"]</span>
             <div>
                 <FluentButton data-command="topology-merge"
@@ -24,7 +24,7 @@
                               OnClick="OnSplit">@Text["SplitNet"]</FluentButton>
             </div>
         </div>
-        <div class="topology-command-group" role="group" aria-label="@Text["JunctionEditingAriaLabel"]">
+        <div class="topology-command-group">
             <span>@Text["Junctions"]</span>
             <div>
                 <FluentButton data-command="topology-add-junction"
@@ -39,7 +39,7 @@
                               OnClick="OnRemoveJunction">@Text["Remove"]</FluentButton>
             </div>
         </div>
-        <div class="topology-command-group" role="group" aria-label="@Text["RouteGeometryAriaLabel"]">
+        <div class="topology-command-group">
             <span>@Text["Geometry"]</span>
             <div>
                 <FluentButton data-command="topology-prepare-route"
@@ -58,7 +58,7 @@
                               OnClick="OnRoute">@Text["Route"]</FluentButton>
             </div>
         </div>
-        <div class="topology-command-group" role="group" aria-label="@Text["RouteDraftAriaLabel"]">
+        <div class="topology-command-group">
             <span>@Text["Draft"]</span>
             <div>
                 <FluentButton data-command="topology-commit-route"

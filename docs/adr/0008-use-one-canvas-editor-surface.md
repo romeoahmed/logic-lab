@@ -20,6 +20,8 @@ The Web chrome still benefits from established components. Microsoft documents `
 - Web chrome uses the centrally pinned Fluent UI Blazor component when its behavior fits the product. Native HTML and modern CSS are preferred when they express a simpler platform primitive. Custom controls are reserved for domain-specific behavior or a documented gap in both choices.
 - A renderer failure replaces the Canvas with a concise unavailable state and useful recovery actions. It never exposes a stale bitmap as current and never activates a second editor.
 - Labels, native semantics, predictable focus, and common shortcuts remain when they are inexpensive and share the primary interaction path. They are not allowed to introduce a parallel state machine, duplicate circuit state, distort the visual hierarchy, or make pointer authoring less direct.
+- Standard Fluent UI components own their built-in keyboard and ARIA behavior. Do not layer a second roving-tabindex, focus-transfer, expanded-state, or hidden-control model over them; use extra state only when it serves the visible primary workflow.
+- Accessibility-only localization catalogs, hidden status mirrors, skip-navigation/focus-routing machinery, and forced-colors or reduced-motion branches are out of scope without a concrete product requirement. Visible labels and one-source native attributes remain preferable to custom substitutes.
 - Logic Lab does not claim WCAG conformance, complete screen-reader authoring, full keyboard equivalence, forced-colors parity, or precision touch wiring. These are not release gates unless a later product decision introduces a concrete requirement and funds the corresponding architecture.
 - Browser and component tests prove circuit correctness, Canvas geometry, primary user workflows, responsive behavior, and recovery. They do not pin accessibility-specific DOM shape or a second action vocabulary.
 
@@ -27,7 +29,7 @@ The Web chrome still benefits from established components. Microsoft documents `
 
 The Scene protocol and Geometry Plan no longer carry accessibility recipes, nodes, node identities, semantic paging, or accessibility-specific browser policy. Port anchors and Hit Regions remain because they are primary Canvas interaction data. Localization, text shaping, diagnostics, selection identity, and ordinary HTML semantics remain in their owning modules.
 
-This removes duplicated Razor components, resources, callbacks, navigation rules, policy values, and tests. It also makes renderer-unavailable behavior intentionally narrower: the user can retry, reload, inspect diagnostics, or preserve their project, but cannot edit through an alternate circuit representation.
+This removes duplicated Razor components, the accessibility-only scene projection, resources, callbacks, focus-navigation rules, policy values, CSS media forks, and tests. It also makes renderer-unavailable behavior intentionally narrower: the user can retry, reload, inspect diagnostics, or preserve their project, but cannot edit through an alternate circuit representation.
 
 This decision does not justify removing useful labels from standard controls or replacing a suitable Fluent UI/native control with an inaccessible custom imitation. The test is architectural cost and product quality, not the mere presence of accessibility metadata.
 

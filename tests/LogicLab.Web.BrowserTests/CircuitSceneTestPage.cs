@@ -19,17 +19,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
 
     public ILocator ScenePage => page.GetByTestId("scene-page");
 
-    public ILocator SemanticSource(string name) => page.Locator(
-        $"[data-scene-source='{name switch
-        {
-            "Component A" => SceneTestSnapshot.SourceA.Key,
-            "Component B" => SceneTestSnapshot.SourceB.Key,
-            _ => throw new ArgumentOutOfRangeException(nameof(name)),
-        }}']");
-
-    public ILocator Zoom(string name) => page.GetByRole(
-        AriaRole.Button,
-        new PageGetByRoleOptions { Name = name, Exact = true });
+    public ILocator Zoom(string action) => page.Locator($"[data-scene-zoom='{action}']");
 
     public async Task OpenAsync()
     {
@@ -46,9 +36,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
         var fontPath = Path.Combine(
             AppContext.BaseDirectory,
             "AtkinsonHyperlegibleNext-Regular.woff2");
-        var html = TestDocument()
-            .Replace("{{SOURCE_A}}", SceneTestSnapshot.SourceA.Key, StringComparison.Ordinal)
-            .Replace("{{SOURCE_B}}", SceneTestSnapshot.SourceB.Key, StringComparison.Ordinal);
+        var html = TestDocument();
 
         await page.RouteAsync($"{Origin}/**", route =>
         {
@@ -538,7 +526,6 @@ internal sealed class CircuitSceneTestPage(IPage page)
         canvasBitmapBytes = 40_000_000,
         effectiveDensityMillionths = 3_000_000,
         zoomMillionthsMinimum = 50_000,
-        semanticTreePageItems = 200,
         displayListBytes = 1_000_000,
         spatialIndexBytes = 1_000_000,
         sceneCacheBytes = 4_000_000,
@@ -585,47 +572,22 @@ internal sealed class CircuitSceneTestPage(IPage page)
                   <canvas class="scene-canvas"
                           data-testid="scene-canvas"
                           data-scene-canvas
-                          tabindex="0"
-                          aria-label="Interactive circuit scene">
-                    <button type="button"
-                            data-scene-source="{{SOURCE_A}}"
-                            data-scene-navigation-start
-                            data-scene-navigation-right="{{SOURCE_B}}">Component A</button>
-                    <button type="button"
-                            data-scene-source="{{SOURCE_B}}"
-                            data-scene-navigation-left="{{SOURCE_A}}">Component B</button>
-                    <button type="button" data-scene-action="nudge">Nudge Component A</button>
-                  </canvas>
-                  <div class="scene-zoom-controls" role="group" aria-label="Canvas zoom">
-                    <button type="button" data-scene-zoom="out" aria-label="Zoom out">−</button>
-                    <button type="button" data-scene-zoom="fit" aria-label="Zoom to fit">□</button>
-                    <button type="button" data-scene-zoom="in" aria-label="Zoom in">+</button>
+                          tabindex="0"></canvas>
+                  <div class="scene-zoom-controls">
+                    <button type="button" data-scene-zoom="out">−</button>
+                    <button type="button" data-scene-zoom="fit">□</button>
+                    <button type="button" data-scene-zoom="in">+</button>
                   </div>
                 </div>
               </section>
             </div>
           </main>
-          <output data-testid="scene-events" aria-live="polite"></output>
+          <output data-testid="scene-events"></output>
           <script>
             document.querySelector('[data-testid="scene-canvas"]')
               .addEventListener('pointerdown', event => {
                 window.scenePointerId = event.pointerId;
               });
-            document.addEventListener('click', event => {
-              const source = event.target.closest?.('[data-scene-source]');
-              const action = event.target.closest?.('[data-scene-action]');
-              const log = document.querySelector('[data-testid="scene-events"]');
-              if (source) {
-                log.dataset.semanticSource = source.dataset.sceneSource;
-                log.dataset.semanticActivations = String(
-                  Number(log.dataset.semanticActivations ?? 0) + 1);
-              }
-              if (action) {
-                log.dataset.semanticAction = action.dataset.sceneAction;
-                log.dataset.semanticActions = String(
-                  Number(log.dataset.semanticActions ?? 0) + 1);
-              }
-            });
           </script>
         </body>
         </html>

@@ -31,24 +31,15 @@ internal sealed class WorkbenchComponentTests
         await rendered.Find("[data-scene-tool='wire']").ClickAsync();
 
         var sceneHost = rendered.FindComponent<CircuitSceneHost>();
-        var toolbarControls = rendered.FindAll("[role='toolbar'] [data-scene-tool]");
+        var toolbarControls = rendered.FindAll(".scene-tool-strip [data-scene-tool]");
         using (Assert.Multiple())
         {
             await Assert.That(sceneHost.Instance.ActiveTool)
                 .IsTypeOf<SceneWireToolV1>();
-            await Assert.That(rendered.Find("[data-scene-tool='wire']")
-                    .GetAttribute("aria-pressed"))
-                .IsEqualTo("true");
             await Assert.That(rendered.Find("[data-scene-tool='probe']")
                     .HasAttribute("disabled"))
                 .IsTrue();
             await Assert.That(toolbarControls).Count().IsEqualTo(4);
-            await Assert.That(toolbarControls.Count(control =>
-                    control.GetAttribute("tabindex") == "0"))
-                .IsEqualTo(1);
-            await Assert.That(toolbarControls.Count(control =>
-                    control.GetAttribute("tabindex") == "-1"))
-                .IsEqualTo(3);
             await Assert.That(toolbarControls[0].GetAttribute("data-scene-tool"))
                 .IsEqualTo("select");
             await Assert.That(toolbarControls[^1].GetAttribute("data-scene-tool"))
@@ -111,26 +102,6 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task Editor_SemanticSceneSelection_IsOwnedByTheWorkbench()
-    {
-        await using var context = CreateContext();
-        await using var workspace = new TrackingWorkspace();
-        var rendered = await RenderAuthoredEditor(context, workspace);
-        var action = rendered.Find(".circuit-scene-shell [data-scene-source]");
-
-        await action.ClickAsync();
-        await rendered.WaitForStateAsync(() => string.Equals(
-            rendered.Find("[data-scene-selection-count]")
-                .GetAttribute("data-scene-selection-count"),
-            "1",
-            StringComparison.Ordinal));
-
-        await Assert.That(rendered.Find("[data-scene-selection-count]")
-                .GetAttribute("data-scene-selection-count"))
-            .IsEqualTo("1");
-    }
-
-    [Test]
     public async Task Editor_ValidLogicLabUpload_OpensCompiledImportedWorkspace()
     {
         await using var context = CreateContext();
@@ -189,7 +160,7 @@ internal sealed class WorkbenchComponentTests
                 "invalid.logiclab",
                 contentType: "application/vnd.logiclab+zip"));
 
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[role='status']")
+        await rendered.WaitForStateAsync(() => rendered.FindAll(".status-message")
             .Any(status => status.TextContent.Contains(
                 "package_invalid",
                 StringComparison.Ordinal)));
@@ -344,7 +315,7 @@ internal sealed class WorkbenchComponentTests
                 "project.logiclab",
                 contentType: "application/vnd.logiclab+zip"));
 
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[role='status']")
+        await rendered.WaitForStateAsync(() => rendered.FindAll(".status-message")
             .Any(status => status.TextContent.Contains(
                 "package_limit_exceeded",
                 StringComparison.Ordinal)));
@@ -483,7 +454,7 @@ internal sealed class WorkbenchComponentTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.FindAll("[data-component]")).IsEmpty();
+            await Assert.That(rendered.FindComponents<CircuitSceneHost>()).IsEmpty();
             await Assert.That(workspace.OpenCount).IsEqualTo(0);
             await Assert.That(workspace.DispatchCount).IsEqualTo(0);
             await Assert.That(workspace.ReadCount).IsEqualTo(0);
@@ -541,7 +512,7 @@ internal sealed class WorkbenchComponentTests
             rendered,
             "author",
             () => !IsDisabled(rendered, "compile")
-                && rendered.FindAll("[data-component]").Count == 3);
+                && CurrentDefinition(rendered)?.ComponentInstances.Count == 3);
 
         await Assert.That(workspace.AttachCount).IsGreaterThan(1);
     }
@@ -562,7 +533,7 @@ internal sealed class WorkbenchComponentTests
             rendered,
             "author",
             () => !IsDisabled(rendered, "compile")
-                && rendered.FindAll("[data-component]").Count == 3);
+                && CurrentDefinition(rendered)?.ComponentInstances.Count == 3);
         await ClickAndWaitForState(
             rendered,
             "compile",
@@ -810,7 +781,7 @@ internal sealed class WorkbenchComponentTests
         using (Assert.Multiple())
         {
             await Assert.That(IsDisabled(rendered, "create")).IsFalse();
-            await Assert.That(rendered.FindAll("[data-component]")).IsEmpty();
+            await Assert.That(rendered.FindComponents<CircuitSceneHost>()).IsEmpty();
         }
 
         await rendered.Find("[data-command='create']")
@@ -837,13 +808,13 @@ internal sealed class WorkbenchComponentTests
         await rendered.Find("[data-command='author']").ClickAsync(new MouseEventArgs());
         await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "create")
             && IsDisabled(rendered, "author")
-            && rendered.FindAll("[data-component]").Count == 0);
+            && rendered.FindComponents<CircuitSceneHost>().Count == 0);
 
         using (Assert.Multiple())
         {
             await Assert.That(IsDisabled(rendered, "create")).IsFalse();
             await Assert.That(IsDisabled(rendered, "author")).IsTrue();
-            await Assert.That(rendered.FindAll("[data-component]")).IsEmpty();
+            await Assert.That(rendered.FindComponents<CircuitSceneHost>()).IsEmpty();
         }
 
         await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
@@ -901,22 +872,22 @@ internal sealed class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "author",
-            () => rendered.FindAll("[data-connection]").Count == 2);
+            () => CurrentDefinition(rendered)?.Nets.Count == 2);
 
         await ClickAndWaitForState(
             rendered,
             "topology-merge",
-            () => rendered.FindAll("[data-connection]").Count == 1);
+            () => CurrentDefinition(rendered)?.Nets.Count == 1);
 
         await ClickAndWaitForState(
             rendered,
             "topology-split",
-            () => rendered.FindAll("[data-connection]").Count == 2);
+            () => CurrentDefinition(rendered)?.Nets.Count == 2);
 
         await ClickAndWaitForState(
             rendered,
             "topology-add-junction",
-            () => rendered.FindAll("[data-junction]").Count == 1);
+            () => CurrentDefinition(rendered)?.Junctions.Count == 1);
 
         await rendered.Find("[data-command='topology-unroute']").ClickAsync();
         await Assert.That(await ReadFirstRoute(workspace))
@@ -929,7 +900,7 @@ internal sealed class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "topology-remove-junction",
-            () => rendered.FindAll("[data-junction]").Count == 0);
+            () => CurrentDefinition(rendered)?.Junctions.Count == 0);
 
         await ClickAndWaitForState(
             rendered,
@@ -957,19 +928,21 @@ internal sealed class WorkbenchComponentTests
         {
             await Assert.That(rendered.FindAll("[data-definition]")).Count().IsEqualTo(2);
             await Assert.That(rendered.FindAll("[data-entry-marker]")).Count().IsEqualTo(1);
-            await Assert.That(rendered.FindAll("[data-component]")).Count().IsEqualTo(3);
+            await Assert.That(CurrentDefinition(rendered)!.ComponentInstances)
+                .Count().IsEqualTo(3);
             await Assert.That(rendered.Find("[data-hierarchy-breadcrumb]").TextContent)
                 .Contains("Main");
         }
 
         await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-definition-port]").Count == 2);
+        await rendered.WaitForStateAsync(() => CurrentDefinition(rendered)?.Ports.Count == 2);
         using (Assert.Multiple())
         {
             await Assert.That(rendered.Find("[data-hierarchy-breadcrumb]").TextContent)
                 .Contains("Inverter");
-            await Assert.That(rendered.FindAll("[data-component]")).Count().IsEqualTo(1);
-            await Assert.That(rendered.FindAll("[data-connection]")).Count().IsEqualTo(2);
+            await Assert.That(CurrentDefinition(rendered)!.ComponentInstances)
+                .Count().IsEqualTo(1);
+            await Assert.That(CurrentDefinition(rendered)!.Nets).Count().IsEqualTo(2);
             await Assert.That(rendered.FindAll("[data-command='hierarchy-back']")).Count()
                 .IsEqualTo(1);
         }
@@ -986,7 +959,7 @@ internal sealed class WorkbenchComponentTests
             .ParentElement!.TextContent.Contains("Main", StringComparison.Ordinal));
 
         await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-definition-port]").Count == 2);
+        await rendered.WaitForStateAsync(() => CurrentDefinition(rendered)?.Ports.Count == 2);
         await rendered.Find("[data-command='hierarchy-back']")
             .ClickAsync(new MouseEventArgs());
         await rendered.WaitForStateAsync(() => rendered.FindAll("[data-enter-instance]").Count == 1);
@@ -1011,7 +984,7 @@ internal sealed class WorkbenchComponentTests
         var enteredInstanceId = enteredInstance.GetAttribute("data-enter-instance")
             ?? throw new InvalidOperationException("The hierarchy instance has no identity.");
         await enteredInstance.ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-definition-port]").Count == 2);
+        await rendered.WaitForStateAsync(() => CurrentDefinition(rendered)?.Ports.Count == 2);
         var occurrenceProbe = await Assert.That(rendered.FindComponent<CircuitSceneHost>()
                 .Instance.ActiveTool)
             .IsTypeOf<SceneProbeToolV1>();
@@ -1043,7 +1016,7 @@ internal sealed class WorkbenchComponentTests
             .GetAttribute("data-enter-instance")
             ?? throw new InvalidOperationException("The hierarchy instance has no identity.");
         await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-definition-port]").Count == 2);
+        await rendered.WaitForStateAsync(() => CurrentDefinition(rendered)?.Ports.Count == 2);
 
         const int maximumUndoAttempts = 16;
         WorkspaceProjection projection = await workspace.ReadCurrent();
@@ -1181,6 +1154,13 @@ internal sealed class WorkbenchComponentTests
     {
         await rendered.Find($"[data-command='{command}']").ClickAsync();
         await rendered.WaitForStateAsync(statePredicate);
+    }
+
+    private static CircuitDefinition? CurrentDefinition(
+        IRenderedComponent<Editor> rendered)
+    {
+        var host = rendered.FindComponents<CircuitSceneHost>().SingleOrDefault()?.Instance;
+        return host?.ProjectRevision.Document.FindCircuitDefinition(host.CircuitDefinitionId);
     }
 
     private static bool IsDisabled<TComponent>(

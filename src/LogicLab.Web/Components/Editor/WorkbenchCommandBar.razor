@@ -1,11 +1,7 @@
 @inject IStringLocalizer<EditorText> Text
 
-<div class="command-bar"
-     role="group"
-     aria-label="@Text["WorkbenchCommandsAriaLabel"]"
-     aria-busy="@(IsBusy ? "true" : "false")"
-     data-active-command="@Model.ActiveCommand">
-    <div class="command-cluster" role="group" aria-label="@Text["NextStepAriaLabel"]">
+<div class="command-bar" data-active-command="@Model.ActiveCommand">
+    <div class="command-cluster">
         <span class="command-cluster-label">@Text["NextStep"]</span>
         <div class="workflow-actions">
             <FluentButton data-command="create"
@@ -49,31 +45,23 @@
                       Class="project-options-trigger"
                       Appearance="ButtonAppearance.Subtle"
                       Disabled="IsBusy"
-                      OnClick="ToggleProjectOptions"
-                      aria-controls="project-options-popover"
-                      aria-expanded="@(projectOptionsOpened ? "true" : "false")"
-                      aria-haspopup="dialog">@Text["ProjectOptions"]</FluentMenuButton>
+                      OnClick="ToggleProjectOptions">@Text["ProjectOptions"]</FluentMenuButton>
     <FluentPopover Id="project-options-popover"
                    Class="project-options-popover"
                    AnchorId="project-options-trigger"
                    OffsetVertical="6"
                    Width="10rem"
                    @bind-Opened="projectOptionsOpened">
-        <div class="project-options-panel"
-             role="group"
-             aria-label="@Text["ProjectCommandsAriaLabel"]">
-            <div class="project-actions" role="group">
+        <div class="project-options-panel">
+            <div class="project-actions">
                 <FluentInputFile Id="logiclab-import-picker"
                                  AnchorId="logiclab-import-trigger"
                                  Accept=".logiclab,application/vnd.logiclab+zip"
-                                 aria-hidden="true"
-                                 tabindex="-1"
                                  Disabled="@(!Model.CanImport || IsBusy)"
                                  DragDropZoneVisible="false"
                                  OnInputFileChange="OnImport" />
                 <FluentButton Id="logiclab-import-trigger"
                               data-command="import"
-                              aria-label="@Text["ImportAriaLabel"]"
                               Appearance="ButtonAppearance.Outline"
                               Disabled="@(!Model.CanImport || IsBusy)"
                               Loading="@(Model.ActiveCommand is "import")">@Text["ImportProject"]</FluentButton>

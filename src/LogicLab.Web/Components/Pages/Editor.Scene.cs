@@ -7,30 +7,6 @@ namespace LogicLab.Web.Components.Pages;
 
 public sealed partial class Editor
 {
-    private async Task HandleSceneSemanticActionAsync(SceneSemanticActionV1 action)
-    {
-        if (action is not RemoveSceneSemanticActionV1 remove
-            || Projection is not { } projection
-            || SelectedDefinitionId is not { } definitionId
-            || !string.Equals(
-                remove.Source.CircuitDefinitionId,
-                definitionId.Value,
-                StringComparison.Ordinal)
-            || projection.ProjectRevision.Document.FindCircuitDefinition(definitionId)
-                is not { } definition)
-        {
-            return;
-        }
-
-        var translator = new SceneIntentTranslator(
-            projection.ProjectRevision.Document,
-            definition);
-        if (translator.TranslateRemoval(remove.Source) is { } intent)
-        {
-            _ = await Apply(intent);
-        }
-    }
-
     private async Task HandleSceneIntentAsync(SceneIntentV1 intent)
     {
         ArgumentNullException.ThrowIfNull(intent);

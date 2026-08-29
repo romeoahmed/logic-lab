@@ -4,7 +4,6 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="AccountProtectionsAriaLabel" xml:space="preserve"><value>账户保护</value></data>
   <data name="AssuranceAttachments" xml:space="preserve"><value>受保护的编辑会话</value></data>
   <data name="AssuranceCatalog" xml:space="preserve"><value>仅自己可见的已保存项目</value></data>
   <data name="AssuranceSessions" xml:space="preserve"><value>安全且有效期固定的会话</value></data>

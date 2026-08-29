@@ -3,7 +3,6 @@ using System.Text.Json;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
 using LogicLab.Engine.Compilation;
-using LogicLab.Presentation.Scene;
 using LogicLab.Web.Scene;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Localization;
@@ -32,11 +31,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     private string? failureCode;
     private IReadOnlyList<string> projectionDiagnostics = [];
     private BrowserPolicyEvidenceV1? browserPolicyEvidence;
-    private SceneSourceRefV1? semanticWireStart;
-    private SceneSourceRefV1? semanticFocusSource;
-    private string? pendingBrowserFocusSourceKey;
-    private string? observedSelectionSourceKey;
-    private SceneToolV1? observedTool;
     private ulong rendererGeneration;
     private ulong failureEpoch;
     private int isDisposed;
@@ -49,9 +43,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     [Parameter, EditorRequired]
     public CircuitDefinitionId CircuitDefinitionId { get; set; } = null!;
-
-    [Parameter]
-    public AccessibleSceneProjection? Scene { get; set; }
 
     [Parameter]
     public EventCallback<SceneSelectionV1> OnSelect { get; set; }
@@ -77,9 +68,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     [Parameter]
     public EventCallback OnToolConsumed { get; set; }
 
-    [Parameter]
-    public EventCallback<SceneSemanticActionV1> OnSemanticAction { get; set; }
-
     [Inject]
     private IJSRuntime JS { get; set; } = null!;
 
@@ -94,8 +82,10 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     private BrowserPolicy Policy { get; } = BrowserPolicy.Development;
 
-    private int SemanticPageSize => checked((int)Policy.Limit(
-        BrowserLimitDimension.SemanticTreePageItems));
+    private CircuitDefinition Definition => ProjectRevision.Document
+        .FindCircuitDefinition(CircuitDefinitionId)
+        ?? throw new InvalidOperationException(
+            "The Scene Circuit Definition is absent from the Project Revision.");
 
     private static string UiCulture => string.Equals(
         System.Globalization.CultureInfo.CurrentUICulture.Name,
@@ -122,40 +112,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     private SceneToolV1 EffectiveTool => ActiveTool is SceneProbeToolV1 && Simulation is null
         ? SceneSelectToolV1.Instance
         : ActiveTool;
-
-    protected override void OnParametersSet()
-    {
-        if (ActiveTool is not SceneWireToolV1 || observedTool is not SceneWireToolV1)
-        {
-            semanticWireStart = null;
-        }
-
-        observedTool = ActiveTool;
-        var selectedSource = Selection is { Sources.Count: > 0 }
-            ? Selection.Sources[0]
-            : null;
-        var selectedSourceKey = selectedSource?.Key;
-        if (!string.Equals(
-                selectedSourceKey,
-                observedSelectionSourceKey,
-                StringComparison.Ordinal))
-        {
-            observedSelectionSourceKey = selectedSourceKey;
-            if (selectedSource is not null)
-            {
-                semanticFocusSource = selectedSource;
-                pendingBrowserFocusSourceKey = selectedSource.Key;
-            }
-        }
-
-        if (semanticFocusSource is { } focusedSource
-            && (focusedSource.CircuitDefinitionId != CircuitDefinitionId.Value
-                || !SemanticSourceKeys().Contains(focusedSource.Key)))
-        {
-            semanticFocusSource = null;
-            pendingBrowserFocusSourceKey = null;
-        }
-    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -203,23 +159,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         }
 
         await PublishIfRequiredAsync();
-        if (adapter is null
-            || currentSnapshot is null
-            || pendingBrowserFocusSourceKey is not { } sourceKey)
-        {
-            return;
-        }
-
-        try
-        {
-            await adapter.FocusSourceAsync(sourceKey, componentLifetime.Token);
-            pendingBrowserFocusSourceKey = null;
-        }
-        catch (Exception exception) when (IsRecoverable(exception))
-        {
-            pendingBrowserFocusSourceKey = null;
-            FailClosed("web_interop_failure");
-        }
     }
 
     private async Task ReceiveSceneIntentAsync(ulong generation, JsonElement record)
@@ -321,7 +260,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             return;
         }
 
-        var sourceKeys = SemanticSourceKeys();
         if (payloadBytes > Policy.Limit(BrowserLimitDimension.SemanticIntentBytes)
             || selection.Sources is null
             || selection.SelectionMode is not ("replace" or "add" or "toggle")
@@ -330,17 +268,11 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
                 .Distinct(StringComparer.Ordinal).Count() != selection.Sources.Count
             || selection.Sources.Any(source => source is null
                 || source.CircuitDefinitionId
-                != snapshot.CircuitDefinitionId || !sourceKeys.Contains(source.Key)))
+                != snapshot.CircuitDefinitionId
+                || !SceneSourceMap.Contains(ProjectRevision, source)))
         {
             await RequestSnapshotAsync();
             return;
-        }
-
-        if (selection.Sources.Count > 0)
-        {
-            var focusedSource = selection.Sources[0];
-            semanticFocusSource = focusedSource;
-            pendingBrowserFocusSourceKey = focusedSource.Key;
         }
 
         await OnSelect.InvokeAsync(new SceneSelectionV1(
@@ -672,327 +604,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             {
             }
         }
-    }
-
-    private async Task HandleSemanticSelectionAsync(SceneSelectionV1 selection)
-    {
-        if (selection.Sources.Count > 0)
-        {
-            var focusedSource = selection.Sources[0];
-            semanticFocusSource = focusedSource;
-            pendingBrowserFocusSourceKey = focusedSource.Key;
-        }
-
-        var snapshot = currentSnapshot;
-        if (snapshot is null)
-        {
-            await OnSelect.InvokeAsync(selection);
-            return;
-        }
-
-        if (adapter is not null)
-        {
-            try
-            {
-                await adapter.SetSelectionAsync(
-                    selection.Sources,
-                    selection.SelectionMode,
-                    componentLifetime.Token);
-            }
-            catch (Exception exception) when (IsRecoverable(exception))
-            {
-                FailClosed("web_interop_failure");
-                await OnSelect.InvokeAsync(selection);
-                return;
-            }
-        }
-
-        var intent = new SelectSourcesSceneIntentV1(
-            snapshot.BuildFingerprint,
-            snapshot.SceneVersion,
-            snapshot.ProjectionVersion,
-            snapshot.CircuitDefinitionId,
-            selection.Sources,
-            selection.SelectionMode);
-        var payloadBytes = (ulong)JsonSerializer.SerializeToUtf8Bytes<SceneIntentV1>(
-            intent,
-            SceneJsonSerializerContext.Strict.SceneIntentV1).Length;
-        await ReceiveSceneIntentCoreAsync(intent, payloadBytes);
-    }
-
-    private Task HandleSemanticFocusAsync(SceneSourceRefV1 source)
-    {
-        semanticFocusSource = source;
-        pendingBrowserFocusSourceKey = source.Key;
-        return Task.CompletedTask;
-    }
-
-    private async Task HandleSemanticActionAsync(SceneSemanticActionV1 action)
-    {
-        ArgumentNullException.ThrowIfNull(action);
-        if (ActiveTool is not SceneWireToolV1)
-        {
-            semanticWireStart = null;
-        }
-
-        switch (action)
-        {
-            case ActivateSceneSemanticActionV1 activate:
-                await ActivateSemanticSourceAsync(
-                    activate.Source,
-                    activate.SelectionMode);
-                break;
-            case NudgeSceneSemanticActionV1 nudge:
-                await NudgeSemanticSourceAsync(nudge);
-                break;
-            case RemoveSceneSemanticActionV1:
-                await OnSemanticAction.InvokeAsync(action);
-                break;
-            default:
-                throw new InvalidOperationException("The semantic Scene action is undefined.");
-        }
-    }
-
-    private async Task ActivateSemanticSourceAsync(
-        SceneSourceRefV1 source,
-        string selectionMode)
-    {
-        switch (EffectiveTool)
-        {
-            case SceneSelectToolV1:
-                await HandleSemanticSelectionAsync(new SceneSelectionV1(
-                    [source],
-                    selectionMode));
-                break;
-            case SceneProbeToolV1 probe when Simulation is not null
-                && ResolveNetSource(source) is { } net:
-                await DispatchSemanticIntentAsync(new ToggleProbeSceneIntentV1(
-                    LogicLabWebBuild.Fingerprint,
-                    SemanticSceneVersion,
-                    ProjectionVersion,
-                    CircuitDefinitionId.Value,
-                    new SceneElaboratedNetRefV1(net, probe.HierarchyPath)));
-                break;
-            case SceneWireToolV1:
-                await ContinueSemanticWireAsync(source);
-                break;
-        }
-    }
-
-    private async Task ContinueSemanticWireAsync(SceneSourceRefV1 source)
-    {
-        if (Terminal(source) is null && ResolveNetSource(source) is null)
-        {
-            return;
-        }
-
-        if (semanticWireStart is null)
-        {
-            semanticWireStart = source;
-            await HandleSemanticSelectionAsync(new SceneSelectionV1([source], "replace"));
-            return;
-        }
-
-        var start = semanticWireStart;
-        semanticWireStart = null;
-        var startTerminal = Terminal(start);
-        var endTerminal = Terminal(source);
-        var startNet = ResolveNetSource(start);
-        var endNet = ResolveNetSource(source);
-        IReadOnlyList<SceneTerminalRefV1> terminals;
-        SceneSourceRefV1? destinationNet;
-        if (startTerminal is not null && endTerminal is not null && start.Key != source.Key)
-        {
-            terminals = [startTerminal, endTerminal];
-            destinationNet = null;
-        }
-        else if (startTerminal is not null && endNet is not null)
-        {
-            terminals = [startTerminal];
-            destinationNet = endNet;
-        }
-        else if (startNet is not null && endTerminal is not null)
-        {
-            terminals = [endTerminal];
-            destinationNet = startNet;
-        }
-        else
-        {
-            return;
-        }
-
-        await DispatchSemanticIntentAsync(new CommitWireSceneIntentV1(
-            LogicLabWebBuild.Fingerprint,
-            SemanticSceneVersion,
-            ProjectionVersion,
-            CircuitDefinitionId.Value,
-            terminals,
-            destinationNet,
-            [],
-            [SceneWireRouting.Between(currentSnapshot, start, source)],
-            [],
-            "none"));
-    }
-
-    private async Task NudgeSemanticSourceAsync(NudgeSceneSemanticActionV1 action)
-    {
-        if (Scene is null || action.Source.CircuitDefinitionId != CircuitDefinitionId.Value)
-        {
-            return;
-        }
-
-        SceneIntentV1? intent = action.Source.EntityKind switch
-        {
-            "componentInstance" => NudgeComponent(action),
-            "definitionPort" => NudgeDefinitionPort(action),
-            "annotation" => NudgeAnnotation(action),
-            _ => null,
-        };
-        if (intent is not null)
-        {
-            await DispatchSemanticIntentAsync(intent);
-        }
-    }
-
-    private MoveComponentsSceneIntentV1? NudgeComponent(NudgeSceneSemanticActionV1 action)
-    {
-        var component = Scene!.Components.SingleOrDefault(item => string.Equals(
-            item.Source.ComponentInstanceId.Value,
-            action.Source.EntityId,
-            StringComparison.Ordinal));
-        var translated = component is null
-            ? null
-            : Translate(component.Placement.Origin, action);
-        if (component is null || translated is null)
-        {
-            return null;
-        }
-
-        return new MoveComponentsSceneIntentV1(
-            LogicLabWebBuild.Fingerprint,
-            SemanticSceneVersion,
-            ProjectionVersion,
-            CircuitDefinitionId.Value,
-            [new SceneComponentMoveV1(
-                action.Source,
-                new SceneComponentPlacementV1(
-                    translated,
-                    (int)component.Placement.QuarterTurnsClockwise,
-                    component.Placement.Reflected))],
-            "none");
-    }
-
-    private MoveDefinitionPortsSceneIntentV1? NudgeDefinitionPort(
-        NudgeSceneSemanticActionV1 action)
-    {
-        var port = Scene!.DefinitionPorts.SingleOrDefault(item => string.Equals(
-            item.Source.DefinitionPortId.Value,
-            action.Source.EntityId,
-            StringComparison.Ordinal));
-        var translated = port is null ? null : Translate(port.Placement.Position, action);
-        if (port is null || translated is null)
-        {
-            return null;
-        }
-
-        return new MoveDefinitionPortsSceneIntentV1(
-            LogicLabWebBuild.Fingerprint,
-            SemanticSceneVersion,
-            ProjectionVersion,
-            CircuitDefinitionId.Value,
-            [new SceneDefinitionPortMoveV1(
-                action.Source,
-                new SceneDefinitionPortPlacementV1(
-                    translated,
-                    port.Placement.Facing.ToString().ToLowerInvariant()))],
-            "none");
-    }
-
-    private MoveAnnotationsSceneIntentV1? NudgeAnnotation(NudgeSceneSemanticActionV1 action)
-    {
-        var annotation = Scene!.Annotations.SingleOrDefault(item => string.Equals(
-            item.Source.AnnotationId.Value,
-            action.Source.EntityId,
-            StringComparison.Ordinal));
-        var translated = annotation is null ? null : Translate(annotation.Position, action);
-        if (annotation is null || translated is null)
-        {
-            return null;
-        }
-
-        return new MoveAnnotationsSceneIntentV1(
-            LogicLabWebBuild.Fingerprint,
-            SemanticSceneVersion,
-            ProjectionVersion,
-            CircuitDefinitionId.Value,
-            [new SceneAnnotationMoveV1(
-                action.Source,
-                translated)],
-            "none");
-    }
-
-    private async Task DispatchSemanticIntentAsync(SceneIntentV1 intent)
-    {
-        publishedKey = null;
-        await OnIntent.InvokeAsync(intent);
-    }
-
-    private ulong SemanticSceneVersion => currentSnapshot?.SceneVersion
-        ?? Math.Max(nextSceneVersion, 1UL);
-
-    private static SceneGridPointV1? Translate(
-        GridPoint point,
-        NudgeSceneSemanticActionV1 action)
-    {
-        var translatedX = (long)point.X + action.DeltaX;
-        var translatedY = (long)point.Y + action.DeltaY;
-        return translatedX is < int.MinValue or > int.MaxValue
-            || translatedY is < int.MinValue or > int.MaxValue
-                ? null
-                : new SceneGridPointV1((int)translatedX, (int)translatedY);
-    }
-
-    private SceneSourceRefV1? ResolveNetSource(SceneSourceRefV1 source)
-    {
-        if (source.EntityKind == "net")
-        {
-            return source;
-        }
-
-        var connection = source.EntityKind switch
-        {
-            "junction" => Scene?.Connections.SingleOrDefault(item => item.Junctions.Any(
-                junction => junction.Source.JunctionId.Value == source.EntityId)),
-            "wireGeometry" => Scene?.Connections.SingleOrDefault(item => item.WireGeometries.Any(
-                wire => wire.Source.WireGeometryId.Value == source.EntityId)),
-            _ => null,
-        };
-        return connection is null ? null : SceneSourceMap.From(connection);
-    }
-
-    private static SceneTerminalRefV1? Terminal(SceneSourceRefV1 source) =>
-        source.EntityKind switch
-        {
-            "definitionPort" => new SceneDefinitionTerminalRefV1(
-                source.CircuitDefinitionId,
-                source.EntityId),
-            "instancePort" when source.PortId is not null => new SceneInstanceTerminalRefV1(
-                source.CircuitDefinitionId,
-                source.EntityId,
-                source.PortId),
-            _ => null,
-        };
-
-    private HashSet<string> SemanticSourceKeys()
-    {
-        if (Scene is null)
-        {
-            return [];
-        }
-
-        return SceneSourceMap.Enumerate(Scene)
-            .Select(source => source.Key)
-            .ToHashSet(StringComparer.Ordinal);
     }
 
     private Task RequestSnapshotAsync()

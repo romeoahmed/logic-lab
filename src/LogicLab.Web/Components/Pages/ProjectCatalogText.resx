@@ -4,7 +4,6 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="CatalogAriaLabel" xml:space="preserve"><value>Saved projects</value></data>
   <data name="Description" xml:space="preserve"><value>Reopen a saved circuit and continue editing.</value></data>
   <data name="EmptyDescription" xml:space="preserve"><value>Start in the Sandbox, then save the circuits you want to keep.</value></data>
   <data name="EmptyOpenWorkbench" xml:space="preserve"><value>Open the Sandbox Workbench</value></data>
@@ -13,9 +12,7 @@
   <data name="IndexTitle" xml:space="preserve"><value>Your project index</value></data>
   <data name="NextPage" xml:space="preserve"><value>Next page</value></data>
   <data name="OpenProject" xml:space="preserve"><value>Open project</value></data>
-  <data name="OpenProjectAriaLabel" xml:space="preserve"><value>Open {0}</value></data>
   <data name="PageTitle" xml:space="preserve"><value>Saved projects</value></data>
-  <data name="PaginationAriaLabel" xml:space="preserve"><value>Project catalog pages</value></data>
   <data name="PrivateCatalog" xml:space="preserve"><value>Private to your account</value></data>
   <data name="ProjectCountOne" xml:space="preserve"><value>1 project</value></data>
   <data name="ProjectCountOther" xml:space="preserve"><value>{0} projects</value></data>

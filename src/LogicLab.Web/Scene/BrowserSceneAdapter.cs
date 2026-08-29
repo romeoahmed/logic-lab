@@ -189,28 +189,6 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         return handle.InvokeVoidAsync("setTool", cancellationToken, tool);
     }
 
-    public ValueTask FocusSourceAsync(string sourceKey, CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceKey);
-        return handle.InvokeVoidAsync("focusSource", cancellationToken, sourceKey);
-    }
-
-    public ValueTask SetSelectionAsync(
-        IReadOnlyList<SceneSourceRefV1> sources,
-        string selectionMode,
-        CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-        ArgumentNullException.ThrowIfNull(sources);
-        ArgumentException.ThrowIfNullOrWhiteSpace(selectionMode);
-        return handle.InvokeVoidAsync(
-            "setSelection",
-            cancellationToken,
-            sources,
-            selectionMode);
-    }
-
     public async ValueTask<BrowserSceneRecoveryStateV1> CaptureRecoveryStateAsync(
         CancellationToken cancellationToken)
     {
@@ -500,7 +478,6 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         policy.Limit(BrowserLimitDimension.EffectiveDensityMillionths),
         policy.Limit(BrowserLimitDimension.ZoomMillionthsMinimum),
         policy.Limit(BrowserLimitDimension.ZoomMillionthsMaximum),
-        policy.Limit(BrowserLimitDimension.SemanticTreePageItems),
         policy.Limit(BrowserLimitDimension.DisplayListBytes),
         policy.Limit(BrowserLimitDimension.SpatialIndexBytes),
         policy.Limit(BrowserLimitDimension.SceneCacheBytes),
@@ -540,7 +517,6 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         ulong EffectiveDensityMillionths,
         ulong ZoomMillionthsMinimum,
         ulong ZoomMillionthsMaximum,
-        ulong SemanticTreePageItems,
         ulong DisplayListBytes,
         ulong SpatialIndexBytes,
         ulong SceneCacheBytes,

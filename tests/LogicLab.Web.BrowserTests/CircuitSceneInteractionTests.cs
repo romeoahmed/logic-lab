@@ -161,24 +161,6 @@ internal sealed class CircuitSceneInteractionTests : PageTest
     }
 
     [Test]
-    public async Task CanvasKeyboardNavigation_CurrentSemanticPage_FocusesAndActivatesTarget()
-    {
-        var scene = await ReadySceneAsync();
-        await scene.Canvas.FocusAsync();
-
-        await Page.Keyboard.PressAsync("ArrowRight");
-        await Expect(scene.SemanticSource("Component B")).ToBeFocusedAsync();
-        await Page.Keyboard.PressAsync("Enter");
-
-        await Expect(scene.EventLog).ToHaveAttributeAsync(
-            "data-semantic-source",
-            SceneTestSnapshot.SourceB.Key);
-        await Expect(scene.EventLog).ToHaveAttributeAsync(
-            "data-semantic-activations",
-            "1");
-    }
-
-    [Test]
     public async Task ReconnectModal_DisconnectedScene_PansWithoutAuthoringIntent()
     {
         var scene = await ReadySceneAsync();
@@ -254,7 +236,7 @@ internal sealed class CircuitSceneInteractionTests : PageTest
         var scene = await ReadySceneAsync();
         var automatic = await scene.CaptureRecoveryStateAsync();
 
-        await scene.Zoom("Zoom in").ClickAsync();
+        await scene.Zoom("in").ClickAsync();
 
         var customized = (await scene.CaptureRecoveryStateAsync()).Viewports.Single();
         using (Assert.Multiple())

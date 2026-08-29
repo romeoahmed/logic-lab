@@ -17,7 +17,6 @@ import {
   orthogonalDragRoute,
   rectFromPoints,
   selectionModeFromModifiers,
-  semanticNavigationDirection,
   terminalFromSource,
   terminalWireRoute,
   translateComponentPlacement,
@@ -94,7 +93,7 @@ class CircuitSceneHandle {
     this.viewport = { x: 0, y: 0, zoom: 1 };
     this.savedViewports = validateRecoveryState(recoveryState, policy);
     this.viewportIsUserControlled = false;
-    this.focusedSource = null;
+    this.primarySelectionSource = null;
     this.hoveredSource = null;
     this.selectedSources = new Set();
     this.gesture = null;
@@ -103,7 +102,6 @@ class CircuitSceneHandle {
     this.pendingIntent = null;
     this.spacePan = false;
     this.connected = true;
-    this.sceneOwnsDocumentFocus = false;
     this.pendingFrame = 0;
     this.dirty = false;
     this.cssWidth = 0;
@@ -369,38 +367,6 @@ class CircuitSceneHandle {
     this.activeToolKey = key;
   }
 
-  focusSource(sourceKey) {
-    this.ensureLive();
-    if (this.semanticSourceKeys().includes(sourceKey)) {
-      this.focusedSource = sourceKey;
-      this.invalidate();
-    }
-  }
-
-  setSelection(sources, selectionMode) {
-    this.ensureLive();
-    const available = new Set(this.sourceKeys());
-    if (!Array.isArray(sources)
-        || !["replace", "add", "toggle"].includes(selectionMode)
-        || (sources.length === 0 && selectionMode !== "replace")
-        || !this.published
-        || sources.some((source) => !validSource(
-          source,
-          this.published.circuitDefinitionId,
-        ) || !available.has(sourceKey(source)))) {
-      throw new Error("invalid semantic Scene selection");
-    }
-
-    const sourceKeys = sources.map(sourceKey);
-    this.updateSelection(sourceKeys, selectionMode);
-    if (sourceKeys.length > 0) {
-      this.focusedSource = this.semanticSourceKeys().includes(sourceKeys[0])
-        ? sourceKeys[0]
-        : null;
-    }
-    this.invalidate();
-  }
-
   captureRecoveryState() {
     this.ensureLive();
     this.rememberPublishedViewport();
@@ -451,6 +417,7 @@ class CircuitSceneHandle {
     this.transfers.clear();
     this.savedViewports.clear();
     this.selectedSources.clear();
+    this.primarySelectionSource = null;
     this.hoveredSource = null;
     this.published = null;
     this.spatialIndex.clear();
@@ -485,16 +452,13 @@ class CircuitSceneHandle {
       this.spatialIndex = spatialIndex;
       this.sourcesByKey = sourceIndex.sourcesByKey;
       this.targetsBySource = sourceIndex.targetsBySource;
-      this.focusedSource = null;
+      this.primarySelectionSource = null;
       this.selectedSources.clear();
       this.clearCanvas();
       this.canvas.dataset.sceneLocalUnavailable = "";
       return;
     }
 
-    const priorKeys = this.sourceKeys();
-    const priorFocusIndex = Math.max(0, priorKeys.indexOf(this.focusedSource));
-    const shouldRecoverFocus = this.sceneOwnsDocumentFocus;
     this.published = validated.value;
     delete this.canvas.dataset.sceneLocalUnavailable;
     this.spatialIndex = spatialIndex;
@@ -508,15 +472,11 @@ class CircuitSceneHandle {
       this.fitViewport();
     }
 
-    const keys = this.semanticSourceKeys();
-    if (!keys.includes(this.focusedSource)) {
-      this.focusedSource = keys[Math.min(priorFocusIndex, Math.max(0, keys.length - 1))] ?? null;
-      this.recoverDocumentFocus(shouldRecoverFocus);
-    }
-
-    this.selectedSources = new Set(validated.value.overlays
-      .filter((overlay) => overlay.kind === "selection")
-      .map((overlay) => sourceKey(overlay.source)));
+    const selectionOverlays = validated.value.overlays
+      .filter((overlay) => overlay.kind === "selection");
+    this.selectedSources = new Set(selectionOverlays.map((overlay) => sourceKey(overlay.source)));
+    const primary = selectionOverlays.find((overlay) => overlay.role === "primary");
+    this.primarySelectionSource = primary ? sourceKey(primary.source) : null;
     this.invalidate();
   }
 
@@ -561,14 +521,6 @@ class CircuitSceneHandle {
     }, { signal });
     this.canvas.addEventListener("contextlost", () => this.contextLost(), { signal });
     this.canvas.addEventListener("contextrestored", () => this.contextRestored(), { signal });
-    this.host.addEventListener("focusin", (event) => this.semanticFocus(event), { signal });
-    document.addEventListener("focusin", (event) => {
-      const ownsDocumentFocus = this.host.contains(event.target);
-      if (ownsDocumentFocus !== this.sceneOwnsDocumentFocus) {
-        this.sceneOwnsDocumentFocus = ownsDocumentFocus;
-        this.invalidate();
-      }
-    }, { signal });
     for (const control of this.host.querySelectorAll("[data-scene-zoom]")) {
       control.addEventListener("click", () => this.zoomControl(control.dataset.sceneZoom), { signal });
     }
@@ -637,9 +589,9 @@ class CircuitSceneHandle {
       return;
     }
 
-    const focusAnchor = this.viewportIsUserControlled ? this.focusedResizeAnchor() : null;
+    const selectionAnchor = this.viewportIsUserControlled ? this.selectionResizeAnchor() : null;
     const center = this.viewportIsUserControlled
-      && !focusAnchor && this.cssWidth > 0 && this.cssHeight > 0
+      && !selectionAnchor && this.cssWidth > 0 && this.cssHeight > 0
       ? this.screenToWorld({ x: this.cssWidth / 2, y: this.cssHeight / 2 })
       : null;
     this.cssWidth = rect.width;
@@ -658,9 +610,9 @@ class CircuitSceneHandle {
 
     if (!this.viewportIsUserControlled && this.published) {
       this.fitViewport();
-    } else if (focusAnchor) {
-      this.viewport.x = focusAnchor.screen.x - (focusAnchor.world.x * this.viewport.zoom);
-      this.viewport.y = focusAnchor.screen.y - (focusAnchor.world.y * this.viewport.zoom);
+    } else if (selectionAnchor) {
+      this.viewport.x = selectionAnchor.screen.x - (selectionAnchor.world.x * this.viewport.zoom);
+      this.viewport.y = selectionAnchor.screen.y - (selectionAnchor.world.y * this.viewport.zoom);
     } else if (center) {
       this.viewport.x = (this.cssWidth / 2) - (center.x * this.viewport.zoom);
       this.viewport.y = (this.cssHeight / 2) - (center.y * this.viewport.zoom);
@@ -765,7 +717,7 @@ class CircuitSceneHandle {
 
   drawOverlays(context, styles) {
     const selected = this.selectedSources;
-    const focused = this.sceneOwnsDocumentFocus ? this.focusedSource : null;
+    const primary = this.primarySelectionSource;
 
     for (const overlay of this.published.overlays) {
       if (overlay.kind === "liveNetValue") {
@@ -813,8 +765,8 @@ class CircuitSceneHandle {
 
       for (const target of targets) {
         const key = sourceKey(target.source);
-        const isFocused = key === focused;
-        if (!isFocused && !selected.has(key)) {
+        const isPrimary = key === primary;
+        if (!isPrimary && !selected.has(key)) {
           continue;
         }
 
@@ -822,7 +774,7 @@ class CircuitSceneHandle {
         context.save();
         context.strokeStyle = cssColor(styles, "--ll-signal", "#08788c");
         context.lineWidth = 3 / this.viewport.zoom;
-        context.setLineDash(isFocused ? [8, 5] : []);
+        context.setLineDash(isPrimary ? [8, 5] : []);
         context.strokeRect(
           bounds.left,
           bounds.top,
@@ -1137,61 +1089,12 @@ class CircuitSceneHandle {
       return;
     }
 
-    const navigationDirection = semanticNavigationDirection(event.key);
-    const semanticSourceTarget = event.target?.closest?.("[data-scene-source]") ?? null;
-    if (navigationDirection
-      && (canvasIsTarget || semanticSourceTarget !== null)
-      && this.navigateSemanticSource(navigationDirection)) {
-      event.preventDefault();
-    } else if (event.key === "Enter" && canvasIsTarget && this.focusedSource) {
-      const escaped = CSS.escape(this.focusedSource);
-      this.host.querySelector(`[data-scene-source="${escaped}"]`)?.click();
-      event.preventDefault();
-    }
   }
 
   keyUp(event) {
     if (event.key === " ") {
       this.spacePan = false;
     }
-  }
-
-  semanticFocus(event) {
-    this.sceneOwnsDocumentFocus = true;
-    const sourceKey = event.target?.closest?.("[data-scene-source]")?.dataset.sceneSource;
-    if (sourceKey && this.sourceKeys().includes(sourceKey)) {
-      this.focusedSource = sourceKey;
-      this.invalidate();
-    }
-  }
-
-  navigateSemanticSource(direction) {
-    const escaped = this.focusedSource ? CSS.escape(this.focusedSource) : null;
-    const current = escaped
-      ? this.host.querySelector(`[data-scene-source="${escaped}"]`)
-      : this.host.querySelector("[data-scene-navigation-start]");
-    if (!current) {
-      return false;
-    }
-
-    const targetKey = current.getAttribute(`data-scene-navigation-${direction}`)
-      ?? (!this.focusedSource ? current.dataset.sceneSource : null);
-    const targetSource = targetKey ? this.sourceByKey(targetKey) : null;
-    if (!targetSource) {
-      return false;
-    }
-
-    const target = this.host.querySelector(
-      `[data-scene-source="${CSS.escape(targetKey)}"]`,
-    );
-    if (!target) {
-      return false;
-    }
-
-    this.focusedSource = targetKey;
-    target.focus({ preventScroll: true });
-    this.invalidate();
-    return true;
   }
 
   reconnectStateChanged(event) {
@@ -1264,11 +1167,6 @@ class CircuitSceneHandle {
     if (committed) {
       const keys = sources.map(sourceKey);
       this.updateSelection(keys, selectionMode);
-      if (keys.length > 0) {
-        this.focusedSource = this.semanticSourceKeys().includes(keys[0])
-          ? keys[0]
-          : null;
-      }
       this.invalidate();
     }
   }
@@ -1501,8 +1399,10 @@ class CircuitSceneHandle {
   updateSelection(sourceKeys, selectionMode) {
     if (selectionMode === "replace") {
       this.selectedSources = new Set(sourceKeys);
+      this.primarySelectionSource = sourceKeys[0] ?? null;
     } else if (selectionMode === "add") {
       sourceKeys.forEach((sourceKey) => this.selectedSources.add(sourceKey));
+      this.primarySelectionSource ??= sourceKeys[0] ?? null;
     } else {
       for (const sourceKey of sourceKeys) {
         if (this.selectedSources.has(sourceKey)) {
@@ -1510,6 +1410,9 @@ class CircuitSceneHandle {
         } else {
           this.selectedSources.add(sourceKey);
         }
+      }
+      if (!this.selectedSources.has(this.primarySelectionSource)) {
+        this.primarySelectionSource = this.selectedSources.values().next().value ?? null;
       }
     }
   }
@@ -1606,13 +1509,6 @@ class CircuitSceneHandle {
     return [...this.sourcesByKey.keys()];
   }
 
-  semanticSourceKeys() {
-    const available = new Set(this.sourceKeys());
-    return [...this.host.querySelectorAll("[data-scene-source]")]
-      .map((element) => element.dataset.sceneSource)
-      .filter((key) => key && available.has(key));
-  }
-
   sourceByKey(key) {
     return this.sourcesByKey.get(key) ?? null;
   }
@@ -1621,8 +1517,10 @@ class CircuitSceneHandle {
     return this.targetsBySource.get(sourceKey(source)) ?? null;
   }
 
-  focusedResizeAnchor() {
-    const source = this.focusedSource ? this.sourceByKey(this.focusedSource) : null;
+  selectionResizeAnchor() {
+    const source = this.primarySelectionSource
+      ? this.sourceByKey(this.primarySelectionSource)
+      : null;
     const target = source ? this.targetBySource(source) : null;
     if (!target) {
       return null;
@@ -1658,16 +1556,6 @@ class CircuitSceneHandle {
     this.viewportIsUserControlled = false;
   }
 
-  recoverDocumentFocus(shouldRecover) {
-    if (!shouldRecover || !this.focusedSource) {
-      return;
-    }
-
-    const escaped = CSS.escape(this.focusedSource);
-    const fallback = this.host.querySelector(`[data-scene-source="${escaped}"]`);
-    (fallback ?? this.canvas).focus({ preventScroll: true });
-  }
-
   clearCanvas() {
     if (!this.context || this.contextIsLost) {
       return;
@@ -1681,7 +1569,7 @@ class CircuitSceneHandle {
     this.cancelGesture();
     this.hoveredSource = null;
     this.pendingIntent = null;
-    this.focusedSource = null;
+    this.primarySelectionSource = null;
     this.selectedSources.clear();
     this.transfers.clear();
     this.published = null;

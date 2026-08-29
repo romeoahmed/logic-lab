@@ -65,7 +65,6 @@ Diagram Presentation rejection produces `SceneUnavailableV1`, never a partial sn
 ```text
 LiveNetValue { ElaboratedNetRefV1, SessionId, SessionVersion, LogicVectorTransferV1 }
 Selection { AuthoredSourceRefV1, role: Primary | Member }
-KeyboardFocus { AuthoredSourceRefV1 }
 ProbeAnchor { ProbeId, ElaboratedNetRefV1, point: PointV1, appearanceOrdinal: u32 }
 DiagnosticMarker { AuthoredSourceRefV1, DiagnosticCode, severity, diagnosticOrdinal: u32 }
 ```

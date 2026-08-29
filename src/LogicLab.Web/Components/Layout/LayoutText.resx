@@ -10,11 +10,9 @@
   <data name="ErrorMessage" xml:space="preserve"><value>The page stopped unexpectedly. Reload it to continue.</value></data>
   <data name="ErrorTitle" xml:space="preserve"><value>Something went wrong</value></data>
   <data name="Help" xml:space="preserve"><value>Help</value></data>
-  <data name="HomeAriaLabel" xml:space="preserve"><value>Logic Lab home</value></data>
   <data name="Language" xml:space="preserve"><value>Language</value></data>
   <data name="LogIn" xml:space="preserve"><value>Log in</value></data>
   <data name="LogOut" xml:space="preserve"><value>Log out</value></data>
-  <data name="PrimaryNavigationAriaLabel" xml:space="preserve"><value>Primary navigation</value></data>
   <data name="Projects" xml:space="preserve"><value>Projects</value></data>
   <data name="ReconnectEyebrow" xml:space="preserve"><value>Connection state</value></data>
   <data name="ReconnectFailed" xml:space="preserve"><value>Failed to rejoin.</value></data>
@@ -27,7 +25,6 @@
   <data name="Resume" xml:space="preserve"><value>Resume</value></data>
   <data name="Reload" xml:space="preserve"><value>Reload</value></data>
   <data name="ResumeFailed" xml:space="preserve"><value>Failed to resume the session.</value></data>
-  <data name="SkipToContent" xml:space="preserve"><value>Skip to content</value></data>
   <data name="Retry" xml:space="preserve"><value>Retry</value></data>
   <data name="SessionPaused" xml:space="preserve"><value>The session has been paused by the server.</value></data>
   <data name="Workbench" xml:space="preserve"><value>Workbench</value></data>

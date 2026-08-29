@@ -3,7 +3,6 @@ using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
-using LogicLab.Presentation.Scene;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Scene;
 using LogicLab.Web.Transfers;
@@ -45,8 +44,6 @@ public sealed partial class Editor : IAsyncDisposable
 
     private WorkspaceAttachmentFailure? AttachmentFailure { get; set; }
 
-    private AccessibleSceneProjection? Scene { get; set; }
-
     private SceneSelectionV1? SceneSelection { get; set; }
 
     private SceneToolV1 SceneTool { get; set; } = SceneSelectToolV1.Instance;
@@ -54,6 +51,11 @@ public sealed partial class Editor : IAsyncDisposable
     private IReadOnlyList<ScenePlaceOptionV1> ScenePlaceOptions { get; set; } = [];
 
     private CircuitDefinitionId? SelectedDefinitionId { get; set; }
+
+    private CircuitDefinition? SelectedDefinition => Projection is null
+        || SelectedDefinitionId is null
+            ? null
+            : Projection.ProjectRevision.Document.FindCircuitDefinition(SelectedDefinitionId);
 
     private List<HierarchyNavigationStep> HierarchyNavigation { get; } = [];
 
@@ -135,9 +137,6 @@ public sealed partial class Editor : IAsyncDisposable
 
     [Inject]
     private IStringLocalizer<EditorText> Text { get; set; } = null!;
-
-    [Inject]
-    private WorkspacePolicy WorkspacePolicy { get; set; } = null!;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -1047,7 +1046,6 @@ public sealed partial class Editor : IAsyncDisposable
     {
         Projection = null;
         Attachment = null;
-        Scene = null;
         SelectedDefinitionId = null;
         HierarchyNavigation.Clear();
         StimulusIsScheduled = false;
@@ -1177,7 +1175,6 @@ public sealed partial class Editor : IAsyncDisposable
     {
         if (Projection is null)
         {
-            Scene = null;
             ScenePlaceOptions = [];
             SceneTool = SceneSelectToolV1.Instance;
             return;
@@ -1185,24 +1182,11 @@ public sealed partial class Editor : IAsyncDisposable
 
         var document = Projection.ProjectRevision.Document;
         NormalizeHierarchyNavigation(document);
-        var selectedDefinitionId = SelectedDefinitionId
+        _ = SelectedDefinitionId
             ?? throw new InvalidOperationException("The Scene definition is unavailable.");
         ScenePlaceOptions = ScenePlaceCatalog.Build(document);
         EnsureSceneToolAvailable();
-
-        if (AccessibleSceneProjector.TryProject(
-                Projection.ProjectRevision,
-                selectedDefinitionId,
-                checked((ulong)WorkspacePolicy.AuthoringLimits.EntityCount),
-                out var scene))
-        {
-            Scene = scene;
-            NormalizeSceneSelection();
-            return;
-        }
-
-        Scene = null;
-        Status = Text["ScenePolicyExceeded"];
+        NormalizeSceneSelection();
     }
 
     private Task ChangeSceneToolAsync(SceneToolV1 tool)
@@ -1293,18 +1277,15 @@ public sealed partial class Editor : IAsyncDisposable
 
     private void NormalizeSceneSelection()
     {
-        if (SceneSelection is null || Scene is null)
+        if (SceneSelection is null || Projection is null || SelectedDefinitionId is null)
         {
             SceneSelection = null;
             return;
         }
 
-        var available = SceneSourceMap.Enumerate(Scene)
-            .Select(source => source.Key)
-            .ToHashSet(StringComparer.Ordinal);
         var retained = SceneSelection.Sources
             .Where(source => source.CircuitDefinitionId == SelectedDefinitionId?.Value
-                && available.Contains(source.Key))
+                && SceneSourceMap.Contains(Projection.ProjectRevision, source))
             .ToArray();
         SceneSelection = retained.Length == 0
             ? null

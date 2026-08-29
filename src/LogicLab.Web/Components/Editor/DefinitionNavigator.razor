@@ -1,6 +1,6 @@
 @inject IStringLocalizer<EditorText> Text
 
-<section class="definition-navigator" aria-label="@Text["CircuitDefinitionNavigationAriaLabel"]">
+<section class="definition-navigator">
     <header class="definition-navigator-heading">
         <p>@Text["DefinitionContext"]</p>
         <span>@Text["TabsHierarchyEntry"]</span>
@@ -15,7 +15,7 @@
         }
         else
         {
-            <nav class="definition-tabs" aria-label="@Text["OpenDefinitionsAriaLabel"]">
+            <nav class="definition-tabs">
                 @foreach (var definition in Document.CircuitDefinitions
                     .OrderBy(item => item.DisplayName, StringComparer.Ordinal)
                     .ThenBy(item => item.Id.Value, StringComparer.Ordinal))
@@ -35,7 +35,7 @@
             </nav>
 
             <div class="hierarchy-row">
-                <nav aria-label="@Text["HierarchyPathAriaLabel"]">
+                <nav>
                     <ol data-hierarchy-breadcrumb>
                         @foreach (var breadcrumb in Breadcrumbs)
                         {
@@ -69,7 +69,7 @@
                     .ToArray();
                 @if (calls.Length != 0)
                 {
-                    <div class="occurrence-links" role="group" aria-label="@Text["ChildOccurrencesAriaLabel"]">
+                    <div class="occurrence-links">
                         @foreach (var call in calls)
                         {
                             <button @key="call.Id"

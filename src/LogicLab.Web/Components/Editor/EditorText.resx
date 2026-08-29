@@ -10,12 +10,8 @@
   <data name="Back" xml:space="preserve"><value>Back</value></data>
   <data name="Build" xml:space="preserve"><value>Build</value></data>
   <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
-  <data name="ChildOccurrencesAriaLabel" xml:space="preserve"><value>Child-circuit instances</value></data>
   <data name="Circuit" xml:space="preserve"><value>Circuit</value></data>
-  <data name="CircuitComponentsAriaLabel" xml:space="preserve"><value>Circuit components</value></data>
   <data name="CircuitDefinitionInstance" xml:space="preserve"><value>Circuit Definition instance</value></data>
-  <data name="CircuitDefinitionNavigationAriaLabel" xml:space="preserve"><value>Circuit Definition navigation</value></data>
-  <data name="CircuitDefinitionPortsAriaLabel" xml:space="preserve"><value>Circuit Definition ports</value></data>
   <data name="CircuitSceneEyebrow" xml:space="preserve"><value>Schematic</value></data>
   <data name="Commit" xml:space="preserve"><value>Commit</value></data>
   <data name="Compilation" xml:space="preserve"><value>Compilation</value></data>
@@ -29,32 +25,21 @@
   <data name="Connected" xml:space="preserve"><value>Connected</value></data>
   <data name="Connecting" xml:space="preserve"><value>Connecting</value></data>
   <data name="Connection" xml:space="preserve"><value>Connection</value></data>
-  <data name="Connections" xml:space="preserve"><value>Connections</value></data>
   <data name="CreateSandbox" xml:space="preserve"><value>Create Sandbox</value></data>
-  <data name="CreateSandboxToBegin" xml:space="preserve"><value>Create a Sandbox to begin.</value></data>
   <data name="CreateSession" xml:space="preserve"><value>Start simulation</value></data>
   <data name="DefinitionContext" xml:space="preserve"><value>Circuit navigation</value></data>
-  <data name="DefinitionPorts" xml:space="preserve"><value>Definition ports</value></data>
-  <data name="DefinitionReady" xml:space="preserve"><value>Your project is ready. Draw a circuit or start from an example.</value></data>
   <data name="DefinitionView" xml:space="preserve"><value>Definition view</value></data>
   <data name="Draft" xml:space="preserve"><value>Draft</value></data>
   <data name="DurableProjectName" xml:space="preserve"><value>Project name</value></data>
-  <data name="ElectricalConnectionsAriaLabel" xml:space="preserve"><value>Electrical connections</value></data>
-  <data name="ElectricalMembershipAriaLabel" xml:space="preserve"><value>Electrical membership</value></data>
   <data name="ElaboratedOccurrence" xml:space="preserve"><value>Instance view</value></data>
   <data name="EnterDefinition" xml:space="preserve"><value>Enter {0}</value></data>
   <data name="Entry" xml:space="preserve"><value>Entry</value></data>
   <data name="EntryCircuitDefinition" xml:space="preserve"><value>Entry Circuit Definition</value></data>
   <data name="Geometry" xml:space="preserve"><value>Geometry</value></data>
   <data name="GeometryRule" xml:space="preserve"><value>Only terminal connections change a net; line appearance does not.</value></data>
-  <data name="GridPosition" xml:space="preserve"><value>Grid {0}, {1}</value></data>
-  <data name="HierarchyPathAriaLabel" xml:space="preserve"><value>Hierarchy path</value></data>
-  <data name="ImportAriaLabel" xml:space="preserve"><value>Import a .logiclab project package</value></data>
   <data name="ImportProject" xml:space="preserve"><value>Import project</value></data>
   <data name="InputsHigh" xml:space="preserve"><value>Inputs = 1</value></data>
   <data name="InstrumentBay" xml:space="preserve"><value>Signal monitor</value></data>
-  <data name="JunctionAtGrid" xml:space="preserve"><value>Junction at grid {0}, {1}</value></data>
-  <data name="JunctionEditingAriaLabel" xml:space="preserve"><value>Junction editing</value></data>
   <data name="Junctions" xml:space="preserve"><value>Junctions</value></data>
   <data name="KeepDurable" xml:space="preserve"><value>Save project</value></data>
   <data name="LiveReadout" xml:space="preserve"><value>Live</value></data>
@@ -63,26 +48,17 @@
   <data name="MergeNets" xml:space="preserve"><value>Merge Nets</value></data>
   <data name="NoActiveSession" xml:space="preserve"><value>Simulation has not started</value></data>
   <data name="NoDefinitions" xml:space="preserve"><value>No Circuit Definitions are open.</value></data>
-  <data name="ObservedProbesAriaLabel" xml:space="preserve"><value>Observed probes</value></data>
-  <data name="OpenDefinitionsAriaLabel" xml:space="preserve"><value>Open Circuit Definitions</value></data>
   <data name="Output" xml:space="preserve"><value>Output</value></data>
   <data name="SignalOrdinal" xml:space="preserve"><value>Signal {0}</value></data>
-  <data name="PortCount" xml:space="preserve"><value>{0} bit</value></data>
-  <data name="PortDirectionInput" xml:space="preserve"><value>Input</value></data>
-  <data name="PortDirectionOutput" xml:space="preserve"><value>Output</value></data>
-  <data name="PortsAriaLabel" xml:space="preserve"><value>{0} ports</value></data>
   <data name="Prepare" xml:space="preserve"><value>Prepare</value></data>
   <data name="PrepareExport" xml:space="preserve"><value>Export project</value></data>
   <data name="Probe" xml:space="preserve"><value>Probe</value></data>
   <data name="ProbeEmptyHelp" xml:space="preserve"><value>Compile the circuit, then start the simulation.</value></data>
   <data name="Project" xml:space="preserve"><value>Project</value></data>
-  <data name="ProjectCommandsAriaLabel" xml:space="preserve"><value>Project commands</value></data>
   <data name="Quiescence" xml:space="preserve"><value>Quiescence</value></data>
   <data name="Quiescent" xml:space="preserve"><value>Quiescent</value></data>
   <data name="Remove" xml:space="preserve"><value>Remove</value></data>
   <data name="Route" xml:space="preserve"><value>Route</value></data>
-  <data name="RouteDraftAriaLabel" xml:space="preserve"><value>Route draft</value></data>
-  <data name="RouteGeometryAriaLabel" xml:space="preserve"><value>Route geometry</value></data>
   <data name="RoutePreview" xml:space="preserve"><value>Route preview: 0,0 → 0,2 → 8,2. Commit or cancel this local draft.</value></data>
   <data name="Save" xml:space="preserve"><value>Save</value></data>
   <data name="SaveDurable" xml:space="preserve"><value>Save</value></data>
@@ -98,19 +74,12 @@
   <data name="SplitNet" xml:space="preserve"><value>Split Net</value></data>
   <data name="Step" xml:space="preserve"><value>Step</value></data>
   <data name="TabsHierarchyEntry" xml:space="preserve"><value>Definitions · hierarchy · entry</value></data>
-  <data name="TopologyCommandsAriaLabel" xml:space="preserve"><value>Topology commands</value></data>
-  <data name="TopologyForNetAriaLabel" xml:space="preserve"><value>Topology for net {0}</value></data>
   <data name="TopologyHeading" xml:space="preserve"><value>Net and route tools</value></data>
   <data name="TopologyEyebrow" xml:space="preserve"><value>Net structure</value></data>
   <data name="TraceRange" xml:space="preserve"><value>Trace range</value></data>
   <data name="Unavailable" xml:space="preserve"><value>Unavailable</value></data>
   <data name="Unroute" xml:space="preserve"><value>Unroute</value></data>
-  <data name="Unrouted" xml:space="preserve"><value>Unrouted</value></data>
   <data name="WireOrthogonal" xml:space="preserve"><value>Orthogonal · {0}</value></data>
-  <data name="WorkbenchCommandsAriaLabel" xml:space="preserve"><value>Workbench commands</value></data>
-  <data name="WorkbenchStatusAriaLabel" xml:space="preserve"><value>Workbench status</value></data>
-  <data name="WorkbenchTelemetryAriaLabel" xml:space="preserve"><value>Workbench status</value></data>
-  <data name="CircuitWorkbenchAriaLabel" xml:space="preserve"><value>Circuit workbench</value></data>
   <data name="ConflictDescription" xml:space="preserve"><value>Your local revision is still available. Choose how to recover it.</value></data>
   <data name="ConflictExportLocal" xml:space="preserve"><value>Export local</value></data>
   <data name="ConflictKeepCopy" xml:space="preserve"><value>Keep as copy</value></data>
@@ -165,7 +134,6 @@
   <data name="SaveConflictStatus" xml:space="preserve"><value>Save conflict: the project changed elsewhere.</value></data>
   <data name="SaveRejected" xml:space="preserve"><value>Save rejected: {0}.</value></data>
   <data name="SaveSucceeded" xml:space="preserve"><value>Project saved at version {0}.</value></data>
-  <data name="ScenePolicyExceeded" xml:space="preserve"><value>This circuit is too large for the current canvas limits.</value></data>
   <data name="SessionCreated" xml:space="preserve"><value>Simulation started at logical time 0.</value></data>
   <data name="SessionCreatedNoInputs" xml:space="preserve"><value>Simulation started at logical time 0. This circuit has no programmable inputs.</value></data>
   <data name="SessionRejected" xml:space="preserve"><value>Could not start the simulation: {0}.</value></data>
@@ -217,40 +185,21 @@
   <data name="SteeringExampleAuthored" xml:space="preserve"><value>2-to-1 multiplexer created. Compile it, then change Select to choose an input.</value></data>
   <data name="CanvasReady" xml:space="preserve"><value>Circuit canvas ready.</value></data>
   <data name="CanvasStarting" xml:space="preserve"><value>Preparing the circuit canvas.</value></data>
-  <data name="CanvasUnavailable" xml:space="preserve"><value>The circuit canvas is unavailable. Retry it, or use the circuit actions below.</value></data>
-  <data name="CircuitCanvasAriaLabel" xml:space="preserve"><value>Interactive circuit canvas</value></data>
+  <data name="CanvasUnavailable" xml:space="preserve"><value>The circuit canvas is unavailable. Retry the renderer.</value></data>
   <data name="CircuitCanvasFallback" xml:space="preserve"><value>This browser cannot display the circuit canvas.</value></data>
   <data name="RetryCanvas" xml:space="preserve"><value>Retry canvas</value></data>
-  <data name="CanvasZoomControls" xml:space="preserve"><value>Canvas zoom controls</value></data>
   <data name="ZoomOut" xml:space="preserve"><value>Zoom out</value></data>
   <data name="ZoomToFit" xml:space="preserve"><value>Zoom to fit</value></data>
   <data name="ZoomIn" xml:space="preserve"><value>Zoom in</value></data>
-  <data name="SceneRecoveryActions" xml:space="preserve"><value>Circuit actions</value></data>
-  <data name="SemanticScenePagesAriaLabel" xml:space="preserve"><value>Circuit action pages</value></data>
-  <data name="SemanticScenePage" xml:space="preserve"><value>Page {0} of {1}</value></data>
-  <data name="Previous" xml:space="preserve"><value>Previous</value></data>
-  <data name="Next" xml:space="preserve"><value>Next</value></data>
-  <data name="ActionsFor" xml:space="preserve"><value>Actions for {0}</value></data>
-  <data name="Annotations" xml:space="preserve"><value>Annotations</value></data>
-  <data name="CircuitAnnotationsAriaLabel" xml:space="preserve"><value>Circuit annotations</value></data>
-  <data name="Move" xml:space="preserve"><value>Move</value></data>
-  <data name="NudgeDown" xml:space="preserve"><value>Move down one grid step</value></data>
-  <data name="NudgeLeft" xml:space="preserve"><value>Move left one grid step</value></data>
-  <data name="NudgeRight" xml:space="preserve"><value>Move right one grid step</value></data>
-  <data name="NudgeUp" xml:space="preserve"><value>Move up one grid step</value></data>
   <data name="PanTool" xml:space="preserve"><value>Pan</value></data>
-  <data name="SceneToolsAriaLabel" xml:space="preserve"><value>Circuit editing tools</value></data>
-  <data name="Selected" xml:space="preserve"><value>Selected</value></data>
   <data name="SelectTool" xml:space="preserve"><value>Select</value></data>
   <data name="WireTool" xml:space="preserve"><value>Wire</value></data>
   <data name="NextStep" xml:space="preserve"><value>Next step</value></data>
-  <data name="NextStepAriaLabel" xml:space="preserve"><value>Recommended next step</value></data>
   <data name="ChooseStarterHint" xml:space="preserve"><value>Choose a starting circuit below.</value></data>
   <data name="ProjectOptions" xml:space="preserve"><value>Project options</value></data>
   <data name="StarterEyebrow" xml:space="preserve"><value>Start with a working circuit</value></data>
   <data name="StarterTitle" xml:space="preserve"><value>Choose an example</value></data>
   <data name="StarterDescription" xml:space="preserve"><value>Choose a complete circuit, then compile, simulate, and inspect its signals.</value></data>
-  <data name="LearningPathAriaLabel" xml:space="preserve"><value>Learning path</value></data>
   <data name="LearningStepChoose" xml:space="preserve"><value>Choose</value></data>
   <data name="LearningStepCompile" xml:space="preserve"><value>Compile</value></data>
   <data name="LearningStepSimulate" xml:space="preserve"><value>Simulate</value></data>
