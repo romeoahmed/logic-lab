@@ -113,17 +113,8 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
 
     private async Task OpenAsync(int width, int height)
     {
-        await Page.SetViewportSizeAsync(width, height);
-        var response = await Page.GotoAsync(application.EditorUri.ToString());
-
-        await Assert.That(response).IsNotNull();
-        await Assert.That(response!.Ok).IsTrue();
-
-        var createSandbox = Page.Locator("[data-command='create']");
-        await Expect(createSandbox).ToBeVisibleAsync();
-        await createSandbox.ClickAsync();
-        await Expect(Page.Locator("[data-component-search]")).ToBeVisibleAsync();
-        await Expect(Page.Locator("[data-scene-renderer='ready']")).ToBeVisibleAsync();
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenSandboxAsync(width, height);
     }
 
     private sealed class PaletteScrollState
