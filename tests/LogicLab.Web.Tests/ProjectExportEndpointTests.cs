@@ -226,6 +226,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
             using (Assert.Multiple())
             {
                 await Assert.That(downloads.RequestCount).IsEqualTo(1);
+                await Assert.That(rejected.Headers.RetryAfter).IsNull();
                 await Assert.That(rejected.Headers.CacheControl?.Private).IsTrue();
                 await Assert.That(rejected.Headers.CacheControl?.NoStore).IsTrue();
             }
@@ -245,9 +246,13 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
             rateRejected,
             HttpStatusCode.TooManyRequests,
             "export_download_rate_limit_exceeded");
+        var retryAfter = rateRejected.Headers.RetryAfter?.Delta;
         using (Assert.Multiple())
         {
             await Assert.That(downloads.RequestCount).IsEqualTo(1);
+            await Assert.That(retryAfter).IsNotNull();
+            await Assert.That(retryAfter.GetValueOrDefault())
+                .IsGreaterThan(TimeSpan.Zero);
             await Assert.That(rateRejected.Headers.CacheControl?.Private).IsTrue();
             await Assert.That(rateRejected.Headers.CacheControl?.NoStore).IsTrue();
         }
