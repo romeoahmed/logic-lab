@@ -24,7 +24,8 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
             stagingDirectory);
         var workspaceId = new WorkspaceId("workspace-export-once");
         var ticket = new ExportTicket("export-ticket-once-0001");
-        var staging = await StageAsync(store, "canonical-package"u8.ToArray(), cancellationToken);
+        var carrier = "canonical-package"u8.ToArray();
+        var staging = await StageAsync(store, carrier, cancellationToken);
         await store.PublishAsync(
             Publication(
                 workspaceId,
@@ -57,10 +58,10 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
             {
                 await Assert.That(bytes.ToArray())
                     .IsEquivalentTo(
-                        "canonical-package"u8.ToArray(),
+                        carrier,
                         CollectionOrdering.Matching);
                 await Assert.That(downloaded.CarrierByteCount)
-                    .IsEqualTo(17UL);
+                    .IsEqualTo((ulong)carrier.Length);
                 await Assert.That(second)
                     .IsEqualTo(new ProjectExportDownloadRejected("export_expired"));
             }
@@ -81,7 +82,8 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
         var ticket = new ExportTicket("export-ticket-owner-0001");
         var owner = AnonymousBrowserCaller('a');
         var other = AnonymousBrowserCaller('b');
-        var staging = await StageAsync(store, "owner"u8.ToArray(), cancellationToken);
+        var carrier = "owner"u8.ToArray();
+        var staging = await StageAsync(store, carrier, cancellationToken);
         await store.PublishAsync(
             Publication(
                 new WorkspaceId("workspace-owner"),
@@ -106,7 +108,8 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
             {
                 await Assert.That(unauthorized)
                     .IsEqualTo(new ProjectExportDownloadRejected("export_expired"));
-                await Assert.That(downloaded.CarrierByteCount).IsEqualTo(5UL);
+                await Assert.That(downloaded.CarrierByteCount)
+                    .IsEqualTo((ulong)carrier.Length);
             }
         }
     }
@@ -187,9 +190,10 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
                 maximumPublishedExports: 1,
                 maximumPublishedCarrierBytes: 3),
             stagingDirectory);
+        var carrier = "four"u8.ToArray();
         var staging = await StageAsync(
             store,
-            "four"u8.ToArray(),
+            carrier,
             cancellationToken);
         var publication = new ProjectExportPublication(
             new WorkspaceId("workspace-actual-capacity"),
@@ -205,7 +209,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
             await Assert.That(outcome)
                 .IsEqualTo(new ProjectExportPublicationRejected(
                     WorkspaceOutcomeReasons.ExportCapacityUnavailable));
-            await Assert.That(staging.Content.Length).IsEqualTo(4L);
+            await Assert.That(staging.Content.Length).IsEqualTo(carrier.LongLength);
         }
 
         await staging.DisposeAsync();
@@ -236,9 +240,10 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
                 previousStaging,
                 300),
             cancellationToken);
+        var replacementCarrier = "replacement"u8.ToArray();
         var replacementStaging = await StageAsync(
             store,
-            "replacement"u8.ToArray(),
+            replacementCarrier,
             cancellationToken);
         using var replacementCancellation = new CancellationTokenSource();
         timeProvider.AfterGetUtcNow = replacementCancellation.Cancel;
@@ -260,7 +265,8 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
         using (Assert.Multiple())
         {
             await Assert.That(previous).IsTypeOf<ProjectExportDownloaded>();
-            await Assert.That(replacementStaging.Content.Length).IsEqualTo(11L);
+            await Assert.That(replacementStaging.Content.Length)
+                .IsEqualTo(replacementCarrier.LongLength);
         }
 
         await ((ProjectExportDownloaded)previous).Content.DisposeAsync();
