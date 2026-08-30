@@ -7,7 +7,7 @@ This plan orders delivery and records completion. It does not define product beh
 
 ## Delivery status
 
-Items `01` through `26` are complete at the seams named below. The current [dependency frontier](#dependency-frontier) is `27` and `28`.
+Items `01` through `27` are complete at the seams named below. The current [dependency frontier](#dependency-frontier) is `28`.
 
 ## Planning rules
 
@@ -112,9 +112,8 @@ Only item `43` authorizes describing the selected deployment profile as producti
 
 ## Dependency frontier
 
-With items `01` through `26` complete, the current frontier is `27` and `28`:
+With items `01` through `27` complete, the current frontier is `28`:
 
-- the complete Logic Analyzer (`27`); and
 - Boolean explanation and proof-gated simplification (`28`–`32`).
 
 Persistence and export do not wait for Runtime breadth that they do not consume. Strict import waits for the complete V1 catalog it must validate. Qualification work begins only after its required behavior and evidence exist; policy calibration and provider selection never block the first product tracer.

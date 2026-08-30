@@ -4,6 +4,7 @@ using LogicLab.Application.Workspaces;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Components.Pages;
 using LogicLab.Web.Scene;
+using LogicLab.Web.Waveforms;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
 
@@ -34,6 +35,8 @@ internal static class WebTestContext
             static _ => true)
             .SetVoidResult();
         context.JSInterop.SetupModule(BrowserSceneAdapter.ModulePath).Mode =
+            JSRuntimeMode.Loose;
+        context.JSInterop.SetupModule(BrowserWaveformAdapter.ModulePath).Mode =
             JSRuntimeMode.Loose;
         if (configureAttachmentNavigation)
         {

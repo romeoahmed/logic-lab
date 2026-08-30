@@ -70,4 +70,65 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
         await Expect(stimulus).ToBeVisibleAsync();
         await Expect(step).ToBeHiddenAsync();
     }
+
+    [Test]
+    public async Task LogicAnalyzer_HistorySummaryCursorAndLiveFollow_StayCoherent()
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenSandboxAsync();
+        await workbench.Command("author").ClickAsync();
+        await workbench.Command("compile").ClickAsync();
+        await Expect(workbench.Command("session")).ToBeEnabledAsync();
+        await workbench.Command("session").ClickAsync();
+
+        await Expect(workbench.Waveform)
+            .ToHaveAttributeAsync("data-waveform-renderer", "ready");
+        await Expect(workbench.WaveformCanvas).ToBeVisibleAsync();
+        await Expect(workbench.WaveformLive).ToHaveAttributeAsync("aria-pressed", "true");
+        var touchAction = await workbench.WaveformCanvas.EvaluateAsync<string>(
+            "canvas => getComputedStyle(canvas).touchAction");
+
+        await workbench.WaveformRepresentation("summary").ClickAsync();
+        await Expect(workbench.Waveform)
+            .ToHaveAttributeAsync("data-waveform-resolution", "summary");
+        await Expect(Page.Locator(".summary-resolution")).ToBeVisibleAsync();
+
+        await Page.GetByTitle("Zoom in").Last.ClickAsync();
+        await Expect(workbench.WaveformLive).ToHaveAttributeAsync("aria-pressed", "false");
+        await Expect(Page.Locator("[data-waveform-history]")).ToBeVisibleAsync();
+
+        await workbench.WaveformCanvas.ClickAsync(new LocatorClickOptions
+        {
+            Position = new Position { X = 180, Y = 70 },
+        });
+        await Expect(Page.Locator("[data-waveform-primary-cursor]"))
+            .ToHaveAttributeAsync("aria-pressed", "true");
+        await Expect(Page.Locator("[data-waveform-cursor='primary']"))
+            .ToBeVisibleAsync();
+        await Page.Locator("[data-waveform-secondary-cursor]").ClickAsync();
+        await Expect(Page.Locator("[data-waveform-cursor='secondary']"))
+            .ToBeVisibleAsync();
+        await Expect(Page.Locator("[data-waveform-cursor-delta]"))
+            .ToBeVisibleAsync();
+
+        await workbench.WaveformLive.ClickAsync();
+        await Expect(workbench.WaveformLive).ToHaveAttributeAsync("aria-pressed", "true");
+        await Expect(Page.Locator("[data-waveform-history]")).ToBeHiddenAsync();
+        await workbench.Probes.Locator("[data-probe-radix]").SelectOptionAsync("hex");
+        await Expect(workbench.Probes.Locator("[data-probe-radix]"))
+            .ToHaveValueAsync("hex");
+        var firstProbe = workbench.Probes.First;
+        var probeLabel = await firstProbe.Locator("[data-probe-label]").InnerTextAsync();
+        await firstProbe.Locator("[data-probe-reveal]").ClickAsync();
+        await Expect(Page.Locator(".status-message")).ToContainTextAsync(probeLabel);
+
+        await workbench.WaveformClose.ClickAsync();
+        await Expect(workbench.WaveformOpen).ToBeVisibleAsync();
+        await workbench.WaveformOpen.ClickAsync();
+        await Expect(workbench.Waveform)
+            .ToHaveAttributeAsync("data-waveform-renderer", "ready");
+        await Expect(workbench.WaveformCanvas).ToBeVisibleAsync();
+
+        await Assert.That(touchAction).IsEqualTo("none");
+    }
 }

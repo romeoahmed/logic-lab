@@ -1,0 +1,495 @@
+.logic-analyzer {
+  min-inline-size: 0;
+  border-block-start: 1px solid var(--ll-border-strong);
+  color: var(--ll-ink);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--ll-panel) 94%, var(--ll-signal-soft)), var(--ll-panel));
+}
+
+.analyzer-heading {
+  display: flex;
+  min-inline-size: 0;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem clamp(0.7rem, 2vw, 1rem);
+  border-block-end: 1px solid var(--ll-border);
+}
+
+.analyzer-heading h2,
+.analyzer-heading p,
+.probe-spine h3 {
+  margin: 0;
+}
+
+.analyzer-heading h2 {
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.analyzer-readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1rem;
+  margin: 0;
+  font-family: "IBM Plex Mono", "Noto Sans Mono CJK", ui-monospace, monospace;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.analyzer-readout div {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.analyzer-readout dt {
+  color: var(--ll-muted);
+}
+
+.analyzer-readout dd {
+  margin: 0;
+  color: var(--ll-signal-strong);
+  font-weight: 750;
+}
+
+.analyzer-toolbar {
+  display: flex;
+  min-inline-size: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem clamp(0.7rem, 2vw, 1rem);
+  border-block-end: 1px solid var(--ll-border);
+  background: color-mix(in oklab, var(--ll-panel) 93%, var(--ll-canvas));
+}
+
+.analyzer-toolbar > div {
+  display: inline-flex;
+  gap: 0.2rem;
+  padding-inline-end: 0.45rem;
+  border-inline-end: 1px solid var(--ll-border);
+}
+
+.analyzer-toolbar .cursor-readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.55rem;
+  margin: 0;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--ll-border);
+  border-radius: 0.22rem;
+  background: var(--ll-canvas);
+  font-family: "IBM Plex Mono", "Noto Sans Mono CJK", ui-monospace, monospace;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.cursor-readout div {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.cursor-readout dt {
+  color: var(--ll-muted);
+  font-weight: 750;
+}
+
+.cursor-readout dd {
+  margin: 0;
+  color: var(--ll-signal-strong);
+}
+
+.analyzer-toolbar button,
+.probe-controls button,
+.probe-label,
+.analyzer-collapsed button,
+.trace-recovery button {
+  min-block-size: 1.9rem;
+  border: 1px solid var(--ll-border);
+  border-radius: 0.22rem;
+  color: var(--ll-ink);
+  background: var(--ll-panel);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.analyzer-toolbar button {
+  padding-inline: 0.55rem;
+}
+
+.analyzer-toolbar button[aria-pressed="true"] {
+  border-color: var(--ll-signal);
+  color: var(--ll-signal-strong);
+  background: var(--ll-signal-soft);
+  box-shadow: inset 0 -2px 0 var(--ll-signal);
+}
+
+.analyzer-toolbar button:hover:not(:disabled),
+.probe-controls button:hover:not(:disabled),
+.probe-label:hover:not(:disabled),
+.trace-recovery button:hover:not(:disabled) {
+  border-color: var(--ll-signal);
+  background: var(--ll-signal-soft);
+}
+
+.analyzer-toolbar button:focus-visible,
+.probe-controls button:focus-visible,
+.probe-label:focus-visible,
+.probe-controls select:focus-visible,
+canvas:focus-visible {
+  outline: 2px solid var(--ll-signal);
+  outline-offset: 2px;
+}
+
+.close-analyzer {
+  margin-inline-start: auto;
+}
+
+.analyzer-surface {
+  display: grid;
+  grid-template-columns: minmax(13rem, 18rem) minmax(24rem, 1fr);
+  min-inline-size: 0;
+  block-size: clamp(15rem, 29svh, 22rem);
+  overflow: auto hidden;
+}
+
+.probe-spine {
+  position: relative;
+  z-index: 2;
+  min-inline-size: 0;
+  overflow: auto;
+  border-inline-end: 1px solid var(--ll-border-strong);
+  background: color-mix(in oklab, var(--ll-panel) 97%, var(--ll-signal-soft));
+  box-shadow: 0.55rem 0 1rem color-mix(in oklab, var(--ll-ink) 7%, transparent);
+}
+
+.probe-spine h3 {
+  position: sticky;
+  z-index: 3;
+  inset-block-start: 0;
+  padding: 0.55rem 0.75rem;
+  border-block-end: 1px solid var(--ll-border);
+  color: var(--ll-muted);
+  background: var(--ll-panel);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.probe-spine ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.probe-spine li {
+  --probe-color: var(--ll-signal);
+  position: relative;
+  display: grid;
+  min-block-size: 4.45rem;
+  grid-template-columns: 0.5rem minmax(0, 1fr);
+  gap: 0.45rem;
+  padding: 0.5rem 0.55rem 0.5rem 0;
+  border-block-end: 1px solid var(--ll-border);
+}
+
+.probe-spine li[style*="--probe-index: 1"],
+.probe-spine li[style*="--probe-index: 5"] {
+  --probe-color: #b85e3d;
+}
+
+.probe-spine li[style*="--probe-index: 2"],
+.probe-spine li[style*="--probe-index: 6"] {
+  --probe-color: #6d6ab7;
+}
+
+.probe-spine li[style*="--probe-index: 3"],
+.probe-spine li[style*="--probe-index: 7"] {
+  --probe-color: #2c8475;
+}
+
+.probe-spine li[data-probe-binding="unresolved"] {
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--ll-danger-soft) 48%, transparent) 0 0.35rem,
+    transparent 0.35rem 0.7rem
+  );
+}
+
+.probe-rail {
+  inline-size: 0.24rem;
+  block-size: calc(100% + 1px);
+  justify-self: center;
+  margin-block: -0.5rem;
+  border-inline: 1px solid color-mix(in oklab, var(--probe-color) 60%, transparent);
+  background: var(--probe-color);
+}
+
+[data-probe-pattern="dash"] .probe-rail {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--probe-color) 0 0.45rem,
+    transparent 0.45rem 0.7rem
+  );
+}
+
+[data-probe-pattern="dot"] .probe-rail {
+  background: radial-gradient(circle, var(--probe-color) 0 0.12rem, transparent 0.13rem) 50% 0 / 100% 0.52rem;
+}
+
+[data-probe-pattern="dashDot"] .probe-rail {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--probe-color) 0 0.38rem,
+    transparent 0.38rem 0.5rem,
+    var(--probe-color) 0.5rem 0.62rem,
+    transparent 0.62rem 0.82rem
+  );
+}
+
+.probe-identity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.probe-swatch {
+  inline-size: 0.65rem;
+  block-size: 0.65rem;
+  border: 2px solid var(--probe-color);
+  border-radius: 50%;
+  background: var(--ll-panel);
+}
+
+.probe-label {
+  min-inline-size: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.probe-label:disabled {
+  color: var(--ll-muted);
+  cursor: default;
+}
+
+.probe-identity strong {
+  color: var(--probe-color);
+  font-family: "IBM Plex Mono", "Noto Sans Mono CJK", ui-monospace, monospace;
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.probe-controls {
+  display: flex;
+  min-inline-size: 0;
+  grid-column: 2;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.probe-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.probe-controls label > em {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  font-style: normal;
+}
+
+.probe-controls select {
+  min-block-size: 1.9rem;
+  max-inline-size: 5.7rem;
+  border: 1px solid var(--ll-border);
+  border-radius: 0.22rem;
+  color: var(--ll-ink);
+  background: var(--ll-panel);
+  font-size: 0.68rem;
+}
+
+.probe-controls button {
+  min-inline-size: 1.9rem;
+  padding-inline: 0.38rem;
+}
+
+.probe-controls button:disabled,
+.analyzer-toolbar button:disabled {
+  color: var(--ll-subtle);
+  cursor: default;
+  opacity: 0.6;
+}
+
+.probe-navigation-unavailable {
+  align-self: center;
+  color: var(--ll-muted);
+  font-size: 0.66rem;
+}
+
+.waveform-frame {
+  position: relative;
+  min-inline-size: 24rem;
+  min-block-size: 100%;
+  overflow: hidden;
+  background: var(--ll-canvas);
+}
+
+.waveform-frame canvas {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  touch-action: none;
+  background: var(--ll-canvas);
+}
+
+.waveform-frame canvas[hidden] {
+  display: none;
+}
+
+.summary-resolution,
+.history-state,
+.trace-state {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 0.45rem;
+  padding: 0.24rem 0.42rem;
+  border: 1px solid var(--ll-border);
+  border-radius: 99rem;
+  color: var(--ll-muted);
+  background: color-mix(in oklab, var(--ll-panel) 92%, transparent);
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+.summary-resolution,
+.trace-state {
+  inset-inline-end: 0.5rem;
+}
+
+.history-state {
+  inset-inline-start: 0.5rem;
+}
+
+.trace-recovery {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  color: var(--ll-danger-strong);
+  background: color-mix(in oklab, var(--ll-canvas) 90%, var(--ll-danger-soft));
+  text-align: center;
+}
+
+.trace-gap-state {
+  position: absolute;
+  z-index: 3;
+  inset-inline: 0.55rem;
+  inset-block-end: 0.55rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid color-mix(in oklab, var(--ll-danger) 30%, var(--ll-border));
+  border-radius: var(--ll-radius-small);
+  color: var(--ll-danger-strong);
+  background: color-mix(in oklab, var(--ll-panel) 94%, var(--ll-danger-soft));
+  font-size: 0.7rem;
+}
+
+.trace-gap-state button {
+  flex: none;
+  min-block-size: 1.8rem;
+  border: 1px solid var(--ll-danger);
+  border-radius: 0.22rem;
+  color: var(--ll-danger-strong);
+  background: var(--ll-panel);
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.analyzer-empty,
+.analyzer-collapsed {
+  display: grid;
+  justify-items: start;
+  gap: 0.25rem;
+  padding: 1rem;
+}
+
+.analyzer-empty > span {
+  inline-size: 3rem;
+  block-size: 1rem;
+  margin-block-end: 0.4rem;
+  border-block-end: 2px solid var(--ll-signal);
+  background: linear-gradient(135deg, transparent 42%, var(--ll-signal) 43% 48%, transparent 49%) 0 0 / 0.75rem 100%;
+}
+
+.analyzer-empty p,
+.analyzer-empty small,
+.analyzer-collapsed span {
+  margin: 0;
+}
+
+.analyzer-empty p {
+  font-weight: 750;
+}
+
+.analyzer-empty small,
+.analyzer-collapsed span {
+  color: var(--ll-muted);
+}
+
+@container workbench (inline-size < 44rem) {
+  .logic-analyzer {
+    position: relative;
+  }
+
+  .analyzer-surface {
+    grid-template-columns: minmax(11.5rem, 42vw) minmax(26rem, 1fr);
+    block-size: min(62svh, 34rem);
+    overflow-x: auto;
+  }
+
+  .analyzer-heading {
+    align-items: start;
+  }
+
+  .analyzer-readout {
+    display: grid;
+  }
+}
+
+@media (max-width: 560px) {
+  .analyzer-heading {
+    display: grid;
+  }
+
+  .analyzer-toolbar {
+    position: sticky;
+    z-index: 4;
+    inset-block-start: 0;
+  }
+
+  .close-analyzer {
+    margin-inline-start: 0;
+  }
+}
