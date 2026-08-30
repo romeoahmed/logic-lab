@@ -11,19 +11,19 @@ Logic Lab separates target behavior, delivery status, decisions, and supporting 
 
 ## Authority by subject
 
-| Subject | Authority |
-|---|---|
-| system ownership, dependency direction, Module seams, deployment shape | [Architecture](../ARCHITECTURE.md) |
-| workbench layout, interaction, visual language, responsive behavior, and product priorities | [Workbench](../WORKBENCH.md) |
-| domain words and context translations | [CONTEXT-MAP.md](../CONTEXT-MAP.md) and [bounded-context glossaries](./domain/) |
-| observable circuit, component, analysis, symbol, package, and policy behavior | [specifications](./specs/) and [policies](./policies/catalog.md) |
-| Application, browser, and HTTP seam values | [seam contracts](./contracts/README.md) |
-| ASP.NET Core routes, render modes, culture, circuits, security, and host operations | [Web Host](./specs/web-host.md) |
-| Canvas/waveform transforms, frames, input, focus, and browser resources | [Browser Runtime](./specs/browser-runtime.md) |
-| .NET SDK, build, dependency, C#, async, DI, configuration, serialization, observability, and publication rules | [.NET Engineering Baseline](./specs/dotnet-engineering.md) |
-| delivery order, completion status, and blocking frontier | [Implementation Plan](./implementation-plan.md#delivery-status) |
-| hard-to-reverse decision rationale | [ADRs](./adr/README.md) |
-| evidence, derivation, alternatives, and source qualification | [Research Index](./research/README.md) |
+| Subject                                                                                                        | Authority                                                                       |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| system ownership, dependency direction, Module seams, deployment shape                                         | [Architecture](../ARCHITECTURE.md)                                              |
+| workbench layout, interaction, visual language, responsive behavior, and product priorities                    | [Workbench](../WORKBENCH.md)                                                    |
+| domain words and context translations                                                                          | [CONTEXT-MAP.md](../CONTEXT-MAP.md) and [bounded-context glossaries](./domain/) |
+| observable circuit, component, analysis, symbol, package, and policy behavior                                  | [specifications](./specs/) and [policies](./policies/catalog.md)                |
+| Application, browser, and HTTP seam values                                                                     | [seam contracts](./contracts/README.md)                                         |
+| ASP.NET Core routes, render modes, culture, circuits, security, and host operations                            | [Web Host](./specs/web-host.md)                                                 |
+| Canvas/waveform transforms, frames, input, focus, and browser resources                                        | [Browser Runtime](./specs/browser-runtime.md)                                   |
+| .NET SDK, build, dependency, C#, async, DI, configuration, serialization, observability, and publication rules | [.NET Engineering Baseline](./specs/dotnet-engineering.md)                      |
+| delivery order, completion status, and blocking frontier                                                       | [Implementation Plan](./implementation-plan.md#delivery-status)                 |
+| hard-to-reverse decision rationale                                                                             | [ADRs](./adr/README.md)                                                         |
+| evidence, derivation, alternatives, and source qualification                                                   | [Research Index](./research/README.md)                                          |
 
 There is no generic “narrower file wins” rule. A conflict between owners is a documentation defect; repair it where the fact belongs.
 
@@ -31,12 +31,12 @@ There is no generic “narrower file wins” rule. A conflict between owners is 
 
 Dynamic repository facts belong to executable configuration rather than prose:
 
-| Fact | Source of truth |
-|---|---|
-| exact SDK and test runner | [`global.json`](../global.json) |
-| exact direct package versions | [`Directory.Packages.props`](../Directory.Packages.props) |
-| current executable project graph | [`logic-lab.slnx`](../logic-lab.slnx) |
-| resolved dependency closures | application-root `packages.lock.json` files |
+| Fact                             | Source of truth                                           |
+| -------------------------------- | --------------------------------------------------------- |
+| exact SDK and test runner        | [`global.json`](../global.json)                           |
+| exact direct package versions    | [`Directory.Packages.props`](../Directory.Packages.props) |
+| current executable project graph | [`logic-lab.slnx`](../logic-lab.slnx)                     |
+| resolved dependency closures     | application-root `packages.lock.json` files               |
 
 Normative documents govern these files; maintained prose does not copy their live inventory.
 

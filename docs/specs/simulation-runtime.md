@@ -178,22 +178,22 @@ Equivalently, it is the nonempty meet in `D`. Possible-case evaluation must prod
 After input normalization, the scalar oracle is:
 
 | `a` | `NOT a` |
-|---|---|
-| `0` | `1` |
-| `1` | `0` |
-| `X` | `X` |
+| --- | ------- |
+| `0` | `1`     |
+| `1` | `0`     |
+| `X` | `X`     |
 
 | `a` | `b` | `AND` | `OR` | `XOR` |
-|---|---|---|---|---|
-| `0` | `0` | `0` | `0` | `0` |
-| `0` | `1` | `0` | `1` | `1` |
-| `1` | `0` | `0` | `1` | `1` |
-| `1` | `1` | `1` | `1` | `0` |
-| `0` | `X` | `0` | `X` | `X` |
-| `1` | `X` | `X` | `1` | `X` |
-| `X` | `0` | `0` | `X` | `X` |
-| `X` | `1` | `X` | `1` | `X` |
-| `X` | `X` | `X` | `X` | `X` |
+| --- | --- | ----- | ---- | ----- |
+| `0` | `0` | `0`   | `0`  | `0`   |
+| `0` | `1` | `0`   | `1`  | `1`   |
+| `1` | `0` | `0`   | `1`  | `1`   |
+| `1` | `1` | `1`   | `1`  | `0`   |
+| `0` | `X` | `0`   | `X`  | `X`   |
+| `1` | `X` | `X`   | `1`  | `X`   |
+| `X` | `0` | `0`   | `X`  | `X`   |
+| `X` | `1` | `X`   | `1`  | `X`   |
+| `X` | `X` | `X`   | `X`  | `X`   |
 
 NAND, NOR, and XNOR negate the corresponding result. Multi-input gates fold the associative scalar operation; zero-input gates are not valid Component Contracts. Vector gates apply the scalar oracle bitwise after explicit width validation.
 
@@ -352,7 +352,7 @@ State migrates only when stable instance identity, Component Contract kind, widt
 
 - IEEE Std 1800-2023, especially clauses 4.4, 6.3, 6.5-6.6, 9.4.2, 11.4.8, and 28-29.
 - Robert Tarjan, [Depth-First Search and Linear Graph Algorithms](https://doi.org/10.1137/0201010).
-- Bernard Zeigler et al., *Theory of Modeling and Simulation*, for discrete-event modeling and DEVS terminology.
+- Bernard Zeigler et al., _Theory of Modeling and Simulation_, for discrete-event modeling and DEVS terminology.
 - [Least-Fixed-Point Semantics Research](../research/least-fixed-point-semantics.md), for the finite proof, monotonicity audit, counterexamples, and source access record.
 - [Diagnostics V1](./diagnostics-v1.md), for Simulation codes, cause evidence, outcome reasons, and ordering.
 

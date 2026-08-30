@@ -47,15 +47,15 @@ Retries and repeats do not repair deterministic failures. Polling belongs only a
 
 ## 4. Choosing example, matrix, and property tests
 
-| Evidence needed | Technique |
-|---|---|
-| one named semantic example or regression | ordinary `[Test]` |
-| a small finite boundary table | argument or method data |
-| an intentional finite cross-product whose rows need separate identity | Matrix data |
-| an invariant over a large input domain | `TUnit.FsCheck` property |
-| host, persistence, or transfer integration | real adapter with isolated resources |
-| Razor projection | bUnit |
-| browser input, Canvas, layout, or end-to-end workflow | Playwright |
+| Evidence needed                                                       | Technique                            |
+| --------------------------------------------------------------------- | ------------------------------------ |
+| one named semantic example or regression                              | ordinary `[Test]`                    |
+| a small finite boundary table                                         | argument or method data              |
+| an intentional finite cross-product whose rows need separate identity | Matrix data                          |
+| an invariant over a large input domain                                | `TUnit.FsCheck` property             |
+| host, persistence, or transfer integration                            | real adapter with isolated resources |
+| Razor projection                                                      | bUnit                                |
+| browser input, Canvas, layout, or end-to-end workflow                 | Playwright                           |
 
 Properties use domain-aware generators, independent oracles, shrinking, and reproducible seeds. Do not turn a handful of examples into a property merely to raise an invocation count. Keep explicit examples for named semantic boundaries even when a broader property also covers them.
 

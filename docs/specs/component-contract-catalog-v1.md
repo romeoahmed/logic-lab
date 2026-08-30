@@ -23,49 +23,49 @@ Every instance stores every parameter explicitly. Defaults are authoring conveni
 - Parameters that change Ports or state participate in Compilation provenance and Hot Swap compatibility.
 - No contract executes user code, reflection-selected behavior, a native plug-in, or an external process.
 
-| Notation | Meaning |
-|---|---|
-| `u32+` | positive checked unsigned 32-bit integer, additionally bounded by active policy |
-| `u64+` | positive checked unsigned 64-bit integer |
-| `logic[w]` | exactly `w` authored bits in `0/1/X`; `Z` is invalid for initial state or constants |
-| `enum{...}` | one exact closed ASCII value |
-| `slices[]` | nonempty ordered `(offset, length)` pairs with positive length and checked containment |
-| `widths[]` | nonempty ordered positive widths whose checked sum is the result width |
-| `memoryImage` | reference to one Memory Image with exactly the required width and depth |
+| Notation      | Meaning                                                                                |
+| ------------- | -------------------------------------------------------------------------------------- |
+| `u32+`        | positive checked unsigned 32-bit integer, additionally bounded by active policy        |
+| `u64+`        | positive checked unsigned 64-bit integer                                               |
+| `logic[w]`    | exactly `w` authored bits in `0/1/X`; `Z` is invalid for initial state or constants    |
+| `enum{...}`   | one exact closed ASCII value                                                           |
+| `slices[]`    | nonempty ordered `(offset, length)` pairs with positive length and checked containment |
+| `widths[]`    | nonempty ordered positive widths whose checked sum is the result width                 |
+| `memoryImage` | reference to one Memory Image with exactly the required width and depth                |
 
 `A:in[w]` means input Port ID `A` and width `w`. A generated family such as `A0..A{n-1}` uses ascending numeric Port order. Bit index zero is least significant. Ordinary inputs normalize `Z` to `X` before evaluation. Checked shape arithmetic and policy admission happen before allocation or Port generation.
 
 ## 3. Sources, sinks, and topology
 
-| Contract ID | Ordered Ports | Parameters in order | Exact contract |
-|---|---|---|---|
-| `source.input` | `Q:out[w]` | `width:u32+`, `initialValue:logic[w]` | Session stimulus owns `Q`; creation publishes the initial value. |
-| `source.constant` | `Q:out[w]` | `width:u32+`, `value:logic[w]` | Immutable Driver value. |
-| `source.clock` | `Q:out[1]` | `initialValue:logic[1]` restricted to `0/1`, `firstTransition:u64+`, `highDuration:u64+`, `lowDuration:u64+` | Alternates known values; `firstTransition` is after Logical Time zero. |
-| `sink.output` | `D:in[w]` | `width:u32+`, `radix:enum{binary,hex,unsigned}` | Observation only; radix has no electrical effect. |
-| `topology.split` | `D:in[w]`, `Q0..Q{n-1}:out[slice.length]` | `width:u32+`, `slices:slices[]` with `n >= 2` | `Qi[bit] = D[slices[i].offset + bit]`; overlap is valid. |
-| `topology.concat` | `D0..D{n-1}:in[widths[i]]`, `Q:out[sum(widths)]` | `inputWidths:widths[]` with `n >= 2` | `D0` occupies the least-significant result bits, followed in Port order. |
-| `topology.zero_extend` | `D:in[a]`, `Q:out[b]` | `inputWidth:u32+`, `outputWidth:u32+` with `b > a` | Copies normalized `D`; fills high bits with `0`. |
-| `topology.sign_extend` | `D:in[a]`, `Q:out[b]` | `inputWidth:u32+`, `outputWidth:u32+` with `b > a` | Copies normalized `D`; repeats normalized `D[a-1]` into high bits. |
+| Contract ID            | Ordered Ports                                    | Parameters in order                                                                                          | Exact contract                                                           |
+| ---------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `source.input`         | `Q:out[w]`                                       | `width:u32+`, `initialValue:logic[w]`                                                                        | Session stimulus owns `Q`; creation publishes the initial value.         |
+| `source.constant`      | `Q:out[w]`                                       | `width:u32+`, `value:logic[w]`                                                                               | Immutable Driver value.                                                  |
+| `source.clock`         | `Q:out[1]`                                       | `initialValue:logic[1]` restricted to `0/1`, `firstTransition:u64+`, `highDuration:u64+`, `lowDuration:u64+` | Alternates known values; `firstTransition` is after Logical Time zero.   |
+| `sink.output`          | `D:in[w]`                                        | `width:u32+`, `radix:enum{binary,hex,unsigned}`                                                              | Observation only; radix has no electrical effect.                        |
+| `topology.split`       | `D:in[w]`, `Q0..Q{n-1}:out[slice.length]`        | `width:u32+`, `slices:slices[]` with `n >= 2`                                                                | `Qi[bit] = D[slices[i].offset + bit]`; overlap is valid.                 |
+| `topology.concat`      | `D0..D{n-1}:in[widths[i]]`, `Q:out[sum(widths)]` | `inputWidths:widths[]` with `n >= 2`                                                                         | `D0` occupies the least-significant result bits, followed in Port order. |
+| `topology.zero_extend` | `D:in[a]`, `Q:out[b]`                            | `inputWidth:u32+`, `outputWidth:u32+` with `b > a`                                                           | Copies normalized `D`; fills high bits with `0`.                         |
+| `topology.sign_extend` | `D:in[a]`, `Q:out[b]`                            | `inputWidth:u32+`, `outputWidth:u32+` with `b > a`                                                           | Copies normalized `D`; repeats normalized `D[a-1]` into high bits.       |
 
 Changing `slices` or `inputWidths` changes the generated Port schema. Removing a generated Port never silently reconnects its Terminal.
 
 ## 4. Combinational logic
 
-| Contract ID | Ordered Ports | Parameters in order | Exact contract |
-|---|---|---|---|
-| `logic.buffer` | `A:in[w]`, `Q:out[w]` | `width:u32+` | Normalized identity per bit. |
-| `logic.not` | `A:in[w]`, `Q:out[w]` | `width:u32+` | Scalar NOT per bit. |
-| `logic.and`, `logic.nand`, `logic.or`, `logic.nor`, `logic.xor`, `logic.xnor` | `A0..A{n-1}:in[w]`, `Q:out[w]` | `width:u32+`, `fanIn:u32+` with `n >= 2` | Left fold of the named associative scalar oracle; complemented forms negate once after the fold. |
-| `logic.tristate` | `D:in[w]`, `EN:in[1]`, `Q:out[w]` | `width:u32+`, `enablePolarity:enum{activeHigh,activeLow}` | Enabled copies normalized `D`; disabled produces `Z`; unknown enable uses Conservative Merge. |
-| `logic.mux` | `D0..D{2^s-1}:in[w]`, `S:in[s]`, `Q:out[w]` | `width:u32+`, `selectorWidth:u32+` | Known unsigned `S` selects matching `D`; unknown bits merge all reachable arms. |
-| `logic.demux` | `D:in[w]`, `S:in[s]`, `Q0..Q{2^s-1}:out[w]` | `width:u32+`, `selectorWidth:u32+` | Selected output receives normalized `D`; every other output is `0`; unknown selection merges reachable cases per output. |
-| `logic.decoder` | `A:in[s]`, `EN:in[1]`, `Q0..Q{2^s-1}:out[1]` | `selectorWidth:u32+`, `enablePolarity:enum{activeHigh,activeLow}` | Disabled is all `0`; enabled emits one-hot index `A`; unknown input/control merges reachable vectors. |
-| `logic.priority_encoder` | `A0..A{n-1}:in[1]`, `Q:out[q]`, `VALID:out[1]` | `inputCount:u32+` with `n >= 2`, `priority:enum{lowestIndex,highestIndex}`; `q=max(1,ceil(log2(n)))` | Selects the first asserted input in declared priority. No assertion gives `VALID=0,Q=0`; unknown inputs merge every consistent assignment. |
-| `logic.unsigned_compare` | `A:in[w]`, `B:in[w]`, `LT:out[1]`, `EQ:out[1]`, `GT:out[1]` | `width:u32+` | Merges the three-bit comparison result over every binary assignment consistent with normalized inputs. |
-| `logic.adder` | `A:in[w]`, `B:in[w]`, `CIN:in[1]`, `SUM:out[w]`, `COUT:out[1]` | `width:u32+` | Least-significant-first full-adder carry chain. |
-| `logic.subtractor` | `A:in[w]`, `B:in[w]`, `BIN:in[1]`, `DIFF:out[w]`, `BOUT:out[1]` | `width:u32+` | Least-significant-first full-subtractor borrow chain for `A-B-BIN`. |
-| `logic.shift` | `D:in[w]`, `AMOUNT:in[s]`, `Q:out[w]` | `width:u32+`, `direction:enum{left,right}`; `s=max(1,ceil(log2(w)))` | Logical zero-fill shift; a known amount `>=w` produces zero; unknown amount merges all reachable amounts. |
+| Contract ID                                                                   | Ordered Ports                                                   | Parameters in order                                                                                  | Exact contract                                                                                                                             |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `logic.buffer`                                                                | `A:in[w]`, `Q:out[w]`                                           | `width:u32+`                                                                                         | Normalized identity per bit.                                                                                                               |
+| `logic.not`                                                                   | `A:in[w]`, `Q:out[w]`                                           | `width:u32+`                                                                                         | Scalar NOT per bit.                                                                                                                        |
+| `logic.and`, `logic.nand`, `logic.or`, `logic.nor`, `logic.xor`, `logic.xnor` | `A0..A{n-1}:in[w]`, `Q:out[w]`                                  | `width:u32+`, `fanIn:u32+` with `n >= 2`                                                             | Left fold of the named associative scalar oracle; complemented forms negate once after the fold.                                           |
+| `logic.tristate`                                                              | `D:in[w]`, `EN:in[1]`, `Q:out[w]`                               | `width:u32+`, `enablePolarity:enum{activeHigh,activeLow}`                                            | Enabled copies normalized `D`; disabled produces `Z`; unknown enable uses Conservative Merge.                                              |
+| `logic.mux`                                                                   | `D0..D{2^s-1}:in[w]`, `S:in[s]`, `Q:out[w]`                     | `width:u32+`, `selectorWidth:u32+`                                                                   | Known unsigned `S` selects matching `D`; unknown bits merge all reachable arms.                                                            |
+| `logic.demux`                                                                 | `D:in[w]`, `S:in[s]`, `Q0..Q{2^s-1}:out[w]`                     | `width:u32+`, `selectorWidth:u32+`                                                                   | Selected output receives normalized `D`; every other output is `0`; unknown selection merges reachable cases per output.                   |
+| `logic.decoder`                                                               | `A:in[s]`, `EN:in[1]`, `Q0..Q{2^s-1}:out[1]`                    | `selectorWidth:u32+`, `enablePolarity:enum{activeHigh,activeLow}`                                    | Disabled is all `0`; enabled emits one-hot index `A`; unknown input/control merges reachable vectors.                                      |
+| `logic.priority_encoder`                                                      | `A0..A{n-1}:in[1]`, `Q:out[q]`, `VALID:out[1]`                  | `inputCount:u32+` with `n >= 2`, `priority:enum{lowestIndex,highestIndex}`; `q=max(1,ceil(log2(n)))` | Selects the first asserted input in declared priority. No assertion gives `VALID=0,Q=0`; unknown inputs merge every consistent assignment. |
+| `logic.unsigned_compare`                                                      | `A:in[w]`, `B:in[w]`, `LT:out[1]`, `EQ:out[1]`, `GT:out[1]`     | `width:u32+`                                                                                         | Merges the three-bit comparison result over every binary assignment consistent with normalized inputs.                                     |
+| `logic.adder`                                                                 | `A:in[w]`, `B:in[w]`, `CIN:in[1]`, `SUM:out[w]`, `COUT:out[1]`  | `width:u32+`                                                                                         | Least-significant-first full-adder carry chain.                                                                                            |
+| `logic.subtractor`                                                            | `A:in[w]`, `B:in[w]`, `BIN:in[1]`, `DIFF:out[w]`, `BOUT:out[1]` | `width:u32+`                                                                                         | Least-significant-first full-subtractor borrow chain for `A-B-BIN`.                                                                        |
+| `logic.shift`                                                                 | `D:in[w]`, `AMOUNT:in[s]`, `Q:out[w]`                           | `width:u32+`, `direction:enum{left,right}`; `s=max(1,ceil(log2(w)))`                                 | Logical zero-fill shift; a known amount `>=w` produces zero; unknown amount merges all reachable amounts.                                  |
 
 `2^s`, result widths, and possible-case sets use checked arithmetic and active policies. Policy exhaustion returns a structured failure and never substitutes a value. All rules must be monotone in the Simulation Information Order.
 
@@ -73,24 +73,24 @@ Changing `slices` or `inputWidths` changes the generated Port schema. Removing a
 
 Stored bits are only `0/1/X`. `Q` exposes current state and `QN` is scalar NOT of current state. `edge` is `rising` or `falling`; only the corresponding Definite Edge triggers. Unknown control evaluates every reachable control case and applies Conservative Merge.
 
-| Contract ID | Ordered Ports | Parameters in order | State and transition |
-|---|---|---|---|
-| `sequential.sr_latch` | `S:in[1]`, `R:in[1]`, `Q:out[1]`, `QN:out[1]` | `initialState:logic[1]` | Active-high `S/R`: `00` holds, `10` sets, `01` resets, `11` stores `X` and emits control conflict. |
-| `sequential.d_latch` | `D:in[w]`, `EN:in[1]`, `Q:out[w]` | `width:u32+`, `initialState:logic[w]` | After any settled `D` or `EN` change, active-high `EN=1` stores normalized `D`; `EN=0` holds; unknown `EN` merges both cases. |
-| `sequential.dff` | `D:in[w]`, `CLK:in[1]`, `Q:out[w]` | `width:u32+`, `edge:enum{rising,falling}`, `initialState:logic[w]` | Stores normalized `D` on the configured Definite Edge. |
-| `sequential.jkff` | `J:in[1]`, `K:in[1]`, `CLK:in[1]`, `Q:out[1]`, `QN:out[1]` | `edge:enum{rising,falling}`, `initialState:logic[1]` | On edge: `00` hold, `10` set, `01` reset, `11` toggle. |
-| `sequential.tff` | `T:in[1]`, `CLK:in[1]`, `Q:out[1]`, `QN:out[1]` | `edge:enum{rising,falling}`, `initialState:logic[1]` | On edge: `0` holds and `1` toggles. |
-| `sequential.register` | `D:in[w]`, `CLK:in[1]`, `EN:in[1]`, `Q:out[w]` | `width:u32+`, `edge:enum{rising,falling}`, `initialState:logic[w]` | On edge, active-high `EN` stores normalized `D`; otherwise holds. |
+| Contract ID                 | Ordered Ports                                                                                            | Parameters in order                                                                                        | State and transition                                                                                                                                                                                     |
+| --------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sequential.sr_latch`       | `S:in[1]`, `R:in[1]`, `Q:out[1]`, `QN:out[1]`                                                            | `initialState:logic[1]`                                                                                    | Active-high `S/R`: `00` holds, `10` sets, `01` resets, `11` stores `X` and emits control conflict.                                                                                                       |
+| `sequential.d_latch`        | `D:in[w]`, `EN:in[1]`, `Q:out[w]`                                                                        | `width:u32+`, `initialState:logic[w]`                                                                      | After any settled `D` or `EN` change, active-high `EN=1` stores normalized `D`; `EN=0` holds; unknown `EN` merges both cases.                                                                            |
+| `sequential.dff`            | `D:in[w]`, `CLK:in[1]`, `Q:out[w]`                                                                       | `width:u32+`, `edge:enum{rising,falling}`, `initialState:logic[w]`                                         | Stores normalized `D` on the configured Definite Edge.                                                                                                                                                   |
+| `sequential.jkff`           | `J:in[1]`, `K:in[1]`, `CLK:in[1]`, `Q:out[1]`, `QN:out[1]`                                               | `edge:enum{rising,falling}`, `initialState:logic[1]`                                                       | On edge: `00` hold, `10` set, `01` reset, `11` toggle.                                                                                                                                                   |
+| `sequential.tff`            | `T:in[1]`, `CLK:in[1]`, `Q:out[1]`, `QN:out[1]`                                                          | `edge:enum{rising,falling}`, `initialState:logic[1]`                                                       | On edge: `0` holds and `1` toggles.                                                                                                                                                                      |
+| `sequential.register`       | `D:in[w]`, `CLK:in[1]`, `EN:in[1]`, `Q:out[w]`                                                           | `width:u32+`, `edge:enum{rising,falling}`, `initialState:logic[w]`                                         | On edge, active-high `EN` stores normalized `D`; otherwise holds.                                                                                                                                        |
 | `sequential.shift_register` | `PARALLEL:in[w]`, `SERIAL:in[1]`, `LOAD:in[1]`, `CLK:in[1]`, `EN:in[1]`, `Q:out[w]`, `SERIAL_OUT:out[1]` | `width:u32+`, `direction:enum{towardHigh,towardLow}`, `edge:enum{rising,falling}`, `initialState:logic[w]` | On edge: `LOAD=1` stores `PARALLEL`; otherwise `EN=1` shifts one bit; otherwise it holds. Unknown controls merge all reachable cases. `SERIAL_OUT` is the current state bit that the next shift removes. |
-| `sequential.counter` | `LOAD_VALUE:in[w]`, `LOAD:in[1]`, `CLK:in[1]`, `EN:in[1]`, `Q:out[w]`, `TERMINAL:out[1]` | `width:u32+`, `direction:enum{up,down}`, `edge:enum{rising,falling}`, `initialState:logic[w]` | On edge: `LOAD` has priority, then `EN` counts modulo `2^w`, else hold. `TERMINAL` is `1` at all-ones for up or all-zero for down, and `X` when undecidable. |
+| `sequential.counter`        | `LOAD_VALUE:in[w]`, `LOAD:in[1]`, `CLK:in[1]`, `EN:in[1]`, `Q:out[w]`, `TERMINAL:out[1]`                 | `width:u32+`, `direction:enum{up,down}`, `edge:enum{rising,falling}`, `initialState:logic[w]`              | On edge: `LOAD` has priority, then `EN` counts modulo `2^w`, else hold. `TERMINAL` is `1` at all-ones for up or all-zero for down, and `X` when undecidable.                                             |
 
 For `towardHigh`, `SERIAL` enters state bit zero and `SERIAL_OUT` reads bit `w-1`; for `towardLow` the directions reverse. Synchronous `LOAD` is evaluated before `EN`. V1 has no hidden reset/set options; future control combinations require distinct contract IDs.
 
 ## 6. Memory
 
-| Contract ID | Ordered Ports | Parameters in order | Exact contract |
-|---|---|---|---|
-| `memory.rom` | `A:in[a]`, `Q:out[w]` | `addressWidth:u32+`, `wordWidth:u32+`, `initialImage:memoryImage` | Depth is exactly `2^a`; asynchronous read follows Simulation Runtime. |
+| Contract ID              | Ordered Ports                                             | Parameters in order                                               | Exact contract                                                                                      |
+| ------------------------ | --------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `memory.rom`             | `A:in[a]`, `Q:out[w]`                                     | `addressWidth:u32+`, `wordWidth:u32+`, `initialImage:memoryImage` | Depth is exactly `2^a`; asynchronous read follows Simulation Runtime.                               |
 | `memory.ram_single_port` | `A:in[a]`, `D:in[w]`, `WE:in[1]`, `CLK:in[1]`, `Q:out[w]` | `addressWidth:u32+`, `wordWidth:u32+`, `initialImage:memoryImage` | Depth is exactly `2^a`; asynchronous read and definite rising-edge write follow Simulation Runtime. |
 
 The referenced Memory Image must match word width and depth exactly. V1 has no omitted-image state: an authoring convenience must create and bind an explicit all-`X` Memory Image before commit; Project Format supplies no implicit default.

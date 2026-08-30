@@ -116,12 +116,12 @@ Project Editor owns local Project Document invariants. Compiler rechecks every f
 
 Compiler uses distinct immutable representations:
 
-| Representation | Retains | Excludes |
-|---|---|---|
-| Elaborated Graph | resolved occurrences, Hierarchy Paths, widths, contracts, Driver facts, diagnostic witnesses | Session state, dense storage commitments, geometry |
-| Simulation IR | dense ordinals, evaluator/Net graph, CSR adjacency, SCC plan, state and memory schema | authored edit structure, browser identity, analysis algorithms |
-| Source Map | total ordinal-to-source mapping and Hierarchy Paths | localized messages, renderer identity |
-| Boolean Region | binary acyclic network, ordered boundary, Analysis-owned Care Contract, replacement bindings | scheduler layout, four-state Session state, arbitrary authored topology |
+| Representation   | Retains                                                                                      | Excludes                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Elaborated Graph | resolved occurrences, Hierarchy Paths, widths, contracts, Driver facts, diagnostic witnesses | Session state, dense storage commitments, geometry                      |
+| Simulation IR    | dense ordinals, evaluator/Net graph, CSR adjacency, SCC plan, state and memory schema        | authored edit structure, browser identity, analysis algorithms          |
+| Source Map       | total ordinal-to-source mapping and Hierarchy Paths                                          | localized messages, renderer identity                                   |
+| Boolean Region   | binary acyclic network, ordered boundary, Analysis-owned Care Contract, replacement bindings | scheduler layout, four-state Session state, arbitrary authored topology |
 
 The Elaborated Graph is Compiler implementation retained only as needed by the sealed artifact and later Boolean extraction. Compilation does not materialize an optional Boolean Region. `ExtractBooleanRegion` is the only V1 production path that creates one.
 

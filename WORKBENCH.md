@@ -36,36 +36,36 @@ The visual direction is **instrument enamel**: cool low-chroma framing surfaces,
 
 The profile defines each color once; Web maps it to the corresponding CSS alias.
 
-| Token | Value | CSS alias | Role |
-|---|---|---|---|
-| `colors.bench` | `#E7EEF1` | `--ll-bench` | application frame and inactive gutters |
-| `colors.panel` | `#F7FAFB` | `--ll-panel` | panels and Instrument Bay |
-| `colors.canvas` | `#FFFFFF` | `--ll-canvas` | schematic field |
-| `colors.ink` | `#172A33` | `--ll-ink` | text, symbols, and inactive wires |
-| `colors.muted` | `#536871` | `--ll-muted` | secondary text and disabled ink |
-| `colors.primary` | `#08788C` | `--ll-signal` | focus, selection, Probe family seed |
-| `colors.transition` | `#A85D00` | `--ll-transition` | committed time transition |
-| `colors.unknown` | `#7053A5` | `--ll-unknown` | `X` and indeterminate emphasis |
-| `colors.danger` | `#B4232C` | `--ll-danger` | error and destructive confirmation only |
+| Token               | Value     | CSS alias         | Role                                    |
+| ------------------- | --------- | ----------------- | --------------------------------------- |
+| `colors.bench`      | `#E7EEF1` | `--ll-bench`      | application frame and inactive gutters  |
+| `colors.panel`      | `#F7FAFB` | `--ll-panel`      | panels and Instrument Bay               |
+| `colors.canvas`     | `#FFFFFF` | `--ll-canvas`     | schematic field                         |
+| `colors.ink`        | `#172A33` | `--ll-ink`        | text, symbols, and inactive wires       |
+| `colors.muted`      | `#536871` | `--ll-muted`      | secondary text and disabled ink         |
+| `colors.primary`    | `#08788C` | `--ll-signal`     | focus, selection, Probe family seed     |
+| `colors.transition` | `#A85D00` | `--ll-transition` | committed time transition               |
+| `colors.unknown`    | `#7053A5` | `--ll-unknown`    | `X` and indeterminate emphasis          |
+| `colors.danger`     | `#B4232C` | `--ll-danger`     | error and destructive confirmation only |
 
 Logic Value recipes use redundant cues:
 
-| Value | Recipe |
-|---|---|
-| `0` | thin ink stroke plus textual value where labeled |
-| `1` | stronger signal stroke plus textual value |
-| `X` | violet, diagonal hatch or dashed center, and `X` |
-| `Z` | muted open/double-dash stroke and `Z` |
+| Value | Recipe                                           |
+| ----- | ------------------------------------------------ |
+| `0`   | thin ink stroke plus textual value where labeled |
+| `1`   | stronger signal stroke plus textual value        |
+| `X`   | violet, diagonal hatch or dashed center, and `X` |
+| `Z`   | muted open/double-dash stroke and `Z`            |
 
 Selection uses an outer focus halo and never erases live-value encoding. Diagnostics use markers and underlines instead of repainting the whole symbol.
 
 ## Typography
 
-| Role | Family | Size / line height | Weight | Use |
-|---|---|---:|---:|---|
-| UI and prose | Atkinson Hyperlegible Next; Noto Sans SC fallback | 16px / 1.5 | 400 | commands, forms, help, diagnostics |
-| dense data | IBM Plex Mono; Noto Sans Mono CJK fallback | 13px / 1.4 | 400 | logical time, vectors, addresses, codes |
-| IEEE symbol text | versioned Noto Sans subset | Geometry Plan metric | — | Geometry Plan labels and export |
+| Role             | Family                                            |   Size / line height | Weight | Use                                     |
+| ---------------- | ------------------------------------------------- | -------------------: | -----: | --------------------------------------- |
+| UI and prose     | Atkinson Hyperlegible Next; Noto Sans SC fallback |           16px / 1.5 |    400 | commands, forms, help, diagnostics      |
+| dense data       | IBM Plex Mono; Noto Sans Mono CJK fallback        |           13px / 1.4 |    400 | logical time, vectors, addresses, codes |
+| IEEE symbol text | versioned Noto Sans subset                        | Geometry Plan metric |      — | Geometry Plan labels and export         |
 
 Fonts are self-hosted, licensed, fingerprinted, and subset after localization coverage is known. Time and address columns use tabular numerals. UI density never changes IEEE symbol metrics.
 
@@ -119,13 +119,13 @@ Schematic shapes, Port anchors, and hit regions come from the closed [Geometry P
 
 Exactly one primary tool is active:
 
-| Tool | Primary gesture | Commit |
-|---|---|---|
-| Select | click, marquee, move | one selection or geometry Edit Transaction |
-| Place | choose catalog item, position ghost | one place intent; remains active only when pinned |
-| Wire | start at Port/Junction, preview orthogonal route | one explicit Net/Junction/connectivity intent |
-| Probe | click an eligible Net | add or remove one Probe |
-| Pan | drag Canvas | local viewport only |
+| Tool   | Primary gesture                                  | Commit                                            |
+| ------ | ------------------------------------------------ | ------------------------------------------------- |
+| Select | click, marquee, move                             | one selection or geometry Edit Transaction        |
+| Place  | choose catalog item, position ghost              | one place intent; remains active only when pinned |
+| Wire   | start at Port/Junction, preview orthogonal route | one explicit Net/Junction/connectivity intent     |
+| Probe  | click an eligible Net                            | add or remove one Probe                           |
+| Pan    | drag Canvas                                      | local viewport only                               |
 
 Space temporarily activates Pan and then returns to the previous tool. Escape cancels the current preview before clearing selection. Pointer capture ends on commit, cancel, lost capture, disconnect, or tool change. A cancelled gesture emits no Workspace command.
 
@@ -161,14 +161,14 @@ If the bitmap renderer is unavailable, too large for active Browser Policy, or r
 
 Inspector content is selected by semantic state:
 
-| Selection | Inspector content |
-|---|---|
-| none | current Circuit Definition, entry status, profile, compile summary |
+| Selection          | Inspector content                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| none               | current Circuit Definition, entry status, profile, compile summary                    |
 | Component Instance | identity, Component Contract, parameters, Ports, state initialization, symbol variant |
-| Net | stable identity, width, Drivers, receivers, live value, Probe action |
-| Junction | owning Net, connected branches, delete/split consequences |
-| Circuit Definition | public Ports, instances, hierarchy references, definition diagnostics |
-| multi-selection | common editable properties and explicit mixed values |
+| Net                | stable identity, width, Drivers, receivers, live value, Probe action                  |
+| Junction           | owning Net, connected branches, delete/split consequences                             |
+| Circuit Definition | public Ports, instances, hierarchy references, definition diagnostics                 |
+| multi-selection    | common editable properties and explicit mixed values                                  |
 
 The Instrument Bay Diagnostics tab is the complete ordered list and primary navigation surface. Inspector shows only diagnostics attached to the current selection. Activating either view selects and reveals the same source location.
 
@@ -203,15 +203,15 @@ Historical navigation pauses live-follow but not Simulation. Returning to live i
 
 Commands use the same verb in action and result: `Save` becomes `Saved`, `Run` becomes `Running`, and `Pause` becomes `Paused`.
 
-| State | Edit | Compile | Step/Run | Save | Analyze | Import |
-|---|---:|---:|---:|---:|---:|---:|
-| clean and compiled | yes | yes | yes | when durable change exists | eligible region only | yes |
-| changed / compile stale | yes | yes | no; Restart/Hot Swap after compile | yes | no | yes |
-| compiling | yes; newest revision wins next request | cancel/replace | no | yes | no | no |
-| running | no; Pause first | no | Pause only | yes | observe only | no |
-| analysis running | yes | yes | yes | yes | cancel/observe | no |
-| detached/reconnecting | local pan/zoom only | no | no | no | observe after attach | no |
-| save conflict | yes | yes | compiled Session may continue | recovery actions only | yes | export recovery only |
+| State                   |                                   Edit |        Compile |                           Step/Run |                       Save |              Analyze |               Import |
+| ----------------------- | -------------------------------------: | -------------: | ---------------------------------: | -------------------------: | -------------------: | -------------------: |
+| clean and compiled      |                                    yes |            yes |                                yes | when durable change exists | eligible region only |                  yes |
+| changed / compile stale |                                    yes |            yes | no; Restart/Hot Swap after compile |                        yes |                   no |                  yes |
+| compiling               | yes; newest revision wins next request | cancel/replace |                                 no |                        yes |                   no |                   no |
+| running                 |                        no; Pause first |             no |                         Pause only |                        yes |         observe only |                   no |
+| analysis running        |                                    yes |            yes |                                yes |                        yes |       cancel/observe |                   no |
+| detached/reconnecting   |                    local pan/zoom only |             no |                                 no |                         no | observe after attach |                   no |
+| save conflict           |                                    yes |            yes |      compiled Session may continue |      recovery actions only |                  yes | export recovery only |
 
 Compile, save, Simulation, analysis, Trace, and connection states retain distinct indicators. A generic global spinner is forbidden.
 
@@ -254,11 +254,11 @@ Browser text zoom and schematic zoom remain independent. English, Simplified Chi
 
 ## Responsive behavior
 
-| Class | Product behavior |
-|---|---|
-| wide desktop | three-column authoring, visible Probe Spine, resizable Instrument Bay |
-| laptop | one pinned side panel, one overlay drawer, pointer authoring plus common keyboard shortcuts |
-| narrow/touch | Canvas-first review, Probe, Step, Run, and full-screen waveform; panels become sheets |
+| Class        | Product behavior                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------- |
+| wide desktop | three-column authoring, visible Probe Spine, resizable Instrument Bay                       |
+| laptop       | one pinned side panel, one overlay drawer, pointer authoring plus common keyboard shortcuts |
+| narrow/touch | Canvas-first review, Probe, Step, Run, and full-screen waveform; panels become sheets       |
 
 V1 does not promise precision touch wiring or dense property editing on narrow screens. Responsive layouts never hide save state, diagnostics, logical time, or connection state.
 
@@ -274,14 +274,14 @@ Use the centrally pinned Fluent UI Blazor package for standard Web chrome whenev
 
 ## Verification
 
-| Layer | Evidence |
-|---|---|
-| pure Web projection | command availability, labels, state mapping, diagnostics, proposal freshness |
-| Razor/Fluent | bUnit forms, menus, dialogs, commands, empty/failure states, prerender handoff |
-| browser adapters | [Browser Runtime](./docs/specs/browser-runtime.md) and [Browser Adapter](./docs/contracts/browser-adapters.md) conformance |
-| browser | Playwright primary pointer workflows, shared shortcuts, zoom, resize, reconnect, transfer, and conflicts |
-| visual | Geometry Plan/SVG goldens and a small curated chrome screenshot set |
-| performance | browser traces on a versioned circuit corpus; measured thresholds only |
+| Layer               | Evidence                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| pure Web projection | command availability, labels, state mapping, diagnostics, proposal freshness                                               |
+| Razor/Fluent        | bUnit forms, menus, dialogs, commands, empty/failure states, prerender handoff                                             |
+| browser adapters    | [Browser Runtime](./docs/specs/browser-runtime.md) and [Browser Adapter](./docs/contracts/browser-adapters.md) conformance |
+| browser             | Playwright primary pointer workflows, shared shortcuts, zoom, resize, reconnect, transfer, and conflicts                   |
+| visual              | Geometry Plan/SVG goldens and a small curated chrome screenshot set                                                        |
+| performance         | browser traces on a versioned circuit corpus; measured thresholds only                                                     |
 
 A screenshot cannot prove electrical semantics, and a Razor test cannot prove Canvas gestures.
 

@@ -371,7 +371,6 @@
     border-block-start: 1px solid var(--ll-border);
     border-inline-start: 0;
   }
-
 }
 
 @media (max-width: 560px) {

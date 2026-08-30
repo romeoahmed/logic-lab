@@ -57,8 +57,8 @@ Menus, tooltips, property forms, label editors, confirmation, and text input are
 
 Each module maintains one published immutable semantic state and separate transient browser state:
 
-| Published | Transient and browser-local |
-|---|---|
+| Published                                                                                 | Transient and browser-local                                                                                      |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | exact snapshot/patch versions, static display list, overlays, waveform rows/segments/gaps | viewport, hover, focus ring, active tool, captured pointer, preview, marquee, local cursor motion, pending frame |
 
 The [Browser Adapter Contract](../contracts/browser-adapters.md) solely defines valid snapshot/patch values and preconditions. `ReplaceAsync` validates a complete candidate, then swaps published state atomically; `SceneUnavailableV1` is a complete replacement that clears drawable static state. `ApplyAsync` either publishes the contract-valid exact-base patch once or changes nothing and requests a complete authorized replacement.
@@ -187,16 +187,16 @@ The C# adapter implements asynchronous disposal, releases every `IJSObjectRefere
 
 ## 11. Failure and recovery
 
-| Failure | Stable evidence | Required behavior |
-|---|---|---|
-| 2D context unavailable | `web_renderer_unavailable(contextUnavailable)` | hide the bitmap; show the renderer-unavailable state and recovery actions |
-| effective size/pixel policy exceeded | `web_browser_policy_exhausted` with exact policy evidence | don't allocate or degrade silently; hide any noncurrent bitmap and show recovery actions |
-| invalid snapshot, patch, or private batch | `web_browser_contract_rejected(invalidSnapshot \| invalidPatch \| invalidBatch, correlation)` | apply nothing; request one complete replacement; never log the record |
-| build mismatch | `build_fingerprint_mismatch` attachment/outcome reason | cancel the gesture, destroy handles, and force a hard reload |
-| browser font unavailable or asset fingerprint mismatch | `web_renderer_unavailable(fontUnavailable \| assetFingerprintMismatch)` | publish local renderer unavailable; use no substitute geometry |
-| context loss/restoration when supported | no evidence if restored; otherwise `web_renderer_unavailable(contextLost)` | cancel paint, invalidate caches, and perform a full redraw after restoration; fail closed if restoration doesn't complete |
-| circuit disconnect | Web-owned connection state, not a Diagnostic | freeze acknowledged semantic state, cancel the commit-capable gesture, and allow local pan/zoom only |
-| JavaScript exception | `web_interop_failure(correlation)` | fail the affected adapter closed, show recovery UI, and expose no payload or exception text |
+| Failure                                                | Stable evidence                                                                               | Required behavior                                                                                                         |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 2D context unavailable                                 | `web_renderer_unavailable(contextUnavailable)`                                                | hide the bitmap; show the renderer-unavailable state and recovery actions                                                 |
+| effective size/pixel policy exceeded                   | `web_browser_policy_exhausted` with exact policy evidence                                     | don't allocate or degrade silently; hide any noncurrent bitmap and show recovery actions                                  |
+| invalid snapshot, patch, or private batch              | `web_browser_contract_rejected(invalidSnapshot \| invalidPatch \| invalidBatch, correlation)` | apply nothing; request one complete replacement; never log the record                                                     |
+| build mismatch                                         | `build_fingerprint_mismatch` attachment/outcome reason                                        | cancel the gesture, destroy handles, and force a hard reload                                                              |
+| browser font unavailable or asset fingerprint mismatch | `web_renderer_unavailable(fontUnavailable \| assetFingerprintMismatch)`                       | publish local renderer unavailable; use no substitute geometry                                                            |
+| context loss/restoration when supported                | no evidence if restored; otherwise `web_renderer_unavailable(contextLost)`                    | cancel paint, invalidate caches, and perform a full redraw after restoration; fail closed if restoration doesn't complete |
+| circuit disconnect                                     | Web-owned connection state, not a Diagnostic                                                  | freeze acknowledged semantic state, cancel the commit-capable gesture, and allow local pan/zoom only                      |
+| JavaScript exception                                   | `web_interop_failure(correlation)`                                                            | fail the affected adapter closed, show recovery UI, and expose no payload or exception text                               |
 
 No browser failure mutates the Project Document, Session, Trace, or Workspace. A prior bitmap may remain visible only while it is explicitly identified as the last acknowledged version; it is hidden as soon as it could be mistaken for a rejected newer Project Revision. Reload and snapshot refresh are explicit recovery actions; repeated exceptions are bounded and never create a hot retry/frame loop.
 

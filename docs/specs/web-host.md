@@ -13,16 +13,16 @@ V1 is one ASP.NET Core process containing Static SSR pages, one Interactive Serv
 
 The route catalog is closed at implementation start:
 
-| Surface | Render/transport | Contract |
-|---|---|---|
-| `/` and `/help/{**path}` | Static SSR | public product and help content |
-| `/account/{**path}` | Static SSR and ordinary HTTP form flows | ASP.NET Core Identity account management |
-| `/projects` | Static SSR with authorized HTTP actions | use the bounded [Durable Project Catalog](../contracts/durable-project-catalog.md), open one through `OpenDurable`, or start the new/import flow |
-| `/editor` | per-page Interactive Server | create or import a Workspace, then replace the URL with its opaque locator |
-| `/editor/{workspaceId}` | per-page Interactive Server | authorize and attach to one Editor Workspace; the ID grants no access |
-| `/downloads/{token}` | authorized streaming GET | one prepared `.logiclab` export; token is short-lived and single purpose |
-| `/culture` | antiforgery-protected HTTP POST | validate one supported culture, write its cookie, and redirect to a validated local URL |
-| `/health/live`, `/health/ready` | noninteractive HTTP | process liveness and dependency readiness without sensitive detail |
+| Surface                         | Render/transport                        | Contract                                                                                                                                         |
+| ------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/` and `/help/{**path}`        | Static SSR                              | public product and help content                                                                                                                  |
+| `/account/{**path}`             | Static SSR and ordinary HTTP form flows | ASP.NET Core Identity account management                                                                                                         |
+| `/projects`                     | Static SSR with authorized HTTP actions | use the bounded [Durable Project Catalog](../contracts/durable-project-catalog.md), open one through `OpenDurable`, or start the new/import flow |
+| `/editor`                       | per-page Interactive Server             | create or import a Workspace, then replace the URL with its opaque locator                                                                       |
+| `/editor/{workspaceId}`         | per-page Interactive Server             | authorize and attach to one Editor Workspace; the ID grants no access                                                                            |
+| `/downloads/{token}`            | authorized streaming GET                | one prepared `.logiclab` export; token is short-lived and single purpose                                                                         |
+| `/culture`                      | antiforgery-protected HTTP POST         | validate one supported culture, write its cookie, and redirect to a validated local URL                                                          |
+| `/health/live`, `/health/ready` | noninteractive HTTP                     | process liveness and dependency readiness without sensitive detail                                                                               |
 
 Identity may add framework-owned endpoints beneath `/account`; generated routes are captured by an integration snapshot before release. An endpoint outside this table requires an explicit owning contract. Import remains a bounded Blazor file stream into Project Format and opens a new Workspace; it is not a JSON endpoint or an edit to the current Workspace.
 
@@ -52,12 +52,12 @@ An Editor Workspace is Application-owned and can outlive a circuit under bounded
 
 ## 3. Dependency lifetimes
 
-| Lifetime | Owns | Must not own |
-|---|---|---|
-| process | bounded Workspace directory, Work Coordinator, policy registry, library/profile registries, observability instruments | request user, `DbContext`, browser module reference |
-| hosted operation scope | one queued Compilation, Session, analysis, cleanup, or retention action and its scoped adapters | live Razor component or circuit callback |
-| circuit | Web projection coordinator, authorized attachment observation, localization and browser-module adapters | Editor Workspace lifetime, background CPU work, database context |
-| operation | short-lived repository context, authorization check, import/export stream | retained EF tracking graph or pooled buffer after completion |
+| Lifetime               | Owns                                                                                                                  | Must not own                                                     |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| process                | bounded Workspace directory, Work Coordinator, policy registry, library/profile registries, observability instruments | request user, `DbContext`, browser module reference              |
+| hosted operation scope | one queued Compilation, Session, analysis, cleanup, or retention action and its scoped adapters                       | live Razor component or circuit callback                         |
+| circuit                | Web projection coordinator, authorized attachment observation, localization and browser-module adapters               | Editor Workspace lifetime, background CPU work, database context |
+| operation              | short-lived repository context, authorization check, import/export stream                                             | retained EF tracking graph or pooled buffer after completion     |
 
 Background services create an explicit dependency-injection scope for scoped adapters. CPU-bound Modules remain synchronous and execute only through the three typed lanes in Architecture. Razor handlers do not call `Task.Run`, build secondary queues, or capture circuit-scoped dependencies in process work.
 
@@ -85,10 +85,10 @@ Interactive Server WebSocket compression is disabled for the editor in V1. Proje
 
 V1 supports exactly these UI cultures:
 
-| Culture | Language | Base direction |
-|---|---|---|
-| `en-US` | English | left-to-right |
-| `zh-CN` | Simplified Chinese | left-to-right |
+| Culture | Language           | Base direction |
+| ------- | ------------------ | -------------- |
+| `en-US` | English            | left-to-right  |
+| `zh-CN` | Simplified Chinese | left-to-right  |
 
 The first request selects the first supported `Accept-Language` match or `en-US`. An explicit user choice writes the standard localization cookie through a same-origin, antiforgery-protected endpoint with a validated local return URL, then performs a full reload. The reload intentionally creates a culture-consistent HTTP document, circuit, localization scope, Diagram Presentation fingerprint, Canvas text state, and Razor chrome.
 

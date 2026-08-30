@@ -5,7 +5,7 @@
 
 ## 1. Research method
 
-The optional untracked local file `00027895.pdf` is the combined publication *IEEE Standard Graphic Symbols for Logic Functions (Including and incorporating IEEE Std 91a-1991)*. `pdftotext -layout` supports clause search, while the original pages remain necessary for figures and proportions. PDF page numbers are eleven greater than printed standard pages in the relevant body.
+The optional untracked local file `00027895.pdf` is the combined publication _IEEE Standard Graphic Symbols for Logic Functions (Including and incorporating IEEE Std 91a-1991)_. `pdftotext -layout` supports clause search, while the original pages remain necessary for figures and proportions. PDF page numbers are eleven greater than printed standard pages in the relevant body.
 
 The research distinguishes:
 

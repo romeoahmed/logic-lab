@@ -21,22 +21,22 @@ Stable diagnostic and outcome reason structure is defined by [Diagnostics V1](..
 
 ## 2. Identity
 
-| Value | Meaning | Not |
-|---|---|---|
-| `ProjectId` | authored identity carried by Project Revisions and native packages | Durable Project locator, authorization |
-| `DurableProjectId` | one stored Durable Project locator | authored identity, authorization, revision |
-| `ProjectRevisionId` | immutable Project Document revision | content digest, Circuit Definition revision |
-| `WorkspaceId` | private Editor Workspace locator | Blazor circuit, authorization |
-| `WorkspaceAttachmentId` and generation | current controller fence | user token, Workspace lifetime |
-| `CompilationArtifactKey` | complete executable provenance | runtime ordinal, Project Revision alone |
-| `SimulationSessionId` | one Workspace's active Session locator | Durable Project state |
-| `ProbeId` | one Session observation binding | source identity, display row |
-| `OperationId` | background Analysis Operation locator | capability, `Task` identity |
-| `ProposalId` | Simplification Proposal locator | permission to apply |
-| `ExportTicket` | one prepared short-lived download locator | URL, durable authorization |
-| `ClientIntentId` | idempotency key in one attachment generation | global request identity |
-| `ProjectionVersion` | one Workspace Projection cursor | Project Revision or Session Version |
-| `CompilationGeneration` | monotonic Workspace compilation request fence | artifact identity, task identity |
+| Value                                  | Meaning                                                            | Not                                         |
+| -------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------- |
+| `ProjectId`                            | authored identity carried by Project Revisions and native packages | Durable Project locator, authorization      |
+| `DurableProjectId`                     | one stored Durable Project locator                                 | authored identity, authorization, revision  |
+| `ProjectRevisionId`                    | immutable Project Document revision                                | content digest, Circuit Definition revision |
+| `WorkspaceId`                          | private Editor Workspace locator                                   | Blazor circuit, authorization               |
+| `WorkspaceAttachmentId` and generation | current controller fence                                           | user token, Workspace lifetime              |
+| `CompilationArtifactKey`               | complete executable provenance                                     | runtime ordinal, Project Revision alone     |
+| `SimulationSessionId`                  | one Workspace's active Session locator                             | Durable Project state                       |
+| `ProbeId`                              | one Session observation binding                                    | source identity, display row                |
+| `OperationId`                          | background Analysis Operation locator                              | capability, `Task` identity                 |
+| `ProposalId`                           | Simplification Proposal locator                                    | permission to apply                         |
+| `ExportTicket`                         | one prepared short-lived download locator                          | URL, durable authorization                  |
+| `ClientIntentId`                       | idempotency key in one attachment generation                       | global request identity                     |
+| `ProjectionVersion`                    | one Workspace Projection cursor                                    | Project Revision or Session Version         |
+| `CompilationGeneration`                | monotonic Workspace compilation request fence                      | artifact identity, task identity            |
 
 Opaque IDs use canonical strings. JavaScript treats them as strings and derives no ordering or time from them.
 
@@ -153,28 +153,28 @@ typed command payload
 
 `WorkspaceCommand` contains exactly these V1 variants:
 
-| Command | Typed payload | Precondition |
-|---|---|---|
-| `ApplyEdit` | one [Edit Intent](../specs/circuit-authoring.md) | Authoring |
-| `Undo`, `Redo` | none | Authoring |
-| `SaveDurable` | none | Durable Save |
-| `ClaimSandbox` | requested Durable Display Name | Claim |
-| `CloseWorkspace` | none | current attachment |
-| `RequestCompilation` | entry Circuit Definition ID | Compilation |
-| `CreateSession` | `SessionConfigurationV1` and target Compilation Artifact Key | Session Creation |
-| `RestartSession` | `SessionConfigurationV1` | Session Mutation |
-| `ScheduleStimulusBatch` | one complete future Stimulus Batch | Session Mutation |
-| `StepSession` | none | Session Mutation |
-| `StartRun` | none | Session Mutation |
-| `PauseRun` | none | Run Control |
-| `ReplaceProbes` | complete ordered Probe binding requests | Session Mutation |
-| `HotSwapSession` | target Compilation Artifact Key | Session Mutation |
-| `CloseSession` | none | Session Mutation |
-| `StartExplanation` | `RegionSelectionV1`, `TruthTable \| KarnaughMap`, Teaching Profile ID, Analysis Policy ID | Authoring |
-| `StartSimplification` | `RegionSelectionV1`, Cost Profile ID, Analysis Policy ID | Authoring |
-| `CancelAnalysis` | Operation ID | Operation |
-| `AcceptProposal` | Proposal ID | Proposal |
-| `PrepareExport` | Project Revision ID | Authoring |
+| Command                 | Typed payload                                                                             | Precondition       |
+| ----------------------- | ----------------------------------------------------------------------------------------- | ------------------ |
+| `ApplyEdit`             | one [Edit Intent](../specs/circuit-authoring.md)                                          | Authoring          |
+| `Undo`, `Redo`          | none                                                                                      | Authoring          |
+| `SaveDurable`           | none                                                                                      | Durable Save       |
+| `ClaimSandbox`          | requested Durable Display Name                                                            | Claim              |
+| `CloseWorkspace`        | none                                                                                      | current attachment |
+| `RequestCompilation`    | entry Circuit Definition ID                                                               | Compilation        |
+| `CreateSession`         | `SessionConfigurationV1` and target Compilation Artifact Key                              | Session Creation   |
+| `RestartSession`        | `SessionConfigurationV1`                                                                  | Session Mutation   |
+| `ScheduleStimulusBatch` | one complete future Stimulus Batch                                                        | Session Mutation   |
+| `StepSession`           | none                                                                                      | Session Mutation   |
+| `StartRun`              | none                                                                                      | Session Mutation   |
+| `PauseRun`              | none                                                                                      | Run Control        |
+| `ReplaceProbes`         | complete ordered Probe binding requests                                                   | Session Mutation   |
+| `HotSwapSession`        | target Compilation Artifact Key                                                           | Session Mutation   |
+| `CloseSession`          | none                                                                                      | Session Mutation   |
+| `StartExplanation`      | `RegionSelectionV1`, `TruthTable \| KarnaughMap`, Teaching Profile ID, Analysis Policy ID | Authoring          |
+| `StartSimplification`   | `RegionSelectionV1`, Cost Profile ID, Analysis Policy ID                                  | Authoring          |
+| `CancelAnalysis`        | Operation ID                                                                              | Operation          |
+| `AcceptProposal`        | Proposal ID                                                                               | Proposal           |
+| `PrepareExport`         | Project Revision ID                                                                       | Authoring          |
 
 Unknown variants fail before dispatch. Import is deliberately absent: it validates an external carrier and opens a separate Workspace. Selection, viewport, panels, waveform cursor, and Transient Preview are browser/Web state and are not Workspace commands.
 
@@ -227,11 +227,11 @@ Hot Swap migration evidence contains canonical ordered source identities of migr
 
 `RetryDisposition` is exactly one of:
 
-| Value | Caller action |
-|---|---|
-| `DoNotRetry` | change input or choose another action |
+| Value               | Caller action                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| `DoNotRetry`        | change input or choose another action                                                 |
 | `RefreshProjection` | read the current projection, obtain a new Client Intent ID, and reconsider the action |
-| `Reattach` | establish a new attachment generation before issuing a new intent |
+| `Reattach`          | establish a new attachment generation before issuing a new intent                     |
 
 No adapter infers retry behavior from localized text or HTTP status alone.
 
@@ -265,17 +265,17 @@ The snapshot is an in-process composition of owned immutable values, not a seria
 
 ### 3.3 Preconditions
 
-| Variant | Applies to | Fields |
-|---|---|---|
-| Authoring | edit, Undo, Redo, analysis start, export preparation | base Project Revision ID |
-| Durable Save | save | Project Revision ID plus expected Durable Version |
-| Claim | claim Sandbox Project | Project Revision ID and assertion that no Durable Project exists |
-| Compilation | compile | Project Revision ID, entry Circuit Definition ID, Library Snapshot |
-| Session Creation | create Session | target Compilation Artifact Key and assertion that no Session exists |
-| Session Mutation | step, stimulus, Start Run, probes, Hot Swap, restart, close | Session ID, expected Session Version, Compilation Artifact Key |
-| Run Control | pause an active run | Session ID and Run Generation |
-| Operation | cancel analysis | Operation ID and optional expected terminal/running state |
-| Proposal | accept simplification | Proposal ID, source Project Revision ID, region digest |
+| Variant          | Applies to                                                  | Fields                                                               |
+| ---------------- | ----------------------------------------------------------- | -------------------------------------------------------------------- |
+| Authoring        | edit, Undo, Redo, analysis start, export preparation        | base Project Revision ID                                             |
+| Durable Save     | save                                                        | Project Revision ID plus expected Durable Version                    |
+| Claim            | claim Sandbox Project                                       | Project Revision ID and assertion that no Durable Project exists     |
+| Compilation      | compile                                                     | Project Revision ID, entry Circuit Definition ID, Library Snapshot   |
+| Session Creation | create Session                                              | target Compilation Artifact Key and assertion that no Session exists |
+| Session Mutation | step, stimulus, Start Run, probes, Hot Swap, restart, close | Session ID, expected Session Version, Compilation Artifact Key       |
+| Run Control      | pause an active run                                         | Session ID and Run Generation                                        |
+| Operation        | cancel analysis                                             | Operation ID and optional expected terminal/running state            |
+| Proposal         | accept simplification                                       | Proposal ID, source Project Revision ID, region digest               |
 
 The Compilation precondition carries the base Project Revision ID, entry Circuit Definition ID, and Library Snapshot fingerprint. Session Creation carries the target Compilation Artifact Key. Session Mutation carries the Session ID, expected Session Version, and Compilation Artifact Key. These values are compared before execution and are part of the canonical Client Intent identity.
 

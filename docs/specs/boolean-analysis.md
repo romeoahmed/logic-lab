@@ -183,12 +183,12 @@ Internal cube, prime, AIG, cut, mapping, and BDD identifiers are absent.
 
 Diagnostic and outcome reason codes follow [Diagnostics V1](./diagnostics-v1.md). Eligibility and proof outcomes remain typed variants rather than localized strings or generic errors.
 
-| Outcome | Meaning | Can create a proposal? |
-|---|---|---|
-| Verified Improvement | a strict cost improvement with complete proof | yes, after Application freshness and recompilation checks |
-| No Improvement | all completed eligible work found no strict verified improvement | no |
-| Teaching Projection Unavailable | the requested teaching projection has an unsupported dimension or profile | no |
-| Inconclusive | policy exhaustion, cancellation, verifier disagreement, or internal defect | no |
+| Outcome                         | Meaning                                                                    | Can create a proposal?                                    |
+| ------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Verified Improvement            | a strict cost improvement with complete proof                              | yes, after Application freshness and recompilation checks |
+| No Improvement                  | all completed eligible work found no strict verified improvement           | no                                                        |
+| Teaching Projection Unavailable | the requested teaching projection has an unsupported dimension or profile  | no                                                        |
+| Inconclusive                    | policy exhaustion, cancellation, verifier disagreement, or internal defect | no                                                        |
 
 Policy exhaustion never returns a best-so-far candidate as exact. Authentication, admission, and queue rejection belong to Application and are not Analysis results.
 

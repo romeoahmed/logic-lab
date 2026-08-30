@@ -5,12 +5,12 @@
 
 This contract owns the records exchanged between Web and the two browser adapters. [Browser Runtime](../specs/browser-runtime.md) owns their implementation behavior; [Editor Workspace Contract](./editor-workspace.md) owns Workspace commands, queries, identity, and Trace reads. Browser records never become Domain values.
 
-| Value | Meaning | Not |
-|---|---|---|
+| Value              | Meaning                                      | Not                                 |
+| ------------------ | -------------------------------------------- | ----------------------------------- |
 | `buildFingerprint` | one atomically deployed server/browser build | authorization, protocol negotiation |
-| `SceneVersion` | one Scene snapshot/patch cursor | Projection Version |
-| `WaveformVersion` | one Waveform snapshot/patch cursor | Trace sequence, Session Version |
-| `SceneOverlayId` | one projection-local overlay locator | authored identity, authorization |
+| `SceneVersion`     | one Scene snapshot/patch cursor              | Projection Version                  |
+| `WaveformVersion`  | one Waveform snapshot/patch cursor           | Trace sequence, Session Version     |
+| `SceneOverlayId`   | one projection-local overlay locator         | authored identity, authorization    |
 
 ## 1. Scene interface
 
@@ -73,18 +73,18 @@ The Probe point must equal the current Schematic Projection's available `NetTopo
 
 `SceneIntentV1` is this closed JavaScript-to-Web union:
 
-| Kind | Required payload | Web action |
-|---|---|---|
-| `SelectSources` | ordered `AuthoredSourceRefV1` values and selection mode | update Web selection only |
-| `PlaceComponent` | target Circuit Definition ID, exact target, complete parameter authoring values, and final placement | one `PlaceComponentInstance` or `PlaceComponentWithNewMemoryImage` Edit Intent |
-| `MoveComponents` | nonempty scoped Component Instance references and final placements | one `MoveComponentInstances` Edit Intent |
-| `MoveDefinitionPorts` | nonempty scoped definition-Port references and final placements | one `MoveDefinitionPorts` Edit Intent |
-| `MoveAnnotations` | nonempty scoped Annotation references and final positions | one `MoveAnnotations` Edit Intent |
-| `CommitWire` | scoped `AuthoredTerminalRefV1` endpoints, scoped destination Net if any, explicit Junction requests, and final route values | one `ConnectTerminals` Edit Intent |
-| `AddJunction` | scoped Net reference, final point, and complete route additions/replacements/removals | one `AddJunction` Edit Intent |
-| `RemoveJunction` | scoped Junction reference, explicit resulting partitions, and complete route additions/replacements/removals | one `RemoveJunction` Edit Intent |
-| `SetWireRoute` | scoped Wire Geometry reference and final routed/unrouted value | one `SetWireGeometry` Edit Intent |
-| `ToggleProbe` | one `ElaboratedNetRefV1` | one complete `ReplaceProbes` command using retain/create binding requests |
+| Kind                  | Required payload                                                                                                            | Web action                                                                     |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `SelectSources`       | ordered `AuthoredSourceRefV1` values and selection mode                                                                     | update Web selection only                                                      |
+| `PlaceComponent`      | target Circuit Definition ID, exact target, complete parameter authoring values, and final placement                        | one `PlaceComponentInstance` or `PlaceComponentWithNewMemoryImage` Edit Intent |
+| `MoveComponents`      | nonempty scoped Component Instance references and final placements                                                          | one `MoveComponentInstances` Edit Intent                                       |
+| `MoveDefinitionPorts` | nonempty scoped definition-Port references and final placements                                                             | one `MoveDefinitionPorts` Edit Intent                                          |
+| `MoveAnnotations`     | nonempty scoped Annotation references and final positions                                                                   | one `MoveAnnotations` Edit Intent                                              |
+| `CommitWire`          | scoped `AuthoredTerminalRefV1` endpoints, scoped destination Net if any, explicit Junction requests, and final route values | one `ConnectTerminals` Edit Intent                                             |
+| `AddJunction`         | scoped Net reference, final point, and complete route additions/replacements/removals                                       | one `AddJunction` Edit Intent                                                  |
+| `RemoveJunction`      | scoped Junction reference, explicit resulting partitions, and complete route additions/replacements/removals                | one `RemoveJunction` Edit Intent                                               |
+| `SetWireRoute`        | scoped Wire Geometry reference and final routed/unrouted value                                                              | one `SetWireGeometry` Edit Intent                                              |
+| `ToggleProbe`         | one `ElaboratedNetRefV1`                                                                                                    | one complete `ReplaceProbes` command using retain/create binding requests      |
 
 Every intent carries the build fingerprint, Scene Version, Projection Version, and Circuit Definition ID from which it began. Every scoped authored reference must name that same Circuit Definition. Coordinate-bearing placement, move, route, and Junction intents additionally carry only their final checked 32-bit grid coordinates and the closed modifier `None | DisableSnap`; `SelectSources` and `ToggleProbe` carry neither gesture coordinates nor a snap modifier. `SelectSources` additionally carries selection mode `Replace | Add | Toggle`. Pan/zoom, hover, marquee preview, route preview, pointer samples, and cancelled gestures remain local and emit no intent.
 
@@ -141,16 +141,16 @@ Segments are nonempty, nonoverlapping, ordered, use the [Editor Workspace Contra
 
 `WaveformIntentV1` is closed:
 
-| Kind | Payload |
-|---|---|
-| `SetViewport` | nonempty logical-time range |
-| `SetCursor` | cursor `Primary \| Secondary` and Logical Time, or explicit removal |
-| `SetLiveFollow` | Boolean enabled value |
-| `SetProbeOrder` | complete ordered Probe IDs |
-| `SetProbeRadix` | Probe ID and `binary \| hex \| unsigned` |
-| `RequestTraceWindow` | one `TraceWindowRequest` |
-| `RevealNet` | Probe ID |
-| `CloseWaveform` | none |
+| Kind                 | Payload                                                             |
+| -------------------- | ------------------------------------------------------------------- |
+| `SetViewport`        | nonempty logical-time range                                         |
+| `SetCursor`          | cursor `Primary \| Secondary` and Logical Time, or explicit removal |
+| `SetLiveFollow`      | Boolean enabled value                                               |
+| `SetProbeOrder`      | complete ordered Probe IDs                                          |
+| `SetProbeRadix`      | Probe ID and `binary \| hex \| unsigned`                            |
+| `RequestTraceWindow` | one `TraceWindowRequest`                                            |
+| `RevealNet`          | Probe ID                                                            |
+| `CloseWaveform`      | none                                                                |
 
 Viewport, cursor, live-follow, radix, and close state remain Web/browser preferences. Probe order translates to one complete `ReplaceProbes` command. A trace request translates to `ReadTraceWindow`. Reveal Net changes Web selection and requests the matching Scene snapshot/patch only when `sceneNavigation` is `Available`; otherwise it preserves the waveform and presents the exact unavailable reason plus the applicable remove/rebind/retry action. An unresolved runtime binding may still be navigable when its authored Net remains present.
 

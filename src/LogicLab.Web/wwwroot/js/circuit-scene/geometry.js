@@ -1,23 +1,33 @@
 export function contains(region, point) {
   if (region.shape === "rect") {
-    return point.x >= region.bounds.left && point.x <= region.bounds.right
-      && point.y >= region.bounds.top && point.y <= region.bounds.bottom;
+    return (
+      point.x >= region.bounds.left &&
+      point.x <= region.bounds.right &&
+      point.y >= region.bounds.top &&
+      point.y <= region.bounds.bottom
+    );
   }
   if (region.shape === "circle") {
     const x = point.x - region.center.x;
     const y = point.y - region.center.y;
-    return (x * x) + (y * y) <= region.radius * region.radius;
+    return x * x + y * y <= region.radius * region.radius;
   }
 
   let inside = false;
-  for (let index = 0, previous = region.points.length - 1;
+  for (
+    let index = 0, previous = region.points.length - 1;
     index < region.points.length;
-    previous = index++) {
+    previous = index++
+  ) {
     const currentPoint = region.points[index];
     const priorPoint = region.points[previous];
-    if (((currentPoint.y > point.y) !== (priorPoint.y > point.y))
-        && point.x < ((priorPoint.x - currentPoint.x) * (point.y - currentPoint.y)
-          / (priorPoint.y - currentPoint.y)) + currentPoint.x) {
+    if (
+      currentPoint.y > point.y !== priorPoint.y > point.y &&
+      point.x <
+        ((priorPoint.x - currentPoint.x) * (point.y - currentPoint.y)) /
+          (priorPoint.y - currentPoint.y) +
+          currentPoint.x
+    ) {
       inside = !inside;
     }
   }
@@ -51,8 +61,10 @@ export function rectFromPoints(first, second) {
 }
 
 export function gestureMoved(gesture) {
-  return gesture.startWorld.x !== gesture.currentWorld.x
-    || gesture.startWorld.y !== gesture.currentWorld.y;
+  return (
+    gesture.startWorld.x !== gesture.currentWorld.x ||
+    gesture.startWorld.y !== gesture.currentWorld.y
+  );
 }
 
 export function selectionModeFromModifiers(event) {
@@ -62,8 +74,12 @@ export function selectionModeFromModifiers(event) {
 }
 
 export function intersects(left, right) {
-  return left.left <= right.right && left.right >= right.left
-    && left.top <= right.bottom && left.bottom >= right.top;
+  return (
+    left.left <= right.right &&
+    left.right >= right.left &&
+    left.top <= right.bottom &&
+    left.bottom >= right.top
+  );
 }
 
 export function expandRect(rect, margin) {
@@ -76,16 +92,26 @@ export function expandRect(rect, margin) {
 }
 
 export function validComponentPlacement(placement) {
-  return placement && validGridPoint(placement.origin)
-    && Number.isSafeInteger(placement.quarterTurnsClockwise)
-    && placement.quarterTurnsClockwise >= 0 && placement.quarterTurnsClockwise <= 3
-    && typeof placement.reflected === "boolean";
+  return (
+    placement &&
+    validGridPoint(placement.origin) &&
+    Number.isSafeInteger(placement.quarterTurnsClockwise) &&
+    placement.quarterTurnsClockwise >= 0 &&
+    placement.quarterTurnsClockwise <= 3 &&
+    typeof placement.reflected === "boolean"
+  );
 }
 
 export function validGridPoint(point) {
-  return point && Number.isSafeInteger(point.x) && Number.isSafeInteger(point.y)
-    && point.x >= -2147483648 && point.x <= 2147483647
-    && point.y >= -2147483648 && point.y <= 2147483647;
+  return (
+    point &&
+    Number.isSafeInteger(point.x) &&
+    Number.isSafeInteger(point.y) &&
+    point.x >= -2147483648 &&
+    point.x <= 2147483647 &&
+    point.y >= -2147483648 &&
+    point.y <= 2147483647
+  );
 }
 
 export function terminalFromSource(source) {
@@ -175,8 +201,12 @@ export function validRect(rect) {
 }
 
 export function validRectAllowDegenerate(rect) {
-  return rect && finiteNumbers(rect.left, rect.top, rect.right, rect.bottom)
-    && rect.right >= rect.left && rect.bottom >= rect.top;
+  return (
+    rect &&
+    finiteNumbers(rect.left, rect.top, rect.right, rect.bottom) &&
+    rect.right >= rect.left &&
+    rect.bottom >= rect.top
+  );
 }
 
 export function validPoint(point) {
@@ -188,8 +218,9 @@ export function finiteNumbers(...values) {
 }
 
 function gridCoordinate(worldCoordinate, snapshot, disableSnap) {
-  const integerGridCoordinate = signedIntegerOrNull(roundHalfNegativeInfinity(
-    worldCoordinate / snapshot.gridStepPlanUnits));
+  const integerGridCoordinate = signedIntegerOrNull(
+    roundHalfNegativeInfinity(worldCoordinate / snapshot.gridStepPlanUnits),
+  );
   if (integerGridCoordinate === null) {
     return null;
   }
@@ -197,8 +228,10 @@ function gridCoordinate(worldCoordinate, snapshot, disableSnap) {
     return integerGridCoordinate;
   }
 
-  return signedIntegerOrNull(roundHalfNegativeInfinity(
-    integerGridCoordinate / snapshot.snapStepGridUnits) * snapshot.snapStepGridUnits);
+  return signedIntegerOrNull(
+    roundHalfNegativeInfinity(integerGridCoordinate / snapshot.snapStepGridUnits) *
+      snapshot.snapStepGridUnits,
+  );
 }
 
 function wireEndpoint(hit, fallback, snapshot, disableSnap) {
@@ -207,10 +240,14 @@ function wireEndpoint(hit, fallback, snapshot, disableSnap) {
   }
 
   const local = hit.region.anchor;
-  return gridPoint({
-    x: local.x + hit.item.origin.x,
-    y: local.y + hit.item.origin.y,
-  }, snapshot, disableSnap);
+  return gridPoint(
+    {
+      x: local.x + hit.item.origin.x,
+      y: local.y + hit.item.origin.y,
+    },
+    snapshot,
+    disableSnap,
+  );
 }
 
 function terminalDirection(hit) {
@@ -240,34 +277,28 @@ function orthogonalWirePoints(start, end, startDirection, endDirection, lead) {
     points.push(endLead);
   } else if (startIsHorizontal && endIsHorizontal) {
     const delta = end.x - start.x;
-    const faceEachOther = Math.sign(delta) === startDirection.x
-      && Math.sign(-delta) === endDirection.x
-      && Math.abs(delta) >= step * 2;
+    const faceEachOther =
+      Math.sign(delta) === startDirection.x &&
+      Math.sign(-delta) === endDirection.x &&
+      Math.abs(delta) >= step * 2;
     const channelX = faceEachOther
       ? snapMidpoint(startLead.x, endLead.x, step)
       : startDirection.x > 0
         ? Math.max(startLead.x, endLead.x) + step
         : Math.min(startLead.x, endLead.x) - step;
-    points.push(
-      { x: channelX, y: startLead.y },
-      { x: channelX, y: endLead.y },
-      endLead,
-    );
+    points.push({ x: channelX, y: startLead.y }, { x: channelX, y: endLead.y }, endLead);
   } else if (startIsVertical && endIsVertical) {
     const delta = end.y - start.y;
-    const faceEachOther = Math.sign(delta) === startDirection.y
-      && Math.sign(-delta) === endDirection.y
-      && Math.abs(delta) >= step * 2;
+    const faceEachOther =
+      Math.sign(delta) === startDirection.y &&
+      Math.sign(-delta) === endDirection.y &&
+      Math.abs(delta) >= step * 2;
     const channelY = faceEachOther
       ? snapMidpoint(startLead.y, endLead.y, step)
       : startDirection.y > 0
         ? Math.max(startLead.y, endLead.y) + step
         : Math.min(startLead.y, endLead.y) - step;
-    points.push(
-      { x: startLead.x, y: channelY },
-      { x: endLead.x, y: channelY },
-      endLead,
-    );
+    points.push({ x: startLead.x, y: channelY }, { x: endLead.x, y: channelY }, endLead);
   } else if (endIsHorizontal) {
     points.push({ x: startLead.x, y: endLead.y }, endLead);
   } else {
@@ -280,25 +311,29 @@ function orthogonalWirePoints(start, end, startDirection, endDirection, lead) {
 function canRouteDirectly(start, end, startDirection, endDirection) {
   if (start.y === end.y) {
     const direction = Math.sign(end.x - start.x);
-    return (!startDirection || (startDirection.y === 0 && startDirection.x === direction))
-      && (!endDirection || (endDirection.y === 0 && endDirection.x === -direction));
+    return (
+      (!startDirection || (startDirection.y === 0 && startDirection.x === direction)) &&
+      (!endDirection || (endDirection.y === 0 && endDirection.x === -direction))
+    );
   }
   if (start.x === end.x) {
     const direction = Math.sign(end.y - start.y);
-    return (!startDirection || (startDirection.x === 0 && startDirection.y === direction))
-      && (!endDirection || (endDirection.x === 0 && endDirection.y === -direction));
+    return (
+      (!startDirection || (startDirection.x === 0 && startDirection.y === direction)) &&
+      (!endDirection || (endDirection.x === 0 && endDirection.y === -direction))
+    );
   }
   return false;
 }
 
 function offsetPoint(point, direction, distance) {
   return direction
-    ? { x: point.x + (direction.x * distance), y: point.y + (direction.y * distance) }
+    ? { x: point.x + direction.x * distance, y: point.y + direction.y * distance }
     : point;
 }
 
 function snapMidpoint(first, second, step) {
-  return roundHalfNegativeInfinity(((first + second) / 2) / step) * step;
+  return roundHalfNegativeInfinity((first + second) / 2 / step) * step;
 }
 
 function compactOrthogonalPoints(points) {
@@ -310,8 +345,10 @@ function compactOrthogonalPoints(points) {
     while (compacted.length >= 2) {
       const previous = compacted.at(-2);
       const current = compacted.at(-1);
-      if ((previous.x === current.x && current.x === point.x)
-          || (previous.y === current.y && current.y === point.y)) {
+      if (
+        (previous.x === current.x && current.x === point.x) ||
+        (previous.y === current.y && current.y === point.y)
+      ) {
         compacted.pop();
       } else {
         break;
@@ -331,7 +368,5 @@ function roundHalfNegativeInfinity(value) {
 }
 
 function signedIntegerOrNull(value) {
-  return Number.isSafeInteger(value) && value >= -2147483648 && value <= 2147483647
-    ? value
-    : null;
+  return Number.isSafeInteger(value) && value >= -2147483648 && value <= 2147483647 ? value : null;
 }

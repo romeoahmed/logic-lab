@@ -8,18 +8,18 @@ V1 ships one project-level, versioned `TeachingMixed` Symbol Profile based on IE
 
 ## 1. TeachingMixed profile
 
-| Component family | Default Symbol Variant | Basis |
-|---|---|---|
-| AND/NAND | distinctive AND plus output qualifier | 5.1-3 and 5.1-17 |
-| OR/NOR | distinctive OR plus output qualifier | 5.1-1 and 5.1-18 |
-| two-input XOR/XNOR | distinctive XOR plus output qualifier | 5.1-11 |
-| XOR/XNOR with more than two inputs | rectangular odd/even function | 5.1-9 and 5.1-10 |
-| Buffer/NOT | distinctive triangle plus negation qualifier | 5.1-12 to 5.1-14 |
-| MUX, decoder, encoder, arithmetic | parameterized rectangle | applicable function and dependency notation |
-| latch, flip-flop, register, counter, shift register | parameterized rectangle | 5.9 and 5.13 |
-| ROM and RAM | parameterized rectangle or array | 5.14 and address dependency |
-| user Circuit Definition | rectangular authored-contract symbol | explicit extension claim unless a standard symbol is proven |
-| interactive switch, LED, and probe marker | standardized form where proven; otherwise Teaching Extension | explicit extension mark |
+| Component family                                    | Default Symbol Variant                                       | Basis                                                       |
+| --------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------- |
+| AND/NAND                                            | distinctive AND plus output qualifier                        | 5.1-3 and 5.1-17                                            |
+| OR/NOR                                              | distinctive OR plus output qualifier                         | 5.1-1 and 5.1-18                                            |
+| two-input XOR/XNOR                                  | distinctive XOR plus output qualifier                        | 5.1-11                                                      |
+| XOR/XNOR with more than two inputs                  | rectangular odd/even function                                | 5.1-9 and 5.1-10                                            |
+| Buffer/NOT                                          | distinctive triangle plus negation qualifier                 | 5.1-12 to 5.1-14                                            |
+| MUX, decoder, encoder, arithmetic                   | parameterized rectangle                                      | applicable function and dependency notation                 |
+| latch, flip-flop, register, counter, shift register | parameterized rectangle                                      | 5.9 and 5.13                                                |
+| ROM and RAM                                         | parameterized rectangle or array                             | 5.14 and address dependency                                 |
+| user Circuit Definition                             | rectangular authored-contract symbol                         | explicit extension claim unless a standard symbol is proven |
+| interactive switch, LED, and probe marker           | standardized form where proven; otherwise Teaching Extension | explicit extension mark                                     |
 
 The two-input XOR outline is never stretched into a different multi-input parity meaning. Distinctive shapes are not composed into complex symbols.
 
@@ -87,15 +87,15 @@ Qualifier and dependency composition is structured. Component Contract Port IDs 
 
 ### 3.1 Sequential and memory notation
 
-| Concern | Rule |
-|---|---|
-| astable source | The general symbol displays the standardized `G` generator mark and no function label derived from the Contract Port ID `Q`. |
-| bistable body and output | D, J, K, R, S, and T are Port-bound input functions; a basic bistable has no invented body function. A complemented `QN` output uses the diagram-wide negation or direct-polarity output qualifier, cites rule 3.1.1 and the corresponding 3.1 output symbol, and publishes no `QN` function label. |
-| clock and hold controls | The dynamic mark binds to the authored `CLK` Port. The closed `edge` parameter selects rising or falling presentation; falling presentation composes the dynamic mark with the diagram-wide indication convention. For affected inputs, inactive C and EN dependencies suppress action, while an inactive G dependency imposes the internal 0-state, so a hold-capable control is not represented as G. |
-| register, shift, and count | A storage register uses bistable input qualifiers without an invented `REG*` body mark. Shift registers and counters use `SRG{width}` and `CTR{width}` body functions; direction qualifiers `→`, `←`, `+`, and `−` bind to `CLK` as input functions instead of being concatenated to the body text. |
-| data and write functions | Parallel, serial, load-value, and memory data inputs use D. Write enable uses EN. Mode, control, enable, and terminal-count functions remain explicit Port-bound notation. |
-| address dependency | A scalar address Port uses a structured input bit-grouping qualifier with visible weight, brace, and the complete consecutive range `A0/1`; selected data endpoints carry A. An aggregate address Port retains its authored label, omits the unimplemented bit-grouping and address dependency, removes their exact standard references, and publishes `TeachingExtension`. |
-| memory size | ROM and RAM body text is derived from structured `(addressWidth, wordWidth)` array information as `2^addressWidth` words of `wordWidth` bits. The renderer never parses capacity or parameters back from display text. |
+| Concern                    | Rule                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| astable source             | The general symbol displays the standardized `G` generator mark and no function label derived from the Contract Port ID `Q`.                                                                                                                                                                                                                                                                            |
+| bistable body and output   | D, J, K, R, S, and T are Port-bound input functions; a basic bistable has no invented body function. A complemented `QN` output uses the diagram-wide negation or direct-polarity output qualifier, cites rule 3.1.1 and the corresponding 3.1 output symbol, and publishes no `QN` function label.                                                                                                     |
+| clock and hold controls    | The dynamic mark binds to the authored `CLK` Port. The closed `edge` parameter selects rising or falling presentation; falling presentation composes the dynamic mark with the diagram-wide indication convention. For affected inputs, inactive C and EN dependencies suppress action, while an inactive G dependency imposes the internal 0-state, so a hold-capable control is not represented as G. |
+| register, shift, and count | A storage register uses bistable input qualifiers without an invented `REG*` body mark. Shift registers and counters use `SRG{width}` and `CTR{width}` body functions; direction qualifiers `→`, `←`, `+`, and `−` bind to `CLK` as input functions instead of being concatenated to the body text.                                                                                                     |
+| data and write functions   | Parallel, serial, load-value, and memory data inputs use D. Write enable uses EN. Mode, control, enable, and terminal-count functions remain explicit Port-bound notation.                                                                                                                                                                                                                              |
+| address dependency         | A scalar address Port uses a structured input bit-grouping qualifier with visible weight, brace, and the complete consecutive range `A0/1`; selected data endpoints carry A. An aggregate address Port retains its authored label, omits the unimplemented bit-grouping and address dependency, removes their exact standard references, and publishes `TeachingExtension`.                             |
+| memory size                | ROM and RAM body text is derived from structured `(addressWidth, wordWidth)` array information as `2^addressWidth` words of `wordWidth` bits. The renderer never parses capacity or parameters back from display text.                                                                                                                                                                                  |
 
 The Priority Encoder remains the explicit Teaching Extension defined in Section 1 until input weights and priority composition are structured; it cannot publish `Standardized91A` from its bracketed body text alone.
 
@@ -258,13 +258,13 @@ Selection, live Logic Values, probes, diagnostics, and the Probe Spine are edito
 
 Each generated symbol carries one claim:
 
-| Claim | Meaning |
-|---|---|
-| `Standardized91A` | generated from the cited standardized outline, qualifiers, and composition rules |
-| `PermittedDistinctive91A` | uses a distinctive basic-gate outline explicitly permitted by chapter 5 |
-| `StandardBaseWithNonstandardInfo` | uses a standard base with clearly bracketed nonstandard information |
-| `TeachingExtension` | useful teaching or interaction notation not claimed as IEEE 91A |
-| `UnverifiedFallback` | safe rectangular fallback with no conformance claim |
+| Claim                             | Meaning                                                                          |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| `Standardized91A`                 | generated from the cited standardized outline, qualifiers, and composition rules |
+| `PermittedDistinctive91A`         | uses a distinctive basic-gate outline explicitly permitted by chapter 5          |
+| `StandardBaseWithNonstandardInfo` | uses a standard base with clearly bracketed nonstandard information              |
+| `TeachingExtension`               | useful teaching or interaction notation not claimed as IEEE 91A                  |
+| `UnverifiedFallback`              | safe rectangular fallback with no conformance claim                              |
 
 Annex A proportions are informative and recorded separately as `Pass`, `Adjusted`, or `NotEvaluated`. `Pass` requires every registered rational proportion to be exactly representable in the Metric Set's integer plan units and the final layout to retain the registered body dimensions; quantization or constraint-driven enlargement reports `Adjusted`. No product-wide “IEEE compliant” claim is made from a mixture of individual claims.
 

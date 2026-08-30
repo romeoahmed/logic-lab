@@ -78,15 +78,15 @@ Activities, metrics, and structured logs originate at Application, Infrastructur
 
 ## 9. Rejected defaults
 
-| Option | Reason |
-|---|---|
-| multi-targeting | no second consumer justifies duplicated compatibility evidence |
-| alternate DI container or mediator | no missing built-in capability or independent seam |
-| public REST/OpenAPI surface | no independent V1 API consumer |
+| Option                                                 | Reason                                                                     |
+| ------------------------------------------------------ | -------------------------------------------------------------------------- |
+| multi-targeting                                        | no second consumer justifies duplicated compatibility evidence             |
+| alternate DI container or mediator                     | no missing built-in capability or independent seam                         |
+| public REST/OpenAPI surface                            | no independent V1 API consumer                                             |
 | `.Client` project, Interactive Auto, or browser engine | conflicts with server-owned Workspace and unmeasured download/runtime cost |
-| Native AOT Web host | Blazor Server is unsupported |
-| automatic production migration at Web startup | weakens review, least privilege, rollback, and provider-specific recovery |
-| speculative pooling, unsafe code, or runtime tuning | ownership and performance value are unproved |
+| Native AOT Web host                                    | Blazor Server is unsupported                                               |
+| automatic production migration at Web startup          | weakens review, least privilege, rollback, and provider-specific recovery  |
+| speculative pooling, unsafe code, or runtime tuning    | ownership and performance value are unproved                               |
 
 ## 10. Primary sources
 

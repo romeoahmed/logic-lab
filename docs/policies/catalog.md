@@ -15,16 +15,16 @@ Do not copy a provisional value into an ADR, Project Document, or public compati
 
 ## Policy catalogs
 
-| Policy | Owner | Dimensions |
-|---|---|---|
-| Package Policy | Project Format | input/output carrier bytes, entries, expanded bytes, JSON depth/tokens, strings, entities, memory parts |
-| Project Scale Policy | Compiler | `definition_count`, `entity_count`, `hierarchy_depth`, `elaborated_slot_count`, `memory_cell_count` |
-| Simulation Policy | Simulation Runtime | event work, frontier work, working-layer size, zero-time state evidence |
-| Trace Policy | Simulation Runtime | probes, retained transitions, sealed chunks, bytes, debug capture |
-| Analysis Policy | Boolean Analysis | rows, cubes, primes, chart edges, Petrick terms, AIG/cut/mapping work, BDD work |
-| Scheduling Policy | Application | admission rate, per-identity fairness, queue capacity, worker concurrency, result retention |
-| Workspace Policy | Application | Workspace and authoring admission, history retention, detached recovery, hot-swap peak, sandbox lifetime, Durable Display Name scalar/UTF-8 bytes, catalog page size/cursor bytes |
-| Browser Policy | Web | Scene-intent bytes, snapshot/patch records, candidate-transfer bytes, bitmap pixels, effective density, zoom, and the implemented Scene caches |
+| Policy               | Owner              | Dimensions                                                                                                                                                                        |
+| -------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Package Policy       | Project Format     | input/output carrier bytes, entries, expanded bytes, JSON depth/tokens, strings, entities, memory parts                                                                           |
+| Project Scale Policy | Compiler           | `definition_count`, `entity_count`, `hierarchy_depth`, `elaborated_slot_count`, `memory_cell_count`                                                                               |
+| Simulation Policy    | Simulation Runtime | event work, frontier work, working-layer size, zero-time state evidence                                                                                                           |
+| Trace Policy         | Simulation Runtime | probes, retained transitions, sealed chunks, bytes, debug capture                                                                                                                 |
+| Analysis Policy      | Boolean Analysis   | rows, cubes, primes, chart edges, Petrick terms, AIG/cut/mapping work, BDD work                                                                                                   |
+| Scheduling Policy    | Application        | admission rate, per-identity fairness, queue capacity, worker concurrency, result retention                                                                                       |
+| Workspace Policy     | Application        | Workspace and authoring admission, history retention, detached recovery, hot-swap peak, sandbox lifetime, Durable Display Name scalar/UTF-8 bytes, catalog page size/cursor bytes |
+| Browser Policy       | Web                | Scene-intent bytes, snapshot/patch records, candidate-transfer bytes, bitmap pixels, effective density, zoom, and the implemented Scene caches                                    |
 
 Each policy has a stable ID and revision. A policy failure reports the policy revision, dimension, observed work, and stable reason. It does not expose sensitive fleet capacity.
 
@@ -187,13 +187,13 @@ catalog_cursor_bytes
 
 Workspace dimensions have these grouped rules:
 
-| Group | Rule |
-|---|---|
-| process admission | `global_workspace_count` bounds all retained Workspaces; `anonymous_workspace_count_global` additionally bounds anonymous live, reserved, and pending-transfer ownership; `workspace_count_per_subject` is a fairness bound, not a replacement for either global bound |
-| authoring | definition, entity, and nested command-item counts stop at budget exhaustion and reject before publication; they share Compiler's authored-entity accounting but do not replace hierarchy or elaboration limits |
-| history and idempotency | limits apply only after atomic success; repository receipt pruning shares the command transaction and never makes an edit or save partially commit |
-| retention | detached and Sandbox deadlines use `TimeProvider` and never slide because of a rejected operation |
-| names and catalog | both Durable Display Name dimensions must pass; page and cursor requests cannot exceed their maxima |
+| Group                   | Rule                                                                                                                                                                                                                                                                   |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| process admission       | `global_workspace_count` bounds all retained Workspaces; `anonymous_workspace_count_global` additionally bounds anonymous live, reserved, and pending-transfer ownership; `workspace_count_per_subject` is a fairness bound, not a replacement for either global bound |
+| authoring               | definition, entity, and nested command-item counts stop at budget exhaustion and reject before publication; they share Compiler's authored-entity accounting but do not replace hierarchy or elaboration limits                                                        |
+| history and idempotency | limits apply only after atomic success; repository receipt pruning shares the command transaction and never makes an edit or save partially commit                                                                                                                     |
+| retention               | detached and Sandbox deadlines use `TimeProvider` and never slide because of a rejected operation                                                                                                                                                                      |
+| names and catalog       | both Durable Display Name dimensions must pass; page and cursor requests cannot exceed their maxima                                                                                                                                                                    |
 
 Workspace admission and expiry reclamation are one atomic directory decision, so concurrent opens cannot overshoot a limit. `AuthoringLimits` groups the three authoring dimensions at the public composition seam; there is no second internal authoring policy.
 
@@ -201,23 +201,23 @@ The trusted `WorkspaceCaller` defines the per-subject partition. An anonymous Br
 
 `hot_swap_peak_bytes` is logical owned-buffer accounting, not process RSS:
 
-| Unit | Bytes |
-|---|---:|
-| owned reference or index slot | 8 |
-| packed Logic Vector word, two planes | 16 |
-| resolved Net word, three cause planes | 24 |
-| unpacked Application `LogicValue` | 1 |
-| Trace transition | 48 plus packed value words |
+| Unit                                  |                      Bytes |
+| ------------------------------------- | -------------------------: |
+| owned reference or index slot         |                          8 |
+| packed Logic Vector word, two planes  |                         16 |
+| resolved Net word, three cause planes |                         24 |
+| unpacked Application `LogicValue`     |                          1 |
+| Trace transition                      | 48 plus packed value words |
 
 Event-frontier accounting charges three slots per queued Stimulus Batch, one per queued assignment, and two per Logical-Time index entry, indexed Driver assignment, Clock bucket, or Clock transition.
 
 Count each unique owned buffer once. Shared immutable Compilation Artifact/source-index records, CLR headers, allocator slack, tree links, and transient preflight metadata are excluded. Session and outcome share Diagnostics; Application and Engine share migration evidence instead of cloning it. Net resolution reads Artifact Driver ordinals without a per-Net reference buffer.
 
-| Lifecycle peak | Included storage |
-|---|---|
-| candidate | committed Session working layer and Diagnostics, retained Trace, current Workspace Projection, complete replacement working layer and Clock calendar, replacement Diagnostics, and one extra two-plane buffer per concurrently retained migrated RAM |
-| settlement | candidate plus one reusable cyclic-region work area and the larger of one evaluator's temporary envelope or the widest recomputed Net resolution plane |
-| publication | replacement Session, Engine outcome, retained and replacement Workspace Projections, exact changed-Probe staging, Trace fork/index/chunk, migrated-state sources, Probe ID/value arrays, and observed Probes |
+| Lifecycle peak | Included storage                                                                                                                                                                                                                                     |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| candidate      | committed Session working layer and Diagnostics, retained Trace, current Workspace Projection, complete replacement working layer and Clock calendar, replacement Diagnostics, and one extra two-plane buffer per concurrently retained migrated RAM |
+| settlement     | candidate plus one reusable cyclic-region work area and the larger of one evaluator's temporary envelope or the widest recomputed Net resolution plane                                                                                               |
+| publication    | replacement Session, Engine outcome, retained and replacement Workspace Projections, exact changed-Probe staging, Trace fork/index/chunk, migrated-state sources, Probe ID/value arrays, and observed Probes                                         |
 
 The cyclic work area contains pending ordinals for the largest region, one pending-state slot per evaluator, Driver ordinals for the largest region, and prior-output references for the widest evaluator. A Driver already at bottom is reused; an epoch reset adds a plane only when its prior value differs. Count multi-output storage by unique plane—Demux shares its selected-data and zero planes. Checked arithmetic saturation is over-limit.
 

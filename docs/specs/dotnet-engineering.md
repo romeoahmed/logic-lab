@@ -10,14 +10,14 @@ This specification owns repository-wide .NET build, dependency, language, execut
 
 The checked-in root files are executable policy:
 
-| File | Owned decision |
-|---|---|
-| `global.json` | exact SDK pin, no roll-forward/prerelease SDK, Microsoft Testing Platform runner |
-| `Directory.Build.props` | `net10.0`, C# 14, nullable, analyzers, checked arithmetic, safe code, deterministic warning-clean builds |
-| `Directory.Packages.props` | exact Central Package Management versions; no project-local package versions |
-| `NuGet.Config` | one cleared package source and one explicit vulnerability-audit source |
-| `.editorconfig` | repository text and C# style that `dotnet format` can enforce |
-| `logic-lab.slnx` | the complete build/test graph as projects are added |
+| File                       | Owned decision                                                                                           |
+| -------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `global.json`              | exact SDK pin, no roll-forward/prerelease SDK, Microsoft Testing Platform runner                         |
+| `Directory.Build.props`    | `net10.0`, C# 14, nullable, analyzers, checked arithmetic, safe code, deterministic warning-clean builds |
+| `Directory.Packages.props` | exact Central Package Management versions; no project-local package versions                             |
+| `NuGet.Config`             | one cleared package source and one explicit vulnerability-audit source                                   |
+| `.editorconfig`            | repository text and C# style that `dotnet format` can enforce                                            |
+| `logic-lab.slnx`           | the complete build/test graph as projects are added                                                      |
 
 The SDK version is full and `rollForward=disable`, so local and CI restore/build use the same SDK patch as the reviewed package lock graph. Moving to another patch or feature band is one deliberate change that regenerates and reviews application-root lock files. `allowPrerelease` is explicit because its platform default differs between CLI and Visual Studio. See the [.NET SDK selection contract](https://learn.microsoft.com/en-us/dotnet/core/tools/global-json#globaljson-schema).
 
@@ -78,12 +78,12 @@ Every resource has one visible owner. Prefer `using`/`await using`; DI disposes 
 
 Lifetime follows ownership:
 
-| Lifetime | Valid examples | Required property |
-|---|---|---|
-| singleton/process | immutable registries, stateless thread-safe Modules, Workspace directory, Work Coordinator, instruments | no scoped capture; bounded retained state |
-| circuit | Web projection coordinator and browser adapters | no Workspace, operation, or `DbContext` ownership |
-| operation scope | repository/authorization/transfer adapters for one operation | created explicitly by hosted work |
-| short-lived object | `DbContext`, stream, parser, builder, pooled scratch | disposed before operation publication |
+| Lifetime           | Valid examples                                                                                          | Required property                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| singleton/process  | immutable registries, stateless thread-safe Modules, Workspace directory, Work Coordinator, instruments | no scoped capture; bounded retained state         |
+| circuit            | Web projection coordinator and browser adapters                                                         | no Workspace, operation, or `DbContext` ownership |
+| operation scope    | repository/authorization/transfer adapters for one operation                                            | created explicitly by hosted work                 |
+| short-lived object | `DbContext`, stream, parser, builder, pooled scratch                                                    | disposed before operation publication             |
 
 Host configuration binds feature-owned options classes through `OptionsBuilder`, validates shape and cross-field rules with `ValidateOnStart`, and fails readiness for invalid required values. Secrets are referenced through the deployment provider, never committed, returned, or logged. The options pattern and startup validation are documented in [Options validation](https://learn.microsoft.com/en-us/dotnet/core/extensions/options#options-validation).
 

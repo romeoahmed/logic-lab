@@ -69,113 +69,113 @@ Internal typed variants map one-to-one to these wire codes. RFC 9457 adapters us
 
 ## 5. Circuit Authoring diagnostics
 
-| Code | Severity | Ordered arguments |
-|---|---|---|
-| `authoring_duplicate_id` | Error | `entityKind:StableToken` |
-| `authoring_missing_reference` | Error | `referenceKind:StableToken` |
-| `authoring_invalid_width` | Error | `actual:UnsignedDecimal` |
-| `authoring_width_mismatch` | Error | `expected:UnsignedDecimal`, `actual:UnsignedDecimal` |
-| `authoring_terminal_already_connected` | Error | none |
-| `authoring_invalid_parameter` | Error | `contractKey:ContractKey`, `parameterId:StableToken`, `rule:StableToken` |
-| `authoring_invalid_text` | Error | `field:StableToken`, `rule:StableToken` |
-| `authoring_invalid_coordinate` | Error | `field:StableToken`, `rule:StableToken` |
-| `authoring_invalid_memory_image` | Error | `rule:StableToken` |
-| `authoring_invalid_route` | Error | `rule:StableToken` |
-| `authoring_delete_has_dependents` | Error | `dependentKind:StableToken`, `dependentCount:UnsignedDecimal` |
-| `authoring_invalid_split` | Error | `rule:StableToken` |
-| `authoring_symbol_variant_incompatible` | Error | `variantId:StableToken`, `contractKey:ContractKey` |
-| `authoring_symbol_profile_unresolved` | Error | `profileId:StableToken`, `profileVersion:StableToken` |
+| Code                                    | Severity | Ordered arguments                                                        |
+| --------------------------------------- | -------- | ------------------------------------------------------------------------ |
+| `authoring_duplicate_id`                | Error    | `entityKind:StableToken`                                                 |
+| `authoring_missing_reference`           | Error    | `referenceKind:StableToken`                                              |
+| `authoring_invalid_width`               | Error    | `actual:UnsignedDecimal`                                                 |
+| `authoring_width_mismatch`              | Error    | `expected:UnsignedDecimal`, `actual:UnsignedDecimal`                     |
+| `authoring_terminal_already_connected`  | Error    | none                                                                     |
+| `authoring_invalid_parameter`           | Error    | `contractKey:ContractKey`, `parameterId:StableToken`, `rule:StableToken` |
+| `authoring_invalid_text`                | Error    | `field:StableToken`, `rule:StableToken`                                  |
+| `authoring_invalid_coordinate`          | Error    | `field:StableToken`, `rule:StableToken`                                  |
+| `authoring_invalid_memory_image`        | Error    | `rule:StableToken`                                                       |
+| `authoring_invalid_route`               | Error    | `rule:StableToken`                                                       |
+| `authoring_delete_has_dependents`       | Error    | `dependentKind:StableToken`, `dependentCount:UnsignedDecimal`            |
+| `authoring_invalid_split`               | Error    | `rule:StableToken`                                                       |
+| `authoring_symbol_variant_incompatible` | Error    | `variantId:StableToken`, `contractKey:ContractKey`                       |
+| `authoring_symbol_profile_unresolved`   | Error    | `profileId:StableToken`, `profileVersion:StableToken`                    |
 
 `rule` is a closed token owned by Circuit Authoring, such as `missingPartition`, `overlappingPartition`, `nonOrthogonal`, or `parameterKind`; it is not free-form prose.
 
 ## 6. Compiler diagnostics
 
-| Code | Severity | Ordered arguments |
-|---|---|---|
-| `compiler_entry_definition_missing` | Error | none |
-| `compiler_hierarchy_recursion` | Error | `cycleLength:UnsignedDecimal` |
-| `compiler_library_version_mismatch` | Error | `libraryId:StableToken`, `expectedVersion:StableToken`, `actualVersion:StableToken` |
-| `compiler_library_digest_mismatch` | Error | `libraryId:StableToken`, `expected:Digest`, `actual:Digest` |
-| `compiler_contract_unresolved` | Error | `contractKey:ContractKey` |
-| `compiler_port_unresolved` | Error | `contractKey:ContractKey`, `portId:StableToken` |
-| `compiler_required_terminal_unconnected` | Error | none |
-| `compiler_parameter_schema_mismatch` | Error | `contractKey:ContractKey`, `parameterId:StableToken`, `rule:StableToken` |
-| `compiler_width_mismatch` | Error | `expected:UnsignedDecimal`, `actual:UnsignedDecimal` |
-| `compiler_illegal_port_direction` | Error | `direction:StableToken` |
-| `compiler_policy_exhausted` | Error | `policyId:StableToken`, `policyRevision:StableToken`, `dimension:StableToken`, `observed:UnsignedDecimal` |
-| `compiler_internal_invariant` | Error | `correlation:CorrelationToken` |
+| Code                                     | Severity | Ordered arguments                                                                                         |
+| ---------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
+| `compiler_entry_definition_missing`      | Error    | none                                                                                                      |
+| `compiler_hierarchy_recursion`           | Error    | `cycleLength:UnsignedDecimal`                                                                             |
+| `compiler_library_version_mismatch`      | Error    | `libraryId:StableToken`, `expectedVersion:StableToken`, `actualVersion:StableToken`                       |
+| `compiler_library_digest_mismatch`       | Error    | `libraryId:StableToken`, `expected:Digest`, `actual:Digest`                                               |
+| `compiler_contract_unresolved`           | Error    | `contractKey:ContractKey`                                                                                 |
+| `compiler_port_unresolved`               | Error    | `contractKey:ContractKey`, `portId:StableToken`                                                           |
+| `compiler_required_terminal_unconnected` | Error    | none                                                                                                      |
+| `compiler_parameter_schema_mismatch`     | Error    | `contractKey:ContractKey`, `parameterId:StableToken`, `rule:StableToken`                                  |
+| `compiler_width_mismatch`                | Error    | `expected:UnsignedDecimal`, `actual:UnsignedDecimal`                                                      |
+| `compiler_illegal_port_direction`        | Error    | `direction:StableToken`                                                                                   |
+| `compiler_policy_exhausted`              | Error    | `policyId:StableToken`, `policyRevision:StableToken`, `dimension:StableToken`, `observed:UnsignedDecimal` |
+| `compiler_internal_invariant`            | Error    | `correlation:CorrelationToken`                                                                            |
 
 Recursion uses the related-location sequence as the canonical witness path. Internal invariant correlations are opaque, non-secret lookup tokens and carry no implementation detail.
 
 ## 7. Simulation diagnostics
 
-| Code | Severity | Ordered arguments |
-|---|---|---|
-| `simulation_net_undriven` | Warning | none |
-| `simulation_unknown_driver` | Warning | `driverCount:UnsignedDecimal` |
-| `simulation_contention` | Error | `zeroDrivers:UnsignedDecimal`, `oneDrivers:UnsignedDecimal`, `unknownDrivers:UnsignedDecimal` |
-| `simulation_indeterminate_feedback` | Warning | `unknownCoordinates:UnsignedDecimal` |
-| `simulation_indefinite_clock_edge` | Warning | `previous:LogicValue`, `current:LogicValue` |
-| `simulation_control_conflict` | Error | `controlKind:StableToken` |
-| `simulation_contract_defect` | Error | `contractKey:ContractKey`, `rule:StableToken`, `correlation:CorrelationToken` |
+| Code                                | Severity | Ordered arguments                                                                             |
+| ----------------------------------- | -------- | --------------------------------------------------------------------------------------------- |
+| `simulation_net_undriven`           | Warning  | none                                                                                          |
+| `simulation_unknown_driver`         | Warning  | `driverCount:UnsignedDecimal`                                                                 |
+| `simulation_contention`             | Error    | `zeroDrivers:UnsignedDecimal`, `oneDrivers:UnsignedDecimal`, `unknownDrivers:UnsignedDecimal` |
+| `simulation_indeterminate_feedback` | Warning  | `unknownCoordinates:UnsignedDecimal`                                                          |
+| `simulation_indefinite_clock_edge`  | Warning  | `previous:LogicValue`, `current:LogicValue`                                                   |
+| `simulation_control_conflict`       | Error    | `controlKind:StableToken`                                                                     |
+| `simulation_contract_defect`        | Error    | `contractKey:ContractKey`, `rule:StableToken`, `correlation:CorrelationToken`                 |
 
 Undriven, unknown-driver, and contention evidence is computed from final Driver contributions at a Quiescent Boundary. Cause changes that leave the Logic Value unchanged replace prior evidence; they do not trigger propagation. A contract defect fails the whole Logical-time Advance.
 
 `simulation_contract_defect` identifies only a generated component evaluator whose output violates its Component Contract. Its closed `rule` values are:
 
-| Rule | Meaning |
-|---|---|
-| `coordinate_shape` | An evaluator returned an output vector whose width differs from the compiled Driver width. |
+| Rule                | Meaning                                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------------------- |
+| `coordinate_shape`  | An evaluator returned an output vector whose width differs from the compiled Driver width.               |
 | `information_order` | During cyclic settlement, an evaluator changed a previously non-`X` output bit instead of preserving it. |
 
 A Runtime-owned Net resolver invariant failure must not be attributed to the evaluator that happened to trigger Net reevaluation; it fails as a generic `SimulationInternalDefect` unless a Runtime-owned diagnostic is defined by a later contract.
 
 ## 8. Project Format diagnostics
 
-| Code | Severity | Ordered arguments |
-|---|---|---|
-| `package_illegal_entry` | Error | `rule:StableToken` |
-| `package_duplicate_entry` | Error | none |
-| `package_unsupported_feature` | Error | `feature:StableToken` |
-| `package_limit_exceeded` | Error | `policyId:StableToken`, `policyRevision:StableToken`, `dimension:StableToken`, `observed:UnsignedDecimal` |
-| `package_integrity_mismatch` | Error | `partKind:StableToken`, `check:StableToken` |
-| `package_schema_version_unsupported` | Error | `actual:UnsignedDecimal` |
-| `package_json_invalid` | Error | `rule:StableToken` |
-| `package_unknown_member` | Error | none |
-| `package_unknown_discriminator` | Error | none |
-| `package_memory_invalid` | Error | `rule:StableToken` |
-| `package_domain_invalid` | Error | `rule:StableToken` |
+| Code                                 | Severity | Ordered arguments                                                                                         |
+| ------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------- |
+| `package_illegal_entry`              | Error    | `rule:StableToken`                                                                                        |
+| `package_duplicate_entry`            | Error    | none                                                                                                      |
+| `package_unsupported_feature`        | Error    | `feature:StableToken`                                                                                     |
+| `package_limit_exceeded`             | Error    | `policyId:StableToken`, `policyRevision:StableToken`, `dimension:StableToken`, `observed:UnsignedDecimal` |
+| `package_integrity_mismatch`         | Error    | `partKind:StableToken`, `check:StableToken`                                                               |
+| `package_schema_version_unsupported` | Error    | `actual:UnsignedDecimal`                                                                                  |
+| `package_json_invalid`               | Error    | `rule:StableToken`                                                                                        |
+| `package_unknown_member`             | Error    | none                                                                                                      |
+| `package_unknown_discriminator`      | Error    | none                                                                                                      |
+| `package_memory_invalid`             | Error    | `rule:StableToken`                                                                                        |
+| `package_domain_invalid`             | Error    | `rule:StableToken`                                                                                        |
 
 Raw illegal entry names, JSON values, and Memory Image bytes are never arguments. A validated logical path may appear only in `primary`.
 
 ## 9. Boolean Analysis and Diagram Presentation diagnostics
 
-| Code | Severity | Ordered arguments |
-|---|---|---|
-| `analysis_policy_exhausted` | Warning | `policyId:StableToken`, `policyRevision:StableToken`, `dimension:StableToken`, `observed:UnsignedDecimal` |
-| `analysis_verifier_disagreement` | Error | `correlation:CorrelationToken` |
-| `analysis_replacement_rejected` | Warning | `rule:StableToken` |
-| `presentation_variant_unresolved` | Error | `profileId:StableToken`, `variantId:StableToken` |
-| `presentation_constraint_unsatisfied` | Error | `constraint:StableToken` |
-| `presentation_unverified_fallback` | Warning | `contractKey:ContractKey` |
-| `presentation_font_fingerprint_mismatch` | Error | `expected:Digest`, `actual:Digest` |
-| `presentation_metric_fingerprint_mismatch` | Error | `expected:Digest`, `actual:Digest` |
-| `presentation_internal_invariant` | Error | `correlation:CorrelationToken` |
+| Code                                       | Severity | Ordered arguments                                                                                         |
+| ------------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------- |
+| `analysis_policy_exhausted`                | Warning  | `policyId:StableToken`, `policyRevision:StableToken`, `dimension:StableToken`, `observed:UnsignedDecimal` |
+| `analysis_verifier_disagreement`           | Error    | `correlation:CorrelationToken`                                                                            |
+| `analysis_replacement_rejected`            | Warning  | `rule:StableToken`                                                                                        |
+| `presentation_variant_unresolved`          | Error    | `profileId:StableToken`, `variantId:StableToken`                                                          |
+| `presentation_constraint_unsatisfied`      | Error    | `constraint:StableToken`                                                                                  |
+| `presentation_unverified_fallback`         | Warning  | `contractKey:ContractKey`                                                                                 |
+| `presentation_font_fingerprint_mismatch`   | Error    | `expected:Digest`, `actual:Digest`                                                                        |
+| `presentation_metric_fingerprint_mismatch` | Error    | `expected:Digest`, `actual:Digest`                                                                        |
+| `presentation_internal_invariant`          | Error    | `correlation:CorrelationToken`                                                                            |
 
 `TeachingProjectionUnavailable`, `Inconclusive`, and `NoImprovement` remain Boolean Analysis outcome variants, not warning Diagnostics. Workspace alone wraps exact Compiler ineligibility or teaching-projection unavailability as `NotApplicable`; it is not a Boolean Analysis outcome. A Verifier Disagreement is a defect outcome and no replacement crosses the seam.
 
 ## 10. Workspace and Web diagnostics
 
-| Code | Severity | Ordered arguments |
-|---|---|---|
-| `workspace_compilation_stale` | Warning | none |
-| `workspace_probe_unresolved` | Warning | `rule:StableToken` |
-| `workspace_history_truncated` | Info | `removedRevisions:UnsignedDecimal` |
-| `workspace_attachment_recovered` | Info | none |
-| `web_renderer_unavailable` | Error | `reason:StableToken` |
-| `web_browser_policy_exhausted` | Error | `policyId:StableToken`, `policyRevision:StableToken`, `dimension:StableToken`, `observed:UnsignedDecimal` |
-| `web_browser_contract_rejected` | Error | `rule:StableToken`, `correlation:CorrelationToken` |
-| `web_interop_failure` | Error | `correlation:CorrelationToken` |
+| Code                             | Severity | Ordered arguments                                                                                         |
+| -------------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
+| `workspace_compilation_stale`    | Warning  | none                                                                                                      |
+| `workspace_probe_unresolved`     | Warning  | `rule:StableToken`                                                                                        |
+| `workspace_history_truncated`    | Info     | `removedRevisions:UnsignedDecimal`                                                                        |
+| `workspace_attachment_recovered` | Info     | none                                                                                                      |
+| `web_renderer_unavailable`       | Error    | `reason:StableToken`                                                                                      |
+| `web_browser_policy_exhausted`   | Error    | `policyId:StableToken`, `policyRevision:StableToken`, `dimension:StableToken`, `observed:UnsignedDecimal` |
+| `web_browser_contract_rejected`  | Error    | `rule:StableToken`, `correlation:CorrelationToken`                                                        |
+| `web_interop_failure`            | Error    | `correlation:CorrelationToken`                                                                            |
 
 Authentication, authorization, concurrency, attachment, idempotency, save conflict, cancellation, and infrastructure conditions are Workspace outcome reasons. They are not duplicated as Diagnostics. Web diagnostics describe a local renderer, policy, browser-record, or interop failure and never contain JavaScript exception text, browser payloads, user-authored text, stack traces, or device details. `web_renderer_unavailable.reason` is exactly `contextUnavailable | contextLost | fontUnavailable | assetFingerprintMismatch`. `web_browser_contract_rejected.rule` is exactly `invalidSnapshot | invalidPatch | invalidBatch`. Browser Policy owns its closed dimension tokens. These values are not free-form prose; [Browser Runtime §11](./browser-runtime.md#11-failure-and-recovery) owns their occurrence and recovery behavior.
 
@@ -183,16 +183,16 @@ Authentication, authorization, concurrency, attachment, idempotency, save confli
 
 The browser and HTTP adapters use these exact reason codes for corresponding closed outcome variants:
 
-| Owner | Reason codes |
-|---|---|
-| Circuit Authoring | `authoring_invalid` |
-| Workspace | `authentication_required`, `workspace_not_found`, `workspace_expired`, `stale_workspace_attachment`, `idempotency_key_conflict`, `idempotency_window_expired`, `durable_claim_unresolved`, `durable_display_name_invalid`, `project_revision_precondition_failed`, `projection_version_precondition_failed`, `compilation_generation_unavailable`, `session_precondition_failed`, `run_generation_precondition_failed`, `operation_precondition_failed`, `durable_save_conflict`, `build_fingerprint_mismatch`, `hot_swap_incompatible`, `workspace_admission_rejected`, `workspace_cancelled`, `workspace_infrastructure_failure`, `workspace_internal_defect`, `operation_expired`, `proposal_stale`, `export_capacity_unavailable`, `export_expired`, `analysis_not_applicable` |
-| Durable Project Catalog | `authentication_required`, `forbidden`, `project_catalog_request_invalid`, `project_catalog_cursor_invalid`, `project_catalog_cancelled`, `project_catalog_infrastructure_failure`, `project_catalog_internal_defect` |
-| Compiler | `compilation_invalid`, `compilation_policy_exhausted`, `compilation_cancelled`, `compilation_infrastructure_failure`, `compilation_internal_defect` |
-| Simulation | `no_scheduled_stimulus`, `zero_time_oscillation`, `simulation_resource_limit`, `simulation_cancelled`, `simulation_infrastructure_failure`, `simulation_internal_defect` |
-| Boolean Analysis | `analysis_inconclusive`, `analysis_cancelled`, `analysis_no_improvement`, `analysis_internal_defect` |
-| Project Format | `package_invalid`, `package_limit_exceeded`, `package_cancelled`, `package_infrastructure_failure`, `package_internal_defect` |
-| Presentation | `layout_invalid`, `layout_cancelled`, `layout_internal_defect` |
+| Owner                   | Reason codes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Circuit Authoring       | `authoring_invalid`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Workspace               | `authentication_required`, `workspace_not_found`, `workspace_expired`, `stale_workspace_attachment`, `idempotency_key_conflict`, `idempotency_window_expired`, `durable_claim_unresolved`, `durable_display_name_invalid`, `project_revision_precondition_failed`, `projection_version_precondition_failed`, `compilation_generation_unavailable`, `session_precondition_failed`, `run_generation_precondition_failed`, `operation_precondition_failed`, `durable_save_conflict`, `build_fingerprint_mismatch`, `hot_swap_incompatible`, `workspace_admission_rejected`, `workspace_cancelled`, `workspace_infrastructure_failure`, `workspace_internal_defect`, `operation_expired`, `proposal_stale`, `export_capacity_unavailable`, `export_expired`, `analysis_not_applicable` |
+| Durable Project Catalog | `authentication_required`, `forbidden`, `project_catalog_request_invalid`, `project_catalog_cursor_invalid`, `project_catalog_cancelled`, `project_catalog_infrastructure_failure`, `project_catalog_internal_defect`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Compiler                | `compilation_invalid`, `compilation_policy_exhausted`, `compilation_cancelled`, `compilation_infrastructure_failure`, `compilation_internal_defect`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Simulation              | `no_scheduled_stimulus`, `zero_time_oscillation`, `simulation_resource_limit`, `simulation_cancelled`, `simulation_infrastructure_failure`, `simulation_internal_defect`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Boolean Analysis        | `analysis_inconclusive`, `analysis_cancelled`, `analysis_no_improvement`, `analysis_internal_defect`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Project Format          | `package_invalid`, `package_limit_exceeded`, `package_cancelled`, `package_infrastructure_failure`, `package_internal_defect`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Presentation            | `layout_invalid`, `layout_cancelled`, `layout_internal_defect`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 An adapter maps these reasons to transport status and retry disposition without changing the code. `IEditorWorkspace` already gives an unauthorized Durable Workspace the same request-shaped outcome as an absent Workspace; adapters must preserve that indistinguishability. At other seams, a `forbidden` response may intentionally use the same HTTP status and body shape as `workspace_not_found` to hide unauthorized existence.
 

@@ -51,9 +51,9 @@ For output `j`, define cared on-set `On_j` and off-set `Off_j`. A cube can feed 
 Two equal-mask cubes differing in one fixed bit merge only over the intersection of their output masks. A minimal residual-tag example has one input `x`:
 
 | `x` | `A` | `B` |
-|---:|---:|---:|
-| 0 | 1 | 1 |
-| 1 | 1 | 0 |
+| --: | --: | --: |
+|   0 |   1 |   1 |
+|   1 |   1 |   0 |
 
 The `x=0` cube begins with tags `{A,B}` and `x=1` with `{A}`. They merge to `-` for `{A}`. The unmerged residual `{B}` on `x=0` remains a prime candidate. A single `wasCombined=true` flag on the parent would discard the only cover for `B` and is incorrect.
 
@@ -136,15 +136,15 @@ Bad variable order can cause exponential size. Fixed order improves reproducibil
 
 ## 9. Data structures and resource evidence
 
-| Structure | Representation |
-|---|---|
-| QMC cube | machine-word or multiword masks plus output bitset |
-| prime chart | stable-index bitsets in both directions |
-| Petrick term | immutable/copy-on-write prime-index bitset |
-| AIG | append-only node array plus structural unique table |
-| cut | sorted leaf ordinals plus packed truth table |
-| mapping state | bounded choices by node and requested phase |
-| ROBDD | node array, unique table, computed Apply cache, explicit traversal frames |
+| Structure     | Representation                                                            |
+| ------------- | ------------------------------------------------------------------------- |
+| QMC cube      | machine-word or multiword masks plus output bitset                        |
+| prime chart   | stable-index bitsets in both directions                                   |
+| Petrick term  | immutable/copy-on-write prime-index bitset                                |
+| AIG           | append-only node array plus structural unique table                       |
+| cut           | sorted leaf ordinals plus packed truth table                              |
+| mapping state | bounded choices by node and requested phase                               |
+| ROBDD         | node array, unique table, computed Apply cache, explicit traversal frames |
 
 Evidence records input/output count, work counters, retained structures, policy revision, chosen verifier, variable order, and outcome. Wall time is diagnostic, not the sole algorithm limit. Rebuilding a structure does not refund work already consumed.
 
@@ -156,7 +156,7 @@ mockturtle demonstrates modern network/view/algorithm separation and AIG invaria
 
 - W. V. Quine, [The Problem of Simplifying Truth Functions](https://doi.org/10.1080/00029890.1952.11988183), 1952.
 - E. J. McCluskey, [Minimization of Boolean Functions](https://doi.org/10.1002/j.1538-7305.1956.tb03835.x), 1956.
-- S. R. Petrick, *On the Minimization of Boolean Functions*, International Conference on Information Processing, UNESCO, 1959.
+- S. R. Petrick, _On the Minimization of Boolean Functions_, International Conference on Information Processing, UNESCO, 1959.
 - Randal E. Bryant, [Graph-Based Algorithms for Boolean Function Manipulation](https://www.cs.cmu.edu/~bryant/pubdir/ieeetc86.pdf), 1986.
 - Alan Mishchenko et al., [DAG-aware AIG rewriting](https://people.eecs.berkeley.edu/~alanmi/publications/2006/dac06_rwr.pdf), 2006.
 - [mockturtle](https://github.com/lsils/mockturtle), [Berkeley ABC](https://github.com/berkeley-abc/abc), and [Z3](https://github.com/Z3Prover/z3), source references only.

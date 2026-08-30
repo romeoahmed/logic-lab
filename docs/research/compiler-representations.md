@@ -33,14 +33,14 @@ This note marks external or repository observations as **Source fact** and proje
 
 A Net is a hyperedge over Terminal occurrences, so the generated execution relation is bipartite: `Evaluator -> Driver -> resolved Net -> consuming Evaluator`. Sequential outputs cut combinational dependencies; Circuit Definition instances form a separate call graph whose recursion is invalid in V1.
 
-| Problem | Internal choice | Obligation |
-|---|---|---|
-| affected topology validation | disjoint-set union | preserve authoritative Net identity and deterministic split/merge rules |
-| definition recursion | iterative DFS or SCC | return a stable witness without CLR stack exposure |
-| combinational regions | Tarjan SCC in `O(V + E)` | retain cycles and topologically order only the condensation graph |
-| fanout and Drivers | compressed sparse row arrays | check every offset, length, and Compilation-local ordinal |
-| future stimuli | binary min-heap with explicit stable sequence | equal-time order cannot depend on heap ties |
-| delta work | dense queue plus generation stamps or bitset | deduplicate without per-node allocation |
+| Problem                      | Internal choice                               | Obligation                                                              |
+| ---------------------------- | --------------------------------------------- | ----------------------------------------------------------------------- |
+| affected topology validation | disjoint-set union                            | preserve authoritative Net identity and deterministic split/merge rules |
+| definition recursion         | iterative DFS or SCC                          | return a stable witness without CLR stack exposure                      |
+| combinational regions        | Tarjan SCC in `O(V + E)`                      | retain cycles and topologically order only the condensation graph       |
+| fanout and Drivers           | compressed sparse row arrays                  | check every offset, length, and Compilation-local ordinal               |
+| future stimuli               | binary min-heap with explicit stable sequence | equal-time order cannot depend on heap ties                             |
+| delta work                   | dense queue plus generation stamps or bitset  | deduplicate without per-node allocation                                 |
 
 Tarjan's original paper establishes the linear-time SCC result ([DOI](https://doi.org/10.1137/0201010)). These are Compiler or Simulation Runtime implementation choices, never new public interfaces.
 
@@ -81,13 +81,13 @@ Project Revision + entry + Library Snapshot
 
 **Logic Lab inference:** This is a branching translation, not an obligation to force every purpose through one linear IR. The common Elaborated Graph should retain only facts reused by more than one lowering. Simulation layout and Boolean proof facts stay in their owning outputs.
 
-| Representation | Retains | Deliberately excludes |
-|---|---|---|
-| Project Revision | stable authored identity, hierarchy declarations, explicit Net membership, presentation | execution ordinals, SCC layout, proof eligibility |
-| Elaborated Graph | resolved occurrence identity, Hierarchy Path, validated widths/Drivers/contracts, diagnostic witnesses | mutable Session state, dense storage commitments, geometry |
-| Simulation IR | dense ordinals, evaluator/Net graph, CSR adjacency, SCC plan, state/memory schema | authored edit structure, Boolean proof machinery |
-| Boolean Region | binary acyclic network, ordered inputs/outputs, Care Contract, source bindings | four-state Session state, scheduler layout, arbitrary authored topology |
-| Source Map | total mapping between runtime/analysis facts and stable source identity | browser identity invention, localized messages |
+| Representation   | Retains                                                                                                | Deliberately excludes                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| Project Revision | stable authored identity, hierarchy declarations, explicit Net membership, presentation                | execution ordinals, SCC layout, proof eligibility                       |
+| Elaborated Graph | resolved occurrence identity, Hierarchy Path, validated widths/Drivers/contracts, diagnostic witnesses | mutable Session state, dense storage commitments, geometry              |
+| Simulation IR    | dense ordinals, evaluator/Net graph, CSR adjacency, SCC plan, state/memory schema                      | authored edit structure, Boolean proof machinery                        |
+| Boolean Region   | binary acyclic network, ordered inputs/outputs, Care Contract, source bindings                         | four-state Session state, scheduler layout, arbitrary authored topology |
+| Source Map       | total mapping between runtime/analysis facts and stable source identity                                | browser identity invention, localized messages                          |
 
 ### 4.2 Internal pass obligations
 
@@ -123,14 +123,14 @@ No C# 14 feature changes the architectural conclusion. Strong ownership, closed 
 
 ## 6. Rejected and deferred options
 
-| Option | Disposition | Reason |
-|---|---|---|
-| one universal graph from editor through Runtime and analysis | reject | conflicting identity, mutation, locality, and proof requirements; weak Compiler depth |
-| S-expression as native project or executable format | reject | duplicates strict `.logiclab`, weakens typed invariants, and invites data/code confusion |
-| public pass pipeline or visitor interface | reject | callers need outcomes, not transformation choreography; no second adapter exists |
-| serialized Compilation Artifact | defer | artifacts are derived from complete provenance; no cross-process deployment need is established |
-| incremental Compilation | defer | preserve full Compilation as oracle; justify reuse with corpus evidence and equivalence tests |
-| LLVM/MLIR/Nanopass dependency | reject | their principles are evidence; Logic Lab needs no general compiler framework or native toolchain |
+| Option                                                       | Disposition | Reason                                                                                           |
+| ------------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------ |
+| one universal graph from editor through Runtime and analysis | reject      | conflicting identity, mutation, locality, and proof requirements; weak Compiler depth            |
+| S-expression as native project or executable format          | reject      | duplicates strict `.logiclab`, weakens typed invariants, and invites data/code confusion         |
+| public pass pipeline or visitor interface                    | reject      | callers need outcomes, not transformation choreography; no second adapter exists                 |
+| serialized Compilation Artifact                              | defer       | artifacts are derived from complete provenance; no cross-process deployment need is established  |
+| incremental Compilation                                      | defer       | preserve full Compilation as oracle; justify reuse with corpus evidence and equivalence tests    |
+| LLVM/MLIR/Nanopass dependency                                | reject      | their principles are evidence; Logic Lab needs no general compiler framework or native toolchain |
 
 ## 7. Sources
 

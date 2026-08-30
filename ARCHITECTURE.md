@@ -39,16 +39,16 @@ The deletion test applies to every proposed module: removing a useful module red
 
 Bounded contexts own language and consistency inside one modular monolith; they do not imply processes or network seams. [CONTEXT-MAP.md](./CONTEXT-MAP.md) owns their translations.
 
-| Fact | Owner | Derived consumers |
-|---|---|---|
-| Project Document, Project Revision, topology, authored presentation | Circuit Authoring | Compiler, Diagram Presentation, Project Format, repository |
-| Compilation Artifact and Source Map | Compiler | Simulation Runtime, Boolean Analysis, Web |
-| Logical Time, Driver/Net values, state, event calendar, Trace | Simulation Runtime | Editor Workspace, Web |
-| Care Contract, Internal Candidate, proof evidence, Verified Replacement | Boolean Analysis | Editor Workspace proposal lifecycle |
-| attachment, history cursor, save/Compilation/operation state, Simplification Proposal | Editor Workspace | Web |
-| Geometry Plan, Schematic Projection, symbol conformance | Diagram Presentation | browser and export adapters |
-| durable current-revision pointer and payload | repository adapter | Editor Workspace |
-| selection, focus, viewport, Transient Preview, live overlays | Web/browser adapters | Workbench projection |
+| Fact                                                                                  | Owner                | Derived consumers                                          |
+| ------------------------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------- |
+| Project Document, Project Revision, topology, authored presentation                   | Circuit Authoring    | Compiler, Diagram Presentation, Project Format, repository |
+| Compilation Artifact and Source Map                                                   | Compiler             | Simulation Runtime, Boolean Analysis, Web                  |
+| Logical Time, Driver/Net values, state, event calendar, Trace                         | Simulation Runtime   | Editor Workspace, Web                                      |
+| Care Contract, Internal Candidate, proof evidence, Verified Replacement               | Boolean Analysis     | Editor Workspace proposal lifecycle                        |
+| attachment, history cursor, save/Compilation/operation state, Simplification Proposal | Editor Workspace     | Web                                                        |
+| Geometry Plan, Schematic Projection, symbol conformance                               | Diagram Presentation | browser and export adapters                                |
+| durable current-revision pointer and payload                                          | repository adapter   | Editor Workspace                                           |
+| selection, focus, viewport, Transient Preview, live overlays                          | Web/browser adapters | Workbench projection                                       |
 
 Compiler and Project Format are translation modules, not extra domain models. The Compiler translates a Project Revision into purpose-specific artifacts; Project Format translates an untrusted carrier into an Import Candidate. Neither changes Circuit Authoring facts.
 
@@ -85,16 +85,16 @@ The initial deployment is one ASP.NET Core process and one SQLite database. Proc
 
 Project seams follow dependency or deployment seams, not every namespace.
 
-| Project | Deep responsibility | Target direct dependencies |
-|---|---|---|
-| `LogicLab.Domain` | immutable authoring model, Project Editor, `logiclab.core` schema | BCL |
-| `LogicLab.BooleanAnalysis` | Boolean Region contract, explanation, synthesis, mapping, proof | Domain, BCL |
-| `LogicLab.Engine` | Compiler and Simulation Runtime as separate modules | Domain, BooleanAnalysis |
-| `LogicLab.Presentation` | TeachingMixed definitions, Geometry Plans, Schematic Projection | Domain |
-| `LogicLab.ProjectFormat` | strict `.logiclab` read/write, migration, digest, memory encoding | Domain, BCL compression/JSON |
-| `LogicLab.Application` | Editor Workspace, Work Coordinator, authorization-aware use cases | Domain, Engine, BooleanAnalysis, ProjectFormat |
-| `LogicLab.Infrastructure` | EF Core repository and persistence adapters | Application, Domain, EF Core |
-| `LogicLab.Web` | Blazor routes, Fluent chrome, browser/HTTP adapters, composition root | Application, Presentation, Infrastructure |
+| Project                    | Deep responsibility                                                   | Target direct dependencies                     |
+| -------------------------- | --------------------------------------------------------------------- | ---------------------------------------------- |
+| `LogicLab.Domain`          | immutable authoring model, Project Editor, `logiclab.core` schema     | BCL                                            |
+| `LogicLab.BooleanAnalysis` | Boolean Region contract, explanation, synthesis, mapping, proof       | Domain, BCL                                    |
+| `LogicLab.Engine`          | Compiler and Simulation Runtime as separate modules                   | Domain, BooleanAnalysis                        |
+| `LogicLab.Presentation`    | TeachingMixed definitions, Geometry Plans, Schematic Projection       | Domain                                         |
+| `LogicLab.ProjectFormat`   | strict `.logiclab` read/write, migration, digest, memory encoding     | Domain, BCL compression/JSON                   |
+| `LogicLab.Application`     | Editor Workspace, Work Coordinator, authorization-aware use cases     | Domain, Engine, BooleanAnalysis, ProjectFormat |
+| `LogicLab.Infrastructure`  | EF Core repository and persistence adapters                           | Application, Domain, EF Core                   |
+| `LogicLab.Web`             | Blazor routes, Fluent chrome, browser/HTTP adapters, composition root | Application, Presentation, Infrastructure      |
 
 Tests and benchmarks remain separate projects and do not create production seams.
 
@@ -113,18 +113,18 @@ Dependency rules:
 
 The linked owner defines the exact interface and closed outcomes. Architecture fixes only the seam and responsibility.
 
-| Module | Caller intention | Hidden implementation | Interface owner |
-|---|---|---|---|
-| Project Editor | begin a Project; apply one Edit Intent | identity allocation, topology normalization, invariants, structural sharing | [Circuit Authoring](./docs/specs/circuit-authoring.md) |
-| Compiler | compile; extract one Boolean Region | validation, hierarchy, SCCs, ordinals, IR, Source Map | [Compiler](./docs/specs/compiler.md) |
-| Simulation Runtime | open, execute, and read one Simulation Session | propagation, batching, rollback, memory, Trace, Hot Swap | [Simulation Runtime](./docs/specs/simulation-runtime.md) |
-| Boolean Analysis | explain; find one verified simplification | QMC/Petrick, AIG, mapping, ROBDD/exhaustive proof | [Boolean Analysis](./docs/specs/boolean-analysis.md) |
-| Project Format | read or write one `.logiclab` carrier | bounded spool, ZIP, strict V1 DTOs, digests | [Project Package V1](./docs/specs/project-package-v1.md) |
-| Diagram Presentation | plan one symbol; project one Circuit Definition | constraints, text metrics, drawing operations, conformance | [Diagram Presentation](./docs/specs/diagram-presentation.md) |
-| Editor Workspace | open, attach, dispatch, and read | fencing, idempotency, history, save, work coordination, proposals | [Editor Workspace Contract](./docs/contracts/editor-workspace.md) |
-| Durable Project Catalog | list one authorized bounded page | authorization filtering, invariant order, keyset cursor, persistence projection | [Durable Project Catalog Contract](./docs/contracts/durable-project-catalog.md) |
-| Scene/Waveform adapters | replace/apply state; return one completed intent | interop, transforms, frames, hit index, previews, caches, teardown | [Browser Runtime](./docs/specs/browser-runtime.md), [Browser Adapter Contract](./docs/contracts/browser-adapters.md) |
-| Web Host | serve routes and manage host lifetimes | render modes, circuits, culture, middleware, health, shutdown | [Web Host](./docs/specs/web-host.md), [HTTP Boundary Contract](./docs/contracts/http-boundary.md) |
+| Module                  | Caller intention                                 | Hidden implementation                                                           | Interface owner                                                                                                      |
+| ----------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Project Editor          | begin a Project; apply one Edit Intent           | identity allocation, topology normalization, invariants, structural sharing     | [Circuit Authoring](./docs/specs/circuit-authoring.md)                                                               |
+| Compiler                | compile; extract one Boolean Region              | validation, hierarchy, SCCs, ordinals, IR, Source Map                           | [Compiler](./docs/specs/compiler.md)                                                                                 |
+| Simulation Runtime      | open, execute, and read one Simulation Session   | propagation, batching, rollback, memory, Trace, Hot Swap                        | [Simulation Runtime](./docs/specs/simulation-runtime.md)                                                             |
+| Boolean Analysis        | explain; find one verified simplification        | QMC/Petrick, AIG, mapping, ROBDD/exhaustive proof                               | [Boolean Analysis](./docs/specs/boolean-analysis.md)                                                                 |
+| Project Format          | read or write one `.logiclab` carrier            | bounded spool, ZIP, strict V1 DTOs, digests                                     | [Project Package V1](./docs/specs/project-package-v1.md)                                                             |
+| Diagram Presentation    | plan one symbol; project one Circuit Definition  | constraints, text metrics, drawing operations, conformance                      | [Diagram Presentation](./docs/specs/diagram-presentation.md)                                                         |
+| Editor Workspace        | open, attach, dispatch, and read                 | fencing, idempotency, history, save, work coordination, proposals               | [Editor Workspace Contract](./docs/contracts/editor-workspace.md)                                                    |
+| Durable Project Catalog | list one authorized bounded page                 | authorization filtering, invariant order, keyset cursor, persistence projection | [Durable Project Catalog Contract](./docs/contracts/durable-project-catalog.md)                                      |
+| Scene/Waveform adapters | replace/apply state; return one completed intent | interop, transforms, frames, hit index, previews, caches, teardown              | [Browser Runtime](./docs/specs/browser-runtime.md), [Browser Adapter Contract](./docs/contracts/browser-adapters.md) |
+| Web Host                | serve routes and manage host lifetimes           | render modes, circuits, culture, middleware, health, shutdown                   | [Web Host](./docs/specs/web-host.md), [HTTP Boundary Contract](./docs/contracts/http-boundary.md)                    |
 
 There is no `CircuitEngine` facade forwarding to Compiler and Simulation Runtime, no general codec port while `.logiclab` is the only native carrier, and no public pass, renderer, spatial-index, or algorithm-selection interface.
 
@@ -145,11 +145,11 @@ Reattachment reauthorizes and fences the previous generation. A Detached Workspa
 
 The Work Coordinator owns three typed CPU lanes:
 
-| Lane | Lifecycle |
-|---|---|
-| Compilation | newest request wins per Workspace |
-| Session | commands serialize per Simulation Session |
-| Analysis | host-bounded and identity-fair; operations outlive observers |
+| Lane        | Lifecycle                                                    |
+| ----------- | ------------------------------------------------------------ |
+| Compilation | newest request wins per Workspace                            |
+| Session     | commands serialize per Simulation Session                    |
+| Analysis    | host-bounded and identity-fair; operations outlive observers |
 
 CPU modules are synchronous. Async appears at I/O, cancellation, admission, and observation seams. Razor handlers neither call `Task.Run` nor create hidden queues; hosted work creates explicit dependency-injection scopes.
 
@@ -174,14 +174,14 @@ Public/help/account/project pages use Static SSR; `/editor` uses per-page Intera
 
 C# 14 is the sole production language. The [.NET Engineering Baseline](./docs/specs/dotnet-engineering.md) owns SDK, build, analyzer, dependency, C#, async, DI, configuration, serialization, observability, and publication rules. Module interfaces expose owned immutable values; storage layout and optimization mechanisms remain implementation.
 
-| Need | Selection |
-|---|---|
-| Web chrome | centrally pinned Fluent UI Blazor package, Web only |
-| persistence/auth | EF Core 10 SQLite and ASP.NET Core Identity |
-| unit/integration | TUnit on Microsoft Testing Platform |
-| properties | TUnit.FsCheck with FsCheck generation, shrinking, and replay |
-| host/Razor/browser | TUnit.AspNetCore, bUnit, and TUnit.Playwright |
-| comparative kernels | BenchmarkDotNet in a benchmark project |
+| Need                | Selection                                                    |
+| ------------------- | ------------------------------------------------------------ |
+| Web chrome          | centrally pinned Fluent UI Blazor package, Web only          |
+| persistence/auth    | EF Core 10 SQLite and ASP.NET Core Identity                  |
+| unit/integration    | TUnit on Microsoft Testing Platform                          |
+| properties          | TUnit.FsCheck with FsCheck generation, shrinking, and replay |
+| host/Razor/browser  | TUnit.AspNetCore, bUnit, and TUnit.Playwright                |
+| comparative kernels | BenchmarkDotNet in a benchmark project                       |
 
 Do not add mediation, mapping, generic Result, graph, binary-serialization, BDD/SAT, or alternative-DI packages without a measured missing capability.
 
@@ -195,17 +195,17 @@ Core modules return structured work evidence. Application emits activities, metr
 
 Evidence follows fact ownership.
 
-| Owner | Primary evidence |
-|---|---|
-| Circuit Authoring | model-based Edit Intent sequences, topology split/merge, Project Genesis, Transaction History |
-| Compiler | deterministic artifacts/diagnostics, hierarchy/SCC/CSR properties, Source Map totality |
-| Simulation Runtime | scalar oracle, packed differential properties, fixed-point/Trigger Batch/rollback/Trace cases |
-| Boolean Analysis | brute-force oracles, mapping/proof invariants, verifier mutation tests |
-| Project Format | golden/unsupported-version/adversarial packages, strict JSON, ZIP and memory properties |
-| Diagram Presentation | rule/property tests, Geometry Plan/SVG goldens, Port anchors, and Hit Regions |
+| Owner                           | Primary evidence                                                                                    |
+| ------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Circuit Authoring               | model-based Edit Intent sequences, topology split/merge, Project Genesis, Transaction History       |
+| Compiler                        | deterministic artifacts/diagnostics, hierarchy/SCC/CSR properties, Source Map totality              |
+| Simulation Runtime              | scalar oracle, packed differential properties, fixed-point/Trigger Batch/rollback/Trace cases       |
+| Boolean Analysis                | brute-force oracles, mapping/proof invariants, verifier mutation tests                              |
+| Project Format                  | golden/unsupported-version/adversarial packages, strict JSON, ZIP and memory properties             |
+| Diagram Presentation            | rule/property tests, Geometry Plan/SVG goldens, Port anchors, and Hit Regions                       |
 | Editor Workspace/Infrastructure | attachment, idempotency, concurrency, work lanes, authorized catalog paging, repository integration |
-| Web | host integration, bUnit projections, browser adapter contract tests, Playwright workflows |
-| Performance | comparative BenchmarkDotNet, browser traces, and load tests on a versioned corpus |
+| Web                             | host integration, bUnit projections, browser adapter contract tests, Playwright workflows           |
+| Performance                     | comparative BenchmarkDotNet, browser traces, and load tests on a versioned corpus                   |
 
 A UI test cannot prove Simulation semantics; a screenshot cannot prove interaction or conformance; line coverage is supporting telemetry, not the release gate.
 
@@ -213,13 +213,13 @@ A UI test cannot prove Simulation semantics; a screenshot cannot prove interacti
 
 The [Implementation Plan](./docs/implementation-plan.md#dependency-frontier) owns current delivery, while its Phase F slices own production-qualification gaps. Only measured evidence justifies revisiting these seams:
 
-| Measured evidence | Revisit |
-|---|---|
-| network latency dominates after the local gesture loop | browser execution slice, not automatic Interactive Auto |
-| hard per-operation memory termination is required | worker-process adapter using the same managed modules |
-| durable multi-instance hosting is required | database/object-store adapters and distributed Workspace ownership |
-| Trace live-follow exceeds circuit backpressure | dedicated authorized stream or custom Hub |
-| scene work dominates the browser main thread | browser Worker behind the same Scene interface |
+| Measured evidence                                      | Revisit                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------ |
+| network latency dominates after the local gesture loop | browser execution slice, not automatic Interactive Auto            |
+| hard per-operation memory termination is required      | worker-process adapter using the same managed modules              |
+| durable multi-instance hosting is required             | database/object-store adapters and distributed Workspace ownership |
+| Trace live-follow exceeds circuit backpressure         | dedicated authorized stream or custom Hub                          |
+| scene work dominates the browser main thread           | browser Worker behind the same Scene interface                     |
 
 ## 11. Primary references
 

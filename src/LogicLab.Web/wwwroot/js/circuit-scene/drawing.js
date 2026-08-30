@@ -15,10 +15,15 @@ export function drawOperation(context, operation, styles, symbolFontFamily) {
   for (const command of operation.commands) {
     if (command.kind === "move") context.moveTo(command.x, command.y);
     else if (command.kind === "line") context.lineTo(command.x, command.y);
-    else if (command.kind === "cubic") context.bezierCurveTo(
-      command.control1X, command.control1Y, command.control2X, command.control2Y,
-      command.x, command.y,
-    );
+    else if (command.kind === "cubic")
+      context.bezierCurveTo(
+        command.control1X,
+        command.control1Y,
+        command.control2X,
+        command.control2Y,
+        command.x,
+        command.y,
+      );
     else context.closePath();
   }
   if (operation.kind === "stroke") {
@@ -32,9 +37,10 @@ export function drawOperation(context, operation, styles, symbolFontFamily) {
     context.setLineDash(operation.dashPattern);
     context.stroke();
   } else {
-    context.fillStyle = operation.role === "background"
-      ? cssColor(styles, "--ll-canvas", "#ffffff")
-      : cssColor(styles, "--ll-ink", "#172124");
+    context.fillStyle =
+      operation.role === "background"
+        ? cssColor(styles, "--ll-canvas", "#ffffff")
+        : cssColor(styles, "--ll-ink", "#172124");
     context.fill(operation.fillRule);
   }
 }
@@ -44,15 +50,11 @@ export function drawGridLines(context, visible, interval, color, width) {
   context.strokeStyle = color;
   context.lineWidth = width;
   context.beginPath();
-  for (let x = Math.ceil(visible.left / interval) * interval;
-    x <= visible.right;
-    x += interval) {
+  for (let x = Math.ceil(visible.left / interval) * interval; x <= visible.right; x += interval) {
     context.moveTo(x, visible.top);
     context.lineTo(x, visible.bottom);
   }
-  for (let y = Math.ceil(visible.top / interval) * interval;
-    y <= visible.bottom;
-    y += interval) {
+  for (let y = Math.ceil(visible.top / interval) * interval; y <= visible.bottom; y += interval) {
     context.moveTo(visible.left, y);
     context.lineTo(visible.right, y);
   }

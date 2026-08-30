@@ -68,12 +68,12 @@ negative evidence does not replace a runtime profile, but it prevents speculativ
 
 ## 4. Measured decisions
 
-| Candidate | Evidence | Decision |
-|---|---|---|
-| indexed fill for net-driver projection | production shape improved 57.876 to 24.765 ns, 72.414 to 39.133 ns, and 298.687 to 232.653 ns; allocation fell in all cases | retain |
-| indexed fill for combinational gate inputs | 256-gate public Session-open path improved 145.554 to 136.105 us; allocation fell 56 KB, or 224 B per gate | retain |
-| ordinal-based `ReadOnlySpan<int>` resolver interface | removed a temporary array but slowed the 1024-bit production shape to 348.600 ns | remove |
-| pooling, stack allocation, unsafe access, runtime/GC switches | no deployment profile or end-to-end evidence; inspected arrays escape as result-owned values or are small exact scratch | reject for this review |
+| Candidate                                                     | Evidence                                                                                                                    | Decision               |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| indexed fill for net-driver projection                        | production shape improved 57.876 to 24.765 ns, 72.414 to 39.133 ns, and 298.687 to 232.653 ns; allocation fell in all cases | retain                 |
+| indexed fill for combinational gate inputs                    | 256-gate public Session-open path improved 145.554 to 136.105 us; allocation fell 56 KB, or 224 B per gate                  | retain                 |
+| ordinal-based `ReadOnlySpan<int>` resolver interface          | removed a temporary array but slowed the 1024-bit production shape to 348.600 ns                                            | remove                 |
+| pooling, stack allocation, unsafe access, runtime/GC switches | no deployment profile or end-to-end evidence; inspected arrays escape as result-owned values or are small exact scratch     | reject for this review |
 
 The retained changes preserve the existing `IReadOnlyList<LogicVector>` kernel contracts and
 one allocation for required reference storage. They remove iterator and collection-expression
@@ -84,17 +84,17 @@ corpus definition and run commands.
 
 ## 5. Benchmark coverage and gaps
 
-| Area | Current executable corpus | Next honest evidence |
-|---|---|---|
-| packed Boolean operations | scalar differential BDN cases at 1, 130, and 1024 bits | rerun on supported deployment architectures |
-| conservative merge and net resolution | scalar differential BDN cases across width and fan-in/driver count | adversarial density cases after corpus freeze |
-| Compilation | public Compiler operation over 11 deterministic flat, hierarchical, feedback, sequential, and memory cases | invalid and policy-limit cases only when their decision value justifies permanent run cost |
-| initial Simulation settlement | open, settle, and close over the same 11 circuit cases | target-environment default-job evidence after the representative corpus freezes |
-| scheduled and clocked Simulation work | 9 open/optional-schedule/advance/close cases over flat, D flip-flop, and RAM circuits | Hot Swap, cancellation, and policy-limit workflows after their corpora are versioned |
-| Session reads | snapshots over 3 probe topologies and Trace windows over 16/256/4096 retained transitions | additional Trace density and retention shapes after implementation-plan item 34 |
-| Domain authoring | authoring is setup infrastructure, not a measured operation | versioned edit sequences, not isolated helper microbenchmarks |
-| Application/Web capacity | no deployment profile | load tests plus queue, ThreadPool, allocation, GC, and latency telemetry |
-| Blazor/browser rendering | no browser corpus | browser performance traces and interaction measurements |
+| Area                                  | Current executable corpus                                                                                  | Next honest evidence                                                                       |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| packed Boolean operations             | scalar differential BDN cases at 1, 130, and 1024 bits                                                     | rerun on supported deployment architectures                                                |
+| conservative merge and net resolution | scalar differential BDN cases across width and fan-in/driver count                                         | adversarial density cases after corpus freeze                                              |
+| Compilation                           | public Compiler operation over 11 deterministic flat, hierarchical, feedback, sequential, and memory cases | invalid and policy-limit cases only when their decision value justifies permanent run cost |
+| initial Simulation settlement         | open, settle, and close over the same 11 circuit cases                                                     | target-environment default-job evidence after the representative corpus freezes            |
+| scheduled and clocked Simulation work | 9 open/optional-schedule/advance/close cases over flat, D flip-flop, and RAM circuits                      | Hot Swap, cancellation, and policy-limit workflows after their corpora are versioned       |
+| Session reads                         | snapshots over 3 probe topologies and Trace windows over 16/256/4096 retained transitions                  | additional Trace density and retention shapes after implementation-plan item 34            |
+| Domain authoring                      | authoring is setup infrastructure, not a measured operation                                                | versioned edit sequences, not isolated helper microbenchmarks                              |
+| Application/Web capacity              | no deployment profile                                                                                      | load tests plus queue, ThreadPool, allocation, GC, and latency telemetry                   |
+| Blazor/browser rendering              | no browser corpus                                                                                          | browser performance traces and interaction measurements                                    |
 
 The split follows Architecture: comparative kernels belong to BenchmarkDotNet, while browser
 and load behavior require browser traces and load tests. Microsoft likewise treats counters,
@@ -118,11 +118,11 @@ retained as performance decisions.
 
 One representative default Release job retained the following Trace-read checkpoint:
 
-| Corpus | Retained transitions | Mean | Managed allocation |
-|---|---:|---:|---:|
-| `alternating-trace-v1` | 16 | 378.1 ns | 1.03 KB |
-| `alternating-trace-v1` | 256 | 4,637.8 ns | 10.5 KB |
-| `alternating-trace-v1` | 4,096 | 71,378.6 ns | 160.59 KB |
+| Corpus                 | Retained transitions |        Mean | Managed allocation |
+| ---------------------- | -------------------: | ----------: | -----------------: |
+| `alternating-trace-v1` |                   16 |    378.1 ns |            1.03 KB |
+| `alternating-trace-v1` |                  256 |  4,637.8 ns |            10.5 KB |
+| `alternating-trace-v1` |                4,096 | 71,378.6 ns |          160.59 KB |
 
 The job used BenchmarkDotNet 0.15.8, SDK 10.0.400, .NET 10.0.11 Arm64 RyuJIT with Concurrent
 Workstation GC, macOS Tahoe 26.6.2, and Apple M5. The host could not raise process priority, so

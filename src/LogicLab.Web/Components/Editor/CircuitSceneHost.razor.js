@@ -138,10 +138,16 @@ class CircuitSceneHandle {
 
     const seen = new Set();
     for (const request of requests) {
-      if (!request || typeof request.key !== "string" || seen.has(request.key)
-          || typeof request.text !== "string" || !isTextRole(request.fontRole)
-          || !isAlignment(request.alignment) || !isLocale(request.locale)
-          || !isDirection(request.direction)) {
+      if (
+        !request ||
+        typeof request.key !== "string" ||
+        seen.has(request.key) ||
+        typeof request.text !== "string" ||
+        !isTextRole(request.fontRole) ||
+        !isAlignment(request.alignment) ||
+        !isLocale(request.locale) ||
+        !isDirection(request.direction)
+      ) {
         throw new Error("invalid text measurement request");
       }
       seen.add(request.key);
@@ -169,8 +175,9 @@ class CircuitSceneHandle {
     } catch {
       faces = [];
     }
-    const exactFaceLoaded = faces.some((face) => face.status === "loaded"
-      && face.family.replaceAll('"', "") === family);
+    const exactFaceLoaded = faces.some(
+      (face) => face.status === "loaded" && face.family.replaceAll('"', "") === family,
+    );
     // FontFaceSet.check() only reports whether a future load/font swap is needed; it
     // explicitly may return true when fallback renders the text, so it cannot prove
     // glyph coverage. https://www.w3.org/TR/css-font-loading/#font-face-set-check
@@ -197,8 +204,11 @@ class CircuitSceneHandle {
         inkRight: checkedInteger(Math.ceil(metrics.actualBoundingBoxRight)),
         inkBottom: checkedInteger(Math.ceil(metrics.actualBoundingBoxDescent)),
       };
-      if (measurement.advanceWidth < 0 || measurement.inkRight < measurement.inkLeft
-          || measurement.inkBottom < measurement.inkTop) {
+      if (
+        measurement.advanceWidth < 0 ||
+        measurement.inkRight < measurement.inkLeft ||
+        measurement.inkBottom < measurement.inkTop
+      ) {
         throw new Error("invalid text metrics");
       }
 
@@ -208,11 +218,14 @@ class CircuitSceneHandle {
     const canonical = measurements
       .slice()
       .sort((left, right) => compareOrdinal(left.key, right.key))
-      .map((value) => `${value.key}:${value.advanceWidth}:${value.inkLeft}:${value.inkTop}:${value.inkRight}:${value.inkBottom}`)
+      .map(
+        (value) =>
+          `${value.key}:${value.advanceWidth}:${value.inkLeft}:${value.inkTop}:${value.inkRight}:${value.inkBottom}`,
+      )
       .join("\n");
-    const fontFingerprint = await sha256(textEncoder.encode(
-      `logiclab-browser-font-v1\n${family}\n${assetFingerprint}\n${canonical}`,
-    ));
+    const fontFingerprint = await sha256(
+      textEncoder.encode(`logiclab-browser-font-v1\n${family}\n${assetFingerprint}\n${canonical}`),
+    );
     return { fontFamily: family, assetFingerprint, fontFingerprint, measurements };
   }
 
@@ -226,10 +239,15 @@ class CircuitSceneHandle {
 
   beginTransfer(transferId, kind, byteLength, digest) {
     this.ensureLive();
-    if (!isToken(transferId) || !["replacement", "patch"].includes(kind)
-        || !Number.isSafeInteger(byteLength) || byteLength <= 0
-        || BigInt(byteLength) > BigInt(this.policy.candidateTransferBytes)
-        || !isDigest(digest) || this.transfers.has(transferId)) {
+    if (
+      !isToken(transferId) ||
+      !["replacement", "patch"].includes(kind) ||
+      !Number.isSafeInteger(byteLength) ||
+      byteLength <= 0 ||
+      BigInt(byteLength) > BigInt(this.policy.candidateTransferBytes) ||
+      !isDigest(digest) ||
+      this.transfers.has(transferId)
+    ) {
       this.rejectBatch("invalid scene transfer envelope");
     }
 
@@ -250,8 +268,10 @@ class CircuitSceneHandle {
       this.transfers.delete(transferId);
       this.rejectBatch("invalid scene transfer batch");
     }
-    if (BigInt(textEncoder.encode(base64Chunk).byteLength) + interopEnvelopeBytes
-        > BigInt(this.policy.interopBatchBytes)) {
+    if (
+      BigInt(textEncoder.encode(base64Chunk).byteLength) + interopEnvelopeBytes >
+      BigInt(this.policy.interopBatchBytes)
+    ) {
       this.transfers.delete(transferId);
       this.rejectBatch("scene transfer batch policy exhausted");
     }
@@ -291,7 +311,7 @@ class CircuitSceneHandle {
 
     let candidate;
     try {
-      if (await sha256(bytes) !== transfer.digest) {
+      if ((await sha256(bytes)) !== transfer.digest) {
         throw new Error("scene transfer digest mismatch");
       }
 
@@ -373,8 +393,11 @@ class CircuitSceneHandle {
     const saved = [...this.savedViewports];
     const viewports = [];
     let encodedBytes = encodedJsonBytes({ viewports });
-    for (let index = saved.length - 1; index >= 0
-        && BigInt(viewports.length) < BigInt(this.policy.sceneSnapshotRecordCount); index--) {
+    for (
+      let index = saved.length - 1;
+      index >= 0 && BigInt(viewports.length) < BigInt(this.policy.sceneSnapshotRecordCount);
+      index--
+    ) {
       const [circuitDefinitionId, viewport] = saved[index];
       const candidate = {
         circuitDefinitionId,
@@ -431,18 +454,27 @@ class CircuitSceneHandle {
   }
 
   replace(candidate) {
-    const validated = validateReplacement(candidate, this.buildFingerprint, this.fontFingerprint, this.policy);
-    const sourceIndex = validated.kind === "snapshot"
-      ? buildSourceIndex(validated.value, this.policy)
-      : { sourcesByKey: new Map(), targetsBySource: new Map(), observedBytes: 0n };
-    const spatialIndex = validated.kind === "snapshot"
-      ? buildSpatialIndex(validated.value, this.policy, sourceIndex.observedBytes)
-      : new Map();
+    const validated = validateReplacement(
+      candidate,
+      this.buildFingerprint,
+      this.fontFingerprint,
+      this.policy,
+    );
+    const sourceIndex =
+      validated.kind === "snapshot"
+        ? buildSourceIndex(validated.value, this.policy)
+        : { sourcesByKey: new Map(), targetsBySource: new Map(), observedBytes: 0n };
+    const spatialIndex =
+      validated.kind === "snapshot"
+        ? buildSpatialIndex(validated.value, this.policy, sourceIndex.observedBytes)
+        : new Map();
     this.cancelGesture();
     this.hoveredSource = null;
-    if (this.pendingIntent
-        && (validated.value.projectionVersion !== this.pendingIntent.projectionVersion
-          || validated.value.sceneVersion > this.pendingIntent.sceneVersion)) {
+    if (
+      this.pendingIntent &&
+      (validated.value.projectionVersion !== this.pendingIntent.projectionVersion ||
+        validated.value.sceneVersion > this.pendingIntent.sceneVersion)
+    ) {
       this.pendingIntent = null;
     }
     this.rememberPublishedViewport();
@@ -472,8 +504,9 @@ class CircuitSceneHandle {
       this.fitViewport();
     }
 
-    const selectionOverlays = validated.value.overlays
-      .filter((overlay) => overlay.kind === "selection");
+    const selectionOverlays = validated.value.overlays.filter(
+      (overlay) => overlay.kind === "selection",
+    );
     this.selectedSources = new Set(selectionOverlays.map((overlay) => sourceKey(overlay.source)));
     const primary = selectionOverlays.find((overlay) => overlay.role === "primary");
     this.primarySelectionSource = primary ? sourceKey(primary.source) : null;
@@ -510,19 +543,27 @@ class CircuitSceneHandle {
     this.canvas.addEventListener("pointermove", (event) => this.pointerMove(event), { signal });
     this.canvas.addEventListener("pointerup", (event) => this.pointerUp(event), { signal });
     this.canvas.addEventListener("pointercancel", (event) => this.cancelPointer(event), { signal });
-    this.canvas.addEventListener("lostpointercapture", (event) => this.cancelPointer(event), { signal });
+    this.canvas.addEventListener("lostpointercapture", (event) => this.cancelPointer(event), {
+      signal,
+    });
     this.canvas.addEventListener("pointerleave", () => this.clearHover(), { signal });
     this.canvas.addEventListener("wheel", (event) => this.wheel(event), { passive: false, signal });
     this.canvas.addEventListener("keydown", (event) => this.keyDown(event), { signal });
     document.addEventListener("keyup", (event) => this.keyUp(event), { signal });
-    window.addEventListener("blur", () => {
-      this.spacePan = false;
-      this.cancelGesture();
-    }, { signal });
+    window.addEventListener(
+      "blur",
+      () => {
+        this.spacePan = false;
+        this.cancelGesture();
+      },
+      { signal },
+    );
     this.canvas.addEventListener("contextlost", () => this.contextLost(), { signal });
     this.canvas.addEventListener("contextrestored", () => this.contextRestored(), { signal });
     for (const control of this.host.querySelectorAll("[data-scene-zoom]")) {
-      control.addEventListener("click", () => this.zoomControl(control.dataset.sceneZoom), { signal });
+      control.addEventListener("click", () => this.zoomControl(control.dataset.sceneZoom), {
+        signal,
+      });
     }
 
     this.reconnectModal = document.getElementById("components-reconnect-modal");
@@ -569,8 +610,12 @@ class CircuitSceneHandle {
     }
 
     const rect = this.canvas.getBoundingClientRect();
-    if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height)
-        || rect.width <= 0 || rect.height <= 0) {
+    if (
+      !Number.isFinite(rect.width) ||
+      !Number.isFinite(rect.height) ||
+      rect.width <= 0 ||
+      rect.height <= 0
+    ) {
       return;
     }
 
@@ -585,10 +630,10 @@ class CircuitSceneHandle {
     }
 
     const selectionAnchor = this.viewportIsUserControlled ? this.selectionResizeAnchor() : null;
-    const center = this.viewportIsUserControlled
-      && !selectionAnchor && this.cssWidth > 0 && this.cssHeight > 0
-      ? this.screenToWorld({ x: this.cssWidth / 2, y: this.cssHeight / 2 })
-      : null;
+    const center =
+      this.viewportIsUserControlled && !selectionAnchor && this.cssWidth > 0 && this.cssHeight > 0
+        ? this.screenToWorld({ x: this.cssWidth / 2, y: this.cssHeight / 2 })
+        : null;
     this.cssWidth = rect.width;
     this.cssHeight = rect.height;
     this.density = density;
@@ -606,11 +651,11 @@ class CircuitSceneHandle {
     if (!this.viewportIsUserControlled && this.published) {
       this.fitViewport();
     } else if (selectionAnchor) {
-      this.viewport.x = selectionAnchor.screen.x - (selectionAnchor.world.x * this.viewport.zoom);
-      this.viewport.y = selectionAnchor.screen.y - (selectionAnchor.world.y * this.viewport.zoom);
+      this.viewport.x = selectionAnchor.screen.x - selectionAnchor.world.x * this.viewport.zoom;
+      this.viewport.y = selectionAnchor.screen.y - selectionAnchor.world.y * this.viewport.zoom;
     } else if (center) {
-      this.viewport.x = (this.cssWidth / 2) - (center.x * this.viewport.zoom);
-      this.viewport.y = (this.cssHeight / 2) - (center.y * this.viewport.zoom);
+      this.viewport.x = this.cssWidth / 2 - center.x * this.viewport.zoom;
+      this.viewport.y = this.cssHeight / 2 - center.y * this.viewport.zoom;
     }
 
     this.invalidate();
@@ -629,8 +674,14 @@ class CircuitSceneHandle {
 
   render() {
     this.pendingFrame = 0;
-    if (this.destroyed || this.contextIsLost || !this.dirty || !this.context
-        || !this.cssWidth || !this.cssHeight) {
+    if (
+      this.destroyed ||
+      this.contextIsLost ||
+      !this.dirty ||
+      !this.context ||
+      !this.cssWidth ||
+      !this.cssHeight
+    ) {
       return;
     }
 
@@ -713,9 +764,11 @@ class CircuitSceneHandle {
   drawOverlays(context, styles) {
     const selected = this.selectedSources;
     const primary = this.primarySelectionSource;
-    const probePoints = new Map(this.published.overlays
-      .filter((overlay) => overlay.kind === "probeAnchor")
-      .map((overlay) => [sourceKey(overlay.source), overlay.point]));
+    const probePoints = new Map(
+      this.published.overlays
+        .filter((overlay) => overlay.kind === "probeAnchor")
+        .map((overlay) => [sourceKey(overlay.source), overlay.point]),
+    );
 
     for (const overlay of this.published.overlays) {
       if (overlay.kind === "liveNetValue") {
@@ -748,9 +801,7 @@ class CircuitSceneHandle {
     }
 
     for (const item of this.published.items) {
-      const targets = item.hasDrawableTarget
-        ? [{ source: item.source, bounds: item.bounds }]
-        : [];
+      const targets = item.hasDrawableTarget ? [{ source: item.source, bounds: item.bounds }] : [];
       for (const region of item.hitRegions) {
         if (region.targetSource) {
           targets.push({ source: region.targetSource, bounds: region.bounds });
@@ -787,14 +838,15 @@ class CircuitSceneHandle {
         continue;
       }
       context.save();
-      context.strokeStyle = overlay.severity === "error"
-        ? cssColor(styles, "--ll-danger", "#b42318")
-        : cssColor(styles, "--ll-transition", "#a85d00");
+      context.strokeStyle =
+        overlay.severity === "error"
+          ? cssColor(styles, "--ll-danger", "#b42318")
+          : cssColor(styles, "--ll-transition", "#a85d00");
       context.lineWidth = 4 / this.viewport.zoom;
       context.setLineDash([6 / this.viewport.zoom, 4 / this.viewport.zoom]);
       context.beginPath();
-      context.moveTo(target.bounds.left, target.bounds.bottom + (5 / this.viewport.zoom));
-      context.lineTo(target.bounds.right, target.bounds.bottom + (5 / this.viewport.zoom));
+      context.moveTo(target.bounds.left, target.bounds.bottom + 5 / this.viewport.zoom);
+      context.lineTo(target.bounds.right, target.bounds.bottom + 5 / this.viewport.zoom);
       context.stroke();
       context.restore();
     }
@@ -854,8 +906,11 @@ class CircuitSceneHandle {
         marquee.right - marquee.left,
         marquee.bottom - marquee.top,
       );
-    } else if (gesture.tool.kind === "select" && gesture.hit?.item?.hasDrawableTarget
-        && (start.x !== end.x || start.y !== end.y)) {
+    } else if (
+      gesture.tool.kind === "select" &&
+      gesture.hit?.item?.hasDrawableTarget &&
+      (start.x !== end.x || start.y !== end.y)
+    ) {
       const item = gesture.hit.item;
       const translateX = endPoint.x - startPoint.x;
       const translateY = endPoint.y - startPoint.y;
@@ -867,12 +922,7 @@ class CircuitSceneHandle {
     } else if (gesture.tool.kind === "placeComponent") {
       const halfSize = Math.max(snapshot.gridStepPlanUnits * 0.35, 12 / this.viewport.zoom);
       context.globalAlpha = 0.75;
-      context.strokeRect(
-        endPoint.x - halfSize,
-        endPoint.y - halfSize,
-        halfSize * 2,
-        halfSize * 2,
-      );
+      context.strokeRect(endPoint.x - halfSize, endPoint.y - halfSize, halfSize * 2, halfSize * 2);
     } else if (gesture.tool.kind === "wire" && gesture.hit) {
       context.beginPath();
       context.moveTo(startPoint.x, startPoint.y);
@@ -901,9 +951,7 @@ class CircuitSceneHandle {
 
     const screen = this.pointerScreen(event);
     const world = this.screenToWorld(screen);
-    const tool = this.spacePan || !this.connected
-      ? { kind: "pan" }
-      : this.activeTool;
+    const tool = this.spacePan || !this.connected ? { kind: "pan" } : this.activeTool;
     if (tool.kind !== "pan" && this.pendingIntent) {
       return;
     }
@@ -975,9 +1023,12 @@ class CircuitSceneHandle {
     gesture.disableSnap = event.altKey;
     gesture.selectionMode = selectionModeFromModifiers(event);
     this.invalidate();
-    if (this.published && this.connected
-        && gesture.sceneVersion === this.published.sceneVersion
-        && gesture.projectionVersion === this.published.projectionVersion) {
+    if (
+      this.published &&
+      this.connected &&
+      gesture.sceneVersion === this.published.sceneVersion &&
+      gesture.projectionVersion === this.published.projectionVersion
+    ) {
       this.commitGesture(gesture, gesture.disableSnap);
     }
   }
@@ -1049,8 +1100,8 @@ class CircuitSceneHandle {
     const zoom = Math.min(maximum, Math.max(minimum, requestedZoom));
     this.viewportIsUserControlled = true;
     this.viewport.zoom = zoom;
-    this.viewport.x = anchor.x - (world.x * zoom);
-    this.viewport.y = anchor.y - (world.y * zoom);
+    this.viewport.x = anchor.x - world.x * zoom;
+    this.viewport.y = anchor.y - world.y * zoom;
     this.invalidate();
   }
 
@@ -1082,7 +1133,6 @@ class CircuitSceneHandle {
       event.preventDefault();
       return;
     }
-
   }
 
   keyUp(event) {
@@ -1146,18 +1196,26 @@ class CircuitSceneHandle {
 
   selectSources(sources, selectionMode) {
     const snapshot = this.published;
-    if (!snapshot || !this.connected || !Array.isArray(sources)
-        || (sources.length === 0 && selectionMode !== "replace")) {
+    if (
+      !snapshot ||
+      !this.connected ||
+      !Array.isArray(sources) ||
+      (sources.length === 0 && selectionMode !== "replace")
+    ) {
       return;
     }
 
-    const committed = this.emitIntent("selectSources", {
-      sceneVersion: snapshot.sceneVersion,
-      projectionVersion: snapshot.projectionVersion,
-    }, {
-      sources,
-      selectionMode,
-    });
+    const committed = this.emitIntent(
+      "selectSources",
+      {
+        sceneVersion: snapshot.sceneVersion,
+        projectionVersion: snapshot.projectionVersion,
+      },
+      {
+        sources,
+        selectionMode,
+      },
+    );
     if (committed) {
       const keys = sources.map(sourceKey);
       this.updateSelection(keys, selectionMode);
@@ -1192,10 +1250,12 @@ class CircuitSceneHandle {
           return;
         }
         this.emitIntent("moveComponents", gesture, {
-          moves: [{
-            component: hit.item.source,
-            placement,
-          }],
+          moves: [
+            {
+              component: hit.item.source,
+              placement,
+            },
+          ],
           snapModifier: disableSnap ? "disableSnap" : "none",
         });
       } else if (moved && interaction?.interactionKind === "definitionPort") {
@@ -1204,13 +1264,15 @@ class CircuitSceneHandle {
           return;
         }
         this.emitIntent("moveDefinitionPorts", gesture, {
-          moves: [{
-            port: hit.item.source,
-            placement: {
-              position,
-              facing: interaction.placement.facing,
+          moves: [
+            {
+              port: hit.item.source,
+              placement: {
+                position,
+                facing: interaction.placement.facing,
+              },
             },
-          }],
+          ],
           snapModifier: disableSnap ? "disableSnap" : "none",
         });
       } else if (moved && interaction?.interactionKind === "annotation") {
@@ -1219,10 +1281,12 @@ class CircuitSceneHandle {
           return;
         }
         this.emitIntent("moveAnnotations", gesture, {
-          moves: [{
-            annotation: hit.item.source,
-            position,
-          }],
+          moves: [
+            {
+              annotation: hit.item.source,
+              position,
+            },
+          ],
           snapModifier: disableSnap ? "disableSnap" : "none",
         });
       } else {
@@ -1282,8 +1346,7 @@ class CircuitSceneHandle {
       gesture.currentWorld,
       disableSnap,
     );
-    if (startTerminal && endTerminal
-        && sourceKey(hit.source) !== sourceKey(endHit.source)) {
+    if (startTerminal && endTerminal && sourceKey(hit.source) !== sourceKey(endHit.source)) {
       this.emitIntent("commitWire", gesture, {
         terminals: [startTerminal, endTerminal],
         destinationNet: null,
@@ -1350,9 +1413,13 @@ class CircuitSceneHandle {
 
   emitIntent(kind, gesture, payload) {
     const snapshot = this.published;
-    if (!snapshot || !this.connected || this.pendingIntent
-        || gesture.sceneVersion !== snapshot.sceneVersion
-        || gesture.projectionVersion !== snapshot.projectionVersion) {
+    if (
+      !snapshot ||
+      !this.connected ||
+      this.pendingIntent ||
+      gesture.sceneVersion !== snapshot.sceneVersion ||
+      gesture.projectionVersion !== snapshot.projectionVersion
+    ) {
       return false;
     }
     const intent = {
@@ -1374,7 +1441,8 @@ class CircuitSceneHandle {
       projectionVersion: gesture.projectionVersion,
     });
     this.pendingIntent = pendingIntent;
-    void this.dotnetSink?.invokeMethodAsync("ReceiveSceneIntentAsync", intent)
+    void this.dotnetSink
+      ?.invokeMethodAsync("ReceiveSceneIntentAsync", intent)
       .then(() => {
         if (kind === "selectSources" && this.pendingIntent === pendingIntent) {
           this.pendingIntent = null;
@@ -1440,8 +1508,11 @@ class CircuitSceneHandle {
     const seen = new Set();
     for (const item of this.published?.items ?? []) {
       const key = sourceKey(item.source);
-      if (item.hasDrawableTarget && !seen.has(key)
-          && intersects(translateRect(item.bounds, item.origin), rect)) {
+      if (
+        item.hasDrawableTarget &&
+        !seen.has(key) &&
+        intersects(translateRect(item.bounds, item.origin), rect)
+      ) {
         seen.add(key);
         sources.push(item.source);
       }
@@ -1463,17 +1534,18 @@ class CircuitSceneHandle {
     const minimum = Number(this.policy.zoomMillionthsMinimum) / 1_000_000;
     const boundsWidth = bounds.right - bounds.left;
     const boundsHeight = bounds.bottom - bounds.top;
-    const fitZoom = boundsWidth > 0 && boundsHeight > 0
-      ? Math.min(
-          (this.cssWidth - (padding * 2)) / boundsWidth,
-          (this.cssHeight - (padding * 2)) / boundsHeight,
-        )
-      : 1;
+    const fitZoom =
+      boundsWidth > 0 && boundsHeight > 0
+        ? Math.min(
+            (this.cssWidth - padding * 2) / boundsWidth,
+            (this.cssHeight - padding * 2) / boundsHeight,
+          )
+        : 1;
     const zoom = Math.min(maximum, Math.max(minimum, fitZoom));
     this.viewportIsUserControlled = false;
     this.viewport.zoom = zoom;
-    this.viewport.x = (this.cssWidth / 2) - (((bounds.left + bounds.right) / 2) * zoom);
-    this.viewport.y = (this.cssHeight / 2) - (((bounds.top + bounds.bottom) / 2) * zoom);
+    this.viewport.x = this.cssWidth / 2 - ((bounds.left + bounds.right) / 2) * zoom;
+    this.viewport.y = this.cssHeight / 2 - ((bounds.top + bounds.bottom) / 2) * zoom;
   }
 
   pointerScreen(event) {
@@ -1521,20 +1593,19 @@ class CircuitSceneHandle {
     }
 
     const world = {
-      x: (target.bounds.left * 0.5) + (target.bounds.right * 0.5),
-      y: (target.bounds.top * 0.5) + (target.bounds.bottom * 0.5),
+      x: target.bounds.left * 0.5 + target.bounds.right * 0.5,
+      y: target.bounds.top * 0.5 + target.bounds.bottom * 0.5,
     };
     const screen = {
-      x: this.viewport.x + (world.x * this.viewport.zoom),
-      y: this.viewport.y + (world.y * this.viewport.zoom),
+      x: this.viewport.x + world.x * this.viewport.zoom,
+      y: this.viewport.y + world.y * this.viewport.zoom,
     };
     return validPoint(world) && validPoint(screen) ? { world, screen } : null;
   }
 
   rememberPublishedViewport() {
     const definitionId = this.published?.circuitDefinitionId;
-    if (!this.viewportIsUserControlled
-        || !definitionId) {
+    if (!this.viewportIsUserControlled || !definitionId) {
       return;
     }
 
@@ -1594,13 +1665,15 @@ class CircuitSceneHandle {
       await this.notifyFailure("web_interop_failure");
       return;
     }
-    await this.dotnetSink?.invokeMethodAsync(
-      "SceneBrowserPolicyExhaustedAsync",
-      this.policy.policyId,
-      this.policy.policyRevision,
-      dimension,
-      error.observed.toString(),
-    ).catch(() => {});
+    await this.dotnetSink
+      ?.invokeMethodAsync(
+        "SceneBrowserPolicyExhaustedAsync",
+        this.policy.policyId,
+        this.policy.policyRevision,
+        dimension,
+        error.observed.toString(),
+      )
+      .catch(() => {});
   }
 
   async rejectCandidate(code) {
@@ -1620,7 +1693,6 @@ class CircuitSceneHandle {
   }
 }
 
-
 function logicVectorText(value) {
   const symbols = ["0", "1", "X", "Z"];
   const bytes = decodeBase64(value.data);
@@ -1637,12 +1709,12 @@ function drawLiveNetValue(context, styles, fontFamily, point, value, zoom) {
   const text = logicVectorText(value);
   const height = 24 * scale;
   const padding = 7 * scale;
-  const x = point.x + (10 * scale);
-  const y = point.y - height - (10 * scale);
+  const x = point.x + 10 * scale;
+  const y = point.y - height - 10 * scale;
 
   context.save();
   context.font = `600 ${16 * scale}px ${fontFamily}`;
-  const width = Math.max(height, context.measureText(text).width + (padding * 2));
+  const width = Math.max(height, context.measureText(text).width + padding * 2);
   context.beginPath();
   context.roundRect(x, y, width, height, 6 * scale);
   context.fillStyle = cssColor(styles, "--ll-canvas", "#ffffff");
@@ -1653,9 +1725,16 @@ function drawLiveNetValue(context, styles, fontFamily, point, value, zoom) {
   context.fillStyle = cssColor(styles, "--ll-ink", "#172124");
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.fillText(text, x + (width / 2), y + (height / 2));
+  context.fillText(text, x + width / 2, y + height / 2);
   context.restore();
 }
 
-function checkedInteger(value) { if (!Number.isSafeInteger(value) || value < -2147483648 || value > 2147483647) throw new Error("integer overflow"); return value; }
-async function sha256(bytes) { const digest = await crypto.subtle.digest("SHA-256", bytes); return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join(""); }
+function checkedInteger(value) {
+  if (!Number.isSafeInteger(value) || value < -2147483648 || value > 2147483647)
+    throw new Error("integer overflow");
+  return value;
+}
+async function sha256(bytes) {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
+}

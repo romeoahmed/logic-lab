@@ -110,22 +110,22 @@ The Project content digest uses the section 2 framed part sequence with domain p
 
 Each memory part begins with this little-endian header:
 
-| Bytes | Field | Value |
-|---:|---|---|
-| 4 | magic | ASCII `LLMI` |
-| 2 | version | unsigned `1` |
-| 1 | encoding | unsigned `1` for packed two-bit logic |
-| 1 | reserved | zero |
-| 4 | word width | positive unsigned bits per word |
-| 8 | depth | positive unsigned word count |
+| Bytes | Field      | Value                                 |
+| ----: | ---------- | ------------------------------------- |
+|     4 | magic      | ASCII `LLMI`                          |
+|     2 | version    | unsigned `1`                          |
+|     1 | encoding   | unsigned `1` for packed two-bit logic |
+|     1 | reserved   | zero                                  |
+|     4 | word width | positive unsigned bits per word       |
+|     8 | depth      | positive unsigned word count          |
 
 Payload cells are flattened by `cellIndex = address * wordWidth + bitIndex`, with bit index zero least significant. Four cells are packed per byte from least-significant to most-significant two-bit field:
 
-| Code | Value |
-|---:|---|
-| `00` | `0` |
-| `01` | `1` |
-| `10` | `X` |
+| Code | Value            |
+| ---: | ---------------- |
+| `00` | `0`              |
+| `01` | `1`              |
+| `10` | `X`              |
 | `11` | reserved; reject |
 
 Payload length is exactly `ceil(wordWidth * depth * 2 / 8)`. Unused high fields in the final byte are zero. All multiplication, addition, and conversion is checked before allocation or read. `Z` cannot be stored in an authored memory image.
@@ -170,14 +170,14 @@ Uploads declare an explicit maximum at the browser and ASP.NET Core stream bound
 
 ## 8. Failure classes
 
-| Class | Examples | Publication |
-|---|---|---|
-| Carrier | malformed ZIP, duplicate or illegal path, unsupported compression | none |
-| Limit | upload, expansion, entry, depth, token, or logical-size policy | none |
-| Integrity | length, part hash, package digest, memory payload mismatch | none |
-| Schema | duplicate/unknown JSON member, discriminator, version, number | none |
-| Domain | duplicate ID, bad Terminal, width, topology, missing reference | none |
-| Infrastructure | spool or storage failure, cancellation, shutdown | none |
+| Class          | Examples                                                          | Publication |
+| -------------- | ----------------------------------------------------------------- | ----------- |
+| Carrier        | malformed ZIP, duplicate or illegal path, unsupported compression | none        |
+| Limit          | upload, expansion, entry, depth, token, or logical-size policy    | none        |
+| Integrity      | length, part hash, package digest, memory payload mismatch        | none        |
+| Schema         | duplicate/unknown JSON member, discriminator, version, number     | none        |
+| Domain         | duplicate ID, bad Terminal, width, topology, missing reference    | none        |
+| Infrastructure | spool or storage failure, cancellation, shutdown                  | none        |
 
 Diagnostics use the Project Format catalog in [Diagnostics V1](./diagnostics-v1.md). They do not echo raw project content, paths beyond validated logical names, stack traces, or host filesystem details.
 
