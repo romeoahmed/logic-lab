@@ -1,4 +1,5 @@
 using LogicLab.Web.Scene;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
@@ -24,7 +25,8 @@ internal sealed class BrowserPolicyTests
                 (BrowserLimitDimension.DisplayListBytes, BrowserLimitComparison.AtMost),
                 (BrowserLimitDimension.SpatialIndexBytes, BrowserLimitComparison.AtMost),
                 (BrowserLimitDimension.SceneCacheBytes, BrowserLimitComparison.AtMost),
-            ]);
+            ],
+            CollectionOrdering.Matching);
     }
 
     [Test]

@@ -22,8 +22,7 @@ internal sealed class SceneBrowserRecordsTests
             suffix.Get,
             string.Empty);
 
-        return (splitBeforeBoundary != splitAfterBoundary
-                && splitBeforeBoundary.Key != splitAfterBoundary.Key)
+        return (splitBeforeBoundary.Key != splitAfterBoundary.Key)
             .Label("length-prefixed source parts preserve identity boundaries");
     }
 

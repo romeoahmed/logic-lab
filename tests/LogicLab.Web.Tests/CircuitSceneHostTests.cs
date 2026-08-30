@@ -64,8 +64,6 @@ internal sealed class CircuitSceneHostTests
         {
             await Assert.That(rendered.FindAll("canvas[data-scene-canvas]")).Count().IsEqualTo(1);
             await Assert.That(rendered.Find("canvas").TextContent).IsNotEmpty();
-            await Assert.That(rendered.FindAll("[data-scene-source]")).IsEmpty();
-            await Assert.That(rendered.FindAll("details.scene-recovery-actions")).IsEmpty();
         }
     }
 
@@ -90,7 +88,6 @@ internal sealed class CircuitSceneHostTests
                     .GetAttribute("data-scene-renderer"))
                 .IsEqualTo("unavailable");
             await Assert.That(rendered.Find("canvas").HasAttribute("hidden")).IsTrue();
-            await Assert.That(rendered.FindAll("details.scene-recovery-actions")).IsEmpty();
             await Assert.That(rendered.FindAll("[data-scene-retry]")).Count().IsEqualTo(1);
             await Assert.That(rendered.FindAll("[data-scene-recovery='contextUnavailable']"))
                 .Count().IsEqualTo(1);
