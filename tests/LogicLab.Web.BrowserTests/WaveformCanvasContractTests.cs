@@ -89,6 +89,28 @@ internal sealed class WaveformCanvasContractTests : PageTest
     }
 
     [Test]
+    public async Task PointerGesture_ForeignCancellation_DoesNotDiscardActiveCursorCommit()
+    {
+        var waveform = new WaveformCanvasTestPage(Page);
+        await waveform.OpenAndMountAsync();
+        await Assert.That(await waveform.CommitSnapshotAsync(
+            WaveformCanvasTestPage.Snapshot())).IsTrue();
+        await waveform.WaitForFramesAsync();
+        var bounds = await waveform.Canvas.BoundingBoxAsync();
+        await Assert.That(bounds).IsNotNull();
+
+        await Page.Mouse.MoveAsync(
+            checked((float)(bounds!.X + 120)),
+            checked((float)(bounds.Y + 80)));
+        await Page.Mouse.DownAsync();
+        await waveform.DispatchForeignPointerCancellationAsync();
+        await Page.Mouse.UpAsync();
+
+        await Assert.That(await waveform.WaitForCursorIntentAsync())
+            .IsEqualTo("setCursor|primary");
+    }
+
+    [Test]
     public async Task Destroy_DuringCursorGesture_ReleasesCaptureAndPendingFrame()
     {
         var waveform = new WaveformCanvasTestPage(Page);
@@ -143,6 +165,7 @@ internal sealed class WaveformCanvasTestPage(IPage page)
         await page.EvaluateAsync(
             """
             async buildFingerprint => {
+              window.receivedWaveformIntents = [];
               const module = await import('/Components/Editor/LogicAnalyzer.razor.js');
               window.waveformHandle = module.mount(
                 document.querySelector('[data-waveform-host]'),
@@ -157,7 +180,14 @@ internal sealed class WaveformCanvasTestPage(IPage page)
                   zoomMillionthsMinimum: 50_000,
                   zoomMillionthsMaximum: 4_000_000,
                 },
-                { invokeMethodAsync() { return Promise.resolve(); } });
+                {
+                  invokeMethodAsync(method, payload) {
+                    if (method === 'ReceiveWaveformIntent') {
+                      window.receivedWaveformIntents.push(payload);
+                    }
+                    return Promise.resolve();
+                  },
+                });
             }
             """,
             BuildFingerprint);
@@ -226,6 +256,39 @@ internal sealed class WaveformCanvasTestPage(IPage page)
     public Task<string> TimeAtAsync(double cssX) => page.EvaluateAsync<string>(
         "cssX => window.waveformHandle.timeAt(cssX).toString()",
         cssX);
+
+    public async Task DispatchForeignPointerCancellationAsync()
+    {
+        await Canvas.DispatchEventAsync(
+            "pointerdown",
+            new Dictionary<string, object>
+            {
+                ["button"] = 0,
+                ["isPrimary"] = false,
+                ["pointerId"] = 99,
+                ["shiftKey"] = true,
+            });
+        await Canvas.DispatchEventAsync(
+            "pointercancel",
+            new Dictionary<string, object>
+            {
+                ["isPrimary"] = false,
+                ["pointerId"] = 99,
+            });
+    }
+
+    public async Task<string> WaitForCursorIntentAsync()
+    {
+        await page.WaitForFunctionAsync(
+            "() => window.receivedWaveformIntents.length > 0");
+        return await page.EvaluateAsync<string>(
+            """
+            () => {
+              const intent = window.receivedWaveformIntents.at(-1);
+              return `${intent.kind}|${intent.cursorKind}`;
+            }
+            """);
+    }
 
     public Task<bool> DestroyActiveGestureAsync() => page.EvaluateAsync<bool>(
         """
@@ -346,8 +409,12 @@ internal sealed class WaveformCanvasTestPage(IPage page)
         <html lang="en">
         <head><meta charset="utf-8"></head>
         <body>
-          <section data-waveform-host>
-            <canvas data-waveform-canvas style="width:600px;height:300px"></canvas>
+          <section data-waveform-host style="display:grid;grid-template-columns:180px 600px">
+            <aside data-probe-spine style="height:300px;overflow:auto">
+              <h3 style="height:30px;margin:0">Signals</h3>
+              <div data-waveform-row-track style="height:480px">A</div>
+            </aside>
+            <canvas data-waveform-canvas style="display:block;width:600px;height:300px"></canvas>
           </section>
           <script>
             window.pendingWaveformFrameIds = new Set();

@@ -34,6 +34,10 @@ internal static class WebTestContext
             "Microsoft.FluentUI.Blazor.Components.TextInput.attachImmediateEvent",
             static _ => true)
             .SetVoidResult();
+        context.JSInterop.SetupVoid(
+            "Microsoft.FluentUI.Blazor.Components.Select.Initialize",
+            static _ => true)
+            .SetVoidResult();
         context.JSInterop.SetupModule(BrowserSceneAdapter.ModulePath).Mode =
             JSRuntimeMode.Loose;
         context.JSInterop.SetupModule(BrowserWaveformAdapter.ModulePath).Mode =

@@ -54,13 +54,60 @@ internal sealed class LogicAnalyzerTests
             await Assert.That(rendered.FindAll("[data-probe]"))
                 .Count().IsEqualTo(2);
             await Assert.That(rendered.FindAll("[data-probe-label]")
-                    .Select(element => element.TextContent))
+                    .Select(element => element.TextContent.Trim()))
                 .IsEquivalentTo(["Input", "Output"]);
             await Assert.That(rendered.FindAll("[data-probe-radix]"))
                 .Count().IsEqualTo(2);
             await Assert.That(rendered.Find("[data-waveform-live]")
                     .GetAttribute("aria-pressed"))
                 .IsEqualTo("true");
+        }
+    }
+
+    [Test]
+    public async Task StaticRender_StandardControls_UseFluentChromeAndSharedProbeTracks()
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        var fixture = Fixture.Create();
+        var rendered = context.Render<LogicAnalyzer>(parameters => parameters
+            .Add(component => component.Projection, fixture.Projection)
+            .Add(component => component.TraceReader, ReadTrace));
+
+        await rendered.WaitForStateAsync(() =>
+            rendered.FindAll("[data-probe]").Count == 2);
+
+        var iconOnlyControls = rendered.FindAll("[data-icon-only]");
+        var toggleControls = rendered.FindAll("fluent-toggle-button");
+        var actionControls = rendered.FindAll("fluent-button");
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.FindAll(".logic-analyzer button, .logic-analyzer select"))
+                .IsEmpty();
+            await Assert.That(toggleControls).Count().IsEqualTo(5);
+            await Assert.That(toggleControls.All(control =>
+                    control.GetAttribute("role") == "button"
+                    && control.GetAttribute("tabindex") == "0"))
+                .IsTrue();
+            await Assert.That(actionControls.All(control =>
+                    control.GetAttribute("role") == "button"
+                    && control.GetAttribute("tabindex") ==
+                        (control.HasAttribute("disabled") ? "-1" : "0")))
+                .IsTrue();
+            await Assert.That(rendered.FindAll("fluent-dropdown[data-probe-radix]"))
+                .Count().IsEqualTo(2);
+            await Assert.That(rendered.FindAll("[data-waveform-row-track]"))
+                .Count().IsEqualTo(2);
+            await Assert.That(iconOnlyControls.Count).IsGreaterThanOrEqualTo(5);
+            await Assert.That(iconOnlyControls.All(control =>
+                    !string.IsNullOrWhiteSpace(control.GetAttribute("aria-label"))))
+                .IsTrue();
+            foreach (var row in fixture.Projection.Simulation!.Probes)
+            {
+                await Assert.That(rendered.FindAll(
+                        $"[data-probe='{row.ProbeId.Value}'] [data-probe-reveal]"))
+                    .Count().IsEqualTo(1);
+            }
         }
     }
 
@@ -275,8 +322,8 @@ internal sealed class LogicAnalyzerTests
                 .Count().IsEqualTo(1);
             await Assert.That(rendered.FindAll("[data-waveform-recovery]"))
                 .IsEmpty();
-            await Assert.That(rendered.Find("[data-trace-gap='evicted'] button")
-                    .TextContent)
+            await Assert.That(rendered.Find("[data-trace-gap='evicted'] [data-trace-return-live]")
+                    .TextContent.Trim())
                 .IsEqualTo("Back to live");
         }
     }
