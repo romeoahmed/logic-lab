@@ -50,9 +50,12 @@ internal sealed class DataProtectionProjectCatalogCursorProtectorTests
         var protector = new DataProtectionProjectCatalogCursorProtector(
             new EphemeralDataProtectionProvider());
         var cursor = protector.Protect(State());
-        var replacement = cursor.Value[^1] == 'A' ? 'B' : 'A';
-        var tampered = new ProjectCatalogCursor(
-            $"{cursor.Value[..^1]}{replacement}");
+        var tamperedCharacters = cursor.Value.ToCharArray();
+        var tamperedIndex = tamperedCharacters.Length / 2;
+        tamperedCharacters[tamperedIndex] = tamperedCharacters[tamperedIndex] == 'A'
+            ? 'B'
+            : 'A';
+        var tampered = new ProjectCatalogCursor(new string(tamperedCharacters));
 
         var succeeded = protector.TryUnprotect(tampered, out var restored);
 

@@ -25,7 +25,9 @@ internal sealed class ComponentPaletteTests
             "ontextimmediate",
             new ChangeEventArgs { Value = "register" });
         var matches = rendered.FindAll("[data-place-option]");
-        await matches[0].ClickAsync(new MouseEventArgs());
+        await rendered.Find(
+                "[data-place-option='library:logiclab.core:sequential.register']")
+            .ClickAsync(new MouseEventArgs());
 
         using (Assert.Multiple())
         {
