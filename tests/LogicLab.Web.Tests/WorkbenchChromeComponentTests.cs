@@ -18,7 +18,13 @@ internal sealed class WorkbenchChromeComponentTests
                 CanCreate = true,
                 ActiveCommand = "create",
             }));
-        await Assert.That(rendered.FindAll("fluent-button:not([disabled])")).IsEmpty();
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.FindAll("[data-command]:not([disabled])")).IsEmpty();
+            await Assert.That(rendered.Find("[data-testid='project-options-trigger']")
+                    .HasAttribute("disabled"))
+                .IsTrue();
+        }
     }
 
     [Test]
@@ -32,7 +38,7 @@ internal sealed class WorkbenchChromeComponentTests
                 CanImport = true,
             }));
         var picker = rendered.FindComponent<FluentInputFile>().Instance;
-        var trigger = rendered.Find("fluent-button[data-command='import']");
+        var trigger = rendered.Find("[data-command='import']");
 
         using (Assert.Multiple())
         {
@@ -56,7 +62,7 @@ internal sealed class WorkbenchChromeComponentTests
         {
             await Assert.That(rendered.FindComponent<FluentInputFile>().Instance.Disabled)
                 .IsTrue();
-            await Assert.That(rendered.Find("fluent-button[data-command='import']")
+            await Assert.That(rendered.Find("[data-command='import']")
                     .HasAttribute("disabled"))
                 .IsTrue();
         }

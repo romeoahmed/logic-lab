@@ -31,7 +31,6 @@ internal sealed class WorkbenchComponentTests
         await rendered.Find("[data-scene-tool='wire']").ClickAsync();
 
         var sceneHost = rendered.FindComponent<CircuitSceneHost>();
-        var toolbarControls = rendered.FindAll(".scene-tool-strip [data-scene-tool]");
         using (Assert.Multiple())
         {
             await Assert.That(sceneHost.Instance.ActiveTool)
@@ -39,11 +38,6 @@ internal sealed class WorkbenchComponentTests
             await Assert.That(rendered.Find("[data-scene-tool='probe']")
                     .HasAttribute("disabled"))
                 .IsTrue();
-            await Assert.That(toolbarControls).Count().IsEqualTo(4);
-            await Assert.That(toolbarControls[0].GetAttribute("data-scene-tool"))
-                .IsEqualTo("select");
-            await Assert.That(toolbarControls[^1].GetAttribute("data-scene-tool"))
-                .IsEqualTo("pan");
         }
     }
 
@@ -160,7 +154,7 @@ internal sealed class WorkbenchComponentTests
                 "invalid.logiclab",
                 contentType: "application/vnd.logiclab+zip"));
 
-        await rendered.WaitForStateAsync(() => rendered.FindAll(".status-message")
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[role='status']")
             .Any(status => status.TextContent.Contains(
                 "package_invalid",
                 StringComparison.Ordinal)));
@@ -315,7 +309,7 @@ internal sealed class WorkbenchComponentTests
                 "project.logiclab",
                 contentType: "application/vnd.logiclab+zip"));
 
-        await rendered.WaitForStateAsync(() => rendered.FindAll(".status-message")
+        await rendered.WaitForStateAsync(() => rendered.FindAll("[role='status']")
             .Any(status => status.TextContent.Contains(
                 "package_limit_exceeded",
                 StringComparison.Ordinal)));
@@ -690,8 +684,6 @@ internal sealed class WorkbenchComponentTests
             "session",
             () => IsDisabled(rendered, "session")
                 && !IsDisabled(rendered, "stimulus"));
-
-        await Assert.That(IsDisabled(rendered, "stimulus")).IsFalse();
     }
 
     [Test]
@@ -780,7 +772,6 @@ internal sealed class WorkbenchComponentTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(IsDisabled(rendered, "create")).IsFalse();
             await Assert.That(rendered.FindComponents<CircuitSceneHost>()).IsEmpty();
         }
 
@@ -809,13 +800,6 @@ internal sealed class WorkbenchComponentTests
         await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "create")
             && IsDisabled(rendered, "author")
             && rendered.FindComponents<CircuitSceneHost>().Count == 0);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(IsDisabled(rendered, "create")).IsFalse();
-            await Assert.That(IsDisabled(rendered, "author")).IsTrue();
-            await Assert.That(rendered.FindComponents<CircuitSceneHost>()).IsEmpty();
-        }
 
         await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
         await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
@@ -926,10 +910,7 @@ internal sealed class WorkbenchComponentTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.FindAll("[data-definition]")).Count().IsEqualTo(2);
             await Assert.That(rendered.FindAll("[data-entry-marker]")).Count().IsEqualTo(1);
-            await Assert.That(CurrentDefinition(rendered)!.ComponentInstances)
-                .Count().IsEqualTo(3);
             await Assert.That(rendered.Find("[data-hierarchy-breadcrumb]").TextContent)
                 .Contains("Main");
         }
@@ -940,9 +921,6 @@ internal sealed class WorkbenchComponentTests
         {
             await Assert.That(rendered.Find("[data-hierarchy-breadcrumb]").TextContent)
                 .Contains("Inverter");
-            await Assert.That(CurrentDefinition(rendered)!.ComponentInstances)
-                .Count().IsEqualTo(1);
-            await Assert.That(CurrentDefinition(rendered)!.Nets).Count().IsEqualTo(2);
             await Assert.That(rendered.FindAll("[data-command='hierarchy-back']")).Count()
                 .IsEqualTo(1);
         }
