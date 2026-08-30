@@ -117,18 +117,11 @@ The main conceptual difficulty is not placing a gate; it is understanding that o
 
 Probe ID remains stable while display order may change. Redundant color, pattern, text, and bidirectional navigation avoid color-only identity. Plain schematic export omits the editor overlay; annotated teaching export marks it as an extension.
 
-## 11. Browser and accessibility evidence
+## 11. Browser interaction boundary
 
-> Historical research retained for source traceability. [ADR 0008](../adr/0008-use-one-canvas-editor-surface.md) supersedes the former semantic-fallback architecture because Logic Lab has no accessibility-compliance target.
-
-SVG 2 hit testing is based on rendered geometry and `pointer-events`; `title` and `desc` provide textual description. Graphics ARIA defines graphics roles, but real assistive-technology support still needs product testing.
-
-The HTML standard requires Canvas fallback content that conveys equivalent purpose and maps interactive regions to focusable fallback areas. One `aria-label` on the entire Canvas is insufficient for authoring.
-
-The standards evidence remains valid, but the project no longer treats equivalent fallback authoring as a product requirement. Current consequences are:
+[ADR 0008](../adr/0008-use-one-canvas-editor-surface.md) makes Canvas the only dense circuit editor. Consequences are:
 
 - Geometry Plan supplies exact visual paths and enlarged hit regions;
-- SVG groups expose meaningful identity and description;
 - Canvas is the sole dense editor and has one host focus target for shared shortcuts;
 - renderer failure produces an explicit Razor recovery surface rather than a second editor;
 - logic states, active-low, selection, and Trace Gaps never rely on color alone.
@@ -146,8 +139,5 @@ Route preview and scene indexing remain evidence-gated implementation choices. O
 ## 13. Primary sources
 
 - [IEEE/ANSI 91a-1991 official standard record](https://standards.ieee.org/standard/91a-1991.html) and the licensed combined IEEE Std 91-1984 with IEEE 91A-1991 local reference.
-- [SVG 2 interaction](https://www.w3.org/TR/SVG2/interact.html#pointer-processing) and [descriptive elements](https://www.w3.org/TR/SVG2/struct.html#DescriptionAndTitleElements).
-- [WAI-ARIA Graphics Module](https://www.w3.org/TR/graphics-aria-1.0/).
 - [HTML Canvas](https://html.spec.whatwg.org/multipage/canvas.html#the-canvas-element).
-- [WCAG 2.2](https://www.w3.org/TR/WCAG22/).
 - [Logisim Evolution](https://github.com/logisim-evolution/logisim-evolution) and [Digital](https://github.com/hneemann/Digital), GPL-3.0 references only.

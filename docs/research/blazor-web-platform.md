@@ -1,131 +1,62 @@
-# Blazor Web Platform Research
+# Blazor Web Platform Evidence
 
-> Verified 2026-07-30 (Asia/Shanghai)
-> Scope: Blazor hosting, browser/server ownership, files, persistence, packages, security, performance, and testing
-> Authority: official platform evidence; project choices are in [Architecture](../../ARCHITECTURE.md) and [Workbench](../../WORKBENCH.md)
+> Sources reviewed: 2026-08-30
+> Scope: hosting, render modes, browser/server ownership, lifecycle, and Interactive Server constraints
+> Authority: this note records external evidence; [Architecture](../../ARCHITECTURE.md) and [Workbench](../../WORKBENCH.md) own project decisions
 
-## 1. Hosting conclusion
+## Hosting model
 
-Blazor Web App is the best fit because Logic Lab combines conventional server-rendered pages with one rich authenticated editor. The selected composition is:
+Logic Lab uses Static Server Rendering for conventional pages and per-page Interactive Server rendering for the authenticated editor. The editor keeps its authoritative Workspace and managed engine on the server while collocated JavaScript owns frame-rate Canvas work.
 
-- Static Server Rendering for public, help, account, and project-list pages;
-- per-page Interactive Server for the editor;
-- collocated JavaScript for dense frame-rate scene and waveform work;
-- direct typed server Module calls for authoring, Compilation, Simulation, analysis, and persistence.
+Microsoft documents Static SSR, Interactive Server, Interactive WebAssembly, and Interactive Auto as per-component render modes; interactive modes prerender by default ([render modes](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/render-modes?view=aspnetcore-10.0)). WebAssembly and Auto require browser-compatible dependencies and, for Auto, valid server and client execution paths. Those constraints add no value to the V1 server-owned Workspace.
 
-This preserves fast initial HTML and full ASP.NET Core access without forcing the engine, Project Format, and repository behind a browser API.
+## Prerender and component lifecycle
 
-## 2. Render-mode evidence
+Interactive prerender can initialize a component once for static output and again for its interactive instance ([prerendered state](https://learn.microsoft.com/en-us/aspnet/core/blazor/state-management/prerendered-state-persistence?view=aspnetcore-10.0)). JavaScript is unavailable until interactive rendering and `OnAfterRenderAsync` ([component lifecycle](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/lifecycle?view=aspnetcore-10.0#after-component-render-onafterrenderasync)).
 
-Microsoft documents Static SSR, Interactive Server, Interactive WebAssembly, and Interactive Auto as per-component render modes; interactive modes prerender by default ([render modes](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/render-modes?view=aspnetcore-10.0)).
-
-| Mode | Relevant consequence for Logic Lab |
-|---|---|
-| Static SSR | no interactive circuit; ideal for site shell and account/content pages |
-| Interactive Server | component code and state remain on server; UI events and DOM updates use the Blazor circuit |
-| Interactive WebAssembly | downloads runtime/app, requires browser-compatible dependencies and API-mediated server access |
-| Auto | runs Server first and WebAssembly on later visits, requiring `.Client` placement and two valid execution environments |
-
-Auto is not “Server with a free optimization.” It changes execution location and dependency rules. Logic Lab's authoritative Workspace and CPU-heavy managed engine make those constraints pure cost in V1.
-
-The .NET Web Worker guidance for .NET 10 describes manual bridging and limitations; the integrated template documented with the newer moniker is not a reason to introduce a worker into a server-first editor. A browser worker becomes relevant only if a future WebAssembly execution model is independently justified.
-
-## 3. Prerender and lifecycle
-
-Interactive prerender runs component initialization once for static output and again for the interactive instance ([prerendered state](https://learn.microsoft.com/en-us/aspnet/core/blazor/state-management/prerendered-state-persistence?view=aspnetcore-10.0)). JavaScript is unavailable until interactive rendering and `OnAfterRenderAsync` ([component lifecycle](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/lifecycle?view=aspnetcore-10.0#after-component-render-onafterrenderasync)).
-
-A robust editor therefore:
+The editor therefore:
 
 - prerenders stable chrome and a scene placeholder;
-- starts Workspace attachment only when `RendererInfo.IsInteractive` is true;
-- imports the collocated scene module from `OnAfterRenderAsync`;
-- uses persistent component state only for safe display data that prevents duplicate I/O;
-- never persists authorization, a live Workspace object, or JS references through prerender;
+- attaches the Workspace only when `RendererInfo.IsInteractive` is true;
+- imports its collocated scene module from `OnAfterRenderAsync`;
+- persists only safe display data needed to avoid duplicate I/O; and
 - treats full reload and internal interactive navigation as different lifecycle paths.
 
 Disabling prerender is a targeted fallback for a browser-only surface, not the default response to duplicate initialization.
 
-## 4. Browser adapter evidence
+## Browser adapter boundary
 
-| Platform fact | Architecture consequence |
+| Platform fact | Consequence |
 |---|---|
-| Microsoft recommends collocated `.razor.js` modules; Interactive Server interop is asynchronous and fine-grained calls add serialization/dispatch cost ([location](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/location-of-javascript?view=aspnetcore-10.0), [performance](https://learn.microsoft.com/en-us/aspnet/core/blazor/performance/javascript-interoperability?view=aspnetcore-10.0#avoid-excessively-fine-grained-calls)). | Mount one Scene and one Waveform adapter; exchange bounded batches and completed intents. |
+| Microsoft recommends collocated `.razor.js` modules; fine-grained Interactive Server interop adds serialization and dispatch cost ([location](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/location-of-javascript?view=aspnetcore-10.0), [performance](https://learn.microsoft.com/en-us/aspnet/core/blazor/performance/javascript-interoperability?view=aspnetcore-10.0#avoid-excessively-fine-grained-calls)). | Mount one Scene and one Waveform adapter; exchange bounded batches and completed intents. |
 | JavaScript mutation of Blazor-owned DOM can invalidate the renderer's representation ([DOM interaction](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#interaction-with-the-dom)). | JavaScript owns pixels and listeners inside its hosts; Razor owns surrounding DOM, commands, status, and recovery. |
-| Interop references require disposal, but circuit loss can prevent .NET cleanup; Microsoft recommends browser-side removal observation ([disposal](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/component-disposal?view=aspnetcore-10.0), [DOM cleanup](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#dom-cleanup-tasks-during-component-disposal)). | Adapter teardown is idempotent and browser-owned resources do not depend on a successful .NET call. |
-| Canvas CSS dimensions and bitmap dimensions differ; assigning `width` or `height` clears the bitmap and resets context state ([HTML Canvas](https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-set-bitmap-dimensions)). | Resize recomputes a policy-bounded bitmap, restores context state, invalidates caches, and repaints once. |
-| `devicePixelRatio` changes with page zoom or display movement, while `ResizeObserver` reports element size ([DPR](https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio), [ResizeObserver](https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver)). | CSS size and effective density enter one coalesced resize path; authored coordinates stay unchanged. |
-| `requestAnimationFrame` is one-shot and commonly pauses in background tabs ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame)). | It schedules invalidated paint only and never advances Logical Time. |
+| Interop references require disposal, but circuit loss can prevent .NET cleanup; browser-side removal observation is recommended ([disposal](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/component-disposal?view=aspnetcore-10.0), [DOM cleanup](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#dom-cleanup-tasks-during-component-disposal)). | Teardown is idempotent and browser-owned resources do not depend on a successful .NET call. |
+| Canvas CSS and bitmap dimensions differ; assigning `width` or `height` clears the bitmap and context state ([HTML Canvas](https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-set-bitmap-dimensions)). | Resize recomputes a bounded bitmap, restores context state, invalidates caches, and repaints once. |
+| `devicePixelRatio` can change independently of element size ([DPR](https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio), [ResizeObserver](https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver)). | CSS size and effective density enter one coalesced resize path; authored coordinates remain unchanged. |
+| `requestAnimationFrame` is one-shot and commonly pauses in background tabs ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame)). | It schedules invalidated paint only; it never advances Logical Time. |
 | Pointer capture can end through up, cancel, or lost capture; move events may be coalesced ([Pointer Events](https://www.w3.org/TR/pointerevents3/)). | Every gesture has one terminal path and emits either one semantic intent or none. |
-| HTML defines fallback-content and focus behavior for interactive Canvas ([HTML Canvas](https://html.spec.whatwg.org/multipage/canvas.html#the-canvas-element)). | Logic Lab intentionally does not implement a parallel fallback editor because it has no accessibility-compliance target; [ADR 0008](../adr/0008-use-one-canvas-editor-surface.md) records the product trade-off. Razor instead owns an explicit renderer-unavailable recovery surface. |
-| Interactive Server already uses SignalR; inbound messages default to 32 KB and Blazor requires one parallel invocation per client ([SignalR guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/fundamentals/signalr?view=aspnetcore-10.0)). | Pointer samples and dense windows stay local or use dedicated transfer; the global hub limit is not a tuning escape hatch. |
-| `OffscreenCanvas`, layered canvases, and Workers are optional techniques with workload-dependent benefit ([Canvas optimization](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Optimizing_canvas)). | They remain implementation candidates until corpus traces justify a real seam. |
+| Interactive Server already uses SignalR; inbound messages default to 32 KB and Blazor permits one parallel invocation per client ([SignalR guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/fundamentals/signalr?view=aspnetcore-10.0)). | Pointer samples and dense windows stay local or use dedicated transfer; the global hub limit is not a tuning escape hatch. |
 
-These facts support one ownership rule: browser adapters own dense pixels, pointer sampling, transforms, hit testing, previews, paint scheduling, and transient view state; Razor owns forms, commands, navigation, status, and recovery.
+These facts yield one ownership rule: browser adapters own dense pixels, pointer sampling, transforms, hit testing, previews, paint scheduling, and transient view state. Razor owns forms, commands, navigation, status, and recovery. [ADR 0008](../adr/0008-use-one-canvas-editor-surface.md) records the single-Canvas product boundary.
 
-## 5. Workspace and background work
+## Circuit and background-work lifetime
 
-Blazor scoped lifetime is per circuit, and circuits can disconnect or be replaced ([state management](https://learn.microsoft.com/en-us/aspnet/core/blazor/state-management/?view=aspnetcore-10.0)). A long-running analysis or durable edit history should therefore be Application-owned rather than component-owned.
+Blazor scoped lifetime is per circuit, and circuits can disconnect or be replaced ([state management](https://learn.microsoft.com/en-us/aspnet/core/blazor/state-management/?view=aspnetcore-10.0)). Durable edit state and long-running work must therefore be Application-owned rather than component-owned.
 
-The target Work Coordinator uses three typed execution lanes because their lifecycle differs:
+The Work Coordinator has three typed lanes because their lifecycle differs:
 
 - Compilation coalesces per Workspace and keeps the newest request;
-- Session commands serialize per Session and expose Run/Pause control;
+- Session commands serialize per Session and expose Run/Pause control; and
 - analysis queues under bounded global and per-identity fairness and outlives observers.
 
-At the research checkpoint, the implementation exercised only the bounded Compilation and Session lanes. The [Implementation Plan](../implementation-plan.md#delivery-status) alone tracks later delivery; the Analysis lane belongs to the Boolean Analysis slices.
+ASP.NET Core [hosted-service guidance](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-10.0) requires an explicit service scope when background work consumes scoped dependencies. Razor event handlers must not create unbounded `Task.Run` work or secondary queues.
 
-ASP.NET Core [hosted-service guidance](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-10.0) requires creating an explicit service scope when background work consumes scoped dependencies. Razor event handlers should not create unbounded `Task.Run` work or secondary queues.
+A custom SignalR Hub is unnecessary while the Blazor circuit carries low-rate commands and observations. It becomes justified only when Trace/live-follow needs a distinct connection lifetime, backpressure, or a non-Blazor client.
 
-A custom SignalR Hub is unnecessary while the Blazor circuit already carries low-rate commands and observations. It becomes justified only if Trace/live-follow requires a distinct connection lifetime, backpressure, or independent non-Blazor client.
+## Interactive Server security
 
-## 6. Files and Project Format
+Every Workspace, Project, Session, Operation, Proposal, upload, and download action authorizes independently; a locator ID or an existing circuit is not authority.
 
-Blazor [file-upload guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/file-uploads?view=aspnetcore-10.0) requires an explicit maximum on `OpenReadStream` and warns against reading an untrusted upload wholly into memory. Logic Lab streams into a bounded spool because ZIP validation needs seekable inspection.
+Interactive Server compression can create a side channel when secrets and attacker-controlled content share a compressed response. Secrets do not enter the editor stream, and response compression around sensitive interactive content follows Microsoft's [threat-mitigation guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/security/interactive-server-side-rendering?view=aspnetcore-10.0).
 
-ASP.NET Core and the OWASP [File Upload Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html) align on:
-
-- allowlisted format and structure, not extension alone;
-- untrusted client filename, MIME, and claimed length;
-- application-generated storage names;
-- independent request, expanded-content, and logical limits;
-- authorization and antiforgery for cookie-authenticated mutation;
-- defense in depth against decompression bombs and traversal.
-
-`System.IO.Compression.ZipArchive` is an archive parser, not a safe extraction policy. Project Format must enumerate all entries, reject duplicates and unsafe names, count bytes actually read, and never call `ExtractToDirectory`.
-
-`.NET 10 System.Text.Json` supports source generation, explicit polymorphism, and [strict options](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/libraries#strict-json-serialization-options) that reject unmapped and duplicate properties. Project Format still uses a bounded reader-level validation pass so low-level reader and custom-converter paths cannot bypass the complete strict-input policy. Transport DTOs remain separate from Domain entities.
-
-Blazor [file-download guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/file-downloads?view=aspnetcore-10.0) favors a normal authorized URL for server-generated files, avoiding a large file round-trip through JavaScript memory. The URL remains short-lived and action-authorized.
-
-## 7. EF Core and identity
-
-Microsoft's [Blazor/EF guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/blazor-ef-core?view=aspnetcore-10.0) warns that a scoped `DbContext` can be inappropriate for a long-lived circuit and recommends one context per operation or `IDbContextFactory<T>`.
-
-The planned Infrastructure slice uses EF Core 10 with SQLite because the first deployment is one ASP.NET Core process. At the research checkpoint, that slice was not present. Its repository stores ownership, immutable Project Revision payloads, current pointers, and idempotency records—not a mutable row per gate and wire.
-
-Read paths project only needed columns; entity-returning read-only queries use no tracking, with identity resolution chosen deliberately when duplicate materialization matters. Lazy-loading proxies are absent. Save and idempotency use one transaction. A future multi-instance database is a repository adapter and deployment decision, not a Domain change.
-
-The target Web Host uses ASP.NET Core Identity for cookie authentication and account management; at the research checkpoint, the Sandbox tracer had no Identity or durable account surface. When implemented, Static SSR account pages retain normal HTTP and antiforgery behavior. Every Workspace, Project, Session, Operation, Proposal, upload, and download action still authorizes independently; a locator ID or existing circuit is not authority.
-
-## 8. Security model
-
-The [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/) reinforces several design choices:
-
-- deny by default and validate permission on every request or message;
-- avoid object-level authorization based only on guessed IDs;
-- validate WebSocket Origin/host on any custom endpoint;
-- use structured allowlists, size limits, rate limits, and bounded real queues;
-- do not log tokens, full payloads, project contents, or sensitive Trace values;
-- return non-disclosing errors and RFC 9457 Problem Details;
-- maintain a Content Security Policy and contextual output encoding;
-- never execute uploaded code, scripts, plug-ins, or solver commands.
-
-Interactive Server compression can create side-channel risk when secrets and attacker-controlled content share a compressed response. Avoid rendering secrets into the editor stream and follow Microsoft's [Interactive Server threat-mitigation guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/security/interactive-server-side-rendering?view=aspnetcore-10.0) before enabling response compression around sensitive interactive content.
-
-## 9. Fluent UI Blazor v5
-
-The [official NuGet version index](https://api.nuget.org/v3-flatcontainer/microsoft.fluentui.aspnetcore.components/index.json), inspected on 2026-07-29 and rechecked on 2026-08-05, contained only RC builds for v5; its latest listed v5 build was `5.0.0-rc.4-26180.1`, while v4 remained the stable line. The Web project consumed that exact centrally pinned build at the checkpoint. [Architecture](../../ARCHITECTURE.md#82-net-and-dependencies) owns package containment; changing the pin requires fresh package and browser qualification.
-
-## 10. Project handoff
-
-[Architecture](../../ARCHITECTURE.md#82-net-and-dependencies) owns package placement, [Architecture §10](../../ARCHITECTURE.md#10-constraints-and-evidence-triggered-seams) owns evidence-triggered alternatives, and [.NET Engineering Baseline](../specs/dotnet-engineering.md) owns language and execution rules. This note supplies only the Web-platform evidence behind those decisions.
+Package versions and analyzer policy belong to [.NET Platform Evidence](./dotnet-platform.md). Project package validation belongs to the [Project Package V1 Specification](../specs/project-package-v1.md) and [HTTP Boundary Contract](../contracts/http-boundary.md). Persistence and Identity ownership belong to [Architecture](../../ARCHITECTURE.md); visual and Fluent UI policy belongs to [Workbench](../../WORKBENCH.md).

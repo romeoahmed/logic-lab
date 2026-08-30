@@ -1,24 +1,31 @@
 # Documentation Map
 
-Logic Lab has a closed V1 design baseline. Read each document according to its authority and subject; use the [Implementation Plan](./implementation-plan.md#delivery-status) for completion status instead of inferring delivery from a normative specification.
+Logic Lab separates target behavior, delivery status, decisions, and supporting evidence. Start with the owning document for the fact you need; do not infer implementation status from a normative target.
+
+## Reading path
+
+1. Read [Architecture](../ARCHITECTURE.md), [Workbench](../WORKBENCH.md), or the [Context Map](../CONTEXT-MAP.md) for the relevant ownership, experience, or language.
+2. Load one owning specification, contract, or policy—not the entire documentation tree.
+3. Use the [Implementation Plan](./implementation-plan.md#delivery-status) only for delivery status and the current frontier.
+4. Consult an ADR for rationale or a research note for source evidence after the governing rule is clear.
 
 ## Authority by subject
 
 | Subject | Authority |
 |---|---|
-| system ownership, dependency direction, Module seams, deployment shape | [ARCHITECTURE.md](../ARCHITECTURE.md) |
-| workbench layout, interaction, visual language, responsive behavior, and product priorities | [WORKBENCH.md](../WORKBENCH.md) |
+| system ownership, dependency direction, Module seams, deployment shape | [Architecture](../ARCHITECTURE.md) |
+| workbench layout, interaction, visual language, responsive behavior, and product priorities | [Workbench](../WORKBENCH.md) |
 | domain words and context translations | [CONTEXT-MAP.md](../CONTEXT-MAP.md) and [bounded-context glossaries](./domain/) |
 | observable circuit, component, analysis, symbol, package, and policy behavior | [specifications](./specs/) and [policies](./policies/catalog.md) |
 | Application, browser, and HTTP seam values | [seam contracts](./contracts/README.md) |
 | ASP.NET Core routes, render modes, culture, circuits, security, and host operations | [Web Host](./specs/web-host.md) |
 | Canvas/waveform transforms, frames, input, focus, and browser resources | [Browser Runtime](./specs/browser-runtime.md) |
 | .NET SDK, build, dependency, C#, async, DI, configuration, serialization, observability, and publication rules | [.NET Engineering Baseline](./specs/dotnet-engineering.md) |
-| delivery order, completion status, and blocking frontier | [Implementation Plan](./implementation-plan.md) |
+| delivery order, completion status, and blocking frontier | [Implementation Plan](./implementation-plan.md#delivery-status) |
 | hard-to-reverse decision rationale | [ADRs](./adr/README.md) |
 | evidence, derivation, alternatives, and source qualification | [Research Index](./research/README.md) |
 
-There is no generic “narrower file wins” rule. A specification defines current behavior, Architecture defines ownership and seams, Workbench defines experience, a contract defines values at one real seam, a glossary defines terminology, an ADR explains a choice, and research supplies evidence. A conflict is a documentation defect and must be repaired in the owning artifact.
+There is no generic “narrower file wins” rule. A conflict between owners is a documentation defect; repair it where the fact belongs.
 
 ## Live repository facts
 
@@ -31,7 +38,7 @@ Dynamic repository facts belong to executable configuration rather than prose:
 | current executable project graph | [`logic-lab.slnx`](../logic-lab.slnx) |
 | resolved dependency closures | application-root `packages.lock.json` files |
 
-Normative documents define the rules governing those files. Dated research may preserve an observed version or graph as historical evidence, but maintained prose does not copy a live inventory.
+Normative documents govern these files; maintained prose does not copy their live inventory.
 
 ## Behavior and policy
 
@@ -54,19 +61,14 @@ Normative documents define the rules governing those files. Dated research may p
 - [Editor Workspace](./contracts/editor-workspace.md)
 - [Durable Project Catalog](./contracts/durable-project-catalog.md)
 - [Browser Adapters](./contracts/browser-adapters.md)
-- [HTTP Transfer](./contracts/http-transfer.md)
+- [HTTP Boundary](./contracts/http-boundary.md)
 
-## Delivery and verification
+## Delivery and evidence
 
-The [Implementation Plan](./implementation-plan.md#delivery-status) is the sole completion ledger and names the current [dependency frontier](./implementation-plan.md#dependency-frontier). Each owning specification or contract defines its required evidence; the [.NET Engineering Baseline](./specs/dotnet-engineering.md#9-verification-and-completion-gate) defines reproducible repository gates. Routine verification snapshots belong in a change or CI record, not in maintained guidance. Passing those gates does not make the application V1-complete or production-qualified; the plan's Phase F slices own that qualification.
-
-[Engine Performance Benchmarks](../benchmarks/LogicLab.Engine.Benchmarks/README.md) records production-shaped kernel, Compilation, and initial-settlement comparisons. It is directional performance evidence, not a release threshold.
-
-## Research evidence
-
-[Research](./research/README.md) preserves primary-source claims, mathematical reasoning, rejected alternatives, and qualification gaps. It is evidence, not a second implementation specification; project choices remain in the owning specification or ADR.
-
-Research notes identify optional untracked standards copies by filename. When available, use `pdftotext -layout` for searchable prose and inspect original pages for figures and typography; do not treat those files as project assets.
+- [Implementation Plan](./implementation-plan.md#delivery-status) is the only completion ledger.
+- [.NET Engineering Baseline](./specs/dotnet-engineering.md#9-verification-and-completion-gate) owns reproducible repository gates.
+- [Research](./research/README.md) preserves primary-source evidence and qualification boundaries.
+- [Engine Performance Benchmarks](../benchmarks/LogicLab.Engine.Benchmarks/README.md) documents comparative measurements, not release thresholds.
 
 ## Maintenance
 
@@ -77,7 +79,7 @@ Research notes identify optional untracked standards copies by filename. When av
 - Add an ADR only for a genuine hard-to-reverse trade-off.
 - Classify every number as semantic, format, provisional policy, or measured threshold.
 - Cite primary sources at the claim; qualify secondary tutorials and Wikipedia as navigation only.
-- Keep delivery status only in the Implementation Plan, required evidence in the owning specification or contract, reproducible commands in the .NET Engineering Baseline, and routine verification snapshots in change or CI records.
-- Read exact SDK/package versions and the current project graph from root configuration; repeat them only in an explicitly dated research checkpoint.
-- Frame time-sensitive implementation observations in research as dated checkpoint evidence, never as maintained current state.
+- Keep delivery status in the Implementation Plan, required evidence in the owner, reproducible commands in the .NET Engineering Baseline, and routine results in change or CI records.
+- Read exact versions and the project graph from executable configuration; repeat them only in a dated measurement record.
+- Remove superseded implementation snapshots instead of surrounding them with ever longer disclaimers.
 - Update links and supersession notes in the same change that moves authority.

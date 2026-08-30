@@ -28,8 +28,6 @@ When goals conflict, the Workbench optimizes in this order:
 
 Logic Lab has no mandatory accessibility-compliance target. Accessibility must not justify a duplicate circuit representation, a second action/state model, compatibility scaffolding, inferior component selection, or visual and interaction compromises in the primary workflow. Labels, native semantics, predictable focus, and common shortcuts remain valuable when they reuse the same product path at negligible architectural cost.
 
-For standard Web chrome, use the centrally pinned Fluent UI Blazor component when it fits the required behavior. Prefer a native HTML or modern CSS primitive when it is materially simpler. Build a custom control only for domain-specific interaction or after confirming that neither option fits; do not recreate Fluent UI controls with bespoke Razor, JavaScript, and CSS.
-
 ### Design direction
 
 The visual direction is **instrument enamel**: cool low-chroma framing surfaces, a bright schematic field, graphite technical ink, and restrained signal accents. The aesthetic risk is the Probe Spine itself—a visible vertical continuity between topology and waveform—while the surrounding chrome remains quiet.
@@ -100,22 +98,11 @@ The Canvas owns the largest flexible region. Library and Inspector collapse inde
 
 Definition tabs show open Circuit Definitions; the hierarchy breadcrumb shows the current instance path; the entry marker distinguishes editing a definition from observing one elaborated instance. Closing a tab never deletes a Circuit Definition.
 
-## Elevation & Depth
+## Visual discipline
 
 Depth comes from tonal separation among Bench, Panel, and Canvas surfaces. Shadows are reserved for popovers, drag ghosts, menus, and dialogs; permanent work regions use seams and contrast rather than stacked cards.
 
-## Shapes
-
 Schematic shapes, Port anchors, and hit regions come from the closed [Geometry Plan value contract](./docs/specs/diagram-presentation.md#42-geometry-plan). Application chrome follows Fluent UI geometry until visual qualification records a project override. Straight resize seams and restrained outlines keep the instrument-like structure; decorative hardware is absent.
-
-## Do's and Don'ts
-
-- Do keep the Canvas dominant and the surrounding chrome quiet.
-- Do repeat Probe identity with color, pattern, label, and navigation.
-- Do preserve non-color encodings for Logic Values, selection, diagnostics, and Trace Gaps.
-- Don't use nested decorative cards, gradients, glowing wires, fake screws, ambient particles, or moving electrons.
-- Don't replace distinct compile, save, Session, analysis, Trace, and connection states with one global spinner.
-- Don't animate a causal path without bounded causal evidence from the Simulation Runtime.
 
 ## Region ownership
 
@@ -300,7 +287,7 @@ A screenshot cannot prove electrical semantics, and a Razor test cannot prove Ca
 
 ## Sources
 
-- [Fluent UI Blazor v5](https://v5.fluentui-blazor.net/)
+- [Fluent UI Blazor v5](https://v5.fluentui-blazor.net)
 - [Microsoft Learn: Fluent UI Web Components with Blazor](https://learn.microsoft.com/fluent-ui/web-components/integrations/blazor)
 - [Blazor rendering performance](https://learn.microsoft.com/en-us/aspnet/core/blazor/performance/rendering?view=aspnetcore-10.0)
 - [Blazor JavaScript interop](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0)

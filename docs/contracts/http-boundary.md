@@ -1,8 +1,8 @@
-# HTTP Transfer Contract
+# HTTP Boundary Contract
 
 > Status: normative V1 authorized HTTP seam contract
 
-This contract owns import/export transport, download authorization, and RFC 9457 error mapping. [Web Host](../specs/web-host.md) owns routes, middleware, security configuration, and process behavior. [Project Package V1](../specs/project-package-v1.md) owns carrier validation.
+This contract owns browser-to-host HTTP ingress, import/export transport, download authorization, and RFC 9457 error mapping. [Web Host](../specs/web-host.md) owns routes, middleware, security configuration, and process behavior. [Project Package V1](../specs/project-package-v1.md) owns carrier validation.
 
 ## 1. Transfer lifecycle
 
@@ -40,21 +40,7 @@ therefore neither reveals existence nor consumes the owner's ticket. Unknown,
 malformed, expired, already redeemed, and unauthorized tokens all return the same
 `404` Problem Details shape with code `export_expired`.
 
-Redemption removes the publication atomically before transferring stream
-ownership to Web. Concurrent authorized redemption has at most one winner; all
-other attempts receive `export_expired`. Preparing a later export for the same
-Workspace replaces and cleans the earlier staging object. Expiry uses the
-server-recorded absolute deadline, never slides on access, and cleanup closes
-the unpublished staging handle. The store owns a published staging stream until
-successful redemption, replacement, expiry, or shutdown; Web owns
-the stream after `ExportDownloaded` and closes it when the response completes.
-Expiry cleanup is scheduled from the absolute deadline and does not depend on a
-later publish or redeem request. On Unix-like hosts the store uses a
-unique owner-only temporary directory and creates staging files with owner
-read/write permission only. These controls use the runtime's testable
-[`TimeProvider` timer](https://learn.microsoft.com/en-us/dotnet/api/system.timeprovider.createtimer?view=net-10.0),
-owner-only [`CreateTempSubdirectory`](https://learn.microsoft.com/en-us/dotnet/api/system.io.directory.createtempsubdirectory?view=net-10.0),
-and [`FileStreamOptions.UnixCreateMode`](https://learn.microsoft.com/en-us/dotnet/api/system.io.filestreamoptions.unixcreatemode?view=net-10.0).
+Redemption removes the publication atomically before transferring stream ownership to Web. Concurrent authorized redemption has at most one winner; all other attempts receive `export_expired`. A later export for the same Workspace replaces and cleans the earlier staging object. Expiry uses an absolute server deadline, never slides on access, and runs without waiting for another publish or redemption. The store owns a published stream until redemption, replacement, expiry, or shutdown; Web owns and closes it after `ExportDownloaded`. Temporary storage is store-created, private to the process owner, and never exposed by path.
 
 Publication is also a closed typed seam:
 
@@ -65,6 +51,8 @@ PublishExport(staging, WorkspaceId, ExportTicket, WorkspaceCaller, lifetime)
 ```
 
 The store flushes the store-created staging and measures its actual stream length; no caller declaration participates in capacity accounting. It atomically replaces the same Workspace's prior ticket and admits the candidate only when both global published-ticket and published-carrier-byte capacity remain available. The [Web Host](../specs/web-host.md#6-http-files-and-errors) owns the provisional configuration values. Capacity rejection does not take staging ownership or disturb the prior ticket; Application disposes the unpublished staging and returns the typed command rejection without exposing a download URL. Cancellation observed before the atomic commit also preserves the prior publication, while cancellation requested after commit does not undo the replacement.
+
+## 2. Errors and ingress
 
 HTTP adapters use RFC 9457 Problem Details:
 
@@ -150,7 +138,7 @@ This API-style route never falls through to an HTML not-found page.
 
 The Durable Project Web adapter applies this table directly: a malformed open form is `400`, an absent or concealed `OpenDurable` target is `404`, Workspace admission rejection is `429`, catalog request/cursor validation is `422`, infrastructure or cancellation is `503`, and an internal defect is `500`. When `WorkspaceOpenRejected` carries policy evidence, Problem Details adds the exact `policyId`, `policyRevision`, `dimension`, and unsigned `observed` extensions. Static SSR performs the catalog call before rendering `/projects`, while `/projects/open` validates its form before constructing `OpenDurable` and then adapts `WorkspaceOpenRejected` directly; neither failure path redirects to an unconsumed query parameter or renders an HTTP `200` error page.
 
-## 2. Security
+## 3. Security
 
 - Authenticate and authorize every transfer action; a URL, Workspace ID, Durable Project ID, or download token is only a locator.
 - Retain antiforgery for cookie-authenticated mutation and validate browser messages and uploaded bytes under separate size and rate limits.

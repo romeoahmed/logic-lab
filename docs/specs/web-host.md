@@ -5,7 +5,7 @@
 
 Web Host defines routing, render modes, request culture, circuit integration, security middleware, transfer endpoints, process lifetimes, and operational publication. It does not own authored circuit facts, Workspace behavior, Canvas drawing, or deployment-provider configuration.
 
-[Architecture](../../ARCHITECTURE.md) owns project dependencies and deployment shape. [Editor Workspace Contract](../contracts/editor-workspace.md) owns Application calls, [Browser Adapter Contract](../contracts/browser-adapters.md) owns Scene/Waveform records, and [HTTP Transfer Contract](../contracts/http-transfer.md) owns transfer/error values. [Browser Runtime](./browser-runtime.md) owns Canvas and waveform implementation behavior.
+[Architecture](../../ARCHITECTURE.md) owns project dependencies and deployment shape. [Editor Workspace Contract](../contracts/editor-workspace.md) owns Application calls, [Browser Adapter Contract](../contracts/browser-adapters.md) owns Scene/Waveform records, and [HTTP Boundary Contract](../contracts/http-boundary.md) owns ingress, transfer, and error values. [Browser Runtime](./browser-runtime.md) owns Canvas and waveform implementation behavior.
 
 ## 1. Host shape
 
@@ -145,7 +145,7 @@ partitioned by authenticated subject. The initial policy admits at most twenty
 requests per minute per partition, queues no excess requests, and runs before
 Workspace or SQLite work. Its request body is independently bounded to 4096 bytes before antiforgery validation or form binding. Rate rejection publishes the endpoint-owned RFC 9457 `429` response, body rejection publishes `413`, and neither consumes an account ingress policy.
 
-Authorized HTTP failures use the exact RFC 9457 shape and status mapping in the [HTTP Transfer Contract](../contracts/http-transfer.md). `IProblemDetailsService` supplies the common adapter; titles and optional details are localized, while `type`, `status`, `code`, and correlation token remain stable. Unhandled exceptions expose only an opaque correlation. ASP.NET Core provides `IProblemDetailsService` for RFC 9457 responses ([error handling](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api?view=aspnetcore-10.0#problem-details-service)).
+Authorized HTTP failures use the exact RFC 9457 shape and status mapping in the [HTTP Boundary Contract](../contracts/http-boundary.md). `IProblemDetailsService` supplies the common adapter; titles and optional details are localized, while `type`, `status`, `code`, and correlation token remain stable. Unhandled exceptions expose only an opaque correlation. ASP.NET Core provides `IProblemDetailsService` for RFC 9457 responses ([error handling](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api?view=aspnetcore-10.0#problem-details-service)).
 
 Client filenames, MIME, lengths, ZIP metadata, logical paths, JSON, Canvas messages, and return URLs are untrusted. Responses set an application-generated attachment filename, `X-Content-Type-Options: nosniff`, and a precise content type. Uploaded or authored HTML, SVG, script, and URLs are never rendered as markup.
 

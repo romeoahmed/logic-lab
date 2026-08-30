@@ -3,13 +3,16 @@
 > Status: approved non-normative execution plan
 > Scope: documentation baseline to V1 implementation, conformance, and one qualified production deployment profile
 
-This plan translates the repository's closed V1 design into context-sized implementation slices. It does not own product behavior, Module interfaces, policy semantics, or deployment requirements. [Architecture](../ARCHITECTURE.md), [Workbench](../WORKBENCH.md), the [specifications](./specs/), [seam contracts](./contracts/README.md), [Policy Catalog](./policies/catalog.md), and [ADRs](./adr/README.md) remain authoritative. If a plan item conflicts with an owning document, repair this plan rather than changing behavior to match it.
+This plan orders delivery and records completion. It does not define product behavior, Module interfaces, policy semantics, or deployment requirements. If a plan item conflicts with an owning document, repair the plan.
+
+## Delivery status
+
+Items `01` through `26` are complete at the seams named below. The current [dependency frontier](#dependency-frontier) is `27` and `28`.
 
 ## Planning rules
 
-- Each numbered item is one narrow, independently demonstrable or executable increment sized for one fresh implementation context.
-- Items `01` through `05` are the minimum executable prefactors required by the empty solution. Item `06` is the first complete user tracer through authoring, Compilation, Simulation, Application, Presentation, and Web.
-- Every item keeps the solution green. A production or test project is added only when that item gives it executable behavior or evidence; empty placeholder projects are forbidden.
+- Each numbered item is one independently demonstrable increment.
+- Every item keeps the solution green. Add a project only with the behavior or evidence that makes it executable.
 - Blocking edges name only work that must exist before the blocked behavior can be implemented honestly. Items without an edge between them may proceed in parallel even when they touch adjacent Modules.
 - Diagnostics, closed outcomes, cancellation, policy evidence, deterministic ordering, authorization, and atomic publication are implemented with the behavior that first needs them, not deferred to a cross-cutting cleanup ticket.
 - Provisional policy values may support development and tests, but they are not compatibility promises or measured acceptance thresholds. Calibration remains in the qualification phase.
@@ -38,10 +41,6 @@ Every completed item must:
 | 06 | Deliver the first Sandbox Workbench tracer | 05 | `/editor` lets a user create a Sandbox Project, author the narrow circuit, Compile, create a Session, Step, and observe it through Interactive Server, one Canvas Scene adapter, and the intended Application seams. |
 
 The first required product tracer is complete at item `06`. Infrastructure breadth or a polished empty shell does not substitute for it.
-
-## Delivery status
-
-Items `01` through `26` are complete at the Domain, Compiler, Runtime, Project Format, Presentation, and applicable Application, Infrastructure, and Web seams promised below. This is the sole completion ledger; owning specifications and contracts define the required evidence for each delivered behavior.
 
 ## Phase B — Authoring, Component Contracts, and Runtime breadth
 
@@ -119,5 +118,3 @@ With items `01` through `26` complete, the current frontier is `27` and `28`:
 - Boolean explanation and proof-gated simplification (`28`–`32`).
 
 Persistence and export do not wait for Runtime breadth that they do not consume. Strict import waits for the complete V1 catalog it must validate. Qualification work begins only after its required behavior and evidence exist; policy calibration and provider selection never block the first product tracer.
-
-This plan is intentionally not published as tracker issues. If issue publication is requested later, create one issue per numbered item in dependency order and preserve the blocking edges above.

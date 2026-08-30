@@ -83,7 +83,7 @@ operating system, hardware, power state, and surrounding load. Record those fact
 corpus revision when retaining a decision. `MemoryDiagnoser` reports managed allocation without
 the redundant per-generation collection columns.
 
-The [performance review](../../docs/research/performance-review.md) owns the source record,
+The [performance evidence](../../docs/research/engine-performance.md) owns the source record,
 historical measurements, and decision ledger. Benchmark artifacts stay untracked.
 
 ## Evidence gaps

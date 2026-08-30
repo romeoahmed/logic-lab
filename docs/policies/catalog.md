@@ -66,14 +66,7 @@ ProjectScaleLimitV1
   maximum: UnsignedDecimal
 ```
 
-`elaborated_slot_count` counts every library evaluator, resolved library Port
-slot, and Net record in the elaborated entry. Hierarchical compilation also
-counts each reachable occurrence and each scoped Net before boundary unions.
-The Compiler measures generated Port cardinality and admits this complete count
-before it allocates generated Port identities or topology storage.
-`memory_cell_count` counts every referenced Memory Image bit cell as
-`word width * depth` for each elaborated ROM or RAM instance. Compiler admits
-that total before materializing the private packed two-plane memory storage.
+`elaborated_slot_count` counts every library evaluator, resolved library Port slot, and Net record in the elaborated entry, plus each reachable hierarchical occurrence and scoped Net before boundary unions. Compiler measures generated Port cardinality and admits the complete count before allocating generated identities or topology storage. `memory_cell_count` is `word width * depth` for every elaborated ROM or RAM instance and is admitted before packed memory is materialized.
 
 ### Shared policy shape
 
@@ -166,20 +159,9 @@ analysis_worker_count
 analysis_result_retention_seconds
 ```
 
-The three admission capacities share one fixed window. The global request limit
-bounds aggregate scheduling attempts, the per-subject request limit preserves fairness,
-and the partition-count limit bounds retained caller identity state. Exhausting any
-one rejects before queue admission. Expired partitions are reclaimed with bounded
-amortized work rather than by scanning every identity on a new caller. Queues reject
-rather than drop when full. Compilation remains newest-wins per Workspace, Session
-work remains FIFO and single-consumer per Session, and Analysis is FIFO within one
-subject plus round-robin across nonempty subject queues. An active Run retains one
-admitted Session scheduling item across its repeated Advances; continuations reuse
-that item and never bypass `session_queue_items`. Pause is bounded Run control and
-becomes effective at an atomic boundary without allocating another Session queue
-item. Worker counts bound concurrent executing calls, not the number of hidden
-ThreadPool threads. Admission windows and retention expiry use monotonic timestamps
-from `TimeProvider`; result retention never extends authorization.
+The global, per-subject, and partition admission capacities share one fixed window: they bound aggregate attempts, per-subject fairness, and retained caller state respectively. Exhausting any capacity rejects before queue admission; expired partitions are reclaimed with bounded amortized work instead of a full identity scan. Full queues reject rather than drop.
+
+Compilation is newest-wins per Workspace. Session work is FIFO and single-consumer per Session. Analysis is FIFO within one subject and round-robin across nonempty subjects. An active Run retains one admitted Session item across repeated Advances; Pause takes effect at an atomic boundary without consuming another queue item. Worker counts bound executing calls, not hidden ThreadPool threads. Admission and retention use monotonic `TimeProvider` timestamps, and retention never extends authorization.
 
 ### Workspace Policy
 
@@ -203,88 +185,43 @@ catalog_page_items
 catalog_cursor_bytes
 ```
 
-`global_workspace_count` is the process-wide hard bound on retained Workspace state.
-`anonymous_workspace_count_global` is an additional process-wide bound across every
-anonymous caller identity; it counts live, reserved, and pending-transfer ownership so
-rotating a browser identity cannot consume the capacity reserved for authenticated callers.
-The per-subject dimension remains an additional fairness bound and never replaces either
-global bound. Admission and expiry reclamation share one atomic directory decision, so
-concurrent opens cannot overshoot any limit. `authoring_command_item_count` bounds the complete nested shape of one Edit
-Intent before Project Editor execution. Command-shape and candidate-document accounting both
-stop as soon as their remaining budget is exhausted. The definition and entity dimensions
-validate the candidate Project Document before publication, using the same authored entity
-accounting as Compiler Project Scale Policy. All three authoring dimensions are configurable
-through the owning Workspace Policy, not a second internal policy. Its `AuthoringLimits` value
-keeps those related dimensions together at the public composition seam; they reject atomically
-and never substitute for the Compiler's
-hierarchy and elaboration limits. History/idempotency limits apply after atomic successful
-publication and produce the contract's explicit truncation or expired-idempotency behavior;
-the same idempotency count bounds newest-first Durable Project repository receipts, whose
-pruning shares the command transaction. These limits never make a valid edit or save partially
-commit. Time-based retention uses `TimeProvider`.
+Workspace dimensions have these grouped rules:
 
-The trusted `WorkspaceCaller` on every open request defines the per-subject partition. Anonymous
-browser IDs remain useful continuity locators, but are not treated as an unresettable person or
-network identity. A Sandbox Claim reserves the authenticated target partition before persistence
-begins, retains that reservation while commit acknowledgement is uncertain, and atomically
-transfers the live Workspace from its prior partition only when Claim succeeds. A definitive
-failure releases the target reservation; close or retention cleanup releases both the live and
-any pending transfer.
+| Group | Rule |
+|---|---|
+| process admission | `global_workspace_count` bounds all retained Workspaces; `anonymous_workspace_count_global` additionally bounds anonymous live, reserved, and pending-transfer ownership; `workspace_count_per_subject` is a fairness bound, not a replacement for either global bound |
+| authoring | definition, entity, and nested command-item counts stop at budget exhaustion and reject before publication; they share Compiler's authored-entity accounting but do not replace hierarchy or elaboration limits |
+| history and idempotency | limits apply only after atomic success; repository receipt pruning shares the command transaction and never makes an edit or save partially commit |
+| retention | detached and Sandbox deadlines use `TimeProvider` and never slide because of a rejected operation |
+| names and catalog | both Durable Display Name dimensions must pass; page and cursor requests cannot exceed their maxima |
 
-`hot_swap_peak_bytes` is declared owned-buffer accounting, not a promise about total process
-RSS. The accounting uses fixed logical byte units: eight bytes per owned reference or index
-slot, sixteen bytes per packed Logic Vector word (the two 64-bit logic planes), twenty-four
-bytes per resolved Net word (the three 64-bit cause planes), one byte per unpacked Application
-`LogicValue`, and the Trace Policy's 48-byte
-transition base plus packed value words. Event-frontier accounting charges three slots per
-queued Stimulus Batch (the batch reference and its two-part priority), one slot per queued
-Stimulus assignment reference, two slots per Logical-Time index entry, two slots per indexed
-Driver assignment, two slots per Clock bucket, and two slots per Clock transition. These are
-logical storage units; tree links, collection growth slack, and other CLR storage metadata are
-excluded. The peak includes the committed Session working-layer buffers, nested Diagnostic
-reference buffers, and retained Trace storage once; the complete replacement working-layer
-candidate including its Diagnostics and new Clock event calendar; one additional packed
-two-plane buffer only for each compatible migrated RAM while both versions can coexist; the exact
-changed-Probe staging array, Trace fork
-index, and staged transition chunk; and the Hot Swap terminal publication arrays that coexist with
-the candidate, including migrated-state sources, shared evidence/outcome Probe IDs, and observed
-Probes. Application reports the retained Workspace Projection buffers that coexist with the
-Runtime attempt. Runtime derives the replacement-dependent consumer publication bytes from the
-exact rebound Probe count and widths. Application materializes one owned Probe-reference array
-and one unpacked value array per Probe, while its Hot Swap outcome shares the Engine outcome's
-immutable migration-evidence collections instead of cloning them. The Session and outcome share
-the top-level Diagnostic reference array and its immutable Diagnostic records, so those buffers
-are counted once. Shared
-immutable Compilation Artifact records and their source indexes, CLR object headers, allocator
-metadata, and transient preflight metadata are excluded. Net resolution reads the Artifact's
-Driver ordinals directly and does not materialize a per-Net reference buffer. When the replacement
-contains cyclic regions,
-settlement reserves one reusable work area before execution: one pending-ordinal slot for each
-member of the largest cyclic region, one pending-state slot per evaluator, one ordinal slot per
-Driver in the largest cyclic region, one previous-output reference per output of the widest cyclic
-evaluator. A cyclic Driver already at the least-fixed-point bottom is reused; an epoch reset
-allocates a replacement plane only when the preceding value differs. Settlement also charges the
-maximum temporary envelope of one evaluator invocation: its superseded output planes, fan-in and
-multi-output reference buffers, packed intermediate values, and evaluator-specific value/index
-work buffers. Recomputing an output Net retains its preceding resolution until the replacement
-value and cause planes are complete. Because evaluator materialization and Net replacement are
-serial and do not overlap, settlement charges the larger of the evaluator envelope and the widest
-recomputed Net resolution plane. Multi-output values are counted by unique owned plane; in
-particular, Demux outputs share one selected-data plane and one zero plane. Arithmetic is checked
-and saturation is treated as over-limit. Initial candidate admission runs before any replacement
-working-layer or RAM clone allocation and covers every buffer materialized for settlement. After
-settlement determines the exact Diagnostics and changed Probe values without allocating their
-staging array, final admission compares two non-overlapping lifecycle peaks: the pre-commit
-Runtime candidate with the retained Application projection, and the post-commit replacement
-Session plus Engine terminal outcome and retained/new Application projections. It uses the larger
-value before allocating Diagnostic, changed-Probe staging, terminal-publication, Trace, or
-Application projection buffers. The Trace fork index is allocated once at the final capacity
-required by the staged chunk, and its post-eviction retained size is measured without allocating
-the fork. Either rejection
-reports Workspace Policy ID/revision,
-`hot_swap_peak_bytes`, and the observed value while retaining the old Session unchanged. Both
-Durable Display Name dimensions must pass, and catalog requests cannot exceed the page/cursor
-maxima.
+Workspace admission and expiry reclamation are one atomic directory decision, so concurrent opens cannot overshoot a limit. `AuthoringLimits` groups the three authoring dimensions at the public composition seam; there is no second internal authoring policy.
+
+The trusted `WorkspaceCaller` defines the per-subject partition. An anonymous Browser ID is a continuity locator, not an unresettable person or network identity. Sandbox Claim reserves the authenticated target before persistence, retains the reservation while commit acknowledgement is uncertain, and transfers ownership only on success. Definitive failure, close, and retention cleanup release the reservations they own.
+
+`hot_swap_peak_bytes` is logical owned-buffer accounting, not process RSS:
+
+| Unit | Bytes |
+|---|---:|
+| owned reference or index slot | 8 |
+| packed Logic Vector word, two planes | 16 |
+| resolved Net word, three cause planes | 24 |
+| unpacked Application `LogicValue` | 1 |
+| Trace transition | 48 plus packed value words |
+
+Event-frontier accounting charges three slots per queued Stimulus Batch, one per queued assignment, and two per Logical-Time index entry, indexed Driver assignment, Clock bucket, or Clock transition.
+
+Count each unique owned buffer once. Shared immutable Compilation Artifact/source-index records, CLR headers, allocator slack, tree links, and transient preflight metadata are excluded. Session and outcome share Diagnostics; Application and Engine share migration evidence instead of cloning it. Net resolution reads Artifact Driver ordinals without a per-Net reference buffer.
+
+| Lifecycle peak | Included storage |
+|---|---|
+| candidate | committed Session working layer and Diagnostics, retained Trace, current Workspace Projection, complete replacement working layer and Clock calendar, replacement Diagnostics, and one extra two-plane buffer per concurrently retained migrated RAM |
+| settlement | candidate plus one reusable cyclic-region work area and the larger of one evaluator's temporary envelope or the widest recomputed Net resolution plane |
+| publication | replacement Session, Engine outcome, retained and replacement Workspace Projections, exact changed-Probe staging, Trace fork/index/chunk, migrated-state sources, Probe ID/value arrays, and observed Probes |
+
+The cyclic work area contains pending ordinals for the largest region, one pending-state slot per evaluator, Driver ordinals for the largest region, and prior-output references for the widest evaluator. A Driver already at bottom is reused; an epoch reset adds a plane only when its prior value differs. Count multi-output storage by unique plane—Demux shares its selected-data and zero planes. Checked arithmetic saturation is over-limit.
+
+Initial admission occurs before replacement working-layer or RAM-clone allocation. After settlement derives exact Diagnostics and changed Probe values without allocating publication buffers, final admission compares the candidate/settlement peak with the publication peak and uses the larger value before allocating either publication shape. The Trace fork index is charged at its final staged capacity, and post-eviction retained size is calculated without materializing a second fork. Rejection reports Workspace Policy identity/revision, `hot_swap_peak_bytes`, and observed bytes while retaining the old Session unchanged.
 
 ### Browser Policy
 
