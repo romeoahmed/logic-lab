@@ -333,6 +333,10 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
                 ReadCompilation compilation => ReadCompilationGeneration(
                     state,
                     compilation.CompilationGeneration),
+                ReadTraceWindow trace => ReadTraceWindowCore(
+                    state,
+                    trace.Request,
+                    cancellationToken),
                 _ => RejectRead(WorkspaceOutcomeReasons.WorkspaceInternalDefect),
             };
         }

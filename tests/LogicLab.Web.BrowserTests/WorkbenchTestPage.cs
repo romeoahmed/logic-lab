@@ -15,6 +15,16 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
 
     public ILocator Renderer => page.Locator("[data-scene-renderer]");
 
+    public ILocator Waveform => page.Locator(".logic-analyzer");
+
+    public ILocator WaveformCanvas => page.Locator("canvas[data-waveform-canvas]");
+
+    public ILocator WaveformLive => page.Locator("[data-waveform-live]");
+
+    public ILocator WaveformClose => page.Locator("[data-waveform-close]");
+
+    public ILocator WaveformOpen => page.Locator("[data-waveform-open]");
+
     public ILocator Command(string command) =>
         page.Locator($"[data-command='{command}']");
 
@@ -26,6 +36,9 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
 
     public ILocator Tool(string tool) =>
         page.Locator($"[data-scene-tool='{tool}']");
+
+    public ILocator WaveformRepresentation(string representation) =>
+        page.Locator($"[data-waveform-representation='{representation}']");
 
     private ILocator Palette => page.GetByTestId("component-palette");
 

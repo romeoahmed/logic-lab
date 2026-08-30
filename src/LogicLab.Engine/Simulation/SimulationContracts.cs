@@ -818,8 +818,22 @@ public sealed class SimulationTraceWindowRequest
         IReadOnlyList<ProbeId> probeIds,
         LogicalTimeRange range,
         ulong? afterSequence)
+        : this(
+            probeIds,
+            range,
+            TraceTransitionsRepresentation.Instance,
+            afterSequence)
+    {
+    }
+
+    public SimulationTraceWindowRequest(
+        IReadOnlyList<ProbeId> probeIds,
+        LogicalTimeRange range,
+        TraceWindowRepresentation representation,
+        ulong? afterSequence)
     {
         ArgumentNullException.ThrowIfNull(probeIds);
+        ArgumentNullException.ThrowIfNull(representation);
         var ownedProbeIds = probeIds.ToArray();
         if (ownedProbeIds.Length == 0
             || ownedProbeIds.Any(static id => id is null)
@@ -832,6 +846,7 @@ public sealed class SimulationTraceWindowRequest
 
         ProbeIds = Array.AsReadOnly(ownedProbeIds);
         Range = range;
+        Representation = representation;
         AfterSequence = afterSequence;
     }
 
@@ -839,7 +854,48 @@ public sealed class SimulationTraceWindowRequest
 
     public LogicalTimeRange Range { get; }
 
+    public TraceWindowRepresentation Representation { get; }
+
     public ulong? AfterSequence { get; }
+}
+
+public abstract record TraceWindowRepresentation
+{
+    private protected TraceWindowRepresentation()
+    {
+    }
+}
+
+public sealed record TraceTransitionsRepresentation : TraceWindowRepresentation
+{
+    private TraceTransitionsRepresentation()
+    {
+    }
+
+    public static TraceTransitionsRepresentation Instance { get; } = new();
+}
+
+public sealed record TraceVisualSummaryRepresentation : TraceWindowRepresentation
+{
+    public const string LogicEnvelopeV1 = "logic-envelope-v1";
+
+    public TraceVisualSummaryRepresentation(uint maxPoints, string aggregation)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(maxPoints);
+        if (!string.Equals(aggregation, LogicEnvelopeV1, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "The Trace summary aggregation is undefined.",
+                nameof(aggregation));
+        }
+
+        MaxPoints = maxPoints;
+        Aggregation = aggregation;
+    }
+
+    public uint MaxPoints { get; }
+
+    public string Aggregation { get; }
 }
 
 public sealed record ProbeSnapshot(
@@ -910,6 +966,44 @@ public sealed record TraceTransitionsAvailable : SimulationReadOutcome
     }
 
     public ReadOnlyCollection<TraceTransition> Transitions { get; }
+
+    public LogicalTimeRange CoveredRange { get; }
+
+    public ulong EarliestAvailable { get; }
+
+    public ulong LatestSequence { get; }
+}
+
+public sealed record TraceSummaryBucket(
+    ProbeId ProbeId,
+    LogicalTimeRange Range,
+    LogicVector FirstValue,
+    LogicVector LastValue,
+    bool HadTransition,
+    bool HadMixedValues,
+    bool HadUnavailableValues);
+
+public sealed record TraceSummaryAvailable : SimulationReadOutcome
+{
+    internal TraceSummaryAvailable(
+        TraceSummaryBucket[] ownedBuckets,
+        string aggregation,
+        LogicalTimeRange coveredRange,
+        ulong earliestAvailable,
+        ulong latestSequence)
+    {
+        ArgumentNullException.ThrowIfNull(ownedBuckets);
+        ArgumentException.ThrowIfNullOrEmpty(aggregation);
+        Buckets = Array.AsReadOnly(ownedBuckets);
+        Aggregation = aggregation;
+        CoveredRange = coveredRange;
+        EarliestAvailable = earliestAvailable;
+        LatestSequence = latestSequence;
+    }
+
+    public ReadOnlyCollection<TraceSummaryBucket> Buckets { get; }
+
+    public string Aggregation { get; }
 
     public LogicalTimeRange CoveredRange { get; }
 

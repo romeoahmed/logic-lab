@@ -280,11 +280,44 @@ internal sealed class SimulationTraceStore
                 LatestSequence);
         }
 
+        return request.Representation switch
+        {
+            TraceTransitionsRepresentation => ReadTransitions(
+                request,
+                requestedIds,
+                earliest),
+            TraceVisualSummaryRepresentation summary => ReadSummary(
+                request,
+                summary,
+                requestedIds,
+                earliest),
+            _ => throw new InvalidOperationException(
+                "The Trace window representation is undefined."),
+        };
+    }
+
+    private TraceTransitionsAvailable ReadTransitions(
+        SimulationTraceWindowRequest request,
+        HashSet<ProbeId> requestedIds,
+        ulong earliest)
+    {
         var transitions = new List<TraceTransition>();
+        var baselines = request.AfterSequence is null
+            ? request.ProbeIds.ToDictionary<ProbeId, ProbeId, TraceTransition?>(
+                probeId => probeId,
+                _ => null)
+            : null;
         for (var chunkOffset = 0; chunkOffset < chunkCount; chunkOffset++)
         {
             foreach (var transition in ChunkAt(chunkOffset).Transitions)
             {
+                if (baselines is not null
+                    && requestedIds.Contains(transition.ProbeId)
+                    && transition.LogicalTime <= request.Range.StartInclusive)
+                {
+                    baselines[transition.ProbeId] = transition;
+                }
+
                 if (IsRequestedTransition(transition, request, requestedIds))
                 {
                     transitions.Add(transition);
@@ -292,11 +325,161 @@ internal sealed class SimulationTraceStore
             }
         }
 
+        if (baselines is not null)
+        {
+            transitions.AddRange(baselines.Values.OfType<TraceTransition>());
+            transitions = [.. transitions
+                .DistinctBy(transition => transition.Sequence)
+                .OrderBy(transition => transition.Sequence)];
+        }
+
         return new TraceTransitionsAvailable(
             [.. transitions],
             request.Range,
             earliest,
             LatestSequence);
+    }
+
+    private TraceSummaryAvailable ReadSummary(
+        SimulationTraceWindowRequest request,
+        TraceVisualSummaryRepresentation representation,
+        HashSet<ProbeId> requestedIds,
+        ulong earliest)
+    {
+        var span = request.Range.EndExclusive - request.Range.StartInclusive;
+        var bucketCount = Math.Min((ulong)representation.MaxPoints, span);
+        var transitionsByProbe = request.ProbeIds.ToDictionary(
+            probeId => probeId,
+            _ => new List<TraceTransition>());
+        for (var chunkOffset = 0; chunkOffset < chunkCount; chunkOffset++)
+        {
+            foreach (var transition in ChunkAt(chunkOffset).Transitions)
+            {
+                if (requestedIds.Contains(transition.ProbeId)
+                    && transition.LogicalTime < request.Range.EndExclusive)
+                {
+                    transitionsByProbe[transition.ProbeId].Add(transition);
+                }
+            }
+        }
+
+        var buckets = new List<TraceSummaryBucket>(checked(
+            request.ProbeIds.Count * checked((int)bucketCount)));
+        foreach (var probeId in request.ProbeIds)
+        {
+            var transitions = transitionsByProbe[probeId];
+            for (ulong index = 0; index < bucketCount; index++)
+            {
+                var start = checked(
+                    request.Range.StartInclusive
+                    + PartitionOffset(index, span, bucketCount));
+                var end = checked(
+                    request.Range.StartInclusive
+                    + PartitionOffset(index + 1UL, span, bucketCount));
+                buckets.Add(SummarizeBucket(
+                    probeId,
+                    new LogicalTimeRange(start, end),
+                    transitions));
+            }
+        }
+
+        return new TraceSummaryAvailable(
+            [.. buckets],
+            representation.Aggregation,
+            request.Range,
+            earliest,
+            LatestSequence);
+    }
+
+    private static TraceSummaryBucket SummarizeBucket(
+        ProbeId probeId,
+        LogicalTimeRange range,
+        IReadOnlyList<TraceTransition> transitions)
+    {
+        TraceTransition? beforeStart = null;
+        TraceTransition? atStart = null;
+        foreach (var transition in transitions)
+        {
+            if (transition.LogicalTime < range.StartInclusive)
+            {
+                beforeStart = transition;
+                continue;
+            }
+
+            if (transition.LogicalTime == range.StartInclusive)
+            {
+                atStart = transition;
+                continue;
+            }
+
+            break;
+        }
+
+        var firstTransition = atStart ?? beforeStart
+            ?? throw new InvalidOperationException(
+                "An available Trace summary requires a Probe baseline.");
+        var firstValue = firstTransition.Value;
+        var lastValue = firstValue;
+        var hadTransition = atStart is not null
+            && beforeStart is not null
+            && !ValuesEqual(beforeStart.Value, atStart.Value);
+        var hadMixedValues = false;
+        foreach (var transition in transitions)
+        {
+            if (transition.LogicalTime <= range.StartInclusive)
+            {
+                continue;
+            }
+
+            if (transition.LogicalTime >= range.EndExclusive)
+            {
+                break;
+            }
+
+            if (!ValuesEqual(lastValue, transition.Value))
+            {
+                hadTransition = true;
+                lastValue = transition.Value;
+                hadMixedValues |= !ValuesEqual(firstValue, lastValue);
+            }
+        }
+
+        return new TraceSummaryBucket(
+            probeId,
+            range,
+            firstValue,
+            lastValue,
+            hadTransition,
+            hadMixedValues,
+            HadUnavailableValues: false);
+    }
+
+    private static ulong PartitionOffset(ulong index, ulong span, ulong bucketCount)
+    {
+        var quotient = span / bucketCount;
+        var remainder = span % bucketCount;
+        return checked(
+            (index * quotient)
+            + ((index * remainder) / bucketCount));
+    }
+
+    private static bool ValuesEqual(LogicVector left, LogicVector right)
+    {
+        if (left.Width != right.Width)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < left.WordCount; index++)
+        {
+            if (left.GetLowWord(index) != right.GetLowWord(index)
+                || left.GetHighWord(index) != right.GetHighWord(index))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool IsRequestedTransition(

@@ -141,8 +141,6 @@
                                 <StarterGuide BusyCommand="@ActiveCommand"
                                               OnSelect="RunStarterExampleAsync" />
                             }
-                            <ProbePanel Simulation="Projection.Simulation"
-                                        ProjectRevision="Projection.ProjectRevision" />
                             <details class="advanced-topology" open="@RouteDraftActive">
                                 <summary>
                                     <span>@Text["AdvancedTopology"]</span>
@@ -170,6 +168,15 @@
                                 </div>
                             </details>
                         </aside>
+                    </div>
+                    <div class="instrument-bay" data-testid="instrument-bay">
+                        <LogicAnalyzer Projection="Projection"
+                                       TraceReader="ReadTraceWindowAsync"
+                                       IsConnected="@CommandsAvailable"
+                                       OnProbeOrderChanged="ReorderProbesAsync"
+                                       OnRevealProbe="RevealProbeSourceAsync"
+                                       OnRemoveProbe="RemoveProbeAsync"
+                                       OnRebindProbe="RebindProbeAsync" />
                     </div>
                 }
             </div>

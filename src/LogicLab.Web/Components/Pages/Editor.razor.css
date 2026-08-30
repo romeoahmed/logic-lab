@@ -66,6 +66,7 @@
 
 .workbench-body,
 .schematic-workspace,
+.instrument-bay,
 .library-dock,
 .canvas-workspace,
 .inspector-dock {
@@ -74,6 +75,11 @@
 
 .workbench-body {
   container: workbench / inline-size;
+}
+
+.instrument-bay {
+  position: relative;
+  z-index: 1;
 }
 
 .schematic-workspace {

@@ -1,0 +1,225 @@
+@using LogicLab.Web.Waveforms
+@implements IAsyncDisposable
+
+<section @key="rendererGeneration"
+         class="logic-analyzer"
+         data-waveform-renderer="@rendererState"
+         data-waveform-generation="@rendererGeneration"
+         data-waveform-resolution="@ResolutionToken"
+         aria-labelledby="logic-analyzer-heading"
+         @ref="hostElement">
+    <header class="analyzer-heading">
+        <div>
+            <p class="eyebrow">@Text["LogicAnalyzerEyebrow"]</p>
+            <h2 id="logic-analyzer-heading">@Text["LogicAnalyzer"]</h2>
+        </div>
+        @if (Simulation is not null)
+        {
+            <dl class="analyzer-readout">
+                <div>
+                    <dt>@Text["LogicalTime"]</dt>
+                    <dd>@Simulation.LogicalTime</dd>
+                </div>
+                <div>
+                    <dt>@Text["SessionVersion"]</dt>
+                    <dd>@Simulation.SessionVersion</dd>
+                </div>
+            </dl>
+        }
+    </header>
+
+    @if (Simulation is null)
+    {
+        <div class="analyzer-empty" role="status" data-waveform-empty="session">
+            <span aria-hidden="true"></span>
+            <p>@Text["NoActiveSession"]</p>
+            <small>@Text["ProbeEmptyHelp"]</small>
+        </div>
+    }
+    else if (!isOpen)
+    {
+        <div class="analyzer-collapsed">
+            <span>@Text["LogicAnalyzerCollapsed"]</span>
+            <button type="button"
+                    data-waveform-open
+                    @onclick="OpenAnalyzer">@Text["OpenLogicAnalyzer"]</button>
+        </div>
+    }
+    else
+    {
+        <div class="analyzer-toolbar" role="toolbar" aria-label="@Text["WaveformControls"]">
+            <div class="representation-control" role="group" aria-label="@Text["TraceResolution"]">
+                <button type="button"
+                        data-waveform-representation="transitions"
+                        aria-pressed="@Aria(!summaryRequested)"
+                        @onclick="@(() => SetSummaryAsync(false))">@Text["TransitionDetail"]</button>
+                <button type="button"
+                        data-waveform-representation="summary"
+                        aria-pressed="@Aria(summaryRequested)"
+                        @onclick="@(() => SetSummaryAsync(true))">@Text["VisualSummary"]</button>
+            </div>
+            <div class="viewport-controls" role="group" aria-label="@Text["ViewportControls"]">
+                <button type="button" title="@Text["ZoomOut"]" @onclick="ZoomOutAsync">−</button>
+                <button type="button" title="@Text["FitTrace"]" @onclick="FitAsync">□</button>
+                <button type="button" title="@Text["ZoomIn"]" @onclick="ZoomInAsync">+</button>
+                <button type="button"
+                        data-waveform-live
+                        aria-pressed="@Aria(liveFollow)"
+                        @onclick="ReturnToLiveAsync">@Text["LiveFollow"]</button>
+            </div>
+            <div class="cursor-controls" role="group" aria-label="@Text["MeasurementCursors"]">
+                <button type="button"
+                        data-waveform-primary-cursor
+                        aria-pressed="@Aria(primaryCursor is not null)"
+                        @onclick="@(() => ToggleCursorAsync(primary: true))">A</button>
+                <button type="button"
+                        data-waveform-secondary-cursor
+                        aria-pressed="@Aria(secondaryCursor is not null)"
+                        @onclick="@(() => ToggleCursorAsync(primary: false))">B</button>
+            </div>
+            @if (primaryCursor is not null || secondaryCursor is not null)
+            {
+                <dl class="cursor-readout" aria-label="@Text["MeasurementCursors"]">
+                    @if (primaryCursor is { } primary)
+                    {
+                        <div data-waveform-cursor="primary"><dt>A</dt><dd>@primary</dd></div>
+                    }
+                    @if (secondaryCursor is { } secondary)
+                    {
+                        <div data-waveform-cursor="secondary"><dt>B</dt><dd>@secondary</dd></div>
+                    }
+                    @if (CursorDelta is { } delta)
+                    {
+                        <div data-waveform-cursor-delta><dt>Δt</dt><dd>@delta</dd></div>
+                    }
+                </dl>
+            }
+            <button type="button"
+                    class="close-analyzer"
+                    data-waveform-close
+                    @onclick="CloseAnalyzerAsync">
+                @Text["CloseWaveform"]
+            </button>
+        </div>
+
+        @if (Rows.Count == 0)
+        {
+            <div class="analyzer-empty" role="status" data-waveform-empty="trace">
+                <span aria-hidden="true"></span>
+                <p>@Text["EmptyTrace"]</p>
+                <small>@Text["EmptyTraceHelp"]</small>
+            </div>
+        }
+        else
+        {
+            <div class="analyzer-surface">
+                <aside class="probe-spine" aria-labelledby="probe-spine-heading">
+                    <h3 id="probe-spine-heading">@Text["ProbeSpine"]</h3>
+                    <ol>
+                        @foreach (var row in Rows)
+                        {
+                            <li @key="row.ProbeId"
+                                data-probe="@row.ProbeId"
+                                data-probe-binding="@row.Binding"
+                                data-probe-pattern="@row.Pattern"
+                                style="--probe-index: @(row.AppearanceOrdinal % 8U)">
+                                <i class="probe-rail" aria-hidden="true"></i>
+                                <div class="probe-identity">
+                                    <i class="probe-swatch" aria-hidden="true"></i>
+                                    <button type="button"
+                                            class="probe-label"
+                                            data-probe-label
+                                            disabled="@(row.SceneNavigation != "available")"
+                                            @onclick="@(() => RevealAsync(row))"><span>@row.ShortLabel</span></button>
+                                    <strong>@Format(row)</strong>
+                                </div>
+                                <div class="probe-controls">
+                                    <label>
+                                        <em>@Text["Radix"]</em>
+                                        <select data-probe-radix="@row.ProbeId"
+                                                value="@row.Radix"
+                                                disabled="@(row.Binding != "resolved")"
+                                                @onchange="@(eventArgs => ChangeRadixAsync(row, eventArgs))">
+                                            <option value="binary">@Text["RadixBinary"]</option>
+                                            <option value="hex">@Text["RadixHex"]</option>
+                                            <option value="unsigned">@Text["RadixUnsigned"]</option>
+                                        </select>
+                                    </label>
+                                    <button type="button"
+                                            data-probe-move="up"
+                                            title="@Text["MoveProbeUp"]"
+                                            disabled="@(!CanMove(row, -1))"
+                                            @onclick="@(() => MoveAsync(row, -1))">↑</button>
+                                    <button type="button"
+                                            data-probe-move="down"
+                                            title="@Text["MoveProbeDown"]"
+                                            disabled="@(!CanMove(row, 1))"
+                                            @onclick="@(() => MoveAsync(row, 1))">↓</button>
+                                    @if (row.SceneNavigation == "available")
+                                    {
+                                        <button type="button"
+                                                data-probe-reveal
+                                                @onclick="@(() => RevealAsync(row))">@Text["RevealNet"]</button>
+                                    }
+                                    else
+                                    {
+                                        <small class="probe-navigation-unavailable"
+                                               data-navigation-reason="@row.NavigationReason">@NavigationMessage(row)</small>
+                                    }
+                                    @if (row.Binding == "unresolved")
+                                    {
+                                        <button type="button"
+                                                data-probe-rebind
+                                                @onclick="@(() => RebindAsync(row))">@Text["RebindProbe"]</button>
+                                    }
+                                    <button type="button"
+                                            data-probe-remove
+                                            @onclick="@(() => RemoveAsync(row))">@Text["RemoveProbe"]</button>
+                                </div>
+                            </li>
+                        }
+                    </ol>
+                </aside>
+
+                <div class="waveform-frame">
+                    <canvas data-waveform-canvas
+                            tabindex="0"
+                            hidden="@(rendererState == RendererUnavailableState)"
+                            aria-label="@Text["WaveformCanvas"]">
+                        @Text["WaveformCanvasFallback"]
+                    </canvas>
+                    @if (summaryRequested)
+                    {
+                        <span class="summary-resolution" data-waveform-resolution="summary">
+                            @Text["SummaryResolution"]
+                        </span>
+                    }
+                    @if (!liveFollow)
+                    {
+                        <span class="history-state" data-waveform-history>
+                            @Text["HistoricalView"]
+                        </span>
+                    }
+                    @if (traceLoading)
+                    {
+                        <span class="trace-state" role="status">@Text["LoadingTrace"]</span>
+                    }
+                    else if (traceFailure is "evicted" or "artifactChanged")
+                    {
+                        <div class="trace-gap-state" role="status" data-trace-gap="@traceFailure">
+                            <span>@TraceFailureMessage</span>
+                            <button type="button" @onclick="ReturnToLiveAsync">@Text["ReturnToLive"]</button>
+                        </div>
+                    }
+                    else if (traceFailure is not null)
+                    {
+                        <div class="trace-recovery" role="alert" data-waveform-recovery="@traceFailure">
+                            <span>@TraceFailureMessage</span>
+                            <button type="button" @onclick="RetryAsync">@Text["RetryWaveform"]</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</section>

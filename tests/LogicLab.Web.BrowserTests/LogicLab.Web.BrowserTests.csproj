@@ -20,6 +20,9 @@
     <Content Include="..\..\src\LogicLab.Web\Components\Editor\CircuitSceneHost.razor.js"
              Link="CircuitSceneHost.razor.js"
              CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\src\LogicLab.Web\Components\Editor\LogicAnalyzer.razor.js"
+             Link="LogicAnalyzer.razor.js"
+             CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\src\LogicLab.Web\wwwroot\js\circuit-scene\drawing.js"
              Link="drawing.js"
              CopyToOutputDirectory="PreserveNewest" />
