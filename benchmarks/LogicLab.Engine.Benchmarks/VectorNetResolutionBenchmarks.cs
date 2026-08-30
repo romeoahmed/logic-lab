@@ -4,6 +4,7 @@ using LogicLab.Domain;
 namespace LogicLab.Engine.Benchmarks;
 
 [MemoryDiagnoser(displayGenColumns: false)]
+[BenchmarkCategory("kernel")]
 public class VectorNetResolutionBenchmarks
 {
     private int[] driverOrdinals = null!;

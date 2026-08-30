@@ -4,20 +4,24 @@ using LogicLab.Engine.Compilation;
 namespace LogicLab.Engine.Benchmarks;
 
 [MemoryDiagnoser(displayGenColumns: false)]
+[BenchmarkCategory("compiler")]
 public class CompilerBenchmarks
 {
     private CompilationRequest request = null!;
 
-    [Params(1, 32, 256)]
-    public int GateCount { get; set; }
+    [ParamsSource(nameof(Cases))]
+    public CircuitBenchmarkCase Case { get; set; }
+
+    public static IEnumerable<CircuitBenchmarkCase> Cases =>
+        EngineBenchmarkCorpus.CompilationCases;
 
     [GlobalSetup]
     public void Setup()
     {
-        request = BenchmarkCircuitFactory.CreateCompilationRequest(GateCount);
+        request = EngineBenchmarkCorpus.CreateCompilationRequest(Case);
     }
 
     [Benchmark]
-    public CompilationOutcome Compile() =>
-        Compiler.Compile(request, CancellationToken.None);
+    public CompilationSucceeded Compile() =>
+        (CompilationSucceeded)Compiler.Compile(request, CancellationToken.None);
 }

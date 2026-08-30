@@ -4,6 +4,7 @@ using LogicLab.Domain;
 namespace LogicLab.Engine.Benchmarks;
 
 [MemoryDiagnoser(displayGenColumns: false)]
+[BenchmarkCategory("kernel")]
 public class VectorConservativeMergeBenchmarks
 {
     private LogicValue[][] scalarValuesByBit = null!;

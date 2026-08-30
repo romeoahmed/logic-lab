@@ -1,6 +1,6 @@
 # .NET Performance Review
 
-> Verified 2026-08-05 (Asia/Shanghai)
+> Measured 2026-08-05; benchmark corpus revalidated 2026-08-30 (Asia/Shanghai)
 > Scope: project-wide .NET 10 implementation and BenchmarkDotNet evidence
 > Authority: research and measured decisions; normative ownership remains in Architecture and the .NET Engineering Baseline
 
@@ -12,12 +12,15 @@ supported at production widths. Two LINQ-backed projections in Simulation settle
 confirmed as local allocation hot spots and replaced with explicit, exact-sized array fills.
 No Module contract changed.
 
-Benchmark coverage before this review proved only multi-driver vector resolution. The expanded
-checkpoint suite also compared the packed binary-logic and conservative-merge kernels and
-established scale baselines for Compilation and initial Session settlement on a real authored
-circuit. The remaining gaps are
-classified by the evidence capable of answering them instead of treating BenchmarkDotNet as a
-universal performance test tool.
+Benchmark coverage before the first checkpoint proved only multi-driver vector resolution. The
+2026-08-05 checkpoint added packed binary-logic and conservative-merge comparisons plus public
+Compilation and initial Session-settlement scale cases. The 2026-08-30 corpus redesign replaces
+the single flat circuit with deterministic combinational, hierarchical, feedback, sequential,
+memory, advance, snapshot-read, and Trace-read workloads. The suite now has 16 methods and 70
+generated cases. Its full Dry run validates construction and execution, not performance; final
+measurements still require an explicit Release job on the target environment. Remaining gaps
+are classified by the evidence capable of answering them instead of treating BenchmarkDotNet
+as a universal performance test tool.
 
 ## 2. Source facts and project inferences
 
@@ -88,14 +91,15 @@ corpus definition and run commands.
 
 ## 5. Benchmark coverage and gaps
 
-| Area | Current evidence | Next honest evidence |
+| Area | Current executable corpus | Next honest evidence |
 |---|---|---|
 | packed Boolean operations | scalar differential BDN cases at 1, 130, and 1024 bits | rerun on supported deployment architectures |
 | conservative merge and net resolution | scalar differential BDN cases across width and fan-in/driver count | adversarial density cases after corpus freeze |
-| flat acyclic Compilation | public Compiler operation on 1/32/256-gate authored circuits | hierarchy and diagnostic corpora after implementation-plan item 34 |
-| initial Simulation settlement | public Session open on the same circuit scale | cyclic, sequential, memory, and policy-limit corpora |
-| scheduled Simulation work | no representative workload yet | BDN only after versioned Trigger Batch/Trace scenarios exist |
-| Domain authoring | no sequence corpus | measured edit sequences, not isolated helper microbenchmarks |
+| Compilation | public Compiler operation over 11 deterministic flat, hierarchical, feedback, sequential, and memory cases | invalid and policy-limit cases only when their decision value justifies permanent run cost |
+| initial Simulation settlement | open, settle, and close over the same 11 circuit cases | target-environment default-job evidence after the representative corpus freezes |
+| scheduled and clocked Simulation work | 9 open/optional-schedule/advance/close cases over flat, D flip-flop, and RAM circuits | Hot Swap, cancellation, and policy-limit workflows after their corpora are versioned |
+| Session reads | snapshots over 3 probe topologies and Trace windows over 16/256/4096 retained transitions | additional Trace density and retention shapes after implementation-plan item 34 |
+| Domain authoring | authoring is setup infrastructure, not a measured operation | versioned edit sequences, not isolated helper microbenchmarks |
 | Application/Web capacity | no deployment profile | load tests plus queue, ThreadPool, allocation, GC, and latency telemetry |
 | Blazor/browser rendering | no browser corpus | browser performance traces and interaction measurements |
 
@@ -104,9 +108,44 @@ and load behavior require browser traces and load tests. Microsoft likewise trea
 traces, dumps, and profiling as complementary diagnostic tools
 ([.NET diagnostics overview](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/)).
 
-## 6. Source and access record
+## 6. Corpus revalidation checkpoint
+
+The 2026-08-30 rewrite gives benchmark infrastructure a deep interface: benchmark methods name
+only the public operation being measured, `EngineBenchmarkCorpus` owns request and Session
+orchestration, and the circuit catalog hides Project Editor intents and Compilation source-map
+lookups. Complex inputs use stable `ParamsSource` values. Construction and Trace population run
+in `GlobalSetup`; read fixtures close in `GlobalCleanup`; mutable workflows own a fresh Session
+per invocation and close it in the measured workflow. Concrete success-result casts make an
+unexpected rejection fail the case.
+
+A Release build and all 70 Dry cases completed successfully. The 11 Compiler and 26 Simulation
+cases also completed under `ShortRun`; those results were used only to confirm that shape and
+scale axes produce useful directional separation. Dry and Short timings are intentionally not
+retained as performance decisions.
+
+One representative default Release job retained the following Trace-read checkpoint:
+
+| Corpus | Retained transitions | Mean | Managed allocation |
+|---|---:|---:|---:|
+| `alternating-trace-v1` | 16 | 378.1 ns | 1.03 KB |
+| `alternating-trace-v1` | 256 | 4,637.8 ns | 10.5 KB |
+| `alternating-trace-v1` | 4,096 | 71,378.6 ns | 160.59 KB |
+
+The job used BenchmarkDotNet 0.15.8, SDK 10.0.400, .NET 10.0.11 Arm64 RyuJIT with Concurrent
+Workstation GC, macOS Tahoe 26.6.2, and Apple M5. The host could not raise process priority, so
+the checkpoint is local comparative evidence rather than a deployment threshold. One preceding
+full run reported a multimodal 16-transition distribution; an isolated rerun and the retained
+full rerun were stable, while the pure query implementation and allocations were unchanged.
+This run-to-run scheduling evidence is another reason not to promote local absolute means to a
+product promise. The benchmark README owns the exact case matrix, commands, corpus revisions,
+and interpretation rules.
+
+## 7. Source and access record
 
 The linked BenchmarkDotNet repository, releases, guides, and Microsoft Learn .NET 10 pages were
-accessed on 2026-08-05. Local verification used SDK 10.0.302, runtime 10.0.10, BenchmarkDotNet
-0.15.8, and Apple M5 arm64. ShortRun numbers are directional local evidence; no result in this
-note is a release threshold or a promise for other hardware.
+accessed on 2026-08-05 and rechecked against the official BenchmarkDotNet documentation on
+2026-08-30. The measured 2026-08-05 checkpoint used SDK 10.0.302, runtime 10.0.10,
+BenchmarkDotNet 0.15.8, and Apple M5 arm64. Its ShortRun numbers are directional local evidence;
+no result in this note is a release threshold or a promise for other hardware. The 2026-08-30
+checkpoint changes corpus coverage and measurement hygiene, not the historical measurements in
+section 4.

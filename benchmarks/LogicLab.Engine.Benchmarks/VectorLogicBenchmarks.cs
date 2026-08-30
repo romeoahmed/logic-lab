@@ -5,6 +5,7 @@ using LogicLab.Domain;
 namespace LogicLab.Engine.Benchmarks;
 
 [MemoryDiagnoser(displayGenColumns: false)]
+[BenchmarkCategory("kernel")]
 [CategoriesColumn]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
 public class VectorLogicBenchmarks
