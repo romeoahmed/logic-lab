@@ -154,6 +154,7 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             catch (Exception exception) when (IsRecoverable(exception))
             {
                 FailClosed("renderer");
+                await InvokeAsync(StateHasChanged);
                 return;
             }
         }
@@ -179,6 +180,7 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         catch (Exception exception) when (IsRecoverable(exception))
         {
             FailClosed("renderer");
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -276,6 +278,7 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         if (generation == rendererGeneration && Volatile.Read(ref isDisposed) == 0)
         {
             FailClosed("renderer");
+            return InvokeAsync(StateHasChanged);
         }
 
         return Task.CompletedTask;
@@ -620,9 +623,8 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         await ReloadAsync();
     }
 
-    private async Task ChangeRadixAsync(WaveformRowV1 row, ChangeEventArgs eventArgs)
+    private async Task ChangeRadixAsync(WaveformRowV1 row, string? radix)
     {
-        var radix = eventArgs.Value?.ToString();
         if (radix is not "binary" and not "hex" and not "unsigned")
         {
             return;
@@ -871,8 +873,9 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         rendererState = RendererUnavailableState;
         traceFailure = reason;
         publishedSnapshot = null;
-        _ = InvokeAsync(StateHasChanged);
     }
+
+    private Task InvokeBrowserCallbackAsync(Func<Task> callback) => InvokeAsync(callback);
 
     private static bool IsRecoverable(Exception exception) => exception is JSException
         or JSDisconnectedException
@@ -893,10 +896,12 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
     {
         [JSInvokable]
         public Task ReceiveWaveformIntent(JsonElement record) =>
-            owner.ReceiveWaveformIntentAsync(generation, record);
+            owner.InvokeBrowserCallbackAsync(() =>
+                owner.ReceiveWaveformIntentAsync(generation, record));
 
         [JSInvokable]
         public Task WaveformRendererFailed(string reason) =>
-            owner.WaveformRendererFailedAsync(generation, reason);
+            owner.InvokeBrowserCallbackAsync(() =>
+                owner.WaveformRendererFailedAsync(generation, reason));
     }
 }

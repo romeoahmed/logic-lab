@@ -40,42 +40,92 @@
     {
         <div class="analyzer-collapsed">
             <span>@Text["LogicAnalyzerCollapsed"]</span>
-            <button type="button"
-                    data-waveform-open
-                    @onclick="OpenAnalyzer">@Text["OpenLogicAnalyzer"]</button>
+            <FluentButton data-waveform-open
+                          Type="ButtonType.Button"
+                          role="button"
+                          tabindex="0"
+                          Size="ButtonSize.Small"
+                          Appearance="ButtonAppearance.Primary"
+                          OnClick="@(_ => OpenAnalyzer())">@Text["OpenLogicAnalyzer"]</FluentButton>
         </div>
     }
     else
     {
         <div class="analyzer-toolbar" role="toolbar" aria-label="@Text["WaveformControls"]">
             <div class="representation-control" role="group" aria-label="@Text["TraceResolution"]">
-                <button type="button"
-                        data-waveform-representation="transitions"
-                        aria-pressed="@Aria(!summaryRequested)"
-                        @onclick="@(() => SetSummaryAsync(false))">@Text["TransitionDetail"]</button>
-                <button type="button"
-                        data-waveform-representation="summary"
-                        aria-pressed="@Aria(summaryRequested)"
-                        @onclick="@(() => SetSummaryAsync(true))">@Text["VisualSummary"]</button>
+                <FluentToggleButton data-waveform-representation="transitions"
+                                    Type="ButtonType.Button"
+                                    Size="ButtonSize.Small"
+                                    Appearance="ButtonAppearance.Subtle"
+                                    Pressed="@(!summaryRequested)"
+                                    role="button"
+                                    tabindex="0"
+                                    aria-pressed="@Aria(!summaryRequested)"
+                                    OnClick="@(_ => SetSummaryAsync(false))">@Text["TransitionDetail"]</FluentToggleButton>
+                <FluentToggleButton data-waveform-representation="summary"
+                                    Type="ButtonType.Button"
+                                    Size="ButtonSize.Small"
+                                    Appearance="ButtonAppearance.Subtle"
+                                    Pressed="@summaryRequested"
+                                    role="button"
+                                    tabindex="0"
+                                    aria-pressed="@Aria(summaryRequested)"
+                                    OnClick="@(_ => SetSummaryAsync(true))">@Text["VisualSummary"]</FluentToggleButton>
             </div>
             <div class="viewport-controls" role="group" aria-label="@Text["ViewportControls"]">
-                <button type="button" title="@Text["ZoomOut"]" @onclick="ZoomOutAsync">−</button>
-                <button type="button" title="@Text["FitTrace"]" @onclick="FitAsync">□</button>
-                <button type="button" title="@Text["ZoomIn"]" @onclick="ZoomInAsync">+</button>
-                <button type="button"
-                        data-waveform-live
-                        aria-pressed="@Aria(liveFollow)"
-                        @onclick="ReturnToLiveAsync">@Text["LiveFollow"]</button>
+                <FluentButton Type="ButtonType.Button"
+                              role="button"
+                              tabindex="0"
+                              Size="ButtonSize.Small"
+                              Appearance="ButtonAppearance.Subtle"
+                              Title="@Text["ZoomOut"]"
+                              aria-label="@Text["ZoomOut"]"
+                              OnClick="@(_ => ZoomOutAsync())">@Text["ZoomOut"]</FluentButton>
+                <FluentButton Type="ButtonType.Button"
+                              role="button"
+                              tabindex="0"
+                              Size="ButtonSize.Small"
+                              Appearance="ButtonAppearance.Subtle"
+                              Title="@Text["FitTrace"]"
+                              aria-label="@Text["FitTrace"]"
+                              OnClick="@(_ => FitAsync())">@Text["FitTrace"]</FluentButton>
+                <FluentButton Type="ButtonType.Button"
+                              role="button"
+                              tabindex="0"
+                              Size="ButtonSize.Small"
+                              Appearance="ButtonAppearance.Subtle"
+                              Title="@Text["ZoomIn"]"
+                              aria-label="@Text["ZoomIn"]"
+                              OnClick="@(_ => ZoomInAsync())">@Text["ZoomIn"]</FluentButton>
+                <FluentToggleButton data-waveform-live
+                                    Type="ButtonType.Button"
+                                    Size="ButtonSize.Small"
+                                    Appearance="ButtonAppearance.Subtle"
+                                    Pressed="@liveFollow"
+                                    role="button"
+                                    tabindex="0"
+                                    aria-pressed="@Aria(liveFollow)"
+                                    OnClick="@(_ => ReturnToLiveAsync())">@Text["LiveFollow"]</FluentToggleButton>
             </div>
             <div class="cursor-controls" role="group" aria-label="@Text["MeasurementCursors"]">
-                <button type="button"
-                        data-waveform-primary-cursor
-                        aria-pressed="@Aria(primaryCursor is not null)"
-                        @onclick="@(() => ToggleCursorAsync(primary: true))">A</button>
-                <button type="button"
-                        data-waveform-secondary-cursor
-                        aria-pressed="@Aria(secondaryCursor is not null)"
-                        @onclick="@(() => ToggleCursorAsync(primary: false))">B</button>
+                <FluentToggleButton data-waveform-primary-cursor
+                                    Type="ButtonType.Button"
+                                    Size="ButtonSize.Small"
+                                    Appearance="ButtonAppearance.Subtle"
+                                    Pressed="@(primaryCursor is not null)"
+                                    role="button"
+                                    tabindex="0"
+                                    aria-pressed="@Aria(primaryCursor is not null)"
+                                    OnClick="@(_ => ToggleCursorAsync(primary: true))">A</FluentToggleButton>
+                <FluentToggleButton data-waveform-secondary-cursor
+                                    Type="ButtonType.Button"
+                                    Size="ButtonSize.Small"
+                                    Appearance="ButtonAppearance.Subtle"
+                                    Pressed="@(secondaryCursor is not null)"
+                                    role="button"
+                                    tabindex="0"
+                                    aria-pressed="@Aria(secondaryCursor is not null)"
+                                    OnClick="@(_ => ToggleCursorAsync(primary: false))">B</FluentToggleButton>
             </div>
             @if (primaryCursor is not null || secondaryCursor is not null)
             {
@@ -94,12 +144,16 @@
                     }
                 </dl>
             }
-            <button type="button"
-                    class="close-analyzer"
-                    data-waveform-close
-                    @onclick="CloseAnalyzerAsync">
+            <FluentButton Class="close-analyzer"
+                          data-waveform-close
+                          Type="ButtonType.Button"
+                          role="button"
+                          tabindex="0"
+                          Size="ButtonSize.Small"
+                          Appearance="ButtonAppearance.Subtle"
+                          OnClick="@(_ => CloseAnalyzerAsync())">
                 @Text["CloseWaveform"]
-            </button>
+            </FluentButton>
         </div>
 
         @if (Rows.Count == 0)
@@ -113,7 +167,9 @@
         else
         {
             <div class="analyzer-surface">
-                <aside class="probe-spine" aria-labelledby="probe-spine-heading">
+                <aside class="probe-spine"
+                       data-probe-spine
+                       aria-labelledby="probe-spine-heading">
                     <h3 id="probe-spine-heading">@Text["ProbeSpine"]</h3>
                     <ol>
                         @foreach (var row in Rows)
@@ -122,59 +178,89 @@
                                 data-probe="@row.ProbeId"
                                 data-probe-binding="@row.Binding"
                                 data-probe-pattern="@row.Pattern"
-                                style="--probe-index: @(row.AppearanceOrdinal % 8U)">
+                                data-probe-appearance="@(row.AppearanceOrdinal % 8U)"
+                                data-waveform-row-track>
                                 <i class="probe-rail" aria-hidden="true"></i>
                                 <div class="probe-identity">
                                     <i class="probe-swatch" aria-hidden="true"></i>
-                                    <button type="button"
-                                            class="probe-label"
-                                            data-probe-label
-                                            disabled="@(row.SceneNavigation != "available")"
-                                            @onclick="@(() => RevealAsync(row))"><span>@row.ShortLabel</span></button>
+                                    <FluentButton Class="probe-label"
+                                                  data-probe-label
+                                                  data-probe-reveal
+                                                  Type="ButtonType.Button"
+                                                  role="button"
+                                                  tabindex="@(row.SceneNavigation == "available" ? "0" : "-1")"
+                                                  Appearance="ButtonAppearance.Transparent"
+                                                  Title="@Text["RevealNet"]"
+                                                  Disabled="@(row.SceneNavigation != "available")"
+                                                  OnClick="@(_ => RevealAsync(row))"><span>@row.ShortLabel</span></FluentButton>
                                     <strong>@Format(row)</strong>
                                 </div>
                                 <div class="probe-controls">
-                                    <label>
-                                        <em>@Text["Radix"]</em>
-                                        <select data-probe-radix="@row.ProbeId"
-                                                value="@row.Radix"
-                                                disabled="@(row.Binding != "resolved")"
-                                                @onchange="@(eventArgs => ChangeRadixAsync(row, eventArgs))">
-                                            <option value="binary">@Text["RadixBinary"]</option>
-                                            <option value="hex">@Text["RadixHex"]</option>
-                                            <option value="unsigned">@Text["RadixUnsigned"]</option>
-                                        </select>
-                                    </label>
-                                    <button type="button"
-                                            data-probe-move="up"
-                                            title="@Text["MoveProbeUp"]"
-                                            disabled="@(!CanMove(row, -1))"
-                                            @onclick="@(() => MoveAsync(row, -1))">↑</button>
-                                    <button type="button"
-                                            data-probe-move="down"
-                                            title="@Text["MoveProbeDown"]"
-                                            disabled="@(!CanMove(row, 1))"
-                                            @onclick="@(() => MoveAsync(row, 1))">↓</button>
-                                    @if (row.SceneNavigation == "available")
-                                    {
-                                        <button type="button"
-                                                data-probe-reveal
-                                                @onclick="@(() => RevealAsync(row))">@Text["RevealNet"]</button>
-                                    }
-                                    else
+                                    <FluentSelect TOption="string"
+                                                  TValue="string"
+                                                  data-probe-radix="@row.ProbeId"
+                                                  aria-label="@Text["Radix"]"
+                                                  Size="ListSize.Small"
+                                                  Value="@row.Radix"
+                                                  ValueChanged="@(value => ChangeRadixAsync(row, value))"
+                                                  Disabled="@(row.Binding != "resolved")">
+                                        <FluentOptionString Value="binary">@Text["RadixBinary"]</FluentOptionString>
+                                        <FluentOptionString Value="hex">@Text["RadixHex"]</FluentOptionString>
+                                        <FluentOptionString Value="unsigned">@Text["RadixUnsigned"]</FluentOptionString>
+                                    </FluentSelect>
+                                    <FluentButton data-probe-move="up"
+                                                  data-icon-only
+                                                  Type="ButtonType.Button"
+                                                  role="button"
+                                                  tabindex="@(CanMove(row, -1) ? "0" : "-1")"
+                                                  Shape="ButtonShape.Square"
+                                                  Size="ButtonSize.Small"
+                                                  Appearance="ButtonAppearance.Subtle"
+                                                  IconOnly="true"
+                                                  Title="@Text["MoveProbeUp"]"
+                                                  aria-label="@Text["MoveProbeUp"]"
+                                                  Disabled="@(!CanMove(row, -1))"
+                                                  OnClick="@(_ => MoveAsync(row, -1))">↑</FluentButton>
+                                    <FluentButton data-probe-move="down"
+                                                  data-icon-only
+                                                  Type="ButtonType.Button"
+                                                  role="button"
+                                                  tabindex="@(CanMove(row, 1) ? "0" : "-1")"
+                                                  Shape="ButtonShape.Square"
+                                                  Size="ButtonSize.Small"
+                                                  Appearance="ButtonAppearance.Subtle"
+                                                  IconOnly="true"
+                                                  Title="@Text["MoveProbeDown"]"
+                                                  aria-label="@Text["MoveProbeDown"]"
+                                                  Disabled="@(!CanMove(row, 1))"
+                                                  OnClick="@(_ => MoveAsync(row, 1))">↓</FluentButton>
+                                    @if (row.SceneNavigation != "available")
                                     {
                                         <small class="probe-navigation-unavailable"
                                                data-navigation-reason="@row.NavigationReason">@NavigationMessage(row)</small>
                                     }
                                     @if (row.Binding == "unresolved")
                                     {
-                                        <button type="button"
-                                                data-probe-rebind
-                                                @onclick="@(() => RebindAsync(row))">@Text["RebindProbe"]</button>
+                                        <FluentButton data-probe-rebind
+                                                      Type="ButtonType.Button"
+                                                      role="button"
+                                                      tabindex="0"
+                                                      Size="ButtonSize.Small"
+                                                      Appearance="ButtonAppearance.Outline"
+                                                      OnClick="@(_ => RebindAsync(row))">@Text["RebindProbe"]</FluentButton>
                                     }
-                                    <button type="button"
-                                            data-probe-remove
-                                            @onclick="@(() => RemoveAsync(row))">@Text["RemoveProbe"]</button>
+                                    <FluentButton data-probe-remove
+                                                  data-icon-only
+                                                  Type="ButtonType.Button"
+                                                  role="button"
+                                                  tabindex="0"
+                                                  Shape="ButtonShape.Square"
+                                                  Size="ButtonSize.Small"
+                                                  Appearance="ButtonAppearance.Subtle"
+                                                  IconOnly="true"
+                                                  Title="@Text["RemoveProbe"]"
+                                                  aria-label="@Text["RemoveProbe"]"
+                                                  OnClick="@(_ => RemoveAsync(row))">×</FluentButton>
                                 </div>
                             </li>
                         }
@@ -190,32 +276,63 @@
                     </canvas>
                     @if (summaryRequested)
                     {
-                        <span class="summary-resolution" data-waveform-resolution="summary">
-                            @Text["SummaryResolution"]
-                        </span>
+                        <FluentBadge Class="summary-resolution"
+                                     data-waveform-resolution="summary"
+                                     Appearance="BadgeAppearance.Outline"
+                                     Color="BadgeColor.Subtle"
+                                     Size="BadgeSize.Small"
+                                     Content="@Text["SummaryResolution"]" />
                     }
                     @if (!liveFollow)
                     {
-                        <span class="history-state" data-waveform-history>
-                            @Text["HistoricalView"]
-                        </span>
+                        <FluentBadge Class="history-state"
+                                     data-waveform-history
+                                     Appearance="BadgeAppearance.Outline"
+                                     Color="BadgeColor.Subtle"
+                                     Size="BadgeSize.Small"
+                                     Content="@Text["HistoricalView"]" />
                     }
                     @if (traceLoading)
                     {
-                        <span class="trace-state" role="status">@Text["LoadingTrace"]</span>
+                        <span class="trace-state" role="status">
+                            <FluentSpinner Size="SpinnerSize.Tiny" />
+                            <span>@Text["LoadingTrace"]</span>
+                        </span>
                     }
                     else if (traceFailure is "evicted" or "artifactChanged")
                     {
                         <div class="trace-gap-state" role="status" data-trace-gap="@traceFailure">
                             <span>@TraceFailureMessage</span>
-                            <button type="button" @onclick="ReturnToLiveAsync">@Text["ReturnToLive"]</button>
+                            <FluentButton data-trace-return-live
+                                          Type="ButtonType.Button"
+                                          role="button"
+                                          tabindex="0"
+                                          Size="ButtonSize.Small"
+                                          Appearance="ButtonAppearance.Outline"
+                                          OnClick="@(_ => ReturnToLiveAsync())">@Text["ReturnToLive"]</FluentButton>
                         </div>
                     }
                     else if (traceFailure is not null)
                     {
                         <div class="trace-recovery" role="alert" data-waveform-recovery="@traceFailure">
-                            <span>@TraceFailureMessage</span>
-                            <button type="button" @onclick="RetryAsync">@Text["RetryWaveform"]</button>
+                            <FluentMessageBar Class="trace-recovery-message"
+                                              AllowDismiss="false"
+                                              Intent="MessageBarIntent.Error"
+                                              Layout="MessageBarLayout.Notification"
+                                              Shape="MessageBarShape.Square">
+                                <ChildContent>
+                                    <span>@TraceFailureMessage</span>
+                                </ChildContent>
+                                <ActionsTemplate>
+                                    <FluentButton data-waveform-retry
+                                                  Type="ButtonType.Button"
+                                                  role="button"
+                                                  tabindex="0"
+                                                  Size="ButtonSize.Small"
+                                                  Appearance="ButtonAppearance.Primary"
+                                                  OnClick="@(_ => RetryAsync())">@Text["RetryWaveform"]</FluentButton>
+                                </ActionsTemplate>
+                            </FluentMessageBar>
                         </div>
                     }
                 </div>

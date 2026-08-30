@@ -25,6 +25,7 @@ class WaveformHandle {
     this.policy = policy;
     this.dotnetSink = dotnetSink;
     this.canvas = host.querySelector("[data-waveform-canvas]");
+    this.probeSpine = host.querySelector("[data-probe-spine]");
     this.context = this.canvas?.getContext("2d", { alpha: false }) ?? null;
     this.published = null;
     this.transientViewport = null;
@@ -154,8 +155,20 @@ class WaveformHandle {
     this.canvas.addEventListener("pointerdown", (event) => this.pointerDown(event), { signal });
     this.canvas.addEventListener("pointermove", (event) => this.pointerMove(event), { signal });
     this.canvas.addEventListener("pointerup", (event) => this.pointerUp(event), { signal });
-    this.canvas.addEventListener("pointercancel", () => this.cancelGesture(), { signal });
-    this.canvas.addEventListener("lostpointercapture", () => this.cancelGesture(), { signal });
+    this.canvas.addEventListener(
+      "pointercancel",
+      (event) => this.cancelGesture(event.pointerId),
+      { signal },
+    );
+    this.canvas.addEventListener(
+      "lostpointercapture",
+      (event) => this.cancelGesture(event.pointerId),
+      { signal },
+    );
+    this.probeSpine?.addEventListener("scroll", () => this.invalidate(), {
+      signal,
+      passive: true,
+    });
     this.canvas.addEventListener("wheel", (event) => this.wheel(event), {
       signal,
       passive: false,
@@ -179,6 +192,7 @@ class WaveformHandle {
   installObservers() {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.canvas);
+    if (this.probeSpine) this.resizeObserver.observe(this.probeSpine);
   }
 
   installRemovalObserver() {
@@ -221,7 +235,13 @@ class WaveformHandle {
   }
 
   pointerDown(event) {
-    if (!this.published || event.button !== 0 || this.interactionMode !== "commitEnabled") return;
+    if (
+      !this.published ||
+      event.button !== 0 ||
+      event.isPrimary === false ||
+      this.gesture ||
+      this.interactionMode !== "commitEnabled"
+    ) return;
     const kind = event.shiftKey ? "secondary" : "primary";
     this.gesture = {
       pointerId: event.pointerId,
@@ -229,7 +249,12 @@ class WaveformHandle {
       logicalTime: this.timeAt(event.offsetX),
       waveformVersion: this.published.waveformVersion,
     };
-    this.canvas.setPointerCapture(event.pointerId);
+    try {
+      this.canvas.setPointerCapture(event.pointerId);
+    } catch {
+      this.gesture = null;
+      return;
+    }
     this.transientCursor = { kind, logicalTime: this.gesture.logicalTime };
     this.invalidate();
   }
@@ -247,9 +272,7 @@ class WaveformHandle {
   pointerUp(event) {
     if (!this.gesture || this.gesture.pointerId !== event.pointerId) return;
     const gesture = this.gesture;
-    if (this.canvas.hasPointerCapture(event.pointerId)) {
-      this.canvas.releasePointerCapture(event.pointerId);
-    }
+    this.releasePointerCapture(event.pointerId);
     this.gesture = null;
     this.transientCursor = null;
     this.invalidate();
@@ -264,13 +287,22 @@ class WaveformHandle {
     }
   }
 
-  cancelGesture() {
-    if (this.gesture && this.canvas?.hasPointerCapture(this.gesture.pointerId)) {
-      this.canvas.releasePointerCapture(this.gesture.pointerId);
-    }
+  cancelGesture(pointerId = null) {
+    if (!this.gesture || (pointerId !== null && this.gesture.pointerId !== pointerId)) return;
+    this.releasePointerCapture(this.gesture.pointerId);
     this.gesture = null;
     this.transientCursor = null;
     this.invalidate();
+  }
+
+  releasePointerCapture(pointerId) {
+    try {
+      if (this.canvas?.hasPointerCapture(pointerId)) {
+        this.canvas.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // Capture may already have been released by browser lifecycle changes.
+    }
   }
 
   wheel(event) {
@@ -356,7 +388,11 @@ class WaveformHandle {
       compilationArtifactKey: this.published.compilationArtifactKey,
       ...payload,
     };
-    await this.dotnetSink?.invokeMethodAsync("ReceiveWaveformIntent", intent).catch(() => {});
+    try {
+      await this.dotnetSink?.invokeMethodAsync("ReceiveWaveformIntent", intent);
+    } catch {
+      // The owning component may have been disposed between the event and callback.
+    }
   }
 
   invalidate() {
@@ -386,29 +422,33 @@ class WaveformHandle {
 
     const viewport = this.activeViewport();
     const rulerHeight = 30;
-    const rowHeight = Math.max(36, (height - rulerHeight) / Math.max(1, this.published.rows.length));
     drawRuler(context, width, rulerHeight, viewport, ink, muted, border);
-    for (let index = 0; index < this.published.rows.length; index++) {
-      const row = this.published.rows[index];
-      const top = rulerHeight + index * rowHeight;
+    context.save();
+    context.beginPath();
+    context.rect(0, rulerHeight, width, Math.max(0, height - rulerHeight));
+    context.clip();
+    for (const layout of this.rowLayouts(rulerHeight)) {
+      const row = this.published.rows[layout.index];
+      if (!row) continue;
       context.strokeStyle = border;
       context.lineWidth = 1;
       context.beginPath();
-      context.moveTo(0, top + rowHeight);
-      context.lineTo(width, top + rowHeight);
+      context.moveTo(0, layout.top + layout.height);
+      context.lineTo(width, layout.top + layout.height);
       context.stroke();
       drawTraceRow(
         context,
         this.published.trace,
         row,
         viewport,
-        top,
-        rowHeight,
+        layout.top,
+        layout.height,
         width,
         probeColor(row.appearanceOrdinal),
         muted,
       );
     }
+    context.restore();
     drawCursor(context, this.published.viewState.primaryCursor, viewport, width, height, "#b85e3d", "A");
     drawCursor(context, this.published.viewState.secondaryCursor, viewport, width, height, "#6d6ab7", "B");
     if (this.transientCursor) {
@@ -424,6 +464,41 @@ class WaveformHandle {
     }
   }
 
+  rowLayouts(rulerHeight) {
+    if (this.probeSpine && this.canvas) {
+      const rows = [...this.probeSpine.querySelectorAll("[data-waveform-row-track]")];
+      if (rows.length !== this.published.rows.length) return this.fallbackRowLayouts(rulerHeight);
+      const canvasBounds = this.canvas.getBoundingClientRect();
+      return rows
+        .map((row, index) => {
+          const bounds = row.getBoundingClientRect();
+          return {
+            index,
+            top: bounds.top - canvasBounds.top,
+            height: bounds.height,
+          };
+        })
+        .filter((layout) =>
+          layout.height > 0 &&
+          layout.top + layout.height > rulerHeight &&
+          layout.top < this.cssHeight);
+    }
+
+    return this.fallbackRowLayouts(rulerHeight);
+  }
+
+  fallbackRowLayouts(rulerHeight) {
+    const rowHeight = Math.max(
+      36,
+      (this.cssHeight - rulerHeight) / Math.max(1, this.published.rows.length),
+    );
+    return this.published.rows.map((_, index) => ({
+      index,
+      top: rulerHeight + index * rowHeight,
+      height: rowHeight,
+    }));
+  }
+
   failClosed(reason) {
     this.cancelGesture();
     this.published = null;
@@ -435,7 +510,15 @@ class WaveformHandle {
       this.context.setTransform(1, 0, 0, 1, 0, 0);
       this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
-    void this.dotnetSink?.invokeMethodAsync("WaveformRendererFailed", reason).catch(() => {});
+    this.notifyRendererFailure(reason);
+  }
+
+  async notifyRendererFailure(reason) {
+    try {
+      await this.dotnetSink?.invokeMethodAsync("WaveformRendererFailed", reason);
+    } catch {
+      // The owning component may already be gone; the renderer is closed either way.
+    }
   }
 
   destroy() {
