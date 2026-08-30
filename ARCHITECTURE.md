@@ -124,7 +124,7 @@ The linked owner defines the exact interface and closed outcomes. Architecture f
 | Editor Workspace | open, attach, dispatch, and read | fencing, idempotency, history, save, work coordination, proposals | [Editor Workspace Contract](./docs/contracts/editor-workspace.md) |
 | Durable Project Catalog | list one authorized bounded page | authorization filtering, invariant order, keyset cursor, persistence projection | [Durable Project Catalog Contract](./docs/contracts/durable-project-catalog.md) |
 | Scene/Waveform adapters | replace/apply state; return one completed intent | interop, transforms, frames, hit index, previews, caches, teardown | [Browser Runtime](./docs/specs/browser-runtime.md), [Browser Adapter Contract](./docs/contracts/browser-adapters.md) |
-| Web Host | serve routes and manage host lifetimes | render modes, circuits, culture, middleware, health, shutdown | [Web Host](./docs/specs/web-host.md), [HTTP Transfer Contract](./docs/contracts/http-transfer.md) |
+| Web Host | serve routes and manage host lifetimes | render modes, circuits, culture, middleware, health, shutdown | [Web Host](./docs/specs/web-host.md), [HTTP Boundary Contract](./docs/contracts/http-boundary.md) |
 
 There is no `CircuitEngine` facade forwarding to Compiler and Simulation Runtime, no general codec port while `.logiclab` is the only native carrier, and no public pass, renderer, spatial-index, or algorithm-selection interface.
 

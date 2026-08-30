@@ -1,15 +1,8 @@
 # LogicLab.Web
 
-| Setting | Value |
-|---------|-------|
-| **Interactivity Mode** | Server |
-| **Interactivity Scope** | Per-page |
-
 ## Rendering configuration
 
-This project uses per-page Interactive Server with prerendering.
-
-Pages are Static SSR by default. Only components that explicitly add `@rendermode InteractiveServer` become interactive.
+Pages use Static SSR by default. Add per-page `@rendermode InteractiveServer` only where server interactivity is required; prerendering remains enabled.
 
 ## Adding components
 

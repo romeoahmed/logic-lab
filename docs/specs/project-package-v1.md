@@ -164,7 +164,7 @@ Application passes a successful Import Candidate to [`OpenAsync(ImportProject)`]
 
 ## 7. Export and browser transfer
 
-Project Format writes to a caller-owned stream and never needs a filesystem path. Application returns `ExportPrepared` only after `PackageWriteSucceeded`; Web maps its opaque Export Ticket to the download route. [Editor Workspace](../contracts/editor-workspace.md) owns preparation, while [HTTP Transfer](../contracts/http-transfer.md) owns download authorization, URL mapping, streaming, filename, and antiforgery behavior.
+Project Format writes to a caller-owned stream and never needs a filesystem path. Application returns `ExportPrepared` only after `PackageWriteSucceeded`; Web maps its opaque Export Ticket to the download route. [Editor Workspace](../contracts/editor-workspace.md) owns preparation, while [HTTP Boundary](../contracts/http-boundary.md) owns download authorization, URL mapping, streaming, filename, and antiforgery behavior.
 
 Uploads declare an explicit maximum at the browser and ASP.NET Core stream boundary. Client filename, MIME type, claimed length, ZIP metadata, IDs, and JSON are untrusted. Cookie-authenticated HTTP mutations retain antiforgery protection.
 

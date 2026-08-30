@@ -1,14 +1,14 @@
 # .NET Memory and Unsafe Code Research
 
 > Verified 2026-07-29 (Asia/Shanghai)
-> Scope: .NET 10, C# 14, and future implementation choices for Logic Lab
+> Scope: .NET 10, C# 14, and optimization choices for Logic Lab
 > Authority: platform evidence and design recommendations; normative ownership remains in `ARCHITECTURE.md` and focused specifications
 
 ## 1. Conclusion
 
 Logic Lab should begin with owned managed storage and safe, idiomatic loops. Spans are synchronous views, not ownership; memory and pool types add lifetime obligations, not automatic performance. Unsafe code is justified only for a measured leaf kernel whose safe implementation remains the semantic oracle.
 
-This is a stricter project policy than the platform requires. .NET permits `Memory<T>` across asynchronous work and supports explicit pinning and unsafe access. Logic Lab had no native production dependency at the research checkpoint, so those capabilities added risk without leverage.
+This is stricter than the platform requires. .NET permits `Memory<T>` across asynchronous work and supports explicit pinning and unsafe access, but Logic Lab has no native production dependency that would justify those lifetime obligations.
 
 ## 2. Platform facts and Logic Lab decisions
 
@@ -87,4 +87,4 @@ These are Logic Lab proof requirements, derived from Microsoft's direction to pr
 
 ## 9. Source and access record
 
-The Microsoft Learn, C# specification, .NET 10 API, and tagged `dotnet/runtime` v10.0.0 sources linked at individual claims were accessed on 2026-07-29; local verification used SDK `10.0.302`. Exact stack thresholds, pool break-even points, SIMD widths, pin-duration budgets, and the supported architecture matrix remain unqualified until projects, deployment targets, and representative corpora exist.
+The Microsoft Learn, C# specification, .NET 10 API, and tagged `dotnet/runtime` v10.0.0 sources linked at individual claims were accessed on 2026-07-29. Exact stack thresholds, pool break-even points, SIMD widths, pin-duration budgets, and the supported architecture matrix remain unqualified until representative deployment evidence exists.

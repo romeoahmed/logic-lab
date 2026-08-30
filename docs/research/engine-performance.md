@@ -1,7 +1,7 @@
-# .NET Performance Review
+# Engine Performance Evidence
 
 > Measured 2026-08-05; benchmark corpus revalidated 2026-08-30 (Asia/Shanghai)
-> Scope: project-wide .NET 10 implementation and BenchmarkDotNet evidence
+> Scope: Engine implementation and BenchmarkDotNet evidence
 > Authority: research and measured decisions; normative ownership remains in Architecture and the .NET Engineering Baseline
 
 ## 1. Conclusion
@@ -46,17 +46,12 @@ as a universal performance test tool.
   implementation remains only when a production-shaped comparison demonstrates value. Public
   Module values stay owned and immutable, and storage layout stays internal.
 
-BenchmarkDotNet 0.15.8 is the centrally locked version used for this review. It was the official
-release at the checkpoint, and the 0.15 line includes .NET 10 support
-([repository](https://github.com/dotnet/BenchmarkDotNet),
-[releases](https://github.com/dotnet/BenchmarkDotNet/releases)).
-
 ## 3. Audit method
 
 At the dated review checkpoint, the audit followed repository ownership from Domain through
 Engine, Application, Presentation, and Web, plus all tests and build infrastructure. It combined:
 
-1. locked restore, warning-clean build, 582-test baseline, formatting, and whitespace gates;
+1. locked restore, warning-clean build, tests, formatting, and whitespace gates;
 2. an additional non-incremental `AnalysisLevel=10-all` build to expose optional analyzer
    findings without changing the repository's normative analyzer level;
 3. structural searches for sync-over-async, accidental `async void`, repeated enumeration,
@@ -66,12 +61,10 @@ Engine, Application, Presentation, and Web, plus all tests and build infrastruct
 5. baseline/candidate BenchmarkDotNet comparisons on the same runtime, hardware, corpus, and
    job.
 
-The expanded analyzer pass produced 498 advisory warnings, predominantly test-only CA2007
-guidance that conflicts with the repository's application/test conventions. It found no
-production CA18xx performance diagnostic. Targeted inspection likewise found no synchronous
-wait, per-call regex, ad hoc `HttpClient`, reflection JSON path, unsafe block, pooling lifetime,
-or static mutable cache requiring correction. This negative evidence does not replace a runtime
-profile, but it prevents speculative repository-wide rewrites.
+The expanded analyzer pass found no production CA18xx performance diagnostic. Targeted
+inspection likewise found no synchronous wait, per-call regex, ad hoc `HttpClient`, reflection
+JSON path, unsafe block, pooling lifetime, or static mutable cache requiring correction. This
+negative evidence does not replace a runtime profile, but it prevents speculative rewrites.
 
 ## 4. Measured decisions
 
@@ -140,12 +133,8 @@ This run-to-run scheduling evidence is another reason not to promote local absol
 product promise. The benchmark README owns the exact case matrix, commands, corpus revisions,
 and interpretation rules.
 
-## 7. Source and access record
+## 7. Measurement record
 
-The linked BenchmarkDotNet repository, releases, guides, and Microsoft Learn .NET 10 pages were
-accessed on 2026-08-05 and rechecked against the official BenchmarkDotNet documentation on
-2026-08-30. The measured 2026-08-05 checkpoint used SDK 10.0.302, runtime 10.0.10,
-BenchmarkDotNet 0.15.8, and Apple M5 arm64. Its ShortRun numbers are directional local evidence;
-no result in this note is a release threshold or a promise for other hardware. The 2026-08-30
-checkpoint changes corpus coverage and measurement hygiene, not the historical measurements in
-section 4.
+The linked BenchmarkDotNet and Microsoft Learn sources were checked on 2026-08-05 and again on
+2026-08-30. Section 4 preserves the first local comparison; section 6 records the expanded
+corpus. Neither checkpoint is a release threshold or a promise for other hardware.

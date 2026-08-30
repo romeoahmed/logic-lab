@@ -7,7 +7,7 @@ This contract owns the interface from Web to the Application-owned Editor Worksp
 
 Stable diagnostic and outcome reason structure is defined by [Diagnostics V1](../specs/diagnostics-v1.md); this contract defines when those values cross the Workspace seam.
 
-[Browser Adapter Contract](./browser-adapters.md) owns Scene and Waveform records. [HTTP Transfer Contract](./http-transfer.md) owns file transport and Problem Details. This file owns Workspace values, validation, ordering, idempotency, and failure semantics only.
+[Browser Adapter Contract](./browser-adapters.md) owns Scene and Waveform records. [HTTP Boundary Contract](./http-boundary.md) owns file transport and Problem Details. This file owns Workspace values, validation, ordering, idempotency, and failure semantics only.
 
 ## 1. Contract principles
 
@@ -95,14 +95,7 @@ ReadAsync(WorkspaceQueryContext, WorkspaceQuery, CancellationToken)
 
 These are typed C# calls. `WorkspaceCommand` and `WorkspaceOutcome` are closed abstract-record hierarchies; there is no string `kind` plus untyped payload dictionary.
 
-`DisposeAsync` closes admission for all five call types atomically, marks the
-Workspace as stopping, and starts cancellation of its owned background lanes. It
-then waits for both those lanes and every call admitted before the fence to drain
-before retiring Workspace resources. Starting lane cancellation before awaiting
-calls prevents a bootstrap Open from waiting on work whose lane has not yet been
-stopped. Repeated calls observe the same disposal completion. After that completion
-no Workspace operation can continue into a repository, store, or Module dependency
-owned by the enclosing dependency-injection lifetime.
+`DisposeAsync` atomically closes admission, marks the Workspace as stopping, cancels its background lanes, drains those lanes and all calls admitted before the fence, then retires resources. Repeated calls observe the same completion. After completion, no Workspace operation can enter a repository, store, or Module dependency owned by the enclosing dependency-injection lifetime.
 
 `OpenWorkspaceRequest` is exactly one of:
 
@@ -224,7 +217,11 @@ does not take the unpublished staging, and leaves any earlier ticket for the
 Workspace intact. Cancellation before the atomic publication commit has the
 same preservation rule; cancellation after commit does not undo publication.
 
-Compilation completion is observed after the acceptance response through `ReadCompilation(CompilationGeneration)`. `CompilationState` is exactly `NotRequested | Queued | Running | Superseded(newerGeneration) | Published(CompilationArtifactKey, diagnostics) | Rejected(reason, diagnostics, RetryDisposition, policyEvidence?)`; every noninitial state carries its Compilation Generation. Project Scale exhaustion retains the Compiler policy ID/revision, breached dimension, and observed work in `policyEvidence`; non-policy rejection omits it. The Workspace Projection carries the newest generation's state. Reading that generation returns its current state; after a newer generation is admitted, reading any older accepted generation deterministically returns `Superseded(newerGeneration)`. A generation that was never accepted or is no longer addressable without a newer generation returns `compilation_generation_unavailable`. Only the newest non-cancelled generation can publish. A family-specific outcome never changes shape based on success data, and no success variant also carries a failure reason. `ExportTicket` is an opaque short-lived locator that Web maps to its download route; it is neither a URL nor authority. Export expiry is a canonical nonnegative whole-second duration measured from outcome publication. `PrepareExport` writes only to an unpublished staging stream and returns `ExportPrepared` only after Project Format succeeds and Application atomically publishes that staging object. Ticket redemption is a separate typed Application-to-Web seam owned by [HTTP Transfer](./http-transfer.md#1-transfer-lifecycle); it does not add a sixth Editor Workspace method or a download query to the closed read catalog.
+Compilation completion is observed after acceptance through `ReadCompilation(CompilationGeneration)`. `CompilationState` is exactly `NotRequested | Queued | Running | Superseded(newerGeneration) | Published(CompilationArtifactKey, diagnostics) | Rejected(reason, diagnostics, RetryDisposition, policyEvidence?)`; every noninitial state carries its Compilation Generation. Project Scale exhaustion includes the Compiler policy identity, breached dimension, and observed work; other rejections omit policy evidence.
+
+The Workspace Projection carries the newest generation. Reading an older accepted generation after a replacement returns `Superseded(newerGeneration)`; a generation that was never accepted or is no longer addressable returns `compilation_generation_unavailable`. Only the newest non-cancelled generation can publish. Success and failure variants never share one nullable shape.
+
+`ExportTicket` is an opaque short-lived locator, not a URL or authority. Expiry is a canonical nonnegative whole-second duration measured from outcome publication. `PrepareExport` uses unpublished staging and returns `ExportPrepared` only after Project Format succeeds and Application publishes atomically. Redemption is the separate typed seam in [HTTP Boundary](./http-boundary.md#1-transfer-lifecycle); it adds neither a sixth Editor Workspace method nor a download query.
 
 Hot Swap migration evidence contains canonical ordered source identities of migrated state-bearing Component Instances plus preserved and unresolved Probe IDs. If multiple prior Probe sources resolve to one replacement elaborated Net, the first binding in active Probe order is preserved and every later duplicate is reported as unresolved; the committed Session therefore retains the unique elaborated Net binding invariant. A failed swap may return incompatible state identities as safe rejection evidence; it retains the old Session unchanged and never labels an incompatible state as migrated.
 
