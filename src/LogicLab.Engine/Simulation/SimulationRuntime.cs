@@ -219,7 +219,9 @@ public static partial class SimulationRuntime
             return query switch
             {
                 ReadSessionSnapshot => Snapshot(state),
-                ReadTraceWindow trace => state.Trace.Read(trace.Request),
+                ReadTraceWindow trace => state.Trace.Read(
+                    trace.Request,
+                    cancellationToken),
                 _ => throw new InvalidOperationException(
                     "The Simulation query variant is undefined."),
             };

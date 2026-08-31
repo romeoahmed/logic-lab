@@ -55,13 +55,6 @@ internal sealed class EditorWorkspaceTraceTests
                 .IsEqualTo(session.Projection.ProjectionVersion);
             await Assert.That(afterRead.Simulation!.SessionVersion)
                 .IsEqualTo(simulation.SessionVersion);
-            await Assert.That(transitions.GetType().Assembly)
-                .IsEqualTo(typeof(IEditorWorkspace).Assembly);
-            await Assert.That(new LogicVectorTransferV1(
-                    4,
-                    LogicVectorTransferV1.Logic4TwoBitV1,
-                    [(byte)0b1110_0100]).Data)
-                .IsEquivalentTo([(byte)0b1110_0100]);
         }
     }
 
@@ -102,7 +95,6 @@ internal sealed class EditorWorkspaceTraceTests
                 .IsEquivalentTo([(byte)0b1010_0100]);
             await Assert.That(bucket.HadTransition).IsFalse();
             await Assert.That(bucket.HadMixedValues).IsFalse();
-            await Assert.That(bucket.HadUnavailableValues).IsFalse();
         }
     }
 

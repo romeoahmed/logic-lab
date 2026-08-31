@@ -59,15 +59,18 @@ public sealed partial class Editor
         var probeById = simulation.Probes.ToDictionary(
             probe => probe.ProbeId.Value,
             StringComparer.Ordinal);
-        if (orderedProbeIds.Any(probeId => !probeById.ContainsKey(probeId)))
+        var bindings = new ProbeBindingRequest[orderedProbeIds.Count];
+        for (var index = 0; index < orderedProbeIds.Count; index++)
         {
-            return Task.CompletedTask;
+            if (!probeById.TryGetValue(orderedProbeIds[index], out var probe))
+            {
+                return Task.CompletedTask;
+            }
+
+            bindings[index] = new RetainProbe(probe.ProbeId, probe.Source);
         }
 
-        return ReplaceProbesAsync([.. orderedProbeIds.Select(probeId =>
-            (ProbeBindingRequest)new RetainProbe(
-                probeById[probeId].ProbeId,
-                probeById[probeId].Source))]);
+        return ReplaceProbesAsync(bindings);
     }
 
     private Task RemoveProbeAsync(string probeId)
@@ -165,7 +168,13 @@ public sealed partial class Editor
             "replace");
         Status = Text[
             "ProbeRevealed",
-            ProbePresentation.Label(projection.ProjectRevision, source, 0)];
+            ProbePresentation.Label(
+                projection.ProjectRevision,
+                source,
+                0,
+                new ProbePresentationLabels(
+                    Text["ComponentInput"],
+                    Text["ComponentOutput"]))];
         return Task.CompletedTask;
     }
 }

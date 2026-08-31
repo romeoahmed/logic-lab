@@ -25,7 +25,6 @@ WaveformAdapter
 
 WaveformHandle : IAsyncDisposable
   ReplaceAsync(WaveformSnapshotV1, CancellationToken) -> Task
-  ApplyAsync(WaveformPatchV1, CancellationToken) -> Task
   SetInteractionModeAsync(CommitEnabled | LocalOnly, CancellationToken) -> Task
 ```
 
@@ -57,11 +56,11 @@ Menus, tooltips, property forms, label editors, confirmation, and text input are
 
 Each module maintains one published immutable semantic state and separate transient browser state:
 
-| Published                                                                                 | Transient and browser-local                                                                                      |
-| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| exact snapshot/patch versions, static display list, overlays, waveform rows/segments/gaps | viewport, hover, focus ring, active tool, captured pointer, preview, marquee, local cursor motion, pending frame |
+| Published                                                                            | Transient and browser-local                                                                                      |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| exact published versions, static display list, overlays, waveform rows/segments/gaps | viewport, hover, focus ring, active tool, captured pointer, preview, marquee, local cursor motion, pending frame |
 
-The [Browser Adapter Contract](../contracts/browser-adapters.md) solely defines valid snapshot/patch values and preconditions. `ReplaceAsync` validates a complete candidate, then swaps published state atomically; `SceneUnavailableV1` is a complete replacement that clears drawable static state. `ApplyAsync` either publishes the contract-valid exact-base patch once or changes nothing and requests a complete authorized replacement.
+The [Browser Adapter Contract](../contracts/browser-adapters.md) solely defines valid published values and preconditions. `ReplaceAsync` validates a complete candidate, then swaps published state atomically; `SceneUnavailableV1` is a complete replacement that clears drawable static state. The Scene adapter alone supports exact-base patches because it has a real patch producer; Waveform uses complete replacements.
 
 The C# adapter may divide a large semantic replacement into bounded private interop batches. JavaScript assembles them under an unguessable transfer identity and publishes only after a terminal commit validates counts and digest. Batch mechanics are adapter implementation, never a second Scene contract; interruption discards the candidate and leaves the prior published state.
 
@@ -164,7 +163,7 @@ Canvas is the sole dense schematic editor. Razor supplies the host's localizable
 
 Selection identity is shared by Canvas, Inspector, Diagnostics, Probe Spine, and waveform navigation. When a snapshot removes the selected identity, Web clears selection or chooses the owning source defined by the Workspace projection. Browser-local hover and focus never become Project state.
 
-Every Scene and Waveform replacement carries the resolved BCP-47 UI culture and base direction from [Web Host §5](./web-host.md#5-culture-localization-and-direction). Canvas text sets its explicit language/direction state, uses supplied Geometry Plan text and alignment, and never generates a localized diagnostic. Stable protocol values remain invariant. Geometry Plan owns measured Canvas shaping and direction for user-authored text.
+Every Scene replacement carries the resolved BCP-47 UI culture and base direction from [Web Host §5](./web-host.md#5-culture-localization-and-direction). Scene Canvas text sets its explicit language/direction state, uses supplied Geometry Plan text and alignment, and never generates a localized diagnostic. The Waveform Canvas receives no localized text; Razor owns its labels and direction. Stable protocol values remain invariant. Geometry Plan owns measured Canvas shaping and direction for user-authored text.
 
 Browser text zoom, schematic zoom, long English/Chinese labels, bidirectional content, and non-color Logic Value/Probe recipes are layout and visual-correctness scenarios. Logic Lab does not require a parallel screen-reader editor, forced-colors renderer, or full keyboard authoring path.
 
@@ -191,7 +190,7 @@ The C# adapter implements asynchronous disposal, releases every `IJSObjectRefere
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | 2D context unavailable                                 | `web_renderer_unavailable(contextUnavailable)`                                                | hide the bitmap; show the renderer-unavailable state and recovery actions                                                 |
 | effective size/pixel policy exceeded                   | `web_browser_policy_exhausted` with exact policy evidence                                     | don't allocate or degrade silently; hide any noncurrent bitmap and show recovery actions                                  |
-| invalid snapshot, patch, or private batch              | `web_browser_contract_rejected(invalidSnapshot \| invalidPatch \| invalidBatch, correlation)` | apply nothing; request one complete replacement; never log the record                                                     |
+| invalid snapshot, Scene patch, or private batch        | `web_browser_contract_rejected(invalidSnapshot \| invalidPatch \| invalidBatch, correlation)` | apply nothing; request one complete replacement; never log the record                                                     |
 | build mismatch                                         | `build_fingerprint_mismatch` attachment/outcome reason                                        | cancel the gesture, destroy handles, and force a hard reload                                                              |
 | browser font unavailable or asset fingerprint mismatch | `web_renderer_unavailable(fontUnavailable \| assetFingerprintMismatch)`                       | publish local renderer unavailable; use no substitute geometry                                                            |
 | context loss/restoration when supported                | no evidence if restored; otherwise `web_renderer_unavailable(contextLost)`                    | cancel paint, invalidate caches, and perform a full redraw after restoration; fail closed if restoration doesn't complete |
@@ -206,12 +205,12 @@ Browser Policy is deployment configuration, not circuit semantics. Its exact sha
 
 No numeric default becomes normative until the versioned circuit corpus, supported browser/device matrix, measurement method, and evidence record exist. A policy failure is structured and doesn't silently reduce geometry, omit an item, lower required display density, or summarize Trace without an explicit request.
 
-Browser traces record input-to-preview, acknowledged-intent-to-overlay, scene replacement, patch apply, frame script/render, long tasks, allocations/heap, cache behavior, and idle activity. `requestAnimationFrame` cadence is display-dependent; acceptance uses distributions on declared environments, not a universal 16.7 ms promise.
+Browser traces record input-to-preview, acknowledged-intent-to-overlay, replacement, Scene patch apply, frame script/render, long tasks, allocations/heap, cache behavior, and idle activity. `requestAnimationFrame` cadence is display-dependent; acceptance uses distributions on declared environments, not a universal 16.7 ms promise.
 
 ## 13. Required evidence
 
 - mount, remount, disposal, host removal, circuit loss, module disposal, and leak-soak scenarios;
-- snapshot/patch atomicity, build/version mismatch, duplicate/out-of-order batch, and complete-replacement recovery;
+- snapshot and Scene-patch atomicity, build/version mismatch, duplicate/out-of-order batch, and complete-replacement recovery;
 - transform round trips, grid tie rule, negative/extreme coordinates, hit priority, culling, and viewport fit/reveal properties;
 - CSS size, fractional size, DPR, page zoom, monitor-density change, zero-size suspension, bitmap policy, and context-reset scenarios;
 - dirty-mask/rAF tests proving at most one pending frame, no idle loop, coherent frame state, and no relation to Logical Time;

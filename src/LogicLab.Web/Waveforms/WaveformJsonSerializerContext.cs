@@ -7,7 +7,6 @@ namespace LogicLab.Web.Waveforms;
     GenerationMode = JsonSourceGenerationMode.Metadata,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(WaveformSnapshotV1))]
-[JsonSerializable(typeof(WaveformPatchV1))]
 [JsonSerializable(typeof(WaveformIntentV1))]
 internal sealed partial class WaveformJsonSerializerContext : JsonSerializerContext
 {
@@ -17,6 +16,5 @@ internal sealed partial class WaveformJsonSerializerContext : JsonSerializerCont
         JsonSerializerOptions.Strict)
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        AllowOutOfOrderMetadataProperties = true,
     };
 }

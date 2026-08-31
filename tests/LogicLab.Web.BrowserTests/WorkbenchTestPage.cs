@@ -11,19 +11,29 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
 
     public ILocator PlaceOptions => Palette.Locator("[data-place-option]");
 
-    public ILocator Probes => page.Locator("[data-probe]");
+    public ILocator Probes => Waveform.GetByRole(AriaRole.Listitem);
 
     public ILocator Renderer => page.Locator("[data-scene-renderer]");
 
-    public ILocator Waveform => page.Locator(".logic-analyzer");
+    public ILocator Waveform => page.GetByRole(
+        AriaRole.Region,
+        new PageGetByRoleOptions { Name = "Logic Analyzer" });
 
-    public ILocator WaveformCanvas => page.Locator("canvas[data-waveform-canvas]");
+    public ILocator WaveformCanvas => Waveform.GetByLabel("Waveform chart");
 
-    public ILocator WaveformLive => page.Locator("[data-waveform-live]");
+    public ILocator WaveformLive => WaveformControl("Time range", "Follow live");
 
-    public ILocator WaveformClose => page.Locator("[data-waveform-close]");
+    public ILocator WaveformClose => Waveform.GetByText(
+        "Hide",
+        new LocatorGetByTextOptions { Exact = true });
 
-    public ILocator WaveformOpen => page.Locator("[data-waveform-open]");
+    public ILocator WaveformOpen => Waveform.GetByText(
+        "Show waveform",
+        new LocatorGetByTextOptions { Exact = true });
+
+    public ILocator WaveformZoomIn => WaveformControl("Time range", "Zoom in");
+
+    public ILocator WaveformSecondaryCursor => WaveformControl("Time cursors", "B");
 
     public ILocator Command(string command) =>
         page.Locator($"[data-command='{command}']");
@@ -37,10 +47,22 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
     public ILocator Tool(string tool) =>
         page.Locator($"[data-scene-tool='{tool}']");
 
-    public ILocator WaveformRepresentation(string representation) =>
-        page.Locator($"[data-waveform-representation='{representation}']");
+    public ILocator WaveformRepresentation(string representation) => WaveformControl(
+        "Display detail",
+        representation switch
+        {
+            "transitions" => "Full detail",
+            "summary" => "Overview",
+            _ => throw new ArgumentOutOfRangeException(nameof(representation)),
+        });
 
     private ILocator Palette => page.GetByTestId("component-palette");
+
+    private ILocator WaveformControl(string group, string label) =>
+        Waveform.GetByRole(
+                AriaRole.Group,
+                new LocatorGetByRoleOptions { Name = group })
+            .GetByText(label, new LocatorGetByTextOptions { Exact = true });
 
     public async Task OpenSandboxAsync(int width = 1_280, int height = 900)
     {

@@ -25,7 +25,7 @@ internal sealed class WaveformCanvasContractTests : PageTest
     }
 
     [Test]
-    public async Task Snapshot_CoverageHoleOrNonzeroPadding_IsRejectedAtomically()
+    public async Task Snapshot_InvalidRecords_AreRejectedWithoutPoisoningNextCommit()
     {
         var waveform = new WaveformCanvasTestPage(Page);
         await waveform.OpenAndMountAsync();
@@ -34,31 +34,17 @@ internal sealed class WaveformCanvasContractTests : PageTest
             WaveformCanvasTestPage.Snapshot(segmentEndExclusive: "9"));
         var nonzeroPadding = await waveform.CommitSnapshotAsync(
             WaveformCanvasTestPage.Snapshot(vectorData: "BA=="));
+        var unresolvedSegment = await waveform.CommitSnapshotAsync(
+            WaveformCanvasTestPage.Snapshot(binding: "unresolved"));
+        var valid = await waveform.CommitSnapshotAsync(
+            WaveformCanvasTestPage.Snapshot());
 
         using (Assert.Multiple())
         {
             await Assert.That(coverageHole).IsFalse();
             await Assert.That(nonzeroPadding).IsFalse();
-            await Assert.That(await waveform.PublishedVersionAsync()).IsNull();
-        }
-    }
-
-    [Test]
-    public async Task Snapshot_UnresolvedRowWithMismatchedValueWidth_IsRejected()
-    {
-        var waveform = new WaveformCanvasTestPage(Page);
-        await waveform.OpenAndMountAsync();
-
-        var committed = await waveform.CommitSnapshotAsync(
-            WaveformCanvasTestPage.Snapshot(
-                binding: "unresolved",
-                bindingReason: "sourceMissing",
-                vectorWidth: 2));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(committed).IsFalse();
-            await Assert.That(await waveform.PublishedVersionAsync()).IsNull();
+            await Assert.That(unresolvedSegment).IsFalse();
+            await Assert.That(valid).IsTrue();
         }
     }
 
@@ -83,9 +69,56 @@ internal sealed class WaveformCanvasContractTests : PageTest
             WaveformCanvasTestPage.Snapshot(
                 viewportEndExclusive: endExclusive,
                 segmentEndExclusive: endExclusive))).IsTrue();
+        await waveform.WaitForFramesAsync();
 
-        await Assert.That(await waveform.TimeAtAsync(300))
+        await waveform.Canvas.ClickAsync(new LocatorClickOptions
+        {
+            Position = new Position { X = 300, Y = 80 },
+        });
+
+        await Assert.That(await waveform.WaitForCursorLogicalTimeAsync())
             .IsEqualTo("9223372036854775807");
+    }
+
+    [Test]
+    public async Task DeviceDensityChange_ResizesBitmapAndRearmsTheMediaQuery()
+    {
+        var waveform = new WaveformCanvasTestPage(Page);
+        await waveform.OpenAndMountAsync();
+
+        await waveform.ChangeDeviceDensityAsync(2);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(await waveform.BitmapWidthAsync()).IsEqualTo(1_200);
+            await Assert.That(await waveform.LastDensityQueryAsync())
+                .IsEqualTo("(resolution: 2dppx)");
+        }
+    }
+
+    [Test]
+    public async Task LocalOnly_WheelZoomsLocallyWithoutPublishingAnIntent()
+    {
+        var waveform = new WaveformCanvasTestPage(Page);
+        await waveform.OpenAndMountAsync();
+        await Assert.That(await waveform.CommitSnapshotAsync(
+            WaveformCanvasTestPage.Snapshot())).IsTrue();
+        await waveform.WaitForFramesAsync();
+        var before = await waveform.Canvas.ScreenshotAsync();
+
+        await waveform.SetLocalOnlyAsync();
+        await waveform.Canvas.HoverAsync();
+        await Page.Mouse.WheelAsync(0, 100);
+        await waveform.WaitForFramesAsync();
+        var after = await waveform.Canvas.ScreenshotAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(after).IsNotEquivalentTo(
+                before,
+                TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(await waveform.IntentCountAsync()).IsEqualTo(0);
+        }
     }
 
     [Test]
@@ -173,16 +206,15 @@ internal sealed class WaveformCanvasTestPage(IPage page)
                 {
                   policyId: 'logiclab-browser',
                   policyRevision: 'test-1',
+                  semanticIntentBytes: 16_384,
                   interopBatchBytes: 16_384,
                   candidateTransferBytes: 1_000_000,
                   canvasBitmapPixels: 10_000_000,
                   effectiveDensityMillionths: 3_000_000,
-                  zoomMillionthsMinimum: 50_000,
-                  zoomMillionthsMaximum: 4_000_000,
                 },
                 {
                   invokeMethodAsync(method, payload) {
-                    if (method === 'ReceiveWaveformIntent') {
+                    if (method === 'ReceiveWaveformIntentAsync') {
                       window.receivedWaveformIntents.push(payload);
                     }
                     return Promise.resolve();
@@ -231,13 +263,10 @@ internal sealed class WaveformCanvasTestPage(IPage page)
     public Task<int> MaximumPendingFramesAsync() => page.EvaluateAsync<int>(
         "() => window.maximumPendingWaveformFrames");
 
-    public Task<int?> PublishedVersionAsync() => page.EvaluateAsync<int?>(
-        "() => window.waveformHandle.published?.waveformVersion ?? null");
-
     public Task<bool> AppendBeyondDeclaredLengthIsRejectedAsync() =>
         page.EvaluateAsync<bool>(
             """
-            () => {
+            async () => {
               const transferId = 'declared-length-test';
               window.waveformHandle.beginTransfer(
                 transferId,
@@ -248,14 +277,38 @@ internal sealed class WaveformCanvasTestPage(IPage page)
                 window.waveformHandle.appendTransfer(transferId, 0, 'AAE=');
                 return false;
               } catch {
-                return !window.waveformHandle.transfers.has(transferId);
+                return !(await window.waveformHandle.commitTransfer(transferId));
               }
             }
             """);
 
-    public Task<string> TimeAtAsync(double cssX) => page.EvaluateAsync<string>(
-        "cssX => window.waveformHandle.timeAt(cssX).toString()",
-        cssX);
+    public Task<int> BitmapWidthAsync() => page.EvaluateAsync<int>(
+        "() => document.querySelector('[data-waveform-canvas]').width");
+
+    public Task<string> LastDensityQueryAsync() => page.EvaluateAsync<string>(
+        "() => window.waveformDensityQueries.at(-1)");
+
+    public Task<int> IntentCountAsync() => page.EvaluateAsync<int>(
+        "() => window.receivedWaveformIntents.length");
+
+    public Task SetLocalOnlyAsync() => page.EvaluateAsync(
+        "() => window.waveformHandle.setInteractionMode('localOnly')");
+
+    public async Task ChangeDeviceDensityAsync(double density)
+    {
+        await page.EvaluateAsync(
+            """
+            density => {
+              Object.defineProperty(window, 'devicePixelRatio', {
+                configurable: true,
+                value: density,
+              });
+              window.waveformDensityMedia.dispatchEvent(new Event('change'));
+            }
+            """,
+            density);
+        await WaitForFramesAsync();
+    }
 
     public async Task DispatchForeignPointerCancellationAsync()
     {
@@ -290,17 +343,27 @@ internal sealed class WaveformCanvasTestPage(IPage page)
             """);
     }
 
+    public async Task<string> WaitForCursorLogicalTimeAsync()
+    {
+        await page.WaitForFunctionAsync(
+            "() => window.receivedWaveformIntents.some(intent => intent.kind === 'setCursor')");
+        return await page.EvaluateAsync<string>(
+            """
+            () => window.receivedWaveformIntents
+              .findLast(intent => intent.kind === 'setCursor')
+              .logicalTime
+            """);
+    }
+
     public Task<bool> DestroyActiveGestureAsync() => page.EvaluateAsync<bool>(
         """
         () => {
           const canvas = document.querySelector('[data-waveform-canvas]');
-          const pointerId = window.waveformHandle.gesture?.pointerId;
-          const captured = pointerId !== undefined && canvas.hasPointerCapture(pointerId);
+          const pointerId = window.lastWaveformPointerId;
+          const captured = Number.isInteger(pointerId) && canvas.hasPointerCapture(pointerId);
           window.waveformHandle.destroy();
           return captured &&
             !canvas.hasPointerCapture(pointerId) &&
-            window.waveformHandle.gesture === null &&
-            window.waveformHandle.pendingFrame === 0 &&
             window.pendingWaveformFrameIds.size === 0;
         }
         """);
@@ -309,16 +372,8 @@ internal sealed class WaveformCanvasTestPage(IPage page)
         string segmentEndExclusive = "10",
         string vectorData = "AA==",
         string viewportEndExclusive = "10",
-        string binding = "resolved",
-        string? bindingReason = null,
-        uint vectorWidth = 1)
+        string binding = "resolved")
     {
-        var value = new
-        {
-            Width = vectorWidth,
-            Encoding = "logic4-2bit-v1",
-            Data = vectorData,
-        };
         var traceValue = new
         {
             Width = 1U,
@@ -333,39 +388,16 @@ internal sealed class WaveformCanvasTestPage(IPage page)
             SessionId = "session-a",
             SessionVersion = 1,
             CompilationArtifactKey = "artifact-a",
-            UiCulture = "en-US",
-            BaseDirection = "leftToRight",
             Rows = new[]
             {
                 new
                 {
                     ProbeId = "probe-a",
-                    Net = new
-                    {
-                        AuthoredNet = new
-                        {
-                            CircuitDefinitionId = "main",
-                            EntityKind = "net",
-                            EntityId = "net-a",
-                            PortId = (string?)null,
-                        },
-                        HierarchyPath = new
-                        {
-                            EntryCircuitDefinitionId = "main",
-                            Steps = Array.Empty<object>(),
-                        },
-                    },
                     Width = 1,
                     DisplayOrdinal = 0,
-                    ShortLabel = "A",
-                    Radix = "binary",
                     AppearanceOrdinal = 0,
                     Pattern = "solid",
                     Binding = binding,
-                    BindingReason = bindingReason,
-                    SceneNavigation = "available",
-                    NavigationReason = (string?)null,
-                    CurrentValue = value,
                 },
             },
             ViewState = new
@@ -377,7 +409,6 @@ internal sealed class WaveformCanvasTestPage(IPage page)
                 },
                 PrimaryCursor = (object?)null,
                 SecondaryCursor = (object?)null,
-                LiveFollow = true,
             },
             Trace = new
             {
@@ -392,13 +423,10 @@ internal sealed class WaveformCanvasTestPage(IPage page)
                             StartInclusive = "0",
                             EndExclusive = segmentEndExclusive,
                         },
-                        Sequence = "1",
                         Value = traceValue,
                         TransitionAtStart = false,
                     },
                 },
-                Gaps = Array.Empty<object>(),
-                LatestSequence = "1",
             },
         };
     }
@@ -407,7 +435,23 @@ internal sealed class WaveformCanvasTestPage(IPage page)
         """
         <!doctype html>
         <html lang="en">
-        <head><meta charset="utf-8"></head>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            :root {
+              --ll-canvas: #ffffff;
+              --ll-ink: #172a33;
+              --ll-muted: #536970;
+              --ll-border: #b7c7cc;
+              --ll-waveform-probe-0: #08788c;
+              --ll-waveform-probe-1: #b85e3d;
+              --ll-waveform-probe-2: #6d6ab7;
+              --ll-waveform-probe-3: #2c8475;
+              --ll-waveform-cursor-primary: #b85e3d;
+              --ll-waveform-cursor-secondary: #6d6ab7;
+            }
+          </style>
+        </head>
         <body>
           <section data-waveform-host style="display:grid;grid-template-columns:180px 600px">
             <aside data-probe-spine style="height:300px;overflow:auto">
@@ -417,6 +461,17 @@ internal sealed class WaveformCanvasTestPage(IPage page)
             <canvas data-waveform-canvas style="display:block;width:600px;height:300px"></canvas>
           </section>
           <script>
+            window.waveformDensityQueries = [];
+            const nativeMatchMedia = window.matchMedia.bind(window);
+            window.matchMedia = query => {
+              window.waveformDensityQueries.push(query);
+              window.waveformDensityMedia = nativeMatchMedia(query);
+              return window.waveformDensityMedia;
+            };
+            document.querySelector('[data-waveform-canvas]').addEventListener(
+              'pointerdown',
+              event => { window.lastWaveformPointerId = event.pointerId; },
+              { capture: true });
             window.pendingWaveformFrameIds = new Set();
             window.maximumPendingWaveformFrames = 0;
             const nativeRequestAnimationFrame = window.requestAnimationFrame.bind(window);

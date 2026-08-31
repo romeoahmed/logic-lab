@@ -107,7 +107,7 @@ public sealed record SimulationSessionId
 
     internal static SimulationSessionId Create()
     {
-        return new SimulationSessionId(Guid.NewGuid().ToString("N"));
+        return new SimulationSessionId(Guid.CreateVersion7().ToString("N"));
     }
 }
 
@@ -122,7 +122,7 @@ public sealed record ProbeId
 
     internal static ProbeId Create()
     {
-        return new ProbeId(Guid.NewGuid().ToString("N"));
+        return new ProbeId(Guid.CreateVersion7().ToString("N"));
     }
 }
 
@@ -817,23 +817,19 @@ public sealed class SimulationTraceWindowRequest
     public SimulationTraceWindowRequest(
         IReadOnlyList<ProbeId> probeIds,
         LogicalTimeRange range,
-        ulong? afterSequence)
-        : this(
-            probeIds,
-            range,
-            TraceTransitionsRepresentation.Instance,
-            afterSequence)
-    {
-    }
-
-    public SimulationTraceWindowRequest(
-        IReadOnlyList<ProbeId> probeIds,
-        LogicalTimeRange range,
         TraceWindowRepresentation representation,
         ulong? afterSequence)
     {
         ArgumentNullException.ThrowIfNull(probeIds);
         ArgumentNullException.ThrowIfNull(representation);
+        if (representation is TraceVisualSummaryRepresentation
+            && afterSequence is not null)
+        {
+            throw new ArgumentException(
+                "A visual Trace summary does not accept a continuation sequence.",
+                nameof(afterSequence));
+        }
+
         var ownedProbeIds = probeIds.ToArray();
         if (ownedProbeIds.Length == 0
             || ownedProbeIds.Any(static id => id is null)
@@ -841,6 +837,14 @@ public sealed class SimulationTraceWindowRequest
         {
             throw new ArgumentException(
                 "A Trace window requires nonempty unique ordered Probe IDs.",
+                nameof(probeIds));
+        }
+
+        if (representation is TraceVisualSummaryRepresentation summary
+            && (long)ownedProbeIds.Length * summary.MaxPoints > int.MaxValue)
+        {
+            throw new ArgumentException(
+                "A Trace summary must fit a .NET collection.",
                 nameof(probeIds));
         }
 
@@ -879,9 +883,9 @@ public sealed record TraceVisualSummaryRepresentation : TraceWindowRepresentatio
 {
     public const string LogicEnvelopeV1 = "logic-envelope-v1";
 
-    public TraceVisualSummaryRepresentation(uint maxPoints, string aggregation)
+    public TraceVisualSummaryRepresentation(int maxPoints, string aggregation)
     {
-        ArgumentOutOfRangeException.ThrowIfZero(maxPoints);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPoints);
         if (!string.Equals(aggregation, LogicEnvelopeV1, StringComparison.Ordinal))
         {
             throw new ArgumentException(
@@ -893,7 +897,7 @@ public sealed record TraceVisualSummaryRepresentation : TraceWindowRepresentatio
         Aggregation = aggregation;
     }
 
-    public uint MaxPoints { get; }
+    public int MaxPoints { get; }
 
     public string Aggregation { get; }
 }
@@ -980,8 +984,7 @@ public sealed record TraceSummaryBucket(
     LogicVector FirstValue,
     LogicVector LastValue,
     bool HadTransition,
-    bool HadMixedValues,
-    bool HadUnavailableValues);
+    bool HadMixedValues);
 
 public sealed record TraceSummaryAvailable : SimulationReadOutcome
 {
@@ -1012,25 +1015,15 @@ public sealed record TraceSummaryAvailable : SimulationReadOutcome
     public ulong LatestSequence { get; }
 }
 
-public enum TraceRangeUnavailableReason
-{
-    Evicted,
-    ArtifactChanged,
-}
-
 public sealed record TraceRangeUnavailable : SimulationReadOutcome
 {
     internal TraceRangeUnavailable(
-        TraceRangeUnavailableReason reason,
         ulong earliestAvailable,
         ulong latestSequence)
     {
-        Reason = reason;
         EarliestAvailable = earliestAvailable;
         LatestSequence = latestSequence;
     }
-
-    public TraceRangeUnavailableReason Reason { get; }
 
     public ulong EarliestAvailable { get; }
 

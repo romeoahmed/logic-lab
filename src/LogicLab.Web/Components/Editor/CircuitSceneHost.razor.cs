@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
@@ -350,30 +349,19 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             return Task.CompletedTask;
         }
 
-        if (!string.Equals(policyId, Policy.PolicyId, StringComparison.Ordinal)
-            || !string.Equals(
+        if (!BrowserPolicyEvidenceV1.TryCreate(
+                Policy,
+                policyId,
                 policyRevision,
-                Policy.PolicyRevision,
-                StringComparison.Ordinal)
-            || !BrowserPolicyDimensionTokens.TryParse(dimensionToken, out var dimension)
-            || !ulong.TryParse(
+                dimensionToken,
                 observedText,
-                NumberStyles.None,
-                CultureInfo.InvariantCulture,
-                out var observed)
-            || !Policy.Rejects(dimension, observed))
+                out var evidence))
         {
             FailClosed("web_interop_failure");
             return InvokeAsync(StateHasChanged);
         }
 
-        FailClosed(
-            "browserPolicyExhausted",
-            new BrowserPolicyEvidenceV1(
-                policyId,
-                policyRevision,
-                dimension,
-                observed));
+        FailClosed("browserPolicyExhausted", evidence);
         return InvokeAsync(StateHasChanged);
     }
 
@@ -534,11 +522,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             failedKey = key;
             FailClosed(
                 "browserPolicyExhausted",
-                new BrowserPolicyEvidenceV1(
-                    exception.PolicyId,
-                    exception.PolicyRevision,
-                    exception.Dimension,
-                    exception.Observed));
+                BrowserPolicyEvidenceV1.From(exception));
         }
         catch (BrowserSceneContractException exception)
         {

@@ -14,45 +14,46 @@ namespace LogicLab.Web.Components.Editor;
 
 public sealed partial class LogicAnalyzer : IAsyncDisposable
 {
-    internal const string RendererReadyState = "ready";
-    internal const string RendererUnavailableState = "unavailable";
-    private const string RendererStartingState = "starting";
-    private const uint DefaultSummaryPointCount = 512;
+    private const int DefaultSummaryPointCount = 512;
     private const ulong InitialViewportSpan = 64;
     private readonly CancellationTokenSource componentLifetime = new();
+    private readonly HashSet<string> observedProbeIds = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> radixByProbeId = new(StringComparer.Ordinal);
     private readonly List<WaveformRowV1> recoveryRows = [];
     private ElementReference hostElement;
     private BrowserWaveformAdapter? adapter;
-    private WaveformCallbackSink? callbackSink;
     private DotNetObjectReference<WaveformCallbackSink>? callbackReference;
+    private CancellationTokenSource? traceLoad;
+    private TraceWindowOutcome? currentTrace;
     private WaveformSnapshotV1? snapshot;
     private WaveformSnapshotV1? publishedSnapshot;
     private TraceLoadKey? loadedKey;
     private TraceTimeRange? viewport;
     private string? observedSessionId;
     private string? observedArtifactKey;
+    private string? projectedUiCulture;
     private ulong nextWaveformVersion;
     private ulong rendererGeneration;
     private ulong loadEpoch;
     private ulong? primaryCursor;
     private ulong? secondaryCursor;
-    private uint summaryPointCount = DefaultSummaryPointCount;
+    private WaveformInteractionMode? publishedInteractionMode;
     private bool liveFollow = true;
     private bool summaryRequested;
     private bool traceLoading;
     private bool isOpen = true;
-    private string rendererState = RendererStartingState;
-    private string? traceFailure;
+    private bool rendererUnavailable;
+    private TraceFailure? traceFailure;
+    private BrowserPolicyEvidenceV1? browserPolicyEvidence;
     private int isDisposed;
 
     [Parameter]
     public WorkspaceProjection? Projection { get; set; }
 
-    [Parameter]
-    public Func<TraceWindowRequest, CancellationToken, Task<TraceWindowOutcome?>>?
+    [Parameter, EditorRequired]
+    public Func<TraceWindowRequest, CancellationToken, Task<TraceWindowOutcome?>>
         TraceReader
-    { get; set; }
+    { get; set; } = null!;
 
     [Parameter]
     public EventCallback<IReadOnlyList<string>> OnProbeOrderChanged { get; set; }
@@ -80,22 +81,22 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
 
     private SimulationProjection? Simulation => Projection?.Simulation;
 
-    private IReadOnlyList<WaveformRowV1> Rows => snapshot?.Rows ?? [];
+    private ProbePresentationLabels PresentationLabels => new(
+        Text["ComponentInput"],
+        Text["ComponentOutput"]);
 
-    private string ResolutionToken => summaryRequested ? "summary" : "transitions";
+    private IReadOnlyList<WaveformRowV1> Rows => snapshot?.Rows ?? [];
 
     private ulong? CursorDelta => primaryCursor is { } primary
         && secondaryCursor is { } secondary
             ? primary >= secondary ? primary - secondary : secondary - primary
             : null;
 
-    private static string Aria(bool value) => value ? "true" : "false";
-
     private string TraceFailureMessage => traceFailure switch
     {
-        "evicted" => Text["TraceEvicted"],
-        "artifactChanged" => Text["TraceArtifactChanged"],
-        "renderer" => Text["WaveformUnavailable"],
+        TraceFailure.Evicted => Text["TraceEvicted"],
+        TraceFailure.ArtifactChanged => Text["TraceArtifactChanged"],
+        TraceFailure.Renderer => Text["WaveformUnavailable"],
         _ => Text["TraceUnavailable"],
     };
 
@@ -106,39 +107,50 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             return;
         }
 
-        if (Simulation is not { } simulation)
+        if (Projection is not { Simulation: { } simulation } projection)
         {
+            CancelTraceLoad();
             snapshot = null;
+            currentTrace = null;
             loadedKey = null;
             viewport = null;
             recoveryRows.Clear();
+            observedProbeIds.Clear();
             observedSessionId = null;
             observedArtifactKey = null;
-            await ReleaseRendererForMissingSurfaceAsync();
+            projectedUiCulture = null;
+            await ResetRendererAsync();
             return;
         }
 
-        ObserveSessionChange(simulation);
+        ObserveSessionChange(projection);
         FollowLiveTime(simulation.LogicalTime);
+        if (!isOpen)
+        {
+            return;
+        }
+
         await LoadTraceAsync(force: false);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!RendererInfo.IsInteractive
-            || Volatile.Read(ref isDisposed) != 0
-            || !isOpen
-            || snapshot is null
-            || rendererState == RendererUnavailableState)
+        if (!RendererInfo.IsInteractive || Volatile.Read(ref isDisposed) != 0)
         {
             return;
         }
 
-        var rendererBecameReady = false;
+        if (!isOpen
+            || snapshot is null
+            || rendererUnavailable)
+        {
+            return;
+        }
+
         if (adapter is null)
         {
-            callbackSink = new WaveformCallbackSink(this, rendererGeneration);
-            callbackReference = DotNetObjectReference.Create(callbackSink);
+            callbackReference = DotNetObjectReference.Create(
+                new WaveformCallbackSink(this, rendererGeneration));
             try
             {
                 adapter = await BrowserWaveformAdapter.MountAsync(
@@ -148,39 +160,45 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
                     Policy,
                     callbackReference,
                     componentLifetime.Token);
-                rendererState = RendererReadyState;
-                rendererBecameReady = true;
+            }
+            catch (BrowserPolicyException exception)
+            {
+                await FailRendererAsync(BrowserPolicyEvidenceV1.From(exception));
+                return;
             }
             catch (Exception exception) when (IsRecoverable(exception))
             {
-                FailClosed("renderer");
-                await InvokeAsync(StateHasChanged);
+                await FailRendererAsync();
                 return;
             }
         }
 
         try
         {
-            await adapter.SetInteractionModeAsync(
-                IsConnected
-                    ? WaveformInteractionMode.CommitEnabled
-                    : WaveformInteractionMode.LocalOnly,
-                componentLifetime.Token);
+            var interactionMode = IsConnected
+                ? WaveformInteractionMode.CommitEnabled
+                : WaveformInteractionMode.LocalOnly;
+            if (publishedInteractionMode != interactionMode)
+            {
+                await adapter.SetInteractionModeAsync(
+                    interactionMode,
+                    componentLifetime.Token);
+                publishedInteractionMode = interactionMode;
+            }
+
             if (publishedSnapshot?.WaveformVersion != snapshot.WaveformVersion)
             {
                 await adapter.ReplaceAsync(snapshot, componentLifetime.Token);
                 publishedSnapshot = snapshot;
             }
-
-            if (rendererBecameReady)
-            {
-                await InvokeAsync(StateHasChanged);
-            }
+        }
+        catch (BrowserPolicyException exception)
+        {
+            await FailRendererAsync(BrowserPolicyEvidenceV1.From(exception));
         }
         catch (Exception exception) when (IsRecoverable(exception))
         {
-            FailClosed("renderer");
-            await InvokeAsync(StateHasChanged);
+            await FailRendererAsync();
         }
     }
 
@@ -224,48 +242,7 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
                 break;
             case SetWaveformCursorIntentV1 setCursor:
                 SetCursor(setCursor.CursorKind, setCursor.LogicalTime);
-                await ReprojectCurrentTraceAsync();
-                break;
-            case SetWaveformLiveFollowIntentV1 setLive:
-                liveFollow = setLive.Enabled;
-                if (liveFollow && Simulation is { } simulation)
-                {
-                    FollowLiveTime(simulation.LogicalTime, force: true);
-                }
-
-                await ReloadAsync();
-                break;
-            case SetWaveformProbeOrderIntentV1 setOrder:
-                if (HasExactActiveProbeSet(setOrder.ProbeIds))
-                {
-                    await OnProbeOrderChanged.InvokeAsync(setOrder.ProbeIds);
-                }
-
-                break;
-            case SetWaveformProbeRadixIntentV1 setRadix:
-                if (Simulation is { } currentSimulation
-                    && currentSimulation.Probes.Any(probe =>
-                        probe.ProbeId.Value == setRadix.ProbeId))
-                {
-                    radixByProbeId[setRadix.ProbeId] = setRadix.Radix;
-                    await ReloadAsync();
-                }
-
-                break;
-            case RequestWaveformTraceWindowIntentV1 request:
-                await ApplyTraceRequestAsync(request.Request);
-                break;
-            case RevealWaveformNetIntentV1 reveal:
-                if (Rows.Any(row => row.ProbeId == reveal.ProbeId
-                    && row.SceneNavigation == "available"))
-                {
-                    await OnRevealProbe.InvokeAsync(SourceFor(reveal.ProbeId));
-                }
-
-                break;
-            case CloseWaveformIntentV1:
-                await CloseAnalyzerAsync();
-                await InvokeAsync(StateHasChanged);
+                await ReprojectAsync();
                 break;
             default:
                 await ReloadAsync();
@@ -273,15 +250,41 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         }
     }
 
-    internal Task WaveformRendererFailedAsync(ulong generation, string _)
+    internal async Task WaveformRendererFailedAsync(ulong generation)
     {
         if (generation == rendererGeneration && Volatile.Read(ref isDisposed) == 0)
         {
-            FailClosed("renderer");
-            return InvokeAsync(StateHasChanged);
+            await FailRendererAsync();
+        }
+    }
+
+    internal async Task WaveformBrowserPolicyExhaustedAsync(
+        ulong generation,
+        string policyId,
+        string policyRevision,
+        string dimensionToken,
+        string observedText)
+    {
+        if (generation != rendererGeneration || Volatile.Read(ref isDisposed) != 0)
+        {
+            return;
         }
 
-        return Task.CompletedTask;
+        BrowserPolicyEvidenceV1? evidence = null;
+        if (BrowserPolicyEvidenceV1.TryCreate(
+                Policy,
+                policyId,
+                policyRevision,
+                dimensionToken,
+                observedText,
+                out var candidate)
+            && candidate.Dimension is BrowserLimitDimension.SemanticIntentBytes
+                or BrowserLimitDimension.CanvasBitmapPixels)
+        {
+            evidence = candidate;
+        }
+
+        await FailRendererAsync(evidence);
     }
 
     public async ValueTask DisposeAsync()
@@ -291,40 +294,58 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             return;
         }
 
+        var activeTraceLoad = traceLoad;
+        CancelTraceLoad();
+        activeTraceLoad?.Dispose();
         await componentLifetime.CancelAsync();
-        if (adapter is not null)
-        {
-            await adapter.DisposeAsync();
-        }
-
-        callbackReference?.Dispose();
+        await ReleaseAdapterAsync();
         componentLifetime.Dispose();
     }
 
-    private void ObserveSessionChange(SimulationProjection simulation)
+    private void ObserveSessionChange(WorkspaceProjection projection)
     {
+        var simulation = projection.Simulation!;
         var sessionId = simulation.SessionId.Value;
         var artifactKey = BrowserWaveformProjection.ArtifactKey(
             simulation.CompilationArtifactKey);
-        if (!string.Equals(observedSessionId, sessionId, StringComparison.Ordinal))
+        var sameSession = string.Equals(
+            observedSessionId,
+            sessionId,
+            StringComparison.Ordinal);
+        var activeProbeIds = simulation.Probes
+            .Select(probe => probe.ProbeId.Value)
+            .ToHashSet(StringComparer.Ordinal);
+        var gainedProbe = sameSession
+            && activeProbeIds.Any(probeId => !observedProbeIds.Contains(probeId));
+        if (!sameSession)
         {
+            if (rendererUnavailable)
+            {
+                rendererGeneration = checked(rendererGeneration + 1);
+                rendererUnavailable = false;
+                traceFailure = null;
+                browserPolicyEvidence = null;
+            }
+
             recoveryRows.Clear();
             radixByProbeId.Clear();
+            currentTrace = null;
             viewport = null;
             primaryCursor = null;
             secondaryCursor = null;
-            summaryPointCount = DefaultSummaryPointCount;
             liveFollow = true;
         }
         else if (observedArtifactKey is not null
             && !string.Equals(observedArtifactKey, artifactKey, StringComparison.Ordinal)
             && snapshot is not null)
         {
-            var activeIds = simulation.Probes.Select(probe => probe.ProbeId.Value)
-                .ToHashSet(StringComparer.Ordinal);
+            currentTrace = null;
             var unresolved = snapshot.Rows
-                .Where(row => !activeIds.Contains(row.ProbeId))
-                .Select(UnresolvedAfterHotSwap)
+                .Where(row => !activeProbeIds.Contains(row.ProbeId))
+                .Select(row => BrowserWaveformProjection.Recover(
+                    projection.ProjectRevision,
+                    row,
+                    PresentationLabels))
                 .ToArray();
             recoveryRows.RemoveAll(row => unresolved.Any(candidate =>
                 candidate.ProbeId == row.ProbeId));
@@ -333,24 +354,28 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
 
         observedSessionId = sessionId;
         observedArtifactKey = artifactKey;
+        observedProbeIds.Clear();
+        observedProbeIds.UnionWith(activeProbeIds);
+        for (var index = 0; index < recoveryRows.Count; index++)
+        {
+            recoveryRows[index] = BrowserWaveformProjection.Recover(
+                projection.ProjectRevision,
+                recoveryRows[index],
+                PresentationLabels);
+        }
+
         recoveryRows.RemoveAll(row => simulation.Probes.Any(probe =>
             BrowserWaveformProjection.MatchesSource(row, probe.Source)));
+        if (gainedProbe)
+        {
+            currentTrace = null;
+            loadedKey = null;
+            viewport = CurrentTick(simulation.LogicalTime);
+            primaryCursor = null;
+            secondaryCursor = null;
+            liveFollow = true;
+        }
     }
-
-    private static WaveformRowV1 UnresolvedAfterHotSwap(WaveformRowV1 row) => new(
-        row.ProbeId,
-        row.Net,
-        row.Width,
-        row.DisplayOrdinal,
-        row.ShortLabel,
-        row.Radix,
-        row.AppearanceOrdinal,
-        row.Pattern,
-        "unresolved",
-        "artifactIncompatible",
-        row.SceneNavigation,
-        row.NavigationReason,
-        row.CurrentValue);
 
     private void FollowLiveTime(ulong logicalTime, bool force = false)
     {
@@ -365,11 +390,6 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         var span = viewport is { } current
             ? current.EndExclusive - current.StartInclusive
             : InitialViewportSpan;
-        if (span == 0)
-        {
-            span = 1;
-        }
-
         var start = endExclusive > span ? endExclusive - span : 0;
         if (start == endExclusive)
         {
@@ -379,10 +399,12 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         viewport = new TraceTimeRange(start, endExclusive);
     }
 
-    private async Task LoadTraceAsync(
-        bool force,
-        TraceRepresentationRequest? requestedRepresentation = null,
-        ulong? afterSequence = null)
+    private static TraceTimeRange CurrentTick(ulong logicalTime) =>
+        logicalTime == ulong.MaxValue
+            ? new TraceTimeRange(ulong.MaxValue - 1, ulong.MaxValue)
+            : new TraceTimeRange(logicalTime, checked(logicalTime + 1));
+
+    private async Task LoadTraceAsync(bool force)
     {
         if (Projection is not { Simulation: { } simulation } projection
             || viewport is not { } requestedViewport)
@@ -391,47 +413,66 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         }
 
         var activeProbeIds = simulation.Probes.Select(probe => probe.ProbeId).ToArray();
+        var representation = summaryRequested
+            ? (TraceRepresentationRequest)new TraceVisualSummaryRequest(
+                DefaultSummaryPointCount,
+                TraceVisualSummaryRequest.LogicEnvelopeV1)
+            : TraceTransitionsRequest.Instance;
         if (activeProbeIds.Length == 0)
         {
-            snapshot = null;
-            loadedKey = null;
-            await ReleaseRendererForMissingSurfaceAsync();
+            CancelTraceLoad();
+            if (recoveryRows.Count == 0)
+            {
+                snapshot = null;
+                currentTrace = null;
+                loadedKey = null;
+                await ResetRendererAsync();
+                return;
+            }
+
+            var recoveryKey = new TraceLoadKey(
+                simulation.SessionId.Value,
+                BrowserWaveformProjection.ArtifactKey(simulation.CompilationArtifactKey),
+                simulation.TraceCursor,
+                requestedViewport,
+                representation,
+                ProbeOrder(recoveryRows.Select(row => row.ProbeId)));
+            if (!force && recoveryKey == loadedKey)
+            {
+                RefreshSnapshotEnvelope(projection);
+                return;
+            }
+
+            currentTrace = null;
+            snapshot = CreateRecoverySnapshot(
+                projection,
+                requestedViewport,
+                checked(++nextWaveformVersion));
+            loadedKey = recoveryKey;
+            traceFailure = null;
             return;
         }
 
-        var representation = requestedRepresentation ?? (summaryRequested
-            ? (TraceRepresentationRequest)new TraceVisualSummaryRequest(
-                summaryPointCount,
-                TraceVisualSummaryRequest.LogicEnvelopeV1)
-            : TraceTransitionsRequest.Instance);
-        var representationKey = representation switch
-        {
-            TraceTransitionsRequest => "transitions",
-            TraceVisualSummaryRequest summary => FormattableString.Invariant(
-                $"summary:{summary.MaxPoints}:{summary.Aggregation}"),
-            _ => throw new InvalidOperationException(
-                "The requested Trace representation is undefined."),
-        };
         var key = new TraceLoadKey(
-            projection.ProjectionVersion,
-            simulation.SessionVersion,
+            simulation.SessionId.Value,
             BrowserWaveformProjection.ArtifactKey(simulation.CompilationArtifactKey),
+            simulation.TraceCursor,
             requestedViewport,
-            representationKey,
-            afterSequence,
-            string.Join('|', activeProbeIds.Select(id => id.Value)));
+            representation,
+            ProbeOrder(activeProbeIds.Select(id => id.Value)));
         if (!force && key == loadedKey)
         {
+            RefreshSnapshotEnvelope(projection);
             return;
         }
 
-        if (TraceReader is null)
-        {
-            traceFailure = "unavailable";
-            return;
-        }
+        currentTrace = null;
 
         var epoch = checked(++loadEpoch);
+        using var loadCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            componentLifetime.Token);
+        traceLoad?.Cancel();
+        traceLoad = loadCancellation;
         traceLoading = true;
         traceFailure = null;
         try
@@ -442,66 +483,54 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
                 activeProbeIds,
                 requestedViewport,
                 representation,
-                afterSequence);
-            var outcome = await TraceReader(request, componentLifetime.Token);
-            if (outcome is TraceTransitionsWindow && afterSequence is not null)
-            {
-                outcome = await TraceReader(
-                    new TraceWindowRequest(
-                        simulation.SessionId,
-                        simulation.CompilationArtifactKey,
-                        activeProbeIds,
-                        requestedViewport,
-                        TraceTransitionsRequest.Instance,
-                        afterSequence: null),
-                    componentLifetime.Token);
-            }
+                afterSequence: null);
+            var outcome = await TraceReader(request, loadCancellation.Token);
 
             if (epoch != loadEpoch || outcome is null || Projection != projection)
             {
                 if (outcome is null && epoch == loadEpoch)
                 {
-                    traceFailure = "unavailable";
+                    traceFailure = TraceFailure.Unavailable;
                 }
 
                 return;
             }
 
             var version = checked(++nextWaveformVersion);
-            snapshot = BrowserWaveformProjection.Create(
+            currentTrace = outcome;
+            snapshot = CreateSnapshot(
                 projection,
                 requestedViewport,
                 outcome,
-                radixByProbeId,
-                version,
-                primaryCursor,
-                secondaryCursor,
-                liveFollow,
-                recoveryRows);
+                version);
             loadedKey = key;
             traceFailure = outcome is TraceWindowUnavailable unavailable
                 ? unavailable.Reason switch
                 {
-                    TraceWindowUnavailableReason.Evicted => "evicted",
-                    TraceWindowUnavailableReason.ArtifactChanged => "artifactChanged",
-                    _ => "unavailable",
+                    TraceWindowUnavailableReason.Evicted => TraceFailure.Evicted,
+                    TraceWindowUnavailableReason.ArtifactChanged => TraceFailure.ArtifactChanged,
+                    _ => TraceFailure.Unavailable,
                 }
                 : null;
         }
-        catch (OperationCanceledException) when (componentLifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (loadCancellation.IsCancellationRequested)
         {
         }
         catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException
             or OverflowException)
         {
             if (epoch == loadEpoch)
             {
-                traceFailure = "unavailable";
+                traceFailure = TraceFailure.Unavailable;
             }
         }
         finally
         {
+            if (ReferenceEquals(traceLoad, loadCancellation))
+            {
+                traceLoad = null;
+            }
+
             if (epoch == loadEpoch)
             {
                 traceLoading = false;
@@ -509,18 +538,100 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         }
     }
 
-    private async Task ReprojectCurrentTraceAsync()
+    private async Task ReloadAsync()
     {
         loadedKey = null;
         await LoadTraceAsync(force: true);
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task ReloadAsync()
+    private void Reproject(bool browserStateChanged)
     {
-        loadedKey = null;
-        await LoadTraceAsync(force: true);
+        if (Projection is { Simulation: not null } projection
+            && viewport is { } currentViewport)
+        {
+            var version = browserStateChanged || snapshot is null
+                ? checked(++nextWaveformVersion)
+                : snapshot.WaveformVersion;
+            if (currentTrace is { } trace)
+            {
+                snapshot = CreateSnapshot(
+                    projection,
+                    currentViewport,
+                    trace,
+                    version);
+            }
+            else if (projection.Simulation!.Probes.Count == 0 && recoveryRows.Count != 0)
+            {
+                snapshot = CreateRecoverySnapshot(
+                    projection,
+                    currentViewport,
+                    version);
+            }
+        }
+    }
+
+    private async Task ReprojectAsync(bool browserStateChanged = true)
+    {
+        Reproject(browserStateChanged);
         await InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshSnapshotEnvelope(WorkspaceProjection projection)
+    {
+        var simulation = projection.Simulation!;
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        if (snapshot.ProjectionVersion != projection.ProjectionVersion
+            || snapshot.SessionVersion != simulation.SessionVersion)
+        {
+            Reproject(browserStateChanged: true);
+        }
+        else if (!string.Equals(
+                projectedUiCulture,
+                CultureInfo.CurrentUICulture.Name,
+                StringComparison.Ordinal))
+        {
+            Reproject(browserStateChanged: false);
+        }
+    }
+
+    private WaveformSnapshotV1 CreateSnapshot(
+        WorkspaceProjection projection,
+        TraceTimeRange currentViewport,
+        TraceWindowOutcome trace,
+        ulong waveformVersion)
+    {
+        projectedUiCulture = CultureInfo.CurrentUICulture.Name;
+        return BrowserWaveformProjection.Create(
+            projection,
+            currentViewport,
+            trace,
+            radixByProbeId,
+            PresentationLabels,
+            waveformVersion,
+            primaryCursor,
+            secondaryCursor,
+            recoveryRows);
+    }
+
+    private WaveformSnapshotV1 CreateRecoverySnapshot(
+        WorkspaceProjection projection,
+        TraceTimeRange currentViewport,
+        ulong waveformVersion)
+    {
+        projectedUiCulture = CultureInfo.CurrentUICulture.Name;
+        return BrowserWaveformProjection.CreateRecovery(
+            projection,
+            currentViewport,
+            waveformVersion,
+            primaryCursor,
+            secondaryCursor,
+            summaryRequested,
+            recoveryRows);
     }
 
     private async Task SetSummaryAsync(bool enabled)
@@ -531,11 +642,6 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         }
 
         summaryRequested = enabled;
-        if (enabled)
-        {
-            summaryPointCount = DefaultSummaryPointCount;
-        }
-
         await ReloadAsync();
     }
 
@@ -602,6 +708,17 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         await ReloadAsync();
     }
 
+    private Task ToggleLiveFollowAsync()
+    {
+        if (liveFollow)
+        {
+            liveFollow = false;
+            return Task.CompletedTask;
+        }
+
+        return ReturnToLiveAsync();
+    }
+
     private async Task ToggleCursorAsync(bool primary)
     {
         if (viewport is not { } range)
@@ -620,7 +737,7 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             secondaryCursor = secondaryCursor is null ? midpoint : null;
         }
 
-        await ReloadAsync();
+        await ReprojectAsync();
     }
 
     private async Task ChangeRadixAsync(WaveformRowV1 row, string? radix)
@@ -631,14 +748,15 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         }
 
         radixByProbeId[row.ProbeId] = radix;
-        await ReloadAsync();
+        await ReprojectAsync(browserStateChanged: false);
     }
 
     private bool CanMove(WaveformRowV1 row, int delta)
     {
-        var active = Rows.Where(candidate => candidate.Binding == "resolved").ToArray();
-        var index = Array.FindIndex(active, candidate => candidate.ProbeId == row.ProbeId);
-        return index >= 0 && index + delta >= 0 && index + delta < active.Length;
+        var destination = row.DisplayOrdinal + delta;
+        return row.Binding == "resolved"
+            && destination >= 0
+            && destination < (Simulation?.Probes.Count ?? 0);
     }
 
     private async Task MoveAsync(WaveformRowV1 row, int delta)
@@ -667,19 +785,33 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
 
     private async Task RemoveAsync(WaveformRowV1 row)
     {
-        await OnRemoveProbe.InvokeAsync(row.ProbeId);
         if (row.Binding == "unresolved")
         {
             recoveryRows.RemoveAll(candidate => candidate.ProbeId == row.ProbeId);
-            await ReloadAsync();
+            if (Simulation?.Probes.Count == 0 && recoveryRows.Count == 0)
+            {
+                await ReloadAsync();
+            }
+            else
+            {
+                await ReprojectAsync();
+            }
+
+            return;
         }
+
+        await OnRemoveProbe.InvokeAsync(row.ProbeId);
     }
 
-    private async Task RebindAsync(WaveformRowV1 row)
-    {
-        await OnRebindProbe.InvokeAsync(Source(row));
-        await ReloadAsync();
-    }
+    private Task RebindAsync(WaveformRowV1 row) =>
+        CanRebind(row)
+            ? OnRebindProbe.InvokeAsync(Source(row))
+            : Task.CompletedTask;
+
+    private static bool CanRebind(WaveformRowV1 row) =>
+        row.Binding == "unresolved"
+        && (row.SceneNavigation == "available"
+            || row.NavigationReason == "noVisibleGeometry");
 
     private string NavigationMessage(WaveformRowV1 row) => row.NavigationReason switch
     {
@@ -695,36 +827,55 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             return "—";
         }
 
-        var values = Decode(current);
-        if (row.Radix == "binary" || values.Any(value => value > 1))
+        var width = checked((int)current.Width);
+        var hasUnknown = false;
+        for (var index = 0; index < width && !hasUnknown; index++)
         {
-            return string.Concat(values.Reverse().Select(value => value switch
-            {
-                0 => '0',
-                1 => '1',
-                2 => 'X',
-                3 => 'Z',
-                _ => '?',
-            }));
+            hasUnknown = current.SymbolAt(index) > 1;
         }
 
-        var number = BigInteger.Zero;
-        for (var index = values.Length - 1; index >= 0; index--)
+        if (row.Radix == "binary" || hasUnknown)
         {
-            number = (number << 1) | values[index];
+            return string.Create(width, current, static (characters, value) =>
+            {
+                for (var outputIndex = 0; outputIndex < characters.Length; outputIndex++)
+                {
+                    characters[outputIndex] = value.SymbolAt(
+                        characters.Length - outputIndex - 1) switch
+                    {
+                        0 => '0',
+                        1 => '1',
+                        2 => 'X',
+                        3 => 'Z',
+                        _ => throw new InvalidOperationException(
+                            "The Waveform Logic Vector value is undefined."),
+                    };
+                }
+            });
         }
+
+        var magnitude = new byte[((width - 1) / 8) + 1];
+        for (var index = 0; index < width; index++)
+        {
+            magnitude[index / 8] |= checked((byte)(
+                current.SymbolAt(index) << (index % 8)));
+        }
+
+        var number = new BigInteger(
+            magnitude,
+            isUnsigned: true,
+            isBigEndian: false);
 
         return row.Radix == "hex"
-            ? number.ToString("X", CultureInfo.InvariantCulture)
+            ? number.ToString(
+                FormattableString.Invariant($"X{((width - 1) / 4) + 1}"),
+                CultureInfo.InvariantCulture)
             : number.ToString(CultureInfo.InvariantCulture);
     }
 
-    private static int[] Decode(WaveformLogicVectorV1 vector)
-    {
-        var data = Convert.FromBase64String(vector.Data);
-        return [.. Enumerable.Range(0, checked((int)vector.Width)).Select(index =>
-            (data[index / 4] >> ((index % 4) * 2)) & 0x03)];
-    }
+    private static string ProbeOrder(IEnumerable<string> probeIds) => string.Concat(
+        probeIds.Select(probeId => FormattableString.Invariant(
+            $"{probeId.Length}:{probeId}")));
 
     private void SetCursor(string kind, string? logicalTime)
     {
@@ -741,68 +892,17 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         }
     }
 
-    private async Task ApplyTraceRequestAsync(WaveformTraceWindowRequestV1 request)
-    {
-        if (Simulation is not { } simulation
-            || !string.Equals(request.SessionId, simulation.SessionId.Value, StringComparison.Ordinal)
-            || !string.Equals(
-                request.CompilationArtifactKey,
-                BrowserWaveformProjection.ArtifactKey(simulation.CompilationArtifactKey),
-                StringComparison.Ordinal)
-            || !HasExactActiveProbeSet(request.ProbeIds))
-        {
-            await ReloadAsync();
-            return;
-        }
-
-        viewport = new TraceTimeRange(request.Viewport.StartValue, request.Viewport.EndValue);
-        summaryRequested = request.Representation == "visualSummary";
-        TraceRepresentationRequest representation = summaryRequested
-            ? new TraceVisualSummaryRequest(
-                request.MaximumPoints!.Value,
-                request.Aggregation!)
-            : TraceTransitionsRequest.Instance;
-        if (representation is TraceVisualSummaryRequest summary)
-        {
-            summaryPointCount = summary.MaxPoints;
-        }
-
-        var afterSequence = request.AfterSequence is null
-            ? (ulong?)null
-            : WaveformRecordValidator.ParseUnsigned(
-                request.AfterSequence,
-                nameof(request.AfterSequence));
-        liveFollow = false;
-        loadedKey = null;
-        await LoadTraceAsync(force: true, representation, afterSequence);
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private bool HasExactActiveProbeSet(IReadOnlyList<string> probeIds) =>
-        Simulation is { } simulation
-        && probeIds.SequenceEqual(
-            simulation.Probes.Select(probe => probe.ProbeId.Value),
-            StringComparer.Ordinal);
-
-    private CompilationSource SourceFor(string probeId)
-    {
-        var row = Rows.Single(candidate => candidate.ProbeId == probeId);
-        return Source(row);
-    }
-
     private CompilationSource Source(WaveformRowV1 row)
     {
         var projection = Projection
             ?? throw new InvalidOperationException("The Workspace projection is unavailable.");
-        var definition = projection.ProjectRevision.Document.CircuitDefinitions.SingleOrDefault(
-            candidate => string.Equals(
-                candidate.Id.Value,
-                row.Net.AuthoredNet.CircuitDefinitionId,
-                StringComparison.Ordinal))
-            ?? throw new InvalidOperationException("The Probe source definition is unavailable.");
-        return new SceneIntentTranslator(
-            projection.ProjectRevision.Document,
-            definition).TranslateProbe(row.Net);
+        return BrowserWaveformProjection.TryResolveSource(
+            projection.ProjectRevision,
+            row,
+            out var source)
+                ? source
+                : throw new InvalidOperationException(
+                    "The Probe source is unavailable in the current Project Revision.");
     }
 
     private static bool MatchesPublishedEnvelope(
@@ -818,26 +918,27 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             current.CompilationArtifactKey,
             StringComparison.Ordinal);
 
-    private void OpenAnalyzer()
+    private async Task OpenAnalyzerAsync()
     {
         isOpen = true;
+        if (Simulation is not null)
+        {
+            await ReloadAsync();
+        }
     }
 
     private async Task CloseAnalyzerAsync()
     {
         isOpen = false;
-        await ReleaseAdapterAsync();
-        rendererGeneration = checked(rendererGeneration + 1);
-        rendererState = RendererStartingState;
+        CancelTraceLoad();
+        await ResetRendererAsync();
     }
 
     private async Task RetryAsync()
     {
-        if (rendererState == RendererUnavailableState)
+        if (rendererUnavailable)
         {
-            await ReleaseAdapterAsync();
-            rendererGeneration = checked(rendererGeneration + 1);
-            rendererState = RendererStartingState;
+            await ResetRendererAsync();
         }
 
         await ReloadAsync();
@@ -852,56 +953,94 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
 
         adapter = null;
         publishedSnapshot = null;
+        publishedInteractionMode = null;
         callbackReference?.Dispose();
         callbackReference = null;
-        callbackSink = null;
     }
 
-    private async Task ReleaseRendererForMissingSurfaceAsync()
+    private async Task ResetRendererAsync()
     {
-        var hadRenderer = adapter is not null || callbackReference is not null;
+        var advanceGeneration = adapter is not null
+            || callbackReference is not null
+            || rendererUnavailable;
         await ReleaseAdapterAsync();
-        if (hadRenderer)
+        if (advanceGeneration)
         {
             rendererGeneration = checked(rendererGeneration + 1);
-            rendererState = RendererStartingState;
         }
+
+        rendererUnavailable = false;
+        browserPolicyEvidence = null;
     }
 
-    private void FailClosed(string reason)
+    private void CancelTraceLoad()
     {
-        rendererState = RendererUnavailableState;
-        traceFailure = reason;
+        if (traceLoad is null)
+        {
+            return;
+        }
+
+        loadEpoch = checked(loadEpoch + 1);
+        traceLoad.Cancel();
+        traceLoad = null;
+        traceLoading = false;
+    }
+
+    private async Task FailRendererAsync(BrowserPolicyEvidenceV1? evidence = null)
+    {
+        await ReleaseAdapterAsync();
+        rendererUnavailable = true;
+        traceFailure = TraceFailure.Renderer;
+        browserPolicyEvidence = evidence;
         publishedSnapshot = null;
+        await InvokeAsync(StateHasChanged);
     }
 
     private Task InvokeBrowserCallbackAsync(Func<Task> callback) => InvokeAsync(callback);
 
     private static bool IsRecoverable(Exception exception) => exception is JSException
         or JSDisconnectedException
-        or BrowserWaveformContractException
-        or BrowserPolicyException
-        or InvalidOperationException;
+        or BrowserWaveformContractException;
+
+    private enum TraceFailure
+    {
+        Unavailable,
+        Evicted,
+        ArtifactChanged,
+        Renderer,
+    }
 
     private sealed record TraceLoadKey(
-        ulong ProjectionVersion,
-        ulong SessionVersion,
+        string SessionId,
         string ArtifactKey,
+        TraceCursor TraceCursor,
         TraceTimeRange Viewport,
-        string Representation,
-        ulong? AfterSequence,
+        TraceRepresentationRequest Representation,
         string ProbeOrder);
 
     private sealed class WaveformCallbackSink(LogicAnalyzer owner, ulong generation)
     {
         [JSInvokable]
-        public Task ReceiveWaveformIntent(JsonElement record) =>
+        public Task ReceiveWaveformIntentAsync(JsonElement record) =>
             owner.InvokeBrowserCallbackAsync(() =>
                 owner.ReceiveWaveformIntentAsync(generation, record));
 
         [JSInvokable]
-        public Task WaveformRendererFailed(string reason) =>
+        public Task WaveformRendererFailedAsync() =>
             owner.InvokeBrowserCallbackAsync(() =>
-                owner.WaveformRendererFailedAsync(generation, reason));
+                owner.WaveformRendererFailedAsync(generation));
+
+        [JSInvokable]
+        public Task WaveformBrowserPolicyExhaustedAsync(
+            string policyId,
+            string policyRevision,
+            string dimension,
+            string observed) => owner.InvokeBrowserCallbackAsync(() =>
+                owner.WaveformBrowserPolicyExhaustedAsync(
+                    generation,
+                    policyId,
+                    policyRevision,
+                    dimension,
+                    observed));
     }
 }

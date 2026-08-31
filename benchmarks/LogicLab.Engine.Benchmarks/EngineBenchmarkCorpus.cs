@@ -149,11 +149,20 @@ internal static class EngineBenchmarkCorpus
                 CancellationToken.None);
         }
 
-        var request = new ReadTraceWindow(new SimulationTraceWindowRequest(
+        var range = new LogicalTimeRange(0, checked((ulong)transitionCount + 1UL));
+        var transitions = new ReadTraceWindow(new SimulationTraceWindowRequest(
             opened.ProbeIds,
-            new LogicalTimeRange(0, checked((ulong)transitionCount + 1UL)),
+            range,
+            TraceTransitionsRepresentation.Instance,
             afterSequence: null));
-        return new SimulationTraceReadFixture(opened.Handle, request);
+        var summary = new ReadTraceWindow(new SimulationTraceWindowRequest(
+            opened.ProbeIds,
+            range,
+            new TraceVisualSummaryRepresentation(
+                maxPoints: 512,
+                TraceVisualSummaryRepresentation.LogicEnvelopeV1),
+            afterSequence: null));
+        return new SimulationTraceReadFixture(opened.Handle, transitions, summary);
     }
 
     public static SimulationOpened Open(OpenSimulationRequest request) =>
@@ -224,4 +233,5 @@ internal sealed record SimulationAdvanceWorkload(
 
 internal sealed record SimulationTraceReadFixture(
     SimulationSessionHandle Handle,
-    ReadTraceWindow Query);
+    ReadTraceWindow TransitionsQuery,
+    ReadTraceWindow SummaryQuery);

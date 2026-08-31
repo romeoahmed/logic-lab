@@ -9,7 +9,6 @@ namespace LogicLab.Web.Scene;
 internal sealed class BrowserSceneAdapter : IAsyncDisposable
 {
     internal const string ModulePath = "./Components/Editor/CircuitSceneHost.razor.js";
-    private const ulong InteropEnvelopeBytes = 512;
     private const ulong MaximumMeasurementRecordBytes = 320;
     private const string SymbolFontFamily = "Atkinson Hyperlegible Next";
     private readonly IJSObjectReference module;
@@ -95,7 +94,7 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
                     requestBatch);
                 var responseBytes = checked(
                     (ulong)Encoding.UTF8.GetByteCount(record.GetRawText())
-                    + InteropEnvelopeBytes);
+                    + BrowserPolicy.InteropEnvelopeBytes);
                 if (policy.Rejects(BrowserLimitDimension.InteropBatchBytes, responseBytes))
                 {
                     throw new BrowserPolicyException(
@@ -198,7 +197,8 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
             cancellationToken);
         try
         {
-            if ((ulong)Encoding.UTF8.GetByteCount(record.GetRawText()) + InteropEnvelopeBytes
+            if ((ulong)Encoding.UTF8.GetByteCount(record.GetRawText())
+                    + BrowserPolicy.InteropEnvelopeBytes
                     > policy.Limit(BrowserLimitDimension.InteropBatchBytes)
                 || record.Deserialize(
                     SceneJsonSerializerContext.Strict.BrowserSceneRecoveryStateV1)
@@ -266,77 +266,21 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
-        var maximumCandidate = policy.Limit(BrowserLimitDimension.CandidateTransferBytes);
-        if ((ulong)candidate.Length > maximumCandidate)
-        {
-            throw new BrowserPolicyException(
-                policy,
-                BrowserLimitDimension.CandidateTransferBytes,
-                (ulong)candidate.Length);
-        }
-
-        var transferId = Guid.CreateVersion7().ToString("N");
-        var digest = Convert.ToHexStringLower(SHA256.HashData(candidate));
-        await handle.InvokeVoidAsync(
-            "beginTransfer",
-            cancellationToken,
-            transferId,
+        await BrowserCandidateTransfer.SendAsync(
+            handle,
+            policy,
             kind,
-            candidate.Length,
-            digest);
-        try
-        {
-            var maximumBatch = checked((int)Math.Min(
-                policy.Limit(BrowserLimitDimension.InteropBatchBytes),
-                int.MaxValue));
-            var rawChunkSize = Math.Max(
-                1,
-                ((maximumBatch - checked((int)InteropEnvelopeBytes)) / 4) * 3);
-            var ordinal = 0;
-            for (var offset = 0; offset < candidate.Length; offset += rawChunkSize)
-            {
-                var length = Math.Min(rawChunkSize, candidate.Length - offset);
-                var chunk = Convert.ToBase64String(candidate, offset, length);
-                await handle.InvokeVoidAsync(
-                    "appendTransfer",
-                    cancellationToken,
-                    transferId,
-                    ordinal,
-                    chunk);
-                ordinal++;
-            }
-
-            var accepted = await handle.InvokeAsync<bool>(
-                "commitTransfer",
-                cancellationToken,
-                transferId);
-            if (!accepted)
-            {
-                throw new BrowserSceneContractException(kind);
-            }
-        }
-        catch
-        {
-            try
-            {
-                await handle.InvokeVoidAsync("abortTransfer", transferId);
-            }
-            catch (Exception exception) when (exception is JSException
-                or JSDisconnectedException
-                or ObjectDisposedException)
-            {
-            }
-
-            throw;
-        }
+            candidate,
+            static transferKind => new BrowserSceneContractException(transferKind),
+            cancellationToken);
     }
 
     private List<IReadOnlyList<BrowserTextMeasurementRequestV1>>
         CreateMeasurementBatches(IReadOnlyList<BrowserTextMeasurementRequestV1> requests)
     {
         var maximumBatch = policy.Limit(BrowserLimitDimension.InteropBatchBytes);
-        var payloadBudget = maximumBatch > InteropEnvelopeBytes
-            ? maximumBatch - InteropEnvelopeBytes
+        var payloadBudget = maximumBatch > BrowserPolicy.InteropEnvelopeBytes
+            ? maximumBatch - BrowserPolicy.InteropEnvelopeBytes
             : 0;
         var maximumRecords = checked((int)Math.Min(
             payloadBudget / MaximumMeasurementRecordBytes,
@@ -346,7 +290,7 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
             throw new BrowserPolicyException(
                 policy,
                 BrowserLimitDimension.InteropBatchBytes,
-                InteropEnvelopeBytes + MaximumMeasurementRecordBytes);
+                BrowserPolicy.InteropEnvelopeBytes + MaximumMeasurementRecordBytes);
         }
 
         var batches = new List<IReadOnlyList<BrowserTextMeasurementRequestV1>>();
@@ -359,14 +303,18 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
                 SceneJsonSerializerContext.Strict.BrowserTextMeasurementRequestV1).Length);
             var separatorBytes = current.Count == 0 ? 0UL : 1UL;
             var observed = checked(
-                InteropEnvelopeBytes + currentJsonBytes + separatorBytes + requestBytes);
+                BrowserPolicy.InteropEnvelopeBytes
+                    + currentJsonBytes
+                    + separatorBytes
+                    + requestBytes);
             if (current.Count == maximumRecords || observed > maximumBatch)
             {
                 batches.Add([.. current]);
                 current.Clear();
                 currentJsonBytes = 2;
                 separatorBytes = 0;
-                observed = checked(InteropEnvelopeBytes + currentJsonBytes + requestBytes);
+                observed = checked(
+                    BrowserPolicy.InteropEnvelopeBytes + currentJsonBytes + requestBytes);
             }
 
             if (observed > maximumBatch)
@@ -550,28 +498,4 @@ internal sealed class BrowserSceneContractException : InvalidOperationException
     }
 
     public string TransferKind { get; }
-}
-
-internal sealed class BrowserPolicyException : InvalidOperationException
-{
-    internal BrowserPolicyException(
-        BrowserPolicy policy,
-        BrowserLimitDimension dimension,
-        ulong observed)
-        : base($"Browser Policy '{policy.PolicyId}/{policy.PolicyRevision}' rejected "
-            + $"'{dimension}' at observed value '{observed}'.")
-    {
-        PolicyId = policy.PolicyId;
-        PolicyRevision = policy.PolicyRevision;
-        Dimension = dimension;
-        Observed = observed;
-    }
-
-    public string PolicyId { get; }
-
-    public string PolicyRevision { get; }
-
-    public BrowserLimitDimension Dimension { get; }
-
-    public ulong Observed { get; }
 }

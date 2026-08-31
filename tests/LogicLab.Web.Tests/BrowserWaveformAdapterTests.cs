@@ -5,13 +5,12 @@ using LogicLab.Web.Scene;
 using LogicLab.Web.Waveforms;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
 internal sealed class BrowserWaveformAdapterTests
 {
-    private const int InteropEnvelopeBytes = 512;
-
     [Test]
     public async Task Replace_LargeSnapshot_UsesBoundedOrderedAtomicTransfer()
     {
@@ -38,16 +37,15 @@ internal sealed class BrowserWaveformAdapterTests
         using (Assert.Multiple())
         {
             await Assert.That(chunks).Count().IsGreaterThan(1);
-            await Assert.That(chunks.Select((call, ordinal) =>
-                    (int)call.Arguments[1]! == ordinal).All(value => value))
-                .IsTrue();
-            await Assert.That(chunks.All(call =>
+            await Assert.That(chunks.Select(call => (int)call.Arguments[1]!))
+                .IsEquivalentTo(Enumerable.Range(0, chunks.Length), CollectionOrdering.Matching);
+            await Assert.That(chunks.Max(call =>
                     Encoding.UTF8.GetByteCount((string)call.Arguments[2]!)
-                        + InteropEnvelopeBytes
-                    <= (int)BrowserPolicy.Default.Limit(
-                        BrowserLimitDimension.InteropBatchBytes)))
-                .IsTrue();
-            await Assert.That(reconstructed.SequenceEqual(expected)).IsTrue();
+                        + (int)BrowserPolicy.InteropEnvelopeBytes))
+                .IsLessThanOrEqualTo((int)BrowserPolicy.Default.Limit(
+                    BrowserLimitDimension.InteropBatchBytes));
+            await Assert.That(reconstructed)
+                .IsEquivalentTo(expected, CollectionOrdering.Matching);
             await Assert.That(begin.Arguments[1]).IsEqualTo("snapshot");
             await Assert.That(begin.Arguments[2]).IsEqualTo(expected.Length);
             await Assert.That(begin.Arguments[3]).IsEqualTo(
@@ -104,7 +102,8 @@ internal sealed class BrowserWaveformAdapterTests
     }
 
     private static async Task<MountedAdapter> MountAsync(
-        RecordingJsObjectReference handle)
+        RecordingJsObjectReference handle,
+        BrowserPolicy? policy = null)
     {
         var module = new RecordingJsObjectReference(handle);
         var sink = DotNetObjectReference.Create(new Sink());
@@ -114,7 +113,7 @@ internal sealed class BrowserWaveformAdapterTests
                 new RecordingJsRuntime(module),
                 default(ElementReference),
                 "build-a",
-                BrowserPolicy.Default,
+                policy ?? BrowserPolicy.Default,
                 sink,
                 CancellationToken.None);
             return new MountedAdapter(adapter, module, sink);
@@ -138,23 +137,17 @@ internal sealed class BrowserWaveformAdapterTests
             "session-a",
             4,
             "artifact-a",
-            "en-US",
-            "leftToRight",
             rows,
             new WaveformViewStateV1(
                 new WaveformTimeRangeV1("0", "10"),
                 primaryCursor: null,
-                secondaryCursor: null,
-                liveFollow: true),
+                secondaryCursor: null),
             new WaveformTransitionsViewV1(
                 [.. rows.Select(row => new WaveformTransitionSegmentV1(
                     row.ProbeId,
                     new WaveformTimeRangeV1("0", "10"),
-                    "0",
                     row.CurrentValue!,
-                    transitionAtStart: false))],
-                gaps: [],
-                latestSequence: "0"));
+                    transitionAtStart: false))]));
     }
 
     private static WaveformRowV1 Row(int index) => new(
