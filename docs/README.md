@@ -1,46 +1,42 @@
 # Documentation Map
 
-Logic Lab separates target behavior, delivery status, decisions, and supporting evidence. Start with the owning document for the fact you need; do not infer implementation status from a normative target.
+Use the shallowest document that answers the question. Target behavior, current
+delivery, rationale, and evidence are different facts and have different owners.
 
-## Reading path
+## Fast paths
 
-1. Read [Architecture](../ARCHITECTURE.md), [Workbench](../WORKBENCH.md), or the [Context Map](../CONTEXT-MAP.md) for the relevant ownership, experience, or language.
-2. Load one owning specification, contract, or policy—not the entire documentation tree.
-3. Use the [Implementation Plan](./implementation-plan.md#delivery-status) only for delivery status and the current frontier.
-4. Consult an ADR for rationale or a research note for source evidence after the governing rule is clear.
+| Task | Load first | Then load only |
+| --- | --- | --- |
+| understand the product | [Workbench](../WORKBENCH.md) | the relevant browser, host, or presentation specification |
+| change a project or circuit rule | [Context Map](../CONTEXT-MAP.md) | one bounded-context glossary and its owning specification |
+| change a module boundary | [Architecture](../ARCHITECTURE.md) | the interface specification or seam contract |
+| change Web/Application/browser exchange | [Contracts](./contracts/README.md) | the one contract for that seam |
+| change build, dependencies, or tests | [.NET Engineering](./specs/dotnet-engineering.md) | one focused research note when rationale matters |
+| find what is implemented next | [Implementation Plan](./implementation-plan.md#delivery-status) | the owner of the active slice |
+| understand why a durable choice exists | [ADRs](./adr/README.md) | the current owner, which remains normative |
 
-## Authority by subject
+Do not preload the whole tree. Before editing, read the target, its tests, one
+analogous implementation, and the directly governing interface or rule.
 
-| Subject                                                                                                        | Authority                                                                       |
-| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| system ownership, dependency direction, Module seams, deployment shape                                         | [Architecture](../ARCHITECTURE.md)                                              |
-| workbench layout, interaction, visual language, responsive behavior, and product priorities                    | [Workbench](../WORKBENCH.md)                                                    |
-| domain words and context translations                                                                          | [CONTEXT-MAP.md](../CONTEXT-MAP.md) and [bounded-context glossaries](./domain/) |
-| observable circuit, component, analysis, symbol, package, and policy behavior                                  | [specifications](./specs/) and [policies](./policies/catalog.md)                |
-| Application, browser, and HTTP seam values                                                                     | [seam contracts](./contracts/README.md)                                         |
-| ASP.NET Core routes, render modes, culture, circuits, security, and host operations                            | [Web Host](./specs/web-host.md)                                                 |
-| Canvas/waveform transforms, frames, input, focus, and browser resources                                        | [Browser Runtime](./specs/browser-runtime.md)                                   |
-| .NET SDK, build, dependency, C#, async, DI, configuration, serialization, observability, and publication rules | [.NET Engineering Baseline](./specs/dotnet-engineering.md)                      |
-| delivery order, completion status, and blocking frontier                                                       | [Implementation Plan](./implementation-plan.md#delivery-status)                 |
-| hard-to-reverse decision rationale                                                                             | [ADRs](./adr/README.md)                                                         |
-| evidence, derivation, alternatives, and source qualification                                                   | [Research Index](./research/README.md)                                          |
+## Authority
 
-There is no generic “narrower file wins” rule. A conflict between owners is a documentation defect; repair it where the fact belongs.
+| Fact | Owner |
+| --- | --- |
+| system shape, dependency direction, and module ownership | [Architecture](../ARCHITECTURE.md) |
+| visible product behavior, layout, and interaction priorities | [Workbench](../WORKBENCH.md) |
+| domain language and translations | [Context Map](../CONTEXT-MAP.md) and [bounded-context glossaries](./domain/) |
+| observable domain, compiler, runtime, format, presentation, host, and browser behavior | [Specifications](./specs/) |
+| values exchanged across Application, browser, and HTTP seams | [Contracts](./contracts/README.md) |
+| limits and their semantic/format/provisional/measured classification | [Policy Catalog](./policies/catalog.md) |
+| completion and dependency frontier | [Implementation Plan](./implementation-plan.md) |
+| hard-to-reverse decision rationale | [ADRs](./adr/README.md) |
+| derivations, external sources, and dated measurements | [Research](./research/README.md) |
+| license grant and redistribution terms | [LICENSE](../LICENSE) and [third-party notices](../THIRD-PARTY-NOTICES.md) |
 
-## Live repository facts
+There is no generic “narrower file wins” rule. A conflict between owners is a
+documentation defect; fix the fact where it belongs and replace copies with links.
 
-Dynamic repository facts belong to executable configuration rather than prose:
-
-| Fact                             | Source of truth                                           |
-| -------------------------------- | --------------------------------------------------------- |
-| exact SDK and test runner        | [`global.json`](../global.json)                           |
-| exact direct package versions    | [`Directory.Packages.props`](../Directory.Packages.props) |
-| current executable project graph | [`logic-lab.slnx`](../logic-lab.slnx)                     |
-| resolved dependency closures     | application-root `packages.lock.json` files               |
-
-Normative documents govern these files; maintained prose does not copy their live inventory.
-
-## Behavior and policy
+## Specifications
 
 - [Circuit Authoring](./specs/circuit-authoring.md)
 - [Component Contract Catalog V1](./specs/component-contract-catalog-v1.md)
@@ -53,33 +49,28 @@ Normative documents govern these files; maintained prose does not copy their liv
 - [Diagram Presentation](./specs/diagram-presentation.md)
 - [Web Host](./specs/web-host.md)
 - [Browser Runtime](./specs/browser-runtime.md)
-- [.NET Engineering Baseline](./specs/dotnet-engineering.md)
-- [Policy Catalog](./policies/catalog.md)
+- [.NET Engineering](./specs/dotnet-engineering.md)
 
-## Seam contracts
+## Executable facts
 
-- [Editor Workspace](./contracts/editor-workspace.md)
-- [Durable Project Catalog](./contracts/durable-project-catalog.md)
-- [Browser Adapters](./contracts/browser-adapters.md)
-- [HTTP Boundary](./contracts/http-boundary.md)
+| Fact | Source of truth |
+| --- | --- |
+| SDK and test runner | [`global.json`](../global.json) |
+| direct package versions | [`Directory.Packages.props`](../Directory.Packages.props) |
+| shared build policy | [`Directory.Build.props`](../Directory.Build.props) |
+| project graph | [`logic-lab.slnx`](../logic-lab.slnx) |
+| resolved executable dependency graphs | application-root `packages.lock.json` files |
 
-## Delivery and evidence
+Prose may explain these files but must not copy their live inventories.
 
-- [Implementation Plan](./implementation-plan.md#delivery-status) is the only completion ledger.
-- [.NET Engineering Baseline](./specs/dotnet-engineering.md#9-verification-and-completion-gate) owns reproducible repository gates.
-- [Research](./research/README.md) preserves primary-source evidence and qualification boundaries.
-- [Engine Performance Benchmarks](../benchmarks/LogicLab.Engine.Benchmarks/README.md) documents comparative measurements, not release thresholds.
+## Maintenance rules
 
-## Maintenance
-
-- Define a fact once and link to it elsewhere.
-- Use exact ubiquitous language from the glossaries.
-- Keep framework, EF, JSON, SVG, and Fluent types out of Domain language.
-- Keep runtime ordinals, storage chunks, algorithm nodes, and renderer details out of browser contracts.
-- Add an ADR only for a genuine hard-to-reverse trade-off.
-- Classify every number as semantic, format, provisional policy, or measured threshold.
-- Cite primary sources at the claim; qualify secondary tutorials and Wikipedia as navigation only.
-- Keep delivery status in the Implementation Plan, required evidence in the owner, reproducible commands in the .NET Engineering Baseline, and routine results in change or CI records.
-- Read exact versions and the project graph from executable configuration; repeat them only in a dated measurement record.
-- Remove superseded implementation snapshots instead of surrounding them with ever longer disclaimers.
-- Update links and supersession notes in the same change that moves authority.
+- Define each fact once and link to it elsewhere.
+- Keep current delivery out of normative target documents.
+- Keep framework, persistence, transport, rendering, and algorithm details out of
+  Domain language unless they are the domain fact.
+- Classify each number as semantic, format, provisional policy, or measured threshold.
+- Cite primary sources at the supported claim; treat tutorials as navigation only.
+- Remove superseded snapshots and setup inventories instead of adding disclaimers.
+- Update links, indexes, and explicit supersession metadata in the same change that
+  moves authority.

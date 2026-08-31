@@ -1,5 +1,6 @@
 ---
-status: accepted
+status: amended
+amended-by: 0008-use-one-canvas-editor-surface
 ---
 
 # Generate TeachingMixed symbols declaratively
