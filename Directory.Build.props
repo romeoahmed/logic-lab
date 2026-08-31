@@ -6,20 +6,25 @@
     <ImplicitUsings>enable</ImplicitUsings>
 
     <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
-    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
-    <Deterministic>true</Deterministic>
     <IsPackable>false</IsPackable>
 
-    <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisLevel>10-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
-    <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
     <NuGetAuditLevel>low</NuGetAuditLevel>
     <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901</WarningsNotAsErrors>
 
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Authors>Romeo Ahmed</Authors>
+    <Copyright>Copyright (c) Romeo Ahmed 2026</Copyright>
+    <PackageProjectUrl>https://github.com/romeoahmed/logic-lab</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/romeoahmed/logic-lab</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT OR Apache-2.0</PackageLicenseExpression>
   </PropertyGroup>
 </Project>
