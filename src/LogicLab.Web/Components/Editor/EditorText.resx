@@ -156,21 +156,41 @@
   <data name="FailureSimulationCancelled" xml:space="preserve"><value>simulation cancelled</value></data>
   <data name="FailureSimulationInfrastructure" xml:space="preserve"><value>simulation infrastructure failure</value></data>
   <data name="FailureSimulationInternal" xml:space="preserve"><value>simulation internal defect</value></data>
-  <data name="ArithmeticExampleAuthored" xml:space="preserve"><value>Three-bit adder created. Compile it, then change an input to explore sum and carry.</value></data>
-  <data name="ExampleAdder" xml:space="preserve"><value>Three-bit adder</value></data>
+  <data name="CarryLookaheadExampleAuthored" xml:space="preserve"><value>Four-bit carry-lookahead adder created. Compile it, then change A, B, or carry in to inspect the parallel carry network.</value></data>
+  <data name="BitSerialExampleAuthored" xml:space="preserve"><value>Bit-serial adder created. Compile it, then step through four rising clock edges; use Load to capture changed operands.</value></data>
   <data name="ExampleCarryIn" xml:space="preserve"><value>Carry in</value></data>
   <data name="ExampleCarryOut" xml:space="preserve"><value>Carry out</value></data>
+  <data name="ExampleCarry1" xml:space="preserve"><value>Carry C1</value></data>
+  <data name="ExampleCarry2" xml:space="preserve"><value>Carry C2</value></data>
+  <data name="ExampleCarry3" xml:space="preserve"><value>Carry C3</value></data>
+  <data name="ExampleCarry4" xml:space="preserve"><value>Carry C4</value></data>
+  <data name="ExampleCarryTerm" xml:space="preserve"><value>Carry product term</value></data>
+  <data name="ExampleCarryVector" xml:space="preserve"><value>Carry vector C0–C3</value></data>
   <data name="ExampleData0" xml:space="preserve"><value>Data 0</value></data>
   <data name="ExampleData1" xml:space="preserve"><value>Data 1</value></data>
-  <data name="ExampleInputA" xml:space="preserve"><value>A = 101</value></data>
-  <data name="ExampleInputB" xml:space="preserve"><value>B = 011</value></data>
+  <data name="ExampleInputA" xml:space="preserve"><value>A = 1011</value></data>
+  <data name="ExampleInputB" xml:space="preserve"><value>B = 0110</value></data>
+  <data name="ExamplePropagate" xml:space="preserve"><value>Propagate P</value></data>
+  <data name="ExampleGenerate" xml:space="preserve"><value>Generate G</value></data>
+  <data name="ExamplePropagateBits" xml:space="preserve"><value>Propagate bits</value></data>
+  <data name="ExampleGenerateBits" xml:space="preserve"><value>Generate bits</value></data>
   <data name="ExampleMultiplexer" xml:space="preserve"><value>2-to-1 multiplexer</value></data>
   <data name="ExampleSelect" xml:space="preserve"><value>Select</value></data>
   <data name="ExampleSelectedOutput" xml:space="preserve"><value>Selected output</value></data>
   <data name="ExampleSum" xml:space="preserve"><value>Sum</value></data>
+  <data name="ExampleLoad" xml:space="preserve"><value>Load operands</value></data>
+  <data name="ExampleClock" xml:space="preserve"><value>Serial clock</value></data>
+  <data name="ExampleSerialZero" xml:space="preserve"><value>Serial zero</value></data>
+  <data name="ExampleParallelZero" xml:space="preserve"><value>Result clear value</value></data>
+  <data name="ExampleEnable" xml:space="preserve"><value>Shift enable</value></data>
+  <data name="ExampleOperandARegister" xml:space="preserve"><value>A shift register</value></data>
+  <data name="ExampleOperandBRegister" xml:space="preserve"><value>B shift register</value></data>
+  <data name="ExampleSerialAdder" xml:space="preserve"><value>One-bit full adder</value></data>
+  <data name="ExampleCarryRegister" xml:space="preserve"><value>Carry register</value></data>
+  <data name="ExampleResultRegister" xml:space="preserve"><value>Result shift register</value></data>
+  <data name="ExampleResult" xml:space="preserve"><value>Serial result</value></data>
   <data name="EditingDefinition" xml:space="preserve"><value>Editing Circuit Definition {0}.</value></data>
   <data name="EntryDefinitionChanged" xml:space="preserve"><value>{0} is now the entry Circuit Definition.</value></data>
-  <data name="HierarchyAuthored" xml:space="preserve"><value>Reusable inverter created. Open the child circuit or compile the main circuit.</value></data>
   <data name="HierarchyObserving" xml:space="preserve"><value>Viewing instance {0}.</value></data>
   <data name="HierarchyReturned" xml:space="preserve"><value>Returned to {0}.</value></data>
   <data name="JunctionAdded" xml:space="preserve"><value>Junction added at grid 4, 2.</value></data>
@@ -208,10 +228,10 @@
   <data name="StarterInverterDescription" xml:space="preserve"><value>See how a NOT gate inverts an input before it reaches the output.</value></data>
   <data name="StarterSteeringTitle" xml:space="preserve"><value>Choose between two signals</value></data>
   <data name="StarterSteeringDescription" xml:space="preserve"><value>Build an interactive 2-to-1 multiplexer.</value></data>
-  <data name="StarterArithmeticTitle" xml:space="preserve"><value>Add two three-bit values</value></data>
-  <data name="StarterArithmeticDescription" xml:space="preserve"><value>Build an interactive adder with sum and carry outputs.</value></data>
-  <data name="StarterHierarchyTitle" xml:space="preserve"><value>Reusable inverter</value></data>
-  <data name="StarterHierarchyDescription" xml:space="preserve"><value>Package an inverter as a child circuit and reuse it from the main circuit.</value></data>
+  <data name="StarterCarryLookaheadTitle" xml:space="preserve"><value>Carry-lookahead adder</value></data>
+  <data name="StarterCarryLookaheadDescription" xml:space="preserve"><value>Inspect generate, propagate, and parallel carry terms in a four-bit sum.</value></data>
+  <data name="StarterBitSerialTitle" xml:space="preserve"><value>Bit-serial adder</value></data>
+  <data name="StarterBitSerialDescription" xml:space="preserve"><value>Shift two four-bit operands through one reusable full-adder cell.</value></data>
   <data name="AdvancedTopology" xml:space="preserve"><value>Advanced wiring</value></data>
   <data name="AdvancedTopologyDescription" xml:space="preserve"><value>Edit nets, junctions, and wire routes</value></data>
   <data name="Library" xml:space="preserve"><value>Library</value></data>
