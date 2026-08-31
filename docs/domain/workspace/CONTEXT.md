@@ -52,17 +52,9 @@ _Avoid_: import, copy, save as
 A complete Project Document decoded and migrated from an untrusted carrier but not yet compiled or published into a Workspace.
 _Avoid_: partial upload, Project Revision, trusted package
 
-**Analysis Operation**:
-Background analysis work whose identity, lifecycle, authorization, and result can outlive an observing connection.
-_Avoid_: Workspace command, Simplification Proposal
-
-**Simplification Proposal**:
-A reviewable prospective Edit Transaction containing a Verified Replacement and bound to one source Project Revision and region digest.
-_Avoid_: automatic rewrite, Compilation optimization, Internal Candidate
-
 **Scheduling Policy**:
-Versioned admission, fairness, concurrency, and retention rules for background work.
-_Avoid_: Analysis Policy, semantic invariant
+Versioned admission, fairness, queue-capacity, and concurrency rules for background work.
+_Avoid_: Module work policy, semantic invariant
 
 **Hot Swap**:
 An atomic switch at a Quiescent Boundary to a newly compiled Project Revision using State Migration.

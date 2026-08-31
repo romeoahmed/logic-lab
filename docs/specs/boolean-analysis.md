@@ -1,12 +1,20 @@
 # Boolean Analysis
 
-> Status: normative V1 capability and proof contract
+> Status: deferred future capability draft; non-normative for V1
 
-Boolean Analysis is a synchronous, deterministic, CPU-bound deep Module. V1 requires a managed .NET implementation with no repository, Web, native, solver-process, or algorithm-package dependency.
+If activated, Boolean Analysis would be a synchronous, deterministic, CPU-bound
+deep Module implemented in managed .NET with no repository, Web, native,
+solver-process, or algorithm-package dependency. This draft creates no current
+project, interface, policy, delivery, or production-qualification obligation.
 
 ## 1. Outcomes
 
-[Architecture §6](../../ARCHITECTURE.md#6-module-catalog) fixes the Boolean Analysis seam; this specification owns its exact interface. It exposes no `Optimize`, `Verify`, QMC, AIG, BDD, candidate collection, or per-algorithm threshold. The implementation returns at most one Verified Replacement for the requested Cost Profile.
+The [future capability plan](../implementation-plan.md#future-capability-plan)
+owns reactivation order. If reactivated, Architecture and every current interface
+owner must be updated before implementation. The proposed interface exposes no
+`Optimize`, `Verify`, QMC, AIG, BDD, candidate collection, or per-algorithm
+threshold and returns at most one Verified Replacement for the requested Cost
+Profile.
 
 The synchronous CPU-bound Module exposes exactly these entry points:
 
@@ -49,9 +57,13 @@ AnalysisDimensionObservationV1
 
 Collections are present and non-null. Observations contain at most one row per dimension, record the maximum reached before termination, and follow Analysis Policy dimension order. `policyLimitBreach` is present exactly for `PolicyExhausted` and matches one observation; it is null otherwise.
 
-Application maps `PolicyExhausted` to `analysis_inconclusive`, `Cancelled` to `analysis_cancelled`, and `VerifierDisagreement` or `InternalDefect` to `analysis_internal_defect`; Verifier Disagreement also carries its required Diagnostic and opaque correlation.
+An activation would first extend Diagnostics V1, then map `PolicyExhausted` to
+`analysis_inconclusive`, `Cancelled` to `analysis_cancelled`, and
+`VerifierDisagreement` or `InternalDefect` to `analysis_internal_defect`;
+Verifier Disagreement would also carry its required Diagnostic and opaque
+correlation.
 
-Profiles, policy, and the Teaching Gate Library are immutable versioned values captured before the call; the Module never reads a live registry or changes policy mid-operation. The caller cannot select algorithms, variable orders, passes, thresholds, or a verifier. Calls over distinct immutable requests are reentrant and own all mutable builders. Cancellation observed before publication returns the typed cancelled Inconclusive outcome; a signal after publication does not revoke the result. Application schedules both methods on the Analysis lane rather than the Module creating tasks or queues.
+Profiles, policy, and the Teaching Gate Library are immutable versioned values captured before the call; the Module never reads a live registry or changes policy mid-operation. The caller cannot select algorithms, variable orders, passes, thresholds, or a verifier. Calls over distinct immutable requests are reentrant and own all mutable builders. Cancellation observed before publication returns the typed cancelled Inconclusive outcome; a signal after publication does not revoke the result. An activation would add an Application-owned Analysis lane; the Module would not create tasks or queues.
 
 Application owns authorization, queuing, cancellation requests, result retention, proposal review, source freshness, recompilation, and the final Edit Transaction. Boolean Analysis never writes a Project Document.
 
@@ -66,7 +78,9 @@ Only the Compiler can construct a Boolean Region. [Compiler](./compiler.md) owns
 - produces definite `0/1` on every cared assignment;
 - carries a per-output Care Contract and complete source provenance.
 
-V1 uses the full binary input domain for every output Care Domain. The representation remains per-output so proof formulas and evidence are unambiguous, but no transient user assertion, observed sample, `X`, or `Z` creates a Don't-care.
+The draft uses the full binary input domain for every output Care Domain. The
+representation remains per-output so proof formulas and evidence are unambiguous,
+but no transient user assertion, observed sample, `X`, or `Z` creates a Don't-care.
 
 For output `j`, original function `Fj`, candidate `Gj`, and care predicate `Cj`, replacement correctness is:
 
@@ -181,7 +195,9 @@ Internal cube, prime, AIG, cut, mapping, and BDD identifiers are absent.
 
 ## 7. Failure semantics
 
-Diagnostic and outcome reason codes follow [Diagnostics V1](./diagnostics-v1.md). Eligibility and proof outcomes remain typed variants rather than localized strings or generic errors.
+Activation must extend [Diagnostics V1](./diagnostics-v1.md) before implementation.
+Eligibility and proof outcomes remain proposed typed variants rather than localized
+strings or generic errors.
 
 | Outcome                         | Meaning                                                                    | Can create a proposal?                                    |
 | ------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------- |

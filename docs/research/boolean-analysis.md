@@ -1,11 +1,12 @@
 # Boolean Analysis Research
 
 > Scope: K-map, exact bounded multi-output two-level minimization, AIG, teaching-library mapping, and independent proof
-> Authority: derivation and evidence; normative capability is [Boolean Analysis](../specs/boolean-analysis.md)
+> Authority: derivation and evidence for the deferred
+> [Boolean Analysis draft](../specs/boolean-analysis.md); no V1 behavior
 
 ## 1. Why this pipeline is sufficient
 
-The selected V1 pipeline is internally coherent:
+The deferred pipeline is internally coherent:
 
 1. Karnaugh Maps explain adjacency and implicants at human scale.
 2. Multi-output Quine-McCluskey (QMC) plus Petrick solves a bounded fixed-polarity two-level programmable-logic-array (PLA) cover exactly for its declared objective.
@@ -26,9 +27,13 @@ miter(x) = OR_j(Cj(x) AND (Fj(x) XOR Gj(x)))
 
 The candidate is valid exactly when the miter is false for all assignments. Different outputs may have different Care Domains. `X` and `Z` are simulation values, while a Don't-care is an explicit contract freedom; conflating them would permit incorrect rewrites.
 
-Under the [V1 Care Contract](../specs/boolean-analysis.md#2-eligible-input), `Cj` is true for every binary assignment. The general formula keeps proof evidence precise without making this research note a second owner of the Care Domain.
+Under the [draft Care Contract](../specs/boolean-analysis.md#2-eligible-input),
+`Cj` is true for every binary assignment. The general formula keeps proof evidence
+precise without making this research note a second owner of the Care Domain.
 
-“Minimum” also needs an objective. Product count, literal count, mapped gate count, depth, fan-in, and teaching readability are different. V1 uses named lexicographic Cost Profiles and compares only complete materialized gate graphs.
+“Minimum” also needs an objective. Product count, literal count, mapped gate count,
+depth, fan-in, and teaching readability are different. The draft uses named
+lexicographic Cost Profiles and compares only complete materialized gate graphs.
 
 ## 3. Karnaugh Map
 
@@ -102,7 +107,9 @@ The library is semantic data, not an SVG catalog. Each cell declares function, l
 
 For each AIG node and requested phase, the mapper combines fan-in cuts into stable leaf sets within the Analysis Policy. It computes each cut's truth table over ordered leaves and matches declared cell functions under only allowed transformations.
 
-Dynamic programming can minimize depth or a local cost over cut choices. On a reconvergent DAG, local area sums double-count or ignore sharing; global minimum-area DAG covering is not obtained automatically. A sound V1 process is:
+Dynamic programming can minimize depth or a local cost over cut choices. On a
+reconvergent DAG, local area sums double-count or ignore sharing; global
+minimum-area DAG covering is not obtained automatically. A sound future process is:
 
 1. retain a bounded deterministic set of legal choices per node/phase;
 2. materialize output-reachable choices with explicit sharing;
@@ -124,7 +131,10 @@ For one fixed variable order, a reduced ordered BDD is canonical. A manager main
 
 Original, candidate, and Care functions must use one manager and one primary-input ordinal order. Each care-aware miter root must be false. A true path yields a counterexample, completed deterministically and replayed through scalar evaluators.
 
-Bad variable order can cause exponential size. Fixed order improves reproducibility but reduces coverage. Node, cache, Apply, depth, and cancellation bounds return Inconclusive. Dynamic reordering, portfolio orders, SAT fallback, and a second verifier after exhaustion are intentionally absent from V1.
+Bad variable order can cause exponential size. Fixed order improves reproducibility
+but reduces coverage. Node, cache, Apply, depth, and cancellation bounds return
+Inconclusive. Dynamic reordering, portfolio orders, SAT fallback, and a second
+verifier after exhaustion are absent from the deferred design.
 
 ### 8.3 Common-mode failure control
 

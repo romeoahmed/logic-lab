@@ -14,21 +14,28 @@ V1 supports:
 - hierarchical Circuit Definitions with explicit Ports, Nets, Junctions, and Wire Geometry;
 - deterministic four-state `0/1/X/Z`, zero-delay, discrete Logical Time;
 - combinational and sequential Component Contracts, Clock Sources, registers, counters, ROM, and single-port RAM;
-- Transaction History, Logic Analyzer Trace, Truth Table, Karnaugh Map, and proof-gated simplification;
+- Transaction History and Logic Analyzer Trace;
 - declarative IEEE 91A-based TeachingMixed symbols;
 - strict `.logiclab` import/export, anonymous Sandbox Projects, and authenticated Durable Projects.
 
-V1 excludes HDL compatibility, physical delay, analog or transistor simulation, metastability, timing closure, industrial synthesis quality, collaboration, offline editing, public sharing, arbitrary plug-ins, and user-supplied executable logic.
+V1 excludes Boolean explanation, Truth Table, Karnaugh Map, automated circuit
+simplification, HDL compatibility, physical delay, analog or transistor simulation,
+metastability, timing closure, industrial synthesis quality, collaboration, offline
+editing, public sharing, arbitrary plug-ins, and user-supplied executable logic.
+The deferred [Boolean Analysis draft](./docs/specs/boolean-analysis.md) and its
+[future capability plan](./docs/implementation-plan.md#future-capability-plan) are
+not current Module, project, interface, policy, or qualification commitments.
 
 ## 2. Architecture vocabulary and rules
 
 A **module** hides behavior behind one **interface**. The interface includes invariants, ordering, outcomes, configuration, and performance obligations—not only methods. A **seam** is where behavior can vary without editing its caller; an **adapter** satisfies an interface at that seam. **Depth** creates leverage for callers and locality for maintainers.
 
-1. **One owner per fact.** Authored topology, generated representation, runtime state, proof evidence, static geometry, browser state, and durable location never share one universal model.
+1. **One owner per fact.** Authored topology, generated representation, runtime state, static geometry, browser state, and durable location never share one universal model.
 2. **Deep modules at real seams.** Callers express intent; passes, schedulers, codecs, layout solvers, and caches remain implementation.
 3. **One adapter is hypothetical; two adapters are real.** Side-effect ports preserve dependency direction. Internal strategy interfaces require actual variation or measured replacement pressure; mocks alone do not justify them.
 4. **The interface is the test surface.** Production callers and tests cross the same seam; internal representations are not separate test contracts.
-5. **Publish atomically and fail closed.** Invalid, stale, cancelled, exhausted, unauthorized, or unproved work publishes no partial artifact or replacement.
+5. **Publish atomically and fail closed.** Invalid, stale, cancelled, exhausted, or
+   unauthorized work publishes no partial artifact or state.
 6. **Determinism is observable.** Stable order, explicit tie-breakers, immutable inputs, and complete provenance govern outcomes and evidence.
 7. **Policy is not semantics.** Capacity and latency require corpus evidence; correctness, identity, authorization, ordering, and failure behavior do not vary by deployment.
 8. **Optimize from an oracle.** Scalar and full-recomputation paths define correctness before packing, pooling, incrementality, parallelism, or browser caching.
@@ -42,10 +49,9 @@ Bounded contexts own language and consistency inside one modular monolith; they 
 | Fact                                                                                  | Owner                | Derived consumers                                          |
 | ------------------------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------- |
 | Project Document, Project Revision, topology, authored presentation                   | Circuit Authoring    | Compiler, Diagram Presentation, Project Format, repository |
-| Compilation Artifact and Source Map                                                   | Compiler             | Simulation Runtime, Boolean Analysis, Web                  |
+| Compilation Artifact and Source Map                                                   | Compiler             | Simulation Runtime, Web                                    |
 | Logical Time, Driver/Net values, state, event calendar, Trace                         | Simulation Runtime   | Editor Workspace, Web                                      |
-| Care Contract, Internal Candidate, proof evidence, Verified Replacement               | Boolean Analysis     | Editor Workspace proposal lifecycle                        |
-| attachment, history cursor, save/Compilation/operation state, Simplification Proposal | Editor Workspace     | Web                                                        |
+| attachment, history cursor, save, Compilation, Session, and Run state                 | Editor Workspace     | Web                                                        |
 | Geometry Plan, Schematic Projection, symbol conformance                               | Diagram Presentation | browser and export adapters                                |
 | durable current-revision pointer and payload                                          | repository adapter   | Editor Workspace                                           |
 | selection, focus, viewport, Transient Preview, live overlays                          | Web/browser adapters | Workbench projection                                       |
@@ -54,7 +60,8 @@ Compiler and Project Format are translation modules, not extra domain models. Th
 
 ## 4. System shape
 
-The diagram below is the target V1 shape. Boolean Analysis, Project Format, Infrastructure, and their adapters enter only when an implementation slice first exercises them.
+The diagram below is the target V1 shape. Project Format, Infrastructure, and
+their adapters enter only when an implementation slice first exercises them.
 
 ```text
 Browser
@@ -75,8 +82,7 @@ Editor Workspace
   ├── repository port -> EF Core adapter -> SQLite
   └── Work Coordinator
         ├── Compiler
-        ├── Simulation Runtime
-        └── Boolean Analysis
+        └── Simulation Runtime
 ```
 
 The initial deployment is one ASP.NET Core process and one SQLite database. Process placement is not a module seam. A worker process, custom SignalR Hub, alternate database, object store, browser Worker, or WebAssembly execution slice becomes an adapter only when measured evidence justifies it.
@@ -88,11 +94,10 @@ Project seams follow dependency or deployment seams, not every namespace.
 | Project                    | Deep responsibility                                                   | Target direct dependencies                     |
 | -------------------------- | --------------------------------------------------------------------- | ---------------------------------------------- |
 | `LogicLab.Domain`          | immutable authoring model, Project Editor, `logiclab.core` schema     | BCL                                            |
-| `LogicLab.BooleanAnalysis` | Boolean Region contract, explanation, synthesis, mapping, proof       | Domain, BCL                                    |
-| `LogicLab.Engine`          | Compiler and Simulation Runtime as separate modules                   | Domain, BooleanAnalysis                        |
+| `LogicLab.Engine`          | Compiler and Simulation Runtime as separate modules                   | Domain                                         |
 | `LogicLab.Presentation`    | TeachingMixed definitions, Geometry Plans, Schematic Projection       | Domain                                         |
 | `LogicLab.ProjectFormat`   | strict `.logiclab` read/write, migration, digest, memory encoding     | Domain, BCL compression/JSON                   |
-| `LogicLab.Application`     | Editor Workspace, Work Coordinator, authorization-aware use cases     | Domain, Engine, BooleanAnalysis, ProjectFormat |
+| `LogicLab.Application`     | Editor Workspace, Work Coordinator, authorization-aware use cases     | Domain, Engine, ProjectFormat                  |
 | `LogicLab.Infrastructure`  | EF Core repository and persistence adapters                           | Application, Domain, EF Core                   |
 | `LogicLab.Web`             | Blazor routes, Fluent chrome, browser/HTTP adapters, composition root | Application, Presentation, Infrastructure      |
 
@@ -102,8 +107,8 @@ Dependency rules:
 
 - Domain references no EF, JSON, SVG, Web, Simulation, or analysis implementation type.
 - Domain owns Component Contract Keys, Port/parameter/state schemas, Library Snapshot resolution, and semantic digests.
-- BooleanAnalysis never references Engine or Application.
-- Engine constructs Compiler-owned artifacts and the Analysis-owned Boolean Region; Analysis never inspects Simulation IR.
+- Engine constructs Compiler-owned artifacts and Runtime-owned Session state without
+  exposing its intermediate representations.
 - Presentation emits geometry only; it owns neither selection nor live state.
 - Application coordinates modules without reproducing their implementation phases.
 - Infrastructure implements Application-owned persistence ports.
@@ -116,12 +121,11 @@ The linked owner defines the exact interface and closed outcomes. Architecture f
 | Module                  | Caller intention                                 | Hidden implementation                                                           | Interface owner                                                                                                      |
 | ----------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Project Editor          | begin a Project; apply one Edit Intent           | identity allocation, topology normalization, invariants, structural sharing     | [Circuit Authoring](./docs/specs/circuit-authoring.md)                                                               |
-| Compiler                | compile; extract one Boolean Region              | validation, hierarchy, SCCs, ordinals, IR, Source Map                           | [Compiler](./docs/specs/compiler.md)                                                                                 |
+| Compiler                | compile one Project Revision                      | validation, hierarchy, SCCs, ordinals, IR, Source Map                           | [Compiler](./docs/specs/compiler.md)                                                                                 |
 | Simulation Runtime      | open, execute, and read one Simulation Session   | propagation, batching, rollback, memory, Trace, Hot Swap                        | [Simulation Runtime](./docs/specs/simulation-runtime.md)                                                             |
-| Boolean Analysis        | explain; find one verified simplification        | QMC/Petrick, AIG, mapping, ROBDD/exhaustive proof                               | [Boolean Analysis](./docs/specs/boolean-analysis.md)                                                                 |
 | Project Format          | read or write one `.logiclab` carrier            | bounded spool, ZIP, strict V1 DTOs, digests                                     | [Project Package V1](./docs/specs/project-package-v1.md)                                                             |
 | Diagram Presentation    | plan one symbol; project one Circuit Definition  | constraints, text metrics, drawing operations, conformance                      | [Diagram Presentation](./docs/specs/diagram-presentation.md)                                                         |
-| Editor Workspace        | open, attach, dispatch, and read                 | fencing, idempotency, history, save, work coordination, proposals               | [Editor Workspace Contract](./docs/contracts/editor-workspace.md)                                                    |
+| Editor Workspace        | open, attach, dispatch, and read                 | fencing, idempotency, history, save, and work coordination                      | [Editor Workspace Contract](./docs/contracts/editor-workspace.md)                                                    |
 | Durable Project Catalog | list one authorized bounded page                 | authorization filtering, invariant order, keyset cursor, persistence projection | [Durable Project Catalog Contract](./docs/contracts/durable-project-catalog.md)                                      |
 | Scene/Waveform adapters | replace/apply state; return one completed intent | interop, transforms, frames, hit index, previews, caches, teardown              | [Browser Runtime](./docs/specs/browser-runtime.md), [Browser Adapter Contract](./docs/contracts/browser-adapters.md) |
 | Web Host                | serve routes and manage host lifetimes           | render modes, circuits, culture, middleware, health, shutdown                   | [Web Host](./docs/specs/web-host.md), [HTTP Boundary Contract](./docs/contracts/http-boundary.md)                    |
@@ -138,18 +142,16 @@ Opening -> Attached <-> Detached -> Expired
               +-- Project Revision + Transaction History
               +-- save + Compilation state
               +-- zero-or-one Simulation Session
-              +-- Analysis Operations + Simplification Proposals
 ```
 
 Reattachment reauthorizes and fences the previous generation. A Detached Workspace accepts no new commands; an active Logical-time Advance commits or rolls back, then the Simulation Session pauses. Reattach never resumes Run automatically.
 
-The Work Coordinator owns three typed CPU lanes:
+The Work Coordinator owns two typed CPU lanes:
 
 | Lane        | Lifecycle                                                    |
 | ----------- | ------------------------------------------------------------ |
 | Compilation | newest request wins per Workspace                            |
 | Session     | commands serialize per Simulation Session                    |
-| Analysis    | host-bounded and identity-fair; operations outlive observers |
 
 CPU modules are synchronous. Async appears at I/O, cancellation, admission, and observation seams. Razor handlers neither call `Task.Run` nor create hidden queues; hosted work creates explicit dependency-injection scopes.
 
@@ -200,7 +202,6 @@ Evidence follows fact ownership.
 | Circuit Authoring               | model-based Edit Intent sequences, topology split/merge, Project Genesis, Transaction History       |
 | Compiler                        | deterministic artifacts/diagnostics, hierarchy/SCC/CSR properties, Source Map totality              |
 | Simulation Runtime              | scalar oracle, packed differential properties, fixed-point/Trigger Batch/rollback/Trace cases       |
-| Boolean Analysis                | brute-force oracles, mapping/proof invariants, verifier mutation tests                              |
 | Project Format                  | golden/unsupported-version/adversarial packages, strict JSON, ZIP and memory properties             |
 | Diagram Presentation            | rule/property tests, Geometry Plan/SVG goldens, Port anchors, and Hit Regions                       |
 | Editor Workspace/Infrastructure | attachment, idempotency, concurrency, work lanes, authorized catalog paging, repository integration |

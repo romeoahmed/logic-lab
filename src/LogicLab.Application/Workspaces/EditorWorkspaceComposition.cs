@@ -230,12 +230,8 @@ public enum SchedulingDimension
     AdmissionWindowMilliseconds,
     CompilationQueueItems,
     SessionQueueItems,
-    AnalysisQueueItems,
-    AnalysisQueueItemsPerSubject,
     CompilationWorkerCount,
     SessionWorkerCount,
-    AnalysisWorkerCount,
-    AnalysisResultRetentionSeconds,
 }
 
 public sealed record SchedulingLimit(SchedulingDimension Dimension, ulong Maximum);
@@ -301,7 +297,7 @@ public sealed class SchedulingPolicy
 
     public static SchedulingPolicy Default { get; } = new(
         "workbench-scheduling",
-        "1",
+        "2",
         [
             new(SchedulingDimension.AdmissionRequestsGlobal, 4_096),
             new(SchedulingDimension.AdmissionRequestsPerSubject, 256),
@@ -309,12 +305,8 @@ public sealed class SchedulingPolicy
             new(SchedulingDimension.AdmissionWindowMilliseconds, 1_000),
             new(SchedulingDimension.CompilationQueueItems, 16),
             new(SchedulingDimension.SessionQueueItems, 64),
-            new(SchedulingDimension.AnalysisQueueItems, 64),
-            new(SchedulingDimension.AnalysisQueueItemsPerSubject, 8),
             new(SchedulingDimension.CompilationWorkerCount, 1),
             new(SchedulingDimension.SessionWorkerCount, 1),
-            new(SchedulingDimension.AnalysisWorkerCount, 1),
-            new(SchedulingDimension.AnalysisResultRetentionSeconds, 300),
         ]);
 
     public ulong GetMaximum(SchedulingDimension dimension)
@@ -365,14 +357,8 @@ public sealed class SchedulingPolicy
                 "admission_window_milliseconds",
             SchedulingDimension.CompilationQueueItems => "compilation_queue_items",
             SchedulingDimension.SessionQueueItems => "session_queue_items",
-            SchedulingDimension.AnalysisQueueItems => "analysis_queue_items",
-            SchedulingDimension.AnalysisQueueItemsPerSubject =>
-                "analysis_queue_items_per_subject",
             SchedulingDimension.CompilationWorkerCount => "compilation_worker_count",
             SchedulingDimension.SessionWorkerCount => "session_worker_count",
-            SchedulingDimension.AnalysisWorkerCount => "analysis_worker_count",
-            SchedulingDimension.AnalysisResultRetentionSeconds =>
-                "analysis_result_retention_seconds",
             _ => throw new ArgumentOutOfRangeException(nameof(dimension)),
         };
     }

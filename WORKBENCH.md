@@ -8,6 +8,10 @@ This document owns the workbench experience. System ownership lives in [Architec
 
 This is a target contract, not a delivery ledger. The [Implementation Plan](./docs/implementation-plan.md#delivery-status) alone records delivery.
 
+Truth Table, Karnaugh Map, Analysis Review, and automated simplification are
+deferred capabilities. Their draft does not add V1 commands, regions, states, or
+qualification obligations.
+
 ## Overview
 
 Logic Lab is a **digital logic laboratory bench** for learners and engineers who need to connect circuit topology, four-state behavior, and time. The editor's single job is to make a circuit understandable while it is being authored and run.
@@ -88,7 +92,7 @@ Fonts are self-hosted, licensed, fingerprinted, and subset after localization co
 │ categories   │      topology and live overlay    │      │ properties     │
 │ hierarchy    │                                   │      │ context help   │
 ├──────────────┴───────────────────────────────────┴──────┴────────────────┤
-│ Instrument Bay: Waveform │ Truth Table │ K-map │ Analysis │ Diagnostics │
+│ Instrument Bay: Waveform │ Diagnostics                                │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ logical time · quiescence · trace range · compile/save · connection     │
 └──────────────────────────────────────────────────────────────────────────┘
@@ -110,7 +114,7 @@ Schematic shapes, Port anchors, and hit regions come from the closed [Geometry P
 - Library and hierarchy navigation own discovery, never Project mutation by inspection.
 - Canvas owns dense topology, overlays, focus, and local Transient Preview.
 - Inspector owns selected-source facts and contextual actions.
-- Instrument Bay owns waveform, Truth Table, Karnaugh Map, Analysis Review, and complete Diagnostics views.
+- Instrument Bay owns waveform and complete Diagnostics views.
 - The status strip always exposes Logical Time, quiescence, Trace range, Compilation, save, and connection state.
 
 [Web Host](./docs/specs/web-host.md) owns render lifecycle and dependency lifetimes. [Browser Runtime](./docs/specs/browser-runtime.md) owns frame-rate implementation. This document names only user-visible region behavior.
@@ -203,23 +207,19 @@ Historical navigation pauses live-follow but not Simulation. Returning to live i
 
 Commands use the same verb in action and result: `Save` becomes `Saved`, `Run` becomes `Running`, and `Pause` becomes `Paused`.
 
-| State                   |                                   Edit |        Compile |                           Step/Run |                       Save |              Analyze |               Import |
-| ----------------------- | -------------------------------------: | -------------: | ---------------------------------: | -------------------------: | -------------------: | -------------------: |
-| clean and compiled      |                                    yes |            yes |                                yes | when durable change exists | eligible region only |                  yes |
-| changed / compile stale |                                    yes |            yes | no; Restart/Hot Swap after compile |                        yes |                   no |                  yes |
-| compiling               | yes; newest revision wins next request | cancel/replace |                                 no |                        yes |                   no |                   no |
-| running                 |                        no; Pause first |             no |                         Pause only |                        yes |         observe only |                   no |
-| analysis running        |                                    yes |            yes |                                yes |                        yes |       cancel/observe |                   no |
-| detached/reconnecting   |                    local pan/zoom only |             no |                                 no |                         no | observe after attach |                   no |
-| save conflict           |                                    yes |            yes |      compiled Session may continue |      recovery actions only |                  yes | export recovery only |
+| State                   |                                   Edit |        Compile |                           Step/Run |                       Save |               Import |
+| ----------------------- | -------------------------------------: | -------------: | ---------------------------------: | -------------------------: | -------------------: |
+| clean and compiled      |                                    yes |            yes |                                yes | when durable change exists |                  yes |
+| changed / compile stale |                                    yes |            yes | no; Restart/Hot Swap after compile |                        yes |                  yes |
+| compiling               | yes; newest revision wins next request | cancel/replace |                                 no |                        yes |                   no |
+| running                 |                        no; Pause first |             no |                         Pause only |                        yes |                   no |
+| detached/reconnecting   |                    local pan/zoom only |             no |                                 no |                         no |                   no |
+| save conflict           |                                    yes |            yes |      compiled Session may continue |      recovery actions only | export recovery only |
 
-Compile, save, Simulation, analysis, Trace, and connection states retain distinct indicators. A generic global spinner is forbidden.
+Compile, save, Simulation, Trace, and connection states retain distinct indicators.
+A generic global spinner is forbidden.
 
 ## Review and recovery flows
-
-### Simplification Proposal
-
-Analysis Review shows source boundary, original and replacement diagrams, Care Contract, Cost Profile comparison, proof method, and any limitations. `Accept replacement` is available only while the source Project Revision is current. Acceptance creates one Edit Transaction; Undo restores the original region.
 
 ### Import and export
 
@@ -237,7 +237,6 @@ The Canvas remains editable, but Step and Run are disabled. The user can Compile
 
 - Empty Project: “Place a component to begin.” Primary action opens Library search.
 - Empty Trace: “Add a probe, then step or run the circuit.”
-- Ineligible analysis: name the exact eligibility reason and link to a suitable instrument.
 - Prerender: stable shell and project identity; no fake-gate skeleton.
 - Large work: named phase and Cancel action; no synthetic completion percentage.
 - Disconnect: freeze the last acknowledged semantic overlay; local pan/zoom remains available; authoring never pretends to commit offline.
@@ -276,7 +275,7 @@ Use the centrally pinned Fluent UI Blazor package for standard Web chrome whenev
 
 | Layer               | Evidence                                                                                                                   |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| pure Web projection | command availability, labels, state mapping, diagnostics, proposal freshness                                               |
+| pure Web projection | command availability, labels, state mapping, and diagnostics                                                              |
 | Razor/Fluent        | bUnit forms, menus, dialogs, commands, empty/failure states, prerender handoff                                             |
 | browser adapters    | [Browser Runtime](./docs/specs/browser-runtime.md) and [Browser Adapter](./docs/contracts/browser-adapters.md) conformance |
 | browser             | Playwright primary pointer workflows, shared shortcuts, zoom, resize, reconnect, transfer, and conflicts                   |
