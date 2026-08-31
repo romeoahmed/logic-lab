@@ -2,7 +2,7 @@
 
 > Measured 2026-08-05; benchmark corpus revalidated 2026-08-30 (Asia/Shanghai)
 > Scope: Engine implementation and BenchmarkDotNet evidence
-> Authority: research and measured decisions; normative ownership remains in Architecture and the .NET Engineering Baseline
+> Authority: research and measured decisions; normative ownership remains in Architecture and .NET Engineering
 
 ## 1. Conclusion
 
@@ -12,15 +12,14 @@ supported at production widths. Two LINQ-backed projections in Simulation settle
 confirmed as local allocation hot spots and replaced with explicit, exact-sized array fills.
 No Module contract changed.
 
-Benchmark coverage before the first checkpoint proved only multi-driver vector resolution. The
-2026-08-05 checkpoint added packed binary-logic and conservative-merge comparisons plus public
-Compilation and initial Session-settlement scale cases. The 2026-08-30 corpus redesign replaces
-the single flat circuit with deterministic combinational, hierarchical, feedback, sequential,
-memory, advance, snapshot-read, and Trace-read workloads. The suite now has 16 methods and 70
-generated cases. Its full Dry run validates construction and execution, not performance; final
-measurements still require an explicit Release job on the target environment. Remaining gaps
-are classified by the evidence capable of answering them instead of treating BenchmarkDotNet
-as a universal performance test tool.
+The first checkpoint covered only multi-driver vector resolution. The 2026-08-05
+checkpoint added packed logic, conservative merge, Compilation, and initial Session
+settlement. The 2026-08-30 corpus redesign added deterministic combinational,
+hierarchical, feedback, sequential, memory, advance, snapshot-read, and Trace-read
+workloads. The [benchmark README](../../benchmarks/LogicLab.Engine.Benchmarks/README.md)
+owns the live case matrix; this dated record no longer copies counts that change with
+the corpus. A Dry run validates construction and execution, not performance. Retained
+measurements still require an explicit Release job in the target environment.
 
 ## 2. Source facts and project inferences
 

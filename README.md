@@ -1,23 +1,47 @@
 # Logic Lab
 
-Logic Lab is a teaching-oriented gate-level digital logic workbench for authoring, simulating, observing, and simplifying combinational and sequential circuits.
+Logic Lab is a teaching-oriented digital-logic workbench for building, simulating,
+observing, and simplifying gate-level circuits. It uses deterministic four-state
+`0/1/X/Z` semantics and a server-first Blazor Web App on .NET 10.
 
-The repository targets .NET 10, C# 14, and a server-first Blazor Web App. Normative documents define the V1 target; the [Implementation Plan](./docs/implementation-plan.md#delivery-status) is the sole delivery ledger and identifies the current dependency frontier.
+## Quick start
 
-## Run locally
+Install the SDK pinned by [`global.json`](./global.json), then run:
 
-```shell
+```sh
 dotnet run --project src/LogicLab.Web/LogicLab.Web.csproj --launch-profile https
 ```
 
-Open `https://localhost:7148`. The launch profile also exposes HTTP on port `5151`.
+Open `https://localhost:7148`. The same profile serves HTTP on
+`http://localhost:5151`.
 
-## Project guides
+## Find your way around
 
-1. [Documentation Map](./docs/README.md) — reading paths, authority, and evidence
-2. [Architecture](./ARCHITECTURE.md) — scope, ownership, and dependency direction
-3. [Workbench](./WORKBENCH.md) — target product experience
-4. [Context Map](./CONTEXT-MAP.md) — domain language and translations
-5. [.NET Engineering Baseline](./docs/specs/dotnet-engineering.md) — repository-wide implementation rules
+| Need | Start here |
+| --- | --- |
+| current delivery status | [Implementation Plan](./docs/implementation-plan.md#delivery-status) |
+| project and dependency boundaries | [Architecture](./ARCHITECTURE.md) |
+| product behavior and visual language | [Workbench](./WORKBENCH.md) |
+| domain terminology | [Context Map](./CONTEXT-MAP.md) |
+| build and coding rules | [.NET Engineering](./docs/specs/dotnet-engineering.md) |
+| one focused spec, contract, ADR, or evidence note | [Documentation Map](./docs/README.md) |
 
-Delivery status lives only in the [Implementation Plan](./docs/implementation-plan.md#delivery-status).
+Executable configuration is authoritative for the SDK, package versions, and
+project graph. Normative documents describe the V1 target; only the Implementation
+Plan states what has shipped.
+
+## Verify
+
+```sh
+dotnet build logic-lab.slnx --nologo
+dotnet test --solution logic-lab.slnx
+dotnet format logic-lab.slnx --verify-no-changes
+git diff --check
+```
+
+## License
+
+Logic Lab is available under either the [MIT License](./LICENSE-MIT) or the
+[Apache License 2.0](./LICENSE-APACHE), at your option. See [LICENSE](./LICENSE)
+for the dual-license terms and [third-party notices](./THIRD-PARTY-NOTICES.md)
+for separately licensed bundled material.

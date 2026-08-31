@@ -172,7 +172,7 @@ Public/help/account/project pages use Static SSR; `/editor` uses per-page Intera
 
 ### 8.2 .NET and dependencies
 
-C# 14 is the sole production language. The [.NET Engineering Baseline](./docs/specs/dotnet-engineering.md) owns SDK, build, analyzer, dependency, C#, async, DI, configuration, serialization, observability, and publication rules. Module interfaces expose owned immutable values; storage layout and optimization mechanisms remain implementation.
+C# 14 is the sole production language. [.NET Engineering](./docs/specs/dotnet-engineering.md) owns SDK, build, analyzer, dependency, C#, async, DI, configuration, serialization, observability, and publication rules. Module interfaces expose owned immutable values; storage layout and optimization mechanisms remain implementation.
 
 | Need                | Selection                                                    |
 | ------------------- | ------------------------------------------------------------ |
@@ -211,7 +211,7 @@ A UI test cannot prove Simulation semantics; a screenshot cannot prove interacti
 
 ## 10. Constraints and evidence-triggered seams
 
-The [Implementation Plan](./docs/implementation-plan.md#dependency-frontier) owns current delivery, while its Phase F slices own production-qualification gaps. Only measured evidence justifies revisiting these seams:
+The [Implementation Plan](./docs/implementation-plan.md#dependency-frontier) owns current delivery, while [production qualification](./docs/implementation-plan.md#production-qualification) owns deployment-readiness gaps. Only measured evidence justifies revisiting these seams:
 
 | Measured evidence                                      | Revisit                                                            |
 | ------------------------------------------------------ | ------------------------------------------------------------------ |

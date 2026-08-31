@@ -59,4 +59,7 @@ Every Workspace, Project, Session, Operation, Proposal, upload, and download act
 
 Interactive Server compression can create a side channel when secrets and attacker-controlled content share a compressed response. Secrets do not enter the editor stream, and response compression around sensitive interactive content follows Microsoft's [threat-mitigation guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/security/interactive-server-side-rendering?view=aspnetcore-10.0).
 
-Package versions and analyzer policy belong to [.NET Platform Evidence](./dotnet-platform.md). Project package validation belongs to the [Project Package V1 Specification](../specs/project-package-v1.md) and [HTTP Boundary Contract](../contracts/http-boundary.md). Persistence and Identity ownership belong to [Architecture](../../ARCHITECTURE.md); visual and Fluent UI policy belongs to [Workbench](../../WORKBENCH.md).
+Package versions and analyzer policy belong to [.NET Engineering](../specs/dotnet-engineering.md).
+Project package validation belongs to [Project Package V1](../specs/project-package-v1.md)
+and the [HTTP Boundary](../contracts/http-boundary.md). Architecture owns persistence
+and Identity; Workbench owns visual and Fluent UI policy.
