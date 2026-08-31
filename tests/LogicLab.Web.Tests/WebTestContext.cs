@@ -40,8 +40,7 @@ internal static class WebTestContext
             .SetVoidResult();
         context.JSInterop.SetupModule(BrowserSceneAdapter.ModulePath).Mode =
             JSRuntimeMode.Loose;
-        context.JSInterop.SetupModule(BrowserWaveformAdapter.ModulePath).Mode =
-            JSRuntimeMode.Loose;
+        ConfigureWaveformInterop(context);
         if (configureAttachmentNavigation)
         {
             context.JSInterop.SetupModule(WorkspaceAttachmentNavigation.ModulePath).Mode =
@@ -49,6 +48,18 @@ internal static class WebTestContext
         }
 
         return context;
+    }
+
+    private static void ConfigureWaveformInterop(BunitContext context)
+    {
+        var module = context.JSInterop.SetupModule(BrowserWaveformAdapter.ModulePath);
+        var handle = module.SetupModule("mount", static _ => true);
+        handle.SetupVoid("beginTransfer", static _ => true).SetVoidResult();
+        handle.SetupVoid("appendTransfer", static _ => true).SetVoidResult();
+        handle.Setup<bool>("commitTransfer", static _ => true).SetResult(true);
+        handle.SetupVoid("abortTransfer", static _ => true).SetVoidResult();
+        handle.SetupVoid("setInteractionMode", static _ => true).SetVoidResult();
+        handle.SetupVoid("destroy", static _ => true).SetVoidResult();
     }
 
     public static BunitContext CreateBunitContext(

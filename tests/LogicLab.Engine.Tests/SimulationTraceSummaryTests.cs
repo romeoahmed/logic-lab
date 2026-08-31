@@ -1,6 +1,10 @@
+using System.Numerics;
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Domain;
 using LogicLab.Engine.Simulation;
 using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
@@ -157,56 +161,57 @@ internal sealed class SimulationTraceSummaryTests
         _ = await Assert.That(outcome).IsTypeOf<TraceRangeUnavailable>();
     }
 
-    [Test]
-    public async Task Read_VisualSummary_UsesMinimumPointCountAndRemainderPartition()
+    [Test, FsCheckProperty(MaxTest = 50)]
+    public Property Read_VisualSummary_GeneratedRangesExactlyCoverTheViewport(
+        NonNegativeInt generatedStart,
+        PositiveInt generatedSpan,
+        PositiveInt generatedMaxPoints)
     {
+        var start = checked((ulong)(generatedStart.Get % 1_024));
+        var span = checked((ulong)(generatedSpan.Get % 128 + 1));
+        var maxPoints = generatedMaxPoints.Get % 128 + 1;
+        var end = checked(start + span);
         var context = SimulationTestContext.Create();
         var opened = (SimulationOpened)SimulationRuntime.Open(
             context.Request(context.NetSource(context.Circuit.InputNet.Id)),
             CancellationToken.None);
-
-        var remainderOutcome = SimulationRuntime.Read(
-            opened.Handle,
-            new ReadTraceWindow(new SimulationTraceWindowRequest(
-                opened.ProbeIds,
-                new LogicalTimeRange(0, 5),
-                new TraceVisualSummaryRepresentation(
-                    maxPoints: 3,
-                    TraceVisualSummaryRepresentation.LogicEnvelopeV1),
-                afterSequence: null)),
-            CancellationToken.None);
-        var minimumOutcome = SimulationRuntime.Read(
-            opened.Handle,
-            new ReadTraceWindow(new SimulationTraceWindowRequest(
-                opened.ProbeIds,
-                new LogicalTimeRange(0, 2),
-                new TraceVisualSummaryRepresentation(
-                    maxPoints: 8,
-                    TraceVisualSummaryRepresentation.LogicEnvelopeV1),
-                afterSequence: null)),
-            CancellationToken.None);
-
-        var remainder = (await Assert.That(remainderOutcome)
-            .IsTypeOf<TraceSummaryAvailable>())!;
-        var minimum = (await Assert.That(minimumOutcome)
-            .IsTypeOf<TraceSummaryAvailable>())!;
-        using (Assert.Multiple())
+        try
         {
-            await Assert.That(remainder.Buckets.Select(bucket => bucket.Range))
-                .IsEquivalentTo(
-                    [
-                        new LogicalTimeRange(0, 1),
-                        new LogicalTimeRange(1, 3),
-                        new LogicalTimeRange(3, 5),
-                    ],
-                    CollectionOrdering.Matching);
-            await Assert.That(minimum.Buckets.Select(bucket => bucket.Range))
-                .IsEquivalentTo(
-                    [
-                        new LogicalTimeRange(0, 1),
-                        new LogicalTimeRange(1, 2),
-                    ],
-                    CollectionOrdering.Matching);
+            var outcome = SimulationRuntime.Read(
+                opened.Handle,
+                new ReadTraceWindow(new SimulationTraceWindowRequest(
+                    opened.ProbeIds,
+                    new LogicalTimeRange(start, end),
+                    new TraceVisualSummaryRepresentation(
+                        maxPoints,
+                        TraceVisualSummaryRepresentation.LogicEnvelopeV1),
+                    afterSequence: null)),
+                CancellationToken.None);
+            if (outcome is not TraceSummaryAvailable summary)
+            {
+                return false.Label("a valid summary request is available");
+            }
+
+            var bucketCount = checked((int)Math.Min((ulong)maxPoints, span));
+            var expected = Enumerable.Range(0, bucketCount)
+                .Select(index => new LogicalTimeRange(
+                    Boundary(start, span, index, bucketCount),
+                    Boundary(start, span, index + 1, bucketCount)))
+                .ToArray();
+            var actual = summary.Buckets.Select(bucket => bucket.Range).ToArray();
+
+            return actual.SequenceEqual(expected)
+                .Label("summary buckets use the contract's exact floor partition")
+                .And((actual.Length == bucketCount)
+                    .Label("summary uses min(maxPoints, span) buckets"))
+                .And((actual.Length != 0
+                        && actual[0].StartInclusive == start
+                        && actual[^1].EndExclusive == end)
+                    .Label("summary covers both viewport boundaries"));
+        }
+        finally
+        {
+            _ = SimulationRuntime.Close(opened.Handle);
         }
     }
 
@@ -239,4 +244,7 @@ internal sealed class SimulationTraceSummaryTests
                     new LogicVector([value])),
             ]));
     }
+
+    private static ulong Boundary(ulong start, ulong span, int index, int count) =>
+        checked(start + (ulong)(new BigInteger(index) * span / count));
 }

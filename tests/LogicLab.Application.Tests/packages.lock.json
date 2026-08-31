@@ -24,6 +24,21 @@
           "TUnit.Engine": "1.65.68"
         }
       },
+      "TUnit.FsCheck": {
+        "type": "Direct",
+        "requested": "[1.65.68, )",
+        "resolved": "1.65.68",
+        "contentHash": "lqGxMv3lWB5oAqwgu405ZELl+NHDG5AcT0MHOAQAK/L18L9HNjeZ1bOlqwQBnc+Pgk88kSzgs1qRY2YoovNIxg==",
+        "dependencies": {
+          "FsCheck": "3.4.0",
+          "TUnit": "1.65.68"
+        }
+      },
+      "FSharp.Core": {
+        "type": "Transitive",
+        "resolved": "5.0.2",
+        "contentHash": "DpcajqENgb3VXaHw1FKfVS+TWwEzck1PCajqLwBAVrtd1lfxd7T8JISVZBdV1mX9+2g48+tIgpNaVJWObdMrBw=="
+      },
       "Microsoft.ApplicationInsights": {
         "type": "Transitive",
         "resolved": "2.23.0",
@@ -131,6 +146,15 @@
         "type": "Project",
         "dependencies": {
           "LogicLab.Domain": "[1.0.0, )"
+        }
+      },
+      "FsCheck": {
+        "type": "CentralTransitive",
+        "requested": "[3.4.0, )",
+        "resolved": "3.4.0",
+        "contentHash": "wkWR1DORrKd46W6MEhmS4muo/0kgrtUV/AGW1ohMWemy7WukcRH8T3JjkDpn/daOHk0yVqf0CBvScU17Ab//PA==",
+        "dependencies": {
+          "FSharp.Core": "5.0.2"
         }
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {

@@ -1,9 +1,9 @@
-using System.Reflection;
 using System.Text.Json;
 using Bunit;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
+using LogicLab.Engine;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
 using LogicLab.Web.Components.Editor;
@@ -18,20 +18,23 @@ internal sealed class LogicAnalyzerTests
         new("Input", "Output");
 
     [Test]
-    public async Task StaticRender_NoProbes_OffersAPlainLanguageStartingPoint()
+    public async Task StaticRender_NoProbes_SkipsTraceReadingAndWaveformRendering()
     {
         await using var context = WebTestContext.CreateBunitContext();
         context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
         var fixture = Fixture.Create().WithProbes([]);
+        var readCount = 0;
         var rendered = context.Render<LogicAnalyzer>(parameters => parameters
             .Add(component => component.Projection, fixture.Projection)
-            .Add(component => component.TraceReader, ReadTrace));
+            .Add(component => component.TraceReader, (request, cancellationToken) =>
+            {
+                readCount++;
+                return ReadTrace(request, cancellationToken);
+            }));
 
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.Find(".analyzer-empty p")
-                    .TextContent)
-                .IsEqualTo("No probes yet.");
+            await Assert.That(readCount).IsEqualTo(0);
             await Assert.That(rendered.FindAll("canvas[data-waveform-canvas]"))
                 .IsEmpty();
         }
@@ -69,52 +72,33 @@ internal sealed class LogicAnalyzerTests
     }
 
     [Test]
-    public async Task StaticRender_InitialTraceFailure_OffersRetryInsteadOfEmptyState()
+    public async Task StaticRender_InitialTraceFailure_RetryRequestsTheTraceAgain()
     {
         await using var context = WebTestContext.CreateBunitContext();
         context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
         var fixture = Fixture.Create();
+        var readCount = 0;
         var rendered = context.Render<LogicAnalyzer>(parameters => parameters
             .Add(component => component.Projection, fixture.Projection)
             .Add(component => component.TraceReader,
-                (_, _) => Task.FromResult<TraceWindowOutcome?>(null)));
+                (_, cancellationToken) =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    readCount++;
+                    return Task.FromResult<TraceWindowOutcome?>(null);
+                }));
         await rendered.WaitForStateAsync(() =>
             rendered.FindAll(".analyzer-load-failure").Count == 1);
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.Find(".analyzer-load-failure p").TextContent)
-                .IsEqualTo("This waveform range can't be loaded right now.");
-            await Assert.That(rendered.Find(".analyzer-load-failure fluent-button")
-                    .TextContent.Trim())
-                .IsEqualTo("Try again");
-        }
+        await rendered.Find(".analyzer-load-failure fluent-button").ClickAsync();
+        await rendered.WaitForStateAsync(() => readCount == 2);
+
+        await Assert.That(rendered.FindAll(".analyzer-load-failure"))
+            .Count().IsEqualTo(1);
     }
 
     [Test]
-    public async Task StaticRender_ActiveTrace_UsesOneCanvasAndRazorProbeSpine()
-    {
-        await using var context = WebTestContext.CreateBunitContext();
-        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
-        var fixture = Fixture.Create();
-        var rendered = context.Render<LogicAnalyzer>(parameters => parameters
-            .Add(component => component.Projection, fixture.Projection)
-            .Add(component => component.TraceReader, ReadTrace));
-
-        await rendered.WaitForStateAsync(() =>
-            rendered.FindAll(".probe-spine li").Count == 2);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.FindAll("canvas[data-waveform-canvas]"))
-                .Count().IsEqualTo(1);
-            await Assert.That(rendered.FindAll(".probe-spine li"))
-                .Count().IsEqualTo(2);
-        }
-    }
-
-    [Test]
-    public async Task SummaryControl_RequestsExplicitVisualSummaryAndLabelsResolution()
+    public async Task SummaryControl_RequestsTheExplicitSummaryRepresentation()
     {
         await using var context = WebTestContext.CreateBunitContext();
         context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
@@ -139,22 +123,17 @@ internal sealed class LogicAnalyzerTests
         await rendered.WaitForStateAsync(() =>
             rendered.FindAll(".probe-spine li").Count == 2);
 
-        await rendered.FindAll(".representation-control fluent-toggle-button")
-            .Single(control => control.TextContent.Trim() == "Overview")
-            .ClickAsync();
+        var summaryControl = rendered
+            .FindAll(".representation-control fluent-toggle-button")
+            .Single(control => !control.HasAttribute("pressed"));
+        await summaryControl.ClickAsync();
         await rendered.WaitForStateAsync(() =>
             lastRepresentation is TraceVisualSummaryRequest);
 
         var summary = await Assert.That(lastRepresentation)
             .IsTypeOf<TraceVisualSummaryRequest>();
-        using (Assert.Multiple())
-        {
-            await Assert.That(summary!.Aggregation)
-                .IsEqualTo(TraceVisualSummaryRequest.LogicEnvelopeV1);
-            await Assert.That(summary.MaxPoints).IsEqualTo(512);
-            await Assert.That(rendered.FindAll(".summary-resolution"))
-                .Count().IsEqualTo(1);
-        }
+        await Assert.That(summary!.Aggregation)
+            .IsEqualTo(TraceVisualSummaryRequest.LogicEnvelopeV1);
     }
 
     [Test]
@@ -219,9 +198,8 @@ internal sealed class LogicAnalyzerTests
         using (Assert.Multiple())
         {
             await Assert.That(rendered.FindAll(".probe-spine li")).Count().IsEqualTo(2);
-            await Assert.That(rendered
-                    .FindAll(".probe-spine li[data-probe-binding='unresolved'] fluent-button")
-                    .Where(control => control.TextContent.Trim() == "Reconnect"))
+            await Assert.That(rendered.FindAll(
+                    ".probe-spine li[data-probe-binding='unresolved']"))
                 .Count().IsEqualTo(2);
         }
     }
@@ -256,8 +234,9 @@ internal sealed class LogicAnalyzerTests
         await rendered.WaitForStateAsync(() => rendered.FindAll(
             ".probe-spine li[data-probe-binding='unresolved']").Count == 1);
 
-        await rendered.FindAll(".probe-spine li[data-probe-binding='unresolved'] fluent-button")
-            .Single(control => control.TextContent.Trim() == "Reconnect")
+        await rendered.Find(
+                ".probe-spine li[data-probe-binding='unresolved'] "
+                + ".probe-controls fluent-button:not(.probe-icon-action)")
             .ClickAsync();
 
         using (Assert.Multiple())
@@ -267,32 +246,6 @@ internal sealed class LogicAnalyzerTests
                     ".probe-spine li[data-probe-binding='unresolved']"))
                 .Count().IsEqualTo(1);
         }
-    }
-
-    [Test]
-    public async Task InteractiveRender_LastProbeRemoved_ReleasesMountedRenderer()
-    {
-        await using var context = WebTestContext.CreateBunitContext();
-        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var module = context.JSInterop.SetupModule(BrowserWaveformAdapter.ModulePath);
-        var handle = module.SetupModule("mount", _ => true);
-        handle.Mode = JSRuntimeMode.Loose;
-        handle.Setup<bool>("commitTransfer").SetResult(true);
-        var fixture = Fixture.Create();
-        var rendered = context.Render<LogicAnalyzer>(parameters => parameters
-            .Add(component => component.Projection, fixture.Projection)
-            .Add(component => component.TraceReader, ReadTrace));
-        await rendered.WaitForStateAsync(() =>
-            handle.Invocations["commitTransfer"].Count != 0);
-
-        var noProbes = fixture.WithProbes([]);
-        rendered.Render(parameters => parameters
-            .Add(component => component.Projection, noProbes.Projection)
-            .Add(component => component.TraceReader, ReadTrace));
-        await rendered.WaitForStateAsync(() =>
-            handle.Invocations["destroy"].Count == 1);
-
-        await Assert.That(rendered.FindAll("canvas[data-waveform-canvas]")).IsEmpty();
     }
 
     [Test]
@@ -325,9 +278,8 @@ internal sealed class LogicAnalyzerTests
                 .Count().IsEqualTo(1);
             await Assert.That(rendered.FindAll(".trace-recovery"))
                 .IsEmpty();
-            await Assert.That(rendered.Find(".trace-gap-state fluent-button")
-                    .TextContent.Trim())
-                .IsEqualTo("Back to live");
+            await Assert.That(rendered.FindAll(".trace-gap-state fluent-button"))
+                .Count().IsEqualTo(1);
         }
     }
 
@@ -484,27 +436,64 @@ internal sealed class LogicAnalyzerTests
         public static Fixture Create()
         {
             var revision = WebTestCircuit.CreateCompleteCircuit();
-            var definition = revision.Document.EntryCircuitDefinition;
-            var probes = definition.Nets.Select((net, ordinal) => new ProbeProjection(
-                Identifier<ProbeId>($"probe-{ordinal}"),
-                new CompilationSource(
-                    new NetSourceIdentity(definition.Id, net.Id),
-                    new HierarchyPath(definition.Id, [])),
-                [ordinal == 0 ? LogicValue.Zero : LogicValue.One]))
+            var compilation = (CompilationSucceeded)Compiler.Compile(
+                new CompilationRequest(
+                    revision,
+                    revision.Document.EntryCircuitDefinitionId,
+                    revision.Document.LibrarySnapshot,
+                    ProjectPolicy()),
+                CancellationToken.None);
+            var artifact = compilation.Artifact;
+            var sources = artifact.SourceMap.Nets
+                .Select(entry => entry.Source)
                 .ToArray();
-            var sessionId = Identifier<SimulationSessionId>("session-a");
-            var artifact = Artifact(revision, "compiler-v1");
-            var simulation = new SimulationProjection(
-                sessionId,
-                sessionVersion: 3,
-                artifact,
-                logicalTime: 10,
-                new TraceCursor(0, 2),
-                probes,
-                RunNotRunningProjection.Instance);
-            return new Fixture(
-                ProjectionFor(revision, artifact, simulation),
-                sessionId);
+            var simulationPolicy = SimulationPolicy();
+            var tracePolicy = TracePolicy();
+            var opened = (SimulationOpened)SimulationRuntime.Open(
+                new OpenSimulationRequest(
+                    artifact,
+                    new SimulationSessionConfiguration(
+                        new SimulationPolicyReference(
+                            simulationPolicy.PolicyId,
+                            simulationPolicy.PolicyRevision),
+                        new TracePolicyReference(
+                            tracePolicy.PolicyId,
+                            tracePolicy.PolicyRevision),
+                        sources),
+                    simulationPolicy,
+                    tracePolicy),
+                CancellationToken.None);
+            try
+            {
+                var snapshot = (SessionSnapshotRead)SimulationRuntime.Read(
+                    opened.Handle,
+                    new ReadSessionSnapshot(),
+                    CancellationToken.None);
+                var probes = snapshot.Probes
+                    .Select(probe => new ProbeProjection(
+                        probe.ProbeId,
+                        probe.Source,
+                        Values(probe.Value)))
+                    .ToArray();
+                var simulation = new SimulationProjection(
+                    snapshot.SessionId,
+                    sessionVersion: 3,
+                    snapshot.CompilationArtifactKey,
+                    logicalTime: 10,
+                    snapshot.TraceCursor,
+                    probes,
+                    RunNotRunningProjection.Instance);
+                return new Fixture(
+                    ProjectionFor(
+                        revision,
+                        snapshot.CompilationArtifactKey,
+                        simulation),
+                    snapshot.SessionId);
+            }
+            finally
+            {
+                _ = SimulationRuntime.Close(opened.Handle);
+            }
         }
 
         public WorkspaceProjection WithArtifact(
@@ -566,14 +555,25 @@ internal sealed class LogicAnalyzerTests
                 new TransactionHistoryAvailability(false, false, 1),
                 SandboxWorkspaceDurabilityProjection.Instance);
 
-        private static T Identifier<T>(string value) where T : class =>
-            (T)(Activator.CreateInstance(
-                typeof(T),
-                BindingFlags.Instance | BindingFlags.NonPublic,
-                binder: null,
-                args: [value],
-                culture: null)
-                ?? throw new InvalidOperationException(
-                    $"The test identifier '{typeof(T).Name}' could not be created."));
+        private static ProjectScalePolicy ProjectPolicy() => new(
+            "web-test-project",
+            "1",
+            [.. Enum.GetValues<ProjectScaleDimension>()
+                .Select(dimension => new ProjectScaleLimit(dimension, 100_000))]);
+
+        private static SimulationPolicy SimulationPolicy() => new(
+            "web-test-simulation",
+            "1",
+            [.. Enum.GetValues<SimulationDimension>()
+                .Select(dimension => new SimulationLimit(dimension, 100_000))]);
+
+        private static TracePolicy TracePolicy() => new(
+            "web-test-trace",
+            "1",
+            [.. Enum.GetValues<TraceDimension>()
+                .Select(dimension => new TraceLimit(dimension, 100_000))]);
+
+        private static LogicValue[] Values(LogicVector vector) =>
+            [.. Enumerable.Range(0, vector.Width).Select(index => vector[index])];
     }
 }

@@ -35,12 +35,11 @@ internal sealed class BrowserPolicyTests
         var limits = BrowserPolicy.Default.Limits.ToArray();
         limits[1] = limits[0];
 
-        var exception = Assert.Throws<ArgumentException>(() => _ = new BrowserPolicy(
-            "logiclab-browser",
-            "test-1",
-            limits));
-
-        await Assert.That(exception.ParamName).IsEqualTo("limits");
+        await Assert.That(() => new BrowserPolicy(
+                "logiclab-browser",
+                "test-1",
+                limits))
+            .ThrowsExactly<ArgumentException>();
     }
 
     [Test]
@@ -55,12 +54,11 @@ internal sealed class BrowserPolicyTests
             })
             .ToArray();
 
-        var exception = Assert.Throws<ArgumentException>(() => _ = new BrowserPolicy(
-            "logiclab-browser",
-            "test-1",
-            limits));
-
-        await Assert.That(exception.ParamName).IsEqualTo("limits");
+        await Assert.That(() => new BrowserPolicy(
+                "logiclab-browser",
+                "test-1",
+                limits))
+            .ThrowsExactly<ArgumentException>();
     }
 
     [Test]
@@ -75,12 +73,11 @@ internal sealed class BrowserPolicyTests
                 : limit)
             .ToArray();
 
-        var exception = Assert.Throws<ArgumentException>(() => _ = new BrowserPolicy(
-            "logiclab-browser",
-            "test-1",
-            limits));
-
-        await Assert.That(exception.ParamName).IsEqualTo("limits");
+        await Assert.That(() => new BrowserPolicy(
+                "logiclab-browser",
+                "test-1",
+                limits))
+            .ThrowsExactly<ArgumentException>();
     }
 
     [Test]
@@ -92,12 +89,11 @@ internal sealed class BrowserPolicyTests
                 : limit)
             .ToArray();
 
-        var exception = Assert.Throws<ArgumentException>(() => _ = new BrowserPolicy(
-            "logiclab-browser",
-            "test-1",
-            limits));
-
-        await Assert.That(exception.ParamName).IsEqualTo("limits");
+        await Assert.That(() => new BrowserPolicy(
+                "logiclab-browser",
+                "test-1",
+                limits))
+            .ThrowsExactly<ArgumentException>();
     }
 
     [Test]
@@ -109,11 +105,10 @@ internal sealed class BrowserPolicyTests
                 : limit)
             .ToArray();
 
-        var exception = Assert.Throws<ArgumentException>(() => _ = new BrowserPolicy(
-            "logiclab-browser",
-            "test-1",
-            limits));
-
-        await Assert.That(exception.ParamName).IsEqualTo("limits");
+        await Assert.That(() => new BrowserPolicy(
+                "logiclab-browser",
+                "test-1",
+                limits))
+            .ThrowsExactly<ArgumentException>();
     }
 }

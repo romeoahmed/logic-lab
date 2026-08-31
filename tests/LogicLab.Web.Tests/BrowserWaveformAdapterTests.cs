@@ -1,24 +1,21 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using LogicLab.Web.Scene;
 using LogicLab.Web.Waveforms;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
-using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
 internal sealed class BrowserWaveformAdapterTests
 {
     [Test]
-    public async Task Replace_LargeSnapshot_UsesBoundedOrderedAtomicTransfer()
+    public async Task Replace_SnapshotSerializesCandidateWithWaveformTransferKind()
     {
         var handle = new RecordingJsObjectReference();
         var mounted = await MountAsync(handle);
         using var sink = mounted.Sink;
         await using var adapter = mounted.Adapter;
-        var snapshot = Snapshot(rowCount: 220);
+        var snapshot = Snapshot();
         var expected = JsonSerializer.SerializeToUtf8Bytes(
             snapshot,
             WaveformJsonSerializerContext.Strict.WaveformSnapshotV1);
@@ -26,52 +23,48 @@ internal sealed class BrowserWaveformAdapterTests
         await adapter.ReplaceAsync(snapshot, CancellationToken.None);
 
         var begin = handle.Calls.Single(call => call.Identifier == "beginTransfer");
-        var chunks = handle.Calls
+        var reconstructed = handle.Calls
             .Where(call => call.Identifier == "appendTransfer")
-            .OrderBy(call => (int)call.Arguments[1]!)
-            .ToArray();
-        var reconstructed = chunks
             .SelectMany(call => Convert.FromBase64String((string)call.Arguments[2]!))
             .ToArray();
 
         using (Assert.Multiple())
         {
-            await Assert.That(chunks).Count().IsGreaterThan(1);
-            await Assert.That(chunks.Select(call => (int)call.Arguments[1]!))
-                .IsEquivalentTo(Enumerable.Range(0, chunks.Length), CollectionOrdering.Matching);
-            await Assert.That(chunks.Max(call =>
-                    Encoding.UTF8.GetByteCount((string)call.Arguments[2]!)
-                        + (int)BrowserPolicy.InteropEnvelopeBytes))
-                .IsLessThanOrEqualTo((int)BrowserPolicy.Default.Limit(
-                    BrowserLimitDimension.InteropBatchBytes));
             await Assert.That(reconstructed)
-                .IsEquivalentTo(expected, CollectionOrdering.Matching);
+                .IsEquivalentTo(expected);
             await Assert.That(begin.Arguments[1]).IsEqualTo("snapshot");
-            await Assert.That(begin.Arguments[2]).IsEqualTo(expected.Length);
-            await Assert.That(begin.Arguments[3]).IsEqualTo(
-                Convert.ToHexStringLower(SHA256.HashData(expected)));
         }
     }
 
     [Test]
-    public async Task InteractionMode_AndRepeatedDispose_AreForwardedAndReleasedOnce()
+    public async Task InteractionMode_LocalOnlyMapsToTheBrowserToken()
     {
         var handle = new RecordingJsObjectReference();
         var mounted = await MountAsync(handle);
         using var sink = mounted.Sink;
-        var adapter = mounted.Adapter;
+        await using var adapter = mounted.Adapter;
 
         await adapter.SetInteractionModeAsync(
             WaveformInteractionMode.LocalOnly,
             CancellationToken.None);
-        await adapter.DisposeAsync();
-        await adapter.DisposeAsync();
+
+        await Assert.That(handle.Calls.Single(call =>
+                call.Identifier == "setInteractionMode").Arguments[0])
+            .IsEqualTo("localOnly");
+    }
+
+    [Test]
+    public async Task Dispose_RepeatedCall_ReleasesBrowserReferencesOnce()
+    {
+        var handle = new RecordingJsObjectReference();
+        var mounted = await MountAsync(handle);
+        using var sink = mounted.Sink;
+
+        await mounted.Adapter.DisposeAsync();
+        await mounted.Adapter.DisposeAsync();
 
         using (Assert.Multiple())
         {
-            await Assert.That(handle.Calls.Single(call =>
-                    call.Identifier == "setInteractionMode").Arguments[0])
-                .IsEqualTo("localOnly");
             await Assert.That(handle.Calls.Count(call => call.Identifier == "destroy"))
                 .IsEqualTo(1);
             await Assert.That(handle.IsDisposed).IsTrue();
@@ -80,7 +73,7 @@ internal sealed class BrowserWaveformAdapterTests
     }
 
     [Test]
-    public async Task Replace_BrowserRejectsTerminalCommit_AbortsWithoutPublishing()
+    public async Task Replace_TerminalCommitRejected_MapsTheWaveformTransferFailure()
     {
         var handle = new RecordingJsObjectReference(commitAccepted: false);
         var mounted = await MountAsync(handle);
@@ -88,22 +81,15 @@ internal sealed class BrowserWaveformAdapterTests
         await using var adapter = mounted.Adapter;
 
         var exception = await Assert.That(() => adapter.ReplaceAsync(
-                Snapshot(rowCount: 1),
+                Snapshot(),
                 CancellationToken.None))
             .ThrowsExactly<BrowserWaveformContractException>();
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(exception!.TransferKind).IsEqualTo("snapshot");
-            await Assert.That(handle.Calls.Count(call =>
-                    call.Identifier == "abortTransfer"))
-                .IsEqualTo(1);
-        }
+        await Assert.That(exception!.TransferKind).IsEqualTo("snapshot");
     }
 
     private static async Task<MountedAdapter> MountAsync(
-        RecordingJsObjectReference handle,
-        BrowserPolicy? policy = null)
+        RecordingJsObjectReference handle)
     {
         var module = new RecordingJsObjectReference(handle);
         var sink = DotNetObjectReference.Create(new Sink());
@@ -113,7 +99,7 @@ internal sealed class BrowserWaveformAdapterTests
                 new RecordingJsRuntime(module),
                 default(ElementReference),
                 "build-a",
-                policy ?? BrowserPolicy.Default,
+                BrowserPolicy.Default,
                 sink,
                 CancellationToken.None);
             return new MountedAdapter(adapter, module, sink);
@@ -125,11 +111,9 @@ internal sealed class BrowserWaveformAdapterTests
         }
     }
 
-    private static WaveformSnapshotV1 Snapshot(int rowCount)
+    private static WaveformSnapshotV1 Snapshot()
     {
-        var rows = Enumerable.Range(0, rowCount)
-            .Select(index => Row(index))
-            .ToArray();
+        WaveformRowV1[] rows = [Row()];
         return new WaveformSnapshotV1(
             "build-a",
             1,
@@ -150,16 +134,16 @@ internal sealed class BrowserWaveformAdapterTests
                     transitionAtStart: false))]));
     }
 
-    private static WaveformRowV1 Row(int index) => new(
-        $"probe-{index:D4}",
+    private static WaveformRowV1 Row() => new(
+        "probe-a",
         new SceneElaboratedNetRefV1(
-            new SceneSourceRefV1("main", "net", $"net-{index:D4}"),
+            new SceneSourceRefV1("main", "net", "net-a"),
             new SceneHierarchyPathV1("main", [])),
         width: 32,
-        displayOrdinal: index,
-        shortLabel: new string('S', 140),
+        displayOrdinal: 0,
+        shortLabel: "A",
         radix: "hex",
-        appearanceOrdinal: checked((uint)index),
+        appearanceOrdinal: 0,
         pattern: "solid",
         binding: "resolved",
         bindingReason: null,

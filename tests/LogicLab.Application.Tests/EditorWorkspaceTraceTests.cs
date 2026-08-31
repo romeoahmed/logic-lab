@@ -1,4 +1,5 @@
-using System.Reflection;
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
@@ -7,6 +8,7 @@ using LogicLab.Engine;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
 using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Application.Tests;
 
@@ -138,14 +140,25 @@ internal sealed class EditorWorkspaceTraceTests
     }
 
     [Test]
-    public async Task ReadAsync_UnknownProbe_ReturnsSessionPreconditionFailure(
+    public async Task ReadAsync_RetiredProbe_ReturnsSessionPreconditionFailure(
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.TestFingerprint);
         var session = await OpenVectorSessionAsync(workspace, cancellationToken);
-        var simulation = session.Projection.Simulation!;
-        var unknownProbe = Identifier<ProbeId>("unknown-probe");
+        var retiredProbe = session.Projection.Simulation!.Probes[0].ProbeId;
+        var replacement = await workspace.DispatchAsync(
+            new ReplaceProbes(
+                Command(session.WorkspaceId, session.Attached),
+                EditorWorkspaceTestDriver.SessionMutation(session.Projection),
+                []),
+            cancellationToken);
+        _ = await Assert.That(replacement).IsTypeOf<ProbesReplaced>();
+        var afterRemoval = await ReadProjectionAsync(
+            workspace,
+            session,
+            cancellationToken);
+        var simulation = afterRemoval.Simulation!;
 
         var outcome = await workspace.ReadAsync(
             Query(session),
@@ -153,7 +166,7 @@ internal sealed class EditorWorkspaceTraceTests
                 new TraceWindowRequest(
                     simulation.SessionId,
                     simulation.CompilationArtifactKey,
-                    [unknownProbe],
+                    [retiredProbe],
                     new TraceTimeRange(0, 1),
                     TraceTransitionsRequest.Instance,
                     afterSequence: null)),
@@ -165,16 +178,37 @@ internal sealed class EditorWorkspaceTraceTests
             .IsEqualTo(WorkspaceOutcomeReasons.SessionPreconditionFailed);
     }
 
-    [Test]
-    public async Task TransferRecords_NoncanonicalValues_RejectBeforeCrossingTheSeam()
+    [Test, FsCheckProperty]
+    public Property LogicVectorTransfer_GeneratedLogic4ValuesRoundTripPackedData(
+        NonEmptyArray<byte> generatedValues)
     {
-        var probeId = Identifier<ProbeId>("probe-a");
+        var values = generatedValues.Get
+            .Select(value => (LogicValue)(value & 0b11))
+            .ToArray();
+        var transfer = LogicVectorTransferV1.From(new LogicVector(values));
+        var decoded = Enumerable.Range(0, values.Length)
+            .Select(index => (LogicValue)((transfer.Data[index / 4]
+                >> ((index % 4) * 2)) & 0b11))
+            .ToArray();
+
+        return (transfer.Width == checked((uint)values.Length))
+            .Label("transfer width matches the generated vector")
+            .And(decoded.SequenceEqual(values)
+                .Label("every packed Logic4 field round-trips"))
+            .Collect($"width={values.Length}");
+    }
+
+    [Test]
+    public async Task TransferRecords_NoncanonicalPayloadOrUnsignedValue_Reject(
+        CancellationToken cancellationToken)
+    {
+        await using var workspace = TestEditorWorkspaceFactory.Create(
+            WorkspaceBuild.TestFingerprint);
+        var session = await OpenVectorSessionAsync(workspace, cancellationToken);
+        var probeId = session.Projection.Simulation!.Probes[0].ProbeId;
 
         using (Assert.Multiple())
         {
-            await Assert.That(LogicVectorTransferV1.From(new LogicVector(
-                    [LogicValue.Zero, LogicValue.One, LogicValue.X, LogicValue.Z])).Data)
-                .IsEquivalentTo([(byte)0b1110_0100]);
             await Assert.That(() => new LogicVectorTransferV1(
                     width: 1,
                     LogicVectorTransferV1.Logic4TwoBitV1,
@@ -354,16 +388,6 @@ internal sealed class EditorWorkspaceTraceTests
         .EntryCircuitDefinition.ComponentInstances.Single(instance =>
             instance.Target is LibraryComponentTarget library
             && library.ContractKey.ContractId == contractId);
-
-    private static T Identifier<T>(string value) where T : class =>
-        (T)(Activator.CreateInstance(
-            typeof(T),
-            BindingFlags.Instance | BindingFlags.NonPublic,
-            binder: null,
-            args: [value],
-            culture: null)
-            ?? throw new InvalidOperationException(
-                $"The test identifier '{typeof(T).Name}' could not be created."));
 
     private sealed record TraceWorkspace(
         WorkspaceId WorkspaceId,
