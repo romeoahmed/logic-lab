@@ -6,12 +6,9 @@ namespace LogicLab.Web.BrowserTests;
 
 internal static class StarterCircuitFixture
 {
-    public static ProjectRevision CreateInverter() => Create(StarterCircuitCatalog.Inverter);
-
-    public static ProjectRevision CreateSteering() => Create(StarterCircuitCatalog.Steering);
-
-    private static ProjectRevision Create(StarterCircuitRecipe recipe)
+    public static ProjectRevision Create(StarterExample example)
     {
+        var recipe = StarterCircuitCatalog.GetPlan(example).Recipe;
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
             "Browser starter fixture",
             LibrarySnapshot.Core,

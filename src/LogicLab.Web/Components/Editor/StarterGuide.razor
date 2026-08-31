@@ -11,7 +11,7 @@
         <li><strong>4</strong><span>@Text["LearningStepObserve"]</span></li>
     </ol>
     <div class="starter-options">
-        @foreach (var option in Options)
+        @foreach (var option in StarterCircuitCatalog.Examples)
         {
             <FluentCompoundButton Class="starter-option"
                                   Appearance="ButtonAppearance.Outline"
@@ -35,35 +35,13 @@
 </section>
 
 @code {
-    private static readonly StarterOption[] Options =
-    [
-        new(Example.Inverter, "author", "logic.not", "StarterInverterTitle", "StarterInverterDescription"),
-        new(Example.Steering, "author-steering", "logic.mux", "StarterSteeringTitle", "StarterSteeringDescription"),
-        new(Example.CarryLookahead, "author-carry-lookahead", "logic.adder", "StarterCarryLookaheadTitle", "StarterCarryLookaheadDescription"),
-        new(Example.BitSerial, "author-bit-serial", "sequential.shift_register", "StarterBitSerialTitle", "StarterBitSerialDescription"),
-    ];
-
     [Parameter]
     public string? BusyCommand { get; set; }
 
     [Parameter]
-    public EventCallback<Example> OnSelect { get; set; }
+    public EventCallback<StarterExample> OnSelect { get; set; }
 
     [Inject]
     private IStringLocalizer<EditorText> Text { get; set; } = null!;
 
-    public enum Example
-    {
-        Inverter,
-        Steering,
-        CarryLookahead,
-        BitSerial,
-    }
-
-    private sealed record StarterOption(
-        Example Example,
-        string Command,
-        string SymbolContractId,
-        string TitleResourceKey,
-        string DescriptionResourceKey);
 }

@@ -7,7 +7,7 @@ namespace LogicLab.Web.Components.Editor;
 
 internal static class StarterCircuitCatalog
 {
-    public static StarterCircuitRecipe Inverter { get; } = new(
+    private static StarterCircuitRecipe Inverter { get; } = new(
         "CircuitAuthored",
         [
             new(
@@ -35,7 +35,7 @@ internal static class StarterCircuitCatalog
             new("inverter", "Q", "output", "D", [new(26, 7), new(29, 7)]),
         ]);
 
-    public static StarterCircuitRecipe Steering { get; } = new(
+    private static StarterCircuitRecipe Steering { get; } = new(
         "SteeringExampleAuthored",
         [
             new(
@@ -101,13 +101,50 @@ internal static class StarterCircuitCatalog
             new("mux", "Q", "output", "D", [new(37, 10), new(43, 10)]),
         ]);
 
-    public static StarterCircuitRecipe CarryLookahead { get; } = CreateCarryLookahead();
+    private static StarterCircuitRecipe CarryLookahead { get; } = CreateCarryLookahead();
 
-    public static StarterCircuitRecipe BitSerial { get; } = CreateBitSerial();
+    private static StarterCircuitRecipe BitSerial { get; } = CreateBitSerial();
+
+    public static ReadOnlyCollection<StarterExamplePlan> Examples { get; } =
+        Array.AsReadOnly<StarterExamplePlan>(
+        [
+            new(
+                StarterExample.Inverter,
+                "author",
+                "logic.not",
+                "StarterInverterTitle",
+                "StarterInverterDescription",
+                Inverter),
+            new(
+                StarterExample.Steering,
+                "author-steering",
+                "logic.mux",
+                "StarterSteeringTitle",
+                "StarterSteeringDescription",
+                Steering),
+            new(
+                StarterExample.CarryLookahead,
+                "author-carry-lookahead",
+                "logic.adder",
+                "StarterCarryLookaheadTitle",
+                "StarterCarryLookaheadDescription",
+                CarryLookahead),
+            new(
+                StarterExample.BitSerial,
+                "author-bit-serial",
+                "sequential.shift_register",
+                "StarterBitSerialTitle",
+                "StarterBitSerialDescription",
+                BitSerial),
+        ]);
+
+    public static StarterExamplePlan GetPlan(StarterExample example) =>
+        Examples.FirstOrDefault(candidate => candidate.Example == example)
+        ?? throw new ArgumentOutOfRangeException(nameof(example), example, null);
 
     private static StarterCircuitRecipe CreateCarryLookahead()
     {
-        const uint width = 4;
+        const int width = 4;
         List<StarterComponentPlan> components =
         [
             new(
@@ -201,15 +238,15 @@ internal static class StarterCircuitCatalog
                 Route(new GridPoint(34, 18), new GridPoint(41, 20), 37)),
         };
 
-        var carryAnchors = new Dictionary<int, GridPoint>();
+        var carryAnchors = new List<GridPoint>();
         for (var carryIndex = 1; carryIndex <= width; carryIndex++)
         {
-            var blockY = checked(30 + carryIndex * carryIndex * 6);
+            var blockY = 30 + carryIndex * carryIndex * 6;
             var carryKey = $"carry{carryIndex}";
             components.Add(new StarterComponentPlan(
                 carryKey,
                 "logic.or",
-                GateParameters(1, checked((uint)carryIndex + 1)),
+                GateParameters(1, carryIndex + 1),
                 $"ExampleCarry{carryIndex}",
                 new GridPoint(92, blockY)));
 
@@ -227,11 +264,11 @@ internal static class StarterCircuitCatalog
             for (var termIndex = 1; termIndex <= carryIndex; termIndex++)
             {
                 var termKey = $"carry{carryIndex}Term{termIndex}";
-                var termY = checked(blockY + termIndex * 10);
+                var termY = blockY + termIndex * 10;
                 components.Add(new StarterComponentPlan(
                     termKey,
                     "logic.and",
-                    GateParameters(1, checked((uint)termIndex + 1)),
+                    GateParameters(1, termIndex + 1),
                     "ExampleCarryTerm",
                     new GridPoint(68, termY)));
 
@@ -289,8 +326,10 @@ internal static class StarterCircuitCatalog
                         88)));
             }
 
-            carryAnchors.Add(carryIndex, new GridPoint(108, blockY + 5));
+            carryAnchors.Add(new GridPoint(108, blockY + 5));
         }
+
+        var finalCarryAnchor = carryAnchors[^1];
 
         components.AddRange(
         [
@@ -317,7 +356,7 @@ internal static class StarterCircuitCatalog
                 "sink.output",
                 OutputParameters(1),
                 "ExampleCarryOut",
-                new GridPoint(116, carryAnchors[4].Y - 2)),
+                new GridPoint(116, finalCarryAnchor.Y - 2)),
         ]);
 
         connections.Add(new StarterConnectionPlan(
@@ -334,7 +373,7 @@ internal static class StarterCircuitCatalog
                 "carryVector",
                 $"D{carryIndex}",
                 Route(
-                    carryAnchors[carryIndex],
+                    carryAnchors[carryIndex - 1],
                     new GridPoint(117, 8 + carryIndex * 3),
                     112 + carryIndex)));
         }
@@ -364,7 +403,7 @@ internal static class StarterCircuitCatalog
                 "Q",
                 "carryOut",
                 "D",
-                Route(carryAnchors[4], new GridPoint(117, carryAnchors[4].Y), 112)),
+                Route(finalCarryAnchor, new GridPoint(117, finalCarryAnchor.Y), 112)),
         ]);
 
         return new StarterCircuitRecipe(
@@ -462,10 +501,10 @@ internal static class StarterCircuitCatalog
                 new GridPoint(52, 8)),
             new(
                 "carryRegister",
-                "sequential.dff",
-                DffParameters(LogicValue.Zero),
+                "sequential.shift_register",
+                ShiftRegisterParameters(LogicValue.Zero),
                 "ExampleCarryRegister",
-                new GridPoint(52, 28)),
+                new GridPoint(52, 26)),
             new(
                 "resultRegister",
                 "sequential.shift_register",
@@ -503,19 +542,22 @@ internal static class StarterCircuitCatalog
             new("load", "Q", "resultRegister", "LOAD", Route(new(7, 26), new(79, 16), 74)),
             new("clock", "Q", "registerA", "CLK", Route(new(7, 36), new(25, 10), 23)),
             new("clock", "Q", "registerB", "CLK", Route(new(7, 36), new(25, 26), 24)),
-            new("clock", "Q", "carryRegister", "CLK", Route(new(7, 36), new(53, 34), 48)),
+            new("clock", "Q", "carryRegister", "CLK", Route(new(7, 36), new(53, 36), 48)),
             new("clock", "Q", "resultRegister", "CLK", Route(new(7, 36), new(79, 18), 76)),
             new("enable", "Q", "registerA", "EN", Route(new(7, 66), new(25, 12), 18)),
             new("enable", "Q", "registerB", "EN", Route(new(7, 66), new(25, 28), 19)),
+            new("enable", "Q", "carryRegister", "EN", Route(new(7, 66), new(53, 38), 50)),
             new("enable", "Q", "resultRegister", "EN", Route(new(7, 66), new(79, 20), 75)),
             new("parallelZero", "Q", "resultRegister", "PARALLEL", Route(new(7, 56), new(79, 12), 72)),
+            new("serialZero", "Q", "carryRegister", "PARALLEL", Route(new(7, 46), new(53, 30), 47)),
+            new("load", "Q", "carryRegister", "LOAD", Route(new(7, 26), new(53, 34), 46)),
             new("registerA", "SERIAL_OUT", "serialAdder", "A", Route(new(44, 8), new(53, 11), 48)),
             new("registerB", "SERIAL_OUT", "serialAdder", "B", Route(new(44, 24), new(53, 13), 49)),
-            new("carryRegister", "Q", "serialAdder", "CIN", Route(new(68, 32), new(53, 15), 72)),
+            new("carryRegister", "Q", "serialAdder", "CIN", Route(new(72, 32), new(53, 15), 76)),
             new("serialAdder", "SUM", "resultRegister", "SERIAL", Route(new(67, 12), new(79, 14), 73)),
-            new("serialAdder", "COUT", "carryRegister", "D", Route(new(67, 14), new(53, 32), 72)),
+            new("serialAdder", "COUT", "carryRegister", "SERIAL", Route(new(67, 14), new(53, 32), 72)),
             new("resultRegister", "Q", "result", "D", Route(new(98, 14), new(109, 12), 103)),
-            new("carryRegister", "Q", "carryOut", "D", Route(new(68, 32), new(109, 32), 102)),
+            new("carryRegister", "Q", "carryOut", "D", Route(new(72, 32), new(109, 32), 102)),
         ]);
 
     private static ComponentParameterBinding[] InputParameters(
@@ -527,15 +569,15 @@ internal static class StarterCircuitCatalog
         new("initialValue", new LogicVectorParameterValue(initialValue)),
     ];
 
-    private static ComponentParameterBinding[] OutputParameters(uint width) =>
+    private static ComponentParameterBinding[] OutputParameters(int width) =>
     [
-        new("width", new Unsigned32ParameterValue(width)),
+        new("width", new Unsigned32ParameterValue(checked((uint)width))),
         new("radix", new ChoiceParameterValue("binary")),
     ];
 
-    private static ComponentParameterBinding[] WidthParameters(uint width) =>
+    private static ComponentParameterBinding[] WidthParameters(int width) =>
     [
-        new("width", new Unsigned32ParameterValue(width)),
+        new("width", new Unsigned32ParameterValue(checked((uint)width))),
     ];
 
     private static ComponentParameterBinding[] ConstantParameters(
@@ -545,28 +587,28 @@ internal static class StarterCircuitCatalog
         new("value", new LogicVectorParameterValue(value)),
     ];
 
-    private static ComponentParameterBinding[] GateParameters(uint width, uint fanIn) =>
+    private static ComponentParameterBinding[] GateParameters(int width, int fanIn) =>
     [
-        new("width", new Unsigned32ParameterValue(width)),
-        new("fanIn", new Unsigned32ParameterValue(fanIn)),
+        new("width", new Unsigned32ParameterValue(checked((uint)width))),
+        new("fanIn", new Unsigned32ParameterValue(checked((uint)fanIn))),
     ];
 
-    private static ComponentParameterBinding[] SplitParameters(uint width) =>
+    private static ComponentParameterBinding[] SplitParameters(int width) =>
     [
-        new("width", new Unsigned32ParameterValue(width)),
+        new("width", new Unsigned32ParameterValue(checked((uint)width))),
         new(
             "slices",
             new SlicesParameterValue(
-                [.. Enumerable.Range(0, checked((int)width))
+                [.. Enumerable.Range(0, width)
                     .Select(index => new BitSlice(checked((uint)index), 1))])),
     ];
 
-    private static ComponentParameterBinding[] ConcatParameters(uint width) =>
+    private static ComponentParameterBinding[] ConcatParameters(int width) =>
     [
         new(
             "inputWidths",
             new WidthsParameterValue(
-                [.. Enumerable.Repeat(1u, checked((int)width))])),
+                [.. Enumerable.Repeat(1u, width)])),
     ];
 
     private static ComponentParameterBinding[] ClockParameters() =>
@@ -586,13 +628,6 @@ internal static class StarterCircuitCatalog
         new("initialState", new LogicVectorParameterValue(initialState)),
     ];
 
-    private static ComponentParameterBinding[] DffParameters(LogicValue initialState) =>
-    [
-        new("width", new Unsigned32ParameterValue(1)),
-        new("edge", new ChoiceParameterValue("rising")),
-        new("initialState", new LogicVectorParameterValue([initialState])),
-    ];
-
     private static GridPoint[] Route(GridPoint source, GridPoint destination, int laneX)
     {
         if (source.Y == destination.Y)
@@ -609,6 +644,14 @@ internal static class StarterCircuitCatalog
         ];
     }
 }
+
+internal sealed record StarterExamplePlan(
+    StarterExample Example,
+    string Command,
+    string SymbolContractId,
+    string TitleResourceKey,
+    string DescriptionResourceKey,
+    StarterCircuitRecipe Recipe);
 
 internal sealed class StarterCircuitRecipe
 {
