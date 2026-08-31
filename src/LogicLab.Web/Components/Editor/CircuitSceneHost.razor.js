@@ -7,7 +7,6 @@ import {
 import {
   contains,
   expandRect,
-  finiteNumbers,
   gestureMoved,
   gridPoint,
   gridToWorld,
@@ -22,11 +21,7 @@ import {
   translateComponentPlacement,
   translateGridPoint,
   translateRect,
-  validComponentPlacement,
-  validGridPoint,
   validPoint,
-  validRect,
-  validRectAllowDegenerate,
 } from "../../js/circuit-scene/geometry.js";
 import {
   BrowserPolicyError,
@@ -47,7 +42,6 @@ import {
   packagedFontSupports,
   sourceKey,
   spatialCellKey,
-  validSource,
   validTool,
   validatePatch,
   validatePolicy,
@@ -786,16 +780,15 @@ class CircuitSceneHandle {
         }
       } else if (overlay.kind === "probeAnchor") {
         context.save();
-        const color = cssColor(
-          styles,
-          `--ll-probe-${overlay.appearanceOrdinal % 4}`,
-          "#08788c",
-        );
-        const dash = overlay.pattern === "dash"
-          ? [8, 5]
-          : overlay.pattern === "dot"
-            ? [2, 4]
-            : overlay.pattern === "dashDot" ? [9, 4, 2, 4] : [];
+        const color = cssColor(styles, `--ll-probe-${overlay.appearanceOrdinal % 4}`, "#08788c");
+        const dash =
+          overlay.pattern === "dash"
+            ? [8, 5]
+            : overlay.pattern === "dot"
+              ? [2, 4]
+              : overlay.pattern === "dashDot"
+                ? [9, 4, 2, 4]
+                : [];
         context.strokeStyle = color;
         context.fillStyle = cssColor(styles, "--ll-canvas", "#ffffff");
         context.lineWidth = 2 / this.viewport.zoom;

@@ -17,14 +17,14 @@ Open `https://localhost:7148`. The same profile serves HTTP on
 
 ## Find your way around
 
-| Need | Start here |
-| --- | --- |
-| current delivery status | [Implementation Plan](./docs/implementation-plan.md#delivery-status) |
-| project and dependency boundaries | [Architecture](./ARCHITECTURE.md) |
-| product behavior and visual language | [Workbench](./WORKBENCH.md) |
-| domain terminology | [Context Map](./CONTEXT-MAP.md) |
-| build and coding rules | [.NET Engineering](./docs/specs/dotnet-engineering.md) |
-| one focused spec, contract, ADR, or evidence note | [Documentation Map](./docs/README.md) |
+| Need                                              | Start here                                                           |
+| ------------------------------------------------- | -------------------------------------------------------------------- |
+| current delivery status                           | [Implementation Plan](./docs/implementation-plan.md#delivery-status) |
+| project and dependency boundaries                 | [Architecture](./ARCHITECTURE.md)                                    |
+| product behavior and visual language              | [Workbench](./WORKBENCH.md)                                          |
+| domain terminology                                | [Context Map](./CONTEXT-MAP.md)                                      |
+| build and coding rules                            | [.NET Engineering](./docs/specs/dotnet-engineering.md)               |
+| one focused spec, contract, ADR, or evidence note | [Documentation Map](./docs/README.md)                                |
 
 Executable configuration is authoritative for the SDK, package versions, and
 project graph. Normative documents describe the V1 target; only the Implementation

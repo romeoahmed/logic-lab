@@ -649,9 +649,8 @@ function validOverlay(overlay, definitionId) {
       Number.isSafeInteger(overlay.appearanceOrdinal) &&
       overlay.appearanceOrdinal >= 0 &&
       overlay.appearanceOrdinal < 16 &&
-      overlay.pattern === ["solid", "dash", "dot", "dashDot"][
-        Math.floor(overlay.appearanceOrdinal / 4)
-      ]
+      overlay.pattern ===
+        ["solid", "dash", "dot", "dashDot"][Math.floor(overlay.appearanceOrdinal / 4)]
     );
   }
   if (overlay.kind === "liveNetValue") {

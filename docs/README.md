@@ -5,33 +5,33 @@ delivery, rationale, and evidence are different facts and have different owners.
 
 ## Fast paths
 
-| Task | Load first | Then load only |
-| --- | --- | --- |
-| understand the product | [Workbench](../WORKBENCH.md) | the relevant browser, host, or presentation specification |
-| change a project or circuit rule | [Context Map](../CONTEXT-MAP.md) | one bounded-context glossary and its owning specification |
-| change a module boundary | [Architecture](../ARCHITECTURE.md) | the interface specification or seam contract |
-| change Web/Application/browser exchange | [Contracts](./contracts/README.md) | the one contract for that seam |
-| change build, dependencies, or tests | [.NET Engineering](./specs/dotnet-engineering.md) | one focused research note when rationale matters |
-| find what is implemented next | [Implementation Plan](./implementation-plan.md#delivery-status) | the owner of the active slice |
-| understand why a durable choice exists | [ADRs](./adr/README.md) | the current owner, which remains normative |
+| Task                                    | Load first                                                      | Then load only                                            |
+| --------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------- |
+| understand the product                  | [Workbench](../WORKBENCH.md)                                    | the relevant browser, host, or presentation specification |
+| change a project or circuit rule        | [Context Map](../CONTEXT-MAP.md)                                | one bounded-context glossary and its owning specification |
+| change a module boundary                | [Architecture](../ARCHITECTURE.md)                              | the interface specification or seam contract              |
+| change Web/Application/browser exchange | [Contracts](./contracts/README.md)                              | the one contract for that seam                            |
+| change build, dependencies, or tests    | [.NET Engineering](./specs/dotnet-engineering.md)               | one focused research note when rationale matters          |
+| find what is implemented next           | [Implementation Plan](./implementation-plan.md#delivery-status) | the owner of the active slice                             |
+| understand why a durable choice exists  | [ADRs](./adr/README.md)                                         | the current owner, which remains normative                |
 
 Do not preload the whole tree. Before editing, read the target, its tests, one
 analogous implementation, and the directly governing interface or rule.
 
 ## Authority
 
-| Fact | Owner |
-| --- | --- |
-| system shape, dependency direction, and module ownership | [Architecture](../ARCHITECTURE.md) |
-| visible product behavior, layout, and interaction priorities | [Workbench](../WORKBENCH.md) |
-| domain language and translations | [Context Map](../CONTEXT-MAP.md) and [bounded-context glossaries](./domain/) |
-| observable domain, compiler, runtime, format, presentation, host, and browser behavior | [Specifications](./specs/) |
-| values exchanged across Application, browser, and HTTP seams | [Contracts](./contracts/README.md) |
-| limits and their semantic/format/provisional/measured classification | [Policy Catalog](./policies/catalog.md) |
-| completion and dependency frontier | [Implementation Plan](./implementation-plan.md) |
-| hard-to-reverse decision rationale | [ADRs](./adr/README.md) |
-| derivations, external sources, and dated measurements | [Research](./research/README.md) |
-| license grant and redistribution terms | [LICENSE](../LICENSE) and [third-party notices](../THIRD-PARTY-NOTICES.md) |
+| Fact                                                                                   | Owner                                                                        |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| system shape, dependency direction, and module ownership                               | [Architecture](../ARCHITECTURE.md)                                           |
+| visible product behavior, layout, and interaction priorities                           | [Workbench](../WORKBENCH.md)                                                 |
+| domain language and translations                                                       | [Context Map](../CONTEXT-MAP.md) and [bounded-context glossaries](./domain/) |
+| observable domain, compiler, runtime, format, presentation, host, and browser behavior | [Specifications](./specs/)                                                   |
+| values exchanged across Application, browser, and HTTP seams                           | [Contracts](./contracts/README.md)                                           |
+| limits and their semantic/format/provisional/measured classification                   | [Policy Catalog](./policies/catalog.md)                                      |
+| completion and dependency frontier                                                     | [Implementation Plan](./implementation-plan.md)                              |
+| hard-to-reverse decision rationale                                                     | [ADRs](./adr/README.md)                                                      |
+| derivations, external sources, and dated measurements                                  | [Research](./research/README.md)                                             |
+| license grant and redistribution terms                                                 | [LICENSE](../LICENSE) and [third-party notices](../THIRD-PARTY-NOTICES.md)   |
 
 There is no generic “narrower file wins” rule. A conflict between owners is a
 documentation defect; fix the fact where it belongs and replace copies with links.
@@ -53,13 +53,13 @@ documentation defect; fix the fact where it belongs and replace copies with link
 
 ## Executable facts
 
-| Fact | Source of truth |
-| --- | --- |
-| SDK and test runner | [`global.json`](../global.json) |
-| direct package versions | [`Directory.Packages.props`](../Directory.Packages.props) |
-| shared build policy | [`Directory.Build.props`](../Directory.Build.props) |
-| project graph | [`logic-lab.slnx`](../logic-lab.slnx) |
-| resolved executable dependency graphs | application-root `packages.lock.json` files |
+| Fact                                  | Source of truth                                           |
+| ------------------------------------- | --------------------------------------------------------- |
+| SDK and test runner                   | [`global.json`](../global.json)                           |
+| direct package versions               | [`Directory.Packages.props`](../Directory.Packages.props) |
+| shared build policy                   | [`Directory.Build.props`](../Directory.Build.props)       |
+| project graph                         | [`logic-lab.slnx`](../logic-lab.slnx)                     |
+| resolved executable dependency graphs | application-root `packages.lock.json` files               |
 
 Prose may explain these files but must not copy their live inventories.
 

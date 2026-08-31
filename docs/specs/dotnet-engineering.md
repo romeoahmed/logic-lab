@@ -13,17 +13,17 @@ owns module boundaries, focused specifications own behavior, and the
 
 ## 1. Executable repository policy
 
-| File | Authority |
-| --- | --- |
-| `global.json` | exact SDK, roll-forward policy, prerelease policy, and Microsoft Testing Platform selection |
-| `Directory.Build.props` | target framework, language, analysis, checked arithmetic, warning policy, repository/package metadata |
-| `tests/Directory.Build.props` | executable test-project shape and lock-file opt-in |
-| `Directory.Packages.props` | exact direct package versions and Central Package Management policy |
-| `NuGet.Config` | cleared package and vulnerability-audit sources |
-| `.editorconfig` | enforceable text and C# style |
-| `.gitattributes` / `.gitignore` | line-ending normalization and repository-specific generated/local exclusions |
-| `logic-lab.slnx` | complete executable project graph |
-| `LICENSE*` | repository and package licensing terms |
+| File                            | Authority                                                                                             |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `global.json`                   | exact SDK, roll-forward policy, prerelease policy, and Microsoft Testing Platform selection           |
+| `Directory.Build.props`         | target framework, language, analysis, checked arithmetic, warning policy, repository/package metadata |
+| `tests/Directory.Build.props`   | executable test-project shape and lock-file opt-in                                                    |
+| `Directory.Packages.props`      | exact direct package versions and Central Package Management policy                                   |
+| `NuGet.Config`                  | cleared package and vulnerability-audit sources                                                       |
+| `.editorconfig`                 | enforceable text and C# style                                                                         |
+| `.gitattributes` / `.gitignore` | line-ending normalization and repository-specific generated/local exclusions                          |
+| `logic-lab.slnx`                | complete executable project graph                                                                     |
+| `LICENSE*`                      | repository and package licensing terms                                                                |
 
 The SDK is pinned to a full version with roll-forward disabled. An SDK change is
 one reviewed maintenance change and regenerates every affected application-root

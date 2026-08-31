@@ -4,8 +4,11 @@
   min-inline-size: 0;
   border-block-start: 1px solid var(--ll-border-strong);
   color: var(--ll-ink);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--ll-panel) 94%, var(--ll-signal-soft)), var(--ll-panel));
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--ll-panel) 94%, var(--ll-signal-soft)),
+    var(--ll-panel)
+  );
 }
 
 .analyzer-heading {
@@ -208,7 +211,8 @@
 }
 
 [data-probe-pattern="dot"] .probe-rail {
-  background: radial-gradient(circle, var(--probe-color) 0 0.12rem, transparent 0.13rem) 50% 0 / 100% 0.52rem;
+  background: radial-gradient(circle, var(--probe-color) 0 0.12rem, transparent 0.13rem) 50% 0 /
+    100% 0.52rem;
 }
 
 [data-probe-pattern="dashDot"] .probe-rail {
@@ -406,7 +410,8 @@
   block-size: 1rem;
   margin-block-end: 0.4rem;
   border-block-end: 2px solid var(--ll-signal);
-  background: linear-gradient(135deg, transparent 42%, var(--ll-signal) 43% 48%, transparent 49%) 0 0 / 0.75rem 100%;
+  background: linear-gradient(135deg, transparent 42%, var(--ll-signal) 43% 48%, transparent 49%) 0
+    0 / 0.75rem 100%;
 }
 
 .analyzer-empty p,

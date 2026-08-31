@@ -29,14 +29,7 @@ const recordShapes = Object.freeze({
     "trace",
   ),
   viewState: shape("viewport", "primaryCursor", "secondaryCursor"),
-  row: shape(
-    "probeId",
-    "width",
-    "displayOrdinal",
-    "appearanceOrdinal",
-    "pattern",
-    "binding",
-  ),
+  row: shape("probeId", "width", "displayOrdinal", "appearanceOrdinal", "pattern", "binding"),
   vector: shape("width", "encoding", "data"),
   cursor: shape("kind", "logicalTime"),
   range: shape("startInclusive", "endExclusive"),
@@ -67,12 +60,7 @@ export function mount(host, buildFingerprint, policy, dotnetSink) {
   }
 
   existing?.destroy();
-  const handle = new WaveformHandle(
-    host,
-    buildFingerprint,
-    validatePolicy(policy),
-    dotnetSink,
-  );
+  const handle = new WaveformHandle(host, buildFingerprint, validatePolicy(policy), dotnetSink);
   mountedHandles.set(host, handle);
   return handle;
 }
@@ -232,45 +220,55 @@ class WaveformHandle {
     this.canvas.addEventListener("pointerdown", (event) => this.pointerDown(event), { signal });
     this.canvas.addEventListener("pointermove", (event) => this.pointerMove(event), { signal });
     this.canvas.addEventListener("pointerup", (event) => this.pointerUp(event), { signal });
-    this.canvas.addEventListener(
-      "pointercancel",
-      (event) => this.cancelGesture(event.pointerId),
-      { signal },
-    );
+    this.canvas.addEventListener("pointercancel", (event) => this.cancelGesture(event.pointerId), {
+      signal,
+    });
     this.canvas.addEventListener(
       "lostpointercapture",
       (event) => this.cancelGesture(event.pointerId),
       { signal },
     );
-    this.probeSpine?.addEventListener("scroll", () => {
-      this.rowLayoutCache = null;
-      this.invalidate();
-    }, { signal, passive: true });
+    this.probeSpine?.addEventListener(
+      "scroll",
+      () => {
+        this.rowLayoutCache = null;
+        this.invalidate();
+      },
+      { signal, passive: true },
+    );
     this.canvas.addEventListener("wheel", (event) => this.wheel(event), {
       signal,
       passive: false,
     });
     this.canvas.addEventListener("keydown", (event) => this.keyDown(event), { signal });
-    this.canvas.addEventListener("contextlost", (event) => {
-      event.preventDefault();
-      this.cancelGesture();
-      this.cancelContextRestore();
-      this.contextRestoreTimer = window.setTimeout(
-        () => this.failClosed(),
-        contextRestoreTimeoutMilliseconds,
-      );
-    }, { signal });
-    this.canvas.addEventListener("contextrestored", () => {
-      if (this.failed) return;
-      this.cancelContextRestore();
-      this.context = this.canvas.getContext("2d", { alpha: false });
-      if (!this.context) {
-        this.failClosed();
-        return;
-      }
-      this.resize();
-      this.invalidate();
-    }, { signal });
+    this.canvas.addEventListener(
+      "contextlost",
+      (event) => {
+        event.preventDefault();
+        this.cancelGesture();
+        this.cancelContextRestore();
+        this.contextRestoreTimer = window.setTimeout(
+          () => this.failClosed(),
+          contextRestoreTimeoutMilliseconds,
+        );
+      },
+      { signal },
+    );
+    this.canvas.addEventListener(
+      "contextrestored",
+      () => {
+        if (this.failed) return;
+        this.cancelContextRestore();
+        this.context = this.canvas.getContext("2d", { alpha: false });
+        if (!this.context) {
+          this.failClosed();
+          return;
+        }
+        this.resize();
+        this.invalidate();
+      },
+      { signal },
+    );
     // ASP.NET Core publishes Interactive Server reconnect state on this element:
     // https://learn.microsoft.com/aspnet/core/blazor/fundamentals/signalr?view=aspnetcore-10.0#reflect-the-server-side-connection-state-in-the-ui
     this.reconnectModal = document.getElementById("components-reconnect-modal");
@@ -362,7 +360,8 @@ class WaveformHandle {
       event.isPrimary === false ||
       this.gesture ||
       this.interactionMode !== "commitEnabled"
-    ) return;
+    )
+      return;
     const kind = event.shiftKey ? "secondary" : "primary";
     this.gesture = {
       pointerId: event.pointerId,
@@ -437,9 +436,8 @@ class WaveformHandle {
     let nextEnd;
     let targetSpan;
     if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
-      const dominantDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
-        ? event.deltaX
-        : event.deltaY;
+      const dominantDelta =
+        Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
       const direction = dominantDelta >= 0 ? 1n : -1n;
       const step = span / 8n || 1n;
       targetSpan = span;
@@ -513,9 +511,14 @@ class WaveformHandle {
       const start = BigInt(viewport.startInclusive);
       const end = BigInt(viewport.endExclusive);
       const current = cursor ? BigInt(cursor.logicalTime) : start;
-      const next = event.key === "ArrowLeft"
-        ? current > start ? current - 1n : start
-        : current + 1n < end ? current + 1n : end - 1n;
+      const next =
+        event.key === "ArrowLeft"
+          ? current > start
+            ? current - 1n
+            : start
+          : current + 1n < end
+            ? current + 1n
+            : end - 1n;
       void this.emit("setCursor", { cursorKind: "primary", logicalTime: next.toString() });
     }
   }
@@ -534,11 +537,8 @@ class WaveformHandle {
   }
 
   async emit(kind, payload) {
-    if (
-      !this.published ||
-      this.interactionMode !== "commitEnabled" ||
-      this.pendingIntent
-    ) return false;
+    if (!this.published || this.interactionMode !== "commitEnabled" || this.pendingIntent)
+      return false;
     const intent = {
       kind,
       buildFingerprint: this.published.buildFingerprint,
@@ -602,15 +602,7 @@ class WaveformHandle {
 
     const viewport = this.activeViewport();
     const rulerHeight = 30;
-    drawRuler(
-      context,
-      width,
-      rulerHeight,
-      viewport,
-      palette.ink,
-      palette.muted,
-      palette.border,
-    );
+    drawRuler(context, width, rulerHeight, viewport, palette.ink, palette.muted, palette.border);
     const layouts = this.rowLayouts(rulerHeight);
     if (!layouts) {
       this.failClosed();
@@ -668,9 +660,7 @@ class WaveformHandle {
         viewport,
         width,
         height,
-        this.transientCursor.kind === "primary"
-          ? palette.primaryCursor
-          : palette.secondaryCursor,
+        this.transientCursor.kind === "primary" ? palette.primaryCursor : palette.secondaryCursor,
         this.transientCursor.kind === "primary" ? "A" : "B",
       );
     }
@@ -688,7 +678,7 @@ class WaveformHandle {
       const rowHeight = availableHeight / rows.length;
       this.rowLayoutCache = rows.map((_, index) => ({
         index,
-        top: rulerHeight + (index * rowHeight),
+        top: rulerHeight + index * rowHeight,
         height: rowHeight,
       }));
       return this.rowLayoutCache;
@@ -703,10 +693,12 @@ class WaveformHandle {
           height: bounds.height,
         };
       })
-      .filter((layout) =>
-        layout.height > 0 &&
-        layout.top + layout.height > rulerHeight &&
-        layout.top < this.cssHeight);
+      .filter(
+        (layout) =>
+          layout.height > 0 &&
+          layout.top + layout.height > rulerHeight &&
+          layout.top < this.cssHeight,
+      );
     return this.rowLayoutCache;
   }
 
@@ -837,11 +829,7 @@ function validateSnapshot(candidate, buildFingerprint) {
 }
 
 function validateTrace(trace, rows, viewport) {
-  if (
-    trace.kind !== "transitions" &&
-    trace.kind !== "summary" &&
-    trace.kind !== "unavailable"
-  ) {
+  if (trace.kind !== "transitions" && trace.kind !== "summary" && trace.kind !== "unavailable") {
     throw new Error("invalid Waveform Trace");
   }
   if (trace.kind === "unavailable") {
@@ -854,13 +842,8 @@ function validateTrace(trace, rows, viewport) {
     }
     return;
   }
-  const traceShape = trace.kind === "summary"
-    ? recordShapes.summary
-    : recordShapes.transitions;
-  if (
-    !hasExactShape(trace, traceShape) ||
-    !Array.isArray(trace.segments)
-  ) {
+  const traceShape = trace.kind === "summary" ? recordShapes.summary : recordShapes.transitions;
+  if (!hasExactShape(trace, traceShape) || !Array.isArray(trace.segments)) {
     throw new Error("invalid Waveform Trace collections");
   }
   if (trace.kind === "summary" && trace.aggregation !== "logic-envelope-v1") {
@@ -870,9 +853,8 @@ function validateTrace(trace, rows, viewport) {
   let rowIndex = 0;
   let expectedStart = viewport.startInclusive;
   trace.segments.forEach((segment) => {
-    const segmentShape = trace.kind === "transitions"
-      ? recordShapes.transitionSegment
-      : recordShapes.summarySegment;
+    const segmentShape =
+      trace.kind === "transitions" ? recordShapes.transitionSegment : recordShapes.summarySegment;
     if (!hasExactShape(segment, segmentShape)) {
       throw new Error(`invalid Waveform ${trace.kind} segment`);
     }
@@ -888,10 +870,7 @@ function validateTrace(trace, rows, viewport) {
     }
     if (trace.kind === "transitions") {
       validVector(segment.value);
-      if (
-        segment.value.width !== row.width ||
-        typeof segment.transitionAtStart !== "boolean"
-      ) {
+      if (segment.value.width !== row.width || typeof segment.transitionAtStart !== "boolean") {
         throw new Error("invalid Waveform transition segment");
       }
     } else {
@@ -899,9 +878,7 @@ function validateTrace(trace, rows, viewport) {
       validVector(segment.lastValue);
       const firstSymbols = decodedVectors.get(segment.firstValue);
       const lastSymbols = decodedVectors.get(segment.lastValue);
-      const endpointsDiffer = firstSymbols.some(
-        (value, index) => value !== lastSymbols[index],
-      );
+      const endpointsDiffer = firstSymbols.some((value, index) => value !== lastSymbols[index]);
       if (
         segment.firstValue.width !== row.width ||
         segment.lastValue.width !== row.width ||
@@ -936,12 +913,8 @@ function indexTrace(trace) {
     }
     entries.push({
       segment,
-      symbols: vectorSymbols(
-        trace.kind === "transitions" ? segment.value : segment.firstValue,
-      ),
-      lastSymbols: trace.kind === "summary"
-        ? vectorSymbols(segment.lastValue)
-        : null,
+      symbols: vectorSymbols(trace.kind === "transitions" ? segment.value : segment.firstValue),
+      lastSymbols: trace.kind === "summary" ? vectorSymbols(segment.lastValue) : null,
     });
   });
   return traceByProbe;
@@ -961,11 +934,10 @@ function validRowShape(row) {
     !Number.isSafeInteger(row.appearanceOrdinal) ||
     row.appearanceOrdinal < 0 ||
     row.appearanceOrdinal >= 16 ||
-    row.pattern !== ["solid", "dash", "dot", "dashDot"][
-      Math.floor(row.appearanceOrdinal / 4)
-    ] ||
+    row.pattern !== ["solid", "dash", "dot", "dashDot"][Math.floor(row.appearanceOrdinal / 4)] ||
     (row.binding !== "resolved" && row.binding !== "unresolved")
-  ) return false;
+  )
+    return false;
   return true;
 }
 
@@ -975,7 +947,8 @@ function validVector(vector) {
     !positiveInteger(vector.width) ||
     vector.encoding !== "logic4-2bit-v1" ||
     typeof vector.data !== "string"
-  ) throw new Error("invalid Waveform Logic Vector");
+  )
+    throw new Error("invalid Waveform Logic Vector");
   const bytes = decodeBase64(vector.data);
   if (bytes.length !== Math.ceil(vector.width / 4)) {
     throw new Error("invalid Waveform Logic Vector length");
@@ -995,10 +968,11 @@ function validVector(vector) {
 }
 
 function validCursor(cursor, kind) {
-  return cursor === null || (
-    hasExactShape(cursor, recordShapes.cursor) &&
-    cursor.kind === kind &&
-    canonicalLogicalTime(cursor.logicalTime)
+  return (
+    cursor === null ||
+    (hasExactShape(cursor, recordShapes.cursor) &&
+      cursor.kind === kind &&
+      canonicalLogicalTime(cursor.logicalTime))
   );
 }
 
@@ -1015,7 +989,8 @@ function validateRange(range) {
     !canonicalTimeBoundary(range.startInclusive) ||
     !canonicalTimeBoundary(range.endExclusive) ||
     BigInt(range.startInclusive) >= BigInt(range.endExclusive)
-  ) throw new Error("invalid Waveform time range");
+  )
+    throw new Error("invalid Waveform time range");
 }
 
 function sameRange(left, right) {
@@ -1061,17 +1036,7 @@ function drawTraceRow(context, trace, entries, row, viewport, top, height, width
     const left = timeX(segment.range.startInclusive, viewport, width);
     const right = timeX(segment.range.endExclusive, viewport, width);
     if (trace.kind === "summary") {
-      drawSummary(
-        context,
-        segment,
-        symbols,
-        lastSymbols,
-        left,
-        right,
-        top,
-        height,
-        color,
-      );
+      drawSummary(context, segment, symbols, lastSymbols, left, right, top, height, color);
     } else {
       drawTransition(context, segment, symbols, left, right, top, height, color, row.pattern);
     }
@@ -1083,7 +1048,15 @@ function drawTransition(context, segment, symbols, left, right, top, height, col
   context.strokeStyle = color;
   context.fillStyle = color;
   context.lineWidth = 2;
-  context.setLineDash(pattern === "dash" ? [8, 5] : pattern === "dot" ? [2, 4] : pattern === "dashDot" ? [9, 4, 2, 4] : []);
+  context.setLineDash(
+    pattern === "dash"
+      ? [8, 5]
+      : pattern === "dot"
+        ? [2, 4]
+        : pattern === "dashDot"
+          ? [9, 4, 2, 4]
+          : [],
+  );
   if (symbols.length === 1) {
     const symbol = symbols[0];
     if (symbol === 0 || symbol === 1) {
@@ -1124,17 +1097,7 @@ function drawTransition(context, segment, symbols, left, right, top, height, col
   context.restore();
 }
 
-function drawSummary(
-  context,
-  segment,
-  firstSymbols,
-  lastSymbols,
-  left,
-  right,
-  top,
-  height,
-  color,
-) {
+function drawSummary(context, segment, firstSymbols, lastSymbols, left, right, top, height, color) {
   context.save();
   context.strokeStyle = color;
   context.fillStyle = color;
@@ -1266,7 +1229,11 @@ function vectorSymbols(vector) {
 
 function vectorText(values) {
   const symbols = ["0", "1", "X", "Z"];
-  const text = values.slice().reverse().map((value) => symbols[value]).join("");
+  const text = values
+    .slice()
+    .reverse()
+    .map((value) => symbols[value])
+    .join("");
   return text.length <= 14 ? text : `${text.slice(0, 6)}…${text.slice(-6)}`;
 }
 
@@ -1322,17 +1289,21 @@ function nonEmptyString(value) {
 }
 
 function canonicalLogicalTime(value) {
-  return typeof value === "string" &&
+  return (
+    typeof value === "string" &&
     value.length <= 20 &&
     /^(0|[1-9][0-9]*)$/.test(value) &&
-    BigInt(value) <= logicalTimeMaximum;
+    BigInt(value) <= logicalTimeMaximum
+  );
 }
 
 function canonicalTimeBoundary(value) {
-  return typeof value === "string" &&
+  return (
+    typeof value === "string" &&
     value.length <= 20 &&
     /^(0|[1-9][0-9]*)$/.test(value) &&
-    BigInt(value) <= timeBoundaryMaximum;
+    BigInt(value) <= timeBoundaryMaximum
+  );
 }
 
 function isDigest(value) {
@@ -1350,8 +1321,7 @@ function shape(...fields) {
 function hasExactShape(value, fields) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const keys = Object.keys(value);
-  return keys.length === fields.length &&
-    fields.every((field) => Object.hasOwn(value, field));
+  return keys.length === fields.length && fields.every((field) => Object.hasOwn(value, field));
 }
 
 function clamp(value, minimum, maximum) {
@@ -1360,7 +1330,5 @@ function clamp(value, minimum, maximum) {
 
 async function sha256(bytes) {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)]
-    .map((value) => value.toString(16).padStart(2, "0"))
-    .join("");
+  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
