@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: true
+
+jobs:
+  build-and-test:
+    name: Build and test (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-26.04-arm
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
+      - name: Restore dependencies
+        run: dotnet restore logic-lab.slnx --locked-mode --nologo
+
+      - name: Verify formatting
+        run: dotnet format logic-lab.slnx --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build logic-lab.slnx --configuration Release --no-restore --nologo
+
+      - name: Install Playwright Chromium
+        run: pwsh tests/LogicLab.Web.BrowserTests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Test
+        run: dotnet test --solution logic-lab.slnx --configuration Release --no-build --no-restore
