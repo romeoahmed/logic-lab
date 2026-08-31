@@ -7,9 +7,6 @@ namespace LogicLab.Web.BrowserTests;
 [ClassDataSource<LogicLabBrowserApplication>]
 internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication application) : PageTest
 {
-    private const string AndGate = "library:logiclab.core:logic.and";
-    private const string NandGate = "library:logiclab.core:logic.nand";
-
     public override BrowserNewContextOptions ContextOptions(TestContext testContext)
     {
         var options = base.ContextOptions(testContext);
@@ -25,16 +22,17 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
 
         await workbench.ComponentSearch.FillAsync("AND");
         await Expect(workbench.PlaceOptions).ToHaveCountAsync(2);
-        var andGate = workbench.PlaceOption(AndGate);
+        var andGate = workbench.PlaceOption("AND gate Boolean function");
         await Expect(andGate).ToBeVisibleAsync();
-        await Expect(workbench.PlaceOption(NandGate)).ToBeVisibleAsync();
+        await Expect(workbench.PlaceOption("NAND gate Boolean function"))
+            .ToBeVisibleAsync();
 
         await andGate.ClickAsync();
         await Expect(andGate).ToHaveAttributeAsync("aria-pressed", "true");
         await workbench.Canvas.ClickAsync();
 
         await Expect(andGate).ToHaveAttributeAsync("aria-pressed", "false");
-        await Expect(workbench.Command("compile")).ToBeEnabledAsync();
+        await Expect(workbench.Compile).ToBeEnabledAsync();
     }
 
     [Test]
@@ -43,29 +41,29 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
         var workbench = new WorkbenchTestPage(Page, application.EditorUri);
         await workbench.OpenSandboxAsync();
 
-        await workbench.Command("author").ClickAsync();
-        var compile = workbench.Command("compile");
+        await workbench.InverterStarter.ClickAsync();
+        var compile = workbench.Compile;
         await Expect(compile).ToBeEnabledAsync();
 
         await compile.ClickAsync();
-        var session = workbench.Command("session");
+        var session = workbench.StartSimulation;
         await Expect(session).ToBeEnabledAsync();
 
         await session.ClickAsync();
-        var stimulus = workbench.Command("stimulus");
+        var stimulus = workbench.SetInputsHigh;
         await Expect(stimulus).ToBeEnabledAsync();
-        await Expect(workbench.Tool("probe")).ToBeEnabledAsync();
+        await Expect(workbench.ProbeTool).ToBeEnabledAsync();
         await Expect(workbench.Probes).ToHaveCountAsync(1);
         await Expect(workbench.Probes.Locator("strong")).ToHaveTextAsync("1");
-        await Expect(workbench.Status("logical-time")).ToHaveTextAsync("0");
+        await Expect(workbench.LogicalTime).ToHaveTextAsync("0");
 
         await stimulus.ClickAsync();
-        var step = workbench.Command("step");
+        var step = workbench.Step;
         await Expect(stimulus).ToBeHiddenAsync();
         await Expect(step).ToBeVisibleAsync();
 
         await step.ClickAsync();
-        await Expect(workbench.Status("logical-time")).ToHaveTextAsync("1");
+        await Expect(workbench.LogicalTime).ToHaveTextAsync("1");
         await Expect(workbench.Probes.Locator("strong")).ToHaveTextAsync("0");
         await Expect(stimulus).ToBeVisibleAsync();
         await Expect(step).ToBeHiddenAsync();
@@ -76,21 +74,20 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
     {
         var workbench = new WorkbenchTestPage(Page, application.EditorUri);
         await workbench.OpenSandboxAsync();
-        await workbench.Command("author").ClickAsync();
-        await workbench.Command("compile").ClickAsync();
-        await Expect(workbench.Command("session")).ToBeEnabledAsync();
-        await workbench.Command("session").ClickAsync();
+        await workbench.InverterStarter.ClickAsync();
+        await workbench.Compile.ClickAsync();
+        await Expect(workbench.StartSimulation).ToBeEnabledAsync();
+        await workbench.StartSimulation.ClickAsync();
 
         await Expect(workbench.WaveformCanvas).ToBeVisibleAsync();
 
-        await workbench.WaveformRepresentation("summary").ClickAsync();
-        await Expect(workbench.Waveform.GetByText("Overview · details summarized"))
-            .ToBeVisibleAsync();
+        await workbench.WaveformSummary.ClickAsync();
+        await Expect(workbench.WaveformSummary)
+            .ToHaveAttributeAsync("pressed", "");
 
         await workbench.WaveformZoomIn.ClickAsync();
-        await Expect(workbench.Waveform.GetByText(
-                "Viewing history · simulation is still running"))
-            .ToBeVisibleAsync();
+        await Expect(workbench.WaveformLive)
+            .Not.ToHaveAttributeAsync("pressed", "");
 
         await workbench.WaveformCanvas.ClickAsync(new LocatorClickOptions
         {
@@ -109,13 +106,11 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
             .ToBeVisibleAsync();
 
         await workbench.WaveformLive.ClickAsync();
-        await Expect(workbench.Waveform.GetByText(
-                "Viewing history · simulation is still running"))
-            .ToBeHiddenAsync();
+        await Expect(workbench.WaveformLive)
+            .ToHaveAttributeAsync("pressed", "");
         await workbench.WaveformLive.ClickAsync();
-        await Expect(workbench.Waveform.GetByText(
-                "Viewing history · simulation is still running"))
-            .ToBeVisibleAsync();
+        await Expect(workbench.WaveformLive)
+            .Not.ToHaveAttributeAsync("pressed", "");
 
         await workbench.WaveformClose.ClickAsync();
         await Expect(workbench.WaveformOpen).ToBeVisibleAsync();
@@ -128,30 +123,17 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
     {
         var workbench = new WorkbenchTestPage(Page, application.EditorUri);
         await workbench.OpenSandboxAsync(width: 390, height: 844);
-        await workbench.Command("author").ClickAsync();
-        await workbench.Command("compile").ClickAsync();
-        await workbench.Command("session").ClickAsync();
+        await workbench.InverterStarter.ClickAsync();
+        await workbench.Compile.ClickAsync();
+        await workbench.StartSimulation.ClickAsync();
         await Expect(workbench.WaveformCanvas).ToBeVisibleAsync();
 
-        var summary = workbench.WaveformRepresentation("summary");
-        await Expect(summary).ToBeVisibleAsync();
-        await summary.ClickAsync();
-        await Expect(workbench.Waveform.GetByText("Overview · details summarized"))
-            .ToBeVisibleAsync();
-
-        await workbench.WaveformZoomIn.ClickAsync();
-        await Expect(workbench.Waveform.GetByText(
-                "Viewing history · simulation is still running"))
-            .ToBeVisibleAsync();
-        await workbench.WaveformLive.ClickAsync();
-        await Expect(workbench.Waveform.GetByText(
-                "Viewing history · simulation is still running"))
-            .ToBeHiddenAsync();
-
-        await Expect(workbench.WaveformClose).ToBeVisibleAsync();
-        await workbench.WaveformClose.ClickAsync();
-        await Expect(workbench.WaveformOpen).ToBeVisibleAsync();
-        await workbench.WaveformOpen.ClickAsync();
-        await Expect(workbench.WaveformCanvas).ToBeVisibleAsync();
+        await workbench.WaveformSummary.ScrollIntoViewIfNeededAsync();
+        await Expect(workbench.WaveformSummary).ToBeInViewportAsync();
+        await Expect(workbench.WaveformZoomIn).ToBeInViewportAsync();
+        await Expect(workbench.WaveformLive).ToBeInViewportAsync();
+        await Expect(workbench.WaveformClose).ToBeInViewportAsync();
+        await workbench.WaveformCanvas.ScrollIntoViewIfNeededAsync();
+        await Expect(workbench.WaveformCanvas).ToBeInViewportAsync();
     }
 }

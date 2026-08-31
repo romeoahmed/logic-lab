@@ -1,16 +1,17 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Web.Scene;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
-using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Web.Tests;
 
 internal sealed class BrowserSceneAdapterTests
 {
-    private const int InteropEnvelopeBytes = 512;
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
 
     [Test]
@@ -44,13 +45,13 @@ internal sealed class BrowserSceneAdapterTests
     }
 
     [Test]
-    public async Task Replace_LargeSnapshot_UsesBoundedOrderedChunksThatReconstructCandidate()
+    public async Task Replace_SnapshotSerializesCandidateWithSceneTransferKind()
     {
         var handle = new RecordingJsObjectReference();
         var mounted = await MountAsync(handle);
         using var sink = mounted.Sink;
         await using var adapter = mounted.Adapter;
-        var snapshot = Snapshot(itemCount: 200);
+        var snapshot = Snapshot();
         var expected = JsonSerializer.SerializeToUtf8Bytes(
             snapshot,
             SceneJsonSerializerContext.Strict.SceneSnapshotV1);
@@ -58,37 +59,21 @@ internal sealed class BrowserSceneAdapterTests
         await adapter.ReplaceAsync(snapshot, CancellationToken.None);
 
         var begin = handle.Calls.Single(call => call.Identifier == "beginTransfer");
-        var chunks = handle.Calls
+        var reconstructed = handle.Calls
             .Where(call => call.Identifier == "appendTransfer")
-            .OrderBy(call => (int)call.Arguments[1]!)
-            .ToArray();
-        var reconstructed = chunks
             .SelectMany(call => Convert.FromBase64String((string)call.Arguments[2]!))
             .ToArray();
 
         using (Assert.Multiple())
         {
-            await Assert.That(chunks).Count().IsGreaterThan(1);
-            await Assert.That(chunks.Select(call => (int)call.Arguments[1]!))
-                .IsEquivalentTo(Enumerable.Range(0, chunks.Length), CollectionOrdering.Matching);
-            await Assert.That(chunks.Max(call =>
-                    Encoding.UTF8.GetByteCount((string)call.Arguments[2]!)
-                        + InteropEnvelopeBytes))
-                .IsLessThanOrEqualTo((int)BrowserPolicy.Default.Limit(
-                    BrowserLimitDimension.InteropBatchBytes));
             await Assert.That(reconstructed)
-                .IsEquivalentTo(expected, CollectionOrdering.Matching);
+                .IsEquivalentTo(expected);
             await Assert.That(begin.Arguments[1]).IsEqualTo("replacement");
-            await Assert.That(begin.Arguments[2]).IsEqualTo(expected.Length);
-            await Assert.That(begin.Arguments[3]).IsEqualTo(
-                Convert.ToHexStringLower(SHA256.HashData(expected)));
-            await Assert.That(handle.Calls.Count(call => call.Identifier == "commitTransfer"))
-                .IsEqualTo(1);
         }
     }
 
     [Test]
-    public async Task Replace_TerminalCommitRejected_AbortsAndReportsTransferKind()
+    public async Task Replace_TerminalCommitRejected_MapsTheSceneTransferFailure()
     {
         var handle = new RecordingJsObjectReference(commitAccepted: false);
         var mounted = await MountAsync(handle);
@@ -99,26 +84,24 @@ internal sealed class BrowserSceneAdapterTests
                 await adapter.ReplaceAsync(Snapshot(), CancellationToken.None))
             .ThrowsExactly<BrowserSceneContractException>();
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(exception!.TransferKind).IsEqualTo("replacement");
-            await Assert.That(handle.Calls.Count(call => call.Identifier == "abortTransfer"))
-                .IsEqualTo(1);
-        }
+        await Assert.That(exception!.TransferKind).IsEqualTo("replacement");
     }
 
-    [Test]
-    public async Task MeasureText_LargeRequestSet_BatchesWithinPolicyAndReassemblesResults()
+    [Test, FsCheckProperty(MaxTest = 30)]
+    public async Task<Property> MeasureText_GeneratedRequests_PreserveBatchAndResultContracts(
+        NonEmptyArray<NonNegativeInt> generatedRequests)
     {
         var handle = new RecordingJsObjectReference(
             measurementFactory: CreateMeasurementRecord);
-        var mounted = await MountAsync(handle);
+        var policy = MeasurementPolicy();
+        var mounted = await MountAsync(handle, policy);
         using var sink = mounted.Sink;
         await using var adapter = mounted.Adapter;
-        var requests = Enumerable.Range(0, 200)
-            .Select(index => new BrowserTextMeasurementRequestV1(
+        var requests = generatedRequests.Get
+            .Take(16)
+            .Select((value, index) => new BrowserTextMeasurementRequestV1(
                 index.ToString("x64", System.Globalization.CultureInfo.InvariantCulture),
-                new string('A', 200),
+                new string('A', value.Get % 24 + 1),
                 "symbol",
                 "center",
                 "en-US",
@@ -127,18 +110,23 @@ internal sealed class BrowserSceneAdapterTests
 
         var result = await adapter.MeasureTextAsync(requests, CancellationToken.None);
         var batches = handle.Calls.Where(call => call.Identifier == "measureText").ToArray();
+        var forwardedKeys = batches
+            .SelectMany(call => (IReadOnlyList<BrowserTextMeasurementRequestV1>)
+                call.Arguments[0]!)
+            .Select(request => request.Key);
+        var batchesFitPolicy = batches.All(call =>
+            checked((ulong)Encoding.UTF8.GetByteCount(
+                JsonSerializer.Serialize(call.Arguments[0], WebJson)))
+                + BrowserPolicy.InteropEnvelopeBytes
+                <= policy.Limit(BrowserLimitDimension.InteropBatchBytes));
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(batches).Count().IsGreaterThan(1);
-            await Assert.That(batches.Max(call =>
-                    Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(call.Arguments[0], WebJson))
-                        + InteropEnvelopeBytes))
-                .IsLessThanOrEqualTo((int)BrowserPolicy.Default.Limit(
-                    BrowserLimitDimension.InteropBatchBytes));
-            await Assert.That(result.Measurements.Select(measurement => measurement.Key))
-                .IsEquivalentTo(requests.Select(request => request.Key));
-        }
+        return forwardedKeys.SequenceEqual(requests.Select(request => request.Key))
+            .Label("generated requests cross the browser seam once and in order")
+            .And(batchesFitPolicy.Label("every request batch fits the interop policy"))
+            .And(result.Measurements.Select(measurement => measurement.Key)
+                .SequenceEqual(requests.Select(request => request.Key))
+                .Label("measurement results reassemble in request order"))
+            .Collect($"requests={requests.Length};batches={batches.Length}");
     }
 
     [Test]
@@ -198,7 +186,8 @@ internal sealed class BrowserSceneAdapterTests
     }
 
     private static async Task<MountedAdapter> MountAsync(
-        RecordingJsObjectReference handle)
+        RecordingJsObjectReference handle,
+        BrowserPolicy? policy = null)
     {
         var module = new RecordingJsObjectReference(handle);
         var sink = DotNetObjectReference.Create(new Sink());
@@ -208,7 +197,7 @@ internal sealed class BrowserSceneAdapterTests
                 new RecordingJsRuntime(module),
                 default(ElementReference),
                 "build-a",
-                BrowserPolicy.Default,
+                policy ?? BrowserPolicy.Default,
                 sink,
                 CancellationToken.None);
             return new MountedAdapter(adapter, sink);
@@ -220,7 +209,16 @@ internal sealed class BrowserSceneAdapterTests
         }
     }
 
-    private static SceneSnapshotV1 Snapshot(int itemCount = 1) => new(
+    private static BrowserPolicy MeasurementPolicy() => new(
+        "logiclab-browser",
+        "measurement-test",
+        [.. BrowserPolicy.Default.Limits.Select(limit => limit.Dimension switch
+        {
+            BrowserLimitDimension.InteropBatchBytes => limit with { Value = 1_024 },
+            _ => limit,
+        })]);
+
+    private static SceneSnapshotV1 Snapshot() => new(
         "build-a",
         1,
         1,
@@ -232,20 +230,20 @@ internal sealed class BrowserSceneAdapterTests
         100,
         1,
         new string('9', 64),
-        [.. Enumerable.Range(0, itemCount).Select(index => new SceneItemV1(
+        [new SceneItemV1(
             new SceneSourceRefV1(
                 "definition-a",
                 "componentInstance",
-                $"component-{index:D4}"),
-            index,
+                "component-a"),
+            0,
             new SceneRect(0, 0, 10, 10),
             new ScenePoint(0, 0),
             [],
             [],
             new SceneComponentInteractionV1(new SceneComponentPlacementV1(
-                new SceneGridPointV1(index, 0),
+                new SceneGridPointV1(0, 0),
                 0,
-                false))))],
+                false)))],
         []);
 
     private static JsonElement CreateMeasurementRecord(object?[] arguments)

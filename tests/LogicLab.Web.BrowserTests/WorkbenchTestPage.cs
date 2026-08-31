@@ -9,7 +9,15 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
 
     public ILocator ComponentSearch => Palette.GetByRole(AriaRole.Searchbox);
 
-    public ILocator PlaceOptions => Palette.Locator("[data-place-option]");
+    public ILocator PlaceOptions => Palette.GetByRole(AriaRole.Button);
+
+    public ILocator Compile => Command("compile");
+
+    public ILocator InverterStarter => Command("author");
+
+    public ILocator LogicalTime => page.Locator("[data-status='logical-time'] dd");
+
+    public ILocator ProbeTool => page.Locator("[data-scene-tool='probe']");
 
     public ILocator Probes => Waveform.GetByRole(AriaRole.Listitem);
 
@@ -31,32 +39,29 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
         "Show waveform",
         new LocatorGetByTextOptions { Exact = true });
 
+    public ILocator WaveformSummary => WaveformControl("Display detail", "Overview");
+
     public ILocator WaveformZoomIn => WaveformControl("Time range", "Zoom in");
 
     public ILocator WaveformSecondaryCursor => WaveformControl("Time cursors", "B");
 
-    public ILocator Command(string command) =>
+    public ILocator SetInputsHigh => Command("stimulus");
+
+    public ILocator StartSimulation => Command("session");
+
+    public ILocator Step => Command("step");
+
+    public ILocator PlaceOption(string accessibleName) =>
+        Palette.GetByRole(
+            AriaRole.Button,
+            new LocatorGetByRoleOptions { Name = accessibleName, Exact = true });
+
+    private ILocator Palette => page.GetByRole(
+        AriaRole.Complementary,
+        new PageGetByRoleOptions { Name = "Components", Exact = true });
+
+    private ILocator Command(string command) =>
         page.Locator($"[data-command='{command}']");
-
-    public ILocator PlaceOption(string option) =>
-        Palette.Locator($"[data-place-option='{option}']");
-
-    public ILocator Status(string status) =>
-        page.Locator($"[data-status='{status}'] dd");
-
-    public ILocator Tool(string tool) =>
-        page.Locator($"[data-scene-tool='{tool}']");
-
-    public ILocator WaveformRepresentation(string representation) => WaveformControl(
-        "Display detail",
-        representation switch
-        {
-            "transitions" => "Full detail",
-            "summary" => "Overview",
-            _ => throw new ArgumentOutOfRangeException(nameof(representation)),
-        });
-
-    private ILocator Palette => page.GetByTestId("component-palette");
 
     private ILocator WaveformControl(string group, string label) =>
         Waveform.GetByRole(

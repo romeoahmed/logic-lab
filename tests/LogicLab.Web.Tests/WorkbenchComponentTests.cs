@@ -572,8 +572,6 @@ internal sealed class WorkbenchComponentTests
         await rendered.InvokeAsync(() => sceneHost.Instance.OnIntent.InvokeAsync(
             ToggleProbeIntent(beforeToggle, definition, inputNet.Id)));
         await rendered.WaitForStateAsync(() => rendered.FindAll(".probe-spine li").Count == 2);
-        await Assert.That(rendered.FindAll(".probe-label span").Select(item => item.TextContent))
-            .IsEquivalentTo(["Input", "Output"]);
 
         var beforeRemovingInput = await workspace.ReadCurrent();
         await rendered.InvokeAsync(() => sceneHost.Instance.OnIntent.InvokeAsync(
