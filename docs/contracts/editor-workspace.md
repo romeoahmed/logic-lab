@@ -3,7 +3,9 @@
 > Status: normative V1 Application seam contract
 > Deployment: direct typed calls from Web to Application
 
-This contract owns the interface from Web to the Application-owned Editor Workspace. Compiler, Simulation Runtime, and Boolean Analysis remain direct typed Module calls behind that interface, not serialized command buses.
+This contract owns the interface from Web to the Application-owned Editor Workspace.
+Compiler and Simulation Runtime remain direct typed Module calls behind that
+interface, not serialized command buses.
 
 Stable diagnostic and outcome reason structure is defined by [Diagnostics V1](../specs/diagnostics-v1.md); this contract defines when those values cross the Workspace seam.
 
@@ -15,7 +17,7 @@ Stable diagnostic and outcome reason structure is defined by [Diagnostics V1](..
 2. Stable codes and structured fields drive behavior; localized message text does not.
 3. IDs locate resources and never grant access.
 4. Attachment, concurrency, authorization, idempotency, and publication are distinct checks.
-5. Project Revision, Quiescent Boundary, save, and proposal application publish atomically.
+5. Project Revision, Quiescent Boundary, and save publish atomically.
 6. Workspace values contain stable source identity, never Compilation-local ordinals or Runtime storage chunks.
 7. Attachment validates the application build fingerprint; a mismatch requires a hard reload.
 
@@ -31,8 +33,6 @@ Stable diagnostic and outcome reason structure is defined by [Diagnostics V1](..
 | `CompilationArtifactKey`               | complete executable provenance                                     | runtime ordinal, Project Revision alone     |
 | `SimulationSessionId`                  | one Workspace's active Session locator                             | Durable Project state                       |
 | `ProbeId`                              | one Session observation binding                                    | source identity, display row                |
-| `OperationId`                          | background Analysis Operation locator                              | capability, `Task` identity                 |
-| `ProposalId`                           | Simplification Proposal locator                                    | permission to apply                         |
 | `ExportTicket`                         | one prepared short-lived download locator                          | URL, durable authorization                  |
 | `ClientIntentId`                       | idempotency key in one attachment generation                       | global request identity                     |
 | `ProjectionVersion`                    | one Workspace Projection cursor                                    | Project Revision or Session Version         |
@@ -53,10 +53,6 @@ AuthoredTerminalRefV1 =
   DefinitionTerminal { circuitDefinitionId, portId }
   | InstanceTerminal { circuitDefinitionId, componentInstanceId, portId }
 
-RegionSelectionV1
-  circuitDefinitionId
-  componentInstanceIds: ComponentInstanceId[]
-
 ElaboratedNetRefV1
   authoredNet: AuthoredSourceRefV1(kind = net)
   hierarchyPath: HierarchyPathV1
@@ -72,9 +68,11 @@ HierarchyStepV1
 
 For `instancePort`, `entityId` is the owning Component Instance ID and `portId` is required; every other kind uses the entity's own ID and forbids `portId`. The containing Circuit Definition makes authored references unambiguous. Every Hierarchy step is independently scoped and must resolve from the preceding target, while an empty step list denotes the entry definition itself. The final resolved definition must equal `authoredNet.circuitDefinitionId`. A Hierarchy Path additionally distinguishes an elaborated observation; it is never inferred from the current tab, display name, or coordinates.
 
-`RegionSelectionV1.componentInstanceIds` is present, non-null, nonempty, unique, and contains only IDs scoped by `circuitDefinitionId`; no other fields are permitted. Array order carries no semantic meaning. Shape violations fail before dispatch; missing or artifact-mismatched authored sources produce the Compiler-owned `selection_invalid` ineligibility outcome.
-
-Application translates a valid `RegionSelectionV1` into Compiler-owned `BooleanRegionSelection`, a valid `SessionConfigurationV1` into Runtime-owned `SimulationSessionConfiguration`, and a valid `TraceWindowRequest` into Runtime-owned `SimulationTraceWindowRequest`. These pairs deliberately have corresponding facts but are distinct seam types, preserving `LogicLab.Engine`'s dependency direction; no browser/Application DTO enters Engine as a trusted value.
+Application translates a valid `SessionConfigurationV1` into Runtime-owned
+`SimulationSessionConfiguration` and a valid `TraceWindowRequest` into Runtime-owned
+`SimulationTraceWindowRequest`. These pairs deliberately have corresponding facts
+but are distinct seam types, preserving `LogicLab.Engine`'s dependency direction;
+no browser/Application DTO enters Engine as a trusted value.
 
 ## 3. Editor Workspace interface
 
@@ -113,7 +111,7 @@ CopyWorkspace {
 
 The deep Workspace implementation asks Project Editor for Project Genesis when required, resolves a durable current Project Revision when requested, compiles before publication, and returns `Opened { WorkspaceId, ProjectRevisionId, ProjectionVersion }` or `OpenRejected { reason, diagnostics, RetryDisposition, policyEvidence? }`. A failure allocates no visible Workspace or Durable Project. Browser-supplied Project Revision, owner, or persistent entity IDs are not open inputs. Every open variant carries the trusted caller so global and per-subject Workspace admission can reserve capacity atomically before genesis, loading, import compilation, or copy publication.
 
-`CopyWorkspace` reauthorizes and fences the source attachment, then starts separate history at its exact current Project Revision, including authorized unsaved edits. Earlier history is not copied and Undo cannot cross the new base. `Preserve` retains Sandbox status or the Durable Project ID and observed Durable Version; while a Claim outcome is unresolved, `Preserve` returns `durable_claim_unresolved` and allocates no Workspace. `DetachedSandbox` removes the durable association and implements “Keep as copy.” Both successful copy targets preserve authored Project identity and the fork revision, but copy no attachment, Session, Run, Analysis Operation, Proposal, idempotency record, or browser preference. A stale Projection Version returns `projection_version_precondition_failed`; the source remains unchanged.
+`CopyWorkspace` reauthorizes and fences the source attachment, then starts separate history at its exact current Project Revision, including authorized unsaved edits. Earlier history is not copied and Undo cannot cross the new base. `Preserve` retains Sandbox status or the Durable Project ID and observed Durable Version; while a Claim outcome is unresolved, `Preserve` returns `durable_claim_unresolved` and allocates no Workspace. `DetachedSandbox` removes the durable association and implements “Keep as copy.” Both successful copy targets preserve authored Project identity and the fork revision, but copy no attachment, Session, Run, idempotency record, or browser preference. A stale Projection Version returns `projection_version_precondition_failed`; the source remains unchanged.
 
 `AttachRequest` is exactly one of:
 
@@ -170,10 +168,6 @@ typed command payload
 | `ReplaceProbes`         | complete ordered Probe binding requests                                                   | Session Mutation   |
 | `HotSwapSession`        | target Compilation Artifact Key                                                           | Session Mutation   |
 | `CloseSession`          | none                                                                                      | Session Mutation   |
-| `StartExplanation`      | `RegionSelectionV1`, `TruthTable \| KarnaughMap`, Teaching Profile ID, Analysis Policy ID | Authoring          |
-| `StartSimplification`   | `RegionSelectionV1`, Cost Profile ID, Analysis Policy ID                                  | Authoring          |
-| `CancelAnalysis`        | Operation ID                                                                              | Operation          |
-| `AcceptProposal`        | Proposal ID                                                                               | Proposal           |
 | `PrepareExport`         | Project Revision ID                                                                       | Authoring          |
 
 Unknown variants fail before dispatch. Import is deliberately absent: it validates an external carrier and opens a separate Workspace. Selection, viewport, panels, waveform cursor, and Transient Preview are browser/Web state and are not Workspace commands.
@@ -204,9 +198,6 @@ RunStarted { RunGeneration, SessionVersion }
 StimulusScheduled { SessionVersion, LogicalTime, stableSequence }
 ProbesReplaced { SessionVersion, ordered ProbeIds[] }
 HotSwapCommitted { SessionVersion, CompilationArtifactKey, migrationEvidence }
-AnalysisCancellationRequested { OperationId }
-AnalysisAlreadyTerminal { OperationId, terminalState }
-ProposalApplied { ProposalId, ProjectRevisionId, ProjectionVersion }
 ExportPrepared { ProjectRevisionId, ExportTicket, expiresAfterSeconds }
 Rejected { reason, diagnostics[], RetryDisposition, policyEvidence? }
 ```
@@ -243,21 +234,26 @@ Queries carry explicit caller, Workspace, and attachment context but no Client I
 WorkspaceQuery =
   ReadProjection { afterProjectionVersion? }
   | ReadCompilation { CompilationGeneration }
-  | ReadAnalysisOperation { OperationId }
-  | ReadProposal { ProposalId }
   | ReadTraceWindow { TraceWindowRequest }
 
 WorkspaceReadOutcome =
   ProjectionSnapshot { WorkspaceProjectionV1 }
   | ProjectionUnchanged { ProjectionVersion }
   | CompilationSnapshot { CompilationState, ProjectionVersion }
-  | AnalysisOperationRead { AnalysisOperationState }
-  | ProposalRead { Available | Applied | Stale | Expired }
   | TraceWindowRead { TraceWindowOutcome }
   | ReadRejected { reason, diagnostics, RetryDisposition }
 ```
 
-`WorkspaceProjectionV1` is one atomic owned snapshot containing Projection Version, the current immutable Project Revision and authorized Project Document, Transaction History availability, sandbox/durable save state, the newest Compilation generation/status and Artifact Key when published, Session summary and ordered Probes when present, Analysis Operation and Proposal summaries, and ordered Diagnostics. It contains no Web connection state, Geometry Plan, browser scene patch, runtime ordinal, Trace storage chunk, EF entity, or localized message. Projection Version increments whenever any included observable fact changes. Web derives connection presentation from circuit and attachment outcomes and switches Browser Runtime between commit-enabled and local-only interaction; transient reconnection never creates a Workspace Projection version.
+`WorkspaceProjectionV1` is one atomic owned snapshot containing Projection Version,
+the current immutable Project Revision and authorized Project Document, Transaction
+History availability, sandbox/durable save state, the newest Compilation
+generation/status and Artifact Key when published, Session summary and ordered
+Probes when present, and ordered Diagnostics. It contains no Web connection state,
+Geometry Plan, browser scene patch, runtime ordinal, Trace storage chunk, EF entity,
+or localized message. Projection Version increments whenever any included observable
+fact changes. Web derives connection presentation from circuit and attachment
+outcomes and switches Browser Runtime between commit-enabled and local-only
+interaction; transient reconnection never creates a Workspace Projection version.
 
 `ReadProjection` returns `ProjectionUnchanged` only when the supplied version is current; otherwise it returns a complete snapshot. V1 does not expose a generic field-mask query or semantic patch format. The Web projection coordinator derives browser-specific scene and waveform messages from this snapshot plus Diagram Presentation and Trace reads.
 
@@ -267,15 +263,13 @@ The snapshot is an in-process composition of owned immutable values, not a seria
 
 | Variant          | Applies to                                                  | Fields                                                               |
 | ---------------- | ----------------------------------------------------------- | -------------------------------------------------------------------- |
-| Authoring        | edit, Undo, Redo, analysis start, export preparation        | base Project Revision ID                                             |
+| Authoring        | edit, Undo, Redo, export preparation                        | base Project Revision ID                                             |
 | Durable Save     | save                                                        | Project Revision ID plus expected Durable Version                    |
 | Claim            | claim Sandbox Project                                       | Project Revision ID and assertion that no Durable Project exists     |
 | Compilation      | compile                                                     | Project Revision ID, entry Circuit Definition ID, Library Snapshot   |
 | Session Creation | create Session                                              | target Compilation Artifact Key and assertion that no Session exists |
 | Session Mutation | step, stimulus, Start Run, probes, Hot Swap, restart, close | Session ID, expected Session Version, Compilation Artifact Key       |
 | Run Control      | pause an active run                                         | Session ID and Run Generation                                        |
-| Operation        | cancel analysis                                             | Operation ID and optional expected terminal/running state            |
-| Proposal         | accept simplification                                       | Proposal ID, source Project Revision ID, region digest               |
 
 The Compilation precondition carries the base Project Revision ID, entry Circuit Definition ID, and Library Snapshot fingerprint. Session Creation carries the target Compilation Artifact Key. Session Mutation carries the Session ID, expected Session Version, and Compilation Artifact Key. These values are compared before execution and are part of the canonical Client Intent identity.
 
@@ -390,29 +384,14 @@ Indeterminate Feedback can be committed with diagnostics because the Least Infor
 
 Each committed Session mutation increments Session Version. Run observations are monotonically sequenced but may be duplicated or skipped across disconnect, reconnect, or bounded backpressure. A consumer detects a gap by sequence and refreshes the authorized projection and Trace cursor.
 
-## 6. Analysis Operation and proposal
+## 6. Future Boolean Analysis extension
 
-```text
-StartExplanation | StartSimplification -> Accepted(OperationId) | Rejected
-
-AnalysisOperationState
-  Queued | Running | Completed(result) | Cancelled | Expired
-  | Failed(reason, diagnostics, RetryDisposition)
-
-AnalysisResult
-  Explanation | VerifiedImprovement(ProposalId) | NoImprovement
-  | NotApplicable(AnalysisNotApplicableV1) | Inconclusive
-
-AnalysisNotApplicableV1 =
-  BooleanRegionIneligible { reason, sourceLocations }
-  | TeachingProjectionUnavailable { projection, reason }
-```
-
-`BooleanRegionIneligible.reason` is the closed Compiler-owned value in [Compiler](../specs/compiler.md#6-boolean-region-extraction). `TeachingProjectionUnavailable.projection` is `TruthTable | KarnaughMap`; its reason is `dimensionUnsupported | teachingProfileUnsupported`. Localized text is never an eligibility reason.
-
-Web selects a named teaching or Cost Profile, never an algorithm or raw threshold. Disconnecting a circuit stops observation but does not cancel accepted work. Observe, cancel, read result, and accept proposal reauthorize every time.
-
-A proposal can commit only when its source Project Revision and region digest remain current, proof evidence is complete, replacement recompilation succeeds, cost is still a strict improvement, and one Edit Transaction applies atomically. Otherwise the Project Document remains unchanged.
+Analysis Operations, explanation, simplification proposals, and proposal application
+are outside the V1 Workspace command, query, projection, identity, precondition, and
+outcome catalogs. The deferred [Boolean Analysis draft](../specs/boolean-analysis.md)
+creates no reserved nullable fields or inactive variants. Reactivation must revise
+this contract and its authorization, idempotency, retention, and atomic-publication
+evidence before implementation.
 
 ## 7. Trace transfer
 
@@ -450,7 +429,7 @@ A visual-summary bucket declares its first and last value, whether any transitio
 
 ## 8. Security and evolution
 
-- Authorize every Workspace, Session, Operation, Proposal, and Durable Project action independently.
+- Authorize every Workspace, Session, and Durable Project action independently.
 - Treat attachment, precondition, idempotency, and authorization failures as distinct closed outcomes.
 - Avoid logging project payloads, Trace values, tokens, Session IDs, or full commands.
 - Add a new Workspace interface variant only when one user intention cannot be expressed by the closed catalog.

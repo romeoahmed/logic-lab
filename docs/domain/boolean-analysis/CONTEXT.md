@@ -1,6 +1,11 @@
 # Boolean Analysis
 
-Boolean Analysis accepts only Compiler-proven binary, combinational, acyclic regions and exposes only explanations or independently verified replacements.
+> Status: deferred future language draft; not a V1 bounded context
+
+If activated, Boolean Analysis would accept only Compiler-proven binary,
+combinational, acyclic regions and expose only explanations or independently
+verified replacements. These terms create no current interface or delivery
+commitment.
 
 ## Language
 

@@ -8,7 +8,7 @@ Research records evidence, derivations, rejected alternatives, and dated qualifi
 | [.NET Memory and Unsafe Code](./dotnet-memory-and-unsafe.md)    | managed ownership, spans, pooling, pinning, and unsafe-code gates                |
 | [.NET Testing Platform](./testing-platform.md)                  | MTP, TUnit, FsCheck, bUnit, and Playwright evidence                              |
 | [Compiler Representations](./compiler-representations.md)       | compiler pipeline and purpose-specific representation evidence                   |
-| [Boolean Analysis](./boolean-analysis.md)                       | exact minimization, AIG mapping, and independent proof derivation                |
+| [Boolean Analysis](./boolean-analysis.md)                       | future exact minimization, AIG mapping, and independent proof derivation         |
 | [Blazor Web Platform](./blazor-web-platform.md)                 | hosting, render lifecycle, browser ownership, and Interactive Server constraints |
 | [Diagram Presentation](./diagram-presentation.md)               | IEEE symbol, declarative geometry, and presentation rationale                    |
 | [Engine Performance](./engine-performance.md)                   | dated implementation audit and BenchmarkDotNet decisions                         |

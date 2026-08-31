@@ -340,12 +340,8 @@ internal sealed class WorkCoordinatorTests
                 new(SchedulingDimension.AdmissionWindowMilliseconds, admissionWindowMilliseconds),
                 new(SchedulingDimension.CompilationQueueItems, 8),
                 new(SchedulingDimension.SessionQueueItems, 8),
-                new(SchedulingDimension.AnalysisQueueItems, 8),
-                new(SchedulingDimension.AnalysisQueueItemsPerSubject, 4),
                 new(SchedulingDimension.CompilationWorkerCount, 1),
                 new(SchedulingDimension.SessionWorkerCount, sessionWorkerCount),
-                new(SchedulingDimension.AnalysisWorkerCount, 1),
-                new(SchedulingDimension.AnalysisResultRetentionSeconds, 60),
             ]);
     }
 
