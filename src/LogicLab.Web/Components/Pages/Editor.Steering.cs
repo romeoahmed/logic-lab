@@ -6,26 +6,14 @@ namespace LogicLab.Web.Components.Pages;
 
 public partial class Editor
 {
-    private Task RunStarterExampleAsync(StarterGuide.Example example) => example switch
+    private Task RunStarterExampleAsync(StarterExample example)
     {
-        StarterGuide.Example.Inverter => RunCommandAsync(
-            "author",
+        var plan = StarterCircuitCatalog.GetPlan(example);
+        return RunCommandAsync(
+            plan.Command,
             () => CanAuthor,
-            () => AuthorStarterCircuit(StarterCircuitCatalog.Inverter)),
-        StarterGuide.Example.Steering => RunCommandAsync(
-            "author-steering",
-            () => CanAuthor,
-            () => AuthorStarterCircuit(StarterCircuitCatalog.Steering)),
-        StarterGuide.Example.CarryLookahead => RunCommandAsync(
-            "author-carry-lookahead",
-            () => CanAuthor,
-            () => AuthorStarterCircuit(StarterCircuitCatalog.CarryLookahead)),
-        StarterGuide.Example.BitSerial => RunCommandAsync(
-            "author-bit-serial",
-            () => CanAuthor,
-            () => AuthorStarterCircuit(StarterCircuitCatalog.BitSerial)),
-        _ => throw new ArgumentOutOfRangeException(nameof(example), example, null),
-    };
+            () => AuthorStarterCircuit(plan.Recipe));
+    }
 
     private async Task AuthorStarterCircuit(StarterCircuitRecipe recipe)
     {

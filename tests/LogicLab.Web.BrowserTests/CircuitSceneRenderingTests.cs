@@ -1,4 +1,5 @@
 using LogicLab.Domain.Authoring;
+using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Scene;
 using TUnit.Playwright;
 
@@ -53,12 +54,13 @@ internal sealed class CircuitSceneRenderingTests : PageTest
         var scene = new CircuitSceneTestPage(Page);
         await scene.OpenAsync();
         await scene.MountAsync();
-        var revision = starter switch
+        var example = starter switch
         {
-            "inverter" => StarterCircuitFixture.CreateInverter(),
-            "steering" => StarterCircuitFixture.CreateSteering(),
+            "inverter" => StarterExample.Inverter,
+            "steering" => StarterExample.Steering,
             _ => throw new ArgumentOutOfRangeException(nameof(starter)),
         };
+        var revision = StarterCircuitFixture.Create(example);
         var definition = revision.Document.EntryCircuitDefinition;
         var requests = BrowserTextMeasurements.Collect(
             revision,
