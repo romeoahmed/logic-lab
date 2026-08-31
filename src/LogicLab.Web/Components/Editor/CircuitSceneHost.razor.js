@@ -567,6 +567,7 @@ class CircuitSceneHandle {
     }
 
     this.reconnectModal = document.getElementById("components-reconnect-modal");
+    // https://learn.microsoft.com/aspnet/core/blazor/fundamentals/signalr?view=aspnetcore-10.0#reflect-the-server-side-connection-state-in-the-ui
     this.reconnectModal?.addEventListener(
       "components-reconnect-state-changed",
       (event) => this.reconnectStateChanged(event),
@@ -785,14 +786,25 @@ class CircuitSceneHandle {
         }
       } else if (overlay.kind === "probeAnchor") {
         context.save();
-        context.strokeStyle = cssColor(styles, "--ll-signal", "#08788c");
+        const color = cssColor(
+          styles,
+          `--ll-probe-${overlay.appearanceOrdinal % 4}`,
+          "#08788c",
+        );
+        const dash = overlay.pattern === "dash"
+          ? [8, 5]
+          : overlay.pattern === "dot"
+            ? [2, 4]
+            : overlay.pattern === "dashDot" ? [9, 4, 2, 4] : [];
+        context.strokeStyle = color;
         context.fillStyle = cssColor(styles, "--ll-canvas", "#ffffff");
         context.lineWidth = 2 / this.viewport.zoom;
+        context.setLineDash(dash.map((length) => length / this.viewport.zoom));
         context.beginPath();
         context.arc(overlay.point.x, overlay.point.y, 7 / this.viewport.zoom, 0, Math.PI * 2);
         context.fill();
         context.stroke();
-        context.fillStyle = cssColor(styles, "--ll-signal", "#08788c");
+        context.fillStyle = color;
         context.beginPath();
         context.arc(overlay.point.x, overlay.point.y, 2.5 / this.viewport.zoom, 0, Math.PI * 2);
         context.fill();
@@ -1143,9 +1155,8 @@ class CircuitSceneHandle {
 
   reconnectStateChanged(event) {
     const state = event.detail?.state;
-    if (["show", "failed"].includes(state)) {
+    if (["show", "paused", "retrying", "failed", "rejected"].includes(state)) {
       this.setConnected(false);
-      void this.dotnetSink?.invokeMethodAsync("SceneConnectionChangedAsync", false).catch(() => {});
     } else if (state === "hide") {
       this.setConnected(true);
       void this.dotnetSink?.invokeMethodAsync("SceneConnectionChangedAsync", true).catch(() => {});

@@ -171,7 +171,10 @@ internal sealed class BrowserSceneProjectionTests
             await Assert.That(snapshot.Overlays.OfType<SceneLiveNetValueOverlayV1>()
                     .Single().Value.Encoding)
                 .IsEqualTo("logic4-2bit-v1");
-            await Assert.That(probeJson.TryGetProperty("appearanceOrdinal", out _)).IsFalse();
+            await Assert.That(probeJson.GetProperty("appearanceOrdinal").GetUInt32())
+                .IsLessThan(16U);
+            await Assert.That(probeJson.GetProperty("pattern").GetString())
+                .IsIn("solid", "dash", "dot", "dashDot");
             await Assert.That(selectionJson.TryGetProperty("selectionSource", out _)).IsFalse();
             await Assert.That(sourceJson.TryGetProperty("key", out _)).IsFalse();
             await Assert.That(sourceJson.GetProperty("entityKind").GetString())

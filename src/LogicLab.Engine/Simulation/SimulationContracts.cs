@@ -132,12 +132,12 @@ public readonly record struct TraceCursor(
 
 public readonly record struct LogicalTimeRange
 {
-    public LogicalTimeRange(ulong startInclusive, ulong endExclusive)
+    public LogicalTimeRange(UInt128 startInclusive, UInt128 endExclusive)
     {
-        if (startInclusive >= endExclusive)
+        if (startInclusive >= endExclusive || endExclusive > DomainEndExclusive)
         {
             throw new ArgumentException(
-                "A Logical-time range must be nonempty and half-open.",
+                "A Logical-time range must be nonempty, half-open, and within the u64 domain.",
                 nameof(endExclusive));
         }
 
@@ -145,9 +145,12 @@ public readonly record struct LogicalTimeRange
         EndExclusive = endExclusive;
     }
 
-    public ulong StartInclusive { get; }
+    public static UInt128 DomainEndExclusive { get; } =
+        (UInt128)ulong.MaxValue + UInt128.One;
 
-    public ulong EndExclusive { get; }
+    public UInt128 StartInclusive { get; }
+
+    public UInt128 EndExclusive { get; }
 }
 
 public enum SimulationFailureReason

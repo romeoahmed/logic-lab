@@ -2,7 +2,8 @@ const mountedHandles = new WeakMap();
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const decodedVectors = new WeakMap();
-const unsignedMaximum = 18_446_744_073_709_551_615n;
+const logicalTimeMaximum = 18_446_744_073_709_551_615n;
+const timeBoundaryMaximum = 18_446_744_073_709_551_616n;
 const contextRestoreTimeoutMilliseconds = 2_000;
 const interopEnvelopeBytes = 512;
 const minimumBase64QuantumBytes = 4;
@@ -210,15 +211,19 @@ class WaveformHandle {
     if (mode !== "commitEnabled" && mode !== "localOnly") {
       throw new Error("invalid Waveform interaction mode");
     }
-    const previousMode = this.interactionMode;
     this.interactionMode = mode;
     if (mode === "localOnly") {
       this.cancelGesture();
       this.cancelViewportCommit();
-    } else if (previousMode === "localOnly") {
-      this.transientViewport = null;
-      this.transientCursor = null;
-      this.invalidate();
+    }
+  }
+
+  reconnectStateChanged(event) {
+    const state = event.detail?.state;
+    if (["show", "paused", "retrying", "failed", "rejected"].includes(state)) {
+      this.setInteractionMode("localOnly");
+    } else if (state === "hide") {
+      this.setInteractionMode("commitEnabled");
     }
   }
 
@@ -266,6 +271,14 @@ class WaveformHandle {
       this.resize();
       this.invalidate();
     }, { signal });
+    // ASP.NET Core publishes Interactive Server reconnect state on this element:
+    // https://learn.microsoft.com/aspnet/core/blazor/fundamentals/signalr?view=aspnetcore-10.0#reflect-the-server-side-connection-state-in-the-ui
+    this.reconnectModal = document.getElementById("components-reconnect-modal");
+    this.reconnectModal?.addEventListener(
+      "components-reconnect-state-changed",
+      (event) => this.reconnectStateChanged(event),
+      { signal },
+    );
   }
 
   installObservers() {
@@ -443,8 +456,8 @@ class WaveformHandle {
       nextEnd = nextStart + nextSpan;
     }
 
-    if (nextEnd > unsignedMaximum) {
-      nextEnd = unsignedMaximum;
+    if (nextEnd > timeBoundaryMaximum) {
+      nextEnd = timeBoundaryMaximum;
       nextStart = nextEnd > targetSpan ? nextEnd - targetSpan : 0n;
     }
     if (nextEnd <= nextStart) return;
@@ -669,6 +682,18 @@ class WaveformHandle {
     const rows = [...this.probeSpine.querySelectorAll("[data-waveform-row-track]")];
     if (rows.length !== this.published.rows.length) return null;
     const canvasBounds = this.canvas.getBoundingClientRect();
+    const spineBounds = this.probeSpine.getBoundingClientRect();
+    if (Math.abs(spineBounds.top - canvasBounds.top) >= 1) {
+      const availableHeight = Math.max(1, this.cssHeight - rulerHeight);
+      const rowHeight = availableHeight / rows.length;
+      this.rowLayoutCache = rows.map((_, index) => ({
+        index,
+        top: rulerHeight + (index * rowHeight),
+        height: rowHeight,
+      }));
+      return this.rowLayoutCache;
+    }
+
     this.rowLayoutCache = rows
       .map((row, index) => {
         const bounds = row.getBoundingClientRect();
@@ -935,8 +960,10 @@ function validRowShape(row) {
     !positiveInteger(row.width) ||
     !Number.isSafeInteger(row.appearanceOrdinal) ||
     row.appearanceOrdinal < 0 ||
-    (row.pattern !== "solid" && row.pattern !== "dash" &&
-      row.pattern !== "dot" && row.pattern !== "dashDot") ||
+    row.appearanceOrdinal >= 16 ||
+    row.pattern !== ["solid", "dash", "dot", "dashDot"][
+      Math.floor(row.appearanceOrdinal / 4)
+    ] ||
     (row.binding !== "resolved" && row.binding !== "unresolved")
   ) return false;
   return true;
@@ -971,7 +998,7 @@ function validCursor(cursor, kind) {
   return cursor === null || (
     hasExactShape(cursor, recordShapes.cursor) &&
     cursor.kind === kind &&
-    canonicalUnsigned(cursor.logicalTime)
+    canonicalLogicalTime(cursor.logicalTime)
   );
 }
 
@@ -985,8 +1012,8 @@ function validateGap(gap) {
 function validateRange(range) {
   if (
     !hasExactShape(range, recordShapes.range) ||
-    !canonicalUnsigned(range.startInclusive) ||
-    !canonicalUnsigned(range.endExclusive) ||
+    !canonicalTimeBoundary(range.startInclusive) ||
+    !canonicalTimeBoundary(range.endExclusive) ||
     BigInt(range.startInclusive) >= BigInt(range.endExclusive)
   ) throw new Error("invalid Waveform time range");
 }
@@ -1057,26 +1084,29 @@ function drawTransition(context, segment, symbols, left, right, top, height, col
   context.fillStyle = color;
   context.lineWidth = 2;
   context.setLineDash(pattern === "dash" ? [8, 5] : pattern === "dot" ? [2, 4] : pattern === "dashDot" ? [9, 4, 2, 4] : []);
-  if (symbols.length === 1 && (symbols[0] === 0 || symbols[0] === 1)) {
-    const y = symbols[0] === 1 ? top + height * 0.28 : top + height * 0.72;
-    context.beginPath();
-    if (segment.transitionAtStart) {
-      context.moveTo(left, top + height * 0.28);
-      context.lineTo(left, top + height * 0.72);
-      context.moveTo(left, y);
-    } else context.moveTo(left, y);
-    context.lineTo(right, y);
-    context.stroke();
-  } else if (symbols.some((value) => value === 2)) {
-    hatch(context, left, top + height * 0.22, Math.max(1, right - left), height * 0.56, color);
-    context.fillText("X", left + 5, top + height / 2);
-  } else if (symbols.some((value) => value === 3)) {
-    context.setLineDash([3, 4]);
-    context.beginPath();
-    context.moveTo(left, top + height / 2);
-    context.lineTo(right, top + height / 2);
-    context.stroke();
-    context.fillText("Z", left + 5, top + height / 2);
+  if (symbols.length === 1) {
+    const symbol = symbols[0];
+    if (symbol === 0 || symbol === 1) {
+      const y = symbol === 1 ? top + height * 0.28 : top + height * 0.72;
+      context.beginPath();
+      if (segment.transitionAtStart) {
+        context.moveTo(left, top + height * 0.28);
+        context.lineTo(left, top + height * 0.72);
+        context.moveTo(left, y);
+      } else context.moveTo(left, y);
+      context.lineTo(right, y);
+      context.stroke();
+    } else if (symbol === 2) {
+      hatch(context, left, top + height * 0.22, Math.max(1, right - left), height * 0.56, color);
+      context.fillText("X", left + 5, top + height / 2);
+    } else {
+      context.setLineDash([3, 4]);
+      context.beginPath();
+      context.moveTo(left, top + height / 2);
+      context.lineTo(right, top + height / 2);
+      context.stroke();
+      context.fillText("Z", left + 5, top + height / 2);
+    }
   } else {
     const yTop = top + height * 0.25;
     const yBottom = top + height * 0.75;
@@ -1251,7 +1281,7 @@ function waveformPalette(styles) {
     ink: color("--ll-ink"),
     muted: color("--ll-muted"),
     border: color("--ll-border"),
-    probes: [0, 1, 2, 3].map((ordinal) => color(`--ll-waveform-probe-${ordinal}`)),
+    probes: [0, 1, 2, 3].map((ordinal) => color(`--ll-probe-${ordinal}`)),
     primaryCursor: color("--ll-waveform-cursor-primary"),
     secondaryCursor: color("--ll-waveform-cursor-secondary"),
   };
@@ -1291,11 +1321,18 @@ function nonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function canonicalUnsigned(value) {
+function canonicalLogicalTime(value) {
   return typeof value === "string" &&
     value.length <= 20 &&
     /^(0|[1-9][0-9]*)$/.test(value) &&
-    BigInt(value) <= unsignedMaximum;
+    BigInt(value) <= logicalTimeMaximum;
+}
+
+function canonicalTimeBoundary(value) {
+  return typeof value === "string" &&
+    value.length <= 20 &&
+    /^(0|[1-9][0-9]*)$/.test(value) &&
+    BigInt(value) <= timeBoundaryMaximum;
 }
 
 function isDigest(value) {

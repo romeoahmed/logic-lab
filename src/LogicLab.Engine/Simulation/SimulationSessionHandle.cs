@@ -308,7 +308,7 @@ internal sealed class SimulationTraceStore
                 cancellationToken.ThrowIfCancellationRequested();
                 if (baselines is not null
                     && requestedIds.Contains(transition.ProbeId)
-                    && transition.LogicalTime <= request.Range.StartInclusive)
+                    && (UInt128)transition.LogicalTime <= request.Range.StartInclusive)
                 {
                     baselines[transition.ProbeId] = transition;
                 }
@@ -347,7 +347,9 @@ internal sealed class SimulationTraceStore
         CancellationToken cancellationToken)
     {
         var span = request.Range.EndExclusive - request.Range.StartInclusive;
-        var bucketCount = (int)Math.Min((ulong)representation.MaxPoints, span);
+        var bucketCount = span < (UInt128)representation.MaxPoints
+            ? checked((int)span)
+            : representation.MaxPoints;
         var transitionsByProbe = request.ProbeIds.ToDictionary(
             probeId => probeId,
             _ => new List<TraceTransition>());
@@ -357,13 +359,13 @@ internal sealed class SimulationTraceStore
             foreach (var transition in ChunkAt(chunkOffset).Transitions)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (transition.LogicalTime < request.Range.EndExclusive
+                if ((UInt128)transition.LogicalTime < request.Range.EndExclusive
                     && transitionsByProbe.TryGetValue(
                         transition.ProbeId,
                         out var probeTransitions))
                 {
                     probeTransitions.Add(transition);
-                    if (transition.LogicalTime <= request.Range.StartInclusive)
+                    if ((UInt128)transition.LogicalTime <= request.Range.StartInclusive)
                     {
                         _ = probesWithoutBaseline.Remove(transition.ProbeId);
                     }
@@ -388,10 +390,10 @@ internal sealed class SimulationTraceStore
             {
                 var start = checked(
                     request.Range.StartInclusive
-                    + PartitionOffset((ulong)index, span, (ulong)bucketCount));
+                    + PartitionOffset((UInt128)index, span, (UInt128)bucketCount));
                 var end = checked(
                     request.Range.StartInclusive
-                    + PartitionOffset((ulong)index + 1UL, span, (ulong)bucketCount));
+                    + PartitionOffset((UInt128)index + UInt128.One, span, (UInt128)bucketCount));
                 buckets.Add(SummarizeBucket(
                     probeId,
                     new LogicalTimeRange(start, end),
@@ -419,7 +421,7 @@ internal sealed class SimulationTraceStore
         CancellationToken cancellationToken)
     {
         while (transitionIndex < transitions.Count
-            && transitions[transitionIndex].LogicalTime < range.StartInclusive)
+            && (UInt128)transitions[transitionIndex].LogicalTime < range.StartInclusive)
         {
             cancellationToken.ThrowIfCancellationRequested();
             beforeStart = transitions[transitionIndex++];
@@ -428,7 +430,7 @@ internal sealed class SimulationTraceStore
         var firstTransition = beforeStart;
         var hadTransition = false;
         while (transitionIndex < transitions.Count
-            && transitions[transitionIndex].LogicalTime == range.StartInclusive)
+            && (UInt128)transitions[transitionIndex].LogicalTime == range.StartInclusive)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var transition = transitions[transitionIndex++];
@@ -448,7 +450,7 @@ internal sealed class SimulationTraceStore
         var hadMixedValues = false;
         beforeStart = firstTransition;
         while (transitionIndex < transitions.Count
-            && transitions[transitionIndex].LogicalTime < range.EndExclusive)
+            && (UInt128)transitions[transitionIndex].LogicalTime < range.EndExclusive)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var transition = transitions[transitionIndex++];
@@ -471,7 +473,10 @@ internal sealed class SimulationTraceStore
             hadMixedValues);
     }
 
-    private static ulong PartitionOffset(ulong index, ulong span, ulong bucketCount)
+    private static UInt128 PartitionOffset(
+        UInt128 index,
+        UInt128 span,
+        UInt128 bucketCount)
     {
         var quotient = span / bucketCount;
         var remainder = span % bucketCount;
@@ -505,8 +510,8 @@ internal sealed class SimulationTraceStore
         HashSet<ProbeId> requestedIds)
     {
         return requestedIds.Contains(transition.ProbeId)
-            && transition.LogicalTime >= request.Range.StartInclusive
-            && transition.LogicalTime < request.Range.EndExclusive
+            && (UInt128)transition.LogicalTime >= request.Range.StartInclusive
+            && (UInt128)transition.LogicalTime < request.Range.EndExclusive
             && (request.AfterSequence is null
                 || transition.Sequence > request.AfterSequence.Value);
     }

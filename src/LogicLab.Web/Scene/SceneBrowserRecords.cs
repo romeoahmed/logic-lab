@@ -197,7 +197,9 @@ internal sealed record SceneProbeAnchorOverlayV1(
     string Id,
     string ProbeId,
     SceneElaboratedNetRefV1 Net,
-    ScenePoint Point) : SceneOverlayV1(Id)
+    ScenePoint Point,
+    uint AppearanceOrdinal,
+    string Pattern) : SceneOverlayV1(Id)
 {
     public override SceneSourceRefV1 Source => Net.AuthoredNet;
 }
@@ -255,6 +257,7 @@ internal sealed record BrowserSceneProbeInputV1
         ProbeId = probeId;
         Net = net;
         Value = Array.AsReadOnly(value.ToArray());
+        Appearance = ProbeAppearanceV1.From(probeId);
     }
 
     public string ProbeId { get; }
@@ -262,6 +265,8 @@ internal sealed record BrowserSceneProbeInputV1
     public SceneElaboratedNetRefV1 Net { get; }
 
     public ReadOnlyCollection<LogicValue> Value { get; }
+
+    public ProbeAppearanceV1 Appearance { get; }
 }
 
 internal sealed record BrowserSceneDiagnosticInputV1(
@@ -586,7 +591,11 @@ internal static class SceneSnapshotValidator
             SceneProbeAnchorOverlayV1 probe => IsValidElaboratedNet(probe.Net)
                 && !string.IsNullOrWhiteSpace(probe.ProbeId)
                 && double.IsFinite(probe.Point.X)
-                && double.IsFinite(probe.Point.Y),
+                && double.IsFinite(probe.Point.Y)
+                && ProbeAppearanceV1.Matches(
+                    probe.ProbeId,
+                    probe.AppearanceOrdinal,
+                    probe.Pattern),
             SceneDiagnosticMarkerOverlayV1 diagnostic =>
                 !string.IsNullOrWhiteSpace(diagnostic.DiagnosticCode)
                 && diagnostic.Severity is "info" or "warning" or "error",

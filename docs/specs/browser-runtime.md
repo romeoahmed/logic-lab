@@ -32,6 +32,13 @@ These are semantic interfaces, not requirements to publish TypeScript declaratio
 
 `CommitEnabled` permits a new gesture only while Web has a current attachment and exact published versions. Entering `LocalOnly` cancels any commit-capable gesture without an intent and retains pan, zoom, viewport, waveform cursor, and inspection. The module doesn't infer connection or authorization from elapsed time.
 
+Interactive Server modules also consume the framework's
+`components-reconnect-state-changed` event on `#components-reconnect-modal`.
+`show`, `paused`, `retrying`, `failed`, and `rejected` enter `LocalOnly`; `hide`
+returns to `CommitEnabled`. This browser-local transition remains available while
+.NET interop is disconnected and follows the
+[ASP.NET Core reconnect-state contract](https://learn.microsoft.com/en-us/aspnet/core/blazor/fundamentals/signalr?view=aspnetcore-10.0#reflect-the-server-side-connection-state-in-the-ui).
+
 JavaScript returns exactly one closed Scene or Waveform intent for a committed browser action. The sink validates the build and version envelope before translating it into Web state or one Workspace command. Interop is asynchronous because Interactive Server calls cross the circuit; related work is batched rather than split into fine-grained calls ([Blazor interop performance](https://learn.microsoft.com/en-us/aspnet/core/blazor/performance/javascript-interoperability?view=aspnetcore-10.0#avoid-excessively-fine-grained-calls)).
 
 V1 uses modern ECMAScript modules in collocated `.razor.js` files. There is no global function surface, inline event handler, general browser message bus, rendering framework, scene library, or npm runtime dependency.

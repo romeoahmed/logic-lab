@@ -1,10 +1,6 @@
 .logic-analyzer {
-  --ll-waveform-probe-0: var(--ll-signal);
-  --ll-waveform-probe-1: #b85e3d;
-  --ll-waveform-probe-2: #6d6ab7;
-  --ll-waveform-probe-3: #2c8475;
-  --ll-waveform-cursor-primary: var(--ll-waveform-probe-1);
-  --ll-waveform-cursor-secondary: var(--ll-waveform-probe-2);
+  --ll-waveform-cursor-primary: var(--ll-probe-1);
+  --ll-waveform-cursor-secondary: var(--ll-probe-2);
   min-inline-size: 0;
   border-block-start: 1px solid var(--ll-border-strong);
   color: var(--ll-ink);
@@ -164,7 +160,7 @@
 }
 
 .probe-spine li {
-  --probe-color: var(--ll-signal);
+  --probe-color: var(--ll-probe-0);
   position: relative;
   display: grid;
   min-block-size: 4.45rem;
@@ -175,15 +171,15 @@
 }
 
 .probe-spine li[data-probe-appearance="1"] {
-  --probe-color: var(--ll-waveform-probe-1);
+  --probe-color: var(--ll-probe-1);
 }
 
 .probe-spine li[data-probe-appearance="2"] {
-  --probe-color: var(--ll-waveform-probe-2);
+  --probe-color: var(--ll-probe-2);
 }
 
 .probe-spine li[data-probe-appearance="3"] {
-  --probe-color: var(--ll-waveform-probe-3);
+  --probe-color: var(--ll-probe-3);
 }
 
 .probe-spine li[data-probe-binding="unresolved"] {
@@ -434,9 +430,22 @@
   }
 
   .analyzer-surface {
-    grid-template-columns: minmax(11.5rem, 42vw) minmax(26rem, 1fr);
-    block-size: min(62svh, 34rem);
-    overflow-x: auto;
+    grid-template-columns: minmax(0, 1fr);
+    block-size: auto;
+    overflow: visible;
+  }
+
+  .probe-spine {
+    max-block-size: min(34svh, 18rem);
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--ll-border-strong);
+    box-shadow: 0 0.55rem 1rem color-mix(in oklab, var(--ll-ink) 7%, transparent);
+  }
+
+  .waveform-frame {
+    min-inline-size: 0;
+    min-block-size: 18rem;
+    block-size: min(55svh, 28rem);
   }
 
   .analyzer-heading {

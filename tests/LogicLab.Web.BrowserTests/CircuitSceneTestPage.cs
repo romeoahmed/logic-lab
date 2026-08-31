@@ -277,6 +277,16 @@ internal sealed class CircuitSceneTestPage(IPage page)
             "method => window.sceneCalls.filter(call => call.name === method).length",
             method);
 
+    public Task DispatchReconnectStateAsync(string state) => page
+        .Locator("#components-reconnect-modal")
+        .EvaluateAsync(
+            """
+            (element, reconnectState) => element.dispatchEvent(new CustomEvent(
+              'components-reconnect-state-changed',
+              { detail: { state: reconnectState } }))
+            """,
+            state);
+
     public async Task<CanvasInkCluster[]> CanvasInkClustersAsync()
     {
         await page.WaitForFunctionAsync(

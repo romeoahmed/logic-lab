@@ -47,12 +47,15 @@ SimulationQuery =
 
 SimulationTraceWindowRequest
   nonempty unique ordered ProbeIds[]
-  nonempty half-open Logical-time range
+  nonempty half-open Logical-time range [start, end)
   representation: Transitions | VisualSummary(maxPoints, "logic-envelope-v1")
   afterSequence? for Transitions only
 ```
 
-`maxPoints` is a positive int32, and the requested Probe-count/product must fit int32 collection capacity.
+Range boundaries are unsigned integers from `0` through `2^64`. The value `2^64`
+is valid only as the exclusive end, so `[2^64 - 1, 2^64)` covers the final Logical
+Time without widening Logical Time itself beyond `u64`. `maxPoints` is a positive
+int32, and the requested Probe-count/product must fit int32 collection capacity.
 
 `HotSwapConsumerBufferRequirements` declares the caller-owned buffers that coexist with
 Runtime storage across the command boundary: retained owned bytes, owned reference slots per

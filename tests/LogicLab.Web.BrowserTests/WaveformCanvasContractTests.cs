@@ -63,7 +63,7 @@ internal sealed class WaveformCanvasContractTests : PageTest
     {
         var waveform = new WaveformCanvasTestPage(Page);
         await waveform.OpenAndMountAsync();
-        var endExclusive = ulong.MaxValue.ToString(
+        var endExclusive = ((UInt128)ulong.MaxValue + UInt128.One).ToString(
             System.Globalization.CultureInfo.InvariantCulture);
         await Assert.That(await waveform.CommitSnapshotAsync(
             WaveformCanvasTestPage.Snapshot(
@@ -77,7 +77,7 @@ internal sealed class WaveformCanvasContractTests : PageTest
         });
 
         await Assert.That(await waveform.WaitForCursorLogicalTimeAsync())
-            .IsEqualTo("9223372036854775807");
+            .IsEqualTo("9223372036854775808");
     }
 
     [Test]
@@ -98,7 +98,7 @@ internal sealed class WaveformCanvasContractTests : PageTest
     }
 
     [Test]
-    public async Task LocalOnly_WheelIsHandledWithoutPublishingAViewportIntent()
+    public async Task ReconnectModal_LocalPanSurvivesReconnectAndNextGesturePublishes()
     {
         var waveform = new WaveformCanvasTestPage(Page);
         await waveform.OpenAndMountAsync();
@@ -107,7 +107,7 @@ internal sealed class WaveformCanvasContractTests : PageTest
         await waveform.WaitForFramesAsync();
 
         await Page.Clock.InstallAsync(new ClockInstallOptions());
-        await waveform.SetInteractionModeAsync("localOnly");
+        await waveform.DispatchReconnectStateAsync("show");
         await waveform.ArmWheelObservationAsync();
         await waveform.Canvas.HoverAsync();
         await Page.Mouse.WheelAsync(0, 100);
@@ -117,6 +117,18 @@ internal sealed class WaveformCanvasContractTests : PageTest
         {
             await Assert.That(await waveform.WheelWasHandledAsync()).IsTrue();
             await Assert.That(await waveform.IntentCountAsync()).IsEqualTo(0);
+        }
+
+        await waveform.DispatchReconnectStateAsync("hide");
+        await waveform.ArmWheelObservationAsync();
+        await Page.Mouse.WheelAsync(0, -100);
+        await Page.Clock.RunForAsync(500);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(await waveform.WheelWasHandledAsync()).IsTrue();
+            await Assert.That(await waveform.IntentCountAsync()).IsEqualTo(1);
+            await Assert.That(await waveform.LastViewportAsync()).IsEqualTo("5:15");
         }
     }
 
@@ -310,9 +322,23 @@ internal sealed class WaveformCanvasTestPage(IPage page)
     public Task<int> IntentCountAsync() => page.EvaluateAsync<int>(
         "() => window.receivedWaveformIntents.length");
 
-    public Task SetInteractionModeAsync(string mode) => page.EvaluateAsync(
-        "mode => window.waveformHandle.setInteractionMode(mode)",
-        mode);
+    public Task<string> LastViewportAsync() => page.EvaluateAsync<string>(
+        """
+        () => {
+          const viewport = window.receivedWaveformIntents.at(-1).viewport;
+          return `${viewport.startInclusive}:${viewport.endExclusive}`;
+        }
+        """);
+
+    public Task DispatchReconnectStateAsync(string state) => page
+        .Locator("#components-reconnect-modal")
+        .EvaluateAsync(
+            """
+            (element, reconnectState) => element.dispatchEvent(new CustomEvent(
+              'components-reconnect-state-changed',
+              { detail: { state: reconnectState } }))
+            """,
+            state);
 
     public Task ArmWheelObservationAsync() => page.EvaluateAsync(
         """
@@ -508,16 +534,17 @@ internal sealed class WaveformCanvasTestPage(IPage page)
               --ll-ink: #172a33;
               --ll-muted: #536970;
               --ll-border: #b7c7cc;
-              --ll-waveform-probe-0: #08788c;
-              --ll-waveform-probe-1: #b85e3d;
-              --ll-waveform-probe-2: #6d6ab7;
-              --ll-waveform-probe-3: #2c8475;
+              --ll-probe-0: #08788c;
+              --ll-probe-1: #b85e3d;
+              --ll-probe-2: #6d6ab7;
+              --ll-probe-3: #2c8475;
               --ll-waveform-cursor-primary: #b85e3d;
               --ll-waveform-cursor-secondary: #6d6ab7;
             }
           </style>
         </head>
         <body>
+          <dialog id="components-reconnect-modal"></dialog>
           <section data-waveform-host style="display:grid;grid-template-columns:180px 600px">
             <aside data-probe-spine style="height:300px;overflow:auto">
               <h3 style="height:30px;margin:0">Signals</h3>

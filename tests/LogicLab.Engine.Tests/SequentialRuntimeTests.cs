@@ -38,7 +38,7 @@ internal sealed class SequentialRuntimeTests
     }
 
     [Test]
-    public async Task Execute_ClockAtMaximumLogicalTime_CommitsFinalRepresentableTransition()
+    public async Task Execute_ClockAtMaximumLogicalTime_CommitsAndExposesFinalTransition()
     {
         var circuit = SequentialTestCircuit.Create();
         var data = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.One));
@@ -57,6 +57,16 @@ internal sealed class SequentialRuntimeTests
             opened.Handle,
             new AdvanceToNextQuiescentBoundary(),
             CancellationToken.None);
+        var trace = (TraceTransitionsAvailable)SimulationRuntime.Read(
+            opened.Handle,
+            new ReadTraceWindow(new SimulationTraceWindowRequest(
+                opened.ProbeIds,
+                new LogicalTimeRange(
+                    ulong.MaxValue,
+                    (UInt128)ulong.MaxValue + UInt128.One),
+                TraceTransitionsRepresentation.Instance,
+                afterSequence: null)),
+            CancellationToken.None);
 
         using (Assert.Multiple())
         {
@@ -66,6 +76,10 @@ internal sealed class SequentialRuntimeTests
             var noStimulus = (await Assert.That(exhausted).IsTypeOf<NoScheduledStimulus>())!;
             await Assert.That(noStimulus.LogicalTime)
                 .IsEqualTo(ulong.MaxValue);
+            await Assert.That(trace.Transitions.Single().LogicalTime)
+                .IsEqualTo(ulong.MaxValue);
+            await Assert.That(trace.Transitions.Single().Value[0])
+                .IsEqualTo(LogicValue.One);
         }
     }
 

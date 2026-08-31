@@ -1,9 +1,6 @@
-using System.Buffers.Binary;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
@@ -157,7 +154,7 @@ internal static class BrowserWaveformProjection
         }
 
         var probeId = probe.ProbeId.Value;
-        var appearance = AppearanceOrdinal(probeId);
+        var appearance = ProbeAppearanceV1.From(probeId);
         var sceneSource = SceneSourceMap.From(source);
         var sceneNet = new SceneElaboratedNetRefV1(
             sceneSource,
@@ -181,8 +178,8 @@ internal static class BrowserWaveformProjection
             displayOrdinal,
             ProbePresentation.Label(revision, probe.Source, displayOrdinal, labels),
             radix,
-            appearance,
-            Pattern(appearance),
+            appearance.Ordinal,
+            appearance.Pattern,
             "resolved",
             bindingReason: null,
             hasVisibleGeometry ? "available" : "unavailable",
@@ -347,7 +344,7 @@ internal static class BrowserWaveformProjection
             ProjectedTransition? baseline = null;
             foreach (var transition in transitions)
             {
-                if (transition.LogicalTime <= viewport.StartValue)
+                if ((UInt128)transition.LogicalTime <= viewport.StartValue)
                 {
                     baseline = transition;
                 }
@@ -360,17 +357,17 @@ internal static class BrowserWaveformProjection
             var currentStart = viewport.StartValue;
             foreach (var change in transitions)
             {
-                if (change.LogicalTime <= viewport.StartValue)
+                if ((UInt128)change.LogicalTime <= viewport.StartValue)
                 {
                     continue;
                 }
 
-                if (change.LogicalTime >= viewport.EndValue)
+                if ((UInt128)change.LogicalTime >= viewport.EndValue)
                 {
                     break;
                 }
 
-                var changeTime = change.LogicalTime;
+                var changeTime = (UInt128)change.LogicalTime;
                 if (changeTime != currentStart)
                 {
                     segments.Add(new WaveformTransitionSegmentV1(
@@ -435,21 +432,6 @@ internal static class BrowserWaveformProjection
             "logic4-2bit-v1",
             Convert.ToBase64String(bytes));
     }
-
-    private static uint AppearanceOrdinal(string probeId)
-    {
-        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(probeId));
-        return BinaryPrimitives.ReadUInt32LittleEndian(digest) % 16U;
-    }
-
-    private static string Pattern(uint appearanceOrdinal) =>
-        ((appearanceOrdinal / 4U) % 4U) switch
-        {
-            0 => "solid",
-            1 => "dash",
-            2 => "dot",
-            _ => "dashDot",
-        };
 
     internal static bool MatchesSource(WaveformRowV1 row, CompilationSource source)
     {

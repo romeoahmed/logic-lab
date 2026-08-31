@@ -134,25 +134,30 @@ internal sealed class BrowserWaveformAdapterTests
                     transitionAtStart: false))]));
     }
 
-    private static WaveformRowV1 Row() => new(
-        "probe-a",
-        new SceneElaboratedNetRefV1(
-            new SceneSourceRefV1("main", "net", "net-a"),
-            new SceneHierarchyPathV1("main", [])),
-        width: 32,
-        displayOrdinal: 0,
-        shortLabel: "A",
-        radix: "hex",
-        appearanceOrdinal: 0,
-        pattern: "solid",
-        binding: "resolved",
-        bindingReason: null,
-        sceneNavigation: "available",
-        navigationReason: null,
-        currentValue: new WaveformLogicVectorV1(
-            32,
-            "logic4-2bit-v1",
-            Convert.ToBase64String(new byte[8])));
+    private static WaveformRowV1 Row()
+    {
+        const string probeId = "probe-a";
+        var appearance = ProbeAppearanceV1.From(probeId);
+        return new WaveformRowV1(
+            probeId,
+            new SceneElaboratedNetRefV1(
+                new SceneSourceRefV1("main", "net", "net-a"),
+                new SceneHierarchyPathV1("main", [])),
+            width: 32,
+            displayOrdinal: 0,
+            shortLabel: "A",
+            radix: "hex",
+            appearance.Ordinal,
+            appearance.Pattern,
+            binding: "resolved",
+            bindingReason: null,
+            sceneNavigation: "available",
+            navigationReason: null,
+            currentValue: new WaveformLogicVectorV1(
+                32,
+                "logic4-2bit-v1",
+                Convert.ToBase64String(new byte[8])));
+    }
 
     private sealed class Sink;
 

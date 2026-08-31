@@ -118,7 +118,10 @@ internal sealed class WaveformBrowserRecordsTests
         string probeId,
         int ordinal,
         string binding,
-        string? bindingReason = null) => new(
+        string? bindingReason = null)
+    {
+        var appearance = ProbeAppearanceV1.From(probeId);
+        return new WaveformRowV1(
             probeId,
             new SceneElaboratedNetRefV1(
                 new SceneSourceRefV1("main", "net", $"net-{probeId}"),
@@ -127,13 +130,14 @@ internal sealed class WaveformBrowserRecordsTests
             displayOrdinal: ordinal,
             shortLabel: probeId,
             radix: "binary",
-            appearanceOrdinal: checked((uint)ordinal),
-            pattern: ordinal == 0 ? "solid" : "dash",
+            appearance.Ordinal,
+            appearance.Pattern,
             binding,
             bindingReason,
             sceneNavigation: "available",
             navigationReason: null,
             currentValue: Value(0));
+    }
 
     private static WaveformLogicVectorV1 Value(int value) => new(
         width: 1,
