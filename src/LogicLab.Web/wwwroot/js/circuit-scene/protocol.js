@@ -645,7 +645,13 @@ function validOverlay(overlay, definitionId) {
       overlay.probeId.length > 0 &&
       validElaboratedNet(overlay.net, definitionId) &&
       sameSource(overlay.source, overlay.net.authoredNet) &&
-      validPoint(overlay.point)
+      validPoint(overlay.point) &&
+      Number.isSafeInteger(overlay.appearanceOrdinal) &&
+      overlay.appearanceOrdinal >= 0 &&
+      overlay.appearanceOrdinal < 16 &&
+      overlay.pattern === ["solid", "dash", "dot", "dashDot"][
+        Math.floor(overlay.appearanceOrdinal / 4)
+      ]
     );
   }
   if (overlay.kind === "liveNetValue") {

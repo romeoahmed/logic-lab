@@ -133,7 +133,16 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
         await Expect(workbench.WaveformZoomIn).ToBeInViewportAsync();
         await Expect(workbench.WaveformLive).ToBeInViewportAsync();
         await Expect(workbench.WaveformClose).ToBeInViewportAsync();
+        var waveformBounds = await workbench.WaveformCanvas.BoundingBoxAsync();
         await workbench.WaveformCanvas.ScrollIntoViewIfNeededAsync();
         await Expect(workbench.WaveformCanvas).ToBeInViewportAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(waveformBounds).IsNotNull();
+            await Assert.That(waveformBounds!.X).IsGreaterThanOrEqualTo(0);
+            await Assert.That(waveformBounds.X + waveformBounds.Width)
+                .IsLessThanOrEqualTo(390);
+        }
     }
 }

@@ -563,7 +563,9 @@ internal static class BrowserSceneProjection
                         $"1-probe:{probe.ProbeId}",
                         probe.ProbeId,
                         probe.Net,
-                        Point(anchor)));
+                        Point(anchor),
+                        probe.Appearance.Ordinal,
+                        probe.Appearance.Pattern));
                 }
             }
         }

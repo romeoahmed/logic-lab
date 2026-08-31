@@ -161,32 +161,63 @@ internal sealed class CircuitSceneInteractionTests : PageTest
     }
 
     [Test]
-    public async Task ReconnectModal_DisconnectedScene_PansWithoutAuthoringIntent()
+    public async Task ReconnectModal_DisconnectedScene_PansLocallyAndRestoresAuthoring()
     {
         var scene = await ReadySceneAsync();
         var intentCount = await scene.CallbackCountAsync("ReceiveSceneIntentAsync");
-        await Page.EvaluateAsync(
-            """
-            () => document.querySelector('#components-reconnect-modal').dispatchEvent(
-              new CustomEvent('components-reconnect-state-changed', {
-                detail: { state: 'show' }, bubbles: true,
-              }))
-            """);
-
-        await Expect(scene.EventLog).ToHaveAttributeAsync(
-            "data-callback-scene-connection-changed",
-            "1");
-        var connection = await scene.LatestCallbackArgumentAsync(
+        var connectionCallbackCount = await scene.CallbackCountAsync(
             "SceneConnectionChangedAsync");
+        var panStart = await scene.WorldToPageAsync(150, 50);
         var component = await scene.WorldToPageAsync(50, 50);
-        await Page.Mouse.ClickAsync((float)component.X, (float)component.Y);
+        const float setupDeltaX = 16;
+        const float setupDeltaY = 8;
+        const float deltaX = 48;
+        const float deltaY = 24;
+
+        await scene.SetToolAsync(ScenePanToolV1.Instance);
+        await Page.Mouse.MoveAsync((float)panStart.X, (float)panStart.Y);
+        await Page.Mouse.DownAsync();
+        await Page.Mouse.MoveAsync(
+            (float)panStart.X + setupDeltaX,
+            (float)panStart.Y + setupDeltaY);
+        await Page.Mouse.UpAsync();
+        await scene.SetToolAsync(SceneSelectToolV1.Instance);
+        var before = (await scene.CaptureRecoveryStateAsync()).Viewports.Single();
+
+        await scene.DispatchReconnectStateAsync("show");
+        await Page.Mouse.MoveAsync(
+            (float)panStart.X + setupDeltaX,
+            (float)panStart.Y + setupDeltaY);
+        await Page.Mouse.DownAsync();
+        await Page.Mouse.MoveAsync(
+            (float)panStart.X + setupDeltaX + deltaX,
+            (float)panStart.Y + setupDeltaY + deltaY);
+        await Page.Mouse.UpAsync();
+
+        var disconnected = (await scene.CaptureRecoveryStateAsync()).Viewports.Single();
 
         using (Assert.Multiple())
         {
-            await Assert.That(connection.GetBoolean()).IsFalse();
+            await Assert.That(disconnected.TranslateX)
+                .IsEqualTo(before.TranslateX + deltaX)
+                .Within(0.000_001);
+            await Assert.That(disconnected.TranslateY)
+                .IsEqualTo(before.TranslateY + deltaY)
+                .Within(0.000_001);
             await Assert.That(await scene.CallbackCountAsync("ReceiveSceneIntentAsync"))
                 .IsEqualTo(intentCount);
+            await Assert.That(await scene.CallbackCountAsync("SceneConnectionChangedAsync"))
+                .IsEqualTo(connectionCallbackCount);
         }
+
+        await scene.DispatchReconnectStateAsync("hide");
+        await Page.Mouse.ClickAsync(
+            (float)component.X + setupDeltaX + deltaX,
+            (float)component.Y + setupDeltaY + deltaY);
+
+        await Expect(scene.EventLog).ToHaveAttributeAsync(
+            "data-callback-receive-scene-intent",
+            (intentCount + 1).ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Test]

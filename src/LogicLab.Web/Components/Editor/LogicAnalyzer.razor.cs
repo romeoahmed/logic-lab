@@ -37,6 +37,7 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
     private ulong loadEpoch;
     private ulong? primaryCursor;
     private ulong? secondaryCursor;
+    private UInt128 liveFollowStart;
     private WaveformInteractionMode? publishedInteractionMode;
     private bool liveFollow = true;
     private bool summaryRequested;
@@ -333,6 +334,7 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             viewport = null;
             primaryCursor = null;
             secondaryCursor = null;
+            liveFollowStart = UInt128.Zero;
             liveFollow = true;
         }
         else if (observedArtifactKey is not null
@@ -373,6 +375,7 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             viewport = CurrentTick(simulation.LogicalTime);
             primaryCursor = null;
             secondaryCursor = null;
+            liveFollowStart = simulation.LogicalTime;
             liveFollow = true;
         }
     }
@@ -384,25 +387,17 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             return;
         }
 
-        var endExclusive = logicalTime == ulong.MaxValue
-            ? ulong.MaxValue
-            : checked(logicalTime + 1);
-        var span = viewport is { } current
-            ? current.EndExclusive - current.StartInclusive
-            : InitialViewportSpan;
-        var start = endExclusive > span ? endExclusive - span : 0;
-        if (start == endExclusive)
-        {
-            start = checked(endExclusive - 1);
-        }
+        var endExclusive = (UInt128)logicalTime + UInt128.One;
+        var start = endExclusive > InitialViewportSpan
+            ? endExclusive - InitialViewportSpan
+            : UInt128.Zero;
+        start = UInt128.Max(start, liveFollowStart);
 
         viewport = new TraceTimeRange(start, endExclusive);
     }
 
     private static TraceTimeRange CurrentTick(ulong logicalTime) =>
-        logicalTime == ulong.MaxValue
-            ? new TraceTimeRange(ulong.MaxValue - 1, ulong.MaxValue)
-            : new TraceTimeRange(logicalTime, checked(logicalTime + 1));
+        new(logicalTime, (UInt128)logicalTime + UInt128.One);
 
     private async Task LoadTraceAsync(bool force)
     {
@@ -664,19 +659,18 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
 
         var span = current.EndExclusive - current.StartInclusive;
         var nextSpan = zoomIn
-            ? Math.Max(1UL, span / 2)
-            : span > ulong.MaxValue / 2 ? ulong.MaxValue : span * 2;
+            ? UInt128.Max(UInt128.One, span / 2)
+            : span > LogicalTimeRange.DomainEndExclusive / 2
+                ? LogicalTimeRange.DomainEndExclusive
+                : span * 2;
         var center = current.StartInclusive + (span / 2);
         var start = center > nextSpan / 2 ? center - (nextSpan / 2) : 0;
-        var end = start > ulong.MaxValue - nextSpan
-            ? ulong.MaxValue
-            : start + nextSpan;
-        if (end <= start)
+        if (start > LogicalTimeRange.DomainEndExclusive - nextSpan)
         {
-            return;
+            start = LogicalTimeRange.DomainEndExclusive - nextSpan;
         }
 
-        viewport = new TraceTimeRange(start, end);
+        viewport = new TraceTimeRange(start, start + nextSpan);
         liveFollow = false;
         await ReloadAsync();
     }
@@ -688,10 +682,8 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             return;
         }
 
-        var end = simulation.LogicalTime == ulong.MaxValue
-            ? ulong.MaxValue
-            : checked(simulation.LogicalTime + 1);
-        viewport = new TraceTimeRange(0, Math.Max(1UL, end));
+        var end = (UInt128)simulation.LogicalTime + UInt128.One;
+        viewport = new TraceTimeRange(UInt128.Zero, end);
         liveFollow = false;
         await ReloadAsync();
     }
@@ -730,11 +722,11 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             + ((range.EndExclusive - range.StartInclusive) / 2);
         if (primary)
         {
-            primaryCursor = primaryCursor is null ? midpoint : null;
+            primaryCursor = primaryCursor is null ? checked((ulong)midpoint) : null;
         }
         else
         {
-            secondaryCursor = secondaryCursor is null ? midpoint : null;
+            secondaryCursor = secondaryCursor is null ? checked((ulong)midpoint) : null;
         }
 
         await ReprojectAsync();
@@ -881,7 +873,7 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
     {
         var value = logicalTime is null
             ? (ulong?)null
-            : WaveformRecordValidator.ParseUnsigned(logicalTime, nameof(logicalTime));
+            : WaveformRecordValidator.ParseLogicalTime(logicalTime, nameof(logicalTime));
         if (kind == "primary")
         {
             primaryCursor = value;

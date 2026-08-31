@@ -65,11 +65,11 @@ Diagram Presentation rejection produces `SceneUnavailableV1`, never a partial sn
 ```text
 LiveNetValue { ElaboratedNetRefV1, SessionId, SessionVersion, LogicVectorTransferV1 }
 Selection { AuthoredSourceRefV1, role: Primary | Member }
-ProbeAnchor { ProbeId, ElaboratedNetRefV1, point: PointV1 }
+ProbeAnchor { ProbeId, ElaboratedNetRefV1, point: PointV1, appearanceOrdinal: u32, pattern }
 DiagnosticMarker { AuthoredSourceRefV1, DiagnosticCode, severity, diagnosticOrdinal: u32 }
 ```
 
-The Probe point must equal the current Schematic Projection's available `NetTopology.probeAnchor`. When a valid bound Net has no visible geometry, the scene emits no Probe anchor and the row reports only `sceneNavigation = Unavailable(noVisibleGeometry)`; its binding, values, and Trace remain resolved. Transient Preview, hover, route handles, menus, and pointer samples remain browser-local and are not overlay variants. Every collection has stable scoped-source order; an ordinal is present only where it resolves an otherwise equal diagnostic or presentation order. A patch is valid only when its build fingerprint, Circuit Definition ID, UI culture, base direction, and `base SceneVersion` match the browser's current available snapshot and its complete projection values validate. Switching definitions and recovery from unavailable state always use a complete snapshot. Otherwise the browser discards the complete patch and requests a snapshot; it never applies a prefix. Canvas consumption and coordinate conversion follow [Browser Runtime](../specs/browser-runtime.md).
+The Probe point must equal the current Schematic Projection's available `NetTopology.probeAnchor`. Its appearance ordinal and `solid | dash | dot | dashDot` pattern are derived from Probe identity and must match the tuple used by the Probe Spine and waveform row. When a valid bound Net has no visible geometry, the scene emits no Probe anchor and the row reports only `sceneNavigation = Unavailable(noVisibleGeometry)`; its binding, values, and Trace remain resolved. Transient Preview, hover, route handles, menus, and pointer samples remain browser-local and are not overlay variants. Every collection has stable scoped-source order; an ordinal is present only where it resolves an otherwise equal diagnostic or presentation order. A patch is valid only when its build fingerprint, Circuit Definition ID, UI culture, base direction, and `base SceneVersion` match the browser's current available snapshot and its complete projection values validate. Switching definitions and recovery from unavailable state always use a complete snapshot. Otherwise the browser discards the complete patch and requests a snapshot; it never applies a prefix. Canvas consumption and coordinate conversion follow [Browser Runtime](../specs/browser-runtime.md).
 
 `SceneIntentV1` is this closed JavaScript-to-Web union:
 
@@ -126,6 +126,10 @@ WaveformTraceV1 =
 
 TraceGapV1 { nonempty half-open range }
 ```
+
+Waveform range boundaries are canonical unsigned decimal strings in `0..2^64`;
+`2^64` is valid only as an exclusive end. Cursor values remain Logical Times in
+`0..2^64 - 1`.
 
 Available segments are nonempty, nonoverlapping, grouped in Probe display order, use the [Editor Workspace Contract §7](./editor-workspace.md#7-trace-transfer) transition or bucket records, and exactly cover the requested viewport for every resolved Probe. An unavailable view carries one explicit Trace Gap covering the viewport.
 

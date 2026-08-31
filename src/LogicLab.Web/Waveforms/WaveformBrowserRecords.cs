@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text.Json.Serialization;
+using LogicLab.Engine.Simulation;
 using LogicLab.Web.Scene;
 
 namespace LogicLab.Web.Waveforms;
@@ -10,8 +11,12 @@ internal readonly record struct WaveformTimeRangeV1
     [JsonConstructor]
     public WaveformTimeRangeV1(string startInclusive, string endExclusive)
     {
-        StartValue = WaveformRecordValidator.ParseUnsigned(startInclusive, nameof(startInclusive));
-        EndValue = WaveformRecordValidator.ParseUnsigned(endExclusive, nameof(endExclusive));
+        StartValue = WaveformRecordValidator.ParseTimeBoundary(
+            startInclusive,
+            nameof(startInclusive));
+        EndValue = WaveformRecordValidator.ParseTimeBoundary(
+            endExclusive,
+            nameof(endExclusive));
         if (StartValue >= EndValue)
         {
             throw new ArgumentException(
@@ -28,10 +33,10 @@ internal readonly record struct WaveformTimeRangeV1
     public string EndExclusive { get; }
 
     [JsonIgnore]
-    internal ulong StartValue { get; }
+    internal UInt128 StartValue { get; }
 
     [JsonIgnore]
-    internal ulong EndValue { get; }
+    internal UInt128 EndValue { get; }
 }
 
 internal sealed record WaveformLogicVectorV1
@@ -110,7 +115,7 @@ internal sealed record WaveformCursorV1
             throw new ArgumentException("The Waveform cursor kind is undefined.", nameof(kind));
         }
 
-        _ = WaveformRecordValidator.ParseUnsigned(logicalTime, nameof(logicalTime));
+        _ = WaveformRecordValidator.ParseLogicalTime(logicalTime, nameof(logicalTime));
         Kind = kind;
         LogicalTime = logicalTime;
     }
@@ -172,9 +177,11 @@ internal sealed record WaveformRowV1
             throw new ArgumentException("The Waveform radix is undefined.", nameof(radix));
         }
 
-        if (pattern is not "solid" and not "dash" and not "dot" and not "dashDot")
+        if (!ProbeAppearanceV1.Matches(probeId, appearanceOrdinal, pattern))
         {
-            throw new ArgumentException("The Probe appearance pattern is undefined.", nameof(pattern));
+            throw new ArgumentException(
+                "The Waveform Probe appearance does not match its identity.",
+                nameof(pattern));
         }
 
         if (binding is not "resolved" and not "unresolved"
@@ -474,7 +481,7 @@ internal static class WaveformRecordValidator
         return Array.AsReadOnly(owned);
     }
 
-    public static ulong ParseUnsigned(string value, string name)
+    public static ulong ParseLogicalTime(string value, string name)
     {
         if (string.IsNullOrEmpty(value)
             || value.Length > 1 && value[0] == '0'
@@ -482,6 +489,25 @@ internal static class WaveformRecordValidator
         {
             throw new ArgumentException(
                 "The Waveform unsigned decimal value is noncanonical.",
+                name);
+        }
+
+        return parsed;
+    }
+
+    public static UInt128 ParseTimeBoundary(string value, string name)
+    {
+        if (string.IsNullOrEmpty(value)
+            || value.Length > 1 && value[0] == '0'
+            || !UInt128.TryParse(
+                value,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var parsed)
+            || parsed > LogicalTimeRange.DomainEndExclusive)
+        {
+            throw new ArgumentException(
+                "The Waveform time boundary is not a canonical unsigned decimal within the u64 domain.",
                 name);
         }
 

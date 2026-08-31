@@ -7,6 +7,7 @@ using LogicLab.Engine;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
 using LogicLab.Web.Components.Editor;
+using LogicLab.Web.Scene;
 using LogicLab.Web.Waveforms;
 using Microsoft.AspNetCore.Components;
 
@@ -69,6 +70,37 @@ internal sealed class LogicAnalyzerTests
 
         await Assert.That(observedRequest!.Range)
             .IsEqualTo(new TraceTimeRange(10, 11));
+    }
+
+    [Test]
+    public async Task StaticRender_LiveFollow_PreservesAvailableHistoryWhileTimeAdvances()
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        var fixture = Fixture.Create().WithLogicalTime(0);
+        TraceWindowRequest? observedRequest = null;
+        Task<TraceWindowOutcome?> Reader(
+            TraceWindowRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            observedRequest = request;
+            return Task.FromResult<TraceWindowOutcome?>(TransitionsTrace(request));
+        }
+
+        var rendered = context.Render<LogicAnalyzer>(parameters => parameters
+            .Add(component => component.Projection, fixture.Projection)
+            .Add(component => component.TraceReader, Reader));
+        await rendered.WaitForStateAsync(() => observedRequest is not null);
+
+        var advanced = fixture.WithLogicalTime(1);
+        rendered.Render(parameters => parameters
+            .Add(component => component.Projection, advanced.Projection)
+            .Add(component => component.TraceReader, Reader));
+        await rendered.WaitForStateAsync(() => observedRequest?.Range.EndExclusive == 2);
+
+        await Assert.That(observedRequest!.Range)
+            .IsEqualTo(new TraceTimeRange(0, 2));
     }
 
     [Test]
@@ -346,6 +378,7 @@ internal sealed class LogicAnalyzerTests
             primaryCursor: null,
             secondaryCursor: null);
         var active = initial.Rows[0];
+        var retiredAppearance = ProbeAppearanceV1.From("retired-probe");
         var staleRecovery = new WaveformRowV1(
             "retired-probe",
             active.Net,
@@ -353,8 +386,8 @@ internal sealed class LogicAnalyzerTests
             displayOrdinal: 2,
             active.ShortLabel,
             active.Radix,
-            active.AppearanceOrdinal,
-            active.Pattern,
+            retiredAppearance.Ordinal,
+            retiredAppearance.Pattern,
             "unresolved",
             "artifactIncompatible",
             active.SceneNavigation,
@@ -523,6 +556,25 @@ internal sealed class LogicAnalyzerTests
                 prior.LogicalTime,
                 prior.TraceCursor,
                 probes,
+                prior.Run);
+            return new Fixture(
+                ProjectionFor(
+                    Projection.ProjectRevision,
+                    prior.CompilationArtifactKey,
+                    simulation),
+                SessionId);
+        }
+
+        public Fixture WithLogicalTime(ulong logicalTime)
+        {
+            var prior = Projection.Simulation!;
+            var simulation = new SimulationProjection(
+                SessionId,
+                checked(prior.SessionVersion + 1),
+                prior.CompilationArtifactKey,
+                logicalTime,
+                prior.TraceCursor,
+                prior.Probes,
                 prior.Run);
             return new Fixture(
                 ProjectionFor(

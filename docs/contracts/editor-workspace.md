@@ -431,6 +431,11 @@ TraceWindowOutcome
   RangeUnavailable { Evicted | ArtifactChanged, earliestAvailable, latestSequence }
 ```
 
+The range boundaries are canonical unsigned values in `0..2^64`; `2^64` is allowed
+only as the exclusive end. Logical Time and Trace transition timestamps remain `u64`.
+The browser transfer writes both boundaries as unsigned decimal strings, including
+`18446744073709551616` when a window contains the final `u64` tick.
+
 Transitions are in ascending sequence order. Summary buckets follow requested Probe order and then ascending range order. Each transition carries Probe identity, unsigned-decimal-string Logical Time and sequence, and `LogicVectorTransferV1`:
 
 ```text

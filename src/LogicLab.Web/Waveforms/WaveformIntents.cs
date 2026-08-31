@@ -95,7 +95,7 @@ internal sealed record SetWaveformCursorIntentV1 : WaveformIntentV1
 
         if (logicalTime is not null)
         {
-            _ = WaveformRecordValidator.ParseUnsigned(logicalTime, nameof(logicalTime));
+            _ = WaveformRecordValidator.ParseLogicalTime(logicalTime, nameof(logicalTime));
         }
 
         CursorKind = cursorKind;

@@ -7,12 +7,13 @@ namespace LogicLab.Application.Workspaces;
 
 public readonly record struct TraceTimeRange
 {
-    public TraceTimeRange(ulong startInclusive, ulong endExclusive)
+    public TraceTimeRange(UInt128 startInclusive, UInt128 endExclusive)
     {
-        if (startInclusive >= endExclusive)
+        if (startInclusive >= endExclusive
+            || endExclusive > LogicalTimeRange.DomainEndExclusive)
         {
             throw new ArgumentException(
-                "A Trace time range must be nonempty and half-open.",
+                "A Trace time range must be nonempty, half-open, and within the u64 domain.",
                 nameof(endExclusive));
         }
 
@@ -20,9 +21,9 @@ public readonly record struct TraceTimeRange
         EndExclusive = endExclusive;
     }
 
-    public ulong StartInclusive { get; }
+    public UInt128 StartInclusive { get; }
 
-    public ulong EndExclusive { get; }
+    public UInt128 EndExclusive { get; }
 }
 
 public abstract record TraceRepresentationRequest
