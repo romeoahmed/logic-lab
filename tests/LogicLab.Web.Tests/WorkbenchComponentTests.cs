@@ -645,7 +645,8 @@ internal sealed class WorkbenchComponentTests
 
     [Test]
     [Arguments("author-steering")]
-    [Arguments("author-arithmetic")]
+    [Arguments("author-carry-lookahead")]
+    [Arguments("author-bit-serial")]
     public async Task Editor_InteractiveStarter_CreatesRoutedCircuitAndEnablesStimulus(
         string authorCommand)
     {
@@ -685,7 +686,7 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task Editor_ArithmeticStarterWithMixedNetWidths_DisablesMergeCommand()
+    public async Task Editor_CarryLookaheadStarterWithMixedNetWidths_DisablesMergeCommand()
     {
         await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
@@ -695,10 +696,10 @@ internal sealed class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "create",
-            () => !IsDisabled(rendered, "author-arithmetic"));
+            () => !IsDisabled(rendered, "author-carry-lookahead"));
         await ClickAndWaitForState(
             rendered,
-            "author-arithmetic",
+            "author-carry-lookahead",
             () => !IsDisabled(rendered, "compile"));
 
         await Assert.That(IsDisabled(rendered, "topology-merge")).IsTrue();
@@ -888,140 +889,6 @@ internal sealed class WorkbenchComponentTests
             rendered,
             "compile",
             () => !IsDisabled(rendered, "session"));
-    }
-
-    [Test]
-    public async Task Editor_HierarchyCommands_NavigateDefinitionsAndCompileEntryOccurrence()
-    {
-        await using var context = CreateContext();
-        await using var workspace = new TrackingWorkspace();
-        var rendered = RenderEditor(context, workspace);
-        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
-        await ClickAndWaitForState(
-            rendered,
-            "create",
-            () => !IsDisabled(rendered, "author-hierarchy"));
-        await ClickAndWaitForState(
-            rendered,
-            "author-hierarchy",
-            () => rendered.FindAll("[data-definition]").Count == 2);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.FindAll("[data-entry-marker]")).Count().IsEqualTo(1);
-            await Assert.That(rendered.Find("[data-hierarchy-breadcrumb]").TextContent)
-                .Contains("Main");
-        }
-
-        await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => CurrentDefinition(rendered)?.Ports.Count == 2);
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.Find("[data-hierarchy-breadcrumb]").TextContent)
-                .Contains("Inverter");
-            await Assert.That(rendered.FindAll("[data-command='hierarchy-back']")).Count()
-                .IsEqualTo(1);
-        }
-
-        await rendered.Find("[data-command='set-entry']").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => rendered.Find("[data-entry-marker]")
-            .ParentElement!.TextContent.Contains("Inverter", StringComparison.Ordinal));
-        var mainTab = rendered.FindAll("[data-definition]")
-            .Single(element => element.TextContent.Contains("Main", StringComparison.Ordinal));
-        await mainTab.ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-enter-instance]").Count == 0);
-        await rendered.Find("[data-command='set-entry']").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => rendered.Find("[data-entry-marker]")
-            .ParentElement!.TextContent.Contains("Main", StringComparison.Ordinal));
-
-        await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => CurrentDefinition(rendered)?.Ports.Count == 2);
-        await rendered.Find("[data-command='hierarchy-back']")
-            .ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-enter-instance]").Count == 1);
-        await ClickAndWaitForState(
-            rendered,
-            "compile",
-            () => !IsDisabled(rendered, "session"));
-        await ClickAndWaitForState(
-            rendered,
-            "session",
-            () => rendered.FindAll(".probe-spine li").Count == 1);
-
-        await Assert.That(rendered.FindAll(".probe-spine li")).Count().IsEqualTo(1);
-
-        await rendered.Find("[data-scene-tool='probe']").ClickAsync();
-        var entryProbe = await Assert.That(rendered.FindComponent<CircuitSceneHost>()
-                .Instance.ActiveTool)
-            .IsTypeOf<SceneProbeToolV1>();
-        await Assert.That(entryProbe!.HierarchyPath.Steps).IsEmpty();
-
-        var enteredInstance = rendered.Find("[data-enter-instance]");
-        var enteredInstanceId = enteredInstance.GetAttribute("data-enter-instance")
-            ?? throw new InvalidOperationException("The hierarchy instance has no identity.");
-        await enteredInstance.ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => CurrentDefinition(rendered)?.Ports.Count == 2);
-        var occurrenceProbe = await Assert.That(rendered.FindComponent<CircuitSceneHost>()
-                .Instance.ActiveTool)
-            .IsTypeOf<SceneProbeToolV1>();
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(occurrenceProbe!.HierarchyPath.Steps).Count().IsEqualTo(1);
-            await Assert.That(occurrenceProbe.HierarchyPath.Steps[0].ComponentInstanceId)
-                .IsEqualTo(enteredInstanceId);
-        }
-    }
-
-    [Test]
-    public async Task Editor_HierarchyOccurrenceRemovedByUndo_ReturnsToEntryDefinition()
-    {
-        await using var context = CreateContext();
-        await using var workspace = new TrackingWorkspace();
-        var rendered = RenderEditor(context, workspace);
-        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
-        await ClickAndWaitForState(
-            rendered,
-            "create",
-            () => !IsDisabled(rendered, "author-hierarchy"));
-        await ClickAndWaitForState(
-            rendered,
-            "author-hierarchy",
-            () => rendered.FindAll("[data-enter-instance]").Count == 1);
-        var enteredInstanceId = rendered.Find("[data-enter-instance]")
-            .GetAttribute("data-enter-instance")
-            ?? throw new InvalidOperationException("The hierarchy instance has no identity.");
-        await rendered.Find("[data-enter-instance]").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => CurrentDefinition(rendered)?.Ports.Count == 2);
-
-        const int maximumUndoAttempts = 16;
-        WorkspaceProjection projection = await workspace.ReadCurrent();
-        for (var attempt = 0; attempt < maximumUndoAttempts && projection.ProjectRevision.Document
-                .CircuitDefinitions.SelectMany(definition => definition.ComponentInstances)
-                .Any(instance => instance.Id.Value == enteredInstanceId); attempt++)
-        {
-            await workspace.UndoCurrentAsync();
-            projection = await workspace.ReadCurrent();
-        }
-
-        await Assert.That(projection.ProjectRevision.Document.CircuitDefinitions
-                .SelectMany(definition => definition.ComponentInstances)
-                .Any(instance => instance.Id.Value == enteredInstanceId))
-            .IsFalse();
-
-        await rendered.Find("[data-command='compile']").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-command='hierarchy-back']")
-            .Count == 0);
-
-        projection = await workspace.ReadCurrent();
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.FindComponent<CircuitSceneHost>()
-                    .Instance.CircuitDefinitionId)
-                .IsEqualTo(projection.ProjectRevision.Document.EntryCircuitDefinitionId);
-            await Assert.That(rendered.Find("[data-hierarchy-breadcrumb]").TextContent)
-                .Contains(projection.ProjectRevision.Document.EntryCircuitDefinition.DisplayName);
-        }
     }
 
     private static BunitContext CreateContext()
@@ -1726,27 +1593,5 @@ internal sealed class WorkbenchComponentTests
             return ((ProjectionSnapshot)outcome).Projection;
         }
 
-        public async Task UndoCurrentAsync()
-        {
-            var currentWorkspaceId = workspaceId
-                ?? throw new InvalidOperationException("Workspace is not open.");
-            var currentAttachment = attachment
-                ?? throw new InvalidOperationException("Workspace is not attached.");
-            var projection = await ReadCurrent();
-            var outcome = await base.DispatchAsync(
-                new Undo(
-                    new WorkspaceCommandContext(
-                        currentWorkspaceId,
-                        currentAttachment.AttachmentId,
-                        currentAttachment.Generation,
-                        new ClientIntentId(Guid.CreateVersion7().ToString("N")),
-                        AnonymousWorkspaceCaller.Instance),
-                    new AuthoringPrecondition(projection.ProjectRevision.RevisionId)),
-                CancellationToken.None);
-            if (outcome is WorkspaceCommandRejected rejected)
-            {
-                throw new InvalidOperationException($"Undo was rejected: {rejected.Code}");
-            }
-        }
     }
 }

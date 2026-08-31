@@ -16,14 +16,14 @@ public partial class Editor
             "author-steering",
             () => CanAuthor,
             () => AuthorStarterCircuit(StarterCircuitCatalog.Steering)),
-        StarterGuide.Example.Arithmetic => RunCommandAsync(
-            "author-arithmetic",
+        StarterGuide.Example.CarryLookahead => RunCommandAsync(
+            "author-carry-lookahead",
             () => CanAuthor,
-            () => AuthorStarterCircuit(StarterCircuitCatalog.Arithmetic)),
-        StarterGuide.Example.Hierarchy => RunCommandAsync(
-            "author-hierarchy",
+            () => AuthorStarterCircuit(StarterCircuitCatalog.CarryLookahead)),
+        StarterGuide.Example.BitSerial => RunCommandAsync(
+            "author-bit-serial",
             () => CanAuthor,
-            AuthorHierarchy),
+            () => AuthorStarterCircuit(StarterCircuitCatalog.BitSerial)),
         _ => throw new ArgumentOutOfRangeException(nameof(example), example, null),
     };
 

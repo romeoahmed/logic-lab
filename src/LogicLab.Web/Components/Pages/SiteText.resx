@@ -53,10 +53,10 @@
   <data name="HelpExamplesTitle" xml:space="preserve"><value>Start small, then reveal more structure.</value></data>
   <data name="HelpInverterTitle" xml:space="preserve"><value>Inverter basics</value></data>
   <data name="HelpInverterDescription" xml:space="preserve"><value>Start here. One clear signal path demonstrates the complete compile-and-step workflow.</value></data>
-  <data name="HelpInteractiveExamplesTitle" xml:space="preserve"><value>Interactive examples</value></data>
-  <data name="HelpInteractiveExamplesDescription" xml:space="preserve"><value>The multiplexer and three-bit adder are connected and ready to compile. Change their inputs to see how each output responds.</value></data>
-  <data name="HelpHierarchyTitle" xml:space="preserve"><value>Reusable inverter</value></data>
-  <data name="HelpHierarchyDescription" xml:space="preserve"><value>Use this after the basics to see how a child circuit is reused by the main circuit.</value></data>
+  <data name="HelpCombinationalExamplesTitle" xml:space="preserve"><value>Combinational structure</value></data>
+  <data name="HelpCombinationalExamplesDescription" xml:space="preserve"><value>The multiplexer stays compact; the four-bit carry-lookahead adder exposes generate, propagate, and parallel carry terms.</value></data>
+  <data name="HelpBitSerialTitle" xml:space="preserve"><value>Bit-serial addition</value></data>
+  <data name="HelpBitSerialDescription" xml:space="preserve"><value>Reuse one full adder across clock edges while operand, result, and carry registers preserve state.</value></data>
   <data name="HelpCanvasEyebrow" xml:space="preserve"><value>Canvas controls</value></data>
   <data name="HelpCanvasTitle" xml:space="preserve"><value>Select, pan, and zoom the schematic.</value></data>
   <data name="HelpCanvasSelect" xml:space="preserve"><value>Select</value></data>

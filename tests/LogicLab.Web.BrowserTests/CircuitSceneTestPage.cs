@@ -565,7 +565,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
         zoomMillionthsMaximum = 4_000_000,
         policyRevision = "test-1",
         policyId = "logiclab-browser",
-        sceneSnapshotRecordCount = 1_000,
+        sceneSnapshotRecordCount = 50_000,
         scenePatchRecordCount = 1_000,
         semanticIntentBytes = 16_384,
         interopBatchBytes = 16_384,

@@ -156,21 +156,41 @@
   <data name="FailureSimulationCancelled" xml:space="preserve"><value>仿真已取消</value></data>
   <data name="FailureSimulationInfrastructure" xml:space="preserve"><value>仿真基础设施故障</value></data>
   <data name="FailureSimulationInternal" xml:space="preserve"><value>仿真内部缺陷</value></data>
-  <data name="ArithmeticExampleAuthored" xml:space="preserve"><value>三位加法器已创建。编译后可修改输入，观察和与进位。</value></data>
-  <data name="ExampleAdder" xml:space="preserve"><value>三位加法器</value></data>
+  <data name="CarryLookaheadExampleAuthored" xml:space="preserve"><value>四位超前进位加法器已创建。编译后可修改 A、B 或进位输入，观察并行进位网络。</value></data>
+  <data name="BitSerialExampleAuthored" xml:space="preserve"><value>位串行加法器已创建。编译后步进四个时钟上升沿；可用“装载”写入修改后的操作数。</value></data>
   <data name="ExampleCarryIn" xml:space="preserve"><value>进位输入</value></data>
   <data name="ExampleCarryOut" xml:space="preserve"><value>进位输出</value></data>
+  <data name="ExampleCarry1" xml:space="preserve"><value>进位 C1</value></data>
+  <data name="ExampleCarry2" xml:space="preserve"><value>进位 C2</value></data>
+  <data name="ExampleCarry3" xml:space="preserve"><value>进位 C3</value></data>
+  <data name="ExampleCarry4" xml:space="preserve"><value>进位 C4</value></data>
+  <data name="ExampleCarryTerm" xml:space="preserve"><value>进位乘积项</value></data>
+  <data name="ExampleCarryVector" xml:space="preserve"><value>进位向量 C0–C3</value></data>
   <data name="ExampleData0" xml:space="preserve"><value>数据 0</value></data>
   <data name="ExampleData1" xml:space="preserve"><value>数据 1</value></data>
-  <data name="ExampleInputA" xml:space="preserve"><value>输入 A = 101</value></data>
-  <data name="ExampleInputB" xml:space="preserve"><value>输入 B = 011</value></data>
+  <data name="ExampleInputA" xml:space="preserve"><value>输入 A = 1011</value></data>
+  <data name="ExampleInputB" xml:space="preserve"><value>输入 B = 0110</value></data>
+  <data name="ExamplePropagate" xml:space="preserve"><value>传播项 P</value></data>
+  <data name="ExampleGenerate" xml:space="preserve"><value>生成项 G</value></data>
+  <data name="ExamplePropagateBits" xml:space="preserve"><value>传播位</value></data>
+  <data name="ExampleGenerateBits" xml:space="preserve"><value>生成位</value></data>
   <data name="ExampleMultiplexer" xml:space="preserve"><value>二选一复用器</value></data>
   <data name="ExampleSelect" xml:space="preserve"><value>选择端</value></data>
   <data name="ExampleSelectedOutput" xml:space="preserve"><value>选择结果</value></data>
   <data name="ExampleSum" xml:space="preserve"><value>和</value></data>
+  <data name="ExampleLoad" xml:space="preserve"><value>装载操作数</value></data>
+  <data name="ExampleClock" xml:space="preserve"><value>串行时钟</value></data>
+  <data name="ExampleSerialZero" xml:space="preserve"><value>串行补零</value></data>
+  <data name="ExampleParallelZero" xml:space="preserve"><value>结果清零值</value></data>
+  <data name="ExampleEnable" xml:space="preserve"><value>移位使能</value></data>
+  <data name="ExampleOperandARegister" xml:space="preserve"><value>A 移位寄存器</value></data>
+  <data name="ExampleOperandBRegister" xml:space="preserve"><value>B 移位寄存器</value></data>
+  <data name="ExampleSerialAdder" xml:space="preserve"><value>一位全加器</value></data>
+  <data name="ExampleCarryRegister" xml:space="preserve"><value>进位寄存器</value></data>
+  <data name="ExampleResultRegister" xml:space="preserve"><value>结果移位寄存器</value></data>
+  <data name="ExampleResult" xml:space="preserve"><value>串行结果</value></data>
   <data name="EditingDefinition" xml:space="preserve"><value>正在编辑电路定义 {0}。</value></data>
   <data name="EntryDefinitionChanged" xml:space="preserve"><value>{0} 现在是入口电路定义。</value></data>
-  <data name="HierarchyAuthored" xml:space="preserve"><value>可复用反相器已创建。可打开子电路，或编译主电路。</value></data>
   <data name="HierarchyObserving" xml:space="preserve"><value>正在查看实例 {0}。</value></data>
   <data name="HierarchyReturned" xml:space="preserve"><value>已返回 {0}。</value></data>
   <data name="JunctionAdded" xml:space="preserve"><value>已在网格 4, 2 添加结点。</value></data>
@@ -208,10 +228,10 @@
   <data name="StarterInverterDescription" xml:space="preserve"><value>观察非门如何把输入反相后送到输出。</value></data>
   <data name="StarterSteeringTitle" xml:space="preserve"><value>在两路信号中选择</value></data>
   <data name="StarterSteeringDescription" xml:space="preserve"><value>创建可交互的二选一复用器。</value></data>
-  <data name="StarterArithmeticTitle" xml:space="preserve"><value>两个三位数相加</value></data>
-  <data name="StarterArithmeticDescription" xml:space="preserve"><value>创建带和与进位输出的可交互加法器。</value></data>
-  <data name="StarterHierarchyTitle" xml:space="preserve"><value>可复用反相器</value></data>
-  <data name="StarterHierarchyDescription" xml:space="preserve"><value>把反相器封装为子电路，并在主电路中复用。</value></data>
+  <data name="StarterCarryLookaheadTitle" xml:space="preserve"><value>超前进位加法器</value></data>
+  <data name="StarterCarryLookaheadDescription" xml:space="preserve"><value>观察四位加法中的生成项、传播项与并行进位项。</value></data>
+  <data name="StarterBitSerialTitle" xml:space="preserve"><value>位串行加法器</value></data>
+  <data name="StarterBitSerialDescription" xml:space="preserve"><value>让两个四位操作数复用同一个一位全加器逐位相加。</value></data>
   <data name="AdvancedTopology" xml:space="preserve"><value>高级布线</value></data>
   <data name="AdvancedTopologyDescription" xml:space="preserve"><value>编辑网络、结点与导线路径</value></data>
   <data name="Library" xml:space="preserve"><value>元件库</value></data>
