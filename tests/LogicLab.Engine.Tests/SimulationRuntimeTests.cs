@@ -28,6 +28,7 @@ internal sealed class SimulationRuntimeTests
             new ReadTraceWindow(new SimulationTraceWindowRequest(
                 opened.ProbeIds,
                 new LogicalTimeRange(0, 1),
+                TraceTransitionsRepresentation.Instance,
                 afterSequence: null)),
             CancellationToken.None);
 
@@ -113,6 +114,7 @@ internal sealed class SimulationRuntimeTests
             new ReadTraceWindow(new SimulationTraceWindowRequest(
                 [replaced.ProbeIds[1]],
                 new LogicalTimeRange(0, 1),
+                TraceTransitionsRepresentation.Instance,
                 afterSequence: null)),
             CancellationToken.None);
 
@@ -386,6 +388,7 @@ internal sealed class SimulationRuntimeTests
             new ReadTraceWindow(new SimulationTraceWindowRequest(
                 opened.ProbeIds,
                 new LogicalTimeRange(0, 11),
+                TraceTransitionsRepresentation.Instance,
                 afterSequence: null)),
             CancellationToken.None);
         using (Assert.Multiple())
@@ -790,6 +793,7 @@ internal sealed class SimulationRuntimeTests
             new ReadTraceWindow(new SimulationTraceWindowRequest(
                 opened.ProbeIds,
                 new LogicalTimeRange(0, 11),
+                TraceTransitionsRepresentation.Instance,
                 afterSequence: null)),
             CancellationToken.None);
         var retained = SimulationRuntime.Read(
@@ -797,6 +801,7 @@ internal sealed class SimulationRuntimeTests
             new ReadTraceWindow(new SimulationTraceWindowRequest(
                 opened.ProbeIds,
                 new LogicalTimeRange(0, 11),
+                TraceTransitionsRepresentation.Instance,
                 afterSequence: 1)),
             CancellationToken.None);
 
@@ -846,6 +851,7 @@ internal sealed class SimulationRuntimeTests
             new ReadTraceWindow(new SimulationTraceWindowRequest(
                 opened.ProbeIds,
                 new LogicalTimeRange(0, 61),
+                TraceTransitionsRepresentation.Instance,
                 afterSequence: 4)),
             CancellationToken.None);
         var retained = SimulationRuntime.Read(
@@ -853,6 +859,7 @@ internal sealed class SimulationRuntimeTests
             new ReadTraceWindow(new SimulationTraceWindowRequest(
                 opened.ProbeIds,
                 new LogicalTimeRange(0, 61),
+                TraceTransitionsRepresentation.Instance,
                 afterSequence: 5)),
             CancellationToken.None);
 

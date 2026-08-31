@@ -49,8 +49,10 @@ SimulationTraceWindowRequest
   nonempty unique ordered ProbeIds[]
   nonempty half-open Logical-time range
   representation: Transitions | VisualSummary(maxPoints, "logic-envelope-v1")
-  afterSequence?
+  afterSequence? for Transitions only
 ```
+
+`maxPoints` is a positive int32, and the requested Probe-count/product must fit int32 collection capacity.
 
 `HotSwapConsumerBufferRequirements` declares the caller-owned buffers that coexist with
 Runtime storage across the command boundary: retained owned bytes, owned reference slots per
@@ -122,7 +124,7 @@ SimulationReadOutcome =
     }
   | TraceTransitionsAvailable { transitions[], coveredRange, earliestAvailable, latestSequence }
   | TraceSummaryAvailable { buckets[], aggregation, coveredRange, earliestAvailable, latestSequence }
-  | TraceRangeUnavailable { Evicted | ArtifactChanged, earliestAvailable, latestSequence }
+  | TraceRangeUnavailable { earliestAvailable, latestSequence }
   | SimulationReadFailed { reason, Diagnostics[] }
 ```
 
@@ -323,7 +325,7 @@ All address ranges and allocation sizes use checked arithmetic and the active po
 
 Probes bind through stable source identity and Hierarchy Path in the active Compilation Artifact. Trace records only committed value transitions by default, including across Hot Swap; a state-preserving replacement does not advance the Trace cursor. Optional delta-debug capture has a separate policy and never becomes simulation truth.
 
-Runtime storage is an internal bounded circular sequence of immutable chunks. External callers receive normalized transition segments or an explicitly requested visual summary, never internal chunk bytes. Eviction creates a Trace Gap with the earliest available cursor. For a transition request without `afterSequence`, every requested Probe must have a retained transition at or before the requested range start; otherwise the result is `TraceRangeUnavailable { Evicted, ... }`, even when another Probe has retained data at that Logical Time. `afterSequence` is a continuation assertion for the exact same ordered Probe IDs whose continuous baseline the caller retained through that sequence; Application must start a new request without it when the Probe set changes. A gap is never filled, flattened, or represented as `X`.
+Runtime storage is an internal bounded circular sequence of immutable chunks. External callers receive transitions in ascending sequence order or an explicitly requested visual summary whose buckets follow requested Probe order and then ascending range order; callers never receive internal chunk bytes. Eviction creates a Trace Gap with the earliest available cursor. For a transition request without `afterSequence`, every requested Probe must have a retained transition at or before the requested range start; otherwise the result is `TraceRangeUnavailable`, even when another Probe has retained data at that Logical Time. `afterSequence` is valid only for transitions and is a continuation assertion for the exact same ordered Probe IDs whose continuous baseline the caller retained through that sequence; Application must start a new request without it when the Probe set changes. A gap is never filled, flattened, or represented as `X`.
 
 Trace capacity cannot block, fail, or roll back simulation. The oldest sealed storage may be evicted after an atomic Trace batch is published.
 

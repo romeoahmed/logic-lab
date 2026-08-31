@@ -4,6 +4,7 @@ using System.Text.Json;
 using LogicLab.Web.Scene;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
@@ -68,16 +69,15 @@ internal sealed class BrowserSceneAdapterTests
         using (Assert.Multiple())
         {
             await Assert.That(chunks).Count().IsGreaterThan(1);
-            await Assert.That(chunks.Select((call, ordinal) =>
-                    (int)call.Arguments[1]! == ordinal).All(value => value))
-                .IsTrue();
-            await Assert.That(chunks.All(call =>
+            await Assert.That(chunks.Select(call => (int)call.Arguments[1]!))
+                .IsEquivalentTo(Enumerable.Range(0, chunks.Length), CollectionOrdering.Matching);
+            await Assert.That(chunks.Max(call =>
                     Encoding.UTF8.GetByteCount((string)call.Arguments[2]!)
-                        + InteropEnvelopeBytes
-                    <= (int)BrowserPolicy.Default.Limit(
-                        BrowserLimitDimension.InteropBatchBytes)))
-                .IsTrue();
-            await Assert.That(reconstructed.SequenceEqual(expected)).IsTrue();
+                        + InteropEnvelopeBytes))
+                .IsLessThanOrEqualTo((int)BrowserPolicy.Default.Limit(
+                    BrowserLimitDimension.InteropBatchBytes));
+            await Assert.That(reconstructed)
+                .IsEquivalentTo(expected, CollectionOrdering.Matching);
             await Assert.That(begin.Arguments[1]).IsEqualTo("replacement");
             await Assert.That(begin.Arguments[2]).IsEqualTo(expected.Length);
             await Assert.That(begin.Arguments[3]).IsEqualTo(
@@ -131,12 +131,11 @@ internal sealed class BrowserSceneAdapterTests
         using (Assert.Multiple())
         {
             await Assert.That(batches).Count().IsGreaterThan(1);
-            await Assert.That(batches.All(call =>
+            await Assert.That(batches.Max(call =>
                     Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(call.Arguments[0], WebJson))
-                        + InteropEnvelopeBytes
-                    <= (int)BrowserPolicy.Default.Limit(
-                        BrowserLimitDimension.InteropBatchBytes)))
-                .IsTrue();
+                        + InteropEnvelopeBytes))
+                .IsLessThanOrEqualTo((int)BrowserPolicy.Default.Limit(
+                    BrowserLimitDimension.InteropBatchBytes));
             await Assert.That(result.Measurements.Select(measurement => measurement.Key))
                 .IsEquivalentTo(requests.Select(request => request.Key));
         }

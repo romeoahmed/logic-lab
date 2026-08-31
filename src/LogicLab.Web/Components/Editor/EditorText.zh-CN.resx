@@ -276,20 +276,20 @@
   <data name="ComponentSignExtend" xml:space="preserve"><value>符号扩展</value></data>
   <data name="LogicAnalyzerEyebrow" xml:space="preserve"><value>仿真工具</value></data>
   <data name="LogicAnalyzer" xml:space="preserve"><value>逻辑分析仪</value></data>
-  <data name="LogicAnalyzerCollapsed" xml:space="preserve"><value>波形已收起，仿真仍在继续。</value></data>
+  <data name="LogicAnalyzerCollapsed" xml:space="preserve"><value>波形已收起，仿真会继续运行。</value></data>
   <data name="OpenLogicAnalyzer" xml:space="preserve"><value>展开波形</value></data>
   <data name="WaveformControls" xml:space="preserve"><value>波形操作</value></data>
-  <data name="TraceResolution" xml:space="preserve"><value>显示精度</value></data>
+  <data name="TraceResolution" xml:space="preserve"><value>显示模式</value></data>
   <data name="TransitionDetail" xml:space="preserve"><value>详细波形</value></data>
-  <data name="VisualSummary" xml:space="preserve"><value>波形概览</value></data>
+  <data name="VisualSummary" xml:space="preserve"><value>概览</value></data>
   <data name="ViewportControls" xml:space="preserve"><value>时间范围</value></data>
   <data name="FitTrace" xml:space="preserve"><value>显示全部</value></data>
-  <data name="LiveFollow" xml:space="preserve"><value>实时</value></data>
+  <data name="LiveFollow" xml:space="preserve"><value>实时跟随</value></data>
   <data name="MeasurementCursors" xml:space="preserve"><value>时间游标</value></data>
   <data name="CloseWaveform" xml:space="preserve"><value>收起</value></data>
-  <data name="EmptyTrace" xml:space="preserve"><value>还没有探针。</value></data>
-  <data name="EmptyTraceHelp" xml:space="preserve"><value>选择“探针”工具，点选要观察的网络，再单步或运行电路。</value></data>
-  <data name="ProbeSpine" xml:space="preserve"><value>信号列表</value></data>
+  <data name="EmptyTrace" xml:space="preserve"><value>还没有添加探针。</value></data>
+  <data name="EmptyTraceHelp" xml:space="preserve"><value>选择“探针”工具，点一下要观察的网络，然后单步执行或运行电路。</value></data>
+  <data name="ProbeSpine" xml:space="preserve"><value>信号</value></data>
   <data name="Radix" xml:space="preserve"><value>数值格式</value></data>
   <data name="RadixBinary" xml:space="preserve"><value>二进制</value></data>
   <data name="RadixHex" xml:space="preserve"><value>十六进制</value></data>
@@ -299,19 +299,19 @@
   <data name="RevealNet" xml:space="preserve"><value>在电路图中定位</value></data>
   <data name="RebindProbe" xml:space="preserve"><value>重新关联</value></data>
   <data name="RemoveProbe" xml:space="preserve"><value>移除</value></data>
-  <data name="NoVisibleGeometry" xml:space="preserve"><value>这个信号在电路图中没有可定位的位置</value></data>
-  <data name="ProbeSourceMissing" xml:space="preserve"><value>原网络已被删除</value></data>
-  <data name="ProjectionUnavailable" xml:space="preserve"><value>暂时无法在电路图中定位</value></data>
+  <data name="NoVisibleGeometry" xml:space="preserve"><value>这个信号在电路图中没有对应图形</value></data>
+  <data name="ProbeSourceMissing" xml:space="preserve"><value>这个探针对应的网络已被删除</value></data>
+  <data name="ProjectionUnavailable" xml:space="preserve"><value>暂时无法在电路图中定位这个信号</value></data>
   <data name="WaveformCanvas" xml:space="preserve"><value>波形图</value></data>
   <data name="WaveformCanvasFallback" xml:space="preserve"><value>当前浏览器无法绘制波形。</value></data>
-  <data name="SummaryResolution" xml:space="preserve"><value>概览模式 · 细节已汇总</value></data>
-  <data name="HistoricalView" xml:space="preserve"><value>正在查看历史 · 仿真仍在继续</value></data>
+  <data name="SummaryResolution" xml:space="preserve"><value>概览 · 波形细节已汇总</value></data>
+  <data name="HistoricalView" xml:space="preserve"><value>正在查看历史波形 · 仿真仍在继续</value></data>
   <data name="LoadingTrace" xml:space="preserve"><value>正在读取波形…</value></data>
   <data name="TraceEvicted" xml:space="preserve"><value>这段波形已超出历史保留范围。</value></data>
-  <data name="TraceArtifactChanged" xml:space="preserve"><value>电路已重新编译。请重新关联断开的探针，或回到实时波形。</value></data>
+  <data name="TraceArtifactChanged" xml:space="preserve"><value>电路已重新编译。请重新关联失效的探针，或回到实时波形。</value></data>
   <data name="TraceUnavailable" xml:space="preserve"><value>暂时无法读取这段波形。</value></data>
   <data name="WaveformUnavailable" xml:space="preserve"><value>暂时无法显示波形。</value></data>
   <data name="RetryWaveform" xml:space="preserve"><value>重试</value></data>
-  <data name="ProbeRevealed" xml:space="preserve"><value>已在电路图中定位“{0}”。</value></data>
-  <data name="ReturnToLive" xml:space="preserve"><value>回到实时</value></data>
+  <data name="ProbeRevealed" xml:space="preserve"><value>已在电路图中找到“{0}”。</value></data>
+  <data name="ReturnToLive" xml:space="preserve"><value>回到实时波形</value></data>
 </root>

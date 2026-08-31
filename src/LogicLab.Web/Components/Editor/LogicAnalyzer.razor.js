@@ -1,9 +1,67 @@
 const mountedHandles = new WeakMap();
 const encoder = new TextEncoder();
+const decoder = new TextDecoder("utf-8", { fatal: true });
+const decodedVectors = new WeakMap();
+const unsignedMaximum = 18_446_744_073_709_551_615n;
+const contextRestoreTimeoutMilliseconds = 2_000;
+const interopEnvelopeBytes = 512;
+const minimumBase64QuantumBytes = 4;
+const recordShapes = Object.freeze({
+  policy: shape(
+    "policyId",
+    "policyRevision",
+    "semanticIntentBytes",
+    "interopBatchBytes",
+    "candidateTransferBytes",
+    "canvasBitmapPixels",
+    "effectiveDensityMillionths",
+  ),
+  snapshot: shape(
+    "buildFingerprint",
+    "waveformVersion",
+    "projectionVersion",
+    "sessionId",
+    "sessionVersion",
+    "compilationArtifactKey",
+    "rows",
+    "viewState",
+    "trace",
+  ),
+  viewState: shape("viewport", "primaryCursor", "secondaryCursor"),
+  row: shape(
+    "probeId",
+    "width",
+    "displayOrdinal",
+    "appearanceOrdinal",
+    "pattern",
+    "binding",
+  ),
+  vector: shape("width", "encoding", "data"),
+  cursor: shape("kind", "logicalTime"),
+  range: shape("startInclusive", "endExclusive"),
+  gap: shape("range"),
+  transitions: shape("kind", "segments"),
+  summary: shape("kind", "aggregation", "segments"),
+  unavailable: shape("kind", "gap"),
+  transitionSegment: shape("probeId", "range", "value", "transitionAtStart"),
+  summarySegment: shape(
+    "probeId",
+    "range",
+    "firstValue",
+    "lastValue",
+    "hadTransition",
+    "hadMixedValues",
+  ),
+});
 
 export function mount(host, buildFingerprint, policy, dotnetSink) {
   const existing = mountedHandles.get(host);
-  if (existing && existing.buildFingerprint === buildFingerprint && !existing.destroyed) {
+  if (
+    existing &&
+    existing.buildFingerprint === buildFingerprint &&
+    !existing.destroyed &&
+    !existing.failed
+  ) {
     return existing;
   }
 
@@ -32,20 +90,28 @@ class WaveformHandle {
     this.transientCursor = null;
     this.interactionMode = "commitEnabled";
     this.gesture = null;
+    this.pendingIntent = null;
+    this.viewportCommitTimer = 0;
+    this.contextRestoreTimer = 0;
     this.pendingFrame = 0;
     this.dirty = false;
     this.cssWidth = 0;
     this.cssHeight = 0;
     this.density = 1;
+    this.traceByProbe = new Map();
+    this.rowLayoutCache = null;
     this.transfers = new Map();
+    this.failed = false;
     this.destroyed = false;
     this.abortController = new AbortController();
     this.resizeObserver = null;
     this.removalObserver = null;
+    this.densityMedia = null;
+    this.onDensityChange = null;
     this.installRemovalObserver();
 
     if (!this.canvas || !this.context) {
-      this.failClosed("contextUnavailable");
+      this.failClosed();
       return;
     }
 
@@ -58,7 +124,7 @@ class WaveformHandle {
     this.ensureLive();
     if (
       !isToken(transferId) ||
-      (kind !== "snapshot" && kind !== "patch") ||
+      kind !== "snapshot" ||
       !Number.isSafeInteger(byteLength) ||
       byteLength <= 0 ||
       BigInt(byteLength) > BigInt(this.policy.candidateTransferBytes) ||
@@ -69,7 +135,6 @@ class WaveformHandle {
     }
 
     this.transfers.set(transferId, {
-      kind,
       byteLength,
       digest,
       chunks: [],
@@ -85,7 +150,8 @@ class WaveformHandle {
       !transfer ||
       ordinal !== transfer.nextOrdinal ||
       typeof chunk !== "string" ||
-      encoder.encode(chunk).byteLength + 512 > this.policy.interopBatchBytes
+      chunk.length === 0 ||
+      encoder.encode(chunk).byteLength + interopEnvelopeBytes > this.policy.interopBatchBytes
     ) {
       this.transfers.delete(transferId);
       throw new Error("invalid Waveform transfer chunk");
@@ -116,20 +182,18 @@ class WaveformHandle {
         return false;
       }
 
-      const candidate = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(candidateBytes));
-      let next;
-      if (transfer.kind === "snapshot") {
-        next = validateSnapshot(candidate, this.buildFingerprint);
-      } else {
-        const patch = validatePatch(candidate, this.buildFingerprint, this.published);
-        next = applyPatch(this.published, patch);
-        validateSnapshot(next, this.buildFingerprint);
-      }
+      const candidate = JSON.parse(decoder.decode(candidateBytes));
+      const next = validateSnapshot(candidate, this.buildFingerprint);
+      const traceByProbe = indexTrace(next.trace);
 
       this.cancelGesture();
       this.published = deepFreeze(next);
+      this.traceByProbe = traceByProbe;
+      this.rowLayoutCache = null;
       this.transientViewport = null;
       this.transientCursor = null;
+      this.cancelViewportCommit();
+      this.pendingIntent = null;
       this.invalidate();
       return true;
     } catch {
@@ -146,8 +210,16 @@ class WaveformHandle {
     if (mode !== "commitEnabled" && mode !== "localOnly") {
       throw new Error("invalid Waveform interaction mode");
     }
-    if (mode === "localOnly") this.cancelGesture();
+    const previousMode = this.interactionMode;
     this.interactionMode = mode;
+    if (mode === "localOnly") {
+      this.cancelGesture();
+      this.cancelViewportCommit();
+    } else if (previousMode === "localOnly") {
+      this.transientViewport = null;
+      this.transientCursor = null;
+      this.invalidate();
+    }
   }
 
   installListeners() {
@@ -165,10 +237,10 @@ class WaveformHandle {
       (event) => this.cancelGesture(event.pointerId),
       { signal },
     );
-    this.probeSpine?.addEventListener("scroll", () => this.invalidate(), {
-      signal,
-      passive: true,
-    });
+    this.probeSpine?.addEventListener("scroll", () => {
+      this.rowLayoutCache = null;
+      this.invalidate();
+    }, { signal, passive: true });
     this.canvas.addEventListener("wheel", (event) => this.wheel(event), {
       signal,
       passive: false,
@@ -177,11 +249,18 @@ class WaveformHandle {
     this.canvas.addEventListener("contextlost", (event) => {
       event.preventDefault();
       this.cancelGesture();
+      this.cancelContextRestore();
+      this.contextRestoreTimer = window.setTimeout(
+        () => this.failClosed(),
+        contextRestoreTimeoutMilliseconds,
+      );
     }, { signal });
     this.canvas.addEventListener("contextrestored", () => {
+      if (this.failed) return;
+      this.cancelContextRestore();
       this.context = this.canvas.getContext("2d", { alpha: false });
       if (!this.context) {
-        this.failClosed("contextLost");
+        this.failClosed();
         return;
       }
       this.resize();
@@ -193,6 +272,18 @@ class WaveformHandle {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.canvas);
     if (this.probeSpine) this.resizeObserver.observe(this.probeSpine);
+    this.onDensityChange = () => {
+      if (this.destroyed) return;
+      this.armDensityListener();
+      this.resize();
+    };
+    this.armDensityListener();
+  }
+
+  armDensityListener() {
+    this.densityMedia?.removeEventListener("change", this.onDensityChange);
+    this.densityMedia = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    this.densityMedia.addEventListener("change", this.onDensityChange, { once: true });
   }
 
   installRemovalObserver() {
@@ -204,7 +295,8 @@ class WaveformHandle {
   }
 
   resize() {
-    if (!this.canvas || !this.context || this.destroyed) return;
+    if (!this.canvas || !this.context || this.destroyed || this.failed) return;
+    this.rowLayoutCache = null;
     const bounds = this.canvas.getBoundingClientRect();
     if (!Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) return;
     if (bounds.width <= 0 || bounds.height <= 0) {
@@ -214,12 +306,19 @@ class WaveformHandle {
     }
 
     const maximumDensity = this.policy.effectiveDensityMillionths / 1_000_000;
-    const density = Math.min(window.devicePixelRatio || 1, maximumDensity);
+    const density = Math.min(Math.max(1, window.devicePixelRatio || 1), maximumDensity);
     const width = Math.ceil(bounds.width * density);
     const height = Math.ceil(bounds.height * density);
+    if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height)) {
+      this.failClosed();
+      return;
+    }
     const pixels = BigInt(width) * BigInt(height);
     if (pixels > BigInt(this.policy.canvasBitmapPixels)) {
-      this.failClosed("canvasBitmapPixels");
+      this.failClosed({
+        dimension: "canvas_bitmap_pixels",
+        observed: pixels.toString(),
+      });
       return;
     }
 
@@ -227,9 +326,18 @@ class WaveformHandle {
     this.cssHeight = bounds.height;
     this.density = density;
     if (this.canvas.width !== width || this.canvas.height !== height) {
-      this.canvas.width = width;
-      this.canvas.height = height;
-      this.context = this.canvas.getContext("2d", { alpha: false });
+      try {
+        this.canvas.width = width;
+        this.canvas.height = height;
+        this.context = this.canvas.getContext("2d", { alpha: false });
+      } catch {
+        this.failClosed();
+        return;
+      }
+      if (!this.context) {
+        this.failClosed();
+        return;
+      }
     }
     this.invalidate();
   }
@@ -306,7 +414,7 @@ class WaveformHandle {
   }
 
   wheel(event) {
-    if (!this.published || this.interactionMode !== "commitEnabled") return;
+    if (!this.published) return;
     event.preventDefault();
     const viewport = this.activeViewport();
     const start = BigInt(viewport.startInclusive);
@@ -314,14 +422,20 @@ class WaveformHandle {
     const span = end - start;
     let nextStart;
     let nextEnd;
+    let targetSpan;
     if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
-      const direction = event.deltaX + event.deltaY >= 0 ? 1n : -1n;
+      const dominantDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY;
+      const direction = dominantDelta >= 0 ? 1n : -1n;
       const step = span / 8n || 1n;
+      targetSpan = span;
       nextStart = direction > 0n ? start + step : start > step ? start - step : 0n;
       nextEnd = nextStart + span;
     } else {
       const zoomIn = event.deltaY < 0;
       const nextSpan = zoomIn ? span / 2n || 1n : span * 2n;
+      targetSpan = nextSpan;
       const ratio = clamp(event.offsetX / Math.max(1, this.cssWidth), 0, 1);
       const anchor = start + proportionalOffset(span, ratio);
       const left = proportionalOffset(nextSpan, ratio);
@@ -329,10 +443,9 @@ class WaveformHandle {
       nextEnd = nextStart + nextSpan;
     }
 
-    const max = 18_446_744_073_709_551_615n;
-    if (nextEnd > max) {
-      nextEnd = max;
-      nextStart = nextEnd > span ? nextEnd - span : 0n;
+    if (nextEnd > unsignedMaximum) {
+      nextEnd = unsignedMaximum;
+      nextStart = nextEnd > targetSpan ? nextEnd - targetSpan : 0n;
     }
     if (nextEnd <= nextStart) return;
     this.transientViewport = {
@@ -340,7 +453,38 @@ class WaveformHandle {
       endExclusive: nextEnd.toString(),
     };
     this.invalidate();
-    void this.emit("setViewport", { viewport: this.transientViewport });
+    if (this.interactionMode === "commitEnabled") this.scheduleViewportCommit();
+  }
+
+  scheduleViewportCommit() {
+    this.cancelViewportCommit();
+    const waveformVersion = this.published.waveformVersion;
+    this.viewportCommitTimer = window.setTimeout(() => {
+      this.viewportCommitTimer = 0;
+      if (
+        this.published?.waveformVersion === waveformVersion &&
+        this.transientViewport &&
+        this.interactionMode === "commitEnabled"
+      ) {
+        if (this.pendingIntent) {
+          this.scheduleViewportCommit();
+          return;
+        }
+        void this.emit("setViewport", { viewport: this.transientViewport });
+      }
+    }, 120);
+  }
+
+  cancelViewportCommit() {
+    if (!this.viewportCommitTimer) return;
+    clearTimeout(this.viewportCommitTimer);
+    this.viewportCommitTimer = 0;
+  }
+
+  cancelContextRestore() {
+    if (!this.contextRestoreTimer) return;
+    clearTimeout(this.contextRestoreTimer);
+    this.contextRestoreTimer = 0;
   }
 
   keyDown(event) {
@@ -377,7 +521,11 @@ class WaveformHandle {
   }
 
   async emit(kind, payload) {
-    if (!this.published || this.interactionMode !== "commitEnabled") return;
+    if (
+      !this.published ||
+      this.interactionMode !== "commitEnabled" ||
+      this.pendingIntent
+    ) return false;
     const intent = {
       kind,
       buildFingerprint: this.published.buildFingerprint,
@@ -388,15 +536,32 @@ class WaveformHandle {
       compilationArtifactKey: this.published.compilationArtifactKey,
       ...payload,
     };
+    const intentBytes = encoder.encode(JSON.stringify(intent)).byteLength;
+    if (intentBytes > this.policy.semanticIntentBytes) {
+      this.failClosed({
+        dimension: "semantic_intent_bytes",
+        observed: intentBytes.toString(),
+      });
+      return false;
+    }
+    const pendingIntent = Object.freeze({
+      kind,
+      waveformVersion: this.published.waveformVersion,
+    });
+    this.pendingIntent = pendingIntent;
     try {
-      await this.dotnetSink?.invokeMethodAsync("ReceiveWaveformIntent", intent);
+      await this.dotnetSink.invokeMethodAsync("ReceiveWaveformIntentAsync", intent);
+      return true;
     } catch {
-      // The owning component may have been disposed between the event and callback.
+      this.failClosed();
+      return false;
+    } finally {
+      if (this.pendingIntent === pendingIntent) this.pendingIntent = null;
     }
   }
 
   invalidate() {
-    if (this.destroyed || this.dirty) return;
+    if (this.destroyed || this.failed || this.dirty) return;
     this.dirty = true;
     if (!this.pendingFrame) {
       this.pendingFrame = requestAnimationFrame(() => this.render());
@@ -405,32 +570,47 @@ class WaveformHandle {
 
   render() {
     this.pendingFrame = 0;
-    if (!this.dirty || !this.context || !this.canvas || this.destroyed) return;
+    if (!this.dirty || !this.context || !this.canvas || this.destroyed || this.failed) return;
     this.dirty = false;
     const context = this.context;
     const width = this.cssWidth;
     const height = this.cssHeight;
     context.setTransform(this.density, 0, 0, this.density, 0, 0);
-    const styles = getComputedStyle(this.canvas);
-    const background = cssColor(styles, "--ll-canvas", "#f8faf9");
-    const ink = cssColor(styles, "--ll-ink", "#172124");
-    const muted = cssColor(styles, "--ll-muted", "#647176");
-    const border = cssColor(styles, "--ll-border", "#d4dcda");
-    context.fillStyle = background;
+    let palette;
+    try {
+      palette = waveformPalette(getComputedStyle(this.canvas));
+    } catch {
+      this.failClosed();
+      return;
+    }
+    context.fillStyle = palette.background;
     context.fillRect(0, 0, width, height);
     if (!this.published || width <= 0 || height <= 0) return;
 
     const viewport = this.activeViewport();
     const rulerHeight = 30;
-    drawRuler(context, width, rulerHeight, viewport, ink, muted, border);
+    drawRuler(
+      context,
+      width,
+      rulerHeight,
+      viewport,
+      palette.ink,
+      palette.muted,
+      palette.border,
+    );
+    const layouts = this.rowLayouts(rulerHeight);
+    if (!layouts) {
+      this.failClosed();
+      return;
+    }
     context.save();
     context.beginPath();
     context.rect(0, rulerHeight, width, Math.max(0, height - rulerHeight));
     context.clip();
-    for (const layout of this.rowLayouts(rulerHeight)) {
+    for (const layout of layouts) {
       const row = this.published.rows[layout.index];
       if (!row) continue;
-      context.strokeStyle = border;
+      context.strokeStyle = palette.border;
       context.lineWidth = 1;
       context.beginPath();
       context.moveTo(0, layout.top + layout.height);
@@ -439,18 +619,35 @@ class WaveformHandle {
       drawTraceRow(
         context,
         this.published.trace,
+        this.traceByProbe.get(row.probeId) ?? [],
         row,
         viewport,
         layout.top,
         layout.height,
         width,
-        probeColor(row.appearanceOrdinal),
-        muted,
+        palette.probes[row.appearanceOrdinal % palette.probes.length],
+        palette.muted,
       );
     }
     context.restore();
-    drawCursor(context, this.published.viewState.primaryCursor, viewport, width, height, "#b85e3d", "A");
-    drawCursor(context, this.published.viewState.secondaryCursor, viewport, width, height, "#6d6ab7", "B");
+    drawCursor(
+      context,
+      this.published.viewState.primaryCursor,
+      viewport,
+      width,
+      height,
+      palette.primaryCursor,
+      "A",
+    );
+    drawCursor(
+      context,
+      this.published.viewState.secondaryCursor,
+      viewport,
+      width,
+      height,
+      palette.secondaryCursor,
+      "B",
+    );
     if (this.transientCursor) {
       drawCursor(
         context,
@@ -458,51 +655,50 @@ class WaveformHandle {
         viewport,
         width,
         height,
-        this.transientCursor.kind === "primary" ? "#b85e3d" : "#6d6ab7",
+        this.transientCursor.kind === "primary"
+          ? palette.primaryCursor
+          : palette.secondaryCursor,
         this.transientCursor.kind === "primary" ? "A" : "B",
       );
     }
   }
 
   rowLayouts(rulerHeight) {
-    if (this.probeSpine && this.canvas) {
-      const rows = [...this.probeSpine.querySelectorAll("[data-waveform-row-track]")];
-      if (rows.length !== this.published.rows.length) return this.fallbackRowLayouts(rulerHeight);
-      const canvasBounds = this.canvas.getBoundingClientRect();
-      return rows
-        .map((row, index) => {
-          const bounds = row.getBoundingClientRect();
-          return {
-            index,
-            top: bounds.top - canvasBounds.top,
-            height: bounds.height,
-          };
-        })
-        .filter((layout) =>
-          layout.height > 0 &&
-          layout.top + layout.height > rulerHeight &&
-          layout.top < this.cssHeight);
-    }
-
-    return this.fallbackRowLayouts(rulerHeight);
+    if (!this.probeSpine || !this.canvas) return null;
+    if (this.rowLayoutCache) return this.rowLayoutCache;
+    const rows = [...this.probeSpine.querySelectorAll("[data-waveform-row-track]")];
+    if (rows.length !== this.published.rows.length) return null;
+    const canvasBounds = this.canvas.getBoundingClientRect();
+    this.rowLayoutCache = rows
+      .map((row, index) => {
+        const bounds = row.getBoundingClientRect();
+        return {
+          index,
+          top: bounds.top - canvasBounds.top,
+          height: bounds.height,
+        };
+      })
+      .filter((layout) =>
+        layout.height > 0 &&
+        layout.top + layout.height > rulerHeight &&
+        layout.top < this.cssHeight);
+    return this.rowLayoutCache;
   }
 
-  fallbackRowLayouts(rulerHeight) {
-    const rowHeight = Math.max(
-      36,
-      (this.cssHeight - rulerHeight) / Math.max(1, this.published.rows.length),
-    );
-    return this.published.rows.map((_, index) => ({
-      index,
-      top: rulerHeight + index * rowHeight,
-      height: rowHeight,
-    }));
-  }
-
-  failClosed(reason) {
+  failClosed(policyEvidence = null) {
+    if (this.destroyed || this.failed) return;
+    this.failed = true;
     this.cancelGesture();
     this.published = null;
+    this.traceByProbe.clear();
+    this.rowLayoutCache = null;
     this.transfers.clear();
+    this.cancelViewportCommit();
+    this.cancelContextRestore();
+    this.abortController.abort();
+    this.resizeObserver?.disconnect();
+    this.densityMedia?.removeEventListener("change", this.onDensityChange);
+    this.pendingIntent = null;
     if (this.pendingFrame) cancelAnimationFrame(this.pendingFrame);
     this.pendingFrame = 0;
     this.dirty = false;
@@ -510,12 +706,22 @@ class WaveformHandle {
       this.context.setTransform(1, 0, 0, 1, 0, 0);
       this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
-    this.notifyRendererFailure(reason);
+    this.notifyRendererFailure(policyEvidence);
   }
 
-  async notifyRendererFailure(reason) {
+  async notifyRendererFailure(policyEvidence) {
     try {
-      await this.dotnetSink?.invokeMethodAsync("WaveformRendererFailed", reason);
+      if (policyEvidence) {
+        await this.dotnetSink?.invokeMethodAsync(
+          "WaveformBrowserPolicyExhaustedAsync",
+          this.policy.policyId,
+          this.policy.policyRevision,
+          policyEvidence.dimension,
+          policyEvidence.observed,
+        );
+      } else {
+        await this.dotnetSink?.invokeMethodAsync("WaveformRendererFailedAsync");
+      }
     } catch {
       // The owning component may already be gone; the renderer is closed either way.
     }
@@ -528,34 +734,44 @@ class WaveformHandle {
     this.abortController.abort();
     this.resizeObserver?.disconnect();
     this.removalObserver?.disconnect();
+    this.densityMedia?.removeEventListener("change", this.onDensityChange);
     if (this.pendingFrame) cancelAnimationFrame(this.pendingFrame);
     this.pendingFrame = 0;
     this.transfers.clear();
+    this.cancelViewportCommit();
+    this.cancelContextRestore();
+    this.pendingIntent = null;
     this.published = null;
+    this.traceByProbe.clear();
+    this.rowLayoutCache = null;
     this.dotnetSink = null;
     if (mountedHandles.get(this.host) === this) mountedHandles.delete(this.host);
+    this.context = null;
+    this.canvas = null;
+    this.probeSpine = null;
+    this.densityMedia = null;
+    this.onDensityChange = null;
   }
 
   ensureLive() {
-    if (this.destroyed) throw new Error("Waveform handle is destroyed");
+    if (this.destroyed || this.failed) throw new Error("Waveform handle is unavailable");
   }
 }
 
 function validatePolicy(policy) {
   const fields = [
+    "semanticIntentBytes",
     "interopBatchBytes",
     "candidateTransferBytes",
     "canvasBitmapPixels",
     "effectiveDensityMillionths",
-    "zoomMillionthsMinimum",
-    "zoomMillionthsMaximum",
   ];
   if (
-    !policy ||
-    typeof policy.policyId !== "string" ||
-    typeof policy.policyRevision !== "string" ||
+    !hasExactShape(policy, recordShapes.policy) ||
+    !isToken(policy.policyId) ||
+    !isToken(policy.policyRevision) ||
     fields.some((field) => !Number.isSafeInteger(policy[field]) || policy[field] <= 0) ||
-    policy.zoomMillionthsMinimum > policy.zoomMillionthsMaximum
+    policy.interopBatchBytes < interopEnvelopeBytes + minimumBase64QuantumBytes
   ) {
     throw new Error("invalid Browser Policy");
   }
@@ -564,17 +780,15 @@ function validatePolicy(policy) {
 
 function validateSnapshot(candidate, buildFingerprint) {
   if (
-    !candidate ||
+    !hasExactShape(candidate, recordShapes.snapshot) ||
     candidate.buildFingerprint !== buildFingerprint ||
     !positiveInteger(candidate.waveformVersion) ||
     !positiveInteger(candidate.projectionVersion) ||
     !nonEmptyString(candidate.sessionId) ||
     !positiveInteger(candidate.sessionVersion) ||
     !nonEmptyString(candidate.compilationArtifactKey) ||
-    (candidate.uiCulture !== "en-US" && candidate.uiCulture !== "zh-CN") ||
-    candidate.baseDirection !== "leftToRight" ||
     !Array.isArray(candidate.rows) ||
-    !candidate.viewState ||
+    !hasExactShape(candidate.viewState, recordShapes.viewState) ||
     !candidate.trace
   ) {
     throw new Error("invalid Waveform snapshot envelope");
@@ -586,9 +800,8 @@ function validateSnapshot(candidate, buildFingerprint) {
     }
     ids.add(row.probeId);
   });
-  validRange(candidate.viewState.viewport);
+  validateRange(candidate.viewState.viewport);
   if (
-    typeof candidate.viewState.liveFollow !== "boolean" ||
     !validCursor(candidate.viewState.primaryCursor, "primary") ||
     !validCursor(candidate.viewState.secondaryCursor, "secondary")
   ) {
@@ -598,130 +811,60 @@ function validateSnapshot(candidate, buildFingerprint) {
   return candidate;
 }
 
-function validatePatch(patch, buildFingerprint, published) {
-  if (
-    !published ||
-    !patch ||
-    patch.buildFingerprint !== buildFingerprint ||
-    patch.buildFingerprint !== published.buildFingerprint ||
-    patch.baseWaveformVersion !== published.waveformVersion ||
-    !positiveInteger(patch.nextWaveformVersion) ||
-    patch.nextWaveformVersion <= patch.baseWaveformVersion ||
-    patch.projectionVersion < published.projectionVersion ||
-    patch.sessionId !== published.sessionId ||
-    patch.sessionVersion < published.sessionVersion ||
-    patch.compilationArtifactKey !== published.compilationArtifactKey ||
-    patch.uiCulture !== published.uiCulture ||
-    patch.baseDirection !== published.baseDirection ||
-    !Array.isArray(patch.rowUpserts) ||
-    !Array.isArray(patch.probeRemovals) ||
-    !Array.isArray(patch.transitionAppends) ||
-    !Array.isArray(patch.summaryReplacements) ||
-    !Array.isArray(patch.gapReplacements) ||
-    (patch.traceKind !== "transitions" && patch.traceKind !== "summary") ||
-    !canonicalUnsigned(patch.latestSequence)
-  ) {
-    throw new Error("invalid Waveform patch");
-  }
-  if (
-    (patch.traceKind !== "transitions" && patch.transitionAppends.length) ||
-    (patch.traceKind !== "summary" && patch.summaryReplacements.length)
-  ) {
-    throw new Error("mixed Waveform Trace patch");
-  }
-  const upsertIds = new Set();
-  patch.rowUpserts.forEach((row) => {
-    if (!validRowShape(row) || upsertIds.has(row.probeId)) {
-      throw new Error("invalid Waveform row upsert");
-    }
-    upsertIds.add(row.probeId);
-  });
-  const removalIds = new Set();
-  patch.probeRemovals.forEach((probeId) => {
-    if (!nonEmptyString(probeId) || removalIds.has(probeId) || upsertIds.has(probeId)) {
-      throw new Error("invalid Waveform Probe removal");
-    }
-    removalIds.add(probeId);
-  });
-  return patch;
-}
-
-function applyPatch(current, patch) {
-  const rows = new Map(current.rows.map((row) => [row.probeId, row]));
-  patch.probeRemovals.forEach((probeId) => rows.delete(probeId));
-  patch.rowUpserts.forEach((row) => rows.set(row.probeId, row));
-  const orderedRows = [...rows.values()].sort((left, right) => left.displayOrdinal - right.displayOrdinal);
-  let trace;
-  if (patch.traceKind === "transitions") {
-    const prior = current.trace.kind === "transitions" ? current.trace.segments : [];
-    trace = {
-      kind: "transitions",
-      segments: [...prior, ...patch.transitionAppends],
-      gaps: patch.gapReplacements,
-      latestSequence: patch.latestSequence,
-    };
-  } else {
-    trace = {
-      kind: "summary",
-      aggregation: "logic-envelope-v1",
-      segments: patch.summaryReplacements,
-      gaps: patch.gapReplacements,
-      latestSequence: patch.latestSequence,
-    };
-  }
-  return {
-    ...current,
-    waveformVersion: patch.nextWaveformVersion,
-    projectionVersion: patch.projectionVersion,
-    sessionVersion: patch.sessionVersion,
-    rows: orderedRows,
-    trace,
-  };
-}
-
 function validateTrace(trace, rows, viewport) {
-  const rowsById = new Map(rows.map((row) => [row.probeId, row]));
   if (
-    (trace.kind !== "transitions" && trace.kind !== "summary" && trace.kind !== "unavailable") ||
-    !canonicalUnsigned(trace.latestSequence)
+    trace.kind !== "transitions" &&
+    trace.kind !== "summary" &&
+    trace.kind !== "unavailable"
   ) {
     throw new Error("invalid Waveform Trace");
   }
   if (trace.kind === "unavailable") {
-    if (
-      !canonicalUnsigned(trace.earliestAvailable) ||
-      !validGap(trace.gap) ||
-      !sameRange(trace.gap.range, viewport)
-    ) {
+    if (!hasExactShape(trace, recordShapes.unavailable)) {
+      throw new Error("invalid unavailable Waveform Trace");
+    }
+    validateGap(trace.gap);
+    if (!sameRange(trace.gap.range, viewport)) {
       throw new Error("invalid unavailable Waveform Trace");
     }
     return;
   }
-  if (!Array.isArray(trace.segments) || !Array.isArray(trace.gaps)) {
+  const traceShape = trace.kind === "summary"
+    ? recordShapes.summary
+    : recordShapes.transitions;
+  if (
+    !hasExactShape(trace, traceShape) ||
+    !Array.isArray(trace.segments)
+  ) {
     throw new Error("invalid Waveform Trace collections");
   }
   if (trace.kind === "summary" && trace.aggregation !== "logic-envelope-v1") {
     throw new Error("invalid Waveform summary aggregation");
   }
-  validateOrderedRanges(
-    trace.gaps.map((gap) => {
-      validGap(gap);
-      return gap.range;
-    }),
-    viewport,
-  );
+  const resolvedRows = rows.filter((row) => row.binding === "resolved");
+  let rowIndex = 0;
+  let expectedStart = viewport.startInclusive;
   trace.segments.forEach((segment) => {
-    const row = segment && rowsById.get(segment.probeId);
-    if (!row) throw new Error("unknown Waveform Probe");
-    validRange(segment.range);
-    if (!rangeContains(viewport, segment.range)) {
-      throw new Error("Waveform segment is outside the viewport");
+    const segmentShape = trace.kind === "transitions"
+      ? recordShapes.transitionSegment
+      : recordShapes.summarySegment;
+    if (!hasExactShape(segment, segmentShape)) {
+      throw new Error(`invalid Waveform ${trace.kind} segment`);
+    }
+    const row = resolvedRows[rowIndex];
+    if (!row) throw new Error("Waveform Trace exceeds its resolved rows");
+    validateRange(segment.range);
+    if (
+      segment.probeId !== row.probeId ||
+      segment.range.startInclusive !== expectedStart ||
+      BigInt(segment.range.endExclusive) > BigInt(viewport.endExclusive)
+    ) {
+      throw new Error("Waveform segments are not in canonical row and range order");
     }
     if (trace.kind === "transitions") {
       validVector(segment.value);
       if (
         segment.value.width !== row.width ||
-        !canonicalUnsigned(segment.sequence) ||
         typeof segment.transitionAtStart !== "boolean"
       ) {
         throw new Error("invalid Waveform transition segment");
@@ -729,27 +872,54 @@ function validateTrace(trace, rows, viewport) {
     } else {
       validVector(segment.firstValue);
       validVector(segment.lastValue);
+      const firstSymbols = decodedVectors.get(segment.firstValue);
+      const lastSymbols = decodedVectors.get(segment.lastValue);
+      const endpointsDiffer = firstSymbols.some(
+        (value, index) => value !== lastSymbols[index],
+      );
       if (
         segment.firstValue.width !== row.width ||
         segment.lastValue.width !== row.width ||
         typeof segment.hadTransition !== "boolean" ||
         typeof segment.hadMixedValues !== "boolean" ||
-        typeof segment.hadUnavailableValues !== "boolean"
+        (segment.hadMixedValues && !segment.hadTransition) ||
+        (endpointsDiffer && !segment.hadMixedValues)
       ) {
         throw new Error("invalid Waveform summary segment");
       }
     }
-  });
-
-  rows.forEach((row) => {
-    const rowRanges = trace.segments
-      .filter((segment) => segment.probeId === row.probeId)
-      .map((segment) => segment.range);
-    validateOrderedRanges(rowRanges, viewport);
-    if (row.binding === "resolved") {
-      validateExactCoverage(rowRanges, trace.gaps.map((gap) => gap.range), viewport);
+    expectedStart = segment.range.endExclusive;
+    if (expectedStart === viewport.endExclusive) {
+      rowIndex += 1;
+      expectedStart = viewport.startInclusive;
     }
   });
+
+  if (rowIndex !== resolvedRows.length) {
+    throw new Error("Waveform Trace does not cover every resolved row");
+  }
+}
+
+function indexTrace(trace) {
+  const traceByProbe = new Map();
+  if (trace.kind === "unavailable") return traceByProbe;
+  trace.segments.forEach((segment) => {
+    let entries = traceByProbe.get(segment.probeId);
+    if (!entries) {
+      entries = [];
+      traceByProbe.set(segment.probeId, entries);
+    }
+    entries.push({
+      segment,
+      symbols: vectorSymbols(
+        trace.kind === "transitions" ? segment.value : segment.firstValue,
+      ),
+      lastSymbols: trace.kind === "summary"
+        ? vectorSymbols(segment.lastValue)
+        : null,
+    });
+  });
+  return traceByProbe;
 }
 
 function validRow(row, ordinal) {
@@ -758,55 +928,23 @@ function validRow(row, ordinal) {
 
 function validRowShape(row) {
   if (
-    !row ||
+    !hasExactShape(row, recordShapes.row) ||
     !nonEmptyString(row.probeId) ||
-    !validNet(row.net) ||
     !Number.isSafeInteger(row.displayOrdinal) ||
     row.displayOrdinal < 0 ||
     !positiveInteger(row.width) ||
-    !nonEmptyString(row.shortLabel) ||
-    (row.radix !== "binary" && row.radix !== "hex" && row.radix !== "unsigned") ||
     !Number.isSafeInteger(row.appearanceOrdinal) ||
     row.appearanceOrdinal < 0 ||
     (row.pattern !== "solid" && row.pattern !== "dash" &&
       row.pattern !== "dot" && row.pattern !== "dashDot") ||
-    (row.binding !== "resolved" && row.binding !== "unresolved") ||
-    (row.binding === "resolved" && row.bindingReason !== null) ||
-    (row.binding === "unresolved" &&
-      row.bindingReason !== "sourceMissing" && row.bindingReason !== "artifactIncompatible") ||
-    (row.sceneNavigation !== "available" && row.sceneNavigation !== "unavailable") ||
-    (row.sceneNavigation === "available" && row.navigationReason !== null) ||
-    (row.sceneNavigation === "unavailable" &&
-      row.navigationReason !== "noVisibleGeometry" &&
-      row.navigationReason !== "sourceMissing" &&
-      row.navigationReason !== "projectionUnavailable")
+    (row.binding !== "resolved" && row.binding !== "unresolved")
   ) return false;
-  if (row.currentValue !== null) {
-    validVector(row.currentValue);
-    if (row.currentValue.width !== row.width) return false;
-  }
-  return row.binding !== "resolved" || row.currentValue !== null;
-}
-
-function validNet(net) {
-  return !!net &&
-    !!net.authoredNet &&
-    nonEmptyString(net.authoredNet.circuitDefinitionId) &&
-    net.authoredNet.entityKind === "net" &&
-    nonEmptyString(net.authoredNet.entityId) &&
-    (net.authoredNet.portId === null || net.authoredNet.portId === undefined) &&
-    !!net.hierarchyPath &&
-    nonEmptyString(net.hierarchyPath.entryCircuitDefinitionId) &&
-    Array.isArray(net.hierarchyPath.steps) &&
-    net.hierarchyPath.steps.every((step) =>
-      !!step &&
-      nonEmptyString(step.containingCircuitDefinitionId) &&
-      nonEmptyString(step.componentInstanceId));
+  return true;
 }
 
 function validVector(vector) {
   if (
-    !vector ||
+    !hasExactShape(vector, recordShapes.vector) ||
     !positiveInteger(vector.width) ||
     vector.encoding !== "logic4-2bit-v1" ||
     typeof vector.data !== "string"
@@ -822,69 +960,39 @@ function validVector(vector) {
       throw new Error("invalid Waveform Logic Vector padding");
     }
   }
+  const symbols = new Uint8Array(vector.width);
+  for (let index = 0; index < vector.width; index++) {
+    symbols[index] = (bytes[Math.floor(index / 4)] >> ((index % 4) * 2)) & 3;
+  }
+  decodedVectors.set(vector, symbols);
 }
 
 function validCursor(cursor, kind) {
   return cursor === null || (
-    cursor.kind === kind && canonicalUnsigned(cursor.logicalTime)
+    hasExactShape(cursor, recordShapes.cursor) &&
+    cursor.kind === kind &&
+    canonicalUnsigned(cursor.logicalTime)
   );
 }
 
-function validGap(gap) {
-  if (!gap || (gap.reason !== "evicted" && gap.reason !== "artifactChanged")) {
+function validateGap(gap) {
+  if (!hasExactShape(gap, recordShapes.gap)) {
     throw new Error("invalid Waveform Trace Gap");
   }
-  validRange(gap.range);
-  return true;
+  validateRange(gap.range);
 }
 
-function validRange(range) {
+function validateRange(range) {
   if (
-    !range ||
+    !hasExactShape(range, recordShapes.range) ||
     !canonicalUnsigned(range.startInclusive) ||
     !canonicalUnsigned(range.endExclusive) ||
     BigInt(range.startInclusive) >= BigInt(range.endExclusive)
   ) throw new Error("invalid Waveform time range");
-  return true;
 }
 
 function sameRange(left, right) {
   return left.startInclusive === right.startInclusive && left.endExclusive === right.endExclusive;
-}
-
-function rangeContains(outer, inner) {
-  return BigInt(inner.startInclusive) >= BigInt(outer.startInclusive) &&
-    BigInt(inner.endExclusive) <= BigInt(outer.endExclusive);
-}
-
-function validateOrderedRanges(ranges, viewport) {
-  let priorEnd = null;
-  ranges.forEach((range) => {
-    validRange(range);
-    if (!rangeContains(viewport, range) ||
-      (priorEnd !== null && BigInt(range.startInclusive) < priorEnd)) {
-      throw new Error("Waveform ranges are outside the viewport or overlap");
-    }
-    priorEnd = BigInt(range.endExclusive);
-  });
-}
-
-function validateExactCoverage(segmentRanges, gapRanges, viewport) {
-  const ranges = [...segmentRanges, ...gapRanges]
-    .sort((left, right) => {
-      const start = BigInt(left.startInclusive) - BigInt(right.startInclusive);
-      return start < 0n ? -1 : start > 0n ? 1 : 0;
-    });
-  let expectedStart = BigInt(viewport.startInclusive);
-  ranges.forEach((range) => {
-    if (BigInt(range.startInclusive) !== expectedStart) {
-      throw new Error("Waveform ranges do not exactly cover the viewport");
-    }
-    expectedStart = BigInt(range.endExclusive);
-  });
-  if (expectedStart !== BigInt(viewport.endExclusive)) {
-    throw new Error("Waveform ranges do not exactly cover the viewport");
-  }
 }
 
 function drawRuler(context, width, height, viewport, ink, muted, border) {
@@ -913,32 +1021,37 @@ function drawRuler(context, width, height, viewport, ink, muted, border) {
   }
 }
 
-function drawTraceRow(context, trace, row, viewport, top, height, width, color, muted) {
+function drawTraceRow(context, trace, entries, row, viewport, top, height, width, color, muted) {
   if (row.binding === "unresolved") {
     hatch(context, 0, top, width, height, muted);
     return;
   }
-  const gaps = trace.kind === "unavailable" ? [trace.gap] : trace.gaps;
-  gaps.forEach((gap) => {
-    const left = timeX(gap.range.startInclusive, viewport, width);
-    const right = timeX(gap.range.endExclusive, viewport, width);
-    hatch(context, left, top, Math.max(1, right - left), height, muted);
-  });
-  if (trace.kind === "unavailable") return;
-  const segments = trace.segments.filter((segment) => segment.probeId === row.probeId);
-  segments.forEach((segment) => {
+  if (trace.kind === "unavailable") {
+    hatch(context, 0, top, width, height, muted);
+    return;
+  }
+  entries.forEach(({ segment, symbols, lastSymbols }) => {
     const left = timeX(segment.range.startInclusive, viewport, width);
     const right = timeX(segment.range.endExclusive, viewport, width);
     if (trace.kind === "summary") {
-      drawSummary(context, segment, left, right, top, height, color);
+      drawSummary(
+        context,
+        segment,
+        symbols,
+        lastSymbols,
+        left,
+        right,
+        top,
+        height,
+        color,
+      );
     } else {
-      drawTransition(context, segment, left, right, top, height, color, row.pattern);
+      drawTransition(context, segment, symbols, left, right, top, height, color, row.pattern);
     }
   });
 }
 
-function drawTransition(context, segment, left, right, top, height, color, pattern) {
-  const symbols = decodeVector(segment.value);
+function drawTransition(context, segment, symbols, left, right, top, height, color, pattern) {
   context.save();
   context.strokeStyle = color;
   context.fillStyle = color;
@@ -981,23 +1094,88 @@ function drawTransition(context, segment, left, right, top, height, color, patte
   context.restore();
 }
 
-function drawSummary(context, segment, left, right, top, height, color) {
+function drawSummary(
+  context,
+  segment,
+  firstSymbols,
+  lastSymbols,
+  left,
+  right,
+  top,
+  height,
+  color,
+) {
   context.save();
   context.strokeStyle = color;
-  context.fillStyle = `${color}26`;
-  const y = top + height * 0.24;
-  const h = height * 0.52;
-  if (segment.hadUnavailableValues) {
-    hatch(context, left, y, Math.max(1, right - left), h, color);
-  } else {
-    context.fillRect(left, y, Math.max(1, right - left), h);
-    context.strokeRect(left, y, Math.max(1, right - left), h);
+  context.fillStyle = color;
+  context.lineWidth = 2;
+  const segmentWidth = Math.max(1, right - left);
+  if (firstSymbols.length === 1 && lastSymbols.length === 1) {
+    const first = firstSymbols[0];
+    const last = lastSymbols[0];
+    if (first === 2 || last === 2) {
+      hatch(context, left, top + height * 0.22, segmentWidth, height * 0.56, color);
+      if (segmentWidth >= 12) context.fillText("X", left + 4, top + height / 2);
+      context.restore();
+      return;
+    }
+    if (first === 3 || last === 3) {
+      context.setLineDash([3, 4]);
+      context.beginPath();
+      context.moveTo(left, top + height / 2);
+      context.lineTo(right, top + height / 2);
+      context.stroke();
+      if (segmentWidth >= 12) context.fillText("Z", left + 4, top + height / 2);
+      context.restore();
+      return;
+    }
+
+    const high = top + height * 0.28;
+    const low = top + height * 0.72;
+    if (segment.hadMixedValues) {
+      context.globalAlpha = 0.14;
+      context.fillRect(left, high, segmentWidth, low - high);
+      context.globalAlpha = 1;
+      context.beginPath();
+      context.moveTo(left, high);
+      context.lineTo(right, high);
+      context.moveTo(left, low);
+      context.lineTo(right, low);
+      context.stroke();
+    }
+
+    const firstY = first === 1 ? high : low;
+    const lastY = last === 1 ? high : low;
+    context.beginPath();
+    if (segment.hadTransition) {
+      context.moveTo(left, high);
+      context.lineTo(left, low);
+    }
+    context.moveTo(left, firstY);
+    context.lineTo(right, lastY);
+    context.stroke();
+    context.restore();
+    return;
   }
+
+  const y = top + height * 0.25;
+  const h = height * 0.5;
+  context.globalAlpha = segment.hadMixedValues ? 0.18 : 0.08;
+  context.fillRect(left, y, segmentWidth, h);
+  context.globalAlpha = 1;
+  context.strokeRect(left, y, segmentWidth, h);
   if (segment.hadTransition || segment.hadMixedValues) {
     context.beginPath();
     context.moveTo(left, y + h);
     context.lineTo(right, y);
     context.stroke();
+  }
+  if (segmentWidth >= 48) {
+    const first = vectorText(firstSymbols);
+    const last = vectorText(lastSymbols);
+    context.font = '600 11px "IBM Plex Mono", ui-monospace, monospace';
+    context.textBaseline = "middle";
+    context.fillText(first === last ? first : `${first}→${last}`, left + 5, top + height / 2);
   }
   context.restore();
 }
@@ -1050,13 +1228,10 @@ function proportionalOffset(span, ratio) {
   return (span * scaledRatio) / scale;
 }
 
-function decodeVector(vector) {
-  const bytes = decodeBase64(vector.data);
-  const values = [];
-  for (let index = 0; index < vector.width; index++) {
-    values.push((bytes[Math.floor(index / 4)] >> ((index % 4) * 2)) & 3);
-  }
-  return values;
+function vectorSymbols(vector) {
+  const symbols = decodedVectors.get(vector);
+  if (!symbols) throw new Error("unvalidated Waveform Logic Vector");
+  return symbols;
 }
 
 function vectorText(values) {
@@ -1065,12 +1240,21 @@ function vectorText(values) {
   return text.length <= 14 ? text : `${text.slice(0, 6)}…${text.slice(-6)}`;
 }
 
-function probeColor(ordinal) {
-  return ["#08788c", "#b85e3d", "#6d6ab7", "#2c8475"][ordinal % 4];
-}
-
-function cssColor(styles, name, fallback) {
-  return styles.getPropertyValue(name).trim() || fallback;
+function waveformPalette(styles) {
+  const color = (name) => {
+    const value = styles.getPropertyValue(name).trim();
+    if (!value) throw new Error(`missing Waveform design token ${name}`);
+    return value;
+  };
+  return {
+    background: color("--ll-canvas"),
+    ink: color("--ll-ink"),
+    muted: color("--ll-muted"),
+    border: color("--ll-border"),
+    probes: [0, 1, 2, 3].map((ordinal) => color(`--ll-waveform-probe-${ordinal}`)),
+    primaryCursor: color("--ll-waveform-cursor-primary"),
+    secondaryCursor: color("--ll-waveform-cursor-secondary"),
+  };
 }
 
 function decodeBase64(value) {
@@ -1108,7 +1292,10 @@ function nonEmptyString(value) {
 }
 
 function canonicalUnsigned(value) {
-  return typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value);
+  return typeof value === "string" &&
+    value.length <= 20 &&
+    /^(0|[1-9][0-9]*)$/.test(value) &&
+    BigInt(value) <= unsignedMaximum;
 }
 
 function isDigest(value) {
@@ -1116,7 +1303,18 @@ function isDigest(value) {
 }
 
 function isToken(value) {
-  return typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
+  return typeof value === "string" && /^[A-Za-z0-9._-]+$/.test(value);
+}
+
+function shape(...fields) {
+  return Object.freeze(fields);
+}
+
+function hasExactShape(value, fields) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const keys = Object.keys(value);
+  return keys.length === fields.length &&
+    fields.every((field) => Object.hasOwn(value, field));
 }
 
 function clamp(value, minimum, maximum) {

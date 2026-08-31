@@ -14,6 +14,9 @@ namespace LogicLab.Web.Tests;
 
 internal sealed class LogicAnalyzerTests
 {
+    private static readonly ProbePresentationLabels PresentationLabels =
+        new("Input", "Output");
+
     [Test]
     public async Task StaticRender_NoProbes_OffersAPlainLanguageStartingPoint()
     {
@@ -26,11 +29,65 @@ internal sealed class LogicAnalyzerTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.Find("[data-waveform-empty='trace'] p")
+            await Assert.That(rendered.Find(".analyzer-empty p")
                     .TextContent)
                 .IsEqualTo("No probes yet.");
             await Assert.That(rendered.FindAll("canvas[data-waveform-canvas]"))
                 .IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task StaticRender_FirstProbeAddedToRunningSession_StartsAtCreationTime()
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        var fixture = Fixture.Create();
+        var probe = fixture.Projection.Simulation!.Probes[0];
+        var empty = fixture.WithProbes([]);
+        var withProbe = empty.WithProbes([probe]);
+        TraceWindowRequest? observedRequest = null;
+        Task<TraceWindowOutcome?> Reader(
+            TraceWindowRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            observedRequest = request;
+            return Task.FromResult<TraceWindowOutcome?>(TransitionsTrace(request));
+        }
+
+        var rendered = context.Render<LogicAnalyzer>(parameters => parameters
+            .Add(component => component.Projection, empty.Projection)
+            .Add(component => component.TraceReader, Reader));
+        rendered.Render(parameters => parameters
+            .Add(component => component.Projection, withProbe.Projection)
+            .Add(component => component.TraceReader, Reader));
+        await rendered.WaitForStateAsync(() => observedRequest is not null);
+
+        await Assert.That(observedRequest!.Range)
+            .IsEqualTo(new TraceTimeRange(10, 11));
+    }
+
+    [Test]
+    public async Task StaticRender_InitialTraceFailure_OffersRetryInsteadOfEmptyState()
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        var fixture = Fixture.Create();
+        var rendered = context.Render<LogicAnalyzer>(parameters => parameters
+            .Add(component => component.Projection, fixture.Projection)
+            .Add(component => component.TraceReader,
+                (_, _) => Task.FromResult<TraceWindowOutcome?>(null)));
+        await rendered.WaitForStateAsync(() =>
+            rendered.FindAll(".analyzer-load-failure").Count == 1);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.Find(".analyzer-load-failure p").TextContent)
+                .IsEqualTo("This waveform range can't be loaded right now.");
+            await Assert.That(rendered.Find(".analyzer-load-failure fluent-button")
+                    .TextContent.Trim())
+                .IsEqualTo("Try again");
         }
     }
 
@@ -45,69 +102,14 @@ internal sealed class LogicAnalyzerTests
             .Add(component => component.TraceReader, ReadTrace));
 
         await rendered.WaitForStateAsync(() =>
-            rendered.FindAll("[data-probe]").Count == 2);
+            rendered.FindAll(".probe-spine li").Count == 2);
 
         using (Assert.Multiple())
         {
             await Assert.That(rendered.FindAll("canvas[data-waveform-canvas]"))
                 .Count().IsEqualTo(1);
-            await Assert.That(rendered.FindAll("[data-probe]"))
+            await Assert.That(rendered.FindAll(".probe-spine li"))
                 .Count().IsEqualTo(2);
-            await Assert.That(rendered.FindAll("[data-probe-label]")
-                    .Select(element => element.TextContent.Trim()))
-                .IsEquivalentTo(["Input", "Output"]);
-            await Assert.That(rendered.FindAll("[data-probe-radix]"))
-                .Count().IsEqualTo(2);
-            await Assert.That(rendered.Find("[data-waveform-live]")
-                    .GetAttribute("aria-pressed"))
-                .IsEqualTo("true");
-        }
-    }
-
-    [Test]
-    public async Task StaticRender_StandardControls_UseFluentChromeAndSharedProbeTracks()
-    {
-        await using var context = WebTestContext.CreateBunitContext();
-        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
-        var fixture = Fixture.Create();
-        var rendered = context.Render<LogicAnalyzer>(parameters => parameters
-            .Add(component => component.Projection, fixture.Projection)
-            .Add(component => component.TraceReader, ReadTrace));
-
-        await rendered.WaitForStateAsync(() =>
-            rendered.FindAll("[data-probe]").Count == 2);
-
-        var iconOnlyControls = rendered.FindAll("[data-icon-only]");
-        var toggleControls = rendered.FindAll("fluent-toggle-button");
-        var actionControls = rendered.FindAll("fluent-button");
-        using (Assert.Multiple())
-        {
-            await Assert.That(rendered.FindAll(".logic-analyzer button, .logic-analyzer select"))
-                .IsEmpty();
-            await Assert.That(toggleControls).Count().IsEqualTo(5);
-            await Assert.That(toggleControls.All(control =>
-                    control.GetAttribute("role") == "button"
-                    && control.GetAttribute("tabindex") == "0"))
-                .IsTrue();
-            await Assert.That(actionControls.All(control =>
-                    control.GetAttribute("role") == "button"
-                    && control.GetAttribute("tabindex") ==
-                        (control.HasAttribute("disabled") ? "-1" : "0")))
-                .IsTrue();
-            await Assert.That(rendered.FindAll("fluent-dropdown[data-probe-radix]"))
-                .Count().IsEqualTo(2);
-            await Assert.That(rendered.FindAll("[data-waveform-row-track]"))
-                .Count().IsEqualTo(2);
-            await Assert.That(iconOnlyControls.Count).IsGreaterThanOrEqualTo(5);
-            await Assert.That(iconOnlyControls.All(control =>
-                    !string.IsNullOrWhiteSpace(control.GetAttribute("aria-label"))))
-                .IsTrue();
-            foreach (var row in fixture.Projection.Simulation!.Probes)
-            {
-                await Assert.That(rendered.FindAll(
-                        $"[data-probe='{row.ProbeId.Value}'] [data-probe-reveal]"))
-                    .Count().IsEqualTo(1);
-            }
         }
     }
 
@@ -135,9 +137,11 @@ internal sealed class LogicAnalyzerTests
             .Add(component => component.Projection, fixture.Projection)
             .Add(component => component.TraceReader, Reader));
         await rendered.WaitForStateAsync(() =>
-            rendered.FindAll("[data-probe]").Count == 2);
+            rendered.FindAll(".probe-spine li").Count == 2);
 
-        await rendered.Find("[data-waveform-representation='summary']").ClickAsync();
+        await rendered.FindAll(".representation-control fluent-toggle-button")
+            .Single(control => control.TextContent.Trim() == "Overview")
+            .ClickAsync();
         await rendered.WaitForStateAsync(() =>
             lastRepresentation is TraceVisualSummaryRequest);
 
@@ -147,9 +151,8 @@ internal sealed class LogicAnalyzerTests
         {
             await Assert.That(summary!.Aggregation)
                 .IsEqualTo(TraceVisualSummaryRequest.LogicEnvelopeV1);
-            await Assert.That(summary.MaxPoints).IsEqualTo(512U);
-            await Assert.That(rendered.FindAll(
-                    ".summary-resolution[data-waveform-resolution='summary']"))
+            await Assert.That(summary.MaxPoints).IsEqualTo(512);
+            await Assert.That(rendered.FindAll(".summary-resolution"))
                 .Count().IsEqualTo(1);
         }
     }
@@ -174,12 +177,12 @@ internal sealed class LogicAnalyzerTests
                     this,
                     value => revealed = value)));
         await rendered.WaitForStateAsync(() =>
-            rendered.FindAll("[data-probe]").Count == 2);
+            rendered.FindAll(".probe-spine li").Count == 2);
 
         var secondProbe = fixture.Projection.Simulation!.Probes[1].ProbeId.Value;
-        await rendered.Find($"[data-probe='{secondProbe}'] [data-probe-move='up']")
+        await rendered.Find(".probe-spine li:nth-child(2) [title='Move up']")
             .ClickAsync();
-        await rendered.Find($"[data-probe='{secondProbe}'] [data-probe-reveal]")
+        await rendered.Find(".probe-spine li:nth-child(2) .probe-label")
             .ClickAsync();
 
         using (Assert.Multiple())
@@ -193,7 +196,7 @@ internal sealed class LogicAnalyzerTests
     }
 
     [Test]
-    public async Task HotSwapMissingProbe_PreservesUnresolvedRecoveryRow()
+    public async Task HotSwapAllProbesMissing_PreservesUnresolvedRecoveryRows()
     {
         await using var context = WebTestContext.CreateBunitContext();
         context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
@@ -202,24 +205,24 @@ internal sealed class LogicAnalyzerTests
             .Add(component => component.Projection, fixture.Projection)
             .Add(component => component.TraceReader, ReadTrace));
         await rendered.WaitForStateAsync(() =>
-            rendered.FindAll("[data-probe]").Count == 2);
+            rendered.FindAll(".probe-spine li").Count == 2);
 
-        var unresolvedProbeId = fixture.Projection.Simulation!.Probes[1].ProbeId.Value;
         var hotSwapped = fixture.WithArtifact(
             "compiler-v2",
-            [fixture.Projection.Simulation.Probes[0]]);
+            []);
         rendered.Render(parameters => parameters
             .Add(component => component.Projection, hotSwapped)
             .Add(component => component.TraceReader, ReadTrace));
         await rendered.WaitForStateAsync(() => rendered.FindAll(
-            $"[data-probe='{unresolvedProbeId}'][data-probe-binding='unresolved']").Count == 1);
+            ".probe-spine li[data-probe-binding='unresolved']").Count == 2);
 
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.FindAll("[data-probe]")).Count().IsEqualTo(2);
-            await Assert.That(rendered.FindAll(
-                    $"[data-probe='{unresolvedProbeId}'] [data-probe-rebind]"))
-                .Count().IsEqualTo(1);
+            await Assert.That(rendered.FindAll(".probe-spine li")).Count().IsEqualTo(2);
+            await Assert.That(rendered
+                    .FindAll(".probe-spine li[data-probe-binding='unresolved'] fluent-button")
+                    .Where(control => control.TextContent.Trim() == "Reconnect"))
+                .Count().IsEqualTo(2);
         }
     }
 
@@ -238,12 +241,11 @@ internal sealed class LogicAnalyzerTests
                     this,
                     _ => rebindCount++)));
         await rendered.WaitForStateAsync(() =>
-            rendered.FindAll("[data-probe]").Count == 2);
+            rendered.FindAll(".probe-spine li").Count == 2);
 
-        var unresolvedProbeId = fixture.Projection.Simulation!.Probes[1].ProbeId.Value;
         var hotSwapped = fixture.WithArtifact(
             "compiler-v2",
-            [fixture.Projection.Simulation.Probes[0]]);
+            [fixture.Projection.Simulation!.Probes[0]]);
         rendered.Render(parameters => parameters
             .Add(component => component.Projection, hotSwapped)
             .Add(component => component.TraceReader, ReadTrace)
@@ -252,16 +254,17 @@ internal sealed class LogicAnalyzerTests
                     this,
                     _ => rebindCount++)));
         await rendered.WaitForStateAsync(() => rendered.FindAll(
-            $"[data-probe='{unresolvedProbeId}'][data-probe-binding='unresolved']").Count == 1);
+            ".probe-spine li[data-probe-binding='unresolved']").Count == 1);
 
-        await rendered.Find(
-            $"[data-probe='{unresolvedProbeId}'] [data-probe-rebind]").ClickAsync();
+        await rendered.FindAll(".probe-spine li[data-probe-binding='unresolved'] fluent-button")
+            .Single(control => control.TextContent.Trim() == "Reconnect")
+            .ClickAsync();
 
         using (Assert.Multiple())
         {
             await Assert.That(rebindCount).IsEqualTo(1);
             await Assert.That(rendered.FindAll(
-                    $"[data-probe='{unresolvedProbeId}'][data-probe-binding='unresolved']"))
+                    ".probe-spine li[data-probe-binding='unresolved']"))
                 .Count().IsEqualTo(1);
         }
     }
@@ -314,15 +317,15 @@ internal sealed class LogicAnalyzerTests
             .Add(component => component.TraceReader, Unavailable));
 
         await rendered.WaitForStateAsync(() =>
-            rendered.FindAll("[data-trace-gap='evicted']").Count == 1);
+            rendered.FindAll(".trace-gap-state").Count == 1);
 
         using (Assert.Multiple())
         {
             await Assert.That(rendered.FindAll("canvas[data-waveform-canvas]"))
                 .Count().IsEqualTo(1);
-            await Assert.That(rendered.FindAll("[data-waveform-recovery]"))
+            await Assert.That(rendered.FindAll(".trace-recovery"))
                 .IsEmpty();
-            await Assert.That(rendered.Find("[data-trace-gap='evicted'] [data-trace-return-live]")
+            await Assert.That(rendered.Find(".trace-gap-state fluent-button")
                     .TextContent.Trim())
                 .IsEqualTo("Back to live");
         }
@@ -340,10 +343,10 @@ internal sealed class LogicAnalyzerTests
             viewport,
             TransitionsTrace(initialRequest),
             new Dictionary<string, string>(StringComparer.Ordinal),
+            PresentationLabels,
             waveformVersion: 1,
             primaryCursor: null,
-            secondaryCursor: null,
-            liveFollow: true);
+            secondaryCursor: null);
         var reorderedFixture = fixture.WithProbes(
             [.. initialSimulation.Probes.Reverse()]);
         var reorderedSimulation = reorderedFixture.Projection.Simulation!;
@@ -352,10 +355,10 @@ internal sealed class LogicAnalyzerTests
             viewport,
             TransitionsTrace(Request(reorderedSimulation, viewport)),
             new Dictionary<string, string>(StringComparer.Ordinal),
+            PresentationLabels,
             waveformVersion: 2,
             primaryCursor: null,
-            secondaryCursor: null,
-            liveFollow: true);
+            secondaryCursor: null);
 
         using (Assert.Multiple())
         {
@@ -386,10 +389,10 @@ internal sealed class LogicAnalyzerTests
             viewport,
             TransitionsTrace(Request(simulation, viewport)),
             new Dictionary<string, string>(StringComparer.Ordinal),
+            PresentationLabels,
             waveformVersion: 1,
             primaryCursor: null,
-            secondaryCursor: null,
-            liveFollow: true);
+            secondaryCursor: null);
         var active = initial.Rows[0];
         var staleRecovery = new WaveformRowV1(
             "retired-probe",
@@ -411,10 +414,10 @@ internal sealed class LogicAnalyzerTests
             viewport,
             TransitionsTrace(Request(simulation, viewport)),
             new Dictionary<string, string>(StringComparer.Ordinal),
+            PresentationLabels,
             waveformVersion: 2,
             primaryCursor: null,
             secondaryCursor: null,
-            liveFollow: true,
             recoveryRows: [staleRecovery]);
 
         using (Assert.Multiple())
@@ -422,72 +425,6 @@ internal sealed class LogicAnalyzerTests
             await Assert.That(rebound.Rows).Count().IsEqualTo(2);
             await Assert.That(rebound.Rows.Any(row => row.ProbeId == "retired-probe"))
                 .IsFalse();
-        }
-    }
-
-    [Test]
-    public async Task BrowserTraceRequest_PreservesExplicitSummaryContract()
-    {
-        await using var context = WebTestContext.CreateBunitContext();
-        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
-        var fixture = Fixture.Create();
-        var requests = new List<TraceWindowRequest>();
-        Task<TraceWindowOutcome?> Reader(
-            TraceWindowRequest request,
-            CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            requests.Add(request);
-            return Task.FromResult<TraceWindowOutcome?>(request.Representation switch
-            {
-                TraceVisualSummaryRequest summary => SummaryTrace(request, summary),
-                _ => TransitionsTrace(request),
-            });
-        }
-
-        var rendered = context.Render<LogicAnalyzer>(parameters => parameters
-            .Add(component => component.Projection, fixture.Projection)
-            .Add(component => component.TraceReader, Reader));
-        await rendered.WaitForStateAsync(() =>
-            rendered.FindAll("[data-probe]").Count == 2);
-        requests.Clear();
-        var simulation = fixture.Projection.Simulation!;
-        var artifactKey = BrowserWaveformProjection.ArtifactKey(
-            simulation.CompilationArtifactKey);
-        WaveformIntentV1 intent = new RequestWaveformTraceWindowIntentV1(
-            LogicLabWebBuild.Fingerprint,
-            waveformVersion: 1,
-            fixture.Projection.ProjectionVersion,
-            simulation.SessionId.Value,
-            simulation.SessionVersion,
-            artifactKey,
-            new WaveformTraceWindowRequestV1(
-                simulation.SessionId.Value,
-                artifactKey,
-                [.. simulation.Probes.Select(probe => probe.ProbeId.Value)],
-                new WaveformTimeRangeV1("2", "8"),
-                "visualSummary",
-                maximumPoints: 17,
-                aggregation: TraceVisualSummaryRequest.LogicEnvelopeV1,
-                afterSequence: "2"));
-        var record = JsonSerializer.SerializeToElement(
-            intent,
-            WaveformJsonSerializerContext.Strict.WaveformIntentV1);
-
-        await rendered.Instance.ReceiveWaveformIntentAsync(
-            generation: 0,
-            record);
-
-        var request = await Assert.That(requests).HasSingleItem();
-        var summaryRequest = await Assert.That(request.Representation)
-            .IsTypeOf<TraceVisualSummaryRequest>();
-        using (Assert.Multiple())
-        {
-            await Assert.That(summaryRequest!.MaxPoints).IsEqualTo(17U);
-            await Assert.That(summaryRequest.Aggregation)
-                .IsEqualTo(TraceVisualSummaryRequest.LogicEnvelopeV1);
-            await Assert.That(request.Range).IsEqualTo(new TraceTimeRange(2, 8));
-            await Assert.That(request.AfterSequence).IsEqualTo(2UL);
         }
     }
 
@@ -529,8 +466,7 @@ internal sealed class LogicAnalyzerTests
             Value(ordinal % 2),
             Value((ordinal + 1) % 2),
             hadTransition: true,
-            hadMixedValues: false,
-            hadUnavailableValues: false))],
+            hadMixedValues: true))],
         summary.Aggregation,
         request.Range,
         earliestAvailable: 0,

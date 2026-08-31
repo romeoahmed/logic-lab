@@ -36,6 +36,8 @@ internal readonly record struct WaveformTimeRangeV1
 
 internal sealed record WaveformLogicVectorV1
 {
+    private readonly byte[] bytes;
+
     public WaveformLogicVectorV1(uint width, string encoding, string data)
     {
         ArgumentOutOfRangeException.ThrowIfZero(width);
@@ -71,6 +73,7 @@ internal sealed record WaveformLogicVectorV1
         Width = width;
         Encoding = encoding;
         Data = data;
+        this.bytes = bytes;
     }
 
     public uint Width { get; }
@@ -78,6 +81,12 @@ internal sealed record WaveformLogicVectorV1
     public string Encoding { get; }
 
     public string Data { get; }
+
+    internal bool HasSameValue(WaveformLogicVectorV1 other) =>
+        Width == other.Width && bytes.AsSpan().SequenceEqual(other.bytes);
+
+    internal int SymbolAt(int index) =>
+        (bytes[index / 4] >> ((index % 4) * 2)) & 0x03;
 
     private static bool HasNonzeroPadding(uint width, IReadOnlyList<byte> data)
     {
@@ -116,8 +125,7 @@ internal sealed record WaveformViewStateV1
     public WaveformViewStateV1(
         WaveformTimeRangeV1 viewport,
         WaveformCursorV1? primaryCursor,
-        WaveformCursorV1? secondaryCursor,
-        bool liveFollow)
+        WaveformCursorV1? secondaryCursor)
     {
         if (primaryCursor is not null && primaryCursor.Kind != "primary"
             || secondaryCursor is not null && secondaryCursor.Kind != "secondary")
@@ -128,7 +136,6 @@ internal sealed record WaveformViewStateV1
         Viewport = viewport;
         PrimaryCursor = primaryCursor;
         SecondaryCursor = secondaryCursor;
-        LiveFollow = liveFollow;
     }
 
     public WaveformTimeRangeV1 Viewport { get; }
@@ -136,8 +143,6 @@ internal sealed record WaveformViewStateV1
     public WaveformCursorV1? PrimaryCursor { get; }
 
     public WaveformCursorV1? SecondaryCursor { get; }
-
-    public bool LiveFollow { get; }
 }
 
 internal sealed record WaveformRowV1
@@ -223,14 +228,17 @@ internal sealed record WaveformRowV1
 
     public string ProbeId { get; }
 
+    [JsonIgnore]
     public SceneElaboratedNetRefV1 Net { get; }
 
     public uint Width { get; }
 
     public int DisplayOrdinal { get; }
 
+    [JsonIgnore]
     public string ShortLabel { get; }
 
+    [JsonIgnore]
     public string Radix { get; }
 
     public uint AppearanceOrdinal { get; }
@@ -239,12 +247,16 @@ internal sealed record WaveformRowV1
 
     public string Binding { get; }
 
+    [JsonIgnore]
     public string? BindingReason { get; }
 
+    [JsonIgnore]
     public string SceneNavigation { get; }
 
+    [JsonIgnore]
     public string? NavigationReason { get; }
 
+    [JsonIgnore]
     public WaveformLogicVectorV1? CurrentValue { get; }
 }
 
@@ -253,16 +265,13 @@ internal sealed record WaveformTransitionSegmentV1
     public WaveformTransitionSegmentV1(
         string probeId,
         WaveformTimeRangeV1 range,
-        string sequence,
         WaveformLogicVectorV1 value,
         bool transitionAtStart)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(probeId);
-        _ = WaveformRecordValidator.ParseUnsigned(sequence, nameof(sequence));
         ArgumentNullException.ThrowIfNull(value);
         ProbeId = probeId;
         Range = range;
-        Sequence = sequence;
         Value = value;
         TransitionAtStart = transitionAtStart;
     }
@@ -270,8 +279,6 @@ internal sealed record WaveformTransitionSegmentV1
     public string ProbeId { get; }
 
     public WaveformTimeRangeV1 Range { get; }
-
-    public string Sequence { get; }
 
     public WaveformLogicVectorV1 Value { get; }
 
@@ -286,8 +293,7 @@ internal sealed record WaveformSummarySegmentV1
         WaveformLogicVectorV1 firstValue,
         WaveformLogicVectorV1 lastValue,
         bool hadTransition,
-        bool hadMixedValues,
-        bool hadUnavailableValues)
+        bool hadMixedValues)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(probeId);
         ArgumentNullException.ThrowIfNull(firstValue);
@@ -299,13 +305,20 @@ internal sealed record WaveformSummarySegmentV1
                 nameof(lastValue));
         }
 
+        if ((hadMixedValues && !hadTransition)
+            || (!firstValue.HasSameValue(lastValue) && !hadMixedValues))
+        {
+            throw new ArgumentException(
+                "The Waveform summary flags do not describe its endpoint values.",
+                nameof(hadMixedValues));
+        }
+
         ProbeId = probeId;
         Range = range;
         FirstValue = firstValue;
         LastValue = lastValue;
         HadTransition = hadTransition;
         HadMixedValues = hadMixedValues;
-        HadUnavailableValues = hadUnavailableValues;
     }
 
     public string ProbeId { get; }
@@ -319,27 +332,9 @@ internal sealed record WaveformSummarySegmentV1
     public bool HadTransition { get; }
 
     public bool HadMixedValues { get; }
-
-    public bool HadUnavailableValues { get; }
 }
 
-internal sealed record WaveformTraceGapV1
-{
-    public WaveformTraceGapV1(WaveformTimeRangeV1 range, string reason)
-    {
-        if (reason is not "evicted" and not "artifactChanged")
-        {
-            throw new ArgumentException("The Waveform Trace Gap reason is undefined.", nameof(reason));
-        }
-
-        Range = range;
-        Reason = reason;
-    }
-
-    public WaveformTimeRangeV1 Range { get; }
-
-    public string Reason { get; }
-}
+internal sealed record WaveformTraceGapV1(WaveformTimeRangeV1 Range);
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(WaveformTransitionsViewV1), "transitions")]
@@ -355,30 +350,19 @@ internal abstract record WaveformTraceV1
 internal sealed record WaveformTransitionsViewV1 : WaveformTraceV1
 {
     public WaveformTransitionsViewV1(
-        IReadOnlyList<WaveformTransitionSegmentV1> segments,
-        IReadOnlyList<WaveformTraceGapV1> gaps,
-        string latestSequence)
+        IReadOnlyList<WaveformTransitionSegmentV1> segments)
     {
         Segments = WaveformRecordValidator.Copy(segments, nameof(segments));
-        Gaps = WaveformRecordValidator.Copy(gaps, nameof(gaps));
-        _ = WaveformRecordValidator.ParseUnsigned(latestSequence, nameof(latestSequence));
-        LatestSequence = latestSequence;
     }
 
     public ReadOnlyCollection<WaveformTransitionSegmentV1> Segments { get; }
-
-    public ReadOnlyCollection<WaveformTraceGapV1> Gaps { get; }
-
-    public string LatestSequence { get; }
 }
 
 internal sealed record WaveformSummaryViewV1 : WaveformTraceV1
 {
     public WaveformSummaryViewV1(
         string aggregation,
-        IReadOnlyList<WaveformSummarySegmentV1> segments,
-        IReadOnlyList<WaveformTraceGapV1> gaps,
-        string latestSequence)
+        IReadOnlyList<WaveformSummarySegmentV1> segments)
     {
         if (!string.Equals(aggregation, "logic-envelope-v1", StringComparison.Ordinal))
         {
@@ -389,42 +373,22 @@ internal sealed record WaveformSummaryViewV1 : WaveformTraceV1
 
         Aggregation = aggregation;
         Segments = WaveformRecordValidator.Copy(segments, nameof(segments));
-        Gaps = WaveformRecordValidator.Copy(gaps, nameof(gaps));
-        _ = WaveformRecordValidator.ParseUnsigned(latestSequence, nameof(latestSequence));
-        LatestSequence = latestSequence;
     }
 
     public string Aggregation { get; }
 
     public ReadOnlyCollection<WaveformSummarySegmentV1> Segments { get; }
-
-    public ReadOnlyCollection<WaveformTraceGapV1> Gaps { get; }
-
-    public string LatestSequence { get; }
 }
 
 internal sealed record WaveformUnavailableViewV1 : WaveformTraceV1
 {
-    public WaveformUnavailableViewV1(
-        WaveformTraceGapV1 gap,
-        string earliestAvailable,
-        string latestSequence)
+    public WaveformUnavailableViewV1(WaveformTraceGapV1 gap)
     {
         ArgumentNullException.ThrowIfNull(gap);
-        _ = WaveformRecordValidator.ParseUnsigned(
-            earliestAvailable,
-            nameof(earliestAvailable));
-        _ = WaveformRecordValidator.ParseUnsigned(latestSequence, nameof(latestSequence));
         Gap = gap;
-        EarliestAvailable = earliestAvailable;
-        LatestSequence = latestSequence;
     }
 
     public WaveformTraceGapV1 Gap { get; }
-
-    public string EarliestAvailable { get; }
-
-    public string LatestSequence { get; }
 }
 
 internal sealed record WaveformSnapshotV1
@@ -436,34 +400,33 @@ internal sealed record WaveformSnapshotV1
         string sessionId,
         ulong sessionVersion,
         string compilationArtifactKey,
-        string uiCulture,
-        string baseDirection,
         IReadOnlyList<WaveformRowV1> rows,
         WaveformViewStateV1 viewState,
         WaveformTraceV1 trace)
     {
-        WaveformRecordValidator.ValidateEnvelope(
+        WaveformRecordValidator.ValidateIdentityEnvelope(
             buildFingerprint,
             waveformVersion,
             projectionVersion,
             sessionId,
             sessionVersion,
-            compilationArtifactKey,
-            uiCulture,
-            baseDirection);
+            compilationArtifactKey);
         ArgumentNullException.ThrowIfNull(rows);
         ArgumentNullException.ThrowIfNull(viewState);
         ArgumentNullException.ThrowIfNull(trace);
         var ownedRows = rows.ToArray();
-        if (ownedRows.Any(static row => row is null)
-            || ownedRows.Select(row => row.ProbeId)
-                .Distinct(StringComparer.Ordinal).Count() != ownedRows.Length
-            || ownedRows.Select((row, ordinal) => row.DisplayOrdinal == ordinal)
-                .Any(static matches => !matches))
+        var probeIds = new HashSet<string>(StringComparer.Ordinal);
+        for (var ordinal = 0; ordinal < ownedRows.Length; ordinal++)
         {
-            throw new ArgumentException(
-                "Waveform rows require unique IDs and canonical display order.",
-                nameof(rows));
+            var row = ownedRows[ordinal];
+            if (row is null
+                || !probeIds.Add(row.ProbeId)
+                || row.DisplayOrdinal != ordinal)
+            {
+                throw new ArgumentException(
+                    "Waveform rows require unique IDs and canonical display order.",
+                    nameof(rows));
+            }
         }
 
         WaveformRecordValidator.ValidateTrace(ownedRows, viewState.Viewport, trace);
@@ -473,8 +436,6 @@ internal sealed record WaveformSnapshotV1
         SessionId = sessionId;
         SessionVersion = sessionVersion;
         CompilationArtifactKey = compilationArtifactKey;
-        UiCulture = uiCulture;
-        BaseDirection = baseDirection;
         Rows = Array.AsReadOnly(ownedRows);
         ViewState = viewState;
         Trace = trace;
@@ -492,145 +453,11 @@ internal sealed record WaveformSnapshotV1
 
     public string CompilationArtifactKey { get; }
 
-    public string UiCulture { get; }
-
-    public string BaseDirection { get; }
-
     public ReadOnlyCollection<WaveformRowV1> Rows { get; }
 
     public WaveformViewStateV1 ViewState { get; }
 
     public WaveformTraceV1 Trace { get; }
-}
-
-internal sealed record WaveformPatchV1
-{
-    public WaveformPatchV1(
-        string buildFingerprint,
-        ulong baseWaveformVersion,
-        ulong nextWaveformVersion,
-        ulong projectionVersion,
-        string sessionId,
-        ulong sessionVersion,
-        string compilationArtifactKey,
-        string uiCulture,
-        string baseDirection,
-        string traceKind,
-        string latestSequence,
-        IReadOnlyList<WaveformRowV1> rowUpserts,
-        IReadOnlyList<string> probeRemovals,
-        IReadOnlyList<WaveformTransitionSegmentV1> transitionAppends,
-        IReadOnlyList<WaveformSummarySegmentV1> summaryReplacements,
-        IReadOnlyList<WaveformTraceGapV1> gapReplacements)
-    {
-        WaveformRecordValidator.ValidateEnvelope(
-            buildFingerprint,
-            nextWaveformVersion,
-            projectionVersion,
-            sessionId,
-            sessionVersion,
-            compilationArtifactKey,
-            uiCulture,
-            baseDirection);
-        ArgumentOutOfRangeException.ThrowIfZero(baseWaveformVersion);
-        if (nextWaveformVersion <= baseWaveformVersion)
-        {
-            throw new ArgumentException(
-                "A Waveform patch must advance its exact base version.",
-                nameof(nextWaveformVersion));
-        }
-
-        if (traceKind is not "transitions" and not "summary")
-        {
-            throw new ArgumentException("The Waveform patch Trace kind is undefined.", nameof(traceKind));
-        }
-
-        RowUpserts = WaveformRecordValidator.Copy(rowUpserts, nameof(rowUpserts));
-        ArgumentNullException.ThrowIfNull(probeRemovals);
-        var ownedProbeRemovals = probeRemovals.ToArray();
-        if (ownedProbeRemovals.Any(string.IsNullOrWhiteSpace)
-            || ownedProbeRemovals.Distinct(StringComparer.Ordinal).Count()
-                != ownedProbeRemovals.Length
-            || RowUpserts.Select(row => row.ProbeId)
-                .Intersect(ownedProbeRemovals, StringComparer.Ordinal)
-                .Any())
-        {
-            throw new ArgumentException(
-                "Waveform Probe removals require unique IDs disjoint from upserts.",
-                nameof(probeRemovals));
-        }
-
-        if (RowUpserts.Select(row => row.ProbeId)
-            .Distinct(StringComparer.Ordinal).Count() != RowUpserts.Count)
-        {
-            throw new ArgumentException(
-                "Waveform row upserts require unique Probe IDs.",
-                nameof(rowUpserts));
-        }
-
-        ProbeRemovals = Array.AsReadOnly(ownedProbeRemovals);
-        TransitionAppends = WaveformRecordValidator.Copy(
-            transitionAppends,
-            nameof(transitionAppends));
-        SummaryReplacements = WaveformRecordValidator.Copy(
-            summaryReplacements,
-            nameof(summaryReplacements));
-        GapReplacements = WaveformRecordValidator.Copy(
-            gapReplacements,
-            nameof(gapReplacements));
-        if (traceKind != "transitions" && TransitionAppends.Count != 0
-            || traceKind != "summary" && SummaryReplacements.Count != 0)
-        {
-            throw new ArgumentException(
-                "A Waveform patch cannot mix Trace representations.",
-                nameof(traceKind));
-        }
-
-        _ = WaveformRecordValidator.ParseUnsigned(latestSequence, nameof(latestSequence));
-        BuildFingerprint = buildFingerprint;
-        BaseWaveformVersion = baseWaveformVersion;
-        NextWaveformVersion = nextWaveformVersion;
-        ProjectionVersion = projectionVersion;
-        SessionId = sessionId;
-        SessionVersion = sessionVersion;
-        CompilationArtifactKey = compilationArtifactKey;
-        UiCulture = uiCulture;
-        BaseDirection = baseDirection;
-        TraceKind = traceKind;
-        LatestSequence = latestSequence;
-    }
-
-    public string BuildFingerprint { get; }
-
-    public ulong BaseWaveformVersion { get; }
-
-    public ulong NextWaveformVersion { get; }
-
-    public ulong ProjectionVersion { get; }
-
-    public string SessionId { get; }
-
-    public ulong SessionVersion { get; }
-
-    public string CompilationArtifactKey { get; }
-
-    public string UiCulture { get; }
-
-    public string BaseDirection { get; }
-
-    public string TraceKind { get; }
-
-    public string LatestSequence { get; }
-
-    public ReadOnlyCollection<WaveformRowV1> RowUpserts { get; }
-
-    public ReadOnlyCollection<string> ProbeRemovals { get; }
-
-    public ReadOnlyCollection<WaveformTransitionSegmentV1> TransitionAppends { get; }
-
-    public ReadOnlyCollection<WaveformSummarySegmentV1> SummaryReplacements { get; }
-
-    public ReadOnlyCollection<WaveformTraceGapV1> GapReplacements { get; }
 }
 
 internal static class WaveformRecordValidator
@@ -661,15 +488,13 @@ internal static class WaveformRecordValidator
         return parsed;
     }
 
-    public static void ValidateEnvelope(
+    public static void ValidateIdentityEnvelope(
         string buildFingerprint,
         ulong waveformVersion,
         ulong projectionVersion,
         string sessionId,
         ulong sessionVersion,
-        string compilationArtifactKey,
-        string uiCulture,
-        string baseDirection)
+        string compilationArtifactKey)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(buildFingerprint);
         ArgumentOutOfRangeException.ThrowIfZero(waveformVersion);
@@ -677,17 +502,6 @@ internal static class WaveformRecordValidator
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
         ArgumentOutOfRangeException.ThrowIfZero(sessionVersion);
         ArgumentException.ThrowIfNullOrWhiteSpace(compilationArtifactKey);
-        if (uiCulture is not "en-US" and not "zh-CN")
-        {
-            throw new ArgumentException("The Waveform UI culture is undefined.", nameof(uiCulture));
-        }
-
-        if (baseDirection != "leftToRight")
-        {
-            throw new ArgumentException(
-                "The Waveform base direction is undefined.",
-                nameof(baseDirection));
-        }
     }
 
     public static void ValidateTrace(
@@ -701,7 +515,6 @@ internal static class WaveformRecordValidator
                 ValidateSegments(
                     rows,
                     viewport,
-                    transitions.Gaps,
                     transitions.Segments.Select(segment => (
                         segment.ProbeId,
                         segment.Range,
@@ -711,17 +524,10 @@ internal static class WaveformRecordValidator
                 ValidateSegments(
                     rows,
                     viewport,
-                    summary.Gaps,
                     summary.Segments.Select(segment => (
                         segment.ProbeId,
                         segment.Range,
                         segment.FirstValue.Width)));
-                if (summary.Segments.Any(segment =>
-                        segment.FirstValue.Width != segment.LastValue.Width))
-                {
-                    throw new ArgumentException("The Waveform summary widths differ.", nameof(trace));
-                }
-
                 break;
             case WaveformUnavailableViewV1 unavailable:
                 if (unavailable.Gap.Range != viewport)
@@ -740,85 +546,44 @@ internal static class WaveformRecordValidator
     private static void ValidateSegments(
         IReadOnlyList<WaveformRowV1> rows,
         WaveformTimeRangeV1 viewport,
-        IReadOnlyList<WaveformTraceGapV1> gaps,
         IEnumerable<(string ProbeId, WaveformTimeRangeV1 Range, uint Width)> segments)
     {
-        var segmentArray = segments.ToArray();
-        var rowsById = rows.ToDictionary(row => row.ProbeId, StringComparer.Ordinal);
-        if (segmentArray.Any(segment => !rowsById.TryGetValue(segment.ProbeId, out var row)
+        var resolvedRows = rows.Where(row => row.Binding == "resolved").ToArray();
+        var rowIndex = 0;
+        var expectedStart = viewport.StartValue;
+        foreach (var segment in segments)
+        {
+            if (rowIndex >= resolvedRows.Length)
+            {
+                throw new ArgumentException(
+                    "Waveform Trace contains records after its resolved rows.",
+                    nameof(segments));
+            }
+
+            var row = resolvedRows[rowIndex];
+            if (!string.Equals(segment.ProbeId, row.ProbeId, StringComparison.Ordinal)
                 || row.Width != segment.Width
-                || segment.Range.StartValue < viewport.StartValue
+                || segment.Range.StartValue != expectedStart
                 || segment.Range.EndValue > viewport.EndValue)
-            || gaps.Any(gap => gap.Range.StartValue < viewport.StartValue
-                || gap.Range.EndValue > viewport.EndValue))
+            {
+                throw new ArgumentException(
+                    "Waveform segments must follow row order and exactly cover the viewport.",
+                    nameof(segments));
+            }
+
+            expectedStart = segment.Range.EndValue;
+            if (expectedStart == viewport.EndValue)
+            {
+                rowIndex++;
+                expectedStart = viewport.StartValue;
+            }
+        }
+
+        if (rowIndex != resolvedRows.Length)
         {
             throw new ArgumentException(
-                "Waveform Trace records do not match their rows or viewport.",
+                "Every resolved Waveform row must cover the viewport.",
                 nameof(segments));
         }
-
-        var gapRanges = gaps.Select(gap => gap.Range).ToArray();
-        if (!AreOrderedAndNonoverlapping(gapRanges))
-        {
-            throw new ArgumentException(
-                "Waveform Trace Gaps must be ordered and nonoverlapping.",
-                nameof(gaps));
-        }
-
-        foreach (var row in rows.Where(row => row.Binding == "resolved"))
-        {
-            var rowRanges = segmentArray
-                .Where(segment => string.Equals(
-                    segment.ProbeId,
-                    row.ProbeId,
-                    StringComparison.Ordinal))
-                .Select(segment => segment.Range)
-                .ToArray();
-            if (!AreOrderedAndNonoverlapping(rowRanges))
-            {
-                throw new ArgumentException(
-                    "Waveform segments must be ordered and nonoverlapping per Probe.",
-                    nameof(segments));
-            }
-
-            var ranges = rowRanges
-                .Concat(gapRanges)
-                .OrderBy(range => range.StartValue)
-                .ThenBy(range => range.EndValue)
-                .ToArray();
-            var expectedStart = viewport.StartValue;
-            foreach (var range in ranges)
-            {
-                if (range.StartValue != expectedStart)
-                {
-                    throw new ArgumentException(
-                        "Waveform segments and gaps must exactly cover the viewport.",
-                        nameof(segments));
-                }
-
-                expectedStart = range.EndValue;
-            }
-
-            if (expectedStart != viewport.EndValue)
-            {
-                throw new ArgumentException(
-                    "Waveform segments and gaps must exactly cover the viewport.",
-                    nameof(segments));
-            }
-        }
-    }
-
-    private static bool AreOrderedAndNonoverlapping(
-        WaveformTimeRangeV1[] ranges)
-    {
-        for (var index = 1; index < ranges.Length; index++)
-        {
-            if (ranges[index].StartValue < ranges[index - 1].EndValue)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 }

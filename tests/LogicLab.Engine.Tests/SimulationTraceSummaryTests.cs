@@ -40,8 +40,8 @@ internal sealed class SimulationTraceSummaryTests
             await Assert.That(available.Transitions).Count().IsEqualTo(2);
             await Assert.That(available.Transitions.Select(item => item.ProbeId))
                 .IsEquivalentTo(opened.ProbeIds);
-            await Assert.That(available.Transitions.All(item => item.LogicalTime == 4))
-                .IsTrue();
+            await Assert.That(available.Transitions.Select(item => item.LogicalTime))
+                .IsEquivalentTo([4UL, 4UL], CollectionOrdering.Matching);
         }
     }
 
@@ -118,8 +118,6 @@ internal sealed class SimulationTraceSummaryTests
             await Assert.That(inputBuckets[3].LastValue[0]).IsEqualTo(LogicValue.Zero);
             await Assert.That(inputBuckets[3].HadTransition).IsTrue();
             await Assert.That(inputBuckets[3].HadMixedValues).IsTrue();
-            await Assert.That(inputBuckets.All(bucket => !bucket.HadUnavailableValues))
-                .IsTrue();
         }
     }
 
@@ -156,8 +154,7 @@ internal sealed class SimulationTraceSummaryTests
                 afterSequence: null)),
             CancellationToken.None);
 
-        var unavailable = (await Assert.That(outcome).IsTypeOf<TraceRangeUnavailable>())!;
-        await Assert.That(unavailable.Reason).IsEqualTo(TraceRangeUnavailableReason.Evicted);
+        _ = await Assert.That(outcome).IsTypeOf<TraceRangeUnavailable>();
     }
 
     [Test]

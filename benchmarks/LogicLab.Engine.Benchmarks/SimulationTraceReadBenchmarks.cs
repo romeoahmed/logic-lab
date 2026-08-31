@@ -24,10 +24,17 @@ public class SimulationTraceReadBenchmarks
         _ = (SessionClosed)SimulationRuntime.Close(fixture.Handle);
     }
 
-    [Benchmark]
-    public TraceTransitionsAvailable ReadTraceWindow() =>
+    [Benchmark(Baseline = true)]
+    public TraceTransitionsAvailable ReadTransitions() =>
         (TraceTransitionsAvailable)SimulationRuntime.Read(
             fixture.Handle,
-            fixture.Query,
+            fixture.TransitionsQuery,
+            CancellationToken.None);
+
+    [Benchmark]
+    public TraceSummaryAvailable ReadVisualSummary() =>
+        (TraceSummaryAvailable)SimulationRuntime.Read(
+            fixture.Handle,
+            fixture.SummaryQuery,
             CancellationToken.None);
 }

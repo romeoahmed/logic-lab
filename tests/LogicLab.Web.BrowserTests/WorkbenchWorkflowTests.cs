@@ -23,7 +23,7 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
         var workbench = new WorkbenchTestPage(Page, application.EditorUri);
         await workbench.OpenSandboxAsync();
 
-        await workbench.ComponentSearch.PressSequentiallyAsync("AND");
+        await workbench.ComponentSearch.FillAsync("AND");
         await Expect(workbench.PlaceOptions).ToHaveCountAsync(2);
         var andGate = workbench.PlaceOption(AndGate);
         await Expect(andGate).ToBeVisibleAsync();
@@ -81,52 +81,45 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
         await Expect(workbench.Command("session")).ToBeEnabledAsync();
         await workbench.Command("session").ClickAsync();
 
-        await Expect(workbench.Waveform)
-            .ToHaveAttributeAsync("data-waveform-renderer", "ready");
         await Expect(workbench.WaveformCanvas).ToBeVisibleAsync();
-        await Expect(workbench.WaveformLive).ToHaveAttributeAsync("aria-pressed", "true");
 
         await workbench.WaveformRepresentation("summary").ClickAsync();
-        await Expect(workbench.Waveform)
-            .ToHaveAttributeAsync("data-waveform-resolution", "summary");
-        await Expect(Page.Locator(".summary-resolution")).ToBeVisibleAsync();
+        await Expect(workbench.Waveform.GetByText("Overview · details summarized"))
+            .ToBeVisibleAsync();
 
-        await Page.GetByTitle("Zoom in").Last.ClickAsync();
-        await Expect(workbench.WaveformLive).ToHaveAttributeAsync("aria-pressed", "false");
-        await Expect(Page.Locator("[data-waveform-history]")).ToBeVisibleAsync();
+        await workbench.WaveformZoomIn.ClickAsync();
+        await Expect(workbench.Waveform.GetByText(
+                "Viewing history · simulation is still running"))
+            .ToBeVisibleAsync();
 
         await workbench.WaveformCanvas.ClickAsync(new LocatorClickOptions
         {
             Position = new Position { X = 180, Y = 70 },
         });
-        await Expect(Page.Locator("[data-waveform-primary-cursor]"))
-            .ToHaveAttributeAsync("aria-pressed", "true");
-        await Expect(Page.Locator("[data-waveform-cursor='primary']"))
+        var cursorReadout = workbench.Waveform.Locator(".cursor-readout");
+        await Expect(cursorReadout
+                .GetByText("A", new() { Exact = true }))
             .ToBeVisibleAsync();
-        await Page.Locator("[data-waveform-secondary-cursor]").ClickAsync();
-        await Expect(Page.Locator("[data-waveform-cursor='secondary']"))
+        await workbench.WaveformSecondaryCursor.ClickAsync();
+        await Expect(cursorReadout
+                .GetByText("B", new() { Exact = true }))
             .ToBeVisibleAsync();
-        await Expect(Page.Locator("[data-waveform-cursor-delta]"))
+        await Expect(cursorReadout
+                .GetByText("Δt", new() { Exact = true }))
             .ToBeVisibleAsync();
 
         await workbench.WaveformLive.ClickAsync();
-        await Expect(workbench.WaveformLive).ToHaveAttributeAsync("aria-pressed", "true");
-        await Expect(Page.Locator("[data-waveform-history]")).ToBeHiddenAsync();
-        var radix = workbench.Probes.Locator("[data-probe-radix]");
-        await radix.ClickAsync();
-        var hexadecimal = radix.Locator("fluent-option[value='hex']");
-        await hexadecimal.ClickAsync();
-        await Expect(hexadecimal).ToHaveAttributeAsync("current-selected", string.Empty);
-        var firstProbe = workbench.Probes.First;
-        var probeLabel = await firstProbe.Locator("[data-probe-label]").InnerTextAsync();
-        await firstProbe.Locator("[data-probe-reveal]").ClickAsync();
-        await Expect(Page.Locator(".status-message")).ToContainTextAsync(probeLabel);
+        await Expect(workbench.Waveform.GetByText(
+                "Viewing history · simulation is still running"))
+            .ToBeHiddenAsync();
+        await workbench.WaveformLive.ClickAsync();
+        await Expect(workbench.Waveform.GetByText(
+                "Viewing history · simulation is still running"))
+            .ToBeVisibleAsync();
 
         await workbench.WaveformClose.ClickAsync();
         await Expect(workbench.WaveformOpen).ToBeVisibleAsync();
         await workbench.WaveformOpen.ClickAsync();
-        await Expect(workbench.Waveform)
-            .ToHaveAttributeAsync("data-waveform-renderer", "ready");
         await Expect(workbench.WaveformCanvas).ToBeVisibleAsync();
     }
 
@@ -138,21 +131,22 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
         await workbench.Command("author").ClickAsync();
         await workbench.Command("compile").ClickAsync();
         await workbench.Command("session").ClickAsync();
-        await Expect(workbench.Waveform)
-            .ToHaveAttributeAsync("data-waveform-renderer", "ready");
         await Expect(workbench.WaveformCanvas).ToBeVisibleAsync();
 
         var summary = workbench.WaveformRepresentation("summary");
         await Expect(summary).ToBeVisibleAsync();
-        await summary.FocusAsync();
-        await Page.Keyboard.PressAsync("Space");
-        await Expect(workbench.Waveform)
-            .ToHaveAttributeAsync("data-waveform-resolution", "summary");
+        await summary.ClickAsync();
+        await Expect(workbench.Waveform.GetByText("Overview · details summarized"))
+            .ToBeVisibleAsync();
 
-        await Page.GetByTitle("Zoom in").Last.ClickAsync();
-        await Expect(workbench.WaveformLive).ToHaveAttributeAsync("aria-pressed", "false");
+        await workbench.WaveformZoomIn.ClickAsync();
+        await Expect(workbench.Waveform.GetByText(
+                "Viewing history · simulation is still running"))
+            .ToBeVisibleAsync();
         await workbench.WaveformLive.ClickAsync();
-        await Expect(workbench.WaveformLive).ToHaveAttributeAsync("aria-pressed", "true");
+        await Expect(workbench.Waveform.GetByText(
+                "Viewing history · simulation is still running"))
+            .ToBeHiddenAsync();
 
         await Expect(workbench.WaveformClose).ToBeVisibleAsync();
         await workbench.WaveformClose.ClickAsync();

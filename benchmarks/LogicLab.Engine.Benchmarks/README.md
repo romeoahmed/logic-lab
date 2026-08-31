@@ -15,9 +15,9 @@ runtime counters, or deployment profiling.
 | `SimulationOpenBenchmarks`          | open, initially settle, and close a compiled Session                                              | the same public Simulation workflow across shape and scale                                 | none; scale series                       |           11 circuit cases |       1 |        11 | `engine-circuits-v2`   |
 | `SimulationSnapshotReadBenchmarks`  | read an open Session snapshot                                                                     | the same read across probe topology and scale                                              | none; scale series                       |            3 circuit cases |       1 |         3 | `engine-circuits-v2`   |
 | `SimulationAdvanceBenchmarks`       | open a Session, optionally schedule input, advance one quiescent boundary, and close              | the same end-to-end command workflow across combinational, sequential, and memory circuits | none; scale series                       |            9 circuit cases |       1 |         9 | `engine-circuits-v2`   |
-| `SimulationTraceReadBenchmarks`     | materialize a retained alternating-input Trace window                                             | the same read across retained-transition counts                                            | none; scale series                       |        3 transition counts |       1 |         3 | `alternating-trace-v1` |
+| `SimulationTraceReadBenchmarks`     | materialize retained alternating-input transition and visual-summary Trace windows                | the same reads across retained-transition counts                                           | transitions baseline; scale series       |        3 transition counts |       2 |         6 | `alternating-trace-v1` |
 
-The suite contains 16 methods and 70 benchmark cases. The vector widths are 1, 130, and
+The suite contains 17 methods and 73 benchmark cases. The vector widths are 1, 130, and
 1024 bits; 130 deliberately exercises a partial packed word. The merge and resolution counts
 are 1, 4, and 16.
 

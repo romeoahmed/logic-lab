@@ -536,11 +536,11 @@ internal sealed class WorkbenchComponentTests
             rendered,
             "session",
             () => !IsDisabled(rendered, "stimulus")
-                && rendered.FindAll("[data-probe]").Count == 1);
+                && rendered.FindAll(".probe-spine li").Count == 1);
 
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.Find("[data-probe] strong").TextContent)
+            await Assert.That(rendered.Find(".probe-spine li strong").TextContent)
                 .IsEqualTo("1");
             await Assert.That(rendered.Find("[data-status='logical-time'] dd").TextContent)
                 .IsEqualTo("0");
@@ -555,7 +555,7 @@ internal sealed class WorkbenchComponentTests
             rendered,
             "step",
             () => rendered.Find("[data-status='logical-time'] dd").TextContent == "1"
-                && rendered.Find("[data-probe] strong").TextContent == "0");
+                && rendered.Find(".probe-spine li strong").TextContent == "0");
 
         using (Assert.Multiple())
         {
@@ -571,19 +571,19 @@ internal sealed class WorkbenchComponentTests
         var sceneHost = rendered.FindComponent<CircuitSceneHost>();
         await rendered.InvokeAsync(() => sceneHost.Instance.OnIntent.InvokeAsync(
             ToggleProbeIntent(beforeToggle, definition, inputNet.Id)));
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-probe]").Count == 2);
-        await Assert.That(rendered.FindAll("[data-probe] span").Select(item => item.TextContent))
+        await rendered.WaitForStateAsync(() => rendered.FindAll(".probe-spine li").Count == 2);
+        await Assert.That(rendered.FindAll(".probe-label span").Select(item => item.TextContent))
             .IsEquivalentTo(["Input", "Output"]);
 
         var beforeRemovingInput = await workspace.ReadCurrent();
         await rendered.InvokeAsync(() => sceneHost.Instance.OnIntent.InvokeAsync(
             ToggleProbeIntent(beforeRemovingInput, definition, inputNet.Id)));
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-probe]").Count == 1);
+        await rendered.WaitForStateAsync(() => rendered.FindAll(".probe-spine li").Count == 1);
 
         var beforeRemovingOutput = await workspace.ReadCurrent();
         await rendered.InvokeAsync(() => sceneHost.Instance.OnIntent.InvokeAsync(
             ToggleProbeIntent(beforeRemovingOutput, definition, boundNet.NetId)));
-        await rendered.WaitForStateAsync(() => rendered.FindAll("[data-probe]").Count == 0);
+        await rendered.WaitForStateAsync(() => rendered.FindAll(".probe-spine li").Count == 0);
         var afterToggle = await workspace.ReadCurrent();
 
         await Assert.That(afterToggle.Simulation!.Probes).IsEmpty();
@@ -948,9 +948,9 @@ internal sealed class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "session",
-            () => rendered.FindAll("[data-probe]").Count == 1);
+            () => rendered.FindAll(".probe-spine li").Count == 1);
 
-        await Assert.That(rendered.FindAll("[data-probe]")).Count().IsEqualTo(1);
+        await Assert.That(rendered.FindAll(".probe-spine li")).Count().IsEqualTo(1);
 
         await rendered.Find("[data-scene-tool='probe']").ClickAsync();
         var entryProbe = await Assert.That(rendered.FindComponent<CircuitSceneHost>()

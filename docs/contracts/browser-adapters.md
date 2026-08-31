@@ -9,7 +9,7 @@ This contract owns the records exchanged between Web and the two browser adapter
 | ------------------ | -------------------------------------------- | ----------------------------------- |
 | `buildFingerprint` | one atomically deployed server/browser build | authorization, protocol negotiation |
 | `SceneVersion`     | one Scene snapshot/patch cursor              | Projection Version                  |
-| `WaveformVersion`  | one Waveform snapshot/patch cursor           | Trace sequence, Session Version     |
+| `WaveformVersion`  | one complete Waveform snapshot cursor        | Trace sequence, Session Version     |
 | `SceneOverlayId`   | one projection-local overlay locator         | authored identity, authorization    |
 
 ## 1. Scene interface
@@ -100,63 +100,49 @@ The collocated waveform ES Module uses a separate cursor because browser-local v
 WaveformSnapshotV1
   buildFingerprint, WaveformVersion, ProjectionVersion
   SessionId, SessionVersion, CompilationArtifactKey
-  uiCulture: en-US | zh-CN, baseDirection: LeftToRight
   ordered WaveformRowV1 values
   WaveformViewStateV1
   WaveformTraceV1 for the requested viewport
 
-WaveformPatchV1
-  buildFingerprint, base WaveformVersion, next WaveformVersion
-  ProjectionVersion, SessionId, SessionVersion, CompilationArtifactKey
-  uiCulture: en-US | zh-CN, baseDirection: LeftToRight
-  latest sequence
-  WaveformRowV1 upserts and ProbeId removals
-  typed transition appends, summary replacements, and TraceGapV1 replacements
 ```
 
 The browser values are closed:
 
 ```text
 WaveformRowV1
-  ProbeId, ElaboratedNetRefV1, positive width, displayOrdinal
-  radix: binary | hex | unsigned
+  ProbeId, positive width, displayOrdinal
   appearanceOrdinal: u32
-  binding: Resolved | Unresolved(sourceMissing | artifactIncompatible)
-  sceneNavigation: Available | Unavailable(noVisibleGeometry | sourceMissing | projectionUnavailable)
+  pattern: solid | dash | dot | dashDot
+  binding: Resolved | Unresolved
 
 WaveformViewStateV1
   nonempty half-open viewport
   Primary cursor?, Secondary cursor?
-  liveFollow: Boolean
 
 WaveformTraceV1 =
-  TransitionsView { ordered TransitionSegmentV1[], ordered TraceGapV1[], latestSequence }
-  | SummaryView { aggregation = logic-envelope-v1, ordered SummarySegmentV1[], ordered TraceGapV1[], latestSequence }
-  | UnavailableView { TraceGapV1, earliestAvailable, latestSequence }
+  TransitionsView { ordered TransitionSegmentV1[] }
+  | SummaryView { aggregation = logic-envelope-v1, ordered SummarySegmentV1[] }
+  | UnavailableView { TraceGapV1 }
 
-TraceGapV1 { nonempty half-open range, reason: Evicted | ArtifactChanged }
+TraceGapV1 { nonempty half-open range }
 ```
 
-Segments are nonempty, nonoverlapping, ordered, use the [Editor Workspace Contract §7](./editor-workspace.md#7-trace-transfer) transition or bucket records, and together with gaps cover exactly the displayed portion of the requested viewport. A patch cannot append transitions to `SummaryView`, silently replace transitions with buckets, or bridge a gap.
+Available segments are nonempty, nonoverlapping, grouped in Probe display order, use the [Editor Workspace Contract §7](./editor-workspace.md#7-trace-transfer) transition or bucket records, and exactly cover the requested viewport for every resolved Probe. An unavailable view carries one explicit Trace Gap covering the viewport.
+
+The browser row is intentionally minimal: Canvas needs only identity, width, order, appearance, and binding. Razor owns the label, radix, current value, authored Net reference, binding reason, and Scene-navigation state. Those values never cross the JavaScript seam.
 
 `WaveformIntentV1` is closed:
 
-| Kind                 | Payload                                                             |
-| -------------------- | ------------------------------------------------------------------- |
-| `SetViewport`        | nonempty logical-time range                                         |
-| `SetCursor`          | cursor `Primary \| Secondary` and Logical Time, or explicit removal |
-| `SetLiveFollow`      | Boolean enabled value                                               |
-| `SetProbeOrder`      | complete ordered Probe IDs                                          |
-| `SetProbeRadix`      | Probe ID and `binary \| hex \| unsigned`                            |
-| `RequestTraceWindow` | one `TraceWindowRequest`                                            |
-| `RevealNet`          | Probe ID                                                            |
-| `CloseWaveform`      | none                                                                |
+| Kind          | Payload                                                             |
+| ------------- | ------------------------------------------------------------------- |
+| `SetViewport` | nonempty logical-time range                                         |
+| `SetCursor`   | cursor `Primary \| Secondary` and Logical Time, or explicit removal |
 
-Viewport, cursor, live-follow, radix, and close state remain Web/browser preferences. Probe order translates to one complete `ReplaceProbes` command. A trace request translates to `ReadTraceWindow`. Reveal Net changes Web selection and requests the matching Scene snapshot/patch only when `sceneNavigation` is `Available`; otherwise it preserves the waveform and presents the exact unavailable reason plus the applicable remove/rebind/retry action. An unresolved runtime binding may still be navigable when its authored Net remains present.
+Only Canvas-owned pointer, wheel, and keyboard interactions cross this intent seam. Fluent/Razor controls call their typed component handlers directly; they do not serialize their actions through JavaScript. Viewport, cursor, live-follow, radix, and close state remain Web/browser preferences. Probe order translates to one complete `ReplaceProbes` command. Web owns Trace reads: a viewport or summary-mode change causes Web to issue the bounded `ReadTraceWindow` request represented by the controls, rather than accepting an arbitrary read request from JavaScript. Reveal Net changes Web selection and requests the matching Scene snapshot/patch only when `sceneNavigation` is `Available`; otherwise it preserves the waveform and presents the exact unavailable reason plus the applicable remove/rebind/retry action. An unresolved runtime binding may still be navigable when its authored Net remains present.
 
-Every Waveform intent carries the build fingerprint, Waveform Version, Projection Version, Session ID, Session Version, and Compilation Artifact Key from the snapshot or patch on which it acts. `RequestTraceWindow` must repeat the same Session ID and Artifact Key inside its request. Web rejects a mismatched envelope, refreshes the snapshot/window, and never applies a delayed complete Probe order to a newer Session version.
+Every Waveform intent carries the build fingerprint, Waveform Version, Projection Version, Session ID, Session Version, and Compilation Artifact Key from the snapshot on which it acts. Web rejects a mismatched envelope, refreshes the snapshot/window, and never applies a delayed complete Probe order to a newer Session version.
 
-A patch applies only to its exact build, base Waveform Version, Session ID, Compilation Artifact Key, UI culture, and base direction; its Projection and Session Versions cannot regress. A Trace sequence gap, artifact, culture, direction, or version mismatch discards the patch and requests an authorized snapshot/window. Transitions are never silently summarized; summary data appears only after an explicit `VisualSummary` request. A Trace Gap is a first-class replacement range and cannot be bridged by an appended flat value. Runtime chunk layout and browser rendering buffers never cross this seam.
+V1 publishes complete Waveform snapshots only. There is no incremental Waveform patch producer, so the adapter does not expose a speculative patch protocol. A Trace sequence gap, artifact, or version mismatch requests a fresh authorized snapshot/window. Transitions are never silently summarized; summary data appears only after the user selects visual summary. A Trace Gap is a first-class range and cannot be bridged by an invented flat value. Runtime chunk layout and browser rendering buffers never cross this seam.
 
 ## 3. Security and evolution
 

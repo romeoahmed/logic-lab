@@ -97,6 +97,7 @@ internal sealed class SimulationHotSwapTests
             new ReadTraceWindow(new SimulationTraceWindowRequest(
                 opened.ProbeIds,
                 new LogicalTimeRange(0, 6),
+                TraceTransitionsRepresentation.Instance,
                 afterSequence: null)),
             CancellationToken.None);
         var continuation = (TraceTransitionsAvailable)SimulationRuntime.Read(
@@ -104,6 +105,7 @@ internal sealed class SimulationHotSwapTests
             new ReadTraceWindow(new SimulationTraceWindowRequest(
                 opened.ProbeIds,
                 new LogicalTimeRange(0, 6),
+                TraceTransitionsRepresentation.Instance,
                 beforeSwap.TraceCursor.LatestSequence)),
             CancellationToken.None);
 
@@ -152,6 +154,7 @@ internal sealed class SimulationHotSwapTests
             new ReadTraceWindow(new SimulationTraceWindowRequest(
                 opened.ProbeIds,
                 new LogicalTimeRange(0, 1),
+                TraceTransitionsRepresentation.Instance,
                 beforeSwap.TraceCursor.LatestSequence)),
             CancellationToken.None);
 

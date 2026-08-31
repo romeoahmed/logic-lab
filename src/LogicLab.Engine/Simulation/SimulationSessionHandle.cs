@@ -94,7 +94,6 @@ internal sealed class SimulationTraceStore
     private int chunkCount;
     private ulong retainedBytes;
     private ulong retainedTransitionCount;
-    private bool hasEvicted;
 
     public SimulationTraceStore(TracePolicy policy)
         : this(policy, InitialChunkCapacity)
@@ -144,7 +143,6 @@ internal sealed class SimulationTraceStore
         fork.ObservedChunkCount = ObservedChunkCount;
         fork.retainedBytes = retainedBytes;
         fork.retainedTransitionCount = retainedTransitionCount;
-        fork.hasEvicted = hasEvicted;
         fork.Append(logicalTime, observations);
         return fork;
     }
@@ -261,23 +259,17 @@ internal sealed class SimulationTraceStore
         EvictToPolicy();
     }
 
-    public SimulationReadOutcome Read(SimulationTraceWindowRequest request)
+    public SimulationReadOutcome Read(
+        SimulationTraceWindowRequest request,
+        CancellationToken cancellationToken)
     {
         var earliest = EarliestAvailableSequence;
         var requestedIds = request.ProbeIds.ToHashSet();
-        var requestedBaselineWasEvicted = request.AfterSequence is null
-            && hasEvicted
-            && !HasBaselineAtOrBefore(
-                requestedIds,
-                request.Range.StartInclusive);
         var sequenceWasEvicted = request.AfterSequence is { } afterSequence
             && afterSequence < earliest - 1;
-        if (requestedBaselineWasEvicted || sequenceWasEvicted)
+        if (sequenceWasEvicted)
         {
-            return new TraceRangeUnavailable(
-                TraceRangeUnavailableReason.Evicted,
-                earliest,
-                LatestSequence);
+            return Unavailable(earliest);
         }
 
         return request.Representation switch
@@ -285,21 +277,23 @@ internal sealed class SimulationTraceStore
             TraceTransitionsRepresentation => ReadTransitions(
                 request,
                 requestedIds,
-                earliest),
+                earliest,
+                cancellationToken),
             TraceVisualSummaryRepresentation summary => ReadSummary(
                 request,
                 summary,
-                requestedIds,
-                earliest),
+                earliest,
+                cancellationToken),
             _ => throw new InvalidOperationException(
                 "The Trace window representation is undefined."),
         };
     }
 
-    private TraceTransitionsAvailable ReadTransitions(
+    private SimulationReadOutcome ReadTransitions(
         SimulationTraceWindowRequest request,
         HashSet<ProbeId> requestedIds,
-        ulong earliest)
+        ulong earliest,
+        CancellationToken cancellationToken)
     {
         var transitions = new List<TraceTransition>();
         var baselines = request.AfterSequence is null
@@ -311,6 +305,7 @@ internal sealed class SimulationTraceStore
         {
             foreach (var transition in ChunkAt(chunkOffset).Transitions)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (baselines is not null
                     && requestedIds.Contains(transition.ProbeId)
                     && transition.LogicalTime <= request.Range.StartInclusive)
@@ -327,6 +322,11 @@ internal sealed class SimulationTraceStore
 
         if (baselines is not null)
         {
+            if (baselines.Values.Any(static baseline => baseline is null))
+            {
+                return Unavailable(earliest);
+            }
+
             transitions.AddRange(baselines.Values.OfType<TraceTransition>());
             transitions = [.. transitions
                 .DistinctBy(transition => transition.Sequence)
@@ -340,46 +340,65 @@ internal sealed class SimulationTraceStore
             LatestSequence);
     }
 
-    private TraceSummaryAvailable ReadSummary(
+    private SimulationReadOutcome ReadSummary(
         SimulationTraceWindowRequest request,
         TraceVisualSummaryRepresentation representation,
-        HashSet<ProbeId> requestedIds,
-        ulong earliest)
+        ulong earliest,
+        CancellationToken cancellationToken)
     {
         var span = request.Range.EndExclusive - request.Range.StartInclusive;
-        var bucketCount = Math.Min((ulong)representation.MaxPoints, span);
+        var bucketCount = (int)Math.Min((ulong)representation.MaxPoints, span);
         var transitionsByProbe = request.ProbeIds.ToDictionary(
             probeId => probeId,
             _ => new List<TraceTransition>());
+        var probesWithoutBaseline = request.ProbeIds.ToHashSet();
         for (var chunkOffset = 0; chunkOffset < chunkCount; chunkOffset++)
         {
             foreach (var transition in ChunkAt(chunkOffset).Transitions)
             {
-                if (requestedIds.Contains(transition.ProbeId)
-                    && transition.LogicalTime < request.Range.EndExclusive)
+                cancellationToken.ThrowIfCancellationRequested();
+                if (transition.LogicalTime < request.Range.EndExclusive
+                    && transitionsByProbe.TryGetValue(
+                        transition.ProbeId,
+                        out var probeTransitions))
                 {
-                    transitionsByProbe[transition.ProbeId].Add(transition);
+                    probeTransitions.Add(transition);
+                    if (transition.LogicalTime <= request.Range.StartInclusive)
+                    {
+                        _ = probesWithoutBaseline.Remove(transition.ProbeId);
+                    }
                 }
             }
         }
 
+        if (probesWithoutBaseline.Count != 0)
+        {
+            return Unavailable(earliest);
+        }
+
         var buckets = new List<TraceSummaryBucket>(checked(
-            request.ProbeIds.Count * checked((int)bucketCount)));
+            request.ProbeIds.Count * bucketCount));
         foreach (var probeId in request.ProbeIds)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var transitions = transitionsByProbe[probeId];
-            for (ulong index = 0; index < bucketCount; index++)
+            var transitionIndex = 0;
+            TraceTransition? beforeStart = null;
+            for (var index = 0; index < bucketCount; index++)
             {
                 var start = checked(
                     request.Range.StartInclusive
-                    + PartitionOffset(index, span, bucketCount));
+                    + PartitionOffset((ulong)index, span, (ulong)bucketCount));
                 var end = checked(
                     request.Range.StartInclusive
-                    + PartitionOffset(index + 1UL, span, bucketCount));
+                    + PartitionOffset((ulong)index + 1UL, span, (ulong)bucketCount));
                 buckets.Add(SummarizeBucket(
                     probeId,
                     new LogicalTimeRange(start, end),
-                    transitions));
+                    transitions,
+                    ref transitionIndex,
+                    ref beforeStart,
+                    cancellationToken));
             }
         }
 
@@ -394,54 +413,53 @@ internal sealed class SimulationTraceStore
     private static TraceSummaryBucket SummarizeBucket(
         ProbeId probeId,
         LogicalTimeRange range,
-        IReadOnlyList<TraceTransition> transitions)
+        List<TraceTransition> transitions,
+        ref int transitionIndex,
+        ref TraceTransition? beforeStart,
+        CancellationToken cancellationToken)
     {
-        TraceTransition? beforeStart = null;
-        TraceTransition? atStart = null;
-        foreach (var transition in transitions)
+        while (transitionIndex < transitions.Count
+            && transitions[transitionIndex].LogicalTime < range.StartInclusive)
         {
-            if (transition.LogicalTime < range.StartInclusive)
-            {
-                beforeStart = transition;
-                continue;
-            }
-
-            if (transition.LogicalTime == range.StartInclusive)
-            {
-                atStart = transition;
-                continue;
-            }
-
-            break;
+            cancellationToken.ThrowIfCancellationRequested();
+            beforeStart = transitions[transitionIndex++];
         }
 
-        var firstTransition = atStart ?? beforeStart
-            ?? throw new InvalidOperationException(
+        var firstTransition = beforeStart;
+        var hadTransition = false;
+        while (transitionIndex < transitions.Count
+            && transitions[transitionIndex].LogicalTime == range.StartInclusive)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var transition = transitions[transitionIndex++];
+            hadTransition |= firstTransition is not null
+                && !ValuesEqual(firstTransition.Value, transition.Value);
+            firstTransition = transition;
+        }
+
+        if (firstTransition is null)
+        {
+            throw new InvalidOperationException(
                 "An available Trace summary requires a Probe baseline.");
+        }
+
         var firstValue = firstTransition.Value;
         var lastValue = firstValue;
-        var hadTransition = atStart is not null
-            && beforeStart is not null
-            && !ValuesEqual(beforeStart.Value, atStart.Value);
         var hadMixedValues = false;
-        foreach (var transition in transitions)
+        beforeStart = firstTransition;
+        while (transitionIndex < transitions.Count
+            && transitions[transitionIndex].LogicalTime < range.EndExclusive)
         {
-            if (transition.LogicalTime <= range.StartInclusive)
-            {
-                continue;
-            }
-
-            if (transition.LogicalTime >= range.EndExclusive)
-            {
-                break;
-            }
-
+            cancellationToken.ThrowIfCancellationRequested();
+            var transition = transitions[transitionIndex++];
             if (!ValuesEqual(lastValue, transition.Value))
             {
                 hadTransition = true;
                 lastValue = transition.Value;
                 hadMixedValues |= !ValuesEqual(firstValue, lastValue);
             }
+
+            beforeStart = transition;
         }
 
         return new TraceSummaryBucket(
@@ -450,8 +468,7 @@ internal sealed class SimulationTraceStore
             firstValue,
             lastValue,
             hadTransition,
-            hadMixedValues,
-            HadUnavailableValues: false);
+            hadMixedValues);
     }
 
     private static ulong PartitionOffset(ulong index, ulong span, ulong bucketCount)
@@ -494,29 +511,9 @@ internal sealed class SimulationTraceStore
                 || transition.Sequence > request.AfterSequence.Value);
     }
 
-    private bool HasBaselineAtOrBefore(
-        HashSet<ProbeId> requestedIds,
-        ulong logicalTime)
-    {
-        var probesWithoutBaseline = new HashSet<ProbeId>(requestedIds);
-        for (var chunkOffset = 0; chunkOffset < chunkCount; chunkOffset++)
-        {
-            foreach (var transition in ChunkAt(chunkOffset).Transitions)
-            {
-                if (transition.LogicalTime <= logicalTime)
-                {
-                    _ = probesWithoutBaseline.Remove(transition.ProbeId);
-                }
-            }
-
-            if (probesWithoutBaseline.Count == 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    private TraceRangeUnavailable Unavailable(ulong earliest) => new(
+        earliest,
+        LatestSequence);
 
     private static ulong TransitionBytes(LogicVector value)
     {
@@ -535,7 +532,6 @@ internal sealed class SimulationTraceStore
                 || retainedBytes > policy.Maximum(TraceDimension.RetainedBytes)))
         {
             var removed = Dequeue();
-            hasEvicted = true;
             retainedTransitionCount -= (ulong)removed.Transitions.Length;
             retainedBytes -= removed.Bytes;
         }

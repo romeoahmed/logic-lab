@@ -65,15 +65,7 @@ internal sealed partial class EditorWorkspace
                 new TraceWindowRead(ProjectSummary(summary)),
             TraceRangeUnavailable unavailable => new TraceWindowRead(
                 new TraceWindowUnavailable(
-                    unavailable.Reason switch
-                    {
-                        TraceRangeUnavailableReason.Evicted =>
-                            TraceWindowUnavailableReason.Evicted,
-                        TraceRangeUnavailableReason.ArtifactChanged =>
-                            TraceWindowUnavailableReason.ArtifactChanged,
-                        _ => throw new InvalidOperationException(
-                            "The Runtime Trace unavailable reason is undefined."),
-                    },
+                    TraceWindowUnavailableReason.Evicted,
                     unavailable.EarliestAvailable,
                     unavailable.LatestSequence)),
             SimulationReadFailed failed => RejectRead(
@@ -108,8 +100,7 @@ internal sealed partial class EditorWorkspace
                 LogicVectorTransferV1.From(bucket.FirstValue),
                 LogicVectorTransferV1.From(bucket.LastValue),
                 bucket.HadTransition,
-                bucket.HadMixedValues,
-                bucket.HadUnavailableValues))],
+                bucket.HadMixedValues))],
             summary.Aggregation,
             ProjectRange(summary.CoveredRange),
             summary.EarliestAvailable,

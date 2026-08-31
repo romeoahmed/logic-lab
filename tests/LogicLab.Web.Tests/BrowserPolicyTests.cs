@@ -82,4 +82,38 @@ internal sealed class BrowserPolicyTests
 
         await Assert.That(exception.ParamName).IsEqualTo("limits");
     }
+
+    [Test]
+    public async Task Create_InteropBatchBelowTransferMinimum_RejectsPolicy()
+    {
+        var limits = BrowserPolicy.Default.Limits
+            .Select(limit => limit.Dimension == BrowserLimitDimension.InteropBatchBytes
+                ? limit with { Value = BrowserPolicy.MinimumInteropBatchBytes - 1 }
+                : limit)
+            .ToArray();
+
+        var exception = Assert.Throws<ArgumentException>(() => _ = new BrowserPolicy(
+            "logiclab-browser",
+            "test-1",
+            limits));
+
+        await Assert.That(exception.ParamName).IsEqualTo("limits");
+    }
+
+    [Test]
+    public async Task Create_LimitAboveJavaScriptSafeInteger_RejectsPolicy()
+    {
+        var limits = BrowserPolicy.Default.Limits
+            .Select(limit => limit.Dimension == BrowserLimitDimension.CandidateTransferBytes
+                ? limit with { Value = BrowserPolicy.JavaScriptMaximumSafeInteger + 1 }
+                : limit)
+            .ToArray();
+
+        var exception = Assert.Throws<ArgumentException>(() => _ = new BrowserPolicy(
+            "logiclab-browser",
+            "test-1",
+            limits));
+
+        await Assert.That(exception.ParamName).IsEqualTo("limits");
+    }
 }

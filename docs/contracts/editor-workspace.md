@@ -423,7 +423,7 @@ TraceWindowRequest
   SessionId, CompilationArtifactKey, nonempty unique ordered ProbeIds[]
   half-open logical-time range [start, end), with start < end
   representation: Transitions | VisualSummary(maxPoints, "logic-envelope-v1")
-  afterSequence?
+  afterSequence? for Transitions only
 
 TraceWindowOutcome
   TransitionsAvailable { transitions[], coveredRange, earliestAvailable, latestSequence }
@@ -431,7 +431,7 @@ TraceWindowOutcome
   RangeUnavailable { Evicted | ArtifactChanged, earliestAvailable, latestSequence }
 ```
 
-Each transition carries Probe identity, unsigned-decimal-string Logical Time and sequence, and `LogicVectorTransferV1`:
+Transitions are in ascending sequence order. Summary buckets follow requested Probe order and then ascending range order. Each transition carries Probe identity, unsigned-decimal-string Logical Time and sequence, and `LogicVectorTransferV1`:
 
 ```text
 width: positive u32
@@ -439,9 +439,9 @@ encoding: "logic4-2bit-v1"
 data: bytes where each two-bit field is 00=0, 01=1, 10=X, 11=Z
 ```
 
-`maxPoints` is a positive u32. For requested span `L = end - start`, `n = min(maxPoints, L)`, and bucket `i` covers `[start + floor(iL/n), start + floor((i+1)L/n))`; implementations use checked quotient/remainder arithmetic rather than overflowing multiplication. Fields are packed least-significant bit index first, data length is exactly `ceil(width * 2 / 8)`, and unused final fields are zero. The Workspace returns exactly the requested representation or a structured inability reason; it never silently downsamples transitions.
+`maxPoints` is a positive int32, and `ProbeIds.Count * maxPoints` must fit int32 collection capacity. For requested span `L = end - start`, `n = min(maxPoints, L)`, and bucket `i` covers `[start + floor(iL/n), start + floor((i+1)L/n))`; implementations use checked quotient/remainder arithmetic rather than overflowing multiplication. Fields are packed least-significant bit index first, data length is exactly `ceil(width * 2 / 8)`, and unused final fields are zero. The Workspace returns exactly the requested representation or a structured inability reason; it never silently downsamples transitions.
 
-A visual-summary bucket declares first/last value, whether any transition occurred, and whether values were mixed or unavailable. It cannot invent a flat waveform through a Trace Gap.
+A visual-summary bucket declares its first and last value, whether any transition occurred, and whether it contained mixed values. `hadMixedValues` implies `hadTransition`, and unequal endpoint values require both flags. Unavailable history is represented only by `TraceWindowUnavailable`; a summary cannot invent a flat waveform through a Trace Gap.
 
 ## 8. Security and evolution
 

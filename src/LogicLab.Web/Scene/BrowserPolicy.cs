@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 namespace LogicLab.Web.Scene;
 
@@ -36,6 +38,50 @@ internal sealed record BrowserPolicyEvidenceV1(
     ulong Observed)
 {
     public string DimensionToken => BrowserPolicyDimensionTokens.Token(Dimension);
+
+    public static BrowserPolicyEvidenceV1 From(BrowserPolicyException exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        return new BrowserPolicyEvidenceV1(
+            exception.PolicyId,
+            exception.PolicyRevision,
+            exception.Dimension,
+            exception.Observed);
+    }
+
+    public static bool TryCreate(
+        BrowserPolicy policy,
+        string policyId,
+        string policyRevision,
+        string dimensionToken,
+        string observedText,
+        [NotNullWhen(true)] out BrowserPolicyEvidenceV1? evidence)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        evidence = null;
+        if (!string.Equals(policyId, policy.PolicyId, StringComparison.Ordinal)
+            || !string.Equals(
+                policyRevision,
+                policy.PolicyRevision,
+                StringComparison.Ordinal)
+            || !BrowserPolicyDimensionTokens.TryParse(dimensionToken, out var dimension)
+            || !ulong.TryParse(
+                observedText,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var observed)
+            || !policy.Rejects(dimension, observed))
+        {
+            return false;
+        }
+
+        evidence = new BrowserPolicyEvidenceV1(
+            policyId,
+            policyRevision,
+            dimension,
+            observed);
+        return true;
+    }
 }
 
 internal static class BrowserPolicyDimensionTokens
@@ -71,6 +117,10 @@ internal static class BrowserPolicyDimensionTokens
 
 internal sealed class BrowserPolicy
 {
+    internal const ulong InteropEnvelopeBytes = 512;
+    internal const ulong MinimumInteropBatchBytes = InteropEnvelopeBytes + 4;
+    internal const ulong JavaScriptMaximumSafeInteger = 9_007_199_254_740_991;
+
     // Interactive Server defaults to a 32-KB incoming SignalR message, including the
     // JS interop envelope. Use half that limit as the adapter's conservative direct-
     // interop payload budget in either direction.
@@ -109,12 +159,12 @@ internal sealed class BrowserPolicy
             || ownedLimits.Where((limit, index) =>
                     limit.Dimension != RequiredLimits[index].Dimension
                     || limit.Comparison != RequiredLimits[index].Comparison
-                    || limit.Value == 0)
+                    || limit.Value is 0 or > JavaScriptMaximumSafeInteger)
                 .Any())
         {
             throw new ArgumentException(
                 "Every Browser Policy limit must appear exactly once in the required order "
-                + "with its required comparison and a positive value.",
+                + "with its required comparison and a positive JavaScript-safe value.",
                 nameof(limits));
         }
 
@@ -135,6 +185,14 @@ internal sealed class BrowserPolicy
             throw new ArgumentException(
                 "The direct JS interop payload limits must fit the Interactive Server "
                 + "transport budget.",
+                nameof(limits));
+        }
+
+        if (ownedLimits[(int)BrowserLimitDimension.InteropBatchBytes].Value
+            < MinimumInteropBatchBytes)
+        {
+            throw new ArgumentException(
+                "The interop batch budget must carry an envelope and one Base64 quantum.",
                 nameof(limits));
         }
 
@@ -200,4 +258,28 @@ internal sealed class BrowserPolicy
             throw new ArgumentException("A policy identity must be a stable token.", parameterName);
         }
     }
+}
+
+internal sealed class BrowserPolicyException : InvalidOperationException
+{
+    internal BrowserPolicyException(
+        BrowserPolicy policy,
+        BrowserLimitDimension dimension,
+        ulong observed)
+        : base($"Browser Policy '{policy.PolicyId}/{policy.PolicyRevision}' rejected "
+            + $"'{dimension}' at observed value '{observed}'.")
+    {
+        PolicyId = policy.PolicyId;
+        PolicyRevision = policy.PolicyRevision;
+        Dimension = dimension;
+        Observed = observed;
+    }
+
+    public string PolicyId { get; }
+
+    public string PolicyRevision { get; }
+
+    public BrowserLimitDimension Dimension { get; }
+
+    public ulong Observed { get; }
 }

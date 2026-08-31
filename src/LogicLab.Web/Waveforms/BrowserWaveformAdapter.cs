@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 using LogicLab.Web.Scene;
 using Microsoft.AspNetCore.Components;
@@ -15,7 +14,6 @@ internal enum WaveformInteractionMode
 internal sealed class BrowserWaveformAdapter : IAsyncDisposable
 {
     internal const string ModulePath = "./Components/Editor/LogicAnalyzer.razor.js";
-    private const ulong InteropEnvelopeBytes = 512;
     private readonly IJSObjectReference module;
     private readonly IJSObjectReference handle;
     private readonly BrowserPolicy policy;
@@ -79,17 +77,6 @@ internal sealed class BrowserWaveformAdapter : IAsyncDisposable
             cancellationToken);
     }
 
-    public Task ApplyAsync(WaveformPatchV1 patch, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(patch);
-        return TransferAsync(
-            "patch",
-            JsonSerializer.SerializeToUtf8Bytes(
-                patch,
-                WaveformJsonSerializerContext.Strict.WaveformPatchV1),
-            cancellationToken);
-    }
-
     public ValueTask SetInteractionModeAsync(
         WaveformInteractionMode mode,
         CancellationToken cancellationToken)
@@ -144,79 +131,23 @@ internal sealed class BrowserWaveformAdapter : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
-        var maximumCandidate = policy.Limit(BrowserLimitDimension.CandidateTransferBytes);
-        if ((ulong)candidate.Length > maximumCandidate)
-        {
-            throw new BrowserPolicyException(
-                policy,
-                BrowserLimitDimension.CandidateTransferBytes,
-                (ulong)candidate.Length);
-        }
-
-        var transferId = Guid.CreateVersion7().ToString("N");
-        var digest = Convert.ToHexStringLower(SHA256.HashData(candidate));
-        await handle.InvokeVoidAsync(
-            "beginTransfer",
-            cancellationToken,
-            transferId,
+        await BrowserCandidateTransfer.SendAsync(
+            handle,
+            policy,
             kind,
-            candidate.Length,
-            digest);
-        try
-        {
-            var maximumBatch = checked((int)Math.Min(
-                policy.Limit(BrowserLimitDimension.InteropBatchBytes),
-                int.MaxValue));
-            var rawChunkSize = Math.Max(
-                1,
-                ((maximumBatch - checked((int)InteropEnvelopeBytes)) / 4) * 3);
-            var ordinal = 0;
-            for (var offset = 0; offset < candidate.Length; offset += rawChunkSize)
-            {
-                var length = Math.Min(rawChunkSize, candidate.Length - offset);
-                await handle.InvokeVoidAsync(
-                    "appendTransfer",
-                    cancellationToken,
-                    transferId,
-                    ordinal,
-                    Convert.ToBase64String(candidate, offset, length));
-                ordinal++;
-            }
-
-            var accepted = await handle.InvokeAsync<bool>(
-                "commitTransfer",
-                cancellationToken,
-                transferId);
-            if (!accepted)
-            {
-                throw new BrowserWaveformContractException(kind);
-            }
-        }
-        catch
-        {
-            try
-            {
-                await handle.InvokeVoidAsync("abortTransfer", transferId);
-            }
-            catch (Exception exception) when (exception is JSException
-                or JSDisconnectedException
-                or ObjectDisposedException)
-            {
-            }
-
-            throw;
-        }
+            candidate,
+            static transferKind => new BrowserWaveformContractException(transferKind),
+            cancellationToken);
     }
 
     private static BrowserPolicyTransferV1 PolicyTransfer(BrowserPolicy policy) => new(
         policy.PolicyId,
         policy.PolicyRevision,
+        policy.Limit(BrowserLimitDimension.SemanticIntentBytes),
         policy.Limit(BrowserLimitDimension.InteropBatchBytes),
         policy.Limit(BrowserLimitDimension.CandidateTransferBytes),
         policy.Limit(BrowserLimitDimension.CanvasBitmapPixels),
-        policy.Limit(BrowserLimitDimension.EffectiveDensityMillionths),
-        policy.Limit(BrowserLimitDimension.ZoomMillionthsMinimum),
-        policy.Limit(BrowserLimitDimension.ZoomMillionthsMaximum));
+        policy.Limit(BrowserLimitDimension.EffectiveDensityMillionths));
 
     private void ThrowIfDisposed()
     {
@@ -226,12 +157,11 @@ internal sealed class BrowserWaveformAdapter : IAsyncDisposable
     private sealed record BrowserPolicyTransferV1(
         string PolicyId,
         string PolicyRevision,
+        ulong SemanticIntentBytes,
         ulong InteropBatchBytes,
         ulong CandidateTransferBytes,
         ulong CanvasBitmapPixels,
-        ulong EffectiveDensityMillionths,
-        ulong ZoomMillionthsMinimum,
-        ulong ZoomMillionthsMaximum);
+        ulong EffectiveDensityMillionths);
 }
 
 internal sealed class BrowserWaveformContractException : InvalidOperationException

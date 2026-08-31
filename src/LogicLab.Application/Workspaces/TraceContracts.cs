@@ -45,9 +45,9 @@ public sealed record TraceVisualSummaryRequest : TraceRepresentationRequest
 {
     public const string LogicEnvelopeV1 = "logic-envelope-v1";
 
-    public TraceVisualSummaryRequest(uint maxPoints, string aggregation)
+    public TraceVisualSummaryRequest(int maxPoints, string aggregation)
     {
-        ArgumentOutOfRangeException.ThrowIfZero(maxPoints);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPoints);
         if (!string.Equals(aggregation, LogicEnvelopeV1, StringComparison.Ordinal))
         {
             throw new ArgumentException(
@@ -59,7 +59,7 @@ public sealed record TraceVisualSummaryRequest : TraceRepresentationRequest
         Aggregation = aggregation;
     }
 
-    public uint MaxPoints { get; }
+    public int MaxPoints { get; }
 
     public string Aggregation { get; }
 }
@@ -78,6 +78,13 @@ public sealed record TraceWindowRequest
         ArgumentNullException.ThrowIfNull(compilationArtifactKey);
         ArgumentNullException.ThrowIfNull(probeIds);
         ArgumentNullException.ThrowIfNull(representation);
+        if (representation is TraceVisualSummaryRequest && afterSequence is not null)
+        {
+            throw new ArgumentException(
+                "A visual Trace summary does not accept a continuation sequence.",
+                nameof(afterSequence));
+        }
+
         var ownedProbeIds = probeIds.ToArray();
         if (ownedProbeIds.Length == 0
             || ownedProbeIds.Any(static probeId => probeId is null)
@@ -85,6 +92,14 @@ public sealed record TraceWindowRequest
         {
             throw new ArgumentException(
                 "A Trace window requires nonempty unique ordered Probe IDs.",
+                nameof(probeIds));
+        }
+
+        if (representation is TraceVisualSummaryRequest summary
+            && (long)ownedProbeIds.Length * summary.MaxPoints > int.MaxValue)
+        {
+            throw new ArgumentException(
+                "A Trace summary must fit a .NET collection.",
                 nameof(probeIds));
         }
 
@@ -249,8 +264,7 @@ public sealed record TraceSummaryBucketTransfer
         LogicVectorTransferV1 firstValue,
         LogicVectorTransferV1 lastValue,
         bool hadTransition,
-        bool hadMixedValues,
-        bool hadUnavailableValues)
+        bool hadMixedValues)
     {
         ArgumentNullException.ThrowIfNull(probeId);
         ArgumentNullException.ThrowIfNull(firstValue);
@@ -262,13 +276,20 @@ public sealed record TraceSummaryBucketTransfer
                 nameof(lastValue));
         }
 
+        if ((hadMixedValues && !hadTransition)
+            || (!firstValue.Data.SequenceEqual(lastValue.Data) && !hadMixedValues))
+        {
+            throw new ArgumentException(
+                "The Trace summary flags do not describe its endpoint values.",
+                nameof(hadMixedValues));
+        }
+
         ProbeId = probeId;
         Range = range;
         FirstValue = firstValue;
         LastValue = lastValue;
         HadTransition = hadTransition;
         HadMixedValues = hadMixedValues;
-        HadUnavailableValues = hadUnavailableValues;
     }
 
     public ProbeId ProbeId { get; }
@@ -282,8 +303,6 @@ public sealed record TraceSummaryBucketTransfer
     public bool HadTransition { get; }
 
     public bool HadMixedValues { get; }
-
-    public bool HadUnavailableValues { get; }
 }
 
 public abstract record TraceWindowOutcome
