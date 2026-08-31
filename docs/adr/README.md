@@ -15,11 +15,14 @@ ADRs record hard-to-reverse, non-obvious trade-offs. Specifications define curre
 - [0004 — Host Application-owned Workspaces on Interactive Server](./0004-host-application-owned-workspaces-on-interactive-server.md)
 - [0005 — Use one strict `.logiclab` carrier](./0005-use-one-strict-logiclab-carrier.md)
 
-### Analysis and presentation
+### Presentation
 
-- [0006 — Keep simplification managed and proof-gated](./0006-keep-simplification-managed-and-proof-gated.md)
 - [0007 — Generate TeachingMixed symbols declaratively](./0007-generate-teachingmixed-symbols-declaratively.md) — amended by 0008
 - [0008 — Use one Canvas editor surface](./0008-use-one-canvas-editor-surface.md)
+
+## Deferred
+
+- [0006 — Keep simplification managed and proof-gated](./0006-keep-simplification-managed-and-proof-gated.md) — retained for the future Boolean Analysis plan; not V1 architecture
 
 ## Rule for new records
 

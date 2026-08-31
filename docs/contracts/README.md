@@ -9,4 +9,6 @@ Each contract owns one real seam. Shared diagnostic codes and outcome reasons re
 | Web ↔ browser       | [Browser Adapters](./browser-adapters.md)               | Scene and Waveform snapshots, patches, intents, cursors, validation                      |
 | browser ↔ HTTP host | [HTTP Boundary](./http-boundary.md)                     | form ingress, import/export transport, download authorization, RFC 9457 mapping          |
 
-Compiler, Simulation Runtime, Boolean Analysis, Project Format, and Diagram Presentation are direct in-process Module calls. Their interfaces belong to their specifications, not this directory.
+Compiler, Simulation Runtime, Project Format, and Diagram Presentation are direct
+in-process Module calls. Their interfaces belong to their specifications, not this
+directory.

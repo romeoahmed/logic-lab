@@ -28,7 +28,7 @@ analogous implementation, and the directly governing interface or rule.
 | observable domain, compiler, runtime, format, presentation, host, and browser behavior | [Specifications](./specs/)                                                   |
 | values exchanged across Application, browser, and HTTP seams                           | [Contracts](./contracts/README.md)                                           |
 | limits and their semantic/format/provisional/measured classification                   | [Policy Catalog](./policies/catalog.md)                                      |
-| completion and dependency frontier                                                     | [Implementation Plan](./implementation-plan.md)                              |
+| completion, dependency frontier, and deferred capability order                         | [Implementation Plan](./implementation-plan.md)                              |
 | hard-to-reverse decision rationale                                                     | [ADRs](./adr/README.md)                                                      |
 | derivations, external sources, and dated measurements                                  | [Research](./research/README.md)                                             |
 | license grant and redistribution terms                                                 | [LICENSE](../LICENSE) and [third-party notices](../THIRD-PARTY-NOTICES.md)   |
@@ -42,7 +42,6 @@ documentation defect; fix the fact where it belongs and replace copies with link
 - [Component Contract Catalog V1](./specs/component-contract-catalog-v1.md)
 - [Compiler](./specs/compiler.md)
 - [Simulation Runtime](./specs/simulation-runtime.md)
-- [Boolean Analysis](./specs/boolean-analysis.md)
 - [`.logiclab` Project Package V1](./specs/project-package-v1.md)
 - [Project Document JSON V1](./specs/project-document-json-v1.md)
 - [Diagnostics V1](./specs/diagnostics-v1.md)
@@ -50,6 +49,11 @@ documentation defect; fix the fact where it belongs and replace copies with link
 - [Web Host](./specs/web-host.md)
 - [Browser Runtime](./specs/browser-runtime.md)
 - [.NET Engineering](./specs/dotnet-engineering.md)
+
+## Future capability drafts
+
+- [Boolean Analysis](./specs/boolean-analysis.md) is non-normative for V1 and is
+  ordered only by the [future capability plan](./implementation-plan.md#future-capability-plan).
 
 ## Executable facts
 

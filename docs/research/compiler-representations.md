@@ -7,8 +7,8 @@ This note marks external or repository observations as **Source fact** and proje
 
 ## 1. Findings
 
-- **Logic Lab inference:** ADR 0002 is the right architecture. An authored Project Revision, an Elaborated Graph, Simulation IR, Boolean Region, and Source Map have different invariants and consumers; merging them would enlarge the Compiler interface and leak runtime ordinals into authored identity.
-- **Logic Lab inference:** Compiler should remain one deep Module. Callers request Compilation or Boolean Region extraction; pass order, mutable builders, validators, canonicalization, dense numbering, and layout remain implementation.
+- **Logic Lab inference:** ADR 0002 is the right V1 architecture. An authored Project Revision, an Elaborated Graph, Simulation IR, and Source Map have different invariants and consumers; merging them would enlarge the Compiler interface and leak runtime ordinals into authored identity. A future Boolean Region would be another purpose-specific representation, not current V1 output.
+- **Logic Lab inference:** Compiler should remain one deep Module. V1 callers request Compilation; a future Boolean Analysis activation may add Boolean Region extraction. Pass order, mutable builders, validators, canonicalization, dense numbering, and layout remain implementation.
 - **Logic Lab inference:** S-expressions are useful as a readable notation and debugging projection, not as Logic Lab's authoritative Project Format or in-memory IR. No S-expression product format or evaluator is justified for V1.
 - **Logic Lab inference:** Build each artifact with private mutable state, validate it, then publish one owned immutable result. Purpose-specific IR should be strongly typed; textual dumps, if later needed for tests, are derived and non-durable.
 

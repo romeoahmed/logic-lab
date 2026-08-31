@@ -104,7 +104,9 @@ Parameter bindings follow the exact [Component Contract Catalog V1](./component-
 | `MoveAnnotations`    | nonempty Annotation IDs and final positions                                                          | changes authored presentation only                         |
 | `RemoveAnnotation`   | annotation ID                                                                                        | removes authored presentation only                         |
 
-Memory writes during Simulation are never authoring intents. A Simplification Proposal uses the dedicated `ApplyVerifiedReplacement` intent containing source Project Revision, region digest, replacement graph, and source-identity mapping; Project Editor rechecks local invariants but does not reproduce proof or freshness checks owned by Workspace.
+Memory writes during Simulation are never authoring intents. Automated verified
+replacement is outside the V1 Edit Intent catalog; the deferred Boolean Analysis
+draft reserves no inactive authoring variant.
 
 `PlaceComponentWithNewMemoryImage` is the one authoring convenience for a new explicit image. Its binding names the target memory-image parameter and carries the complete display name, width, depth, and words; Project Editor allocates both persistent IDs and rejects the whole intent if either the image or component binding is invalid. It is not a nested `CreateMemoryImage` plus `PlaceComponentInstance` sequence.
 

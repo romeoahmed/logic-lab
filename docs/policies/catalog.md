@@ -1,6 +1,9 @@
 # Policy Catalog
 
-The catalog owns policy identity, classification, and calibration rules across Project Format, Compiler, Simulation Runtime, Boolean Analysis, Application, and Web. Policies protect a shared deployment without redefining circuit semantics; concrete values require a representative corpus and measurement method.
+The catalog owns policy identity, classification, and calibration rules across
+Project Format, Compiler, Simulation Runtime, Application, and Web. Policies protect
+a shared deployment without redefining circuit semantics; concrete values require a
+representative corpus and measurement method.
 
 ## Classification
 
@@ -21,8 +24,7 @@ Do not copy a provisional value into an ADR, Project Document, or public compati
 | Project Scale Policy | Compiler           | `definition_count`, `entity_count`, `hierarchy_depth`, `elaborated_slot_count`, `memory_cell_count`                                                                               |
 | Simulation Policy    | Simulation Runtime | event work, frontier work, working-layer size, zero-time state evidence                                                                                                           |
 | Trace Policy         | Simulation Runtime | probes, retained transitions, sealed chunks, bytes, debug capture                                                                                                                 |
-| Analysis Policy      | Boolean Analysis   | rows, cubes, primes, chart edges, Petrick terms, AIG/cut/mapping work, BDD work                                                                                                   |
-| Scheduling Policy    | Application        | admission rate, per-identity fairness, queue capacity, worker concurrency, result retention                                                                                       |
+| Scheduling Policy    | Application        | admission rate, per-identity fairness, queue capacity, worker concurrency                                                                                                         |
 | Workspace Policy     | Application        | Workspace and authoring admission, history retention, detached recovery, hot-swap peak, sandbox lifetime, Durable Display Name scalar/UTF-8 bytes, catalog page size/cursor bytes |
 | Browser Policy       | Web                | Scene-intent bytes, snapshot/patch records, candidate-transfer bytes, bitmap pixels, effective density, zoom, and the implemented Scene caches                                    |
 
@@ -118,27 +120,12 @@ delta_debug_record_count
 
 `probe_count` bounds Session admission and replacement. The storage dimensions control retention and eviction and never roll back a successful Logical-time Advance. `retained_bytes` counts owned Trace payload and index storage by the Runtime's declared accounting method; it is not a CLR heap measurement. Delta-debug capture is zero when that explicit mode is absent and is never required to reconstruct committed semantics.
 
-### Analysis Policy
+### Future Analysis Policy
 
-`AnalysisPolicy` dimensions are:
-
-```text
-truth_table_row_count
-qmc_cube_count
-prime_implicant_count
-prime_chart_edge_count
-petrick_term_count
-aig_node_count
-cut_count
-mapping_candidate_count
-bdd_node_count
-bdd_cache_entry_count
-verification_assignment_count
-analysis_work_item_count
-analysis_depth
-```
-
-These dimensions bound all V1 explanation, exact-cover, graph, mapping, and proof paths without exposing an algorithm control to callers. `analysis_depth` is the maximum explicit or prevalidated logical depth and never licenses recursion over untrusted depth. Exhaustion returns Inconclusive and no best-so-far replacement.
+Boolean Analysis has no active V1 policy shape or default. Candidate dimensions in
+the deferred [Boolean Analysis draft](../specs/boolean-analysis.md) are design notes,
+not fields to calibrate during items `34`–`43`. Reactivation must add a consuming
+behavior and measured policy contract together.
 
 ### Scheduling Policy
 
@@ -151,17 +138,17 @@ admission_partition_count
 admission_window_milliseconds
 compilation_queue_items
 session_queue_items
-analysis_queue_items
-analysis_queue_items_per_subject
 compilation_worker_count
 session_worker_count
-analysis_worker_count
-analysis_result_retention_seconds
 ```
 
 The global, per-subject, and partition admission capacities share one fixed window: they bound aggregate attempts, per-subject fairness, and retained caller state respectively. Exhausting any capacity rejects before queue admission; expired partitions are reclaimed with bounded amortized work instead of a full identity scan. Full queues reject rather than drop.
 
-Compilation is newest-wins per Workspace. Session work is FIFO and single-consumer per Session. Analysis is FIFO within one subject and round-robin across nonempty subjects. An active Run retains one admitted Session item across repeated Advances; Pause takes effect at an atomic boundary without consuming another queue item. Worker counts bound executing calls, not hidden ThreadPool threads. Admission and retention use monotonic `TimeProvider` timestamps, and retention never extends authorization.
+Compilation is newest-wins per Workspace. Session work is FIFO and single-consumer
+per Session. An active Run retains one admitted Session item across repeated Advances;
+Pause takes effect at an atomic boundary without consuming another queue item. Worker
+counts bound executing calls, not hidden ThreadPool threads. Admission uses monotonic
+`TimeProvider` timestamps.
 
 ### Workspace Policy
 

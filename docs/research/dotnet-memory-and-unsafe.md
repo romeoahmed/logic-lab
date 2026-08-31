@@ -49,7 +49,13 @@ Logic Lab should consume every `stackalloc` as `Span<T>` or `ReadOnlySpan<T>`, n
 
 `fixed` keeps a managed referent at one address only for the statement and the pointer may not escape that scope. It supports arrays, strings, spans, and types exposing `GetPinnableReference` ([`fixed`](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/fixed)). `Memory<T>.Pin` instead returns a `MemoryHandle`; the GC may not move the storage until that handle is disposed ([`Memory<T>.Pin`](https://learn.microsoft.com/en-us/dotnet/api/system.memory-1.pin?view=net-10.0)). A pinned `GCHandle` must be explicitly freed or it leaks the handle and keeps the object pinned ([`GCHandle`](https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.gchandle?view=net-10.0)).
 
-Logic Lab requires none of these in V1: managed Engine, Boolean Analysis, Project Format, and Web code do not call native simulation or solver libraries. A future native interop ADR must keep synchronous pointers inside `fixed`, keep async `MemoryHandle`/`GCHandle` ownership until the native completion callback, free on every synchronous and asynchronous failure path, and expose a safe managed interface. `Unsafe.AsPointer` is not a substitute for pinning; the GC does not track the resulting pointer ([unsafe guidance §§1–2](https://learn.microsoft.com/en-us/dotnet/standard/unsafe-code/best-practices#1-untracked-managed-pointers-unsafeaspointer-and-friends)).
+Logic Lab requires none of these in V1: managed Engine, Project Format, and Web
+code do not call native simulation or solver libraries. A future native interop ADR
+must keep synchronous pointers inside `fixed`, keep async `MemoryHandle`/`GCHandle`
+ownership until the native completion callback, free on every synchronous and
+asynchronous failure path, and expose a safe managed interface. `Unsafe.AsPointer`
+is not a substitute for pinning; the GC does not track the resulting pointer
+([unsafe guidance §§1–2](https://learn.microsoft.com/en-us/dotnet/standard/unsafe-code/best-practices#1-untracked-managed-pointers-unsafeaspointer-and-friends)).
 
 ## 6. Unsafe and binary-memory hazards
 

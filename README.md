@@ -1,7 +1,7 @@
 # Logic Lab
 
 Logic Lab is a teaching-oriented digital-logic workbench for building, simulating,
-observing, and simplifying gate-level circuits. It uses deterministic four-state
+and observing gate-level circuits. It uses deterministic four-state
 `0/1/X/Z` semantics and a server-first Blazor Web App on .NET 10.
 
 ## Quick start
