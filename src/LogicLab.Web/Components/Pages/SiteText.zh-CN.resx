@@ -53,10 +53,10 @@
   <data name="HelpExamplesTitle" xml:space="preserve"><value>先从小电路开始，再逐步展开结构。</value></data>
   <data name="HelpInverterTitle" xml:space="preserve"><value>反相器入门</value></data>
   <data name="HelpInverterDescription" xml:space="preserve"><value>建议从这里开始：一条清晰的信号路径即可完整体验编译与步进。</value></data>
-  <data name="HelpInteractiveExamplesTitle" xml:space="preserve"><value>交互式示例</value></data>
-  <data name="HelpInteractiveExamplesDescription" xml:space="preserve"><value>二选一复用器和三位加法器都已完成连线，可直接编译。修改输入即可观察各个输出的变化。</value></data>
-  <data name="HelpHierarchyTitle" xml:space="preserve"><value>可复用反相器</value></data>
-  <data name="HelpHierarchyDescription" xml:space="preserve"><value>掌握基础后，用它了解主电路如何复用子电路。</value></data>
+  <data name="HelpCombinationalExamplesTitle" xml:space="preserve"><value>组合逻辑结构</value></data>
+  <data name="HelpCombinationalExamplesDescription" xml:space="preserve"><value>二选一复用器保持精简；四位超前进位加法器则展开生成项、传播项与并行进位项。</value></data>
+  <data name="HelpBitSerialTitle" xml:space="preserve"><value>位串行加法</value></data>
+  <data name="HelpBitSerialDescription" xml:space="preserve"><value>在多个时钟沿复用同一个全加器，并由操作数、结果与进位寄存器保存状态。</value></data>
   <data name="HelpCanvasEyebrow" xml:space="preserve"><value>画布操作</value></data>
   <data name="HelpCanvasTitle" xml:space="preserve"><value>选择、平移和缩放电路图。</value></data>
   <data name="HelpCanvasSelect" xml:space="preserve"><value>选择</value></data>

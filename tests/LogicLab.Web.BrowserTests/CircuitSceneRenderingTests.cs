@@ -47,7 +47,6 @@ internal sealed class CircuitSceneRenderingTests : PageTest
     [Test]
     [Arguments("inverter")]
     [Arguments("steering")]
-    [Arguments("arithmetic")]
     public async Task ProjectedStarter_RoutedWiresConnectPortsAndReachTheCanvasBitmap(
         string starter)
     {
@@ -58,7 +57,6 @@ internal sealed class CircuitSceneRenderingTests : PageTest
         {
             "inverter" => StarterCircuitFixture.CreateInverter(),
             "steering" => StarterCircuitFixture.CreateSteering(),
-            "arithmetic" => StarterCircuitFixture.CreateArithmetic(),
             _ => throw new ArgumentOutOfRangeException(nameof(starter)),
         };
         var definition = revision.Document.EntryCircuitDefinition;

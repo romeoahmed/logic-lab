@@ -10,8 +10,6 @@ internal static class StarterCircuitFixture
 
     public static ProjectRevision CreateSteering() => Create(StarterCircuitCatalog.Steering);
 
-    public static ProjectRevision CreateArithmetic() => Create(StarterCircuitCatalog.Arithmetic);
-
     private static ProjectRevision Create(StarterCircuitRecipe recipe)
     {
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(

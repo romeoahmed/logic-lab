@@ -39,8 +39,8 @@
     [
         new(Example.Inverter, "author", "logic.not", "StarterInverterTitle", "StarterInverterDescription"),
         new(Example.Steering, "author-steering", "logic.mux", "StarterSteeringTitle", "StarterSteeringDescription"),
-        new(Example.Arithmetic, "author-arithmetic", "logic.adder", "StarterArithmeticTitle", "StarterArithmeticDescription"),
-        new(Example.Hierarchy, "author-hierarchy", "circuit.definition", "StarterHierarchyTitle", "StarterHierarchyDescription"),
+        new(Example.CarryLookahead, "author-carry-lookahead", "logic.adder", "StarterCarryLookaheadTitle", "StarterCarryLookaheadDescription"),
+        new(Example.BitSerial, "author-bit-serial", "sequential.shift_register", "StarterBitSerialTitle", "StarterBitSerialDescription"),
     ];
 
     [Parameter]
@@ -56,8 +56,8 @@
     {
         Inverter,
         Steering,
-        Arithmetic,
-        Hierarchy,
+        CarryLookahead,
+        BitSerial,
     }
 
     private sealed record StarterOption(
