@@ -1,12 +1,12 @@
 using System.Globalization;
 using System.Threading.RateLimiting;
 using LogicLab.Application.Workspaces;
+using LogicLab.Infrastructure.Identity;
 using LogicLab.Infrastructure.Persistence;
 using LogicLab.Infrastructure.Transfers;
 using LogicLab.ProjectFormat;
 using LogicLab.Web;
 using LogicLab.Web.Components;
-using LogicLab.Web.Data;
 using LogicLab.Web.Health;
 using LogicLab.Web.Identity;
 using LogicLab.Web.Projects;
@@ -187,7 +187,7 @@ builder.Services.AddOptions<RateLimiterOptions>()
         };
     });
 builder.Services.AddDbContext<ApplicationIdentityDbContext>(options =>
-    options.UseSqlite(connectionString));
+    options.UseNpgsql(connectionString));
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
     {
         options.SignIn.RequireConfirmedAccount = false;
@@ -196,7 +196,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     .AddEntityFrameworkStores<ApplicationIdentityDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
-builder.Services.AddLogicLabSqlitePersistence(
+builder.Services.AddLogicLabPersistence(
     connectionString,
     workspacePolicy.IdempotencyRecordCount);
 builder.Services.AddDataProtection();

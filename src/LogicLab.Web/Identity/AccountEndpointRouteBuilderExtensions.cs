@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using LogicLab.Web.Data;
+using LogicLab.Infrastructure.Identity;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;

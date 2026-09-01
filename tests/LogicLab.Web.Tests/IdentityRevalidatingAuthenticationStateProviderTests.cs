@@ -3,7 +3,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using LogicLab.Application.Workspaces;
-using LogicLab.Web.Data;
+using LogicLab.Infrastructure.Identity;
 using LogicLab.Web.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;

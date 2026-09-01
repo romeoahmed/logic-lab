@@ -2,13 +2,13 @@ using System.Globalization;
 using System.Text;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 
 namespace LogicLab.Infrastructure.Persistence;
 
-internal sealed class SqliteDurableProjectRepository :
+internal sealed class DurableProjectRepository :
     IDurableProjectRepository,
     IDurableProjectCatalogRepository,
     IDurableProjectLoader
@@ -17,19 +17,15 @@ internal sealed class SqliteDurableProjectRepository :
     private const string SaveCommand = "save";
     private const string StoredOutcome = "stored";
     private const string ConflictOutcome = "conflict";
-    private const string ClaimWorkspaceUniqueColumns =
-        "durable_projects.claim_workspace_id";
-    private const string ReceiptUniqueColumns =
-        "durable_command_receipts.workspace_id, "
-        + "durable_command_receipts.attachment_generation, "
-        + "durable_command_receipts.client_intent_id";
-    private const string RevisionUniqueColumns =
-        "project_revisions.durable_project_id, "
-        + "project_revisions.project_revision_id";
+    private const string ClaimWorkspaceConstraint =
+        "ux_durable_projects_claim_workspace_id";
+    private const string ReceiptConstraint =
+        "ux_durable_command_receipts_workspace_generation_intent";
+    private const string RevisionConstraint = "pk_project_revisions";
     private readonly IDbContextFactory<LogicLabDbContext> contextFactory;
     private readonly int receiptRetentionCount;
 
-    public SqliteDurableProjectRepository(
+    public DurableProjectRepository(
         IDbContextFactory<LogicLabDbContext> contextFactory,
         int receiptRetentionCount)
     {
@@ -376,26 +372,28 @@ internal sealed class SqliteDurableProjectRepository :
 
     private static bool IsClaimRace(DbUpdateException exception)
     {
-        return IsUniqueConstraintOn(exception, ClaimWorkspaceUniqueColumns)
-            || IsUniqueConstraintOn(exception, ReceiptUniqueColumns);
+        return IsUniqueConstraintOn(exception, ClaimWorkspaceConstraint)
+            || IsUniqueConstraintOn(exception, ReceiptConstraint);
     }
 
     private static bool IsSaveRace(DbUpdateException exception)
     {
-        return IsUniqueConstraintOn(exception, ReceiptUniqueColumns)
-            || IsUniqueConstraintOn(exception, RevisionUniqueColumns);
+        return IsUniqueConstraintOn(exception, ReceiptConstraint)
+            || IsUniqueConstraintOn(exception, RevisionConstraint);
     }
 
     private static bool IsUniqueConstraintOn(
         DbUpdateException exception,
-        string columns)
+        string constraintName)
     {
-        return exception.InnerException is SqliteException sqlite
-            && sqlite.SqliteExtendedErrorCode is
-                SQLitePCL.raw.SQLITE_CONSTRAINT_PRIMARYKEY
-                or SQLitePCL.raw.SQLITE_CONSTRAINT_UNIQUE
-            && sqlite.Message.Contains(
-                $"UNIQUE constraint failed: {columns}",
+        return exception.InnerException is PostgresException postgres
+            && string.Equals(
+                postgres.SqlState,
+                PostgresErrorCodes.UniqueViolation,
+                StringComparison.Ordinal)
+            && string.Equals(
+                postgres.ConstraintName,
+                constraintName,
                 StringComparison.Ordinal);
     }
 

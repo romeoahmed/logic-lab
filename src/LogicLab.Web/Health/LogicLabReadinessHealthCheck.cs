@@ -1,6 +1,6 @@
 using LogicLab.Application.Workspaces;
+using LogicLab.Infrastructure.Identity;
 using LogicLab.Infrastructure.Persistence;
-using LogicLab.Web.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
