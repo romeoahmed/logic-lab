@@ -65,13 +65,16 @@ var commonTags = union(tags, {
 })
 var acrPullRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
-  '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+  '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+)
 var acrPushRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
-  '8311e382-0749-4cb8-b61a-304f252e45ec')
+  '8311e382-0749-4cb8-b61a-304f252e45ec'
+)
 var blobContributorRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
-  'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+)
 
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2025-05-01' = {
   name: '${baseName}-vnet'
