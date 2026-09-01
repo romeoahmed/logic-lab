@@ -87,7 +87,7 @@ internal static class DatabaseBootstrapper
         CancellationToken cancellationToken)
     {
         const string PrincipalSql =
-            "SELECT * FROM pg_catalog.pgaadauth_list_principals(false) WHERE rolename::text = $1;";
+            "SELECT * FROM pg_catalog.pgaadauth_list_principals(false) WHERE rolname::text = $1;";
         await using (var principalCommand = new NpgsqlCommand(
             PrincipalSql,
             connection))
