@@ -1,5 +1,6 @@
 using Azure.Core;
 using Azure.Identity;
+using LogicLab.DatabaseMigrator;
 using LogicLab.Infrastructure.Identity;
 using LogicLab.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -47,6 +48,22 @@ ConfigureAzurePostgreSqlAuthentication(
         ManagedIdentityId.FromUserAssignedClientId(clientId.ToString())));
 
 await using var dataSource = dataSourceBuilder.Build();
+if (args is ["bootstrap"])
+{
+    await DatabaseBootstrapper.RunAsync(
+        dataSource,
+        DatabaseBootstrapConfiguration.Load(),
+        cancellationSource.Token).ConfigureAwait(false);
+    Console.WriteLine("Database principals and grants are current.");
+    return;
+}
+
+if (args.Length != 0)
+{
+    throw new InvalidOperationException(
+        "The only supported operation argument is bootstrap.");
+}
+
 await using (var identityContext = new ApplicationIdentityDbContext(
     new DbContextOptionsBuilder<ApplicationIdentityDbContext>()
         .UseNpgsql(dataSource)
