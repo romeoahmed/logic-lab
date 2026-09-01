@@ -458,19 +458,13 @@ jobs:
           show_job_logs() {
             local execution_name="$1"
             local query
-            local request
             local logs
             query="ContainerAppConsoleLogs_CL | where TimeGenerated > ago(1h) | where ContainerGroupName_s startswith '$execution_name-' | project TimeGenerated, Log_s | order by TimeGenerated asc | take 300"
-            request="$(jq --compact-output --null-input --arg query "$query" '{query: $query}')"
 
             for _ in 1 2 3; do
-              logs="$(az rest \
-                --method post \
-                --url "https://api.loganalytics.azure.com/v1/workspaces/$LOG_ANALYTICS_WORKSPACE_ID/query" \
-                --resource 'https://api.loganalytics.io' \
-                --headers 'Content-Type=application/json' \
-                --body "$request" \
-                --query 'tables[0].rows' \
+              logs="$(az monitor log-analytics query \
+                --workspace "$LOG_ANALYTICS_WORKSPACE_ID" \
+                --analytics-query "$query" \
                 --output tsv 2>/dev/null || true)"
               if [[ -n "$logs" ]]; then
                 echo "$logs"
@@ -504,11 +498,7 @@ jobs:
                   return 0
                   ;;
                 Failed|Stopped|Degraded)
-                  az containerapp job execution show \
-                    --name "$job_name" \
-                    --resource-group "$AZURE_RESOURCE_GROUP" \
-                    --job-execution-name "$execution_name" \
-                    --output jsonc || true
+                  echo "$job_name execution $execution_name ended with status $status." >&2
                   show_job_logs "$execution_name"
                   return 1
                   ;;
