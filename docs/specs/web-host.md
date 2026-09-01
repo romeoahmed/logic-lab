@@ -73,12 +73,16 @@ exception text ([EF Core concurrency](https://learn.microsoft.com/en-us/ef/core/
 
 Production database schema changes run through the dedicated Migrator before Web
 readiness is published; the Web process never races startup instances through
-automatic migrations. The deployment reviews the exact migrations, establishes a
-recovery point before mutation, verifies the expected final migration IDs, and
-defines failure recovery. The Migrator uses the DDL identity; Web uses a separate
-runtime identity without schema-change permission. Database migrations and
-repository storage encoding are Infrastructure concerns, not `.logiclab`
-compatibility ([EF Core production migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)).
+automatic migrations. Identity and Durable Project migrations have separate history
+tables in a Migrator-owned schema, so readiness compares each context only with its
+own exact migration sequence. Web has read-only access to those history tables but
+no migration or schema-change permission. The deployment reviews those migrations,
+establishes a recovery point before mutation, and defines failure recovery. The Migrator uses
+the DDL identity; Web uses a separate runtime identity without schema-change or
+migration-history write permission. Database migrations and repository storage encoding
+are Infrastructure concerns, not `.logiclab` compatibility
+([EF Core production migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying),
+[migration history](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/history-table)).
 
 ## 4. Circuit transport and SignalR posture
 
@@ -169,7 +173,7 @@ Client filenames, MIME, lengths, ZIP metadata, logical paths, JSON, Canvas messa
 - Deny by default and reauthorize every resource action, including observation and cancellation.
 - Close or reauthorize work when authentication expires; a long-lived circuit never freezes old authorization into a capability. Authentication-state change notifications rerender consumers, and the editor treats that notification as an authorization fence rather than merely updating display identity ([Blazor authentication state](https://learn.microsoft.com/en-us/aspnet/core/blazor/security/authentication-state?view=aspnetcore-10.0#authentication-state-change-notifications)).
 - Emit a centrally tested Content Security Policy with `frame-ancestors 'none'`; allow only the scripts, styles, fonts, connections, and images required by the built app. A release CSP contains no wildcard source and no permission to execute uploaded content.
-- Trust forwarded headers only from configured proxies and networks. The external scheme and host used for redirects, antiforgery, and secure cookies must be reconstructed safely ([proxy guidance](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/proxy-load-balancer?view=aspnetcore-10.0)).
+- Accept forwarded headers only through the deployment's isolated reverse-proxy path, bound the hop count, and allow only the configured public host. The external scheme and host used for redirects, antiforgery, and secure cookies must be reconstructed safely ([proxy guidance](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/proxy-load-balancer?view=aspnetcore-10.0)).
 - Persist ASP.NET Core Data Protection keys outside an ephemeral process in production, restrict key access, and use one stable application discriminator so restarts don't invalidate every auth cookie ([Data Protection configuration](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0)).
 - Mark authentication and antiforgery cookies Secure, HttpOnly where applicable, and with the narrowest workable SameSite policy.
 - Redact project payloads, annotations, Trace values, tokens, cookies, session identifiers, and full browser messages from logs and telemetry.

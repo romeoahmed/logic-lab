@@ -34,7 +34,14 @@ var commonTags = union(tags, {
   'managed-by': 'bicep'
 })
 var databaseHost = postgres.properties.fullyQualifiedDomainName
-var applicationOrigin = 'https://${webName}.${containerAppsEnvironment.properties.defaultDomain}'
+var applicationHost = '${webName}.${containerAppsEnvironment.properties.defaultDomain}'
+var applicationOrigin = 'https://${applicationHost}'
+var healthProbeHeaders = [
+  {
+    name: 'Host'
+    value: applicationHost
+  }
+]
 var webConnectionString = 'Host=${databaseHost};Port=5432;Database=${databaseName};Username=${webIdentity.name};SSL Mode=VerifyFull'
 var migratorConnectionString = 'Host=${databaseHost};Port=5432;Database=${databaseName};Username=${migratorIdentity.name};SSL Mode=VerifyFull'
 var administratorConnectionString = 'Host=${databaseHost};Port=5432;Database=postgres;Username=${databaseAdminIdentity.name};SSL Mode=VerifyFull'
@@ -284,6 +291,7 @@ resource web 'Microsoft.App/containerApps@2026-01-01' = if (deployWeb) {
             {
               type: 'Startup'
               httpGet: {
+                httpHeaders: healthProbeHeaders
                 path: '/health/live'
                 port: 8080
                 scheme: 'HTTP'
@@ -297,6 +305,7 @@ resource web 'Microsoft.App/containerApps@2026-01-01' = if (deployWeb) {
             {
               type: 'Liveness'
               httpGet: {
+                httpHeaders: healthProbeHeaders
                 path: '/health/live'
                 port: 8080
                 scheme: 'HTTP'
@@ -310,6 +319,7 @@ resource web 'Microsoft.App/containerApps@2026-01-01' = if (deployWeb) {
             {
               type: 'Readiness'
               httpGet: {
+                httpHeaders: healthProbeHeaders
                 path: '/health/ready'
                 port: 8080
                 scheme: 'HTTP'
@@ -413,5 +423,4 @@ resource dependencyFailureAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-
 
 output bootstrapJobName string = databaseBootstrapJob.name
 output migrationJobName string = databaseMigrationJob.name
-output webName string = webName
 output webFqdn string = deployWeb ? web!.properties.configuration.ingress.fqdn : ''

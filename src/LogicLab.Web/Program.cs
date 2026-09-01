@@ -62,7 +62,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(dataSource);
 builder.Services.Configure<HostOptions>(options =>
     options.ShutdownTimeout = TimeSpan.FromSeconds(45));
-if (production is not null)
+if (production is not null && azureCredential is not null)
 {
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
@@ -77,7 +77,7 @@ if (production is not null)
     builder.Services.Configure<HostFilteringOptions>(options =>
         options.AllowedHosts = [production.PublicOrigin.Host]);
     builder.Services.AddOpenTelemetry()
-        .UseAzureMonitor();
+        .UseAzureMonitor(options => options.Credential = azureCredential);
 }
 builder.Services.AddSingleton(workspacePolicy);
 builder.Services.AddSingleton(BrowserPolicy.Default);
@@ -233,7 +233,8 @@ builder.Services.AddOptions<RateLimiterOptions>()
         };
     });
 builder.Services.AddDbContext<ApplicationIdentityDbContext>((services, options) =>
-    options.UseNpgsql(services.GetRequiredService<NpgsqlDataSource>()));
+    options.UseLogicLabIdentityPostgreSql(
+        services.GetRequiredService<NpgsqlDataSource>()));
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
     {
         options.SignIn.RequireConfirmedAccount = false;
@@ -247,18 +248,19 @@ builder.Services.AddLogicLabPersistence(
     workspacePolicy.IdempotencyRecordCount);
 var dataProtection = builder.Services.AddDataProtection()
     .SetApplicationName(AzureProductionConfiguration.DataProtectionApplicationName);
-if (production is not null)
+BlobClient? keyBlob = null;
+if (production is not null && azureCredential is not null)
 {
-    var keyBlob = new BlobClient(
+    keyBlob = new BlobClient(
         production.DataProtectionBlobUri,
-        azureCredential!);
+        azureCredential);
     builder.Services.AddSingleton(keyBlob);
     dataProtection.PersistKeysToAzureBlobStorage(keyBlob);
 }
 
 builder.Services.AddSingleton<DataProtectionReadiness>(services => new(
     services.GetRequiredService<IDataProtectionProvider>(),
-    services));
+    keyBlob));
 builder.Services.AddSingleton<IProjectCatalogCursorProtector,
     DataProtectionProjectCatalogCursorProtector>();
 builder.Services.AddSingleton<TemporaryProjectExportStore>();

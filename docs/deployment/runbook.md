@@ -31,9 +31,9 @@ that profile production-qualified.
    client ID.
 
 The foundation creates distinct Web, Migrator, and database-administrator managed
-identities. Database bootstrap uses
-`pgaadauth_create_principal_with_oid`, so it creates the reviewed PostgreSQL roles by
-their exact Entra object IDs rather than relying on ambiguous display-name lookup.
+identities. Database bootstrap creates PostgreSQL roles by exact Entra object ID and
+rewrites a stale Entra security label when an identity was replaced under the same
+name. It never treats a matching role name alone as proof of identity.
 
 ### GitHub production environment
 
@@ -89,9 +89,11 @@ The workflow then:
 7. uploads the manifest, compiled templates, dependency locks, and SBOM evidence;
 8. previews the complete application change, then updates the Jobs without updating
    Web;
-9. creates an on-demand PostgreSQL backup;
-10. runs database bootstrap, migrations, and bootstrap again so new objects receive
-    runtime grants while Web never receives DDL permission;
+9. creates an on-demand backup of the selected PostgreSQL server, including the
+   explicit recovery override when one is active;
+10. converges principals and the Migrator-owned migration schema, runs the two
+    isolated migration histories, then converges runtime grants over newly created
+    objects; Web receives read-only migration-history access for readiness, never DDL;
 11. deploys Web by exact digest; Container Apps keeps the prior single revision on
     traffic until startup and readiness probes succeed;
 12. checks external readiness repeatedly and records both deployed digests and the
@@ -148,7 +150,7 @@ For PITR:
 2. Restore Flexible Server to a new, uniquely named server with
    `az postgres flexible-server restore --source-server ... --restore-time ...`.
    Never restore over the source server.
-3. Verify private networking, DNS, PostgreSQL 17, Entra-only authentication, backup
+3. Verify private networking, DNS, PostgreSQL 18, Entra-only authentication, backup
    policy, diagnostics, and the `logiclab` database before connection cutover.
 4. Configure the existing database-administrator managed identity as the restored
    server's Microsoft Entra administrator with
@@ -186,4 +188,5 @@ change requiring incident approval.
 - [PostgreSQL on-demand backups](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/how-to-perform-backups)
 - [PostgreSQL point-in-time restore](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/how-to-restore-custom-restore-point)
 - [Manage PostgreSQL Entra roles](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/security-manage-entra-users)
+- [Application Insights Microsoft Entra authentication](https://learn.microsoft.com/en-us/azure/azure-monitor/app/azure-ad-authentication)
 - [GitHub artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)

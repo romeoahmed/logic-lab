@@ -5,7 +5,7 @@ namespace LogicLab.Web.Health;
 
 internal sealed class DataProtectionReadiness(
     IDataProtectionProvider dataProtectionProvider,
-    IServiceProvider services)
+    BlobClient? keyBlob)
 {
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector(
         "LogicLab.Readiness");
@@ -18,7 +18,6 @@ internal sealed class DataProtectionReadiness(
             return false;
         }
 
-        var keyBlob = services.GetService<BlobClient>();
         return keyBlob is null
             || (await keyBlob.ExistsAsync(cancellationToken)).Value;
     }

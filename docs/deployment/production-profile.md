@@ -49,7 +49,7 @@ for `linux-x64` ([container requirements](https://learn.microsoft.com/en-us/azur
 | Principal | Allowed responsibility | Explicit exclusion |
 | --- | --- | --- |
 | GitHub production environment | federated Azure deployment within its assigned scope | no stored client secret; no PR deployment permission |
-| Web managed identity | ACR pull, Data Protection Blob data access, PostgreSQL runtime DML | no schema migration or broad resource ownership |
+| Web managed identity | ACR pull, Data Protection Blob data access, Application Insights telemetry publish, PostgreSQL runtime DML | no schema migration or broad resource ownership |
 | Migrator managed identity | ACR pull and reviewed PostgreSQL DDL migration | no Web request handling or unrelated Azure mutation |
 | Database-admin managed identity | bootstrap application principals and grants | no application runtime use |
 
@@ -59,10 +59,13 @@ connection contains no password and refreshes its token before expiry
 ([managed-identity connection](https://learn.microsoft.com/en-us/azure/postgresql/security/security-connect-with-managed-identity),
 [Npgsql token rotation](https://www.npgsql.org/doc/security.html)).
 
-Identity and Durable Project migration sets run in a deterministic order through the
-Migration Job. Web never calls `Migrate()` and never becomes ready against an
-unexpected schema. The release establishes and verifies a recovery point before
-schema mutation.
+Database bootstrap converges each PostgreSQL role to the exact managed-identity
+object ID, including after an identity is replaced under the same name. Identity and
+Durable Project migrations use separate history tables in a Migrator-owned
+`migrations` schema and run in a deterministic order through the Migration Job. Web
+has read-only access to those tables for readiness, never calls `Migrate()`, and
+never becomes ready against an unexpected migration set.
+The release backs up the selected active server before schema mutation.
 
 Data Protection uses one stable application discriminator and a Blob-backed key ring
 with least-privilege access. Losing access to the key ring blocks readiness rather
@@ -73,7 +76,7 @@ than silently creating a replacement production identity boundary.
 Production configuration fixes:
 
 - public HTTPS origin and allowed host;
-- trusted proxy networks and forwarded-header behavior;
+- the public host and the single isolated Container Apps ingress hop;
 - PostgreSQL endpoint, database, Entra principal, and expected migration IDs;
 - Data Protection Blob URI and application discriminator;
 - Application Insights connection configuration;
@@ -100,7 +103,7 @@ The release workflow:
 5. emits SBOM, provenance, lock, template, and release-manifest evidence;
 6. previews the application, deploys the Jobs without updating Web, and establishes a
    database backup;
-7. runs bootstrap, migration, and grant convergence in order;
+7. runs principal/grant bootstrap, migration, and grant convergence in order;
 8. deploys Web by exact digest and waits for readiness and external stability.
 
 Rollback redeploys the previous known-good digest; it never rebuilds an old commit.
@@ -124,10 +127,13 @@ The [runbook](./runbook.md) owns the operating procedure and the
 ## Sources
 
 - [Azure Container Apps revisions](https://learn.microsoft.com/en-us/azure/container-apps/revisions)
+- [Azure Container Apps health probes](https://learn.microsoft.com/en-us/azure/container-apps/health-probes)
 - [Managed identities in Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/managed-identity)
 - [Azure Database for PostgreSQL Flexible Server](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/overview)
 - [PostgreSQL business continuity](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/concepts-business-continuity)
 - [ASP.NET Core Data Protection key storage](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/implementation/key-storage-providers?view=aspnetcore-10.0)
 - [EF Core production migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)
+- [EF Core migration history](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/history-table)
+- [Application Insights Microsoft Entra authentication](https://learn.microsoft.com/en-us/azure/azure-monitor/app/azure-ad-authentication)
 - [Bicep deployment with Azure CLI](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/deploy-cli)
 - [GitHub artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)
