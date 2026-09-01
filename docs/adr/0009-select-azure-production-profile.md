@@ -22,9 +22,10 @@ externalizing those facts would silently change observable behavior.
   sole production database provider.
 - Run one active revision and one Web replica for V1 qualification. This is a
   production candidate, not a high-availability claim.
-- Apply both Identity and Durable Project migrations through a separate Container
-  Apps Job before Web readiness. Web and Migrator use distinct least-privilege
-  Microsoft Entra identities and database roles.
+- Bootstrap reviewed database principals and apply both Identity and Durable Project
+  migrations through separate Container Apps Jobs before Web readiness. Web,
+  Migrator, and database administrator use distinct least-privilege Microsoft Entra
+  identities and database roles.
 - Persist ASP.NET Core Data Protection keys in Azure Blob Storage. Export staging
   remains process-local until multi-replica or cross-revision continuity is required
   by an accepted product or reliability target.

@@ -81,6 +81,10 @@ item `33`; neither statement makes a deployment production-qualified.
 Only item `43` authorizes describing the selected deployment as
 production-qualified.
 
+Executable templates and workflows do not change this ledger by themselves. The
+[qualification record](./deployment/qualification.md) identifies the decision and
+drill evidence that must close through items `34`–`43`.
+
 ## Future capability plan
 
 These items preserve the prior Boolean Analysis design without making it V1
