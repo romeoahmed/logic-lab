@@ -9,13 +9,31 @@ param environmentName string
 param location string = resourceGroup().location
 
 @description('Object ID of the GitHub OIDC deployment service principal.')
+@secure()
 param deploymentPrincipalObjectId string
 
 @description('Email address for the production Azure Monitor action group.')
+@secure()
 param alertEmail string
+
+@allowed([
+  'Basic'
+  'Standard'
+  'Premium'
+])
+@description('Azure Container Registry SKU selected during production qualification.')
+param containerRegistrySkuName string
 
 @description('PostgreSQL compute SKU selected during production qualification.')
 param postgresSkuName string
+
+@allowed([
+  'Burstable'
+  'GeneralPurpose'
+  'MemoryOptimized'
+])
+@description('PostgreSQL compute tier selected during production qualification.')
+param postgresTier string
 
 @allowed([
   'Disabled'
@@ -199,7 +217,7 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-04-01' =
   location: location
   tags: commonTags
   sku: {
-    name: 'Standard'
+    name: containerRegistrySkuName
   }
   properties: {
     adminUserEnabled: false
@@ -445,6 +463,7 @@ module postgres './modules/postgres.bicep' = {
     privateDnsZoneId: postgresPrivateDnsZone.id
     serverName: '${baseName}-postgres'
     skuName: postgresSkuName
+    tier: postgresTier
     storageSizeGB: postgresStorageSizeGB
     tags: commonTags
   }

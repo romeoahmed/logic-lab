@@ -16,6 +16,11 @@ then deploy Jobs without changing Web (`deployWeb=false`) and deploy Web only af
 database preparation succeeds. `postgresServerName` is empty for the foundation
 server and explicit only during a verified recovery cutover.
 
+The GitHub `production` Environment stores private identifiers and destinations as
+secrets, and non-sensitive service policy as variables. The workflow validates and
+passes both to Bicep without committing production values or duplicating deployment
+logic.
+
 Format and compile both entry points with the Bicep CLI selected by the release
 workflow:
 

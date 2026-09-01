@@ -20,15 +20,18 @@ GitHub Actions via OIDC
             -> Azure Monitor / Application Insights
 ```
 
-Web uses Container Apps single-revision mode with exactly one replica. The profile
-does not promise application high availability. Startup and readiness probes gate
-ingress cutover, but active Interactive Server circuits and process-local Workspaces
-can require reload or authorized recovery when a revision is replaced.
+Web uses Container Apps single-revision mode with an environment-selected replica
+range. If the selected minimum is zero, HTTP ingress wakes an idle revision and the
+first request can incur a cold start. The profile does not promise application high
+availability. Startup and readiness probes gate ingress cutover, but scaling to zero
+or replacing a revision discards active Interactive Server circuits and process-local
+anonymous Workspaces.
 
-The public boundary is Container Apps HTTPS ingress with one configured origin and
-host. PostgreSQL and the Data Protection storage account use private connectivity.
-The first profile has no public database endpoint, Front Door, public API, custom
-SignalR Hub, Azure SignalR Service, or multiple active revision path.
+The public boundary is Container Apps HTTPS ingress with its platform-managed
+`azurecontainerapps.io` host. PostgreSQL and the Data Protection storage account use
+private connectivity. The first profile has no custom domain, public database
+endpoint, Front Door, public API, custom SignalR Hub, Azure SignalR Service, or
+multiple active revision path.
 
 ## Artifact profile
 
@@ -94,6 +97,12 @@ Container Apps environment, Web, bootstrap and Migration Jobs, managed identitie
 least-privilege assignments, probes, scaling, diagnostics, alerts, and tags. Templates
 and tracked files contain no credentials.
 
+The GitHub `production` Environment owns the qualified deployment values. Private
+cloud identifiers, resource names, recovery targets, and alert destinations are
+secrets; region, service tiers, continuity settings, maintenance window, storage,
+and Web scale range are non-sensitive variables. Tracked files define the contract
+and constraints without copying live environment values.
+
 The release workflow:
 
 1. receives production-environment approval and verifies the release tag;
@@ -110,11 +119,23 @@ Rollback redeploys the previous known-good digest; it never rebuilds an old comm
 Database changes follow expand/contract compatibility. Logical data recovery restores
 PostgreSQL to a new server at a verified point in time before connection cutover.
 
+## Cost and lifecycle
+
+For a time-bound public demonstration, scaling Web to zero removes its usage charge
+while idle, but PostgreSQL, ACR, storage, monitoring, and networking can continue to
+accrue charges. Stopping PostgreSQL is temporary because Azure starts it again after
+seven days. For a longer offline period, export and verify any data worth retaining,
+then delete the resource group.
+
+Azure Cost Management budgets provide delayed notifications, not a spending cap. The
+operator must configure a budget against the available spend and inspect actual cost
+after the first deployment.
+
 ## Qualification boundary
 
-Before item `42` can close, the profile still requires concrete region, origin/domain,
-resource sizes, owner assignments, RTO, RPO, maintenance window, PostgreSQL HA mode,
-backup retention, geo-recovery posture, alert destinations, and calibrated policies.
+Before item `42` can close, the selected profile still requires subscription quota,
+mainland reachability, owner assignments, explicit RTO/RPO acceptance, alert
+destinations, a credit budget, and calibrated policies.
 
 Item `43` requires recorded drills for migration, backup/restore, Data Protection key
 continuity, upgrade, rollback, telemetry, load, security, and the complete runbooks.
@@ -128,8 +149,11 @@ The [runbook](./runbook.md) owns the operating procedure and the
 
 - [Azure Container Apps revisions](https://learn.microsoft.com/en-us/azure/container-apps/revisions)
 - [Azure Container Apps health probes](https://learn.microsoft.com/en-us/azure/container-apps/health-probes)
+- [Azure Container Apps scaling](https://learn.microsoft.com/en-us/azure/container-apps/scale-app)
 - [Managed identities in Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/managed-identity)
+- [Azure Container Registry tiers](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-skus)
 - [Azure Database for PostgreSQL Flexible Server](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/overview)
+- [Stop and start PostgreSQL](https://learn.microsoft.com/en-us/azure/postgresql/configure-maintain/how-to-stop-server)
 - [Azure Database for PostgreSQL version policy](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-version-policy)
 - [PostgreSQL business continuity](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/concepts-business-continuity)
 - [ASP.NET Core Data Protection key storage](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/implementation/key-storage-providers?view=aspnetcore-10.0)

@@ -15,7 +15,16 @@ param migratorImage string
 param deployWeb bool = true
 
 @description('PostgreSQL server name. Override only for a verified recovery cutover.')
+@secure()
 param postgresServerName string = ''
+
+@minValue(0)
+@description('Minimum Web replicas selected during production qualification.')
+param webMinReplicas int
+
+@minValue(1)
+@description('Maximum Web replicas selected during production qualification.')
+param webMaxReplicas int
 
 param location string = resourceGroup().location
 param tags object = {}
@@ -334,8 +343,8 @@ resource web 'Microsoft.App/containerApps@2026-01-01' = if (deployWeb) {
         }
       ]
       scale: {
-        minReplicas: 1
-        maxReplicas: 1
+        minReplicas: webMinReplicas
+        maxReplicas: webMaxReplicas
       }
     }
   }
