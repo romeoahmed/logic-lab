@@ -41,18 +41,26 @@ Console.CancelKeyPress += (_, eventArgs) =>
     cancellationSource.Cancel();
 };
 
-var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-ConfigureAzurePostgreSqlAuthentication(
-    dataSourceBuilder,
-    new ManagedIdentityCredential(
-        ManagedIdentityId.FromUserAssignedClientId(clientId.ToString())));
+var credential = new ManagedIdentityCredential(
+    ManagedIdentityId.FromUserAssignedClientId(clientId.ToString()));
 
-await using var dataSource = dataSourceBuilder.Build();
 if (args is ["bootstrap"])
 {
+    var configuration = DatabaseBootstrapConfiguration.Load();
+    var databaseConnection = new NpgsqlConnectionStringBuilder(connectionString)
+    {
+        Database = configuration.DatabaseName,
+    };
+    await using var administratorDataSource = CreateDataSource(
+        connectionString,
+        credential);
+    await using var databaseDataSource = CreateDataSource(
+        databaseConnection.ConnectionString,
+        credential);
     await DatabaseBootstrapper.RunAsync(
-        dataSource,
-        DatabaseBootstrapConfiguration.Load(),
+        administratorDataSource,
+        databaseDataSource,
+        configuration,
         cancellationSource.Token).ConfigureAwait(false);
     Console.WriteLine("Database principals and grants are current.");
     return;
@@ -64,6 +72,7 @@ if (args.Length != 0)
         "The only supported operation argument is bootstrap.");
 }
 
+await using var dataSource = CreateDataSource(connectionString, credential);
 await using (var identityContext = new ApplicationIdentityDbContext(
     new DbContextOptionsBuilder<ApplicationIdentityDbContext>()
         .UseLogicLabIdentityPostgreSql(dataSource)
@@ -88,10 +97,11 @@ await using (var logicLabContext = new LogicLabDbContext(
 
 Console.WriteLine("Database migrations completed.");
 
-static void ConfigureAzurePostgreSqlAuthentication(
-    NpgsqlDataSourceBuilder dataSourceBuilder,
+static NpgsqlDataSource CreateDataSource(
+    string connectionString,
     TokenCredential credential)
 {
+    var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
     var tokenRequest = new TokenRequestContext(
         ["https://ossrdbms-aad.database.windows.net/.default"]);
     dataSourceBuilder.UsePeriodicPasswordProvider(
@@ -99,6 +109,7 @@ static void ConfigureAzurePostgreSqlAuthentication(
             (await credential.GetTokenAsync(tokenRequest, cancellationToken)).Token,
         TimeSpan.FromMinutes(55),
         TimeSpan.FromSeconds(5));
+    return dataSourceBuilder.Build();
 }
 
 static async Task MigrateAsync(

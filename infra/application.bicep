@@ -51,9 +51,9 @@ var healthProbeHeaders = [
     value: applicationHost
   }
 ]
-var webConnectionString = 'Host=${databaseHost};Port=5432;Database=${databaseName};Username=${webIdentity.name};SSL Mode=VerifyFull'
-var migratorConnectionString = 'Host=${databaseHost};Port=5432;Database=${databaseName};Username=${migratorIdentity.name};SSL Mode=VerifyFull'
-var administratorConnectionString = 'Host=${databaseHost};Port=5432;Database=postgres;Username=${databaseAdminIdentity.name};SSL Mode=VerifyFull'
+var webConnectionString = 'Host=${databaseHost};Port=5432;Database=${databaseName};Username=${webIdentity.name};SSL Mode=VerifyFull;GSS Encryption Mode=Disable'
+var migratorConnectionString = 'Host=${databaseHost};Port=5432;Database=${databaseName};Username=${migratorIdentity.name};SSL Mode=VerifyFull;GSS Encryption Mode=Disable'
+var administratorConnectionString = 'Host=${databaseHost};Port=5432;Database=postgres;Username=${databaseAdminIdentity.name};SSL Mode=VerifyFull;GSS Encryption Mode=Disable'
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-04-01' existing = {
   name: registryName

@@ -42,17 +42,19 @@ internal sealed record DatabaseBootstrapConfiguration(
 internal static class DatabaseBootstrapper
 {
     public static async Task RunAsync(
-        NpgsqlDataSource dataSource,
+        NpgsqlDataSource administratorDataSource,
+        NpgsqlDataSource databaseDataSource,
         DatabaseBootstrapConfiguration configuration,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(dataSource);
+        ArgumentNullException.ThrowIfNull(administratorDataSource);
+        ArgumentNullException.ThrowIfNull(databaseDataSource);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        await using var connection = await dataSource
+        await using var administratorConnection = await administratorDataSource
             .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         if (!string.Equals(
-                connection.Database,
+                administratorConnection.Database,
                 "postgres",
                 StringComparison.Ordinal))
         {
@@ -61,21 +63,29 @@ internal static class DatabaseBootstrapper
         }
 
         await EnsurePrincipalAsync(
-            connection,
+            administratorConnection,
             configuration.WebPrincipalName,
             configuration.WebPrincipalObjectId,
             cancellationToken).ConfigureAwait(false);
         await EnsurePrincipalAsync(
-            connection,
+            administratorConnection,
             configuration.MigratorPrincipalName,
             configuration.MigratorPrincipalObjectId,
             cancellationToken).ConfigureAwait(false);
 
-        await connection.ChangeDatabaseAsync(
-            configuration.DatabaseName,
-            cancellationToken).ConfigureAwait(false);
+        await using var databaseConnection = await databaseDataSource
+            .OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        if (!string.Equals(
+                databaseConnection.Database,
+                configuration.DatabaseName,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The database connection must target the configured database.");
+        }
+
         await ApplyGrantsAsync(
-            connection,
+            databaseConnection,
             configuration,
             cancellationToken).ConfigureAwait(false);
     }
@@ -86,26 +96,6 @@ internal static class DatabaseBootstrapper
         Guid principalObjectId,
         CancellationToken cancellationToken)
     {
-        const string PrincipalSql =
-            "SELECT * FROM pg_catalog.pgaadauth_list_principals(false) WHERE rolname::text = $1;";
-        await using (var principalCommand = new NpgsqlCommand(
-            PrincipalSql,
-            connection))
-        {
-            principalCommand.Parameters.AddWithValue(principalName);
-            await using var reader = await principalCommand
-                .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-            if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-                && string.Equals(reader.GetString(1), "service", StringComparison.Ordinal)
-                && Guid.TryParse(reader.GetString(2), out var currentObjectId)
-                && currentObjectId == principalObjectId
-                && reader.GetInt32(4) == 0
-                && reader.GetInt32(5) == 0)
-            {
-                return;
-            }
-        }
-
         const string RoleExistsSql =
             "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = $1);";
         await using var existsCommand = new NpgsqlCommand(RoleExistsSql, connection);
