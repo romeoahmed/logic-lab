@@ -53,7 +53,7 @@ jobs:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
         run: |
           set -euo pipefail
-          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
             echo "Release tag must be a v-prefixed semantic version." >&2
             exit 1
           fi
@@ -275,6 +275,7 @@ jobs:
           RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
           WEB_IMAGE: ${{ steps.images.outputs.web_image }}
           MIGRATOR_IMAGE: ${{ steps.images.outputs.migrator_image }}
+          POSTGRES_SERVER_NAME: ${{ vars.POSTGRES_SERVER_OVERRIDE || steps.foundation.outputs.postgres_name }}
         run: |
           set -euo pipefail
           mkdir -p release-evidence
@@ -286,7 +287,8 @@ jobs:
             --arg commit "$RELEASE_COMMIT" \
             --arg webImage "$WEB_IMAGE" \
             --arg migratorImage "$MIGRATOR_IMAGE" \
-            '{repository: $repository, tag: $tag, commit: $commit, webImage: $webImage, migratorImage: $migratorImage}' \
+            --arg postgresServer "$POSTGRES_SERVER_NAME" \
+            '{repository: $repository, tag: $tag, commit: $commit, webImage: $webImage, migratorImage: $migratorImage, postgresServer: $postgresServer}' \
             > release-evidence/release-manifest.json
 
       - name: Prepare SBOM output
@@ -362,6 +364,7 @@ jobs:
           AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
           WEB_IMAGE: ${{ steps.images.outputs.web_image }}
           MIGRATOR_IMAGE: ${{ steps.images.outputs.migrator_image }}
+          POSTGRES_SERVER_NAME: ${{ vars.POSTGRES_SERVER_OVERRIDE || steps.foundation.outputs.postgres_name }}
         run: |
           set -euo pipefail
           parameters=(
@@ -369,6 +372,7 @@ jobs:
             "location=$AZURE_LOCATION"
             "webImage=$WEB_IMAGE"
             "migratorImage=$MIGRATOR_IMAGE"
+            "postgresServerName=$POSTGRES_SERVER_NAME"
             'deployWeb=true'
           )
           az deployment group validate \
@@ -393,6 +397,7 @@ jobs:
           AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
           WEB_IMAGE: ${{ steps.images.outputs.web_image }}
           MIGRATOR_IMAGE: ${{ steps.images.outputs.migrator_image }}
+          POSTGRES_SERVER_NAME: ${{ vars.POSTGRES_SERVER_OVERRIDE || steps.foundation.outputs.postgres_name }}
         run: |
           set -euo pipefail
           az deployment group create \
@@ -404,6 +409,7 @@ jobs:
               "location=$AZURE_LOCATION" \
               "webImage=$WEB_IMAGE" \
               "migratorImage=$MIGRATOR_IMAGE" \
+              "postgresServerName=$POSTGRES_SERVER_NAME" \
               'deployWeb=false' \
             --output none
 
@@ -478,6 +484,7 @@ jobs:
           AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
           WEB_IMAGE: ${{ steps.images.outputs.web_image }}
           MIGRATOR_IMAGE: ${{ steps.images.outputs.migrator_image }}
+          POSTGRES_SERVER_NAME: ${{ vars.POSTGRES_SERVER_OVERRIDE || steps.foundation.outputs.postgres_name }}
         run: |
           set -euo pipefail
           az deployment group create \
@@ -489,6 +496,7 @@ jobs:
               "location=$AZURE_LOCATION" \
               "webImage=$WEB_IMAGE" \
               "migratorImage=$MIGRATOR_IMAGE" \
+              "postgresServerName=$POSTGRES_SERVER_NAME" \
               'deployWeb=true' \
             --output none
 
@@ -522,15 +530,19 @@ jobs:
       - name: Record release summary
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
           WEB_IMAGE: ${{ steps.images.outputs.web_image }}
           MIGRATOR_IMAGE: ${{ steps.images.outputs.migrator_image }}
           WEB_FQDN: ${{ steps.application.outputs.fqdn }}
+          POSTGRES_SERVER_NAME: ${{ vars.POSTGRES_SERVER_OVERRIDE || steps.foundation.outputs.postgres_name }}
         run: |
           {
             echo "## Logic Lab production release"
             echo
             echo "- Version: \`$RELEASE_TAG\`"
+            echo "- Commit: \`$RELEASE_COMMIT\`"
             echo "- Web: \`$WEB_IMAGE\`"
             echo "- Migrator: \`$MIGRATOR_IMAGE\`"
+            echo "- PostgreSQL: \`$POSTGRES_SERVER_NAME\`"
             echo "- Endpoint: https://$WEB_FQDN"
           } >> "$GITHUB_STEP_SUMMARY"
