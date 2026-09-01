@@ -505,9 +505,6 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2026-01-01'
       }
     }
     publicNetworkAccess: 'Enabled'
-    ingressConfiguration: {
-      terminationGracePeriodSeconds: 60
-    }
     vnetConfiguration: {
       infrastructureSubnetId: containerAppsSubnet.id
       internal: false
