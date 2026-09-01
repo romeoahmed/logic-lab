@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/LogicLab.Application/LogicLab.Application.csproj" />
+    <Project Path="src/LogicLab.DatabaseMigrator/LogicLab.DatabaseMigrator.csproj" />
     <Project Path="src/LogicLab.Domain/LogicLab.Domain.csproj" />
     <Project Path="src/LogicLab.Engine/LogicLab.Engine.csproj" />
     <Project Path="src/LogicLab.Infrastructure/LogicLab.Infrastructure.csproj" />
