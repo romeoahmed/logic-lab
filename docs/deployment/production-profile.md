@@ -110,8 +110,8 @@ The release workflow:
 3. validates, previews, and deploys the foundation;
 4. publishes versioned Web and Migrator images and records their digests;
 5. emits SBOM, provenance, lock, template, and release-manifest evidence;
-6. previews the application, deploys the Jobs without updating Web, and establishes a
-   database backup;
+6. previews the application, deploys the Jobs without updating Web, and records the
+   pre-migration PITR boundary protected by PostgreSQL automatic backups;
 7. runs principal/grant bootstrap, migration, and grant convergence in order;
 8. deploys Web by exact digest and waits for readiness and external stability.
 

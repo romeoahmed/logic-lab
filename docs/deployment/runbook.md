@@ -82,15 +82,16 @@ The workflow then performs five ordered phases:
    deploy long-lived resources.
 3. **Artifacts:** publish Web and Migrator OCI images, resolve exact digests, and
    record locks, templates, SBOMs, provenance, and manifest evidence.
-4. **Database:** preview application resources, deploy Jobs without Web, back up the
-   active server, converge principals, migrate, and converge grants again.
+4. **Database:** preview application resources, deploy Jobs without Web, record the
+   pre-migration PITR boundary, converge principals, migrate, and converge grants
+   again.
 5. **Web:** deploy the exact digest, wait for startup/readiness and external stability,
    then record the endpoint and digests.
 
-If backup, bootstrap, migration, or readiness fails, stop. Preserve deployment, Job,
-Application Insights, and Log Analytics evidence. Diagnose the root cause and choose
-a reviewed roll-forward or the recovery path; do not edit production schema manually
-or rerun unrelated substeps.
+If recovery-boundary capture, bootstrap, migration, or readiness fails, stop. Preserve
+deployment, Job, Application Insights, and Log Analytics evidence. Diagnose the root
+cause and choose a reviewed roll-forward or the recovery path; do not edit production
+schema manually or rerun unrelated substeps.
 
 ## Post-release verification
 
@@ -166,7 +167,7 @@ invalidates existing protected cookies and requires incident approval.
 - [Azure Login with GitHub OIDC](https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure-openid-connect)
 - [Azure Container Apps revisions](https://learn.microsoft.com/en-us/azure/container-apps/revisions)
 - [Azure Container Apps Jobs](https://learn.microsoft.com/en-us/azure/container-apps/jobs)
-- [PostgreSQL backups](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/how-to-perform-backups)
+- [PostgreSQL business continuity](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/concepts-business-continuity)
 - [PostgreSQL point-in-time restore](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/how-to-restore-custom-restore-point)
 - [Stop and start PostgreSQL](https://learn.microsoft.com/en-us/azure/postgresql/configure-maintain/how-to-stop-server)
 - [PostgreSQL Entra roles](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/security-manage-entra-users)

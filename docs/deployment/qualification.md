@@ -42,8 +42,8 @@ result, raw evidence location, and accepted deviations.
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | clean migration      | bootstrap/migration/bootstrap Jobs succeed and Web identity cannot perform DDL                                           |
 | failed migration     | nonzero Job blocks Web deployment while the prior revision remains ready                                                 |
-| backup               | on-demand backup succeeds before mutation and is visible under the configured retention                                  |
-| PITR                 | restore to a new server, isolated verification, explicit cutover, and retained source                                    |
+| backup               | automatic backup retention and the pre-migration PITR boundary are recorded before mutation                              |
+| PITR                 | restore the recorded boundary to a new server, isolate verification, explicitly cut over, and retain the source          |
 | key continuity       | authentication survives controlled restart/revision replacement using the same Blob key ring                             |
 | key recovery         | accepted Blob version restores readiness and protected-cookie continuity                                                 |
 | upgrade              | reviewed version passes probes, representative workflows, and observation window                                         |
