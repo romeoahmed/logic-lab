@@ -434,16 +434,16 @@ jobs:
           echo "bootstrap_name=$(az deployment group show --name "$JOBS_DEPLOYMENT" --resource-group "$AZURE_RESOURCE_GROUP" --query properties.outputs.bootstrapJobName.value --output tsv)" >> "$GITHUB_OUTPUT"
           echo "migration_name=$(az deployment group show --name "$JOBS_DEPLOYMENT" --resource-group "$AZURE_RESOURCE_GROUP" --query properties.outputs.migrationJobName.value --output tsv)" >> "$GITHUB_OUTPUT"
 
-      - name: Create pre-migration database backup
-        env:
-          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          POSTGRES_NAME: ${{ secrets.POSTGRES_SERVER_OVERRIDE || steps.foundation.outputs.postgres_name }}
+      - name: Record pre-migration restore point
+        shell: bash
         run: |
-          az postgres flexible-server backup create \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --server-name "$POSTGRES_NAME" \
-            --name "pre-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
-            --output none
+          set -euo pipefail
+          restore_point="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          {
+            echo "## Database recovery boundary"
+            echo
+            echo "- Pre-migration PITR point: \`$restore_point\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Bootstrap and migrate database
         shell: bash
