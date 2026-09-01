@@ -9,7 +9,7 @@ Web Host defines routing, render modes, request culture, circuit integration, se
 
 ## 1. Host shape
 
-V1 is one ASP.NET Core process containing Static SSR pages, one Interactive Server editor surface, Application Modules, and the initial SQLite adapter. There is no `.Client` project, Interactive Auto mode, WebAssembly execution path, public REST API, custom SignalR Hub, or user-supplied server code.
+V1 is one ASP.NET Core process containing Static SSR pages, one Interactive Server editor surface, Application Modules, and the PostgreSQL repository adapter. There is no `.Client` project, Interactive Auto mode, WebAssembly execution path, public REST API, custom SignalR Hub, or user-supplied server code.
 
 The route catalog is closed at implementation start:
 
@@ -61,9 +61,24 @@ An Editor Workspace is Application-owned and can outlive a circuit under bounded
 
 Background services create an explicit dependency-injection scope for scoped adapters. CPU-bound Modules remain synchronous and execute only through the three typed lanes in Architecture. Razor handlers do not call `Task.Run`, build secondary queues, or capture circuit-scoped dependencies in process work.
 
-The SQLite repository uses `IDbContextFactory<T>` and one context per operation. SQLite has no database-generated `rowversion`: the adapter treats Durable Version as an application-managed opaque concurrency token, replaces it only when the current-revision pointer changes, and predicates the same transaction's update on the expected token. A zero-row update or `DbUpdateConcurrencyException` becomes exactly `durable_save_conflict`; it never becomes last-write-wins or a generic 500 ([EF Core concurrency](https://learn.microsoft.com/en-us/ef/core/saving/concurrency#application-managed-concurrency-tokens)).
+The PostgreSQL repository uses `IDbContextFactory<T>` and one context per operation.
+The adapter treats Durable Version as an application-managed opaque concurrency
+token, replaces it only when the current-revision pointer changes, and predicates
+the same transaction's update on the expected token. A zero-row update,
+`DbUpdateConcurrencyException`, or unique-constraint race becomes exactly the owned
+save outcome; it never becomes last-write-wins or a generic 500. Provider error
+mapping uses PostgreSQL SQLSTATE and reviewed constraint identity, not localized
+exception text ([EF Core concurrency](https://learn.microsoft.com/en-us/ef/core/saving/concurrency#application-managed-concurrency-tokens),
+[Npgsql exceptions](https://www.npgsql.org/doc/diagnostics/exceptions_notices.html)).
 
-Production database schema changes run as an explicit deployment step before readiness is published; the Web process does not race multiple startup instances through automatic migrations. The deployment profile chooses and reviews one version-specific script or migration bundle, backs up before mutation, verifies the expected schema, and defines rollback/restore plus abandoned `__EFMigrationsLock` recovery. It does not assume SQLite supports EF idempotent migration scripts or every direct `ALTER`; provider limitations include table rebuilds and a lock that can remain after abnormal termination ([SQLite limitations](https://learn.microsoft.com/en-us/ef/core/providers/sqlite/limitations), [applying migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)). Database migrations and repository storage encoding are Infrastructure concerns, not `.logiclab` compatibility.
+Production database schema changes run through the dedicated Migrator before Web
+readiness is published; the Web process never races startup instances through
+automatic migrations. The deployment reviews the exact migrations, establishes a
+recovery point before mutation, verifies the expected final migration IDs, and
+defines failure recovery. The Migrator uses the DDL identity; Web uses a separate
+runtime identity without schema-change permission. Database migrations and
+repository storage encoding are Infrastructure concerns, not `.logiclab`
+compatibility ([EF Core production migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)).
 
 ## 4. Circuit transport and SignalR posture
 
@@ -143,7 +158,7 @@ the submitted secret back into HTML.
 Authorized `/projects/open` requests use a separate fixed-window policy
 partitioned by authenticated subject. The initial policy admits at most twenty
 requests per minute per partition, queues no excess requests, and runs before
-Workspace or SQLite work. Its request body is independently bounded to 4096 bytes before antiforgery validation or form binding. Rate rejection publishes the endpoint-owned RFC 9457 `429` response, body rejection publishes `413`, and neither consumes an account ingress policy.
+Workspace or repository work. Its request body is independently bounded to 4096 bytes before antiforgery validation or form binding. Rate rejection publishes the endpoint-owned RFC 9457 `429` response, body rejection publishes `413`, and neither consumes an account ingress policy.
 
 Authorized HTTP failures use the exact RFC 9457 shape and status mapping in the [HTTP Boundary Contract](../contracts/http-boundary.md). `IProblemDetailsService` supplies the common adapter; titles and optional details are localized, while `type`, `status`, `code`, and correlation token remain stable. Unhandled exceptions expose only an opaque correlation. ASP.NET Core provides `IProblemDetailsService` for RFC 9457 responses ([error handling](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api?view=aspnetcore-10.0#problem-details-service)).
 
@@ -178,12 +193,18 @@ Activities span authenticated route handling, Workspace calls, repository operat
 - `en-US`/`zh-CN`, cookie, reload, `lang`, direction, resource-key parity, long-label, and bidirectional-content scenarios;
 - authentication, authorization concealment, antiforgery, local-return-URL, CSP, upload, download, rate, and Problem Details tests;
 - multi-client anonymous identity issuance tests that deliberately omit or discard the caller Cookie and prove rejection occurs before another identity is written;
-- short-lived `DbContext`, application-managed Durable Version conflict mapping, reviewed migration/abandoned-lock recovery, migration-before-readiness, and process-shutdown integration tests;
+- short-lived `DbContext`, application-managed Durable Version conflict mapping,
+  reviewed migration failure recovery, migration-before-readiness, and
+  process-shutdown integration tests;
 - liveness/readiness redaction and dependency-failure tests; and
 - browser/load traces on the versioned corpus before any circuit, buffer, timeout, or rate value becomes an acceptance threshold.
 
 ## 10. Qualification limits
 
-Host provider, public origin, TLS termination, trusted proxy ranges, Data Protection store, database backup/restore, telemetry backend, dashboards, alerts, and calibrated limit values remain deployment evidence. Their absence doesn't change the Module interfaces, but a production release is not qualified until one deployment profile supplies and tests them.
+The [production deployment profile](../deployment/production-profile.md) selects the
+host provider, public origin, TLS termination, trusted proxy ranges, Data Protection
+store, database recovery, telemetry backend, dashboards, alerts, and operational
+ownership. These choices don't change the Module interfaces, and the profile remains
+unqualified until every item `43` drill passes.
 
 Do not use `ServerComponentsEndpointOptions.ConfigureConnection` in the .NET 10 implementation. The current Microsoft page shows that API only in newer monikers; the V1 host configures only APIs verified against `net10.0`. [Blazor Web Platform Research](../research/blazor-web-platform.md) records the version audit and remaining browser qualification gaps.

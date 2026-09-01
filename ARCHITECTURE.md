@@ -79,13 +79,20 @@ Editor Workspace
   revisions/history/save/attachments/idempotency
   ├── Project Editor
   ├── Project Format
-  ├── repository port -> EF Core adapter -> SQLite
+  ├── repository port -> EF Core adapter -> PostgreSQL
   └── Work Coordinator
         ├── Compiler
         └── Simulation Runtime
 ```
 
-The initial deployment is one ASP.NET Core process and one SQLite database. Process placement is not a module seam. A worker process, custom SignalR Hub, alternate database, object store, browser Worker, or WebAssembly execution slice becomes an adapter only when measured evidence justifies it.
+The V1 production profile is one ASP.NET Core process in a single Azure Container
+Apps revision and one Azure Database for PostgreSQL Flexible Server database. The
+single Web replica is an explicit qualification boundary, not a high-availability
+claim. Process placement is not a Module seam. A worker process, custom SignalR Hub,
+distributed Workspace owner, object store, browser Worker, or WebAssembly execution
+slice becomes an adapter only when measured evidence justifies it. The selected
+provider shape and its qualification limits are fixed by the
+[production deployment profile](./docs/deployment/production-profile.md).
 
 ## 5. Solution seams
 
@@ -155,7 +162,7 @@ The Work Coordinator owns two typed CPU lanes:
 
 CPU modules are synchronous. Async appears at I/O, cancellation, admission, and observation seams. Razor handlers neither call `Task.Run` nor create hidden queues; hosted work creates explicit dependency-injection scopes.
 
-Durable storage keeps immutable Project Revision payloads and a current pointer under optimistic concurrency. It is not event sourcing and does not map gates/wires as one mutable EF graph. Infrastructure owns storage encoding; `.logiclab` remains the only native carrier. The SQLite adapter uses `IDbContextFactory<T>` and one short-lived context per operation.
+Durable storage keeps immutable Project Revision payloads and a current pointer under optimistic concurrency. It is not event sourcing and does not map gates/wires as one mutable EF graph. Infrastructure owns storage encoding; `.logiclab` remains the only native carrier. The PostgreSQL adapter uses `IDbContextFactory<T>` and one short-lived context per operation.
 
 Public/help/account/project pages use Static SSR; `/editor` uses per-page Interactive Server. Application-owned Workspaces can outlive circuits. Razor owns layout, forms, commands, navigation, dialogs, status, and recovery; browser adapters own frame-rate pixels and input inside their hosts. Canvas is the only dense circuit editor, and pointer samples never cross the circuit. V1 has no `.Client` project, Interactive Auto, public REST interface, custom Hub, offline runtime, or browser execution of engine modules.
 
@@ -179,7 +186,7 @@ C# 14 is the sole production language. [.NET Engineering](./docs/specs/dotnet-en
 | Need                | Selection                                                    |
 | ------------------- | ------------------------------------------------------------ |
 | Web chrome          | centrally pinned Fluent UI Blazor package, Web only          |
-| persistence/auth    | EF Core 10 SQLite and ASP.NET Core Identity                  |
+| persistence/auth    | EF Core 10 PostgreSQL and ASP.NET Core Identity              |
 | unit/integration    | TUnit on Microsoft Testing Platform                          |
 | properties          | TUnit.FsCheck with FsCheck generation, shrinking, and replay |
 | host/Razor/browser  | TUnit.AspNetCore, bUnit, and TUnit.Playwright                |
