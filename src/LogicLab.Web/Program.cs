@@ -1,5 +1,10 @@
 using System.Globalization;
 using System.Threading.RateLimiting;
+using Azure.Core;
+using Azure.Extensions.AspNetCore.DataProtection.Blobs;
+using Azure.Identity;
+using Azure.Monitor.OpenTelemetry.AspNetCore;
+using Azure.Storage.Blobs;
 using LogicLab.Application.Workspaces;
 using LogicLab.Infrastructure.Identity;
 using LogicLab.Infrastructure.Persistence;
@@ -8,13 +13,17 @@ using LogicLab.ProjectFormat;
 using LogicLab.Web;
 using LogicLab.Web.Components;
 using LogicLab.Web.Health;
+using LogicLab.Web.Hosting;
 using LogicLab.Web.Identity;
 using LogicLab.Web.Projects;
 using LogicLab.Web.Scene;
 using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.Http.Metadata;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
@@ -22,11 +31,27 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Microsoft.FluentUI.AspNetCore.Components;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("LogicLab")
     ?? throw new InvalidOperationException(
         "ConnectionStrings:LogicLab must be configured.");
+var production = builder.Environment.IsProduction()
+    ? AzureProductionConfiguration.Load(builder.Configuration, connectionString)
+    : null;
+TokenCredential? azureCredential = production is null
+    ? null
+    : new ManagedIdentityCredential(
+        ManagedIdentityId.FromUserAssignedClientId(
+            production.ManagedIdentityClientId.ToString()));
+var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+if (azureCredential is not null)
+{
+    ConfigureAzurePostgreSqlAuthentication(dataSourceBuilder, azureCredential);
+}
+
+var dataSource = dataSourceBuilder.Build();
 var workspacePolicy = WorkspacePolicy.Default;
 var packagePolicy = PackagePolicy.Default;
 var accountIngressPolicy = AccountIngressPolicy.Default;
@@ -34,6 +59,26 @@ var durableProjectIngressPolicy = DurableProjectIngressPolicy.Default;
 var anonymousWorkspaceIngressPolicy = AnonymousWorkspaceIngressPolicy.Default;
 
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(dataSource);
+builder.Services.Configure<HostOptions>(options =>
+    options.ShutdownTimeout = TimeSpan.FromSeconds(45));
+if (production is not null)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+            | ForwardedHeaders.XForwardedHost
+            | ForwardedHeaders.XForwardedProto;
+        options.ForwardLimit = 1;
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+        options.AllowedHosts.Add(production.PublicOrigin.Host);
+    });
+    builder.Services.Configure<HostFilteringOptions>(options =>
+        options.AllowedHosts = [production.PublicOrigin.Host]);
+    builder.Services.AddOpenTelemetry()
+        .UseAzureMonitor();
+}
 builder.Services.AddSingleton(workspacePolicy);
 builder.Services.AddSingleton(BrowserPolicy.Default);
 builder.Services.AddSingleton(anonymousWorkspaceIngressPolicy);
@@ -132,6 +177,7 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 builder.Services.AddSingleton<LogicLabReadinessHealthCheck>(services => new(
     services.GetRequiredService<IEditorWorkspaceReadiness>(),
     services.GetRequiredService<LogicLabPersistenceReadiness>(),
+    services.GetRequiredService<DataProtectionReadiness>(),
     services.GetRequiredService<IServiceScopeFactory>(),
     services.GetRequiredService<IHostApplicationLifetime>()));
 builder.Services.AddHealthChecks()
@@ -186,8 +232,8 @@ builder.Services.AddOptions<RateLimiterOptions>()
                 .ExecuteAsync(context.HttpContext);
         };
     });
-builder.Services.AddDbContext<ApplicationIdentityDbContext>(options =>
-    options.UseNpgsql(connectionString));
+builder.Services.AddDbContext<ApplicationIdentityDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlDataSource>()));
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
     {
         options.SignIn.RequireConfirmedAccount = false;
@@ -197,9 +243,22 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     .AddSignInManager()
     .AddDefaultTokenProviders();
 builder.Services.AddLogicLabPersistence(
-    connectionString,
+    dataSource,
     workspacePolicy.IdempotencyRecordCount);
-builder.Services.AddDataProtection();
+var dataProtection = builder.Services.AddDataProtection()
+    .SetApplicationName(AzureProductionConfiguration.DataProtectionApplicationName);
+if (production is not null)
+{
+    var keyBlob = new BlobClient(
+        production.DataProtectionBlobUri,
+        azureCredential!);
+    builder.Services.AddSingleton(keyBlob);
+    dataProtection.PersistKeysToAzureBlobStorage(keyBlob);
+}
+
+builder.Services.AddSingleton<DataProtectionReadiness>(services => new(
+    services.GetRequiredService<IDataProtectionProvider>(),
+    services));
 builder.Services.AddSingleton<IProjectCatalogCursorProtector,
     DataProtectionProjectCatalogCursorProtector>();
 builder.Services.AddSingleton<TemporaryProjectExportStore>();
@@ -238,6 +297,11 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 var app = builder.Build();
+
+if (production is not null)
+{
+    app.UseForwardedHeaders();
+}
 
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
@@ -280,6 +344,19 @@ app.MapRazorComponents<App>()
     .AddDurableProjectCatalogPageAdapter();
 
 app.Run();
+
+static void ConfigureAzurePostgreSqlAuthentication(
+    NpgsqlDataSourceBuilder dataSourceBuilder,
+    TokenCredential credential)
+{
+    var tokenRequest = new TokenRequestContext(
+        ["https://ossrdbms-aad.database.windows.net/.default"]);
+    dataSourceBuilder.UsePeriodicPasswordProvider(
+        async (_, cancellationToken) =>
+            (await credential.GetTokenAsync(tokenRequest, cancellationToken)).Token,
+        TimeSpan.FromMinutes(55),
+        TimeSpan.FromSeconds(5));
+}
 
 static Task WriteHealthStatus(HttpContext context, HealthReport report)
 {

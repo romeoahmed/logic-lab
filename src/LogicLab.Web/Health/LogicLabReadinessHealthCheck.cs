@@ -9,6 +9,7 @@ namespace LogicLab.Web.Health;
 internal sealed class LogicLabReadinessHealthCheck(
     IEditorWorkspaceReadiness workspace,
     LogicLabPersistenceReadiness persistence,
+    DataProtectionReadiness dataProtection,
     IServiceScopeFactory scopeFactory,
     IHostApplicationLifetime lifetime) : IHealthCheck
 {
@@ -29,12 +30,18 @@ internal sealed class LogicLabReadinessHealthCheck(
                 return HealthCheckResult.Unhealthy();
             }
 
+            if (!await dataProtection.IsReadyAsync(cancellationToken))
+            {
+                return HealthCheckResult.Unhealthy();
+            }
+
             await using var scope = scopeFactory.CreateAsyncScope();
             var identity = scope.ServiceProvider
                 .GetRequiredService<ApplicationIdentityDbContext>();
             var identityReady = await identity.Database.CanConnectAsync(cancellationToken)
-                && !(await identity.Database.GetPendingMigrationsAsync(cancellationToken))
-                    .Any();
+                && identity.Database.GetMigrations().SequenceEqual(
+                    await identity.Database.GetAppliedMigrationsAsync(
+                        cancellationToken));
             return identityReady
                 ? HealthCheckResult.Healthy()
                 : HealthCheckResult.Unhealthy();

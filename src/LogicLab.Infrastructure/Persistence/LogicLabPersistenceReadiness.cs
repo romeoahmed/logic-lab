@@ -16,8 +16,14 @@ public sealed class LogicLabPersistenceReadiness
     {
         await using var context = await contextFactory.CreateDbContextAsync(
             cancellationToken);
-        return await context.Database.CanConnectAsync(cancellationToken)
-            && !(await context.Database.GetPendingMigrationsAsync(cancellationToken))
-                .Any();
+        if (!await context.Database.CanConnectAsync(cancellationToken))
+        {
+            return false;
+        }
+
+        var expectedMigrations = context.Database.GetMigrations();
+        var appliedMigrations = await context.Database
+            .GetAppliedMigrationsAsync(cancellationToken);
+        return expectedMigrations.SequenceEqual(appliedMigrations);
     }
 }

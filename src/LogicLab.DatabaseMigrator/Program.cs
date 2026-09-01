@@ -1,8 +1,12 @@
+using Azure.Core;
+using Azure.Identity;
 using LogicLab.Infrastructure.Identity;
 using LogicLab.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 const string ConnectionStringEnvironmentVariable = "ConnectionStrings__LogicLab";
+const string ManagedIdentityClientIdEnvironmentVariable = "AZURE_CLIENT_ID";
 
 var connectionString = Environment.GetEnvironmentVariable(
     ConnectionStringEnvironmentVariable);
@@ -12,6 +16,23 @@ if (string.IsNullOrWhiteSpace(connectionString))
         $"Environment variable {ConnectionStringEnvironmentVariable} is required.");
 }
 
+var managedIdentityClientId = Environment.GetEnvironmentVariable(
+    ManagedIdentityClientIdEnvironmentVariable);
+if (!Guid.TryParse(managedIdentityClientId, out var clientId))
+{
+    throw new InvalidOperationException(
+        $"Environment variable {ManagedIdentityClientIdEnvironmentVariable} must be a GUID.");
+}
+
+var database = new NpgsqlConnectionStringBuilder(connectionString);
+if (!string.IsNullOrEmpty(database.Password)
+    || string.IsNullOrWhiteSpace(database.Username)
+    || database.SslMode != SslMode.VerifyFull)
+{
+    throw new InvalidOperationException(
+        "The migration connection must be passwordless and use SSL Mode=VerifyFull.");
+}
+
 using var cancellationSource = new CancellationTokenSource();
 Console.CancelKeyPress += (_, eventArgs) =>
 {
@@ -19,9 +40,16 @@ Console.CancelKeyPress += (_, eventArgs) =>
     cancellationSource.Cancel();
 };
 
+var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+ConfigureAzurePostgreSqlAuthentication(
+    dataSourceBuilder,
+    new ManagedIdentityCredential(
+        ManagedIdentityId.FromUserAssignedClientId(clientId.ToString())));
+
+await using var dataSource = dataSourceBuilder.Build();
 await using (var identityContext = new ApplicationIdentityDbContext(
     new DbContextOptionsBuilder<ApplicationIdentityDbContext>()
-        .UseNpgsql(connectionString)
+        .UseNpgsql(dataSource)
         .Options))
 {
     await MigrateAsync(
@@ -32,7 +60,7 @@ await using (var identityContext = new ApplicationIdentityDbContext(
 
 await using (var logicLabContext = new LogicLabDbContext(
     new DbContextOptionsBuilder<LogicLabDbContext>()
-        .UseNpgsql(connectionString)
+        .UseNpgsql(dataSource)
         .Options))
 {
     await MigrateAsync(
@@ -42,6 +70,19 @@ await using (var logicLabContext = new LogicLabDbContext(
 }
 
 Console.WriteLine("Database migrations completed.");
+
+static void ConfigureAzurePostgreSqlAuthentication(
+    NpgsqlDataSourceBuilder dataSourceBuilder,
+    TokenCredential credential)
+{
+    var tokenRequest = new TokenRequestContext(
+        ["https://ossrdbms-aad.database.windows.net/.default"]);
+    dataSourceBuilder.UsePeriodicPasswordProvider(
+        async (_, cancellationToken) =>
+            (await credential.GetTokenAsync(tokenRequest, cancellationToken)).Token,
+        TimeSpan.FromMinutes(55),
+        TimeSpan.FromSeconds(5));
+}
 
 static async Task MigrateAsync(
     DbContext context,

@@ -1,6 +1,7 @@
 using LogicLab.Application.Workspaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 namespace LogicLab.Infrastructure.Persistence;
 
@@ -8,15 +9,15 @@ public static class LogicLabPersistenceServiceCollectionExtensions
 {
     public static IServiceCollection AddLogicLabPersistence(
         this IServiceCollection services,
-        string connectionString,
+        NpgsqlDataSource dataSource,
         int durableCommandReceiptCount)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentException.ThrowIfNullOrEmpty(connectionString);
+        ArgumentNullException.ThrowIfNull(dataSource);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(durableCommandReceiptCount);
 
         services.AddDbContextFactory<LogicLabDbContext>(options =>
-            options.UseNpgsql(connectionString));
+            options.UseNpgsql(dataSource));
         services.AddSingleton(provider =>
             new DurableProjectRepository(
                 provider.GetRequiredService<IDbContextFactory<LogicLabDbContext>>(),
