@@ -106,6 +106,7 @@ Project seams follow dependency or deployment seams, not every namespace.
 | `LogicLab.ProjectFormat`   | strict `.logiclab` read/write, migration, digest, memory encoding     | Domain, BCL compression/JSON                   |
 | `LogicLab.Application`     | Editor Workspace, Work Coordinator, authorization-aware use cases     | Domain, Engine, ProjectFormat                  |
 | `LogicLab.Infrastructure`  | EF Core repository and persistence adapters                           | Application, Domain, EF Core                   |
+| `LogicLab.DatabaseMigrator` | database principal bootstrap and deterministic schema migration      | Infrastructure, EF Core, Azure Identity        |
 | `LogicLab.Web`             | Blazor routes, Fluent chrome, browser/HTTP adapters, composition root | Application, Presentation, Infrastructure      |
 
 Tests and benchmarks remain separate projects and do not create production seams.
@@ -119,6 +120,7 @@ Dependency rules:
 - Presentation emits geometry only; it owns neither selection nor live state.
 - Application coordinates modules without reproducing their implementation phases.
 - Infrastructure implements Application-owned persistence ports.
+- DatabaseMigrator is the only process that applies production schema migrations.
 - Web is the only project that references Fluent UI or browser interop.
 
 ## 6. Module catalog
