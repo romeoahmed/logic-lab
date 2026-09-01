@@ -227,9 +227,6 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-04-01' =
       azureADAuthenticationAsArmPolicy: {
         status: 'enabled'
       }
-      exportPolicy: {
-        status: 'disabled'
-      }
     }
     publicNetworkAccess: 'Enabled'
   }
