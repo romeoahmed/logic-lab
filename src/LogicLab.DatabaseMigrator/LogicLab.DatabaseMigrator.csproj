@@ -1,5 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <ContainerImageFormat>OCI</ContainerImageFormat>
+    <ContainerRepository>logic-lab-migrator</ContainerRepository>
+    <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
     <OutputType>Exe</OutputType>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
