@@ -5,6 +5,7 @@
     <ContainerPort>8080</ContainerPort>
     <ContainerRepository>logic-lab-web</ContainerRepository>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <ItemGroup>
