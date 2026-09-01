@@ -48,10 +48,12 @@ jobs:
           build-mode: manual
 
       - name: Restore production dependencies
-        run: dotnet restore src/LogicLab.Web/LogicLab.Web.csproj --locked-mode --nologo
+        run: dotnet restore logic-lab.slnx --locked-mode --nologo
 
       - name: Build production code
-        run: dotnet build src/LogicLab.Web/LogicLab.Web.csproj --configuration Release --no-restore --nologo
+        run: |
+          dotnet build src/LogicLab.Web/LogicLab.Web.csproj --configuration Release --no-restore --nologo
+          dotnet build src/LogicLab.DatabaseMigrator/LogicLab.DatabaseMigrator.csproj --configuration Release --no-restore --nologo
 
       - name: Analyze
         uses: github/codeql-action/analyze@v4
