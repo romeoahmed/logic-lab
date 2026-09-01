@@ -12,7 +12,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Infrastructure.Tests;
 
-internal sealed class SqliteDurableProjectCatalogRepositoryTests : IAsyncDisposable
+internal sealed class DurableProjectCatalogRepositoryTests : IAsyncDisposable
 {
     private readonly string databasePath = Path.Combine(
         Path.GetTempPath(),
@@ -179,7 +179,7 @@ internal sealed class SqliteDurableProjectCatalogRepositoryTests : IAsyncDisposa
         return ValueTask.CompletedTask;
     }
 
-    private async Task<(SqliteDurableProjectRepository Repository, TestDbContextFactory Factory)>
+    private async Task<(DurableProjectRepository Repository, TestDbContextFactory Factory)>
         CreateRepositoryAsync(params IInterceptor[] interceptors)
     {
         var options = new DbContextOptionsBuilder<LogicLabDbContext>()
@@ -193,12 +193,12 @@ internal sealed class SqliteDurableProjectCatalogRepositoryTests : IAsyncDisposa
             .Options;
         var factory = new TestDbContextFactory(options);
         await using var context = await factory.CreateDbContextAsync();
-        await context.Database.MigrateAsync();
-        return (new SqliteDurableProjectRepository(factory, 1_024), factory);
+        await context.Database.EnsureCreatedAsync();
+        return (new DurableProjectRepository(factory, 1_024), factory);
     }
 
     private static async Task ClaimAsync(
-        SqliteDurableProjectRepository repository,
+        DurableProjectRepository repository,
         string durableProjectId,
         string workspaceId,
         string subjectId,

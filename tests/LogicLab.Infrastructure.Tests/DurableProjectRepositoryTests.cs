@@ -5,11 +5,12 @@ using LogicLab.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Npgsql;
 using TUnit.Assertions.Enums;
 
 namespace LogicLab.Infrastructure.Tests;
 
-internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
+internal sealed class DurableProjectRepositoryTests : IAsyncDisposable
 {
     private readonly string databasePath = Path.Combine(
         Path.GetTempPath(),
@@ -82,15 +83,15 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     [Test]
     public async Task DispatchAsync_ContextCreationCancelledBeforeCommit_RestoresSandbox()
     {
-        const string buildFingerprint = "sqlite-pre-commit-cancellation";
+        const string buildFingerprint = "persistence-pre-commit-cancellation";
         var innerFactory = CreateDbContextFactory();
         await using (var context = await innerFactory.CreateDbContextAsync())
         {
-            await context.Database.MigrateAsync();
+            await context.Database.EnsureCreatedAsync();
         }
 
         using var cancellation = new CancellationTokenSource();
-        var repository = new SqliteDurableProjectRepository(
+        var repository = new DurableProjectRepository(
             new CancelFirstContextFactory(innerFactory, cancellation),
             receiptRetentionCount: 1_024);
         await using var workspace = EditorWorkspaceFactory.Create(
@@ -133,9 +134,9 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     [Test]
     public async Task DispatchAsync_UnmigratedDatabaseFailureBeforeCommit_RestoresSandbox()
     {
-        const string buildFingerprint = "sqlite-pre-commit-infrastructure";
+        const string buildFingerprint = "persistence-pre-commit-infrastructure";
         var factory = CreateDbContextFactory();
-        var repository = new SqliteDurableProjectRepository(
+        var repository = new DurableProjectRepository(
             factory,
             receiptRetentionCount: 1_024);
         await using var workspace = EditorWorkspaceFactory.Create(
@@ -160,7 +161,7 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             CancellationToken.None);
         await using (var context = await factory.CreateDbContextAsync())
         {
-            await context.Database.MigrateAsync();
+            await context.Database.EnsureCreatedAsync();
         }
 
         var retry = await workspace.DispatchAsync(
@@ -184,14 +185,14 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     [Test]
     public async Task DispatchAsync_CommitAcknowledgementFailure_RecoversStoredClaim()
     {
-        const string buildFingerprint = "sqlite-commit-unknown";
+        const string buildFingerprint = "persistence-commit-unknown";
         var migrationFactory = CreateDbContextFactory();
         await using (var context = await migrationFactory.CreateDbContextAsync())
         {
-            await context.Database.MigrateAsync();
+            await context.Database.EnsureCreatedAsync();
         }
 
-        var repository = new SqliteDurableProjectRepository(
+        var repository = new DurableProjectRepository(
             CreateDbContextFactory(new FailAfterFirstCommitInterceptor()),
             receiptRetentionCount: 1_024);
         await using var workspace = EditorWorkspaceFactory.Create(
@@ -224,9 +225,9 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     [Test]
     public async Task ClaimAsync_UnknownClaimAdvancedExternally_RecoveryDoesNotOverwriteWinner()
     {
-        const string buildFingerprint = "sqlite-claim-recovery";
-        var (sqliteRepository, factory) = await CreateRepositoryAsync();
-        var repository = new FirstClaimCommitUnknownRepository(sqliteRepository);
+        const string buildFingerprint = "persistence-claim-recovery";
+        var (durableRepository, factory) = await CreateRepositoryAsync();
+        var repository = new FirstClaimCommitUnknownRepository(durableRepository);
         await using var workspace = EditorWorkspaceFactory.Create(
             buildFingerprint,
             durableProjectRepository: repository,
@@ -262,7 +263,7 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             opened.Projection.ProjectRevision,
             "External winner");
         var winnerVersion = new DurableVersion("external-winner-version");
-        var externalSave = await sqliteRepository.SaveAsync(
+        var externalSave = await durableRepository.SaveAsync(
             new DurableProjectSaveRequest(
                 durableProjectId,
                 new AuthenticatedSubjectId("subject-1"),
@@ -426,7 +427,7 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         var initialRequest = ClaimRequest(revision, fingerprintCharacter: 'a');
         _ = await repository.ClaimAsync(initialRequest, CancellationToken.None);
         var interceptor = new NonUniqueUpdateFailureInterceptor();
-        var failingRepository = new SqliteDurableProjectRepository(
+        var failingRepository = new DurableProjectRepository(
             CreateDbContextFactory(interceptor),
             receiptRetentionCount: 1_024);
         var retry = new DurableProjectClaimRequest(
@@ -520,7 +521,7 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
                 ReceiptKey('b', "save-winner-before-failure")),
             CancellationToken.None);
         var interceptor = new NonUniqueUpdateFailureInterceptor();
-        var failingRepository = new SqliteDurableProjectRepository(
+        var failingRepository = new DurableProjectRepository(
             CreateDbContextFactory(interceptor),
             receiptRetentionCount: 1_024);
         var staleRequest = new DurableProjectSaveRequest(
@@ -679,7 +680,7 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
     [Test]
     public async Task LoadAsync_PayloadRevisionIdentityDiffersFromRowKey_ReturnsInternalDefect()
     {
-        const string buildFingerprint = "sqlite-revision-identity-integrity";
+        const string buildFingerprint = "persistence-revision-identity-integrity";
         var (repository, factory) = await CreateRepositoryAsync();
         var initialRevision = CreateRevision();
         var claim = ClaimRequest(initialRevision, fingerprintCharacter: 'a');
@@ -746,14 +747,14 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
         return ValueTask.CompletedTask;
     }
 
-    private async Task<(SqliteDurableProjectRepository Repository, TestDbContextFactory Factory)>
+    private async Task<(DurableProjectRepository Repository, TestDbContextFactory Factory)>
         CreateRepositoryAsync(int receiptRetentionCount = 1_024)
     {
         var factory = CreateDbContextFactory();
         await using var context = await factory.CreateDbContextAsync();
-        await context.Database.MigrateAsync();
+        await context.Database.EnsureCreatedAsync();
         return (
-            new SqliteDurableProjectRepository(factory, receiptRetentionCount),
+            new DurableProjectRepository(factory, receiptRetentionCount),
             factory);
     }
 
@@ -924,10 +925,11 @@ internal sealed class SqliteDurableProjectRepositoryTests : IAsyncDisposable
             SaveAttemptCount++;
             throw new DbUpdateException(
                 "A non-unique database update failure was injected.",
-                new SqliteException(
+                new PostgresException(
                     "A foreign-key constraint failed.",
-                    SQLitePCL.raw.SQLITE_CONSTRAINT,
-                    SQLitePCL.raw.SQLITE_CONSTRAINT_FOREIGNKEY));
+                    "ERROR",
+                    "ERROR",
+                    PostgresErrorCodes.ForeignKeyViolation));
         }
     }
 

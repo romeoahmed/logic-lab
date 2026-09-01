@@ -15,6 +15,18 @@
           "Microsoft.AspNetCore.Components.WebAssembly.Authentication": "10.0.10"
         }
       },
+      "Microsoft.EntityFrameworkCore.Sqlite": {
+        "type": "Direct",
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "jc7iVrhQyInR3loraMESfEFaFOtQOB1mRKHjX6QYC9o7YDbfMNbAPnIwlpffnFwhXd6/27FKaaV+sWSoLd4F1g==",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Sqlite.Core": "10.0.11",
+          "Microsoft.Extensions.DependencyModel": "10.0.11",
+          "SQLitePCLRaw.bundle_e_sqlite3": "2.1.12",
+          "SQLitePCLRaw.core": "2.1.12"
+        }
+      },
       "TUnit": {
         "type": "Direct",
         "requested": "[1.65.68, )",
@@ -217,6 +229,11 @@
           "Microsoft.Testing.Platform": "2.3.3"
         }
       },
+      "Npgsql": {
+        "type": "Transitive",
+        "resolved": "10.0.3",
+        "contentHash": "7nb5YzXuvWWJxB0J8DiyL3we+X4FOctZrt0fIBnucOIaIevFEEwGQVZKtiu9olXdlNAK1eNgqSral6r/jlhI4w=="
+      },
       "OpenTelemetry": {
         "type": "Transitive",
         "resolved": "1.18.0",
@@ -372,7 +389,8 @@
         "dependencies": {
           "LogicLab.Application": "[1.0.0, )",
           "LogicLab.Domain": "[1.0.0, )",
-          "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.11, )"
+          "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.11, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
         }
       },
       "logiclab.presentation": {
@@ -415,23 +433,22 @@
           "Microsoft.EntityFrameworkCore.Relational": "10.0.11"
         }
       },
-      "Microsoft.EntityFrameworkCore.Sqlite": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.11, )",
-        "resolved": "10.0.11",
-        "contentHash": "jc7iVrhQyInR3loraMESfEFaFOtQOB1mRKHjX6QYC9o7YDbfMNbAPnIwlpffnFwhXd6/27FKaaV+sWSoLd4F1g==",
-        "dependencies": {
-          "Microsoft.EntityFrameworkCore.Sqlite.Core": "10.0.11",
-          "Microsoft.Extensions.DependencyModel": "10.0.11",
-          "SQLitePCLRaw.bundle_e_sqlite3": "2.1.12",
-          "SQLitePCLRaw.core": "2.1.12"
-        }
-      },
       "Microsoft.FluentUI.AspNetCore.Components": {
         "type": "CentralTransitive",
         "requested": "[5.0.0-rc.5-26219.1, )",
         "resolved": "5.0.0-rc.5-26219.1",
         "contentHash": "bVvvbP9cZXf1pwAZnvwptC5sheW9EP20NsVl3AJsaTZzBx4qqLa5Xu9QqJMHMR3bJdQIwLQ4DCO3zbmKVMJUsw=="
+      },
+      "Npgsql.EntityFrameworkCore.PostgreSQL": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.3, )",
+        "resolved": "10.0.3",
+        "contentHash": "IPGrrZnRkuW7OlHDhUESZz4G5DLkW7Nej/O3Cx+0iTsgyU5XJxBgpsvTHLloo3WWuAKKbDHXBvWPVkX1deRh1Q==",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.4, 11.0.0)",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.4, 11.0.0)",
+          "Npgsql": "10.0.3"
+        }
       }
     }
   }
