@@ -18,6 +18,7 @@ internal sealed record AzureProductionConfiguration(
 
         var publicOrigin = ReadHttpsUri(configuration, "Azure:PublicOrigin");
         if (publicOrigin.AbsolutePath != "/"
+            || !string.IsNullOrEmpty(publicOrigin.UserInfo)
             || !string.IsNullOrEmpty(publicOrigin.Query)
             || !string.IsNullOrEmpty(publicOrigin.Fragment))
         {
@@ -35,10 +36,13 @@ internal sealed record AzureProductionConfiguration(
         var dataProtectionBlobUri = ReadHttpsUri(
             configuration,
             "Azure:DataProtectionBlobUri");
-        if (dataProtectionBlobUri.AbsolutePath == "/")
+        if (dataProtectionBlobUri.AbsolutePath == "/"
+            || !string.IsNullOrEmpty(dataProtectionBlobUri.UserInfo)
+            || !string.IsNullOrEmpty(dataProtectionBlobUri.Query)
+            || !string.IsNullOrEmpty(dataProtectionBlobUri.Fragment))
         {
             throw new InvalidOperationException(
-                "Azure:DataProtectionBlobUri must identify a blob.");
+                "Azure:DataProtectionBlobUri must identify a blob without embedded credentials, query, or fragment.");
         }
 
         if (string.IsNullOrWhiteSpace(

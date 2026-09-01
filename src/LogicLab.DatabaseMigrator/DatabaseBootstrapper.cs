@@ -1,3 +1,4 @@
+using LogicLab.Infrastructure.Persistence;
 using Npgsql;
 
 namespace LogicLab.DatabaseMigrator;
@@ -85,25 +86,52 @@ internal static class DatabaseBootstrapper
         Guid principalObjectId,
         CancellationToken cancellationToken)
     {
+        const string PrincipalSql =
+            "SELECT * FROM pg_catalog.pgaadauth_list_principals(false) WHERE rolename::text = $1;";
+        await using (var principalCommand = new NpgsqlCommand(
+            PrincipalSql,
+            connection))
+        {
+            principalCommand.Parameters.AddWithValue(principalName);
+            await using var reader = await principalCommand
+                .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+                && string.Equals(reader.GetString(1), "service", StringComparison.Ordinal)
+                && Guid.TryParse(reader.GetString(2), out var currentObjectId)
+                && currentObjectId == principalObjectId
+                && reader.GetInt32(4) == 0
+                && reader.GetInt32(5) == 0)
+            {
+                return;
+            }
+        }
+
         const string RoleExistsSql =
             "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = $1);";
         await using var existsCommand = new NpgsqlCommand(RoleExistsSql, connection);
         existsCommand.Parameters.AddWithValue(principalName);
         var exists = (bool)(await existsCommand
             .ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
-        if (exists)
+        if (!exists)
         {
+            const string CreatePrincipalSql =
+                "SELECT * FROM pg_catalog.pgaadauth_create_principal_with_oid($1, $2, 'service', false, false);";
+            await using var createCommand = new NpgsqlCommand(
+                CreatePrincipalSql,
+                connection);
+            createCommand.Parameters.AddWithValue(principalName);
+            createCommand.Parameters.AddWithValue(principalObjectId.ToString());
+            await createCommand.ExecuteNonQueryAsync(cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
-        const string CreatePrincipalSql =
-            "SELECT * FROM pg_catalog.pgaadauth_create_principal_with_oid($1, $2, 'service', false, false);";
-        await using var createCommand = new NpgsqlCommand(
-            CreatePrincipalSql,
+        using var commandBuilder = new NpgsqlCommandBuilder();
+        var role = commandBuilder.QuoteIdentifier(principalName);
+        await using var updateCommand = new NpgsqlCommand(
+            $"SECURITY LABEL FOR \"pgaadauth\" ON ROLE {role} IS 'aadauth,oid={principalObjectId:D},type=service';",
             connection);
-        createCommand.Parameters.AddWithValue(principalName);
-        createCommand.Parameters.AddWithValue(principalObjectId.ToString());
-        await createCommand.ExecuteNonQueryAsync(cancellationToken)
+        await updateCommand.ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -119,14 +147,19 @@ internal static class DatabaseBootstrapper
             configuration.MigratorPrincipalName);
         var sql = $"""
             REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+            CREATE SCHEMA IF NOT EXISTS {LogicLabPostgreSqlOptionsExtensions.MigrationsSchema};
+            REVOKE ALL ON SCHEMA {LogicLabPostgreSqlOptionsExtensions.MigrationsSchema} FROM PUBLIC;
             GRANT CONNECT ON DATABASE {database} TO {web};
             GRANT USAGE ON SCHEMA public TO {web};
             GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {web};
             GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {web};
+            GRANT USAGE ON SCHEMA {LogicLabPostgreSqlOptionsExtensions.MigrationsSchema} TO {web};
+            GRANT SELECT ON ALL TABLES IN SCHEMA {LogicLabPostgreSqlOptionsExtensions.MigrationsSchema} TO {web};
             GRANT CONNECT ON DATABASE {database} TO {migrator};
             GRANT USAGE, CREATE ON SCHEMA public TO {migrator};
-            ALTER ROLE {web} NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
-            ALTER ROLE {migrator} NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+            GRANT USAGE, CREATE ON SCHEMA {LogicLabPostgreSqlOptionsExtensions.MigrationsSchema} TO {migrator};
+            ALTER ROLE {web} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            ALTER ROLE {migrator} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
             """;
         await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);

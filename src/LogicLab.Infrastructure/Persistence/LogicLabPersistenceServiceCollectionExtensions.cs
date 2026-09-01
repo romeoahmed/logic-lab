@@ -17,7 +17,7 @@ public static class LogicLabPersistenceServiceCollectionExtensions
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(durableCommandReceiptCount);
 
         services.AddDbContextFactory<LogicLabDbContext>(options =>
-            options.UseNpgsql(dataSource));
+            options.UseLogicLabPersistencePostgreSql(dataSource));
         services.AddSingleton(provider =>
             new DurableProjectRepository(
                 provider.GetRequiredService<IDbContextFactory<LogicLabDbContext>>(),

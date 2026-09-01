@@ -75,6 +75,10 @@ var blobContributorRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 )
+var monitoringMetricsPublisherRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '3913510d-42f4-4e42-8a64-420c390055eb'
+)
 
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2025-05-01' = {
   name: '${baseName}-vnet'
@@ -248,6 +252,16 @@ resource webAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
     principalId: webIdentity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: acrPullRoleDefinitionId
+  }
+}
+
+resource webTelemetryPublisher 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(applicationInsights.id, webIdentity.id, monitoringMetricsPublisherRoleDefinitionId)
+  scope: applicationInsights
+  properties: {
+    principalId: webIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: monitoringMetricsPublisherRoleDefinitionId
   }
 }
 
@@ -489,24 +503,6 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2026-01-01'
   }
 }
 
-output applicationInsightsName string = applicationInsights.name
-output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString
-output actionGroupId string = actionGroup.id
-output containerAppsEnvironmentName string = containerAppsEnvironment.name
-output containerAppsDefaultDomain string = containerAppsEnvironment.properties.defaultDomain
 output containerRegistryName string = containerRegistry.name
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer
-output dataProtectionBlobUri string = '${dataProtectionStorage.properties.primaryEndpoints.blob}${dataProtectionContainer.name}/keys.xml'
-output databaseAdminIdentityName string = databaseAdminIdentity.name
-output databaseAdminIdentityId string = databaseAdminIdentity.id
-output databaseAdminIdentityClientId string = databaseAdminIdentity.properties.clientId
-output migratorIdentityName string = migratorIdentity.name
-output migratorIdentityId string = migratorIdentity.id
-output migratorIdentityClientId string = migratorIdentity.properties.clientId
-output migratorIdentityPrincipalId string = migratorIdentity.properties.principalId
 output postgresServerName string = postgres.outputs.serverName
-output postgresHost string = postgres.outputs.host
-output webIdentityName string = webIdentity.name
-output webIdentityId string = webIdentity.id
-output webIdentityClientId string = webIdentity.properties.clientId
-output webIdentityPrincipalId string = webIdentity.properties.principalId

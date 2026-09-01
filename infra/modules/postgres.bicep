@@ -57,7 +57,7 @@ resource server 'Microsoft.DBforPostgreSQL/flexibleServers@2025-08-01' = {
       storageSizeGB: storageSizeGB
       type: 'Premium_LRS'
     }
-    version: '17'
+    version: '18'
   }
 }
 
