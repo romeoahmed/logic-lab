@@ -15,6 +15,10 @@ ADRs record hard-to-reverse, non-obvious trade-offs. Specifications define curre
 - [0004 — Host Application-owned Workspaces on Interactive Server](./0004-host-application-owned-workspaces-on-interactive-server.md)
 - [0005 — Use one strict `.logiclab` carrier](./0005-use-one-strict-logiclab-carrier.md)
 
+### Deployment
+
+- [0009 — Select the Azure production deployment profile](./0009-select-azure-production-profile.md)
+
 ### Presentation
 
 - [0007 — Generate TeachingMixed symbols declaratively](./0007-generate-teachingmixed-symbols-declaratively.md) — amended by 0008

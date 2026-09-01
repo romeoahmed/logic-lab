@@ -12,6 +12,7 @@ delivery, rationale, and evidence are different facts and have different owners.
 | change a module boundary                | [Architecture](../ARCHITECTURE.md)                              | the interface specification or seam contract              |
 | change Web/Application/browser exchange | [Contracts](./contracts/README.md)                              | the one contract for that seam                            |
 | change build, dependencies, or tests    | [.NET Engineering](./specs/dotnet-engineering.md)               | one focused research note when rationale matters          |
+| change production deployment            | [Production Profile](./deployment/production-profile.md)        | Architecture, Web Host, then executable Bicep              |
 | find what is implemented next           | [Implementation Plan](./implementation-plan.md#delivery-status) | the owner of the active slice                             |
 | understand why a durable choice exists  | [ADRs](./adr/README.md)                                         | the current owner, which remains normative                |
 
@@ -28,6 +29,7 @@ analogous implementation, and the directly governing interface or rule.
 | observable domain, compiler, runtime, format, presentation, host, and browser behavior | [Specifications](./specs/)                                                   |
 | values exchanged across Application, browser, and HTTP seams                           | [Contracts](./contracts/README.md)                                           |
 | limits and their semantic/format/provisional/measured classification                   | [Policy Catalog](./policies/catalog.md)                                      |
+| selected production provider shape, operations, and qualification boundary             | [Production Profile](./deployment/production-profile.md)                     |
 | completion, dependency frontier, and deferred capability order                         | [Implementation Plan](./implementation-plan.md)                              |
 | hard-to-reverse decision rationale                                                     | [ADRs](./adr/README.md)                                                      |
 | derivations, external sources, and dated measurements                                  | [Research](./research/README.md)                                             |

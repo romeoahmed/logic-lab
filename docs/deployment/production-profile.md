@@ -1,0 +1,128 @@
+# Azure production deployment profile
+
+> Status: selected V1 profile; implementation and qualification are incomplete.
+>
+> Qualification owner: [Implementation Plan items 34–43](../implementation-plan.md#production-qualification).
+
+This document owns the selected Azure provider shape and its operational boundaries.
+[Architecture](../../ARCHITECTURE.md) owns Module and dependency seams, [Web Host](../specs/web-host.md)
+owns observable host behavior, and executable Bicep owns deployed resource values.
+
+## Runtime shape
+
+```text
+GitHub Actions via OIDC
+  -> Azure Container Registry
+       -> Container Apps Migration Job
+       -> Container Apps Web
+            -> PostgreSQL Flexible Server
+            -> Data Protection Blob
+            -> Azure Monitor / Application Insights
+```
+
+Web uses Container Apps single-revision mode with exactly one replica. The profile
+does not promise application high availability. Startup and readiness probes gate
+ingress cutover, but active Interactive Server circuits and process-local Workspaces
+can require reload or authorized recovery when a revision is replaced.
+
+The public boundary is Container Apps HTTPS ingress with one configured origin and
+host. PostgreSQL and the Data Protection storage account use private connectivity.
+The first profile has no public database endpoint, Front Door, public API, custom
+SignalR Hub, Azure SignalR Service, or multiple active revision path.
+
+## Artifact profile
+
+- Web and Migrator target .NET 10 and `linux/amd64`.
+- Publication remains framework-dependent, untrimmed, JIT-compiled, and
+  globalization-capable.
+- Release tags derive the application version; deployed resources use immutable OCI
+  manifest digests rather than `latest`.
+- Release evidence contains symbols, exact dependency locks, deterministic build
+  fingerprint, SBOM, and provenance attestation.
+
+Azure Container Apps accepts Linux x86-64 images, so the ARM CI runner cross-publishes
+for `linux-x64` ([container requirements](https://learn.microsoft.com/en-us/azure/container-apps/containers),
+[SDK container publish](https://learn.microsoft.com/en-us/dotnet/core/containers/sdk-publish)).
+
+## Identity and data
+
+| Principal | Allowed responsibility | Explicit exclusion |
+| --- | --- | --- |
+| GitHub production environment | federated Azure deployment within its assigned scope | no stored client secret; no PR deployment permission |
+| Web managed identity | ACR pull, Data Protection Blob data access, PostgreSQL runtime DML | no schema migration or broad resource ownership |
+| Migrator managed identity | ACR pull and reviewed PostgreSQL DDL migration | no Web request handling or unrelated Azure mutation |
+| PostgreSQL Entra administrator | bootstrap application principals and grants | no application runtime use |
+
+Azure RBAC governs Azure resources. PostgreSQL authentication uses Microsoft Entra
+tokens, while database roles and grants govern schema and data access. The Web
+connection contains no password and refreshes its token before expiry
+([managed-identity connection](https://learn.microsoft.com/en-us/azure/postgresql/security/security-connect-with-managed-identity),
+[Npgsql token rotation](https://www.npgsql.org/doc/security.html)).
+
+Identity and Durable Project migration sets run in a deterministic order through the
+Migration Job. Web never calls `Migrate()` and never becomes ready against an
+unexpected schema. The release establishes and verifies a recovery point before
+schema mutation.
+
+Data Protection uses one stable application discriminator and a Blob-backed key ring
+with least-privilege access. Losing access to the key ring blocks readiness rather
+than silently creating a replacement production identity boundary.
+
+## Host configuration
+
+Production configuration fixes:
+
+- public HTTPS origin and allowed host;
+- trusted proxy networks and forwarded-header behavior;
+- PostgreSQL endpoint, database, Entra principal, and expected migration IDs;
+- Data Protection Blob URI and application discriminator;
+- Application Insights connection configuration;
+- calibrated project, transfer, Workspace, scheduling, and browser policies.
+
+Missing, wildcard, contradictory, or development-only values fail startup. Liveness
+reports only process responsiveness. Readiness verifies configuration, database
+reachability, schema compatibility, Data Protection access, and Work Coordinator
+admission without exposing addresses, counts, secrets, or exceptions.
+
+## Infrastructure and release
+
+Bicep declares ACR, monitoring, PostgreSQL, storage, networking, private DNS,
+Container Apps environment, Web, Migration Job, managed identities, least-privilege
+assignments, probes, scaling, diagnostics, alerts, tags, and domain bindings. Parameter
+files contain no credentials.
+
+The release workflow:
+
+1. verifies the locked Release build;
+2. authenticates to Azure through GitHub OIDC;
+3. publishes versioned Web and Migrator images and records their digests;
+4. emits SBOM and provenance evidence;
+5. validates and previews Bicep changes before approval;
+6. runs and verifies the Migration Job;
+7. deploys Web by exact digest and waits for readiness;
+8. performs external smoke checks and an observation window.
+
+Rollback redeploys the previous known-good digest; it never rebuilds an old commit.
+Database changes follow expand/contract compatibility. Logical data recovery restores
+PostgreSQL to a new server at a verified point in time before connection cutover.
+
+## Qualification boundary
+
+Before item `42` can close, the profile still requires concrete region, origin/domain,
+resource sizes, owner assignments, RTO, RPO, maintenance window, PostgreSQL HA mode,
+backup retention, geo-recovery posture, alert destinations, and calibrated policies.
+
+Item `43` requires recorded drills for migration, backup/restore, Data Protection key
+continuity, upgrade, rollback, telemetry, load, security, and the complete runbooks.
+No workflow, Bicep validation, or successful build alone proves production
+qualification.
+
+## Sources
+
+- [Azure Container Apps revisions](https://learn.microsoft.com/en-us/azure/container-apps/revisions)
+- [Managed identities in Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/managed-identity)
+- [Azure Database for PostgreSQL Flexible Server](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/overview)
+- [PostgreSQL business continuity](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/concepts-business-continuity)
+- [ASP.NET Core Data Protection key storage](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/implementation/key-storage-providers?view=aspnetcore-10.0)
+- [EF Core production migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)
+- [Bicep deployment with Azure CLI](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/deploy-cli)
