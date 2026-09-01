@@ -1,6 +1,6 @@
 # Azure production deployment profile
 
-> Status: selected V1 profile; implementation and qualification are incomplete.
+> Status: selected V1 profile with executable implementation; qualification is incomplete.
 >
 > Qualification owner: [Implementation Plan items 34–43](../implementation-plan.md#production-qualification).
 
@@ -13,7 +13,7 @@ owns observable host behavior, and executable Bicep owns deployed resource value
 ```text
 GitHub Actions via OIDC
   -> Azure Container Registry
-       -> Container Apps Migration Job
+       -> Container Apps Bootstrap and Migration Jobs
        -> Container Apps Web
             -> PostgreSQL Flexible Server
             -> Data Protection Blob
@@ -37,8 +37,8 @@ SignalR Hub, Azure SignalR Service, or multiple active revision path.
   globalization-capable.
 - Release tags derive the application version; deployed resources use immutable OCI
   manifest digests rather than `latest`.
-- Release evidence contains symbols, exact dependency locks, deterministic build
-  fingerprint, SBOM, and provenance attestation.
+- Release evidence contains compiled templates, exact dependency locks, the release
+  commit and image digests, SBOMs, and provenance attestations.
 
 Azure Container Apps accepts Linux x86-64 images, so the ARM CI runner cross-publishes
 for `linux-x64` ([container requirements](https://learn.microsoft.com/en-us/azure/container-apps/containers),
@@ -51,7 +51,7 @@ for `linux-x64` ([container requirements](https://learn.microsoft.com/en-us/azur
 | GitHub production environment | federated Azure deployment within its assigned scope | no stored client secret; no PR deployment permission |
 | Web managed identity | ACR pull, Data Protection Blob data access, PostgreSQL runtime DML | no schema migration or broad resource ownership |
 | Migrator managed identity | ACR pull and reviewed PostgreSQL DDL migration | no Web request handling or unrelated Azure mutation |
-| PostgreSQL Entra administrator | bootstrap application principals and grants | no application runtime use |
+| Database-admin managed identity | bootstrap application principals and grants | no application runtime use |
 
 Azure RBAC governs Azure resources. PostgreSQL authentication uses Microsoft Entra
 tokens, while database roles and grants govern schema and data access. The Web
@@ -87,20 +87,21 @@ admission without exposing addresses, counts, secrets, or exceptions.
 ## Infrastructure and release
 
 Bicep declares ACR, monitoring, PostgreSQL, storage, networking, private DNS,
-Container Apps environment, Web, Migration Job, managed identities, least-privilege
-assignments, probes, scaling, diagnostics, alerts, tags, and domain bindings. Parameter
-files contain no credentials.
+Container Apps environment, Web, bootstrap and Migration Jobs, managed identities,
+least-privilege assignments, probes, scaling, diagnostics, alerts, and tags. Templates
+and tracked files contain no credentials.
 
 The release workflow:
 
-1. verifies the locked Release build;
-2. authenticates to Azure through GitHub OIDC;
-3. publishes versioned Web and Migrator images and records their digests;
-4. emits SBOM and provenance evidence;
-5. validates and previews Bicep changes before approval;
-6. runs and verifies the Migration Job;
-7. deploys Web by exact digest and waits for readiness;
-8. performs external smoke checks and an observation window.
+1. receives production-environment approval and verifies the release tag;
+2. restores the locked production graphs and authenticates through GitHub OIDC;
+3. validates, previews, and deploys the foundation;
+4. publishes versioned Web and Migrator images and records their digests;
+5. emits SBOM, provenance, lock, template, and release-manifest evidence;
+6. previews the application, deploys the Jobs without updating Web, and establishes a
+   database backup;
+7. runs bootstrap, migration, and grant convergence in order;
+8. deploys Web by exact digest and waits for readiness and external stability.
 
 Rollback redeploys the previous known-good digest; it never rebuilds an old commit.
 Database changes follow expand/contract compatibility. Logical data recovery restores
@@ -117,6 +118,9 @@ continuity, upgrade, rollback, telemetry, load, security, and the complete runbo
 No workflow, Bicep validation, or successful build alone proves production
 qualification.
 
+The [runbook](./runbook.md) owns the operating procedure and the
+[qualification record](./qualification.md) lists the evidence still required.
+
 ## Sources
 
 - [Azure Container Apps revisions](https://learn.microsoft.com/en-us/azure/container-apps/revisions)
@@ -126,3 +130,4 @@ qualification.
 - [ASP.NET Core Data Protection key storage](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/implementation/key-storage-providers?view=aspnetcore-10.0)
 - [EF Core production migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)
 - [Bicep deployment with Azure CLI](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/deploy-cli)
+- [GitHub artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)

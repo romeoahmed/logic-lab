@@ -13,6 +13,7 @@ delivery, rationale, and evidence are different facts and have different owners.
 | change Web/Application/browser exchange | [Contracts](./contracts/README.md)                              | the one contract for that seam                            |
 | change build, dependencies, or tests    | [.NET Engineering](./specs/dotnet-engineering.md)               | one focused research note when rationale matters          |
 | change production deployment            | [Production Profile](./deployment/production-profile.md)        | Architecture, Web Host, then executable Bicep              |
+| release, rollback, or recover production | [Production Runbook](./deployment/runbook.md)                    | [Qualification Record](./deployment/qualification.md)      |
 | find what is implemented next           | [Implementation Plan](./implementation-plan.md#delivery-status) | the owner of the active slice                             |
 | understand why a durable choice exists  | [ADRs](./adr/README.md)                                         | the current owner, which remains normative                |
 
@@ -30,6 +31,8 @@ analogous implementation, and the directly governing interface or rule.
 | values exchanged across Application, browser, and HTTP seams                           | [Contracts](./contracts/README.md)                                           |
 | limits and their semantic/format/provisional/measured classification                   | [Policy Catalog](./policies/catalog.md)                                      |
 | selected production provider shape, operations, and qualification boundary             | [Production Profile](./deployment/production-profile.md)                     |
+| production release, rollback, recovery, and drill procedure                             | [Production Runbook](./deployment/runbook.md)                                |
+| unresolved production decisions and required drill evidence                             | [Qualification Record](./deployment/qualification.md)                        |
 | completion, dependency frontier, and deferred capability order                         | [Implementation Plan](./implementation-plan.md)                              |
 | hard-to-reverse decision rationale                                                     | [ADRs](./adr/README.md)                                                      |
 | derivations, external sources, and dated measurements                                  | [Research](./research/README.md)                                             |
