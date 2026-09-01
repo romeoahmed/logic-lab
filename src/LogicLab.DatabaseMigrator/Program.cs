@@ -66,7 +66,7 @@ if (args.Length != 0)
 
 await using (var identityContext = new ApplicationIdentityDbContext(
     new DbContextOptionsBuilder<ApplicationIdentityDbContext>()
-        .UseNpgsql(dataSource)
+        .UseLogicLabIdentityPostgreSql(dataSource)
         .Options))
 {
     await MigrateAsync(
@@ -77,7 +77,7 @@ await using (var identityContext = new ApplicationIdentityDbContext(
 
 await using (var logicLabContext = new LogicLabDbContext(
     new DbContextOptionsBuilder<LogicLabDbContext>()
-        .UseNpgsql(dataSource)
+        .UseLogicLabPersistencePostgreSql(dataSource)
         .Options))
 {
     await MigrateAsync(

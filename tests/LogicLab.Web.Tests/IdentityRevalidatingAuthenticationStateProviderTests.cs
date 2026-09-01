@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -1021,6 +1022,8 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
             {
                 services.RemoveAll<ApplicationIdentityDbContext>();
                 services.RemoveAll<DbContextOptions<ApplicationIdentityDbContext>>();
+                services.RemoveAll<
+                    IDbContextOptionsConfiguration<ApplicationIdentityDbContext>>();
                 services.AddDbContext<ApplicationIdentityDbContext>(options =>
                     options.UseSqlite(connection));
                 services.RemoveAll<TimeProvider>();
