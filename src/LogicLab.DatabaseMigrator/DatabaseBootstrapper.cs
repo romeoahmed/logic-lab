@@ -136,6 +136,8 @@ internal static class DatabaseBootstrapper
         var migrator = commandBuilder.QuoteIdentifier(
             configuration.MigratorPrincipalName);
         var sql = $"""
+            GRANT CONNECT ON DATABASE {database} TO CURRENT_USER;
+            REVOKE ALL ON DATABASE {database} FROM PUBLIC;
             REVOKE CREATE ON SCHEMA public FROM PUBLIC;
             CREATE SCHEMA IF NOT EXISTS {LogicLabPostgreSqlOptionsExtensions.MigrationsSchema};
             REVOKE ALL ON SCHEMA {LogicLabPostgreSqlOptionsExtensions.MigrationsSchema} FROM PUBLIC;
@@ -148,8 +150,6 @@ internal static class DatabaseBootstrapper
             GRANT CONNECT ON DATABASE {database} TO {migrator};
             GRANT USAGE, CREATE ON SCHEMA public TO {migrator};
             GRANT USAGE, CREATE ON SCHEMA {LogicLabPostgreSqlOptionsExtensions.MigrationsSchema} TO {migrator};
-            ALTER ROLE {web} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
-            ALTER ROLE {migrator} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
             """;
         await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);

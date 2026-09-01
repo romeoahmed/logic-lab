@@ -268,10 +268,6 @@ resource web 'Microsoft.App/containerApps@2026-01-01' = if (deployWeb) {
               value: 'http://+:8080'
             }
             {
-              name: 'AZURE_CLIENT_ID'
-              value: webIdentity.properties.clientId
-            }
-            {
               name: 'Azure__ManagedIdentityClientId'
               value: webIdentity.properties.clientId
             }
