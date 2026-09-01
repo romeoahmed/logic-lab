@@ -15,4 +15,4 @@ This deferred choice sacrifices industrial optimization coverage for locality,
 deterministic evidence, simple deployment, and a small qualifiable interface.
 It is not accepted V1 architecture and creates no active policy or production
 qualification work. The proposed capability and evidence contract remains in the
-[Boolean Analysis draft](../specs/boolean-analysis.md).
+[Boolean Analysis proposal](../future/boolean-analysis.md).

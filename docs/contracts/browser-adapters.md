@@ -131,7 +131,7 @@ Waveform range boundaries are canonical unsigned decimal strings in `0..2^64`;
 `2^64` is valid only as an exclusive end. Cursor values remain Logical Times in
 `0..2^64 - 1`.
 
-Available segments are nonempty, nonoverlapping, grouped in Probe display order, use the [Editor Workspace Contract §7](./editor-workspace.md#7-trace-transfer) transition or bucket records, and exactly cover the requested viewport for every resolved Probe. An unavailable view carries one explicit Trace Gap covering the viewport.
+Available segments are nonempty, nonoverlapping, grouped in Probe display order, use the [Editor Workspace Contract §6](./editor-workspace.md#6-trace-transfer) transition or bucket records, and exactly cover the requested viewport for every resolved Probe. An unavailable view carries one explicit Trace Gap covering the viewport.
 
 The browser row is intentionally minimal: Canvas needs only identity, width, order, appearance, and binding. Razor owns the label, radix, current value, authored Net reference, binding reason, and Scene-navigation state. Those values never cross the JavaScript seam.
 

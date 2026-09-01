@@ -2,7 +2,7 @@
 
 > Sources reviewed: 2026-08-30
 > Scope: hosting, render modes, browser/server ownership, lifecycle, and Interactive Server constraints
-> Authority: this note records external evidence; [Architecture](../../ARCHITECTURE.md) and [Workbench](../../WORKBENCH.md) own project decisions
+> Authority: this note records external evidence; [Architecture](../architecture.md) and [Product](../product.md) own project decisions
 
 ## Hosting model
 
@@ -43,11 +43,10 @@ These facts yield one ownership rule: browser adapters own dense pixels, pointer
 
 Blazor scoped lifetime is per circuit, and circuits can disconnect or be replaced ([state management](https://learn.microsoft.com/en-us/aspnet/core/blazor/state-management/?view=aspnetcore-10.0)). Durable edit state and long-running work must therefore be Application-owned rather than component-owned.
 
-The Work Coordinator has three typed lanes because their lifecycle differs:
+The Work Coordinator has two typed lanes because their lifecycle differs:
 
 - Compilation coalesces per Workspace and keeps the newest request;
-- Session commands serialize per Session and expose Run/Pause control; and
-- analysis queues under bounded global and per-identity fairness and outlives observers.
+- Session commands serialize per Session and expose Run/Pause control.
 
 ASP.NET Core [hosted-service guidance](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-10.0) requires an explicit service scope when background work consumes scoped dependencies. Razor event handlers must not create unbounded `Task.Run` work or secondary queues.
 
@@ -59,7 +58,7 @@ Every Workspace, Project, Session, Operation, Proposal, upload, and download act
 
 Interactive Server compression can create a side channel when secrets and attacker-controlled content share a compressed response. Secrets do not enter the editor stream, and response compression around sensitive interactive content follows Microsoft's [threat-mitigation guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/security/interactive-server-side-rendering?view=aspnetcore-10.0).
 
-Package versions and analyzer policy belong to [.NET Engineering](../specs/dotnet-engineering.md).
+Package versions and analyzer policy belong to [Engineering](../engineering.md).
 Project package validation belongs to [Project Package V1](../specs/project-package-v1.md)
 and the [HTTP Boundary](../contracts/http-boundary.md). Architecture owns persistence
-and Identity; Workbench owns visual and Fluent UI policy.
+and Identity; Product owns visual and Fluent UI policy.

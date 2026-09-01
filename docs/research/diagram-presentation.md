@@ -1,11 +1,9 @@
 # Diagram Presentation Research
 
 > Scope: IEEE 91A evidence, declarative symbol generation, reference implementations, and workbench design rationale
-> Authority: evidence and rejected alternatives; normative rules are [Diagram Presentation](../specs/diagram-presentation.md) and [Workbench](../../WORKBENCH.md)
+> Authority: evidence and rejected alternatives; normative rules are [Diagram Presentation](../specs/diagram-presentation.md) and [Product](../product.md)
 
-## 1. Research method
-
-The optional untracked local file `00027895.pdf` is the combined publication _IEEE Standard Graphic Symbols for Logic Functions (Including and incorporating IEEE Std 91a-1991)_. `pdftotext -layout` supports clause search, while the original pages remain necessary for figures and proportions. PDF page numbers are eleven greater than printed standard pages in the relevant body.
+## 1. Evidence boundary
 
 The research distinguishes:
 
@@ -97,27 +95,15 @@ Digital uses an IEEE-oriented ShapeFactory that maps familiar gates to distincti
 
 Both projects are GPL-3.0. Logic Lab adopts only observed architecture patterns and independently implements its data, algorithms, code, assets, and package format.
 
-## 9. Workbench directions considered
+## 9. Product rationale
 
-### Dark oscilloscope
+Dark oscilloscope styling competes with dense authoring, while drafting-paper styling
+blurs the difference between editable apparatus and export. The selected instrument
+enamel direction keeps chrome quiet and spends visual emphasis on the relation between
+one stable Net and its time series. Repeating Probe identity at the Net, Spine,
+Inspector, and waveform row makes that relation direct without relying on color alone.
 
-A near-black interface with bright signal colors makes live values dramatic but competes with dense symbols, encourages glow effects, and fatigues long authoring sessions. It also resembles a generic developer tool more than a teaching bench.
-
-### Paper schematic
-
-A warm drafting-paper surface gives diagrams familiarity but turns every interaction state into markup on a document and drifts toward a common cream/serif template. It weakens the distinction between editable apparatus and export.
-
-### Instrument enamel
-
-Cool framing surfaces, white schematic field, technical ink, and one Probe Spine fit physical lab instruments without copying their decoration. The design spends its expressiveness on the topological-to-temporal Probe relation and keeps panels disciplined. This direction was selected.
-
-## 10. Probe Spine rationale
-
-The main conceptual difficulty is not placing a gate; it is understanding that one stable Net becomes a time series. Repeating Probe identity at the Net, Spine, Inspector, and waveform row provides a direct perceptual bridge.
-
-Probe ID remains stable while display order may change. Redundant color, pattern, text, and bidirectional navigation avoid color-only identity. Plain schematic export omits the editor overlay; annotated teaching export marks it as an extension.
-
-## 11. Browser interaction boundary
+## 10. Browser interaction boundary
 
 [ADR 0008](../adr/0008-use-one-canvas-editor-surface.md) makes Canvas the only dense circuit editor. Consequences are:
 
@@ -128,16 +114,17 @@ Probe ID remains stable while display order may change. Redundant color, pattern
 
 Route preview and scene indexing remain evidence-gated implementation choices. Orthogonal A* may search `(grid point, arrival direction)` only with nonnegative costs and an admissible heuristic; graph search also needs consistency or a reopen policy ([Hart, Nilsson, Raphael](https://ai.stanford.edu/~nilsson/OnlinePubs-Nils/PublishedPapers/astar.pdf)). A uniform spatial hash is the simple baseline for local edits; an R*-tree earns a seam only if skewed-scene traces justify its update cost ([Beckmann et al.](https://doi.org/10.1145/93597.98741)). Neither structure enters the Diagram Presentation interface.
 
-## 12. Conformance risks
+## 11. Conformance risks
 
 - Live `X/Z` coloring, selection, probes, and diagnostics are editor overlays, not IEEE symbols.
-- IEEE 991 details referenced by Annex A were not part of the supplied local standard; uncovered typography details remain unverified.
+- IEEE 991 details referenced by Annex A were outside the reviewed source set;
+  uncovered typography details remain unverified.
 - Browser font shaping can alter bounds, so symbol text needs a fixed font fingerprint and export/browser parity tests.
 - A generated-symbol tracking matrix supports an auditable claim but is not third-party certification.
 - Teaching Extensions must remain visible in UI and export manifests.
 
-## 13. Primary sources
+## 12. Primary sources
 
-- [IEEE/ANSI 91a-1991 official standard record](https://standards.ieee.org/standard/91a-1991.html) and the licensed combined IEEE Std 91-1984 with IEEE 91A-1991 local reference.
+- [IEEE/ANSI 91a-1991 official standard record](https://standards.ieee.org/standard/91a-1991.html).
 - [HTML Canvas](https://html.spec.whatwg.org/multipage/canvas.html#the-canvas-element).
 - [Logisim Evolution](https://github.com/logisim-evolution/logisim-evolution) and [Digital](https://github.com/hneemann/Digital), GPL-3.0 references only.

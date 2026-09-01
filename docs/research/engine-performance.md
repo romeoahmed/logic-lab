@@ -2,7 +2,7 @@
 
 > Measured 2026-08-05; benchmark corpus revalidated 2026-08-30 (Asia/Shanghai)
 > Scope: Engine implementation and BenchmarkDotNet evidence
-> Authority: research and measured decisions; normative ownership remains in Architecture and .NET Engineering
+> Authority: research and measured decisions; [Architecture](../architecture.md) and [Engineering](../engineering.md) own normative rules
 
 ## 1. Conclusion
 
@@ -90,7 +90,7 @@ corpus definition and run commands.
 | Compilation                           | public Compiler operation over 11 deterministic flat, hierarchical, feedback, sequential, and memory cases | invalid and policy-limit cases only when their decision value justifies permanent run cost |
 | initial Simulation settlement         | open, settle, and close over the same 11 circuit cases                                                     | target-environment default-job evidence after the representative corpus freezes            |
 | scheduled and clocked Simulation work | 9 open/optional-schedule/advance/close cases over flat, D flip-flop, and RAM circuits                      | Hot Swap, cancellation, and policy-limit workflows after their corpora are versioned       |
-| Session reads                         | snapshots over 3 probe topologies and Trace windows over 16/256/4096 retained transitions                  | additional Trace density and retention shapes after implementation-plan item 34            |
+| Session reads                         | snapshots over 3 probe topologies and Trace windows over 16/256/4096 retained transitions                  | additional Trace density and retention shapes after delivery item 34                       |
 | Domain authoring                      | authoring is setup infrastructure, not a measured operation                                                | versioned edit sequences, not isolated helper microbenchmarks                              |
 | Application/Web capacity              | no deployment profile                                                                                      | load tests plus queue, ThreadPool, allocation, GC, and latency telemetry                   |
 | Blazor/browser rendering              | no browser corpus                                                                                          | browser performance traces and interaction measurements                                    |

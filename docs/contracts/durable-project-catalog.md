@@ -5,7 +5,7 @@
 
 This contract owns the authorized, bounded listing used by the Static SSR `/projects` page. It is a narrow Application use-case seam, not a generic repository: opening an item remains `EditorWorkspace.OpenAsync(OpenDurable)`, and persistence layout remains hidden in Infrastructure.
 
-[Editor Workspace](./editor-workspace.md) owns Claim, open, save, and Durable Version behavior. [Web Host](../specs/web-host.md) owns the route and HTTP security. [Workspace and Persistence](../domain/workspace/CONTEXT.md) owns the terms Durable Project and Durable Display Name.
+[Editor Workspace](./editor-workspace.md) owns Claim, open, save, and Durable Version behavior. [Web Host](../specs/web-host.md) owns the route and HTTP security. [Workspace and Persistence](../domain/workspace.md) owns the terms Durable Project and Durable Display Name.
 
 ## 1. Interface and values
 
@@ -54,7 +54,7 @@ project_catalog_internal_defect
 
 Web authenticates before calling this typed seam. Subject-bound cursor validation occurs before repository access, and the repository applies row authorization before its page limit; unauthorized existence is never disclosed. Cancellation before publication returns `project_catalog_cancelled`; cancellation after the immutable page is published does not revoke it. The Static SSR endpoint invokes the catalog before starting component rendering; every rejected outcome short-circuits through the normal HTTP Problem Details adapter, so infrastructure and defect failures cannot publish a successful HTML response. Infrastructure and defect outcomes expose only an opaque correlation.
 
-V1 catalog capability is intentionally closed to list and open. It has no rename, delete, archive, restore, search, filter, user-selectable sort, bulk action, folder, tag, sharing, ownership transfer, public link, or cross-user discovery operation. Claim creates the Durable Display Name; changing that capability requires a new typed Application intention and corresponding Workbench behavior rather than a generic update endpoint.
+V1 catalog capability is intentionally closed to list and open. It has no rename, delete, archive, restore, search, filter, user-selectable sort, bulk action, folder, tag, sharing, ownership transfer, public link, or cross-user discovery operation. Claim creates the Durable Display Name; changing that capability requires a new typed Application intention and corresponding Product behavior rather than a generic update endpoint.
 
 ## 4. Required evidence
 

@@ -1,4 +1,4 @@
-# Simulation
+# Simulation Glossary
 
 Simulation defines how a Compilation Artifact evolves under Logic Lab's four-state, zero-delay, discrete-time semantics and how that evolution is observed.
 

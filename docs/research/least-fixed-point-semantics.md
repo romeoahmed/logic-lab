@@ -118,6 +118,6 @@ Primary material inspected:
 - Alfred Tarski, _A Lattice-Theoretical Fixpoint Theorem and Its Applications_, Pacific Journal of Mathematics 5 (1955), 285–309: [DOI](https://doi.org/10.2140/pjm.1955.5.285), [publisher PDF](https://msp.org/pjm/1955/5-2/pjm-v5-n2-p11-s.pdf).
 - Patrick and Radhia Cousot, _Abstract Interpretation: A Unified Lattice Model for Static Analysis of Programs by Construction or Approximation of Fixpoints_, POPL 1977: [author record/PDF](https://www.di.ens.fr/~cousot/COUSOTpapers/POPL77.shtml), [DOI](https://doi.org/10.1145/512950.512973).
 - Patrick Cousot, _Asynchronous Iterative Methods for Solving a Fixed Point System of Monotone Equations in a Complete Lattice_, R.R. 88 (1977): [author record](https://www.di.ens.fr/~cousot/COUSOTpapers/IMAG-RR88.shtml), [author PDF](https://www.di.ens.fr/~cousot/publications.www/Cousot-IMAG-RR88-Sep-1977.pdf).
-- IEEE Std 1800-2023, especially §§6.3.1, 6.5–6.6, and 28.4–28.6. An optional untracked local copy is named `1800-2023.pdf`.
+- IEEE Std 1800-2023, especially §§6.3.1, 6.5–6.6, and 28.4–28.6.
 
 The [Wikipedia least-fixed-point page](https://en.wikipedia.org/wiki/Least_fixed_point) was used only for navigation. No claim depends on it or on an inaccessible abstract. Future Component Contracts remain unverified until their complete scalar rules exist and pass the same audit.

@@ -2,7 +2,7 @@
 
 > Sources reviewed: 2026-08-30
 > Scope: Microsoft Testing Platform, TUnit, FsCheck, bUnit, and Playwright
-> Authority: evidence for [.NET Engineering](../specs/dotnet-engineering.md); exact versions live in `Directory.Packages.props`
+> Authority: evidence for [Engineering](../engineering.md); exact versions live in `Directory.Packages.props`
 
 ## 1. Project decision
 

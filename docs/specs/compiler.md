@@ -6,7 +6,7 @@ Compiler validates one immutable Project Revision, elaborates hierarchy, and pub
 
 ## 1. Interface, outcomes, and evidence
 
-[Architecture §6](../../ARCHITECTURE.md#6-module-catalog) fixes the Compiler seam; this specification owns its exact interface, closed outcomes, translation, evidence, and publication behavior.
+[Architecture](../architecture.md#module-catalog) fixes the Compiler seam; this specification owns its exact interface, closed outcomes, translation, evidence, and publication behavior.
 
 The synchronous CPU-bound Module exposes exactly one V1 entry point:
 
@@ -38,7 +38,7 @@ CPU lane and never wraps it in hidden per-call `Task.Run` work.
 
 Compilation rejection reasons use the Compiler registry in [Diagnostics V1 §11](./diagnostics-v1.md#11-outcome-reason-registry). Expected circuit mistakes use `compilation_invalid`; exceptions and partial artifacts never cross the seam.
 
-`ProjectScalePolicy` follows the [policy catalog](../policies/catalog.md), controls bounded work and allocation, and never changes circuit meaning or a successful artifact.
+`ProjectScalePolicy` follows [Policies](../policies.md), controls bounded work and allocation, and never changes circuit meaning or a successful artifact.
 
 ```text
 CompilationEvidence
@@ -135,16 +135,7 @@ IR is never serialized, persisted, accepted from a caller, sent to the browser, 
 
 A private packed representation must remain observationally equivalent to the scalar semantics. Record types do not make referenced arrays immutable; artifact construction must transfer or copy exact-sized owned storage and expose no writable alias.
 
-## 6. Future Boolean Analysis extension
-
-Boolean Region selection, extraction, eligibility, Care Contracts, and replacement
-bindings are outside the V1 Compiler interface. The deferred
-[Boolean Analysis draft](./boolean-analysis.md) records a possible extension, but
-it cannot add an entry point, representation, policy dimension, or dependency until
-the [future capability plan](../implementation-plan.md#future-capability-plan) is
-explicitly reactivated and this specification is revised.
-
-## 7. Determinism, policy, and publication
+## 6. Determinism, policy, and publication
 
 - Diagnostics follow [Diagnostics V1](./diagnostics-v1.md) and use Source Map locations before crossing the seam.
 - Stable source order breaks otherwise equal traversal and work ties; dictionary order, task completion, allocation, culture, and localized text are never observable.
@@ -156,7 +147,7 @@ explicitly reactivated and this specification is revised.
 
 Compiler does not execute user code, reflection-selected types, scripts, plug-ins, native libraries, external solvers, or S-expressions.
 
-## 8. Required evidence
+## 7. Required evidence
 
 - one conformance case for every stage and rejection reason;
 - recursive hierarchy, unresolved contract/Port, invalid direction, unconnected receiving Terminal, width, Driver, state, and memory matrices;
@@ -168,11 +159,10 @@ Compiler does not execute user code, reflection-selected types, scripts, plug-in
 - full Compilation versus any future incremental path, including diagnostics, Source Map, ordinals, and executable behavior; and
 - negative tests proving IR dumps, runtime ordinals, and mutable storage cannot cross Module seams.
 
-## 9. Sources
+## 8. Sources
 
 - [Compiler Representations Research](../research/compiler-representations.md)
 - [Simulation Runtime](./simulation-runtime.md)
-- [Deferred Boolean Analysis draft](./boolean-analysis.md)
 - [Component Contract Catalog V1](./component-contract-catalog-v1.md)
-- [Policy Catalog](../policies/catalog.md)
+- [Policies](../policies.md)
 - Robert Tarjan, [Depth-First Search and Linear Graph Algorithms](https://doi.org/10.1137/0201010)

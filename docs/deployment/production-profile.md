@@ -1,11 +1,11 @@
-# Azure production deployment profile
+# Production Profile
 
 > Status: selected V1 profile with executable implementation; qualification is incomplete.
 >
-> Qualification owner: [Implementation Plan items 34–43](../implementation-plan.md#production-qualification).
+> Qualification owner: [Delivery items 34–43](../delivery.md#production-qualification).
 
 This document owns the selected Azure provider shape and its operational boundaries.
-[Architecture](../../ARCHITECTURE.md) owns Module and dependency seams, [Web Host](../specs/web-host.md)
+[Architecture](../architecture.md) owns module and dependency seams, [Web Host](../specs/web-host.md)
 owns observable host behavior, and executable Bicep owns deployed resource values.
 
 ## Runtime shape
@@ -53,7 +53,7 @@ for `linux-x64` ([container requirements](https://learn.microsoft.com/en-us/azur
 | Migrator managed identity       | ACR pull and reviewed PostgreSQL DDL migration                                                             | no Web request handling or unrelated Azure mutation  |
 | Database-admin managed identity | bootstrap application principals and grants                                                                | no application runtime use                           |
 
-Azure RBAC governs Azure resources. PostgreSQL authentication uses Microsoft Entra
+Azure RBAC governs Azure resources. PostgreSQL 18 authentication uses Microsoft Entra
 tokens, while database roles and grants govern schema and data access. The Web
 connection contains no password and refreshes its token before expiry
 ([managed-identity connection](https://learn.microsoft.com/en-us/azure/postgresql/security/security-connect-with-managed-identity),
@@ -130,6 +130,7 @@ The [runbook](./runbook.md) owns the operating procedure and the
 - [Azure Container Apps health probes](https://learn.microsoft.com/en-us/azure/container-apps/health-probes)
 - [Managed identities in Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/managed-identity)
 - [Azure Database for PostgreSQL Flexible Server](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/overview)
+- [Azure Database for PostgreSQL version policy](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-version-policy)
 - [PostgreSQL business continuity](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/concepts-business-continuity)
 - [ASP.NET Core Data Protection key storage](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/implementation/key-storage-providers?view=aspnetcore-10.0)
 - [EF Core production migrations](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)

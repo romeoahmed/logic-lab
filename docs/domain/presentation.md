@@ -1,4 +1,4 @@
-# Diagram Presentation
+# Diagram Presentation Glossary
 
 Diagram Presentation projects authored semantics into reproducible, renderable, hittable, and exportable schematic geometry without changing circuit behavior.
 

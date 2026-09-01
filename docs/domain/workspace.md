@@ -1,4 +1,4 @@
-# Workspace and Persistence
+# Workspace and Persistence Glossary
 
 Workspace and Persistence describes private editor continuity, background operations, and movement between transient, durable, imported, and exported project state.
 

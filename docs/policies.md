@@ -1,4 +1,4 @@
-# Policy Catalog
+# Policies
 
 The catalog owns policy identity, classification, and calibration rules across
 Project Format, Compiler, Simulation Runtime, Application, and Web. Policies protect
@@ -30,7 +30,7 @@ Do not copy a provisional value into an ADR, Project Document, or public compati
 
 Each policy has a stable ID and revision. A policy failure reports the policy revision, dimension, observed work, and stable reason. It does not expose sensitive fleet capacity.
 
-Unless a shape below says otherwise, fields and arrays are present and non-null, dimensions appear exactly once in shown order, maximums are positive, and tokens/unsigned decimals use [Diagnostics V1](../specs/diagnostics-v1.md#2-diagnostic-record) lexical forms.
+Unless a shape below says otherwise, fields and arrays are present and non-null, dimensions appear exactly once in shown order, maximums are positive, and tokens/unsigned decimals use [Diagnostics V1](./specs/diagnostics-v1.md#2-diagnostic-record) lexical forms.
 
 ### Package Policy
 
@@ -119,13 +119,6 @@ delta_debug_record_count
 ```
 
 `probe_count` bounds Session admission and replacement. The storage dimensions control retention and eviction and never roll back a successful Logical-time Advance. `retained_bytes` counts owned Trace payload and index storage by the Runtime's declared accounting method; it is not a CLR heap measurement. Delta-debug capture is zero when that explicit mode is absent and is never required to reconstruct committed semantics.
-
-### Future Analysis Policy
-
-Boolean Analysis has no active V1 policy shape or default. Candidate dimensions in
-the deferred [Boolean Analysis draft](../specs/boolean-analysis.md) are design notes,
-not fields to calibrate during items `34`–`43`. Reactivation must add a consuming
-behavior and measured policy contract together.
 
 ### Scheduling Policy
 

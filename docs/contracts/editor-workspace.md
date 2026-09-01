@@ -384,16 +384,7 @@ Indeterminate Feedback can be committed with diagnostics because the Least Infor
 
 Each committed Session mutation increments Session Version. Run observations are monotonically sequenced but may be duplicated or skipped across disconnect, reconnect, or bounded backpressure. A consumer detects a gap by sequence and refreshes the authorized projection and Trace cursor.
 
-## 6. Future Boolean Analysis extension
-
-Analysis Operations, explanation, simplification proposals, and proposal application
-are outside the V1 Workspace command, query, projection, identity, precondition, and
-outcome catalogs. The deferred [Boolean Analysis draft](../specs/boolean-analysis.md)
-creates no reserved nullable fields or inactive variants. Reactivation must revise
-this contract and its authorization, idempotency, retention, and atomic-publication
-evidence before implementation.
-
-## 7. Trace transfer
+## 6. Trace transfer
 
 Runtime chunks are storage implementation. The Workspace interface exposes stable normalized records, and the Browser Adapter Contract consumes them:
 
@@ -427,7 +418,7 @@ data: bytes where each two-bit field is 00=0, 01=1, 10=X, 11=Z
 
 A visual-summary bucket declares its first and last value, whether any transition occurred, and whether it contained mixed values. `hadMixedValues` implies `hadTransition`, and unequal endpoint values require both flags. Unavailable history is represented only by `TraceWindowUnavailable`; a summary cannot invent a flat waveform through a Trace Gap.
 
-## 8. Security and evolution
+## 7. Security and evolution
 
 - Authorize every Workspace, Session, and Durable Project action independently.
 - Treat attachment, precondition, idempotency, and authorization failures as distinct closed outcomes.

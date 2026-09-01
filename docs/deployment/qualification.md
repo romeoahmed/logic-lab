@@ -1,10 +1,10 @@
-# Production qualification record
+# Production Qualification
 
 > Status: open. Executable implementation is present; no Azure deployment or drill
 > evidence has been recorded.
 
 This record prevents infrastructure code from being mistaken for production proof.
-The [Implementation Plan](../implementation-plan.md#production-qualification) remains
+The [Delivery record](../delivery.md#production-qualification) remains
 the sole completion ledger. The [production runbook](./runbook.md) defines procedures;
 this document identifies the evidence those procedures must produce.
 
@@ -19,7 +19,7 @@ closing item `42`.
 | public origin            | one ACA-managed HTTPS origin                              | accepted hostname/TLS ownership and external reachability evidence               |
 | application availability | single revision, one replica                              | explicit acceptance that V1 does not promise HA                                  |
 | compute                  | Web and each Job use 0.5 CPU and 1 GiB                    | representative load, migration duration, throttling, and cost evidence           |
-| PostgreSQL               | version 17, General Purpose, private VNet, Entra-only     | SKU, storage, IOPS, connection, maintenance, and capacity evidence               |
+| PostgreSQL               | version 18, General Purpose, private VNet, Entra-only     | SKU, storage, IOPS, connection, maintenance, and capacity evidence               |
 | continuity               | configurable HA, 7–35 day PITR, configurable geo backup   | signed RTO/RPO and restore-region decision                                       |
 | Data Protection          | private Standard ZRS Blob, versioning, 30-day soft delete | key continuity and key-loss owner acceptance                                     |
 | release identity         | GitHub environment OIDC at resource-group scope           | federated subject, approver, RBAC, and access-review evidence                    |

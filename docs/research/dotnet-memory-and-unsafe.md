@@ -2,7 +2,7 @@
 
 > Verified 2026-07-29 (Asia/Shanghai)
 > Scope: .NET 10, C# 14, and optimization choices for Logic Lab
-> Authority: platform evidence and design recommendations; normative ownership remains in `ARCHITECTURE.md` and focused specifications
+> Authority: platform evidence and design recommendations; normative ownership remains in [Architecture](../architecture.md) and focused specifications
 
 ## 1. Conclusion
 

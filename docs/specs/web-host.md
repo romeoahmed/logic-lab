@@ -5,7 +5,7 @@
 
 Web Host defines routing, render modes, request culture, circuit integration, security middleware, transfer endpoints, process lifetimes, and operational publication. It does not own authored circuit facts, Workspace behavior, Canvas drawing, or deployment-provider configuration.
 
-[Architecture](../../ARCHITECTURE.md) owns project dependencies and deployment shape. [Editor Workspace Contract](../contracts/editor-workspace.md) owns Application calls, [Browser Adapter Contract](../contracts/browser-adapters.md) owns Scene/Waveform records, and [HTTP Boundary Contract](../contracts/http-boundary.md) owns ingress, transfer, and error values. [Browser Runtime](./browser-runtime.md) owns Canvas and waveform implementation behavior.
+[Architecture](../architecture.md) owns project dependencies and deployment shape. [Editor Workspace Contract](../contracts/editor-workspace.md) owns Application calls, [Browser Adapter Contract](../contracts/browser-adapters.md) owns Scene/Waveform records, and [HTTP Boundary Contract](../contracts/http-boundary.md) owns ingress, transfer, and error values. [Browser Runtime](./browser-runtime.md) owns Canvas and waveform implementation behavior.
 
 ## 1. Host shape
 
@@ -55,11 +55,11 @@ An Editor Workspace is Application-owned and can outlive a circuit under bounded
 | Lifetime               | Owns                                                                                                                  | Must not own                                                     |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | process                | bounded Workspace directory, Work Coordinator, policy registry, library/profile registries, observability instruments | request user, `DbContext`, browser module reference              |
-| hosted operation scope | one queued Compilation, Session, analysis, cleanup, or retention action and its scoped adapters                       | live Razor component or circuit callback                         |
+| hosted operation scope | one queued Compilation or Session action and its scoped adapters                                                      | live Razor component or circuit callback                         |
 | circuit                | Web projection coordinator, authorized attachment observation, localization and browser-module adapters               | Editor Workspace lifetime, background CPU work, database context |
 | operation              | short-lived repository context, authorization check, import/export stream                                             | retained EF tracking graph or pooled buffer after completion     |
 
-Background services create an explicit dependency-injection scope for scoped adapters. CPU-bound Modules remain synchronous and execute only through the three typed lanes in Architecture. Razor handlers do not call `Task.Run`, build secondary queues, or capture circuit-scoped dependencies in process work.
+Background services create an explicit dependency-injection scope for scoped adapters. CPU-bound Modules remain synchronous and execute only through the two Work Coordinator lanes defined by Architecture. Razor handlers do not call `Task.Run`, build secondary queues, or capture circuit-scoped dependencies in process work.
 
 The PostgreSQL repository uses `IDbContextFactory<T>` and one context per operation.
 The adapter treats Durable Version as an application-managed opaque concurrency

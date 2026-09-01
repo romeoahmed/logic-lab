@@ -39,7 +39,7 @@ externalizing those facts would silently change observable behavior.
 
 The [production deployment profile](../deployment/production-profile.md) owns the
 selected resources and qualification boundary. The
-[Implementation Plan](../implementation-plan.md#production-qualification) alone owns
+[Delivery](../delivery.md#production-qualification) alone owns
 completion; this decision does not mark item `42` or `43` complete.
 
 ## Consequences

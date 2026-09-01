@@ -1,4 +1,4 @@
-# Logic Lab V1 Implementation Plan
+# Delivery
 
 > **Status:** approved execution plan
 >
@@ -87,8 +87,8 @@ drill evidence that must close through items `34`–`43`.
 
 ## Future capability plan
 
-These items preserve the prior Boolean Analysis design without making it V1
-scope, a production-qualification dependency, or a delivery commitment.
+These items order the deferred [Boolean Analysis proposal](./future/boolean-analysis.md)
+without making it V1 scope, a production-qualification dependency, or a commitment.
 
 |    ID | Slice                                                  | Requires               | Reactivation signal                                                                                                                      |
 | ----: | ------------------------------------------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -98,9 +98,9 @@ scope, a production-qualification dependency, or a delivery commitment.
 | `F04` | deterministic AIG cleanup and teaching-library mapping | `25`, `F03`            | materialized verified improvements and mapping evidence have approved contracts and policy dimensions                                    |
 | `F05` | ROBDD proof path                                       | `F03`                  | fixed-order ROBDD proof coverage, exhaustion, and counterexample evidence have approved limits                                           |
 
-Reactivation updates Architecture, Context Map, Workbench, Compiler, Editor
-Workspace, Diagnostics, Policy Catalog, executable project graph, and tests in
-the same accepted scope change. Future items never block items `33`–`43`.
+Reactivation updates Architecture, Product, Domain, Compiler, Editor Workspace,
+Diagnostics, Policies, the executable project graph, and tests in one accepted scope
+change. Future items never block items `33`–`43`.
 
 ## Planning and completion rules
 

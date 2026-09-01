@@ -70,18 +70,18 @@ HTTP adapters use RFC 9457 Problem Details:
 
 HTTP status mapping is consistent across transfer and any later measured large-window endpoint:
 
-| Status | Meaning                                                                            |
-| -----: | ---------------------------------------------------------------------------------- |
-|  `400` | malformed HTTP shape before a typed request exists                                 |
-|  `401` | authentication required                                                            |
-|  `404` | resource absent or deliberately concealed as unauthorized                          |
-|  `405` | request method is not supported by the target resource                             |
-|  `409` | attachment, idempotency, Durable Version, build, or proposal precondition conflict |
-|  `413` | request bytes exceed the HTTP ingress limit                                        |
-|  `422` | authenticated bounded content fails package, Domain, or semantic validation        |
-|  `429` | caller admission or rate policy rejects new work                                   |
-|  `500` | internal invariant defect with opaque correlation only                             |
-|  `503` | temporary infrastructure or host-capacity failure                                  |
+| Status | Meaning                                                                     |
+| -----: | --------------------------------------------------------------------------- |
+|  `400` | malformed HTTP shape before a typed request exists                          |
+|  `401` | authentication required                                                     |
+|  `404` | resource absent or deliberately concealed as unauthorized                   |
+|  `405` | request method is not supported by the target resource                      |
+|  `409` | attachment, idempotency, Durable Version, or build precondition conflict    |
+|  `413` | request bytes exceed the HTTP ingress limit                                 |
+|  `422` | authenticated bounded content fails package, Domain, or semantic validation |
+|  `429` | caller admission or rate policy rejects new work                            |
+|  `500` | internal invariant defect with opaque correlation only                      |
+|  `503` | temporary infrastructure or host-capacity failure                           |
 
 `Retry-After` appears only when the server has an honest value for `429` or `503`. Core Module cancellation remains a typed outcome and is not assigned a nonstandard HTTP status. Every non-success body uses the same Problem Details extension fields and an exact closed code from its owning contract. Typed outcome codes come from Diagnostics V1; transport validation before a typed request exists is owned here.
 

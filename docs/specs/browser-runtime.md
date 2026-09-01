@@ -3,7 +3,7 @@
 > Status: normative V1 Canvas, waveform, JavaScript interop, and browser-lifecycle contract
 > Runtime: collocated ECMAScript modules inside the Interactive Server editor
 
-Browser Runtime turns complete renderer-neutral Scene and Waveform values into responsive browser interaction. It owns frame-rate state and pixels, not circuit meaning. [Workbench](../../WORKBENCH.md) owns appearance and workflows; [Diagram Presentation](./diagram-presentation.md) owns static geometry; the [Browser Adapter Contract](../contracts/browser-adapters.md) owns exchanged records; [Web Host](./web-host.md) owns render modes, circuits, security middleware, and culture selection.
+Browser Runtime turns complete renderer-neutral Scene and Waveform values into responsive browser interaction. It owns frame-rate state and pixels, not circuit meaning. [Product](../product.md) owns appearance and workflows; [Diagram Presentation](./diagram-presentation.md) owns static geometry; the [Browser Adapter Contract](../contracts/browser-adapters.md) owns exchanged records; [Web Host](./web-host.md) owns render modes, circuits, security middleware, and culture selection.
 
 ## 1. Deep browser modules
 
@@ -162,7 +162,7 @@ Idle
 - `touch-action` is set deliberately per supported host interaction so browser scroll/zoom takeover and scene gestures don't compete. V1 narrow layouts support review, pan/zoom, Probe, Step, Run, and waveform navigation; precision touch wiring is not implied.
 - Wheel and trackpad zoom are anchored at the pointer, clamped by Browser Policy, and browser-local. Page/browser text zoom remains independent.
 
-Keyboard shortcuts enter through the Canvas host and the same tool controller as pointer actions. Tab reaches the Canvas region; Space temporarily pans, Escape cancels, and the documented tool and command shortcuts follow [Workbench](../../WORKBENCH.md). There is no keyboard-only topology navigator or parallel edit implementation. Text and IME input always use an HTML control.
+Keyboard shortcuts enter through the Canvas host and the same tool controller as pointer actions. Tab reaches the Canvas region; Space temporarily pans, Escape cancels, and the documented tool and command shortcuts follow [Product](../product.md). There is no keyboard-only topology navigator or parallel edit implementation. Text and IME input always use an HTML control.
 
 ## 9. Localization and focus
 
@@ -208,7 +208,7 @@ No browser failure mutates the Project Document, Session, Trace, or Workspace. A
 
 ## 12. Browser Policy and measurement
 
-Browser Policy is deployment configuration, not circuit semantics. Its exact shape, dimension tokens, integer scale encoding, and order are owned by the [Policy Catalog](../policies/catalog.md). The browser validates the complete captured policy before mount and does not change it beneath a published adapter handle. Measurement-only frame and long-task evidence remains outside the policy until qualification establishes a consumer and a versioned threshold.
+Browser Policy is deployment configuration, not circuit semantics. Its exact shape, dimension tokens, integer scale encoding, and order are owned by [Policies](../policies.md). The browser validates the complete captured policy before mount and does not change it beneath a published adapter handle. Measurement-only frame and long-task evidence remains outside the policy until qualification establishes a consumer and a versioned threshold.
 
 No numeric default becomes normative until the versioned circuit corpus, supported browser/device matrix, measurement method, and evidence record exist. A policy failure is structured and doesn't silently reduce geometry, omit an item, lower required display density, or summarize Trace without an explicit request.
 

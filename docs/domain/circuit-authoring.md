@@ -1,4 +1,4 @@
-# Circuit Authoring
+# Circuit Authoring Glossary
 
 Circuit Authoring is the language of the gate-level design that a person creates and revises. It excludes compiled representations, simulation state, browser state, and file carriers.
 

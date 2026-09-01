@@ -1,4 +1,4 @@
-# Azure infrastructure
+# Azure Infrastructure
 
 The executable templates implement the selected
 [production profile](../docs/deployment/production-profile.md); the
@@ -16,12 +16,14 @@ then deploy Jobs without changing Web (`deployWeb=false`) and deploy Web only af
 database preparation succeeds. `postgresServerName` is empty for the foundation
 server and explicit only during a verified recovery cutover.
 
-Compile both entry points with the Bicep version selected in the release workflow:
+Format and compile both entry points with the Bicep CLI selected by the release
+workflow:
 
 ```bash
-az bicep install --version v0.46.1
-az bicep build --file infra/foundation.bicep --outfile /tmp/logic-lab-foundation.json
-az bicep build --file infra/application.bicep --outfile /tmp/logic-lab-application.json
+az bicep format --file infra/foundation.bicep
+az bicep format --file infra/application.bicep
+az bicep build --file infra/foundation.bicep --stdout > /dev/null
+az bicep build --file infra/application.bicep --stdout > /dev/null
 ```
 
 Azure-backed `validate` and `what-if` require the qualified production scope and

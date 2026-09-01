@@ -104,9 +104,8 @@ Parameter bindings follow the exact [Component Contract Catalog V1](./component-
 | `MoveAnnotations`    | nonempty Annotation IDs and final positions                                                          | changes authored presentation only                         |
 | `RemoveAnnotation`   | annotation ID                                                                                        | removes authored presentation only                         |
 
-Memory writes during Simulation are never authoring intents. Automated verified
-replacement is outside the V1 Edit Intent catalog; the deferred Boolean Analysis
-draft reserves no inactive authoring variant.
+Memory writes during Simulation and automated circuit replacement are not V1
+authoring intents.
 
 `PlaceComponentWithNewMemoryImage` is the one authoring convenience for a new explicit image. Its binding names the target memory-image parameter and carries the complete display name, width, depth, and words; Project Editor allocates both persistent IDs and rejects the whole intent if either the image or component binding is invalid. It is not a nested `CreateMemoryImage` plus `PlaceComponentInstance` sequence.
 

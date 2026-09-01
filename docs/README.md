@@ -1,45 +1,44 @@
 # Documentation Map
 
-Use the shallowest document that answers the question. Target behavior, current
-delivery, rationale, and evidence are different facts and have different owners.
+Read the shallowest document that answers the question. Target behavior, current
+delivery, rationale, evidence, and executable configuration are different facts.
 
-## Fast paths
+## Start here
 
-| Task                                     | Load first                                                      | Then load only                                            |
-| ---------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------- |
-| understand the product                   | [Workbench](../WORKBENCH.md)                                    | the relevant browser, host, or presentation specification |
-| change a project or circuit rule         | [Context Map](../CONTEXT-MAP.md)                                | one bounded-context glossary and its owning specification |
-| change a module boundary                 | [Architecture](../ARCHITECTURE.md)                              | the interface specification or seam contract              |
-| change Web/Application/browser exchange  | [Contracts](./contracts/README.md)                              | the one contract for that seam                            |
-| change build, dependencies, or tests     | [.NET Engineering](./specs/dotnet-engineering.md)               | one focused research note when rationale matters          |
-| change production deployment             | [Production Profile](./deployment/production-profile.md)        | Architecture, Web Host, then executable Bicep             |
-| release, rollback, or recover production | [Production Runbook](./deployment/runbook.md)                   | [Qualification Record](./deployment/qualification.md)     |
-| find what is implemented next            | [Implementation Plan](./implementation-plan.md#delivery-status) | the owner of the active slice                             |
-| understand why a durable choice exists   | [ADRs](./adr/README.md)                                         | the current owner, which remains normative                |
+| Question                               | Owner                                                    |
+| -------------------------------------- | -------------------------------------------------------- |
+| What is Logic Lab?                     | [Product and Workbench](./product.md)                    |
+| Where does code or a fact belong?      | [Architecture](./architecture.md)                        |
+| What does a domain term mean?          | [Domain Map](./domain/README.md)                         |
+| What is complete and what comes next?  | [Delivery](./delivery.md)                                |
+| How is the repository engineered?      | [Engineering](./engineering.md)                          |
+| How is production shaped and operated? | [Production Profile](./deployment/production-profile.md) |
 
-Do not preload the whole tree. Before editing, read the target, its tests, one
-analogous implementation, and the directly governing interface or rule.
+Before editing, read the target, its tests, one analogous implementation, and
+the directly governing interface or rule. Do not preload the whole tree.
 
-## Authority
+## Find the owner
 
-| Fact                                                                                   | Owner                                                                        |
-| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| system shape, dependency direction, and module ownership                               | [Architecture](../ARCHITECTURE.md)                                           |
-| visible product behavior, layout, and interaction priorities                           | [Workbench](../WORKBENCH.md)                                                 |
-| domain language and translations                                                       | [Context Map](../CONTEXT-MAP.md) and [bounded-context glossaries](./domain/) |
-| observable domain, compiler, runtime, format, presentation, host, and browser behavior | [Specifications](./specs/)                                                   |
-| values exchanged across Application, browser, and HTTP seams                           | [Contracts](./contracts/README.md)                                           |
-| limits and their semantic/format/provisional/measured classification                   | [Policy Catalog](./policies/catalog.md)                                      |
-| selected production provider shape, operations, and qualification boundary             | [Production Profile](./deployment/production-profile.md)                     |
-| production release, rollback, recovery, and drill procedure                            | [Production Runbook](./deployment/runbook.md)                                |
-| unresolved production decisions and required drill evidence                            | [Qualification Record](./deployment/qualification.md)                        |
-| completion, dependency frontier, and deferred capability order                         | [Implementation Plan](./implementation-plan.md)                              |
-| hard-to-reverse decision rationale                                                     | [ADRs](./adr/README.md)                                                      |
-| derivations, external sources, and dated measurements                                  | [Research](./research/README.md)                                             |
-| license grant and redistribution terms                                                 | [LICENSE](../LICENSE) and [third-party notices](../THIRD-PARTY-NOTICES.md)   |
+| Fact                                                                                      | Owner                                                    |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| system shape, dependency direction, module ownership                                      | [Architecture](./architecture.md)                        |
+| visible behavior, layout, interaction, and recovery                                       | [Product and Workbench](./product.md)                    |
+| domain language and translations                                                          | [Domain Map](./domain/README.md) and its glossaries      |
+| observable authoring, compiler, runtime, format, presentation, host, and browser behavior | [Specifications](./specs/)                               |
+| values exchanged at Application, browser, and HTTP seams                                  | [Contracts](./contracts/)                                |
+| semantic, format, provisional, and measured limits                                        | [Policies](./policies.md)                                |
+| build, dependency, language, test, and publication rules                                  | [Engineering](./engineering.md)                          |
+| selected Azure shape and qualification boundary                                           | [Production Profile](./deployment/production-profile.md) |
+| release, rollback, and recovery procedure                                                 | [Production Runbook](./deployment/runbook.md)            |
+| unresolved production decisions and drill evidence                                        | [Qualification Record](./deployment/qualification.md)    |
+| delivery order, completion, and future capability order                                   | [Delivery](./delivery.md)                                |
+| hard-to-reverse rationale                                                                 | [ADRs](./adr/README.md)                                  |
+| derivations, external sources, and dated measurements                                     | [Research](./research/README.md)                         |
 
-There is no generic “narrower file wins” rule. A conflict between owners is a
-documentation defect; fix the fact where it belongs and replace copies with links.
+Executable files own live SDK, package, project, workflow, infrastructure, and
+configuration values. Prose explains those values without copying inventories.
+If two owners conflict, fix the conflict; there is no generic “narrower file wins”
+rule.
 
 ## Specifications
 
@@ -53,33 +52,35 @@ documentation defect; fix the fact where it belongs and replace copies with link
 - [Diagram Presentation](./specs/diagram-presentation.md)
 - [Web Host](./specs/web-host.md)
 - [Browser Runtime](./specs/browser-runtime.md)
-- [.NET Engineering](./specs/dotnet-engineering.md)
 
-## Future capability drafts
+Boolean explanation and simplification are not V1. Their design is consolidated
+in the non-normative [Boolean Analysis proposal](./future/boolean-analysis.md).
 
-- [Boolean Analysis](./specs/boolean-analysis.md) is non-normative for V1 and is
-  ordered only by the [future capability plan](./implementation-plan.md#future-capability-plan).
+## Contracts
 
-## Executable facts
+- [Editor Workspace](./contracts/editor-workspace.md)
+- [Durable Project Catalog](./contracts/durable-project-catalog.md)
+- [Browser Adapters](./contracts/browser-adapters.md)
+- [HTTP Boundary](./contracts/http-boundary.md)
 
-| Fact                                  | Source of truth                                           |
-| ------------------------------------- | --------------------------------------------------------- |
-| SDK and test runner                   | [`global.json`](../global.json)                           |
-| direct package versions               | [`Directory.Packages.props`](../Directory.Packages.props) |
-| shared build policy                   | [`Directory.Build.props`](../Directory.Build.props)       |
-| project graph                         | [`logic-lab.slnx`](../logic-lab.slnx)                     |
-| resolved executable dependency graphs | application-root `packages.lock.json` files               |
+## Executable sources
 
-Prose may explain these files but must not copy their live inventories.
+| Fact                    | Source                                                    |
+| ----------------------- | --------------------------------------------------------- |
+| SDK and test runner     | [`global.json`](../global.json)                           |
+| direct package versions | [`Directory.Packages.props`](../Directory.Packages.props) |
+| shared build policy     | [`Directory.Build.props`](../Directory.Build.props)       |
+| project graph           | [`logic-lab.slnx`](../logic-lab.slnx)                     |
+| resolved dependencies   | application-root `packages.lock.json` files               |
+| CI and release behavior | [`.github/workflows/`](../.github/workflows/)             |
+| Azure resources         | [`infra/`](../infra/)                                     |
 
-## Maintenance rules
+## Maintenance
 
-- Define each fact once and link to it elsewhere.
-- Keep current delivery out of normative target documents.
-- Keep framework, persistence, transport, rendering, and algorithm details out of
-  Domain language unless they are the domain fact.
-- Classify each number as semantic, format, provisional policy, or measured threshold.
-- Cite primary sources at the supported claim; treat tutorials as navigation only.
-- Remove superseded snapshots and setup inventories instead of adding disclaimers.
-- Update links, indexes, and explicit supersession metadata in the same change that
-  moves authority.
+- Define each fact once and link to its owner.
+- Keep delivery state out of target specifications.
+- Keep implementation detail out of domain language.
+- Classify every number as semantic, format, provisional, or measured.
+- Cite primary evidence at the supported claim.
+- Remove superseded snapshots instead of layering disclaimers over them.
+- Update indexes, links, and supersession metadata with every move.
