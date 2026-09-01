@@ -68,7 +68,8 @@ Durable Project migrations use separate history tables in a Migrator-owned
 `migrations` schema and run in a deterministic order through the Migration Job. Web
 has read-only access to those tables for readiness, never calls `Migrate()`, and
 never becomes ready against an unexpected migration set.
-The release backs up the selected active server before schema mutation.
+Before schema mutation, the release records a UTC recovery boundary covered by the
+server's automatic backups and point-in-time restore retention.
 
 Data Protection uses one stable application discriminator and a Blob-backed key ring
 with least-privilege access. Losing access to the key ring blocks readiness rather

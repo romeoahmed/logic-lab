@@ -518,4 +518,5 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2026-01-01'
 
 output containerRegistryName string = containerRegistry.name
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer
+output logAnalyticsWorkspaceCustomerId string = logWorkspace.properties.customerId
 output postgresServerName string = postgres.outputs.serverName

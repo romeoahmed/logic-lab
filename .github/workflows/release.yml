@@ -218,6 +218,7 @@ jobs:
           {
             echo "registry_name=$(read_output containerRegistryName)"
             echo "registry_server=$(read_output containerRegistryLoginServer)"
+            echo "log_analytics_workspace_id=$(read_output logAnalyticsWorkspaceCustomerId)"
             echo "postgres_name=$(read_output postgresServerName)"
           } >> "$GITHUB_OUTPUT"
 
@@ -450,9 +451,37 @@ jobs:
         env:
           AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
           BOOTSTRAP_JOB: ${{ steps.jobs.outputs.bootstrap_name }}
+          LOG_ANALYTICS_WORKSPACE_ID: ${{ steps.foundation.outputs.log_analytics_workspace_id }}
           MIGRATION_JOB: ${{ steps.jobs.outputs.migration_name }}
         run: |
           set -euo pipefail
+          show_job_logs() {
+            local execution_name="$1"
+            local query
+            local request
+            local logs
+            query="ContainerAppConsoleLogs_CL | where TimeGenerated > ago(1h) | where ContainerGroupName_s startswith '$execution_name-' | project TimeGenerated, Log_s | order by TimeGenerated asc | take 300"
+            request="$(jq --compact-output --null-input --arg query "$query" '{query: $query}')"
+
+            for _ in 1 2 3; do
+              logs="$(az rest \
+                --method post \
+                --url "https://api.loganalytics.azure.com/v1/workspaces/$LOG_ANALYTICS_WORKSPACE_ID/query" \
+                --resource 'https://api.loganalytics.io' \
+                --headers 'Content-Type=application/json' \
+                --body "$request" \
+                --query 'tables[0].rows' \
+                --output tsv 2>/dev/null || true)"
+              if [[ -n "$logs" ]]; then
+                echo "$logs"
+                return
+              fi
+              sleep 10
+            done
+
+            echo "Container logs are not available yet; query execution $execution_name in Log Analytics." >&2
+          }
+
           run_job() {
             local job_name="$1"
             local execution_name
@@ -479,7 +508,8 @@ jobs:
                     --name "$job_name" \
                     --resource-group "$AZURE_RESOURCE_GROUP" \
                     --job-execution-name "$execution_name" \
-                    --output jsonc
+                    --output jsonc || true
+                  show_job_logs "$execution_name"
                   return 1
                   ;;
               esac
