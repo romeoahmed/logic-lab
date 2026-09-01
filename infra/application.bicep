@@ -14,6 +14,9 @@ param migratorImage string
 @description('Deploy the Web revision after database preparation succeeds.')
 param deployWeb bool = true
 
+@description('PostgreSQL server name. Override only for a verified recovery cutover.')
+param postgresServerName string = ''
+
 param location string = resourceGroup().location
 param tags object = {}
 
@@ -24,6 +27,7 @@ var registryName = 'll${uniqueString(subscription().subscriptionId, resourceGrou
 var storageName = 'll${uniqueString(subscription().subscriptionId, resourceGroup().id, environmentName, 'storage')}'
 var webName = '${baseName}-web'
 var databaseName = 'logiclab'
+var selectedPostgresServerName = empty(postgresServerName) ? '${baseName}-postgres' : postgresServerName
 var commonTags = union(tags, {
   application: 'logic-lab'
   environment: environmentName
@@ -68,7 +72,7 @@ resource databaseAdminIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities
 }
 
 resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2025-08-01' existing = {
-  name: '${baseName}-postgres'
+  name: selectedPostgresServerName
 }
 
 resource databaseBootstrapJob 'Microsoft.App/jobs@2026-01-01' = {
