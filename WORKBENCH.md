@@ -275,7 +275,7 @@ Use the centrally pinned Fluent UI Blazor package for standard Web chrome whenev
 
 | Layer               | Evidence                                                                                                                   |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| pure Web projection | command availability, labels, state mapping, and diagnostics                                                              |
+| pure Web projection | command availability, labels, state mapping, and diagnostics                                                               |
 | Razor/Fluent        | bUnit forms, menus, dialogs, commands, empty/failure states, prerender handoff                                             |
 | browser adapters    | [Browser Runtime](./docs/specs/browser-runtime.md) and [Browser Adapter](./docs/contracts/browser-adapters.md) conformance |
 | browser             | Playwright primary pointer workflows, shared shortcuts, zoom, resize, reconnect, transfer, and conflicts                   |

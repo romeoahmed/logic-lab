@@ -5,11 +5,11 @@ The executable templates implement the selected
 [runbook](../docs/deployment/runbook.md) owns deployment and recovery procedures.
 This repository change does not deploy Azure resources.
 
-| File | Responsibility |
-| --- | --- |
-| `foundation.bicep` | long-lived network, identity, data, registry, monitoring, and Container Apps environment resources |
-| `modules/postgres.bicep` | private PostgreSQL server, database, Entra administrator, and diagnostics |
-| `application.bicep` | bootstrap and migration Jobs, digest-pinned Web revision, probes, and application alerts |
+| File                     | Responsibility                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------- |
+| `foundation.bicep`       | long-lived network, identity, data, registry, monitoring, and Container Apps environment resources |
+| `modules/postgres.bicep` | private PostgreSQL server, database, Entra administrator, and diagnostics                          |
+| `application.bicep`      | bootstrap and migration Jobs, digest-pinned Web revision, probes, and application alerts           |
 
 The foundation is deployed before image publication. The application template can
 then deploy Jobs without changing Web (`deployWeb=false`) and deploy Web only after

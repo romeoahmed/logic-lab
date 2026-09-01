@@ -15,15 +15,15 @@ Compiler and Project Format are translation Modules, not additional bounded cont
 
 ## Relationships
 
-| Producer           | Consumer             | Translation                                                                                           | Rejected coupling                                    |
-| ------------------ | -------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| Circuit Authoring  | Compiler             | Project Revision to Compilation Artifact and Source Map                                             | runtime ordinals as authored identity                |
-| Compiler           | Simulation           | opaque executable artifact with complete provenance                                                   | Simulation mutating the Project Document             |
-| Circuit Authoring  | Diagram Presentation | Component Contracts and presentation choices to Geometry Plans                                        | coordinates deciding Net membership                  |
-| Workspace          | Web                  | semantic Workspace Projection and stable changed-entity identities                                    | Application producing Canvas or SVG patches          |
-| Simulation         | Web                  | probe values, Trace transitions, and diagnostics keyed by source identity                             | runtime indexes crossing the browser seam            |
-| Project Format     | Workspace            | validated Import Candidate                                                                            | ZIP or JSON DTOs entering Domain as trusted values   |
-| Durable repository | Workspace            | immutable Project Revision snapshots under optimistic concurrency                                     | long-lived EF tracking graph or last-write-wins save |
+| Producer           | Consumer             | Translation                                                               | Rejected coupling                                    |
+| ------------------ | -------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Circuit Authoring  | Compiler             | Project Revision to Compilation Artifact and Source Map                   | runtime ordinals as authored identity                |
+| Compiler           | Simulation           | opaque executable artifact with complete provenance                       | Simulation mutating the Project Document             |
+| Circuit Authoring  | Diagram Presentation | Component Contracts and presentation choices to Geometry Plans            | coordinates deciding Net membership                  |
+| Workspace          | Web                  | semantic Workspace Projection and stable changed-entity identities        | Application producing Canvas or SVG patches          |
+| Simulation         | Web                  | probe values, Trace transitions, and diagnostics keyed by source identity | runtime indexes crossing the browser seam            |
+| Project Format     | Workspace            | validated Import Candidate                                                | ZIP or JSON DTOs entering Domain as trusted values   |
+| Durable repository | Workspace            | immutable Project Revision snapshots under optimistic concurrency         | long-lived EF tracking graph or last-write-wins save |
 
 ## Future context
 

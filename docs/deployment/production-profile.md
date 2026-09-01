@@ -46,12 +46,12 @@ for `linux-x64` ([container requirements](https://learn.microsoft.com/en-us/azur
 
 ## Identity and data
 
-| Principal | Allowed responsibility | Explicit exclusion |
-| --- | --- | --- |
-| GitHub production environment | federated Azure deployment within its assigned scope | no stored client secret; no PR deployment permission |
-| Web managed identity | ACR pull, Data Protection Blob data access, Application Insights telemetry publish, PostgreSQL runtime DML | no schema migration or broad resource ownership |
-| Migrator managed identity | ACR pull and reviewed PostgreSQL DDL migration | no Web request handling or unrelated Azure mutation |
-| Database-admin managed identity | bootstrap application principals and grants | no application runtime use |
+| Principal                       | Allowed responsibility                                                                                     | Explicit exclusion                                   |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| GitHub production environment   | federated Azure deployment within its assigned scope                                                       | no stored client secret; no PR deployment permission |
+| Web managed identity            | ACR pull, Data Protection Blob data access, Application Insights telemetry publish, PostgreSQL runtime DML | no schema migration or broad resource ownership      |
+| Migrator managed identity       | ACR pull and reviewed PostgreSQL DDL migration                                                             | no Web request handling or unrelated Azure mutation  |
+| Database-admin managed identity | bootstrap application principals and grants                                                                | no application runtime use                           |
 
 Azure RBAC governs Azure resources. PostgreSQL authentication uses Microsoft Entra
 tokens, while database roles and grants govern schema and data access. The Web

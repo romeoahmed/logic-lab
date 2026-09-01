@@ -111,11 +111,11 @@ Project Editor owns local Project Document invariants. Compiler rechecks every f
 
 Compiler uses distinct immutable representations:
 
-| Representation   | Retains                                                                                      | Excludes                                                                |
-| ---------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Elaborated Graph | resolved occurrences, Hierarchy Paths, widths, contracts, Driver facts, diagnostic witnesses | Session state, dense storage commitments, geometry                      |
-| Simulation IR    | dense ordinals, evaluator/Net graph, CSR adjacency, SCC plan, state and memory schema        | authored edit structure, browser identity, analysis algorithms          |
-| Source Map       | total ordinal-to-source mapping and Hierarchy Paths                                          | localized messages, renderer identity                                   |
+| Representation   | Retains                                                                                      | Excludes                                                       |
+| ---------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Elaborated Graph | resolved occurrences, Hierarchy Paths, widths, contracts, Driver facts, diagnostic witnesses | Session state, dense storage commitments, geometry             |
+| Simulation IR    | dense ordinals, evaluator/Net graph, CSR adjacency, SCC plan, state and memory schema        | authored edit structure, browser identity, analysis algorithms |
+| Source Map       | total ordinal-to-source mapping and Hierarchy Paths                                          | localized messages, renderer identity                          |
 
 The Elaborated Graph is Compiler implementation retained only as needed to build
 the sealed Simulation artifact and Source Map. Compilation does not materialize

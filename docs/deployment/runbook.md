@@ -24,7 +24,7 @@ that profile production-qualified.
 4. At the production resource-group scope, grant the deployment principal the
    resource-write and role-assignment permissions required by the Bicep templates.
    A bounded assignment of `Contributor` plus `Role Based Access Control
-   Administrator` is sufficient; do not grant subscription-wide `Owner` merely for
+Administrator` is sufficient; do not grant subscription-wide `Owner` merely for
    convenience.
 5. Record both the application client ID and service-principal object ID. The latter
    is `AZURE_DEPLOYMENT_PRINCIPAL_OBJECT_ID` and is not interchangeable with the
@@ -41,27 +41,27 @@ Create an environment named `production`, restrict it to protected version tags,
 require an independent reviewer, and prevent self-review where repository policy
 supports it. Store these values as environment secrets:
 
-| Secret | Meaning |
-| --- | --- |
-| `AZURE_CLIENT_ID` | GitHub deployment application client ID |
-| `AZURE_TENANT_ID` | Microsoft Entra tenant ID |
-| `AZURE_SUBSCRIPTION_ID` | qualified Azure subscription ID |
+| Secret                  | Meaning                                 |
+| ----------------------- | --------------------------------------- |
+| `AZURE_CLIENT_ID`       | GitHub deployment application client ID |
+| `AZURE_TENANT_ID`       | Microsoft Entra tenant ID               |
+| `AZURE_SUBSCRIPTION_ID` | qualified Azure subscription ID         |
 
 Store the non-secret production decisions as environment variables:
 
-| Variable | Required decision |
-| --- | --- |
-| `AZURE_RESOURCE_GROUP` | existing bounded deployment scope |
-| `AZURE_LOCATION` | qualified Azure region |
-| `AZURE_DEPLOYMENT_PRINCIPAL_OBJECT_ID` | deployment service-principal object ID |
-| `ALERT_EMAIL` | staffed operational alert destination |
-| `POSTGRES_SKU_NAME` | qualified General Purpose compute SKU |
-| `POSTGRES_HIGH_AVAILABILITY` | `Disabled`, `SameZone`, or `ZoneRedundant` from RTO/RPO |
-| `POSTGRES_BACKUP_RETENTION_DAYS` | PITR retention from 7 through 35 days |
-| `POSTGRES_GEO_REDUNDANT_BACKUP` | `Enabled` or `Disabled` from regional recovery needs |
-| `POSTGRES_STORAGE_SIZE_GB` | qualified storage size, at least 32 GiB |
-| `POSTGRES_MAINTENANCE_DAY` | UTC maintenance day, Sunday `0` through Saturday `6` |
-| `POSTGRES_MAINTENANCE_HOUR` | UTC maintenance hour, `0` through `23` |
+| Variable                               | Required decision                                       |
+| -------------------------------------- | ------------------------------------------------------- |
+| `AZURE_RESOURCE_GROUP`                 | existing bounded deployment scope                       |
+| `AZURE_LOCATION`                       | qualified Azure region                                  |
+| `AZURE_DEPLOYMENT_PRINCIPAL_OBJECT_ID` | deployment service-principal object ID                  |
+| `ALERT_EMAIL`                          | staffed operational alert destination                   |
+| `POSTGRES_SKU_NAME`                    | qualified General Purpose compute SKU                   |
+| `POSTGRES_HIGH_AVAILABILITY`           | `Disabled`, `SameZone`, or `ZoneRedundant` from RTO/RPO |
+| `POSTGRES_BACKUP_RETENTION_DAYS`       | PITR retention from 7 through 35 days                   |
+| `POSTGRES_GEO_REDUNDANT_BACKUP`        | `Enabled` or `Disabled` from regional recovery needs    |
+| `POSTGRES_STORAGE_SIZE_GB`             | qualified storage size, at least 32 GiB                 |
+| `POSTGRES_MAINTENANCE_DAY`             | UTC maintenance day, Sunday `0` through Saturday `6`    |
+| `POSTGRES_MAINTENANCE_HOUR`            | UTC maintenance hour, `0` through `23`                  |
 
 `POSTGRES_SERVER_OVERRIDE` is normally absent. Set it only during a documented PITR
 cutover and keep it until the recovered server becomes the new managed baseline.

@@ -56,8 +56,8 @@ Git history. This table intentionally keeps only the delivery record.
 
 ## Active implementation frontier
 
-|   ID | Slice                          | Requires                         | Completion signal                                                                                                                           |
-| ---: | ------------------------------ | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+|   ID | Slice                          | Requires                           | Completion signal                                                                                                                            |
+| ---: | ------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `33` | V1 Component evidence manifest | `15`, `16`, `18`, `22`, `25`, `27` | every `logiclab.core` Contract ID has the required schema, oracle, lowering, serialization, symbol, property, Hot Swap, and browser evidence |
 
 V1 behavior is implementation-complete at item `27` and conformance-complete at
@@ -65,18 +65,18 @@ item `33`; neither statement makes a deployment production-qualified.
 
 ## Production qualification
 
-|   ID | Slice                                                      | Requires                                 | Completion signal                                                                                                                    |
-| ---: | ---------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `34` | freeze the representative corpus and observability catalog | `20`, `33`                               | versioned circuit, browser, and load corpora plus a stable redacted telemetry catalog                                                |
-| `35` | calibrate core Module policies                             | `34`                                     | Package, Project Scale, Simulation, and Trace limits have repeatable corpus and environment evidence                                 |
-| `36` | calibrate Scheduling and Workspace policies                | `20`, `34`                               | queue, fairness, retention, history, idempotency, catalog, and Hot Swap envelopes have load and storage evidence                     |
-| `37` | qualify Workbench interaction and visual integrity         | `26`, `27`                               | primary authoring, inspection, simulation, recovery, responsive, zoom, and curated visual workflows pass                             |
-| `38` | qualify localization and browser support                   | `26`, `27`                               | `en-US`/`zh-CN`, long-label, bidi, font, zoom, density, reconnect, and supported-device fixtures pass                                |
-| `39` | calibrate Browser Policy and frame evidence                | `34`, `37`, `38`                         | intent, snapshot, bitmap, cache, frame, long-task, and idle limits are measured rather than predicted                                |
-| `40` | qualify Web and transfer security                          | `20`, `22`, `26`, `27`                   | authentication, authorization concealment, antiforgery, CSP, transport limits, cookies, and redaction fail closed                    |
-| `41` | qualify host lifecycle and operations                      | `19`, `20`, `40`                         | migration, readiness, shutdown, restart, auth expiry, and abandoned-lock recovery pass integration evidence                          |
-| `42` | define one production deployment profile                   | `35`–`41`                                | origin, TLS/proxy trust, secrets, Data Protection, storage, runtime image, resources, telemetry, and ownership are fixed             |
-| `43` | prove the production deployment profile                    | `33`, `42`                               | published artifacts pass migration, backup/restore, key continuity, upgrade, rollback, telemetry, load, security, and runbook drills |
+|   ID | Slice                                                      | Requires               | Completion signal                                                                                                                    |
+| ---: | ---------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `34` | freeze the representative corpus and observability catalog | `20`, `33`             | versioned circuit, browser, and load corpora plus a stable redacted telemetry catalog                                                |
+| `35` | calibrate core Module policies                             | `34`                   | Package, Project Scale, Simulation, and Trace limits have repeatable corpus and environment evidence                                 |
+| `36` | calibrate Scheduling and Workspace policies                | `20`, `34`             | queue, fairness, retention, history, idempotency, catalog, and Hot Swap envelopes have load and storage evidence                     |
+| `37` | qualify Workbench interaction and visual integrity         | `26`, `27`             | primary authoring, inspection, simulation, recovery, responsive, zoom, and curated visual workflows pass                             |
+| `38` | qualify localization and browser support                   | `26`, `27`             | `en-US`/`zh-CN`, long-label, bidi, font, zoom, density, reconnect, and supported-device fixtures pass                                |
+| `39` | calibrate Browser Policy and frame evidence                | `34`, `37`, `38`       | intent, snapshot, bitmap, cache, frame, long-task, and idle limits are measured rather than predicted                                |
+| `40` | qualify Web and transfer security                          | `20`, `22`, `26`, `27` | authentication, authorization concealment, antiforgery, CSP, transport limits, cookies, and redaction fail closed                    |
+| `41` | qualify host lifecycle and operations                      | `19`, `20`, `40`       | migration, readiness, shutdown, restart, auth expiry, and abandoned-lock recovery pass integration evidence                          |
+| `42` | define one production deployment profile                   | `35`–`41`              | origin, TLS/proxy trust, secrets, Data Protection, storage, runtime image, resources, telemetry, and ownership are fixed             |
+| `43` | prove the production deployment profile                    | `33`, `42`             | published artifacts pass migration, backup/restore, key continuity, upgrade, rollback, telemetry, load, security, and runbook drills |
 
 Only item `43` authorizes describing the selected deployment as
 production-qualified.
@@ -90,13 +90,13 @@ drill evidence that must close through items `34`–`43`.
 These items preserve the prior Boolean Analysis design without making it V1
 scope, a production-qualification dependency, or a delivery commitment.
 
-|    ID | Slice                                                  | Requires                  | Reactivation signal                                                                                                                      |
-| ----: | ------------------------------------------------------ | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `F01` | Truth Table explanation                                | `08`, `10`, `11`, `17`    | V1 production qualification is complete and the future capability draft is accepted as a current specification                          |
-| `F02` | Karnaugh Map explanation                               | `F01`                     | Gray-code axes, legal wrapping groups, per-output Care Domains, and unsupported-dimension behavior have approved product and test owners |
-| `F03` | exact small simplification                             | `23`, `F01`               | bounded QMC/Petrick, independent verification, proposal freshness, recompilation, and atomic application are respecified                 |
-| `F04` | deterministic AIG cleanup and teaching-library mapping | `25`, `F03`               | materialized verified improvements and mapping evidence have approved contracts and policy dimensions                                   |
-| `F05` | ROBDD proof path                                       | `F03`                     | fixed-order ROBDD proof coverage, exhaustion, and counterexample evidence have approved limits                                           |
+|    ID | Slice                                                  | Requires               | Reactivation signal                                                                                                                      |
+| ----: | ------------------------------------------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `F01` | Truth Table explanation                                | `08`, `10`, `11`, `17` | V1 production qualification is complete and the future capability draft is accepted as a current specification                           |
+| `F02` | Karnaugh Map explanation                               | `F01`                  | Gray-code axes, legal wrapping groups, per-output Care Domains, and unsupported-dimension behavior have approved product and test owners |
+| `F03` | exact small simplification                             | `23`, `F01`            | bounded QMC/Petrick, independent verification, proposal freshness, recompilation, and atomic application are respecified                 |
+| `F04` | deterministic AIG cleanup and teaching-library mapping | `25`, `F03`            | materialized verified improvements and mapping evidence have approved contracts and policy dimensions                                    |
+| `F05` | ROBDD proof path                                       | `F03`                  | fixed-order ROBDD proof coverage, exhaustion, and counterexample evidence have approved limits                                           |
 
 Reactivation updates Architecture, Context Map, Workbench, Compiler, Editor
 Workspace, Diagnostics, Policy Catalog, executable project graph, and tests in

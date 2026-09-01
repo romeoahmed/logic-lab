@@ -151,24 +151,24 @@ typed command payload
 
 `WorkspaceCommand` contains exactly these V1 variants:
 
-| Command                 | Typed payload                                                                             | Precondition       |
-| ----------------------- | ----------------------------------------------------------------------------------------- | ------------------ |
-| `ApplyEdit`             | one [Edit Intent](../specs/circuit-authoring.md)                                          | Authoring          |
-| `Undo`, `Redo`          | none                                                                                      | Authoring          |
-| `SaveDurable`           | none                                                                                      | Durable Save       |
-| `ClaimSandbox`          | requested Durable Display Name                                                            | Claim              |
-| `CloseWorkspace`        | none                                                                                      | current attachment |
-| `RequestCompilation`    | entry Circuit Definition ID                                                               | Compilation        |
-| `CreateSession`         | `SessionConfigurationV1` and target Compilation Artifact Key                              | Session Creation   |
-| `RestartSession`        | `SessionConfigurationV1`                                                                  | Session Mutation   |
-| `ScheduleStimulusBatch` | one complete future Stimulus Batch                                                        | Session Mutation   |
-| `StepSession`           | none                                                                                      | Session Mutation   |
-| `StartRun`              | none                                                                                      | Session Mutation   |
-| `PauseRun`              | none                                                                                      | Run Control        |
-| `ReplaceProbes`         | complete ordered Probe binding requests                                                   | Session Mutation   |
-| `HotSwapSession`        | target Compilation Artifact Key                                                           | Session Mutation   |
-| `CloseSession`          | none                                                                                      | Session Mutation   |
-| `PrepareExport`         | Project Revision ID                                                                       | Authoring          |
+| Command                 | Typed payload                                                | Precondition       |
+| ----------------------- | ------------------------------------------------------------ | ------------------ |
+| `ApplyEdit`             | one [Edit Intent](../specs/circuit-authoring.md)             | Authoring          |
+| `Undo`, `Redo`          | none                                                         | Authoring          |
+| `SaveDurable`           | none                                                         | Durable Save       |
+| `ClaimSandbox`          | requested Durable Display Name                               | Claim              |
+| `CloseWorkspace`        | none                                                         | current attachment |
+| `RequestCompilation`    | entry Circuit Definition ID                                  | Compilation        |
+| `CreateSession`         | `SessionConfigurationV1` and target Compilation Artifact Key | Session Creation   |
+| `RestartSession`        | `SessionConfigurationV1`                                     | Session Mutation   |
+| `ScheduleStimulusBatch` | one complete future Stimulus Batch                           | Session Mutation   |
+| `StepSession`           | none                                                         | Session Mutation   |
+| `StartRun`              | none                                                         | Session Mutation   |
+| `PauseRun`              | none                                                         | Run Control        |
+| `ReplaceProbes`         | complete ordered Probe binding requests                      | Session Mutation   |
+| `HotSwapSession`        | target Compilation Artifact Key                              | Session Mutation   |
+| `CloseSession`          | none                                                         | Session Mutation   |
+| `PrepareExport`         | Project Revision ID                                          | Authoring          |
 
 Unknown variants fail before dispatch. Import is deliberately absent: it validates an external carrier and opens a separate Workspace. Selection, viewport, panels, waveform cursor, and Transient Preview are browser/Web state and are not Workspace commands.
 

@@ -46,15 +46,15 @@ The deletion test applies to every proposed module: removing a useful module red
 
 Bounded contexts own language and consistency inside one modular monolith; they do not imply processes or network seams. [CONTEXT-MAP.md](./CONTEXT-MAP.md) owns their translations.
 
-| Fact                                                                                  | Owner                | Derived consumers                                          |
-| ------------------------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------- |
-| Project Document, Project Revision, topology, authored presentation                   | Circuit Authoring    | Compiler, Diagram Presentation, Project Format, repository |
-| Compilation Artifact and Source Map                                                   | Compiler             | Simulation Runtime, Web                                    |
-| Logical Time, Driver/Net values, state, event calendar, Trace                         | Simulation Runtime   | Editor Workspace, Web                                      |
-| attachment, history cursor, save, Compilation, Session, and Run state                 | Editor Workspace     | Web                                                        |
-| Geometry Plan, Schematic Projection, symbol conformance                               | Diagram Presentation | browser and export adapters                                |
-| durable current-revision pointer and payload                                          | repository adapter   | Editor Workspace                                           |
-| selection, focus, viewport, Transient Preview, live overlays                          | Web/browser adapters | Workbench projection                                       |
+| Fact                                                                  | Owner                | Derived consumers                                          |
+| --------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------- |
+| Project Document, Project Revision, topology, authored presentation   | Circuit Authoring    | Compiler, Diagram Presentation, Project Format, repository |
+| Compilation Artifact and Source Map                                   | Compiler             | Simulation Runtime, Web                                    |
+| Logical Time, Driver/Net values, state, event calendar, Trace         | Simulation Runtime   | Editor Workspace, Web                                      |
+| attachment, history cursor, save, Compilation, Session, and Run state | Editor Workspace     | Web                                                        |
+| Geometry Plan, Schematic Projection, symbol conformance               | Diagram Presentation | browser and export adapters                                |
+| durable current-revision pointer and payload                          | repository adapter   | Editor Workspace                                           |
+| selection, focus, viewport, Transient Preview, live overlays          | Web/browser adapters | Workbench projection                                       |
 
 Compiler and Project Format are translation modules, not extra domain models. The Compiler translates a Project Revision into purpose-specific artifacts; Project Format translates an untrusted carrier into an Import Candidate. Neither changes Circuit Authoring facts.
 
@@ -98,16 +98,16 @@ provider shape and its qualification limits are fixed by the
 
 Project seams follow dependency or deployment seams, not every namespace.
 
-| Project                    | Deep responsibility                                                   | Target direct dependencies                     |
-| -------------------------- | --------------------------------------------------------------------- | ---------------------------------------------- |
-| `LogicLab.Domain`          | immutable authoring model, Project Editor, `logiclab.core` schema     | BCL                                            |
-| `LogicLab.Engine`          | Compiler and Simulation Runtime as separate modules                   | Domain                                         |
-| `LogicLab.Presentation`    | TeachingMixed definitions, Geometry Plans, Schematic Projection       | Domain                                         |
-| `LogicLab.ProjectFormat`   | strict `.logiclab` read/write, migration, digest, memory encoding     | Domain, BCL compression/JSON                   |
-| `LogicLab.Application`     | Editor Workspace, Work Coordinator, authorization-aware use cases     | Domain, Engine, ProjectFormat                  |
-| `LogicLab.Infrastructure`  | EF Core repository and persistence adapters                           | Application, Domain, EF Core                   |
-| `LogicLab.DatabaseMigrator` | database principal bootstrap and deterministic schema migration      | Infrastructure, EF Core, Azure Identity        |
-| `LogicLab.Web`             | Blazor routes, Fluent chrome, browser/HTTP adapters, composition root | Application, Presentation, Infrastructure      |
+| Project                     | Deep responsibility                                                   | Target direct dependencies                |
+| --------------------------- | --------------------------------------------------------------------- | ----------------------------------------- |
+| `LogicLab.Domain`           | immutable authoring model, Project Editor, `logiclab.core` schema     | BCL                                       |
+| `LogicLab.Engine`           | Compiler and Simulation Runtime as separate modules                   | Domain                                    |
+| `LogicLab.Presentation`     | TeachingMixed definitions, Geometry Plans, Schematic Projection       | Domain                                    |
+| `LogicLab.ProjectFormat`    | strict `.logiclab` read/write, migration, digest, memory encoding     | Domain, BCL compression/JSON              |
+| `LogicLab.Application`      | Editor Workspace, Work Coordinator, authorization-aware use cases     | Domain, Engine, ProjectFormat             |
+| `LogicLab.Infrastructure`   | EF Core repository and persistence adapters                           | Application, Domain, EF Core              |
+| `LogicLab.DatabaseMigrator` | database principal bootstrap and deterministic schema migration       | Infrastructure, EF Core, Azure Identity   |
+| `LogicLab.Web`              | Blazor routes, Fluent chrome, browser/HTTP adapters, composition root | Application, Presentation, Infrastructure |
 
 Tests and benchmarks remain separate projects and do not create production seams.
 
@@ -130,7 +130,7 @@ The linked owner defines the exact interface and closed outcomes. Architecture f
 | Module                  | Caller intention                                 | Hidden implementation                                                           | Interface owner                                                                                                      |
 | ----------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Project Editor          | begin a Project; apply one Edit Intent           | identity allocation, topology normalization, invariants, structural sharing     | [Circuit Authoring](./docs/specs/circuit-authoring.md)                                                               |
-| Compiler                | compile one Project Revision                      | validation, hierarchy, SCCs, ordinals, IR, Source Map                           | [Compiler](./docs/specs/compiler.md)                                                                                 |
+| Compiler                | compile one Project Revision                     | validation, hierarchy, SCCs, ordinals, IR, Source Map                           | [Compiler](./docs/specs/compiler.md)                                                                                 |
 | Simulation Runtime      | open, execute, and read one Simulation Session   | propagation, batching, rollback, memory, Trace, Hot Swap                        | [Simulation Runtime](./docs/specs/simulation-runtime.md)                                                             |
 | Project Format          | read or write one `.logiclab` carrier            | bounded spool, ZIP, strict V1 DTOs, digests                                     | [Project Package V1](./docs/specs/project-package-v1.md)                                                             |
 | Diagram Presentation    | plan one symbol; project one Circuit Definition  | constraints, text metrics, drawing operations, conformance                      | [Diagram Presentation](./docs/specs/diagram-presentation.md)                                                         |
@@ -157,10 +157,10 @@ Reattachment reauthorizes and fences the previous generation. A Detached Workspa
 
 The Work Coordinator owns two typed CPU lanes:
 
-| Lane        | Lifecycle                                                    |
-| ----------- | ------------------------------------------------------------ |
-| Compilation | newest request wins per Workspace                            |
-| Session     | commands serialize per Simulation Session                    |
+| Lane        | Lifecycle                                 |
+| ----------- | ----------------------------------------- |
+| Compilation | newest request wins per Workspace         |
+| Session     | commands serialize per Simulation Session |
 
 CPU modules are synchronous. Async appears at I/O, cancellation, admission, and observation seams. Razor handlers neither call `Task.Run` nor create hidden queues; hosted work creates explicit dependency-injection scopes.
 
