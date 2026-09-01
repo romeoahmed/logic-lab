@@ -9,8 +9,9 @@ commands and parameters; this document owns operator intent and stop conditions.
 
 ## One-time preparation
 
-1. Select and record the subscription, region, resource group, public origin, RTO,
-   RPO, residency, maintenance, cost, alert owner, and operational owner.
+1. Confirm the selected subscription, resource group, and region can deploy the
+   qualified profile. Record the owner, available budget, accepted RTO/RPO,
+   data-residency decision, quota, and reachability evidence outside the repository.
 2. Register the providers used by `infra/foundation.bicep`: `Microsoft.App`,
    `Microsoft.ContainerRegistry`, `Microsoft.DBforPostgreSQL`, `Microsoft.Insights`,
    `Microsoft.ManagedIdentity`, `Microsoft.Network`, `Microsoft.OperationalInsights`,
@@ -34,30 +35,36 @@ reviewer, and prevent self-review where available.
 
 Environment secrets:
 
-| Secret                  | Meaning                          |
-| ----------------------- | -------------------------------- |
-| `AZURE_CLIENT_ID`       | deployment application client ID |
-| `AZURE_TENANT_ID`       | Microsoft Entra tenant ID        |
-| `AZURE_SUBSCRIPTION_ID` | qualified subscription ID        |
+| Secret                                 | Meaning                                      |
+| -------------------------------------- | -------------------------------------------- |
+| `AZURE_CLIENT_ID`                      | deployment application client ID             |
+| `AZURE_TENANT_ID`                      | Microsoft Entra tenant ID                    |
+| `AZURE_SUBSCRIPTION_ID`                | qualified subscription ID                    |
+| `AZURE_RESOURCE_GROUP`                 | qualified production resource group          |
+| `AZURE_DEPLOYMENT_PRINCIPAL_OBJECT_ID` | deployment service-principal object ID        |
+| `ALERT_EMAIL`                          | staffed alert destination                    |
+| `POSTGRES_SERVER_OVERRIDE`             | optional verified recovery target server name |
 
 Environment variables:
 
-| Variable                               | Decision                                   |
-| -------------------------------------- | ------------------------------------------ |
-| `AZURE_RESOURCE_GROUP`                 | bounded deployment scope                   |
-| `AZURE_LOCATION`                       | qualified Azure region                     |
-| `AZURE_DEPLOYMENT_PRINCIPAL_OBJECT_ID` | deployment service-principal object ID     |
-| `ALERT_EMAIL`                          | staffed alert destination                  |
-| `POSTGRES_SKU_NAME`                    | qualified General Purpose SKU              |
-| `POSTGRES_HIGH_AVAILABILITY`           | `Disabled`, `SameZone`, or `ZoneRedundant` |
-| `POSTGRES_BACKUP_RETENTION_DAYS`       | PITR retention, 7–35 days                  |
-| `POSTGRES_GEO_REDUNDANT_BACKUP`        | `Enabled` or `Disabled`                    |
-| `POSTGRES_STORAGE_SIZE_GB`             | qualified storage, at least 32 GiB         |
-| `POSTGRES_MAINTENANCE_DAY`             | UTC day, Sunday `0` through Saturday `6`   |
-| `POSTGRES_MAINTENANCE_HOUR`            | UTC hour, `0` through `23`                 |
+| Variable                          | Meaning                              |
+| --------------------------------- | ------------------------------------ |
+| `AZURE_LOCATION`                  | qualified deployment region          |
+| `CONTAINER_REGISTRY_SKU_NAME`     | selected registry service tier       |
+| `POSTGRES_TIER`                   | selected PostgreSQL compute tier     |
+| `POSTGRES_SKU_NAME`               | selected PostgreSQL compute SKU      |
+| `POSTGRES_HIGH_AVAILABILITY`      | accepted PostgreSQL HA mode          |
+| `POSTGRES_BACKUP_RETENTION_DAYS`  | accepted PITR retention              |
+| `POSTGRES_GEO_REDUNDANT_BACKUP`   | accepted geo-backup posture          |
+| `POSTGRES_STORAGE_SIZE_GB`        | selected PostgreSQL storage capacity |
+| `POSTGRES_MAINTENANCE_DAY`        | selected UTC maintenance day         |
+| `POSTGRES_MAINTENANCE_HOUR`       | selected UTC maintenance hour        |
+| `WEB_MIN_REPLICAS`                | selected minimum Web replicas        |
+| `WEB_MAX_REPLICAS`                | selected maximum Web replicas        |
 
-`POSTGRES_SERVER_OVERRIDE` is normally absent. Set it only for a documented PITR
-cutover, and retain it until the recovered server becomes the managed baseline.
+Leave `POSTGRES_SERVER_OVERRIDE` absent during normal operation. Set it only for a
+documented PITR cutover, and retain it until the recovered server becomes the managed
+baseline.
 
 Protect `main` with CI, CodeQL C#, and Dependency Review. Enable dependency and secret
 security features. Protect release-tag creation separately so tags cannot bypass
@@ -87,14 +94,27 @@ or rerun unrelated substeps.
 
 ## Post-release verification
 
-- Confirm tag, commit, selected PostgreSQL server, endpoint, and both digest-qualified
-  images in the release evidence.
+- Confirm tag, commit, endpoint, and both digest-qualified images in the release
+  evidence. Record the selected PostgreSQL server only in restricted operations
+  evidence.
 - Verify `/health/live` and `/health/ready` externally over HTTPS.
-- Confirm one active Container Apps revision and one Web replica.
+- Confirm one active Container Apps revision and the selected Web replica range.
 - Verify redacted request, dependency, migration, readiness, and alert telemetry.
 - Confirm Data Protection key continuity through one controlled Web restart.
 - Verify and retain OCI attestations and release evidence under the accepted policy.
 - Record reviewer, observation interval, alerts, and deviations.
+
+## Cost control and offline periods
+
+Create an Azure Cost Management budget scoped to the production resource group. Base
+its amount on the available budget and notify the operational owner at 50%, 80%, and
+100% actual cost, plus 80% forecast cost. Budget alerts are delayed notifications;
+they do not stop resources. Review actual cost after the first 24–48 hours.
+
+For an offline period shorter than seven days, stop PostgreSQL and allow Web to scale
+to zero. Azure automatically starts a stopped Flexible Server after seven days. For a
+longer offline period, export and verify required data, retain it outside the resource
+group, and delete the group only after explicit owner approval.
 
 ## Application rollback
 
@@ -148,5 +168,7 @@ invalidates existing protected cookies and requires incident approval.
 - [Azure Container Apps Jobs](https://learn.microsoft.com/en-us/azure/container-apps/jobs)
 - [PostgreSQL backups](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/how-to-perform-backups)
 - [PostgreSQL point-in-time restore](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/how-to-restore-custom-restore-point)
+- [Stop and start PostgreSQL](https://learn.microsoft.com/en-us/azure/postgresql/configure-maintain/how-to-stop-server)
 - [PostgreSQL Entra roles](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/security-manage-entra-users)
+- [Azure Cost Management budgets](https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/tutorial-acm-create-budgets)
 - [GitHub artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)

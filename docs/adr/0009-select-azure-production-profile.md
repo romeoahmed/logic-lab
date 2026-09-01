@@ -20,8 +20,11 @@ externalizing those facts would silently change observable behavior.
 - Run Web on Azure Container Apps and store images in Azure Container Registry.
 - Use Azure Database for PostgreSQL Flexible Server through EF Core and Npgsql as the
   sole production database provider.
-- Run one active revision and one Web replica for V1 qualification. This is a
-  production candidate, not a high-availability claim.
+- Run one active revision with a production-selected Web replica range. A range that
+  permits zero replicas trades idle cost for cold starts; this remains a production
+  candidate, not a high-availability claim.
+- Select region, service tiers, continuity, maintenance, storage, and scale in the
+  protected production environment rather than hard-coding one deployment profile.
 - Bootstrap reviewed database principals and apply both Identity and Durable Project
   migrations through separate Container Apps Jobs before Web readiness. Web,
   Migrator, and database administrator use distinct least-privilege Microsoft Entra
@@ -49,10 +52,10 @@ runtime provider switch. If production SQLite data is discovered, it requires a
 separate one-time transfer and verification plan.
 
 Container Apps single-revision readiness preserves ingress while a new revision
-starts, but it does not preserve a Blazor circuit or process-local Workspace across
-replacement. Upgrade and reconnect behavior therefore remains explicit item `43`
-evidence. Database high availability and backup topology depend on recorded RTO and
-RPO; they cannot repair the single Web replica's availability boundary.
+starts, but scale-to-zero, when selected, and revision replacement do not preserve a
+Blazor circuit or process-local Workspace. Upgrade, cold-start, and reconnect
+behavior therefore remain explicit item `43` evidence. Any cost-first database
+profile requires explicit acceptance of its recovery boundary.
 
 ## Rejected alternatives
 

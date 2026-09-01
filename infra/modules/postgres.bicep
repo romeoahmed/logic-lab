@@ -15,6 +15,7 @@ param serverName string
 param skuName string
 param storageSizeGB int
 param tags object
+param tier string
 
 resource server 'Microsoft.DBforPostgreSQL/flexibleServers@2025-08-01' = {
   name: serverName
@@ -25,7 +26,7 @@ resource server 'Microsoft.DBforPostgreSQL/flexibleServers@2025-08-01' = {
   }
   sku: {
     name: skuName
-    tier: 'GeneralPurpose'
+    tier: tier
   }
   properties: {
     authConfig: {
