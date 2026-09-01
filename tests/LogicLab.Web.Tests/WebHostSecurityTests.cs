@@ -20,7 +20,7 @@ internal sealed class LogicLabWebFactory : TestWebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
-        builder.UseEnvironment(Environments.Production);
+        builder.UseEnvironment(Environments.Staging);
     }
 }
 
