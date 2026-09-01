@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using LogicLab.Web.Data;
+using LogicLab.Infrastructure.Identity;
 using LogicLab.Web.Identity;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Http;

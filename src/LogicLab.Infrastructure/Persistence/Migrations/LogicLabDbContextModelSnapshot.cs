@@ -3,6 +3,7 @@ using LogicLab.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -14,79 +15,86 @@ namespace LogicLab.Infrastructure.Persistence.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
+            modelBuilder
+                .HasAnnotation("ProductVersion", "10.0.11")
+                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+
+            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("LogicLab.Infrastructure.Persistence.DurableCommandReceiptRecord", b =>
                 {
                     b.Property<long>("ReceiptSequence")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
+                        .HasColumnType("bigint")
                         .HasColumnName("receipt_sequence");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("ReceiptSequence"));
 
                     b.Property<string>("ActualDurableVersion")
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("actual_durable_version");
 
                     b.Property<string>("AttachmentGeneration")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(20)")
                         .HasColumnName("attachment_generation");
 
                     b.Property<string>("ClientIntentId")
                         .IsRequired()
                         .HasMaxLength(128)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(128)")
                         .HasColumnName("client_intent_id");
 
                     b.Property<string>("CommandFingerprint")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("command_fingerprint");
 
                     b.Property<string>("CommandKind")
                         .IsRequired()
                         .HasMaxLength(16)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(16)")
                         .HasColumnName("command_kind");
 
                     b.Property<string>("DurableProjectId")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("durable_project_id");
 
                     b.Property<string>("DurableVersion")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("durable_version");
 
                     b.Property<string>("ExpectedDurableVersion")
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("expected_durable_version");
 
                     b.Property<string>("OutcomeKind")
                         .IsRequired()
                         .HasMaxLength(16)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(16)")
                         .HasColumnName("outcome_kind");
 
                     b.Property<string>("ProjectRevisionId")
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("project_revision_id");
 
                     b.Property<string>("WorkspaceId")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("workspace_id");
 
-                    b.HasKey("ReceiptSequence");
+                    b.HasKey("ReceiptSequence")
+                        .HasName("pk_durable_command_receipts");
 
                     b.HasIndex("DurableProjectId");
 
@@ -100,58 +108,59 @@ namespace LogicLab.Infrastructure.Persistence.Migrations
                 {
                     b.Property<string>("Id")
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("durable_project_id");
 
                     b.Property<string>("ClaimWorkspaceId")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("claim_workspace_id");
 
                     b.Property<string>("CurrentProjectRevisionId")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("current_project_revision_id");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("display_name");
 
                     b.Property<byte[]>("DisplayNameSortKey")
                         .IsRequired()
-                        .HasColumnType("BLOB")
+                        .HasColumnType("bytea")
                         .HasColumnName("display_name_sort_key");
 
                     b.Property<string>("DurableVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("durable_version");
 
                     b.Property<string>("InitialDurableVersion")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("initial_durable_version");
 
                     b.Property<string>("InitialProjectRevisionId")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("initial_project_revision_id");
 
                     b.Property<string>("SubjectId")
                         .IsRequired()
                         .HasMaxLength(512)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(512)")
                         .HasColumnName("subject_id");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_durable_projects");
 
                     b.HasIndex(new[] { "SubjectId", "DisplayNameSortKey", "Id" }, "ix_durable_projects_subject_sort_key_id")
                         .IsUnique();
@@ -166,20 +175,21 @@ namespace LogicLab.Infrastructure.Persistence.Migrations
                 {
                     b.Property<string>("DurableProjectId")
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("durable_project_id");
 
                     b.Property<string>("ProjectRevisionId")
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("project_revision_id");
 
                     b.Property<byte[]>("Payload")
                         .IsRequired()
-                        .HasColumnType("BLOB")
+                        .HasColumnType("bytea")
                         .HasColumnName("payload");
 
-                    b.HasKey("DurableProjectId", "ProjectRevisionId");
+                    b.HasKey("DurableProjectId", "ProjectRevisionId")
+                        .HasName("pk_project_revisions");
 
                     b.ToTable("project_revisions", (string)null);
                 });

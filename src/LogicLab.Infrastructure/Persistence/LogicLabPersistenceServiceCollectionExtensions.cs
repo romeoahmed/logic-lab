@@ -6,7 +6,7 @@ namespace LogicLab.Infrastructure.Persistence;
 
 public static class LogicLabPersistenceServiceCollectionExtensions
 {
-    public static IServiceCollection AddLogicLabSqlitePersistence(
+    public static IServiceCollection AddLogicLabPersistence(
         this IServiceCollection services,
         string connectionString,
         int durableCommandReceiptCount)
@@ -16,17 +16,17 @@ public static class LogicLabPersistenceServiceCollectionExtensions
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(durableCommandReceiptCount);
 
         services.AddDbContextFactory<LogicLabDbContext>(options =>
-            options.UseSqlite(connectionString));
+            options.UseNpgsql(connectionString));
         services.AddSingleton(provider =>
-            new SqliteDurableProjectRepository(
+            new DurableProjectRepository(
                 provider.GetRequiredService<IDbContextFactory<LogicLabDbContext>>(),
                 durableCommandReceiptCount));
         services.AddSingleton<IDurableProjectRepository>(provider =>
-            provider.GetRequiredService<SqliteDurableProjectRepository>());
+            provider.GetRequiredService<DurableProjectRepository>());
         services.AddSingleton<IDurableProjectCatalogRepository>(provider =>
-            provider.GetRequiredService<SqliteDurableProjectRepository>());
+            provider.GetRequiredService<DurableProjectRepository>());
         services.AddSingleton<IDurableProjectLoader>(provider =>
-            provider.GetRequiredService<SqliteDurableProjectRepository>());
+            provider.GetRequiredService<DurableProjectRepository>());
         services.AddSingleton(provider =>
             new LogicLabPersistenceReadiness(
                 provider.GetRequiredService<IDbContextFactory<LogicLabDbContext>>()));

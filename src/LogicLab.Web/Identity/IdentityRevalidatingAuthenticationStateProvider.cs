@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using LogicLab.Web.Data;
+using LogicLab.Infrastructure.Identity;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Identity;

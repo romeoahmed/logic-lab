@@ -30,7 +30,9 @@ internal sealed class LogicLabBrowserApplication : TestWebApplicationFactory<Pro
     {
         base.ConfigureWebHost(builder);
         builder.UseEnvironment(Environments.Development);
-        builder.UseSetting("ConnectionStrings:LogicLab", "Data Source=:memory:");
+        builder.UseSetting(
+            "ConnectionStrings:LogicLab",
+            "Host=localhost;Port=5432;Database=logiclab_browser_tests;Username=logiclab");
     }
 
     protected override void Dispose(bool disposing)

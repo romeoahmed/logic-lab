@@ -19,7 +19,8 @@ internal sealed class LogicLabDbContext(DbContextOptions<LogicLabDbContext> opti
 
         var projects = modelBuilder.Entity<DurableProjectRecord>();
         projects.ToTable("durable_projects");
-        projects.HasKey(project => project.Id);
+        projects.HasKey(project => project.Id)
+            .HasName("pk_durable_projects");
         projects.Property(project => project.Id)
             .HasColumnName("durable_project_id")
             .HasMaxLength(64);
@@ -68,7 +69,8 @@ internal sealed class LogicLabDbContext(DbContextOptions<LogicLabDbContext> opti
         {
             revision.DurableProjectId,
             revision.ProjectRevisionId,
-        });
+        })
+            .HasName("pk_project_revisions");
         revisions.Property(revision => revision.DurableProjectId)
             .HasColumnName("durable_project_id")
             .HasMaxLength(64);
@@ -84,7 +86,8 @@ internal sealed class LogicLabDbContext(DbContextOptions<LogicLabDbContext> opti
 
         var receipts = modelBuilder.Entity<DurableCommandReceiptRecord>();
         receipts.ToTable("durable_command_receipts");
-        receipts.HasKey(receipt => receipt.ReceiptSequence);
+        receipts.HasKey(receipt => receipt.ReceiptSequence)
+            .HasName("pk_durable_command_receipts");
         receipts.Property(receipt => receipt.ReceiptSequence)
             .HasColumnName("receipt_sequence")
             .ValueGeneratedOnAdd();
