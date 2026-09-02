@@ -27,7 +27,6 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Microsoft.FluentUI.AspNetCore.Components;
@@ -232,15 +231,7 @@ builder.Services.AddOptions<RateLimiterOptions>()
                 .ExecuteAsync(context.HttpContext);
         };
     });
-builder.Services.AddDbContext<ApplicationIdentityDbContext>((services, options) =>
-    options.UseLogicLabIdentityPostgreSql(
-        services.GetRequiredService<NpgsqlDataSource>()));
-builder.Services.AddIdentityCore<ApplicationUser>(options =>
-    {
-        options.SignIn.RequireConfirmedAccount = false;
-        options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
-    })
-    .AddEntityFrameworkStores<ApplicationIdentityDbContext>()
+builder.Services.AddLogicLabIdentity(dataSource)
     .AddSignInManager()
     .AddDefaultTokenProviders();
 builder.Services.AddLogicLabPersistence(

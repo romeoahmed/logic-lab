@@ -10,10 +10,12 @@ param location string = resourceGroup().location
 
 @description('Object ID of the GitHub OIDC deployment service principal.')
 @secure()
+@minLength(1)
 param deploymentPrincipalObjectId string
 
 @description('Email address for the production Azure Monitor action group.')
 @secure()
+@minLength(1)
 param alertEmail string
 
 @allowed([

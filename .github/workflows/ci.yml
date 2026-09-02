@@ -2,7 +2,11 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -16,6 +20,65 @@ env:
   DOTNET_NOLOGO: true
 
 jobs:
+  infrastructure:
+    name: Validate infrastructure
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    env:
+      BICEP_VERSION: 0.46.1
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Bicep CLI
+        run: az bicep install --version "v$BICEP_VERSION"
+
+      - name: Verify Bicep formatting
+        run: |
+          az bicep format --file infra/application.bicep
+          az bicep format --file infra/application.production.bicepparam
+          az bicep format --file infra/foundation.bicep
+          az bicep format --file infra/foundation.production.bicepparam
+          az bicep format --file infra/modules/postgres.bicep
+          git diff --exit-code -- infra
+
+      - name: Lint Bicep templates
+        run: |
+          az bicep lint --file infra/application.bicep
+          az bicep lint --file infra/foundation.bicep
+          az bicep lint --file infra/modules/postgres.bicep
+
+      - name: Compile production parameters
+        env:
+          ALERT_EMAIL: ci@example.invalid
+          AZURE_DEPLOYMENT_PRINCIPAL_OBJECT_ID: 00000000-0000-0000-0000-000000000000
+          AZURE_LOCATION: eastus
+          CONTAINER_REGISTRY_SKU_NAME: Basic
+          DEPLOY_WEB: "true"
+          MIGRATOR_IMAGE: example.invalid/logic-lab-migrator@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          POSTGRES_BACKUP_RETENTION_DAYS: "7"
+          POSTGRES_GEO_REDUNDANT_BACKUP: Disabled
+          POSTGRES_HIGH_AVAILABILITY: Disabled
+          POSTGRES_MAINTENANCE_DAY: "0"
+          POSTGRES_MAINTENANCE_HOUR: "0"
+          POSTGRES_SKU_NAME: Standard_B1ms
+          POSTGRES_STORAGE_SIZE_GB: "32"
+          POSTGRES_TIER: Burstable
+          WEB_IMAGE: example.invalid/logic-lab-web@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          WEB_MAX_REPLICAS: "1"
+          WEB_MIN_REPLICAS: "0"
+        run: |
+          az bicep build-params --file infra/foundation.production.bicepparam --stdout >/dev/null
+          az bicep build-params --file infra/application.production.bicepparam --stdout >/dev/null
+
+      - name: Lint deployment script
+        run: |
+          bash -n .github/scripts/run-database-jobs.sh
+          shellcheck .github/scripts/run-database-jobs.sh
+
   build-and-test:
     name: Build and test (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
@@ -43,6 +106,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v6

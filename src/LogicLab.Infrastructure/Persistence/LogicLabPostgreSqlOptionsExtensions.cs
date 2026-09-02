@@ -1,4 +1,3 @@
-using LogicLab.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -8,31 +7,13 @@ public static class LogicLabPostgreSqlOptionsExtensions
 {
     public const string MigrationsSchema = "migrations";
 
-    private const string IdentityHistoryTable = "identity";
     private const string PersistenceHistoryTable = "persistence";
 
-    public static DbContextOptionsBuilder UseLogicLabIdentityPostgreSql(
+    internal static DbContextOptionsBuilder UseLogicLabPersistencePostgreSql(
         this DbContextOptionsBuilder options,
         NpgsqlDataSource dataSource)
     {
-        Configure(options, dataSource, IdentityHistoryTable);
-        return options;
-    }
-
-    public static DbContextOptionsBuilder<ApplicationIdentityDbContext>
-        UseLogicLabIdentityPostgreSql(
-            this DbContextOptionsBuilder<ApplicationIdentityDbContext> options,
-            NpgsqlDataSource dataSource)
-    {
-        Configure(options, dataSource, IdentityHistoryTable);
-        return options;
-    }
-
-    public static DbContextOptionsBuilder UseLogicLabPersistencePostgreSql(
-        this DbContextOptionsBuilder options,
-        NpgsqlDataSource dataSource)
-    {
-        Configure(options, dataSource, PersistenceHistoryTable);
+        Configure(options, dataSource);
         return options;
     }
 
@@ -41,14 +22,13 @@ public static class LogicLabPostgreSqlOptionsExtensions
             this DbContextOptionsBuilder<LogicLabDbContext> options,
             NpgsqlDataSource dataSource)
     {
-        Configure(options, dataSource, PersistenceHistoryTable);
+        Configure(options, dataSource);
         return options;
     }
 
     private static void Configure(
         DbContextOptionsBuilder options,
-        NpgsqlDataSource dataSource,
-        string historyTable)
+        NpgsqlDataSource dataSource)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(dataSource);
@@ -56,7 +36,7 @@ public static class LogicLabPostgreSqlOptionsExtensions
         options.UseNpgsql(
             dataSource,
             postgres => postgres.MigrationsHistoryTable(
-                historyTable,
+                PersistenceHistoryTable,
                 MigrationsSchema));
     }
 }

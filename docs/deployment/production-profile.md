@@ -101,14 +101,16 @@ and tracked files contain no credentials.
 The GitHub `production` Environment owns the qualified deployment values. Private
 cloud identifiers, resource names, recovery targets, and alert destinations are
 secrets; region, service tiers, continuity settings, maintenance window, storage,
-and Web scale range are non-sensitive variables. Tracked files define the contract
-and constraints without copying live environment values.
+and Web scale range are non-sensitive variables. Tracked `.bicepparam` profiles map
+those values into typed template parameters at compile time without storing the live
+values.
 
 The release workflow:
 
 1. receives production-environment approval and verifies the release tag;
 2. restores the locked production graphs and authenticates through GitHub OIDC;
-3. validates, previews, and deploys the foundation;
+3. validates, previews, and deploys the foundation through the official Bicep
+   deployment action;
 4. publishes versioned Web and Migrator images and records their digests;
 5. emits SBOM, provenance, lock, template, and release-manifest evidence;
 6. previews the application, deploys the Jobs without updating Web, and records the
@@ -162,4 +164,6 @@ The [runbook](./runbook.md) owns the operating procedure and the
 - [EF Core migration history](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/history-table)
 - [Application Insights Microsoft Entra authentication](https://learn.microsoft.com/en-us/azure/azure-monitor/app/azure-ad-authentication)
 - [Bicep deployment with Azure CLI](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/deploy-cli)
+- [Bicep parameter files](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/parameter-files)
+- [Azure Bicep Deploy action](https://github.com/Azure/bicep-deploy)
 - [GitHub artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)

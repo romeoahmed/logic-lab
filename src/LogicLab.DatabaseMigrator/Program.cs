@@ -4,6 +4,8 @@ using LogicLab.DatabaseMigrator;
 using LogicLab.Infrastructure.Identity;
 using LogicLab.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Npgsql;
 
 const string ConnectionStringEnvironmentVariable = "ConnectionStrings__LogicLab";
@@ -73,11 +75,13 @@ if (args.Length != 0)
 }
 
 await using var dataSource = CreateDataSource(connectionString, credential);
-await using (var identityContext = new ApplicationIdentityDbContext(
-    new DbContextOptionsBuilder<ApplicationIdentityDbContext>()
-        .UseLogicLabIdentityPostgreSql(dataSource)
-        .Options))
+var identityHostBuilder = Host.CreateApplicationBuilder();
+identityHostBuilder.Services.AddLogicLabIdentity(dataSource);
+using var identityHost = identityHostBuilder.Build();
+await using (var identityScope = identityHost.Services.CreateAsyncScope())
 {
+    var identityContext = identityScope.ServiceProvider
+        .GetRequiredService<ApplicationIdentityDbContext>();
     await MigrateAsync(
         identityContext,
         "identity",
