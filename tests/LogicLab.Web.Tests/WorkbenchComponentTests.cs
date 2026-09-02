@@ -1320,11 +1320,7 @@ internal sealed class WorkbenchComponentTests
                 _ = cancellationToken.Register(() =>
                 {
                     cancellationStarted.TrySetResult();
-                    if (!allowCancellationToComplete.Wait(TimeSpan.FromSeconds(5)))
-                    {
-                        throw new InvalidOperationException(
-                            "The test did not release observation cancellation.");
-                    }
+                    allowCancellationToComplete.Wait();
                 });
                 await releaseObservation.Task;
 

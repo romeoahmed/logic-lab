@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="bunit" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="TUnit" />
     <PackageReference Include="TUnit.AspNetCore" />
     <PackageReference Include="TUnit.FsCheck" />
