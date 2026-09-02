@@ -19,14 +19,15 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  APPLICATION_DEPLOYMENT: application-${{ github.run_id }}-${{ github.run_attempt }}
+  APPLICATION_PARAMETERS_FILE: infra/application.production.bicepparam
   AZURE_CORE_OUTPUT: none
-  AZURE_ENVIRONMENT_NAME: prod
-  BICEP_VERSION: v0.46.1
+  BICEP_VERSION: 0.46.1
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
   DOTNET_NOLOGO: true
   FOUNDATION_DEPLOYMENT: foundation-${{ github.run_id }}-${{ github.run_attempt }}
+  FOUNDATION_PARAMETERS_FILE: infra/foundation.production.bicepparam
   JOBS_DEPLOYMENT: jobs-${{ github.run_id }}-${{ github.run_attempt }}
-  APPLICATION_DEPLOYMENT: application-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
   deploy:
@@ -44,6 +45,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
 
       - name: Validate release tag
@@ -53,21 +55,27 @@ jobs:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
         run: |
           set -euo pipefail
+
           if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-            echo "Release tag must be a v-prefixed semantic version." >&2
+            printf 'Release tag must be a v-prefixed semantic version.\n' >&2
+            exit 1
+          fi
+
+          if ! git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
+            printf '%s must resolve to an existing Git tag.\n' "$RELEASE_TAG" >&2
             exit 1
           fi
 
           tag_commit="$(git rev-parse "$RELEASE_TAG^{commit}")"
           if [[ "$tag_commit" != "$(git rev-parse HEAD)" ]]; then
-            echo "Checked-out commit does not match $RELEASE_TAG." >&2
+            printf 'Checked-out commit does not match %s.\n' "$RELEASE_TAG" >&2
             exit 1
           fi
 
           {
-            echo "tag=$RELEASE_TAG"
-            echo "version=${RELEASE_TAG#v}"
-            echo "commit=$tag_commit"
+            printf 'tag=%s\n' "$RELEASE_TAG"
+            printf 'version=%s\n' "${RELEASE_TAG#v}"
+            printf 'commit=%s\n' "$tag_commit"
           } >> "$GITHUB_OUTPUT"
 
       - name: Set up .NET
@@ -75,7 +83,9 @@ jobs:
         with:
           global-json-file: global.json
           cache: true
-          cache-dependency-path: "**/packages.lock.json"
+          cache-dependency-path: |
+            src/LogicLab.DatabaseMigrator/packages.lock.json
+            src/LogicLab.Web/packages.lock.json
 
       - name: Restore production projects
         run: |
@@ -83,7 +93,7 @@ jobs:
           dotnet restore src/LogicLab.DatabaseMigrator/LogicLab.DatabaseMigrator.csproj --runtime linux-x64 --locked-mode --nologo
 
       - name: Install Bicep CLI
-        run: az bicep install --version "$BICEP_VERSION"
+        run: az bicep install --version "v$BICEP_VERSION"
 
       - name: Compile infrastructure
         run: |
@@ -97,139 +107,67 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Validate production settings
-        shell: bash
-        env:
-          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-          DEPLOYMENT_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_DEPLOYMENT_PRINCIPAL_OBJECT_ID }}
+      - name: Validate foundation
+        uses: azure/bicep-deploy@v2
+        env: &foundation_parameters
           ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+          AZURE_DEPLOYMENT_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_DEPLOYMENT_PRINCIPAL_OBJECT_ID }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
           CONTAINER_REGISTRY_SKU_NAME: ${{ vars.CONTAINER_REGISTRY_SKU_NAME }}
-          POSTGRES_SKU_NAME: ${{ vars.POSTGRES_SKU_NAME }}
-          POSTGRES_TIER: ${{ vars.POSTGRES_TIER }}
-          POSTGRES_HIGH_AVAILABILITY: ${{ vars.POSTGRES_HIGH_AVAILABILITY }}
           POSTGRES_BACKUP_RETENTION_DAYS: ${{ vars.POSTGRES_BACKUP_RETENTION_DAYS }}
           POSTGRES_GEO_REDUNDANT_BACKUP: ${{ vars.POSTGRES_GEO_REDUNDANT_BACKUP }}
-          POSTGRES_STORAGE_SIZE_GB: ${{ vars.POSTGRES_STORAGE_SIZE_GB }}
-          POSTGRES_MAINTENANCE_DAY: ${{ vars.POSTGRES_MAINTENANCE_DAY }}
-          POSTGRES_MAINTENANCE_HOUR: ${{ vars.POSTGRES_MAINTENANCE_HOUR }}
-          WEB_MIN_REPLICAS: ${{ vars.WEB_MIN_REPLICAS }}
-          WEB_MAX_REPLICAS: ${{ vars.WEB_MAX_REPLICAS }}
-        run: |
-          set -euo pipefail
-          required=(
-            AZURE_RESOURCE_GROUP
-            AZURE_LOCATION
-            DEPLOYMENT_PRINCIPAL_OBJECT_ID
-            ALERT_EMAIL
-            CONTAINER_REGISTRY_SKU_NAME
-            POSTGRES_SKU_NAME
-            POSTGRES_TIER
-            POSTGRES_HIGH_AVAILABILITY
-            POSTGRES_BACKUP_RETENTION_DAYS
-            POSTGRES_GEO_REDUNDANT_BACKUP
-            POSTGRES_STORAGE_SIZE_GB
-            POSTGRES_MAINTENANCE_DAY
-            POSTGRES_MAINTENANCE_HOUR
-            WEB_MIN_REPLICAS
-            WEB_MAX_REPLICAS
-          )
-          for name in "${required[@]}"; do
-            if [[ -z "${!name}" ]]; then
-              echo "GitHub production variable $name is required." >&2
-              exit 1
-            fi
-          done
-
-          if ! az group show --name "$AZURE_RESOURCE_GROUP" --output none; then
-            echo "The configured Azure resource group does not exist." >&2
-            exit 1
-          fi
-
-      - name: Validate, preview, and deploy foundation
-        shell: bash
-        env:
-          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-          DEPLOYMENT_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_DEPLOYMENT_PRINCIPAL_OBJECT_ID }}
-          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
-          CONTAINER_REGISTRY_SKU_NAME: ${{ vars.CONTAINER_REGISTRY_SKU_NAME }}
-          POSTGRES_SKU_NAME: ${{ vars.POSTGRES_SKU_NAME }}
-          POSTGRES_TIER: ${{ vars.POSTGRES_TIER }}
           POSTGRES_HIGH_AVAILABILITY: ${{ vars.POSTGRES_HIGH_AVAILABILITY }}
-          POSTGRES_BACKUP_RETENTION_DAYS: ${{ vars.POSTGRES_BACKUP_RETENTION_DAYS }}
-          POSTGRES_GEO_REDUNDANT_BACKUP: ${{ vars.POSTGRES_GEO_REDUNDANT_BACKUP }}
-          POSTGRES_STORAGE_SIZE_GB: ${{ vars.POSTGRES_STORAGE_SIZE_GB }}
           POSTGRES_MAINTENANCE_DAY: ${{ vars.POSTGRES_MAINTENANCE_DAY }}
           POSTGRES_MAINTENANCE_HOUR: ${{ vars.POSTGRES_MAINTENANCE_HOUR }}
-        run: |
-          set -euo pipefail
-          parameters=(
-            "environmentName=$AZURE_ENVIRONMENT_NAME"
-            "location=$AZURE_LOCATION"
-            "deploymentPrincipalObjectId=$DEPLOYMENT_PRINCIPAL_OBJECT_ID"
-            "alertEmail=$ALERT_EMAIL"
-            "containerRegistrySkuName=$CONTAINER_REGISTRY_SKU_NAME"
-            "postgresSkuName=$POSTGRES_SKU_NAME"
-            "postgresTier=$POSTGRES_TIER"
-            "postgresHighAvailability=$POSTGRES_HIGH_AVAILABILITY"
-            "postgresBackupRetentionDays=$POSTGRES_BACKUP_RETENTION_DAYS"
-            "postgresGeoRedundantBackup=$POSTGRES_GEO_REDUNDANT_BACKUP"
-            "postgresStorageSizeGB=$POSTGRES_STORAGE_SIZE_GB"
-            "postgresMaintenanceDay=$POSTGRES_MAINTENANCE_DAY"
-            "postgresMaintenanceHour=$POSTGRES_MAINTENANCE_HOUR"
-          )
+          POSTGRES_SKU_NAME: ${{ vars.POSTGRES_SKU_NAME }}
+          POSTGRES_STORAGE_SIZE_GB: ${{ vars.POSTGRES_STORAGE_SIZE_GB }}
+          POSTGRES_TIER: ${{ vars.POSTGRES_TIER }}
+        with:
+          type: deployment
+          operation: validate
+          name: ${{ env.FOUNDATION_DEPLOYMENT }}
+          scope: resourceGroup
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resource-group-name: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          parameters-file: ${{ env.FOUNDATION_PARAMETERS_FILE }}
+          bicep-version: ${{ env.BICEP_VERSION }}
 
-          az deployment group validate \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --template-file infra/foundation.bicep \
-            --parameters "${parameters[@]}" \
-            --output none
-          az deployment group what-if \
-            --name "$FOUNDATION_DEPLOYMENT" \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --template-file infra/foundation.bicep \
-            --parameters "${parameters[@]}" \
-            --no-prompt true \
-            --result-format ResourceIdOnly \
-            --output jsonc
-          az deployment group create \
-            --name "$FOUNDATION_DEPLOYMENT" \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --template-file infra/foundation.bicep \
-            --parameters "${parameters[@]}" \
-            --output none
+      - name: Preview foundation
+        uses: azure/bicep-deploy@v2
+        env: *foundation_parameters
+        with:
+          type: deployment
+          operation: whatIf
+          name: ${{ env.FOUNDATION_DEPLOYMENT }}
+          scope: resourceGroup
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resource-group-name: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          parameters-file: ${{ env.FOUNDATION_PARAMETERS_FILE }}
+          bicep-version: ${{ env.BICEP_VERSION }}
 
-      - name: Read foundation outputs
+      - name: Deploy foundation
         id: foundation
-        shell: bash
-        env:
-          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-        run: |
-          set -euo pipefail
-          read_output() {
-            az deployment group show \
-              --name "$FOUNDATION_DEPLOYMENT" \
-              --resource-group "$AZURE_RESOURCE_GROUP" \
-              --query "properties.outputs.$1.value" \
-              --output tsv
-          }
-
-          {
-            echo "registry_name=$(read_output containerRegistryName)"
-            echo "registry_server=$(read_output containerRegistryLoginServer)"
-            echo "log_analytics_workspace_id=$(read_output logAnalyticsWorkspaceCustomerId)"
-            echo "postgres_name=$(read_output postgresServerName)"
-          } >> "$GITHUB_OUTPUT"
+        uses: azure/bicep-deploy@v2
+        env: *foundation_parameters
+        with:
+          type: deployment
+          operation: create
+          name: ${{ env.FOUNDATION_DEPLOYMENT }}
+          scope: resourceGroup
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resource-group-name: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          parameters-file: ${{ env.FOUNDATION_PARAMETERS_FILE }}
+          bicep-version: ${{ env.BICEP_VERSION }}
+          masked-outputs: containerRegistryName,containerRegistryLoginServer,logAnalyticsWorkspaceCustomerId,postgresServerName
 
       - name: Sign in to Azure Container Registry
         env:
-          REGISTRY_NAME: ${{ steps.foundation.outputs.registry_name }}
+          REGISTRY_NAME: ${{ steps.foundation.outputs.containerRegistryName }}
         run: az acr login --name "$REGISTRY_NAME" --output none
 
       - name: Publish immutable OCI images
         env:
-          REGISTRY_SERVER: ${{ steps.foundation.outputs.registry_server }}
+          REGISTRY_SERVER: ${{ steps.foundation.outputs.containerRegistryLoginServer }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           VERSION: ${{ steps.release.outputs.version }}
         run: |
@@ -260,25 +198,26 @@ jobs:
         id: images
         shell: bash
         env:
-          REGISTRY_NAME: ${{ steps.foundation.outputs.registry_name }}
-          REGISTRY_SERVER: ${{ steps.foundation.outputs.registry_server }}
+          REGISTRY_NAME: ${{ steps.foundation.outputs.containerRegistryName }}
+          REGISTRY_SERVER: ${{ steps.foundation.outputs.containerRegistryLoginServer }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
+
           web_digest="$(az acr repository show --name "$REGISTRY_NAME" --image "logic-lab-web:$RELEASE_TAG" --query digest --output tsv)"
           migrator_digest="$(az acr repository show --name "$REGISTRY_NAME" --image "logic-lab-migrator:$RELEASE_TAG" --query digest --output tsv)"
           if [[ ! "$web_digest" =~ ^sha256:[0-9a-f]{64}$ || ! "$migrator_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "ACR did not return valid OCI digests." >&2
+            printf 'ACR did not return valid OCI digests.\n' >&2
             exit 1
           fi
 
           {
-            echo "web_digest=$web_digest"
-            echo "web_image=$REGISTRY_SERVER/logic-lab-web@$web_digest"
-            echo "web_subject=$REGISTRY_SERVER/logic-lab-web"
-            echo "migrator_digest=$migrator_digest"
-            echo "migrator_image=$REGISTRY_SERVER/logic-lab-migrator@$migrator_digest"
-            echo "migrator_subject=$REGISTRY_SERVER/logic-lab-migrator"
+            printf 'web_digest=%s\n' "$web_digest"
+            printf 'web_image=%s/logic-lab-web@%s\n' "$REGISTRY_SERVER" "$web_digest"
+            printf 'web_subject=%s/logic-lab-web\n' "$REGISTRY_SERVER"
+            printf 'migrator_digest=%s\n' "$migrator_digest"
+            printf 'migrator_image=%s/logic-lab-migrator@%s\n' "$REGISTRY_SERVER" "$migrator_digest"
+            printf 'migrator_subject=%s/logic-lab-migrator\n' "$REGISTRY_SERVER"
           } >> "$GITHUB_OUTPUT"
 
       - name: Record release evidence
@@ -290,6 +229,7 @@ jobs:
           MIGRATOR_IMAGE: ${{ steps.images.outputs.migrator_image }}
         run: |
           set -euo pipefail
+
           mkdir -p release-evidence
           cp "$RUNNER_TEMP/foundation.json" release-evidence/foundation.json
           cp "$RUNNER_TEMP/application.json" release-evidence/application.json
@@ -368,190 +308,104 @@ jobs:
           push-to-registry: true
           create-storage-record: false
 
-      - name: Validate and preview application
-        shell: bash
-        env:
-          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+      - name: Validate application
+        uses: azure/bicep-deploy@v2
+        env: &application_parameters
           AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-          WEB_IMAGE: ${{ steps.images.outputs.web_image }}
+          DEPLOY_WEB: "true"
           MIGRATOR_IMAGE: ${{ steps.images.outputs.migrator_image }}
-          POSTGRES_SERVER_NAME: ${{ secrets.POSTGRES_SERVER_OVERRIDE || steps.foundation.outputs.postgres_name }}
-          WEB_MIN_REPLICAS: ${{ vars.WEB_MIN_REPLICAS }}
+          POSTGRES_SERVER_NAME: ${{ secrets.POSTGRES_SERVER_OVERRIDE || steps.foundation.outputs.postgresServerName }}
+          WEB_IMAGE: ${{ steps.images.outputs.web_image }}
           WEB_MAX_REPLICAS: ${{ vars.WEB_MAX_REPLICAS }}
-        run: |
-          set -euo pipefail
-          parameters=(
-            "environmentName=$AZURE_ENVIRONMENT_NAME"
-            "location=$AZURE_LOCATION"
-            "webImage=$WEB_IMAGE"
-            "migratorImage=$MIGRATOR_IMAGE"
-            "postgresServerName=$POSTGRES_SERVER_NAME"
-            "webMinReplicas=$WEB_MIN_REPLICAS"
-            "webMaxReplicas=$WEB_MAX_REPLICAS"
-            'deployWeb=true'
-          )
-          az deployment group validate \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --template-file infra/application.bicep \
-            --parameters "${parameters[@]}" \
-            --output none
-          az deployment group what-if \
-            --name "$APPLICATION_DEPLOYMENT" \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --template-file infra/application.bicep \
-            --parameters "${parameters[@]}" \
-            --no-prompt true \
-            --result-format ResourceIdOnly \
-            --output jsonc
+          WEB_MIN_REPLICAS: ${{ vars.WEB_MIN_REPLICAS }}
+        with:
+          type: deployment
+          operation: validate
+          name: ${{ env.APPLICATION_DEPLOYMENT }}
+          scope: resourceGroup
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resource-group-name: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          parameters-file: ${{ env.APPLICATION_PARAMETERS_FILE }}
+          bicep-version: ${{ env.BICEP_VERSION }}
+
+      - name: Preview application
+        uses: azure/bicep-deploy@v2
+        env: *application_parameters
+        with:
+          type: deployment
+          operation: whatIf
+          name: ${{ env.APPLICATION_DEPLOYMENT }}
+          scope: resourceGroup
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resource-group-name: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          parameters-file: ${{ env.APPLICATION_PARAMETERS_FILE }}
+          bicep-version: ${{ env.BICEP_VERSION }}
 
       - name: Deploy migration jobs
         id: jobs
-        shell: bash
+        uses: azure/bicep-deploy@v2
         env:
-          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
           AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-          WEB_IMAGE: ${{ steps.images.outputs.web_image }}
+          DEPLOY_WEB: "false"
           MIGRATOR_IMAGE: ${{ steps.images.outputs.migrator_image }}
-          POSTGRES_SERVER_NAME: ${{ secrets.POSTGRES_SERVER_OVERRIDE || steps.foundation.outputs.postgres_name }}
-          WEB_MIN_REPLICAS: ${{ vars.WEB_MIN_REPLICAS }}
+          POSTGRES_SERVER_NAME: ${{ secrets.POSTGRES_SERVER_OVERRIDE || steps.foundation.outputs.postgresServerName }}
+          WEB_IMAGE: ${{ steps.images.outputs.web_image }}
           WEB_MAX_REPLICAS: ${{ vars.WEB_MAX_REPLICAS }}
-        run: |
-          set -euo pipefail
-          az deployment group create \
-            --name "$JOBS_DEPLOYMENT" \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --template-file infra/application.bicep \
-            --parameters \
-              "environmentName=$AZURE_ENVIRONMENT_NAME" \
-              "location=$AZURE_LOCATION" \
-              "webImage=$WEB_IMAGE" \
-              "migratorImage=$MIGRATOR_IMAGE" \
-              "postgresServerName=$POSTGRES_SERVER_NAME" \
-              "webMinReplicas=$WEB_MIN_REPLICAS" \
-              "webMaxReplicas=$WEB_MAX_REPLICAS" \
-              'deployWeb=false' \
-            --output none
-
-          echo "bootstrap_name=$(az deployment group show --name "$JOBS_DEPLOYMENT" --resource-group "$AZURE_RESOURCE_GROUP" --query properties.outputs.bootstrapJobName.value --output tsv)" >> "$GITHUB_OUTPUT"
-          echo "migration_name=$(az deployment group show --name "$JOBS_DEPLOYMENT" --resource-group "$AZURE_RESOURCE_GROUP" --query properties.outputs.migrationJobName.value --output tsv)" >> "$GITHUB_OUTPUT"
+          WEB_MIN_REPLICAS: ${{ vars.WEB_MIN_REPLICAS }}
+        with:
+          type: deployment
+          operation: create
+          name: ${{ env.JOBS_DEPLOYMENT }}
+          scope: resourceGroup
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resource-group-name: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          parameters-file: ${{ env.APPLICATION_PARAMETERS_FILE }}
+          bicep-version: ${{ env.BICEP_VERSION }}
+          masked-outputs: bootstrapJobName,migrationJobName
 
       - name: Record pre-migration restore point
         shell: bash
         run: |
           set -euo pipefail
+
           restore_point="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           {
-            echo "## Database recovery boundary"
-            echo
-            echo "- Pre-migration PITR point: \`$restore_point\`"
+            printf '## Database recovery boundary\n\n'
+            printf -- "- Pre-migration PITR point: \`%s\`\n" "$restore_point"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Bootstrap and migrate database
         shell: bash
         env:
           AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          BOOTSTRAP_JOB: ${{ steps.jobs.outputs.bootstrap_name }}
-          LOG_ANALYTICS_WORKSPACE_ID: ${{ steps.foundation.outputs.log_analytics_workspace_id }}
-          MIGRATION_JOB: ${{ steps.jobs.outputs.migration_name }}
-        run: |
-          set -euo pipefail
-          show_job_logs() {
-            local execution_name="$1"
-            local query
-            local logs
-            query="ContainerAppConsoleLogs_CL | where TimeGenerated > ago(1h) | where ContainerGroupName_s startswith '$execution_name-' | project TimeGenerated, Log_s | order by TimeGenerated asc | take 300"
-
-            for _ in 1 2 3; do
-              logs="$(az monitor log-analytics query \
-                --workspace "$LOG_ANALYTICS_WORKSPACE_ID" \
-                --analytics-query "$query" \
-                --output tsv 2>/dev/null || true)"
-              if [[ -n "$logs" ]]; then
-                echo "$logs"
-                return
-              fi
-              sleep 10
-            done
-
-            echo "Container logs are not available yet; query execution $execution_name in Log Analytics." >&2
-          }
-
-          run_job() {
-            local job_name="$1"
-            local execution_name
-            execution_name="$(az containerapp job start --name "$job_name" --resource-group "$AZURE_RESOURCE_GROUP" --query name --output tsv)"
-            if [[ -z "$execution_name" ]]; then
-              echo "Azure did not return an execution name for $job_name." >&2
-              return 1
-            fi
-
-            for ((attempt = 1; attempt <= 180; attempt++)); do
-              status="$(az containerapp job execution show \
-                --name "$job_name" \
-                --resource-group "$AZURE_RESOURCE_GROUP" \
-                --job-execution-name "$execution_name" \
-                --query properties.status \
-                --output tsv 2>/dev/null || true)"
-              case "$status" in
-                Succeeded)
-                  echo "$job_name execution $execution_name succeeded."
-                  return 0
-                  ;;
-                Failed|Stopped|Degraded)
-                  echo "$job_name execution $execution_name ended with status $status." >&2
-                  show_job_logs "$execution_name"
-                  return 1
-                  ;;
-              esac
-              sleep 10
-            done
-
-            echo "$job_name execution $execution_name timed out." >&2
-            return 1
-          }
-
-          run_job "$BOOTSTRAP_JOB"
-          run_job "$MIGRATION_JOB"
-          run_job "$BOOTSTRAP_JOB"
+          BOOTSTRAP_JOB: ${{ steps.jobs.outputs.bootstrapJobName }}
+          LOG_ANALYTICS_WORKSPACE_ID: ${{ steps.foundation.outputs.logAnalyticsWorkspaceCustomerId }}
+          MIGRATION_JOB: ${{ steps.jobs.outputs.migrationJobName }}
+        run: bash .github/scripts/run-database-jobs.sh
 
       - name: Deploy Web revision
         id: application
-        shell: bash
-        env:
-          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-          WEB_IMAGE: ${{ steps.images.outputs.web_image }}
-          MIGRATOR_IMAGE: ${{ steps.images.outputs.migrator_image }}
-          POSTGRES_SERVER_NAME: ${{ secrets.POSTGRES_SERVER_OVERRIDE || steps.foundation.outputs.postgres_name }}
-          WEB_MIN_REPLICAS: ${{ vars.WEB_MIN_REPLICAS }}
-          WEB_MAX_REPLICAS: ${{ vars.WEB_MAX_REPLICAS }}
-        run: |
-          set -euo pipefail
-          az deployment group create \
-            --name "$APPLICATION_DEPLOYMENT" \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --template-file infra/application.bicep \
-            --parameters \
-              "environmentName=$AZURE_ENVIRONMENT_NAME" \
-              "location=$AZURE_LOCATION" \
-              "webImage=$WEB_IMAGE" \
-              "migratorImage=$MIGRATOR_IMAGE" \
-              "postgresServerName=$POSTGRES_SERVER_NAME" \
-              "webMinReplicas=$WEB_MIN_REPLICAS" \
-              "webMaxReplicas=$WEB_MAX_REPLICAS" \
-              'deployWeb=true' \
-            --output none
-
-          echo "fqdn=$(az deployment group show --name "$APPLICATION_DEPLOYMENT" --resource-group "$AZURE_RESOURCE_GROUP" --query properties.outputs.webFqdn.value --output tsv)" >> "$GITHUB_OUTPUT"
+        uses: azure/bicep-deploy@v2
+        env: *application_parameters
+        with:
+          type: deployment
+          operation: create
+          name: ${{ env.APPLICATION_DEPLOYMENT }}
+          scope: resourceGroup
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resource-group-name: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          parameters-file: ${{ env.APPLICATION_PARAMETERS_FILE }}
+          bicep-version: ${{ env.BICEP_VERSION }}
 
       - name: Verify readiness and stability
         shell: bash
         env:
-          WEB_FQDN: ${{ steps.application.outputs.fqdn }}
+          WEB_FQDN: ${{ steps.application.outputs.webFqdn }}
         run: |
           set -euo pipefail
+
           if [[ -z "$WEB_FQDN" ]]; then
-            echo "Application deployment did not return a Web FQDN." >&2
+            printf 'Application deployment did not return a Web FQDN.\n' >&2
             exit 1
           fi
 
@@ -566,23 +420,25 @@ jobs:
             sleep 10
           done
 
-          echo "Web readiness did not succeed within ten minutes." >&2
+          printf 'Web readiness did not succeed within ten minutes.\n' >&2
           exit 1
 
       - name: Record release summary
+        shell: bash
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
           WEB_IMAGE: ${{ steps.images.outputs.web_image }}
           MIGRATOR_IMAGE: ${{ steps.images.outputs.migrator_image }}
-          WEB_FQDN: ${{ steps.application.outputs.fqdn }}
+          WEB_FQDN: ${{ steps.application.outputs.webFqdn }}
         run: |
+          set -euo pipefail
+
           {
-            echo "## Logic Lab production release"
-            echo
-            echo "- Version: \`$RELEASE_TAG\`"
-            echo "- Commit: \`$RELEASE_COMMIT\`"
-            echo "- Web: \`$WEB_IMAGE\`"
-            echo "- Migrator: \`$MIGRATOR_IMAGE\`"
-            echo "- Endpoint: https://$WEB_FQDN"
+            printf '## Logic Lab production release\n\n'
+            printf -- "- Version: \`%s\`\n" "$RELEASE_TAG"
+            printf -- "- Commit: \`%s\`\n" "$RELEASE_COMMIT"
+            printf -- "- Web: \`%s\`\n" "$WEB_IMAGE"
+            printf -- "- Migrator: \`%s\`\n" "$MIGRATOR_IMAGE"
+            printf -- '- Endpoint: https://%s\n' "$WEB_FQDN"
           } >> "$GITHUB_STEP_SUMMARY"

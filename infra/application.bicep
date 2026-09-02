@@ -6,9 +6,11 @@ targetScope = 'resourceGroup'
 param environmentName string
 
 @description('Immutable Web image reference, including its sha256 digest.')
+@minLength(1)
 param webImage string
 
 @description('Immutable database migrator image reference, including its sha256 digest.')
+@minLength(1)
 param migratorImage string
 
 @description('Deploy the Web revision after database preparation succeeds.')

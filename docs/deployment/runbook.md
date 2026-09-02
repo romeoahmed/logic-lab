@@ -75,11 +75,12 @@ reviewed code.
 Push an immutable reviewed semantic-version tag. Manual dispatch accepts an existing
 tag only. Production approval must happen before Azure credentials are issued.
 
-The workflow then performs five ordered phases:
+The workflow compiles the tracked production `.bicepparam` profiles from the approved
+Environment values, then performs five ordered phases:
 
 1. **Verify:** match tag to commit, restore locked graphs, and compile Bicep.
-2. **Foundation:** authenticate through OIDC, validate and preview the change, then
-   deploy long-lived resources.
+2. **Foundation:** authenticate through OIDC, then use the official Bicep deployment
+   action to validate, preview, and deploy long-lived resources.
 3. **Artifacts:** publish Web and Migrator OCI images, resolve exact digests, and
    record locks, templates, SBOMs, provenance, and manifest evidence.
 4. **Database:** preview application resources, deploy Jobs without Web, record the

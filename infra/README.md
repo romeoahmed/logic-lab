@@ -5,11 +5,13 @@ The executable templates implement the selected
 [runbook](../docs/deployment/runbook.md) owns deployment and recovery procedures.
 This repository change does not deploy Azure resources.
 
-| File                     | Responsibility                                                                                     |
-| ------------------------ | -------------------------------------------------------------------------------------------------- |
-| `foundation.bicep`       | long-lived network, identity, data, registry, monitoring, and Container Apps environment resources |
-| `modules/postgres.bicep` | private PostgreSQL server, database, Entra administrator, and diagnostics                          |
-| `application.bicep`      | bootstrap and migration Jobs, digest-pinned Web revision, probes, and application alerts           |
+| File                                   | Responsibility                                                                                     |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `foundation.bicep`                     | long-lived network, identity, data, registry, monitoring, and Container Apps environment resources |
+| `foundation.production.bicepparam`     | production foundation profile sourced from the GitHub Environment                                  |
+| `modules/postgres.bicep`               | private PostgreSQL server, database, Entra administrator, and diagnostics                          |
+| `application.bicep`                    | bootstrap and migration Jobs, digest-pinned Web revision, probes, and application alerts           |
+| `application.production.bicepparam`    | production application profile sourced from release outputs and the GitHub Environment              |
 
 The foundation is deployed before image publication. The application template can
 then deploy Jobs without changing Web (`deployWeb=false`) and deploy Web only after
@@ -17,20 +19,21 @@ database preparation succeeds. `postgresServerName` is empty for the foundation
 server and explicit only during a verified recovery cutover.
 
 The GitHub `production` Environment stores private identifiers and destinations as
-secrets, and non-sensitive service policy as variables. The workflow validates and
-passes both to Bicep without committing production values or duplicating deployment
-logic.
+secrets, and non-sensitive service policy as variables. The `.bicepparam` files read
+those values at compile time, perform typed conversion, and remain free of live
+production values. The release workflow uses the official `azure/bicep-deploy`
+action for validation, what-if, deployment, and template outputs.
 
-Format and compile both entry points with the Bicep CLI selected by the release
-workflow:
+The CI workflow is the executable static gate: it formats every Bicep source, lints
+all templates, compiles both production parameter files with non-production fixtures,
+and checks the deployment script with Bash and ShellCheck. For a focused local edit:
 
 ```bash
 az bicep format --file infra/foundation.bicep
-az bicep format --file infra/application.bicep
-az bicep build --file infra/foundation.bicep --stdout > /dev/null
-az bicep build --file infra/application.bicep --stdout > /dev/null
+az bicep lint --file infra/foundation.bicep
 ```
 
 Azure-backed `validate` and `what-if` require the qualified production scope and
-values; the release workflow runs both before mutation. Do not track credentials or
-production parameter values.
+values; the release workflow runs both through `azure/bicep-deploy` before mutation.
+Do not compile production parameter files into tracked JSON or track credentials and
+production values.
