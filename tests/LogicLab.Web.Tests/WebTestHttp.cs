@@ -54,6 +54,28 @@ internal static class WebTestHttp
         }
     }
 
+    public static FormUrlEncodedContent CreateSizedFormContent(
+        int bodyLength,
+        params KeyValuePair<string, string>[] fields)
+    {
+        using var unpadded = new FormUrlEncodedContent(fields.Append(new("padding", string.Empty)));
+        var paddingLength = checked(bodyLength - (int)(unpadded.Headers.ContentLength
+            ?? throw new InvalidOperationException("The form content did not expose its length.")));
+        if (paddingLength < 0)
+        {
+            throw new InvalidOperationException("The requested body length is smaller than the form envelope.");
+        }
+
+        var content = new FormUrlEncodedContent(fields.Append(new("padding", new string('x', paddingLength))));
+        if (content.Headers.ContentLength == bodyLength)
+        {
+            return content;
+        }
+
+        content.Dispose();
+        throw new InvalidOperationException("The encoded form did not reach the requested byte boundary.");
+    }
+
     private static bool IsCorrelationToken(string? value)
     {
         return value is { Length: >= 16 and <= 64 }

@@ -1,0 +1,53 @@
+.selection-inspector {
+  padding: 0.85rem 0.9rem;
+  border-block-start: 1px solid var(--ll-border);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.selection-hint, .selection-count, .selection-actions p {
+  margin: 0;
+  color: var(--ll-muted);
+  line-height: 1.5;
+}
+
+article + article, .selection-actions {
+  margin-block-start: 0.9rem;
+  border-block-start: 1px solid var(--ll-border);
+  padding-block-start: 0.75rem;
+}
+
+h3 {
+  margin: 0.6rem 0;
+  font-size: 0.85rem;
+}
+
+dl {
+  margin: 0;
+}
+
+.circuit-summary {
+  margin-block-end: 0.75rem;
+}
+dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 0.65rem;
+  padding-block: 0.2rem;
+}
+dt {
+  color: var(--ll-muted);
+}
+dd {
+  margin: 0;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+.selection-actions {
+  display: grid;
+  gap: 0.75rem;
+}
+.selection-actions p {
+  margin-block-start: 0.35rem;
+  font-size: 0.72rem;
+}

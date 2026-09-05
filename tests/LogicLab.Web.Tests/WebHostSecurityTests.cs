@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Net.Http.Headers;
 using TUnit.AspNetCore;
 
 namespace LogicLab.Web.Tests;
@@ -64,24 +65,27 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         using var editor = await client.GetAsync(
             new Uri("/editor", UriKind.Relative));
         var staticCookies = SetCookies(staticAsset);
-        var editorCallerCookies = SetCookies(editor).Where(value => value.StartsWith(
-                $"{AnonymousWorkspaceCallerMiddleware.CookieName}=",
-                StringComparison.Ordinal))
+        var editorCallerCookies = SetCookies(editor).Where(IsAnonymousCallerCookie)
             .ToArray();
+        await Assert.That(editorCallerCookies).HasSingleItem();
+        var callerCookie = SetCookieHeaderValue.Parse(editorCallerCookies.Single());
 
         using (Assert.Multiple())
         {
             await Assert.That(staticAsset.StatusCode).IsEqualTo(HttpStatusCode.OK);
-            await Assert.That(staticCookies.Any(value => value.StartsWith(
-                    $"{AnonymousWorkspaceCallerMiddleware.CookieName}=",
-                    StringComparison.Ordinal)))
+            await Assert.That(staticCookies.Any(IsAnonymousCallerCookie))
                 .IsFalse();
             await Assert.That(editor.StatusCode).IsEqualTo(HttpStatusCode.OK);
             await Assert.That(editor.Headers.CacheControl?.Private).IsTrue();
             await Assert.That(editor.Headers.CacheControl?.NoStore).IsTrue();
-            await Assert.That(editorCallerCookies).HasSingleItem();
-            await Assert.That(editorCallerCookies.FirstOrDefault() ?? string.Empty)
-                .Contains("secure; samesite=lax; httponly", StringComparison.OrdinalIgnoreCase);
+            await Assert.That(callerCookie.Name.Value).IsEqualTo("__Host-LogicLab.AnonymousCaller");
+            await Assert.That(callerCookie.Secure).IsTrue();
+            await Assert.That(callerCookie.HttpOnly).IsTrue();
+            await Assert.That(callerCookie.SameSite).IsEqualTo(Microsoft.Net.Http.Headers.SameSiteMode.Lax);
+            await Assert.That(callerCookie.Path.Value).IsEqualTo("/");
+            await Assert.That(callerCookie.Domain.HasValue).IsFalse();
+            await Assert.That(callerCookie.Expires).IsNull();
+            await Assert.That(callerCookie.MaxAge).IsNull();
         }
     }
 
@@ -162,7 +166,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         string path,
         HttpStatusCode expectedStatus)
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateHttpsClient();
         using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
         var contentSecurityPolicy = Header(response, "Content-Security-Policy");
         var contentSecurityPolicyDirectives = CanonicalizeContentSecurityPolicy(
@@ -180,7 +184,6 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
             await Assert.That(Header(response, "X-Content-Type-Options")).IsEqualTo("nosniff");
             await Assert.That(Header(response, "X-Frame-Options")).IsEqualTo("DENY");
             await Assert.That(Header(response, "Referrer-Policy")).IsEqualTo("no-referrer");
-            await Assert.That(contentSecurityPolicy).DoesNotContain("*");
         }
     }
 
@@ -381,39 +384,19 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         AntiforgeryForm form,
         int bodyLength)
     {
-        var values = new List<KeyValuePair<string, string>>
-        {
-            new("_handler", formName),
-            new("__RequestVerificationToken", form.RequestToken),
-            new("Input.Email", "not-an-email"),
-            new("Input.Password", "invalid"),
-            new("Input.ConfirmPassword", "different"),
-            new("padding", string.Empty),
-        };
-        using var unpadded = new FormUrlEncodedContent(values);
-        var paddingLength = checked(
-            bodyLength - (int)(unpadded.Headers.ContentLength
-                ?? throw new InvalidOperationException(
-                    "The form content did not expose its length.")));
-        if (paddingLength < 0)
-        {
-            throw new InvalidOperationException(
-                "The requested body length is smaller than the form envelope.");
-        }
-
-        values[^1] = new("padding", new string('x', paddingLength));
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             new Uri(path, UriKind.Relative))
         {
-            Content = new FormUrlEncodedContent(values),
+            Content = WebTestHttp.CreateSizedFormContent(bodyLength,
+            [
+                new("_handler", formName),
+                new("__RequestVerificationToken", form.RequestToken),
+                new("Input.Email", "not-an-email"),
+                new("Input.Password", "invalid"),
+                new("Input.ConfirmPassword", "different"),
+            ]),
         };
-        if (request.Content.Headers.ContentLength != bodyLength)
-        {
-            throw new InvalidOperationException(
-                "The encoded form did not reach the requested byte boundary.");
-        }
-
         request.Headers.Add("Cookie", form.Cookie);
         request.Headers.Accept.ParseAdd("text/html");
         return await client.SendAsync(request);

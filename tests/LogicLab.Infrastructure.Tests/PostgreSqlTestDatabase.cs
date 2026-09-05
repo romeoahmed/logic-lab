@@ -1,5 +1,6 @@
 using LogicLab.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 using TUnit.Core;
 using TUnit.Core.Interfaces;
@@ -74,11 +75,18 @@ internal sealed class PostgreSqlTestDatabase : IAsyncInitializer, IAsyncDisposab
     }
 
     public DurableProjectRepository CreateRepository(
-        int receiptRetentionCount = 1_024) => new(
-            new TestDbContextFactory(
-                options ?? throw new InvalidOperationException(
-                    "The PostgreSQL test database has not been initialized.")),
+        int receiptRetentionCount = 1_024,
+        params IInterceptor[] interceptors)
+    {
+        var configuredOptions = options ?? throw new InvalidOperationException(
+            "The PostgreSQL test database has not been initialized.");
+        return new DurableProjectRepository(
+            new TestDbContextFactory(new DbContextOptionsBuilder<LogicLabDbContext>(
+                    configuredOptions)
+                .AddInterceptors(interceptors)
+                .Options),
             receiptRetentionCount);
+    }
 
     public LogicLabDbContext CreateContext() => new(
         options ?? throw new InvalidOperationException(

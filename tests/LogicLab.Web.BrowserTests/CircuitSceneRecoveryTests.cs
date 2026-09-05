@@ -8,6 +8,40 @@ namespace LogicLab.Web.BrowserTests;
 internal sealed class CircuitSceneRecoveryTests : PageTest
 {
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Transfer_CancelledDuringDigest_DoesNotPublish(bool destroy)
+    {
+        var scene = await ReadySceneAsync();
+        var committed = await Page.EvaluateAsync<bool>("""
+            async destroy => {
+              const bytes = new TextEncoder().encode(JSON.stringify({
+                buildFingerprint: 'build-a', sceneVersion: 2, projectionVersion: 1,
+                circuitDefinitionId: 'definition-a', uiCulture: 'en-US',
+                baseDirection: 'leftToRight', diagnostics: [],
+              }));
+              const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+              const digest = [...hash].map(value => value.toString(16).padStart(2, '0')).join('');
+              const handle = window.sceneHandle;
+              handle.beginTransfer('cancel-during-digest', 'replacement', bytes.length, digest);
+              handle.appendTransfer('cancel-during-digest', 0, btoa(String.fromCharCode(...bytes)));
+              const pending = handle.commitTransfer('cancel-during-digest');
+              if (destroy) handle.destroy();
+              else handle.abortTransfer('cancel-during-digest');
+              return await pending;
+            }
+            """, destroy);
+
+        await Assert.That(committed).IsFalse();
+        if (!destroy)
+        {
+            var component = await scene.WorldToPageAsync(50, 50);
+            await Page.Mouse.ClickAsync((float)component.X, (float)component.Y);
+            await Assert.That((await scene.LatestIntentAsync()).SceneVersion).IsEqualTo(1UL);
+        }
+    }
+
+    [Test]
     public async Task DuplicatePatch_IsRejectedAtomicallyAndRequestsSnapshot()
     {
         var scene = await ReadySceneAsync();
@@ -75,6 +109,25 @@ internal sealed class CircuitSceneRecoveryTests : PageTest
         await Expect(scene.Canvas).ToHaveAttributeAsync("data-scene-local-unavailable", "");
         var failure = await scene.LatestCallbackArgumentAsync("SceneRendererFailedAsync");
         await Assert.That(failure.GetString()).IsEqualTo("contextUnavailable");
+    }
+
+    [Test]
+    public async Task CanvasContextLost_NewGestureWaitsForRestoration()
+    {
+        var scene = await ReadySceneAsync();
+        var point = await scene.WorldToPageAsync(50, 50);
+        await Page.Clock.InstallAsync(new ClockInstallOptions());
+        await scene.Canvas.DispatchEventAsync("contextlost");
+
+        await Page.Mouse.ClickAsync((float)point.X, (float)point.Y);
+
+        await Assert.That(await scene.CallbackCountAsync("ReceiveSceneIntentAsync"))
+            .IsEqualTo(0);
+        await scene.Canvas.DispatchEventAsync("contextrestored");
+        await Page.Clock.RunForAsync(50);
+        await Page.Mouse.ClickAsync((float)point.X, (float)point.Y);
+        await Expect(scene.EventLog).ToHaveAttributeAsync(
+            "data-callback-receive-scene-intent", "1");
     }
 
     [Test]

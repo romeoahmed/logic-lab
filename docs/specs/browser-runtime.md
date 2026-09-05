@@ -3,7 +3,7 @@
 > Status: normative V1 Canvas, waveform, JavaScript interop, and browser-lifecycle contract
 > Runtime: collocated ECMAScript modules inside the Interactive Server editor
 
-Browser Runtime turns complete renderer-neutral Scene and Waveform values into responsive browser interaction. It owns frame-rate state and pixels, not circuit meaning. [Product](../product.md) owns appearance and workflows; [Diagram Presentation](./diagram-presentation.md) owns static geometry; the [Browser Adapter Contract](../contracts/browser-adapters.md) owns exchanged records; [Web Host](./web-host.md) owns render modes, circuits, security middleware, and culture selection.
+Browser Runtime paints complete Scene and Waveform values and handles local interaction. [Product](../product.md) owns workflows and appearance; [Diagram Presentation](./diagram-presentation.md) owns static geometry; [Browser Adapters](../contracts/browser-adapters.md) owns exchanged records; [Web Host](./web-host.md) owns rendering, circuits, security middleware, and culture selection.
 
 ## 1. Deep browser modules
 
@@ -28,7 +28,7 @@ WaveformHandle : IAsyncDisposable
   SetInteractionModeAsync(CommitEnabled | LocalOnly, CancellationToken) -> Task
 ```
 
-These are semantic interfaces, not requirements to publish TypeScript declarations or one interop call per method. The C# adapters hide JavaScript module import, batching, serialization, object references, retry, and teardown. Callers never drive a paint pass, manipulate a spatial index, or send pointer samples.
+The C# adapters hide module import, batching, serialization, object references, retry, and teardown. These semantic interfaces require neither TypeScript declarations nor one interop call per method. Callers never drive paint, manipulate a spatial index, or send pointer samples.
 
 `CommitEnabled` permits a new gesture only while Web has a current attachment and exact published versions. Entering `LocalOnly` cancels any commit-capable gesture without an intent and retains pan, zoom, viewport, waveform cursor, and inspection. The module doesn't infer connection or authorization from elapsed time.
 
@@ -53,23 +53,22 @@ scene host
 └── Razor-owned status and recovery surface
 ```
 
-Razor creates and updates the host, Canvas element, status, recovery actions, dialogs, and HTML editors. JavaScript receives only the host `ElementReference`, obtains the Canvas context, and owns bitmap drawing plus listeners attached to its own host. It never adds, removes, reparents, or edits Blazor-owned DOM. Blazor explicitly warns that external DOM mutation can invalidate its internal representation ([DOM interaction](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#interaction-with-the-dom)).
+Razor owns the DOM structure, text, controls, and their attributes. JavaScript receives the host `ElementReference` and owns its listeners, Canvas bitmap dimensions, drawing, and browser-local renderer-availability attribute. It never adds, removes, or reparents nodes, or changes Razor-owned content; doing so can invalidate Blazor's DOM representation ([DOM interaction](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#interaction-with-the-dom)).
 
-Menus, tooltips, property forms, label editors, confirmation, and text input are HTML/Razor surfaces. Canvas contains no editable text field or hidden authority. `WaveformHost` follows the same ownership rule with its own Canvas and Razor-owned controls.
+Menus, tooltips, forms, confirmation, and text input remain HTML/Razor surfaces. Canvas has no editable text field. `WaveformHost` follows the same ownership rule.
 
 `MountAsync` occurs once after an interactive first render with a valid `ElementReference`. Mounting is idempotent by host and build fingerprint: repeating it returns the existing live handle or destroys an incompatible stale instance before replacement. Prerender never imports or mounts a module.
 
 ## 3. Published browser state
 
-Each module maintains one published immutable semantic state and separate transient browser state:
+Each module separates:
 
-| Published                                                                            | Transient and browser-local                                                                                      |
-| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| exact published versions, static display list, overlays, waveform rows/segments/gaps | viewport, hover, focus ring, active tool, captured pointer, preview, marquee, local cursor motion, pending frame |
+- **Published immutable state:** exact versions, static display list, overlays, and waveform rows, segments, and gaps.
+- **Transient browser state:** viewport, hover, focus ring, active tool, captured pointer, preview, marquee, cursor motion, and pending frame.
 
 The [Browser Adapter Contract](../contracts/browser-adapters.md) solely defines valid published values and preconditions. `ReplaceAsync` validates a complete candidate, then swaps published state atomically; `SceneUnavailableV1` is a complete replacement that clears drawable static state. The Scene adapter alone supports exact-base patches because it has a real patch producer; Waveform uses complete replacements.
 
-The C# adapter may divide a large semantic replacement into bounded private interop batches. JavaScript assembles them under an unguessable transfer identity and publishes only after a terminal commit validates counts and digest. Batch mechanics are adapter implementation, never a second Scene contract; interruption discards the candidate and leaves the prior published state.
+The C# adapter may send a replacement in bounded private batches under an unguessable transfer identity. JavaScript publishes only after validating counts and digest. Cancellation remains effective during digest verification: aborting a transfer or destroying the handle discards the candidate and leaves no later publication. Batch mechanics are private to the adapter.
 
 ## 4. Coordinate spaces and transforms
 
@@ -87,7 +86,8 @@ authored grid integers
 - Schematic Projection supplies all static coordinates in checked integer plan units, its complete plan-space bounds, a positive `gridStepPlanUnits`, and a positive default `snapStepGridUnits`.
 - JavaScript converts plan units to finite double world coordinates. Its viewport is one invertible affine transform containing translation and uniform positive zoom; rotation and skew are not browser viewport operations.
 - Pointer `clientX/clientY` values are converted relative to the Canvas content box, then through the inverse viewport transform. Device pixels never participate in hit identity or snapping.
-- Coordinate commit divides by `gridStepPlanUnits` and rounds to the nearest authored integer grid unit, with exact halves toward negative infinity. Normal snapping then rounds to the nearest multiple of `snapStepGridUnits` with the same tie rule; `DisableSnap` retains the first integer result. Every result is checked to signed 32-bit range. A route preview may remain sub-grid until commit.
+- Coordinate commit divides by `gridStepPlanUnits` and rounds to the nearest authored integer grid unit, with exact halves toward negative infinity. Normal snapping then rounds to the nearest multiple of `snapStepGridUnits` with the same tie rule; `DisableSnap` retains the first integer result. Every final coordinate, including generated route bends, must fit signed 32-bit range. A route preview may remain sub-grid until commit.
+- Wire endpoints bound to existing Terminals use their published anchors converted to authored integer grid coordinates, without applying the current snap interval. Routing preserves the published outward directions; changing snapping never moves an existing connection point.
 - Panning and zooming change only the viewport. They never mutate Schematic items, authored coordinates, hit regions, or the Project Document.
 
 Fit and reveal use the supplied projection and Hit Region bounds. A browser never reconstructs bounds from painted pixels. World-to-screen and screen-to-world functions are pure and receive property tests for round trip, negative coordinates, extreme legal values, zoom limits, and content-box offsets.
@@ -140,7 +140,7 @@ The baseline renderer uses:
 
 Hit testing queries geometric regions and declared hit priority, never pixels or rendered color. A cache miss changes cost only, never ordering, hit result, or text. Snapshot replacement, font/theme fingerprint change, density change, context restoration, and build change invalidate every affected cache.
 
-Offscreen Canvas, layered visible canvases, `ImageBitmap`, a Worker, and partial dirty rectangles are measured optimizations, not V1 premises. MDN documents their potential benefit but not a universal win ([Canvas optimization](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Optimizing_canvas)). The first implementation remains one visible Canvas per dense host; an optional same-thread offscreen cache is allowed only behind identical display-list tests. No Worker protocol exists until a second deployment context and measured main-thread bottleneck make that seam real.
+V1 uses one visible Canvas per dense host. A same-thread offscreen cache requires identical display-list tests. Layered canvases, `ImageBitmap`, and partial dirty rectangles require measured benefit ([Canvas optimization](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Optimizing_canvas)); a Worker protocol additionally requires a second deployment context and a measured main-thread bottleneck.
 
 The module waits until the required self-hosted fonts are reported ready before publishing text-bearing Canvas output. A font failure produces an exact presentation-unavailable state; it never silently substitutes metrics. The Geometry Plan font fingerprint, browser asset fingerprint, and loaded font must agree ([FontFaceSet readiness](https://developer.mozilla.org/en-US/docs/Web/API/FontFaceSet/ready)).
 
@@ -157,7 +157,7 @@ Idle
 
 - A primary accepted `pointerdown` may call `setPointerCapture`. Events from other pointers cannot mutate that gesture.
 - Move samples update only the local preview. An implementation may use coalesced samples, but never processes both the parent sample and the same coalesced sample twice.
-- `pointerup` commits only when the tool's final semantic value is valid. `pointercancel`, `lostpointercapture`, Escape, tool change, disconnect, host removal, build/version replacement, or invalid final geometry cancels and emits no Workspace command.
+- `pointerup` uses the release coordinates and commits only a valid final semantic value. `pointercancel`, `lostpointercapture`, Escape, tool change, disconnect, host removal, build/version replacement, or invalid final geometry cancels and emits no Workspace command.
 - Capture is released on every terminal path. A delayed event whose pointer or starting versions don't match the active gesture is ignored.
 - `touch-action` is set deliberately per supported host interaction so browser scroll/zoom takeover and scene gestures don't compete. V1 narrow layouts support review, pan/zoom, Probe, Step, Run, and waveform navigation; precision touch wiring is not implied.
 - Wheel and trackpad zoom are anchored at the pointer, clamped by Browser Policy, and browser-local. Page/browser text zoom remains independent.
@@ -185,7 +185,7 @@ One mounted handle owns exactly:
 - optional JavaScript-to-.NET callback reference; and
 - Canvas contexts and any private offscreen resources.
 
-Each C# handle's `DisposeAsync` invokes one idempotent JavaScript `Destroy`. Destruction cancels frames and the active gesture, releases capture, removes listeners, disconnects observers, releases callback/object references, clears caches and candidate transfers, and marks the handle unusable. Later JavaScript calls are ignored or return one stable destroyed outcome.
+`DisposeAsync` invokes idempotent JavaScript `Destroy`: cancel frames and gestures, release capture and references, remove listeners, disconnect observers, clear caches and transfers, and mark the handle unusable. Later calls are ignored or return one stable destroyed outcome.
 
 Browser-owned cleanup must not depend on a successful .NET disposal call. Microsoft recommends `MutationObserver` or a custom element `disconnectedCallback` for DOM cleanup because the component or renderer may already be gone; module-reference disposal can fail after circuit loss ([DOM cleanup](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#dom-cleanup-tasks-during-component-disposal)). V1 uses one observer scoped to the stable editor host ancestor and calls `Destroy` when its scene/waveform host is removed. The observer disconnects itself during teardown.
 
@@ -200,7 +200,7 @@ The C# adapter implements asynchronous disposal, releases every `IJSObjectRefere
 | invalid snapshot, Scene patch, or private batch        | `web_browser_contract_rejected(invalidSnapshot \| invalidPatch \| invalidBatch, correlation)` | apply nothing; request one complete replacement; never log the record                                                     |
 | build mismatch                                         | `build_fingerprint_mismatch` attachment/outcome reason                                        | cancel the gesture, destroy handles, and force a hard reload                                                              |
 | browser font unavailable or asset fingerprint mismatch | `web_renderer_unavailable(fontUnavailable \| assetFingerprintMismatch)`                       | publish local renderer unavailable; use no substitute geometry                                                            |
-| context loss/restoration when supported                | no evidence if restored; otherwise `web_renderer_unavailable(contextLost)`                    | cancel paint, invalidate caches, and perform a full redraw after restoration; fail closed if restoration doesn't complete |
+| context loss/restoration when supported                | no evidence if restored; otherwise `web_renderer_unavailable(contextLost)`                    | suspend painting and semantic gestures, cancel pending viewport commits, and fully redraw after restoration; fail closed if restoration doesn't complete |
 | circuit disconnect                                     | Web-owned connection state, not a Diagnostic                                                  | freeze acknowledged semantic state, cancel the commit-capable gesture, and allow local pan/zoom only                      |
 | JavaScript exception                                   | `web_interop_failure(correlation)`                                                            | fail the affected adapter closed, show recovery UI, and expose no payload or exception text                               |
 

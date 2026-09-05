@@ -1,9 +1,32 @@
 using LogicLab.Application.Workspaces;
+using LogicLab.Domain;
+using LogicLab.Domain.Authoring;
+using LogicLab.Engine;
+using LogicLab.Engine.Compilation;
+using StimulusAssignment = LogicLab.Engine.Simulation.StimulusAssignment;
+using StimulusBatch = LogicLab.Engine.Simulation.StimulusBatch;
 
 namespace LogicLab.Application.Tests;
 
 internal static class EditorWorkspaceTestDriver
 {
+    public static ScheduleStimulusBatch ScheduleInput(
+        WorkspaceCommandContext context,
+        SessionMutationPrecondition precondition,
+        ulong logicalTime,
+        ComponentInstanceId inputId,
+        IReadOnlyList<LogicValue> value)
+    {
+        var entryId = precondition.CompilationArtifactKey.EntryCircuitDefinitionId;
+        return new ScheduleStimulusBatch(context, precondition, new StimulusBatch(
+            logicalTime,
+            [new StimulusAssignment(
+                new CompilationSource(
+                    new InstancePortSourceIdentity(entryId, inputId, "Q"),
+                    new HierarchyPath(entryId, [])),
+                new LogicVector(value))]));
+    }
+
     public static async Task<Attached> AttachAsync(
         IEditorWorkspace workspace,
         WorkspaceId workspaceId,

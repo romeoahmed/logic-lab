@@ -240,6 +240,9 @@ resource web 'Microsoft.App/containerApps@2026-01-01' = if (deployWeb) {
         allowInsecure: false
         targetPort: 8080
         transport: 'Auto'
+        stickySessions: {
+          affinity: 'sticky'
+        }
       }
       registries: [
         {
@@ -431,3 +434,5 @@ resource dependencyFailureAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-
 output bootstrapJobName string = databaseBootstrapJob.name
 output migrationJobName string = databaseMigrationJob.name
 output webFqdn string = deployWeb ? web!.properties.configuration.ingress.fqdn : ''
+output webName string = deployWeb ? web!.name : ''
+output webRevisionName string = deployWeb ? web!.properties.latestRevisionName : ''

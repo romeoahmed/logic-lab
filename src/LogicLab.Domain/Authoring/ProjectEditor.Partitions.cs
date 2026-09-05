@@ -188,22 +188,22 @@ public static partial class ProjectEditor
 
     private static string PartitionKey(NetPartition partition)
     {
+        // IDs from imported projects use the same ordinal order as generated IDs.
         if (partition.Terminals.Count != 0)
         {
             var terminal = partition.Terminals
-                .OrderBy(TerminalKey, StringComparer.Ordinal)
-                .First();
+                .MinBy(TerminalKey, StringComparer.Ordinal)!;
             return $"0\0{TerminalKey(terminal)}";
         }
 
         if (partition.JunctionIds.Count != 0)
         {
-            return $"1\0{partition.JunctionIds.MinBy(id => id.Value)!.Value}";
+            return $"1\0{partition.JunctionIds.MinBy(id => id.Value, StringComparer.Ordinal)!.Value}";
         }
 
         if (partition.WireGeometryIds.Count != 0)
         {
-            return $"2\0{partition.WireGeometryIds.MinBy(id => id.Value)!.Value}";
+            return $"2\0{partition.WireGeometryIds.MinBy(id => id.Value, StringComparer.Ordinal)!.Value}";
         }
 
         return "3";

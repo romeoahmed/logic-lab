@@ -1,3 +1,4 @@
+using System.Globalization;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
@@ -158,6 +159,30 @@ internal sealed class ProjectEditorTopologyTests
                 .IsEqualTo("authoring_terminal_already_connected");
             await Assert.That(forward.Diagnostics[0].Primary).IsEqualTo(expectedPrimary);
             await Assert.That(reverse.Diagnostics[0].Primary).IsEqualTo(expectedPrimary);
+        }
+    }
+
+    [Test]
+    public async Task Apply_ConnectIncompatibleTerminalPermutations_ReportsSameWidthMismatch()
+    {
+        var input = Place(BeginProject(), "source.input", SourceInputParameters(1), new GridPoint(0, 0));
+        var output = Place(input.Revision, "sink.output", SinkOutputParameters(2), new GridPoint(4, 0));
+        var definitionId = output.Revision.Document.EntryCircuitDefinitionId;
+        var first = Terminal(definitionId, input.Instance, "Q");
+        var second = Terminal(definitionId, output.Instance, "D");
+
+        var forward = (EditRejected)ProjectEditor.Apply(output.Revision,
+            new ConnectTerminalsIntent([first, second]));
+        var reverse = (EditRejected)ProjectEditor.Apply(output.Revision,
+            new ConnectTerminalsIntent([second, first]));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(forward.Diagnostics.Single().Code).IsEqualTo("authoring_width_mismatch");
+            await Assert.That(reverse.Diagnostics.Single().Code).IsEqualTo("authoring_width_mismatch");
+            await Assert.That(forward.Diagnostics.Single().Arguments)
+                .IsEquivalentTo(reverse.Diagnostics.Single().Arguments, CollectionOrdering.Matching);
+            await Assert.That(output.Revision.Document.EntryCircuitDefinition.Nets).IsEmpty();
         }
     }
 
@@ -354,6 +379,71 @@ internal sealed class ProjectEditorTopologyTests
             await Assert.That(afterWirePriority.WireGeometries.Single(
                     geometry => geometry.Id == orderedWireIds[1]).NetId == wireOnlyNet.Id)
                 .IsFalse();
+        }
+    }
+
+    [Test]
+    [Arguments("en-US", true)]
+    [Arguments("en-US", false)]
+    [Arguments("zh-CN", true)]
+    [Arguments("zh-CN", false)]
+    public async Task Apply_SplitImportedNetWithPunctuationIds_RetainsOrdinalMinimumPartition(
+        string cultureName,
+        bool useJunctions)
+    {
+        var genesis = BeginProject();
+        var netId = new NetId("original");
+        string[] ids = ["a-b", "a_b", "a0"];
+        Junction[] junctions = useJunctions
+            ? [.. ids.Select(id => new Junction(new JunctionId(id), netId, default))]
+            : [];
+        WireGeometry[] wires = useJunctions
+            ? []
+            : [.. ids.Select(id => new WireGeometry(
+                new WireGeometryId(id), netId, new UnroutedWireRoute()))];
+        var definition = genesis.Document.EntryCircuitDefinition.WithTopology(
+            [new Net(netId, 1, [], [.. junctions.Select(item => item.Id)])],
+            junctions,
+            wires);
+        var candidate = new ProjectImportCandidate(
+            genesis.Document.ReplaceCircuitDefinition(definition));
+        var imported = ((ProjectGenesisCommitted)ProjectEditor.Begin(
+            new ImportedProjectSeed(candidate))).Revision;
+        var first = new NetPartition(
+            [],
+            useJunctions ? [new JunctionId("a-b"), new JunctionId("a_b")] : [],
+            useJunctions ? [] : [new WireGeometryId("a-b"), new WireGeometryId("a_b")]);
+        var second = new NetPartition(
+            [],
+            useJunctions ? [new JunctionId("a0")] : [],
+            useJunctions ? [] : [new WireGeometryId("a0")]);
+
+        // Imported IDs need not resemble generated GUIDs; punctuation exposes culture ordering.
+        var originalCulture = CultureInfo.CurrentCulture;
+        EditCommitted forward;
+        EditCommitted reverse;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(cultureName);
+            forward = Commit(ProjectEditor.Apply(imported,
+                new SplitNetIntent(definition.Id, netId, [first, second])));
+            reverse = Commit(ProjectEditor.Apply(imported,
+                new SplitNetIntent(definition.Id, netId, [second, first])));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+
+        foreach (var committed in new[] { forward, reverse })
+        {
+            var updated = committed.Revision.Document.EntryCircuitDefinition;
+            var retainedIds = useJunctions
+                ? updated.FindNet(netId)!.JunctionIds.Select(id => id.Value)
+                : updated.WireGeometries.Where(wire => wire.NetId == netId)
+                    .Select(wire => wire.Id.Value);
+            await Assert.That(retainedIds)
+                .IsEquivalentTo(["a-b", "a_b"], CollectionOrdering.Any);
         }
     }
 

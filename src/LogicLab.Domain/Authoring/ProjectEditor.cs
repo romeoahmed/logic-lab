@@ -224,45 +224,13 @@ public static partial class ProjectEditor
             ImportedSources(revision.Document));
     }
 
-    private static AuthoredSourceIdentity[] ImportedSources(ProjectDocument document)
-    {
-        var sources = new List<AuthoredSourceIdentity>
-        {
-            new ProjectRootSourceIdentity(document.ProjectId),
-        };
-        sources.AddRange(document.MemoryImages.Select(image =>
-            (AuthoredSourceIdentity)new MemoryImageSourceIdentity(
-                document.ProjectId,
-                image.Id)));
-        foreach (var definition in document.CircuitDefinitions)
-        {
-            sources.Add(new CircuitRootSourceIdentity(definition.Id));
-            sources.AddRange(definition.Ports.Select(port =>
-                (AuthoredSourceIdentity)new DefinitionPortSourceIdentity(
-                    definition.Id,
-                    port.Id)));
-            sources.AddRange(definition.ComponentInstances.Select(instance =>
-                (AuthoredSourceIdentity)new ComponentInstanceSourceIdentity(
-                    definition.Id,
-                    instance.Id)));
-            sources.AddRange(definition.Nets.Select(net =>
-                (AuthoredSourceIdentity)new NetSourceIdentity(definition.Id, net.Id)));
-            sources.AddRange(definition.Junctions.Select(junction =>
-                (AuthoredSourceIdentity)new JunctionSourceIdentity(
-                    definition.Id,
-                    junction.Id)));
-            sources.AddRange(definition.WireGeometries.Select(geometry =>
-                (AuthoredSourceIdentity)new WireGeometrySourceIdentity(
-                    definition.Id,
-                    geometry.Id)));
-            sources.AddRange(definition.Annotations.Select(annotation =>
-                (AuthoredSourceIdentity)new AnnotationSourceIdentity(
-                    definition.Id,
-                    annotation.Id)));
-        }
-
-        return [.. sources];
-    }
+    private static AuthoredSourceIdentity[] ImportedSources(ProjectDocument document) =>
+    [
+        new ProjectRootSourceIdentity(document.ProjectId),
+        .. document.MemoryImages.Select(image =>
+            new MemoryImageSourceIdentity(document.ProjectId, image.Id)),
+        .. document.CircuitDefinitions.SelectMany(DefinitionSources),
+    ];
 
     private static EditOutcome ApplyPlace(
         ProjectRevision revision,
@@ -563,7 +531,10 @@ public static partial class ProjectEditor
             return;
         }
 
-        diagnostics.Add(new AuthoringDiagnostic(
+        diagnostics.Add(InvalidText(field, rule));
+    }
+
+    private static AuthoringDiagnostic InvalidText(string field, string rule) => new(
             "authoring_invalid_text",
             [
                 new AuthoringDiagnosticArgument(
@@ -572,8 +543,7 @@ public static partial class ProjectEditor
                 new AuthoringDiagnosticArgument(
                     "rule",
                     new StableTokenDiagnosticValue(rule)),
-            ]));
-    }
+            ]);
 
     private static string? GetDisplayTextRule(
         string? value,
@@ -584,6 +554,14 @@ public static partial class ProjectEditor
             return "nonempty";
         }
 
+        return GetUnicodeTextRule(value, allowLineFeed: false, cancellationToken);
+    }
+
+    private static string? GetUnicodeTextRule(
+        string value,
+        bool allowLineFeed,
+        CancellationToken cancellationToken)
+    {
         for (var index = 0; index < value.Length; index++)
         {
             if ((index & 4_095) == 0)
@@ -592,7 +570,7 @@ public static partial class ProjectEditor
             }
 
             var character = value[index];
-            if (character <= '\u001f')
+            if (character <= '\u001f' && !(allowLineFeed && character == '\n'))
             {
                 return "controlCharacter";
             }

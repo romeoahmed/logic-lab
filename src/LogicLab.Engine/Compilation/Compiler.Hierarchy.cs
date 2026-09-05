@@ -379,7 +379,7 @@ public static partial class Compiler
                     continue;
                 }
 
-                if (!TryGetEvaluatorKind(key, out var kind)
+                if (GetEvaluatorKind(key) is not { } kind
                     || !TryResolvePorts(
                         instance,
                         schema,
@@ -397,7 +397,7 @@ public static partial class Compiler
                                 new CompilerStableTokenValue("width")),
                             new CompilerDiagnosticArgument(
                                 "rule",
-                                new CompilerStableTokenValue("hierarchyCompilerContract")),
+                                new CompilerStableTokenValue("compilerContract")),
                         ],
                         CircuitLocation(
                             occurrence.Path,
@@ -571,10 +571,10 @@ public static partial class Compiler
         }
 
         var groups = scopedNets
+            // GroupBy preserves encounter order, so one sort orders both groups and their members.
+            .OrderBy(ScopedNetKey, StringComparer.Ordinal)
             .GroupBy(net => union.Find(net.Index))
-            .Select(group => new HierarchyNetGroup(
-                [.. group.OrderBy(ScopedNetKey, StringComparer.Ordinal)]))
-            .OrderBy(group => ScopedNetKey(group.Members[0]), StringComparer.Ordinal)
+            .Select(group => new HierarchyNetGroup([.. group]))
             .ToArray();
         var runtimeNetByScopedNet = new int[scopedNets.Count];
         for (var netOrdinal = 0; netOrdinal < groups.Length; netOrdinal++)
@@ -721,24 +721,10 @@ public static partial class Compiler
                         definitionPort.Id));
                 return true;
             case InstanceTerminalReference instanceTerminal:
-                var instance = occurrence.Definition.FindComponentInstance(
-                    instanceTerminal.ComponentInstanceId);
-                if (instance is null)
+                if (resolvedByInstance.TryGetValue(
+                    new HierarchyInstanceKey(occurrence, instanceTerminal.ComponentInstanceId),
+                    out var resolved))
                 {
-                    port = null;
-                    return false;
-                }
-
-                if (instance.Target is LibraryComponentTarget)
-                {
-                    if (!resolvedByInstance.TryGetValue(
-                            new HierarchyInstanceKey(occurrence, instance.Id),
-                            out var resolved))
-                    {
-                        port = null;
-                        return false;
-                    }
-
                     var componentPort = resolved.Ports.SingleOrDefault(candidate =>
                         string.Equals(
                             candidate.Id,
@@ -754,12 +740,19 @@ public static partial class Compiler
                         componentPort.Width,
                         new InstancePortSourceIdentity(
                             occurrence.Definition.Id,
-                            instance.Id,
+                            instanceTerminal.ComponentInstanceId,
                             componentPort.Id));
                     return true;
                 }
 
-                var definitionTarget = (CircuitDefinitionComponentTarget)instance.Target;
+                var instance = occurrence.Definition.FindComponentInstance(
+                    instanceTerminal.ComponentInstanceId);
+                if (instance?.Target is not CircuitDefinitionComponentTarget definitionTarget)
+                {
+                    port = null;
+                    return false;
+                }
+
                 var target = request.ProjectRevision.Document.FindCircuitDefinition(
                     definitionTarget.CircuitDefinitionId);
                 var targetPort = target?.FindPort(instanceTerminal.PortId);

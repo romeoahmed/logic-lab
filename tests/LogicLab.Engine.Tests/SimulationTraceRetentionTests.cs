@@ -57,6 +57,7 @@ internal sealed class SimulationTraceRetentionTests
         {
             await Assert.That(baseline.ProbeId).IsEqualTo(createdProbeId);
             await Assert.That(baseline.LogicalTime).IsEqualTo(10UL);
+            await Assert.That(baseline.Value[0]).IsEqualTo(LogicValue.One);
         }
     }
 
@@ -115,9 +116,12 @@ internal sealed class SimulationTraceRetentionTests
             await Assert.That(committed.ObservedProbePatch).Count().IsEqualTo(1);
             await Assert.That(committed.ObservedProbePatch[0].ProbeId)
                 .IsEqualTo(opened.ProbeIds[0]);
+            await Assert.That(committed.ObservedProbePatch[0].Value[0]).IsEqualTo(LogicValue.Z);
             await Assert.That(retained.Transitions).Count().IsEqualTo(1);
             await Assert.That(retained.Transitions[0].ProbeId)
                 .IsEqualTo(opened.ProbeIds[0]);
+            await Assert.That(retained.Transitions[0].LogicalTime).IsEqualTo(20UL);
+            await Assert.That(retained.Transitions[0].Value[0]).IsEqualTo(LogicValue.Z);
         }
     }
 

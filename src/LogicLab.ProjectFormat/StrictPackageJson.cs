@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace LogicLab.ProjectFormat;
 
@@ -276,409 +277,92 @@ public static partial class ProjectPackage
         }
     }
 
-    private static async Task ValidateManifestMembersAsync(
+    private static async Task ValidateMembersAsync(
         byte[] json,
+        JsonTypeInfo typeInfo,
         CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         using var stream = new MemoryStream(json, writable: false);
         using var document = await JsonDocument.ParseAsync(
             stream,
             cancellationToken: cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        var root = document.RootElement;
-        RequireMembers(
-            root,
-            cancellationToken,
-            "format",
-            "schemaVersion",
-            "projectPart",
-            "memoryParts",
-            "packageDigest");
-        if (TryGetObject(root, "projectPart", out var projectPart))
-        {
-            RequireMembers(
-                projectPart,
-                cancellationToken,
-                "path",
-                "length",
-                "sha256");
-        }
-
-        foreach (var memoryPart in ArrayElements(root, "memoryParts"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RequireMembers(
-                memoryPart,
-                cancellationToken,
-                "memoryImageId",
-                "path",
-                "length",
-                "sha256");
-        }
+        ValidateMembers(document.RootElement, typeInfo, cancellationToken);
     }
 
-    private static async Task ValidateProjectMembersAsync(
-        byte[] json,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        using var stream = new MemoryStream(json, writable: false);
-        using var document = await JsonDocument.ParseAsync(
-            stream,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        var root = document.RootElement;
-        RequireMembers(
-            root,
-            cancellationToken,
-            "projectId",
-            "displayName",
-            "symbolProfile",
-            "libraryReferences",
-            "entryCircuitDefinitionId",
-            "circuitDefinitions",
-            "memoryImages");
-        if (TryGetObject(root, "symbolProfile", out var profile))
-        {
-            RequireMembers(
-                profile,
-                cancellationToken,
-                "id",
-                "version",
-                "indicationConvention");
-        }
-
-        foreach (var library in ArrayElements(root, "libraryReferences"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RequireMembers(
-                library,
-                cancellationToken,
-                "id",
-                "version",
-                "digest");
-        }
-
-        foreach (var memory in ArrayElements(root, "memoryImages"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RequireMembers(
-                memory,
-                cancellationToken,
-                "id",
-                "displayName",
-                "wordWidth",
-                "depth",
-                "partPath");
-        }
-
-        foreach (var definition in ArrayElements(root, "circuitDefinitions"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            ValidateDefinitionMembers(definition, cancellationToken);
-        }
-    }
-
-    private static void ValidateDefinitionMembers(
-        JsonElement definition,
-        CancellationToken cancellationToken)
-    {
-        RequireMembers(
-            definition,
-            cancellationToken,
-            "id",
-            "displayName",
-            "ports",
-            "componentInstances",
-            "nets",
-            "junctions",
-            "wireGeometry",
-            "presentation");
-        foreach (var port in ArrayElements(definition, "ports"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RequireMembers(
-                port,
-                cancellationToken,
-                "id",
-                "displayName",
-                "direction",
-                "width");
-        }
-
-        foreach (var instance in ArrayElements(definition, "componentInstances"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RequireMembers(
-                instance,
-                cancellationToken,
-                "id",
-                "displayName",
-                "target",
-                "parameters");
-            if (TryGetObject(instance, "target", out var target))
-            {
-                ValidateDiscriminatedMembers(
-                    target,
-                    cancellationToken,
-                    ("libraryContract", ["kind", "libraryId", "contractId"]),
-                    ("circuitDefinition", ["kind", "circuitDefinitionId"]));
-            }
-
-            foreach (var parameter in ArrayElements(instance, "parameters"))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                RequireMembers(
-                    parameter,
-                    cancellationToken,
-                    "parameterId",
-                    "value");
-                if (TryGetObject(parameter, "value", out var value))
-                {
-                    ValidateDiscriminatedMembers(
-                        value,
-                        cancellationToken,
-                        ("unsigned32", ["kind", "value"]),
-                        ("unsigned64", ["kind", "decimal"]),
-                        ("enum", ["kind", "value"]),
-                        ("logicVector", ["kind", "bits"]),
-                        ("unsigned32List", ["kind", "values"]),
-                        ("sliceList", ["kind", "values"]),
-                        ("memoryImage", ["kind", "memoryImageId"]));
-                    if (TryGetString(value, "kind") == "sliceList")
-                    {
-                        foreach (var slice in ArrayElements(value, "values"))
-                        {
-                            cancellationToken.ThrowIfCancellationRequested();
-                            RequireMembers(
-                                slice,
-                                cancellationToken,
-                                "offset",
-                                "length");
-                        }
-                    }
-                }
-            }
-        }
-
-        foreach (var net in ArrayElements(definition, "nets"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RequireMembers(
-                net,
-                cancellationToken,
-                "id",
-                "width",
-                "terminals",
-                "junctionIds");
-            foreach (var terminal in ArrayElements(net, "terminals"))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                ValidateDiscriminatedMembers(
-                    terminal,
-                    cancellationToken,
-                    ("definitionPort", ["kind", "portId"]),
-                    ("instancePort", ["kind", "componentInstanceId", "portId"]));
-            }
-        }
-
-        foreach (var junction in ArrayElements(definition, "junctions"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RequireMembers(
-                junction,
-                cancellationToken,
-                "id",
-                "netId",
-                "position");
-            ValidatePoint(junction, "position", cancellationToken);
-        }
-
-        foreach (var geometry in ArrayElements(definition, "wireGeometry"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RequireMembers(
-                geometry,
-                cancellationToken,
-                "id",
-                "netId",
-                "route");
-            if (TryGetObject(geometry, "route", out var route))
-            {
-                ValidateDiscriminatedMembers(
-                    route,
-                    cancellationToken,
-                    ("unrouted", ["kind"]),
-                    ("orthogonal", ["kind", "points"]));
-                foreach (var point in ArrayElements(route, "points"))
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    RequireMembers(point, cancellationToken, "x", "y");
-                }
-            }
-        }
-
-        if (TryGetObject(definition, "presentation", out var presentation))
-        {
-            ValidatePresentationMembers(presentation, cancellationToken);
-        }
-    }
-
-    private static void ValidatePresentationMembers(
-        JsonElement presentation,
-        CancellationToken cancellationToken)
-    {
-        RequireMembers(
-            presentation,
-            cancellationToken,
-            "componentPlacements",
-            "definitionPortPlacements",
-            "annotations");
-        foreach (var placement in ArrayElements(presentation, "componentPlacements"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RequireMembers(
-                placement,
-                cancellationToken,
-                "componentInstanceId",
-                "origin",
-                "orientation",
-                "symbolVariantId");
-            ValidatePoint(placement, "origin", cancellationToken);
-            if (TryGetObject(placement, "orientation", out var orientation))
-            {
-                RequireMembers(
-                    orientation,
-                    cancellationToken,
-                    "quarterTurnsClockwise",
-                    "reflected");
-            }
-        }
-
-        foreach (var placement in ArrayElements(
-                     presentation,
-                     "definitionPortPlacements"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RequireMembers(
-                placement,
-                cancellationToken,
-                "portId",
-                "position",
-                "facing");
-            ValidatePoint(placement, "position", cancellationToken);
-        }
-
-        foreach (var annotation in ArrayElements(presentation, "annotations"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RequireMembers(
-                annotation,
-                cancellationToken,
-                "id",
-                "text",
-                "position",
-                "alignment");
-            ValidatePoint(annotation, "position", cancellationToken);
-        }
-    }
-
-    private static void ValidatePoint(
-        JsonElement owner,
-        string propertyName,
-        CancellationToken cancellationToken)
-    {
-        if (TryGetObject(owner, propertyName, out var point))
-        {
-            RequireMembers(point, cancellationToken, "x", "y");
-        }
-    }
-
-    private static void ValidateDiscriminatedMembers(
+    private static void ValidateMembers(
         JsonElement element,
-        CancellationToken cancellationToken,
-        params (string Kind, string[] Members)[] variants)
+        JsonTypeInfo typeInfo,
+        CancellationToken cancellationToken)
     {
-        if (element.ValueKind != JsonValueKind.Object)
+        cancellationToken.ThrowIfCancellationRequested();
+        if (element.ValueKind == JsonValueKind.Array && typeInfo.Type.IsArray)
         {
-            throw Invalid("package_json_invalid", ("rule", "schema"));
+            var elementType = GetJsonTypeInfo(typeInfo.Type.GetElementType()!);
+            foreach (var item in element.EnumerateArray())
+            {
+                ValidateMembers(item, elementType, cancellationToken);
+            }
+
+            return;
         }
 
-        var kind = TryGetString(element, "kind");
-        if (kind is null)
+        // The strict deserializer owns nullability and scalar types. All V1 members
+        // are required, including value-type fields that deserialization can default.
+        if (element.ValueKind != JsonValueKind.Object || typeInfo.Kind != JsonTypeInfoKind.Object)
         {
             return;
         }
 
-        foreach (var (variantKind, members) in variants)
+        string? discriminator = null;
+        if (typeInfo.PolymorphismOptions is { } polymorphism)
         {
-            if (string.Equals(kind, variantKind, StringComparison.Ordinal))
+            discriminator = polymorphism.TypeDiscriminatorPropertyName;
+            if (!element.TryGetProperty(discriminator, out var kind)
+                || kind.ValueKind != JsonValueKind.String)
             {
-                RequireMembers(element, cancellationToken, members);
-                return;
+                throw Invalid("package_json_invalid", ("rule", "schema"));
             }
+
+            var variant = polymorphism.DerivedTypes.FirstOrDefault(
+                variant => variant.TypeDiscriminator is string name && kind.ValueEquals(name));
+            if (variant.DerivedType is null)
+            {
+                throw Invalid("package_unknown_discriminator");
+            }
+
+            typeInfo = GetJsonTypeInfo(variant.DerivedType);
         }
 
-        throw Invalid("package_unknown_discriminator");
-    }
-
-    private static void RequireMembers(
-        JsonElement element,
-        CancellationToken cancellationToken,
-        params string[] members)
-    {
-        if (element.ValueKind != JsonValueKind.Object)
-        {
-            throw Invalid("package_json_invalid", ("rule", "schema"));
-        }
-
-        var expected = members.ToHashSet(StringComparer.Ordinal);
+        var memberCount = 0;
         foreach (var property in element.EnumerateObject())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!expected.Contains(property.Name))
+            if (discriminator is not null && property.NameEquals(discriminator))
+            {
+                continue;
+            }
+
+            var member = typeInfo.Properties.FirstOrDefault(
+                member => property.NameEquals(member.Name));
+            if (member is null)
             {
                 throw Invalid("package_unknown_member");
             }
-        }
-    }
 
-    private static bool TryGetObject(
-        JsonElement owner,
-        string propertyName,
-        out JsonElement value)
-    {
-        if (owner.ValueKind == JsonValueKind.Object
-            && owner.TryGetProperty(propertyName, out value)
-            && value.ValueKind == JsonValueKind.Object)
+            memberCount++;
+            ValidateMembers(property.Value, GetJsonTypeInfo(member.PropertyType), cancellationToken);
+        }
+
+        // The lexical pass already rejected duplicate names.
+        if (memberCount != typeInfo.Properties.Count)
         {
-            return true;
+            throw Invalid("package_json_invalid", ("rule", "schema"));
         }
-
-        value = default;
-        return false;
     }
 
-    private static JsonElement.ArrayEnumerator ArrayElements(
-        JsonElement owner,
-        string propertyName)
-    {
-        return owner.ValueKind == JsonValueKind.Object
-            && owner.TryGetProperty(propertyName, out var value)
-            && value.ValueKind == JsonValueKind.Array
-                ? value.EnumerateArray()
-                : default;
-    }
-
-    private static string? TryGetString(JsonElement owner, string propertyName)
-    {
-        return owner.ValueKind == JsonValueKind.Object
-            && owner.TryGetProperty(propertyName, out var value)
-            && value.ValueKind == JsonValueKind.String
-                ? value.GetString()
-                : null;
-    }
+    private static JsonTypeInfo GetJsonTypeInfo(Type type) =>
+        ReadJsonContext.GetTypeInfo(type)
+        ?? throw new InvalidOperationException("The package DTO has no generated JSON metadata.");
 
     private sealed class JsonContainer(bool isArray)
     {

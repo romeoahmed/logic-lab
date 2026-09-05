@@ -77,6 +77,8 @@
                                           Type="ButtonType.Button"
                                           Size="ButtonSize.Small"
                                           Appearance="ButtonAppearance.Primary"
+                                          Disabled="@retryInProgress"
+                                          Loading="@retryInProgress"
                                           OnClick="@(_ => RetryAsync())">@Text["RetryCanvas"]</FluentButton>
                         }
                     </ActionsTemplate>

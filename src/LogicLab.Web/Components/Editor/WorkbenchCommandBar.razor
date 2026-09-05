@@ -4,37 +4,18 @@
     <div class="command-cluster">
         <span class="command-cluster-label">@Text["NextStep"]</span>
         <div class="workflow-actions">
-            <FluentButton data-command="create"
-                          hidden="@(!Model.CanCreate)"
-                          Appearance="ButtonAppearance.Primary"
-                          Disabled="@(!Model.CanCreate || IsBusy)"
-                          Loading="@(Model.ActiveCommand is "create")"
-                          OnClick="@(() => OnCommand.InvokeAsync(WorkbenchCommand.Create))">@Text["CreateSandbox"]</FluentButton>
-            <FluentButton data-command="compile"
-                          hidden="@(!Model.CanCompile)"
-                          Appearance="ButtonAppearance.Primary"
-                          Disabled="@(!Model.CanCompile || IsBusy)"
-                          Loading="@(Model.ActiveCommand is "compile")"
-                          OnClick="@(() => OnCommand.InvokeAsync(WorkbenchCommand.Compile))">@Text["Compile"]</FluentButton>
-            <FluentButton data-command="session"
-                          hidden="@(!Model.CanCreateSession)"
-                          Appearance="ButtonAppearance.Primary"
-                          Disabled="@(!Model.CanCreateSession || IsBusy)"
-                          Loading="@(Model.ActiveCommand is "session")"
-                          OnClick="@(() => OnCommand.InvokeAsync(WorkbenchCommand.CreateSession))">@Text["CreateSession"]</FluentButton>
-            <FluentButton data-command="stimulus"
-                          hidden="@(!Model.CanScheduleStimulus)"
-                          Appearance="ButtonAppearance.Primary"
-                          Disabled="@(!Model.CanScheduleStimulus || IsBusy)"
-                          Loading="@(Model.ActiveCommand is "stimulus")"
-                          OnClick="@(() => OnCommand.InvokeAsync(WorkbenchCommand.ScheduleStimulus))">@Text["InputsHigh"]</FluentButton>
-            <FluentButton data-command="step"
-                          hidden="@(!Model.CanStep)"
-                          Appearance="ButtonAppearance.Primary"
-                          Disabled="@(!Model.CanStep || IsBusy)"
-                          Loading="@(Model.ActiveCommand is "step")"
-                          OnClick="@(() => OnCommand.InvokeAsync(WorkbenchCommand.Step))">@Text["Step"]</FluentButton>
-            @if (!Model.CanCreate && !Model.CanCompile && !Model.CanCreateSession && !Model.CanScheduleStimulus && !Model.CanStep)
+            @{ var actions = WorkflowActions; }
+            @foreach (var action in actions)
+            {
+                <FluentButton @key="action.Command"
+                              data-command="@action.Key"
+                              hidden="@(!action.Available)"
+                              Appearance="@(action.Primary ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
+                              Disabled="@(!action.Available || IsBusy)"
+                              Loading="@(Model.ActiveCommand == action.Key)"
+                              OnClick="@(() => OnCommand.InvokeAsync(action.Command))">@Text[action.Label]</FluentButton>
+            }
+            @if (!actions.Any(action => action.Available))
             {
                 <span class="workflow-hint">@Text["ChooseStarterHint"]</span>
             }

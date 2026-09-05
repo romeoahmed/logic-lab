@@ -1,6 +1,7 @@
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
+using static LogicLab.Domain.Tests.ProjectEditorTestContext;
 
 namespace LogicLab.Domain.Tests;
 
@@ -77,58 +78,27 @@ internal sealed class ProjectEditorComponentContractTests
         InvalidParameterEnvelope scenario)
     {
         var revision = BeginProject();
+        var valid = SplitParameters(4, new BitSlice(0, 2), new BitSlice(2, 2));
         ComponentParameterBinding[] parameters = scenario switch
         {
-            InvalidParameterEnvelope.Missing =>
-                [new ComponentParameterBinding(
-                    "width",
-                    new Unsigned32ParameterValue(4))],
+            InvalidParameterEnvelope.Missing => [valid[0]],
             InvalidParameterEnvelope.Duplicate =>
-                [
-                    new ComponentParameterBinding(
-                        "width",
-                        new Unsigned32ParameterValue(4)),
-                    new ComponentParameterBinding(
-                        "slices",
-                        new SlicesParameterValue(
-                            [new BitSlice(0, 2), new BitSlice(2, 2)])),
-                    new ComponentParameterBinding(
-                        "slices",
-                        new SlicesParameterValue(
-                            [new BitSlice(0, 1), new BitSlice(1, 1)])),
-                ],
-            InvalidParameterEnvelope.Reordered =>
-                [
-                    new ComponentParameterBinding(
-                        "slices",
-                        new SlicesParameterValue(
-                            [new BitSlice(0, 2), new BitSlice(2, 2)])),
-                    new ComponentParameterBinding(
-                        "width",
-                        new Unsigned32ParameterValue(4)),
-                ],
+                [.. valid, new ComponentParameterBinding("slices", new SlicesParameterValue(
+                    [new BitSlice(0, 1), new BitSlice(1, 1)]))],
+            InvalidParameterEnvelope.Reordered => [valid[1], valid[0]],
             InvalidParameterEnvelope.Unknown =>
-                [
-                    new ComponentParameterBinding(
-                        "width",
-                        new Unsigned32ParameterValue(4)),
-                    new ComponentParameterBinding(
-                        "slices",
-                        new SlicesParameterValue(
-                            [new BitSlice(0, 2), new BitSlice(2, 2)])),
-                    new ComponentParameterBinding(
-                        "unknown",
-                        new Unsigned32ParameterValue(1)),
-                ],
+                [.. valid, new ComponentParameterBinding("unknown", new Unsigned32ParameterValue(1))],
             InvalidParameterEnvelope.WrongKind =>
-                [
-                    new ComponentParameterBinding(
-                        "width",
-                        new Unsigned32ParameterValue(4)),
-                    new ComponentParameterBinding(
-                        "slices",
-                        new WidthsParameterValue([2, 2])),
-                ],
+                [valid[0], new ComponentParameterBinding("slices", new WidthsParameterValue([2, 2]))],
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
+        };
+        (string ParameterId, string Rule)[] expected = scenario switch
+        {
+            InvalidParameterEnvelope.Missing => [("slices", "missingParameter")],
+            InvalidParameterEnvelope.Duplicate => [("slices", "unknownParameter")],
+            InvalidParameterEnvelope.Reordered => [("slices", "parameterOrder"), ("width", "parameterOrder")],
+            InvalidParameterEnvelope.Unknown => [("unknown", "unknownParameter")],
+            InvalidParameterEnvelope.WrongKind => [("slices", "parameterKind")],
             _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
         };
 
@@ -136,23 +106,26 @@ internal sealed class ProjectEditorComponentContractTests
             revision,
             PlaceIntent(revision, "topology.split", parameters));
 
-        await AssertRejection(outcome, "authoring_invalid_parameter");
+        await AssertInvalidParameters(outcome, "topology.split", expected);
+        await Assert.That(revision.Document.EntryCircuitDefinition.ComponentInstances).IsEmpty();
     }
 
     [Test]
-    [Arguments(InvalidParameterShape.ConstantHighImpedance)]
-    [Arguments(InvalidParameterShape.ConstantVectorWidth)]
-    [Arguments(InvalidParameterShape.SplitTooFewSlices)]
-    [Arguments(InvalidParameterShape.SplitZeroLength)]
-    [Arguments(InvalidParameterShape.SplitRangeOverflow)]
-    [Arguments(InvalidParameterShape.SplitOutOfRange)]
-    [Arguments(InvalidParameterShape.ConcatTooFewInputs)]
-    [Arguments(InvalidParameterShape.ConcatZeroWidth)]
-    [Arguments(InvalidParameterShape.ConcatWidthOverflow)]
-    [Arguments(InvalidParameterShape.ZeroExtendOutputNotLarger)]
-    [Arguments(InvalidParameterShape.SignExtendOutputNotLarger)]
+    [Arguments(InvalidParameterShape.ConstantHighImpedance, "value", "logicVectorValue")]
+    [Arguments(InvalidParameterShape.ConstantVectorWidth, "value", "vectorWidth")]
+    [Arguments(InvalidParameterShape.SplitTooFewSlices, "slices", "minimumItemCount")]
+    [Arguments(InvalidParameterShape.SplitZeroLength, "slices", "positiveLength")]
+    [Arguments(InvalidParameterShape.SplitRangeOverflow, "slices", "sliceContainment")]
+    [Arguments(InvalidParameterShape.SplitOutOfRange, "slices", "sliceContainment")]
+    [Arguments(InvalidParameterShape.ConcatTooFewInputs, "inputWidths", "minimumItemCount")]
+    [Arguments(InvalidParameterShape.ConcatZeroWidth, "inputWidths", "positiveWidth")]
+    [Arguments(InvalidParameterShape.ConcatWidthOverflow, "inputWidths", "widthSum")]
+    [Arguments(InvalidParameterShape.ZeroExtendOutputNotLarger, "outputWidth", "greaterThanInputWidth")]
+    [Arguments(InvalidParameterShape.SignExtendOutputNotLarger, "outputWidth", "greaterThanInputWidth")]
     public async Task Apply_InvalidWidthContractParameterShape_RejectsWithoutRevision(
-        InvalidParameterShape scenario)
+        InvalidParameterShape scenario,
+        string parameterId,
+        string rule)
     {
         var revision = BeginProject();
         var (contractId, parameters) = InvalidShape(scenario);
@@ -161,7 +134,8 @@ internal sealed class ProjectEditorComponentContractTests
             revision,
             PlaceIntent(revision, contractId, parameters));
 
-        await AssertRejection(outcome, "authoring_invalid_parameter");
+        await AssertInvalidParameters(outcome, contractId, (parameterId, rule));
+        await Assert.That(revision.Document.EntryCircuitDefinition.ComponentInstances).IsEmpty();
     }
 
     [Test]
@@ -195,7 +169,8 @@ internal sealed class ProjectEditorComponentContractTests
                     new InstanceTerminalReference(definitionId, sink.Id, "D"),
                 ]));
 
-        await AssertRejection(outcome, "authoring_width_mismatch");
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
+        await Assert.That(rejected.Diagnostics.Single().Code).IsEqualTo("authoring_width_mismatch");
         await Assert.That(revision.Document.EntryCircuitDefinition.Nets).IsEmpty();
     }
 
@@ -261,17 +236,25 @@ internal sealed class ProjectEditorComponentContractTests
         };
     }
 
-    private static async Task AssertRejection(
+    private static async Task AssertInvalidParameters(
         EditOutcome outcome,
-        string expectedDiagnosticCode)
+        string contractId,
+        params (string ParameterId, string Rule)[] expected)
     {
         var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
-        using (Assert.Multiple())
+        await Assert.That(rejected.Reason).IsEqualTo("authoring_invalid");
+        await Assert.That(rejected.Diagnostics).Count().IsEqualTo(expected.Length);
+        for (var index = 0; index < expected.Length; index++)
         {
-            await Assert.That(rejected.Reason).IsEqualTo("authoring_invalid");
-            await Assert.That(rejected.Diagnostics).IsNotEmpty();
-            await Assert.That(rejected.Diagnostics.All(diagnostic =>
-                diagnostic.Code == expectedDiagnosticCode)).IsTrue();
+            var diagnostic = rejected.Diagnostics[index];
+            await Assert.That(diagnostic.Code).IsEqualTo("authoring_invalid_parameter");
+            await Assert.That(diagnostic.Arguments).IsEquivalentTo(
+                [
+                    new AuthoringDiagnosticArgument("contractKey", new ContractKeyDiagnosticValue(Contract(contractId))),
+                    new AuthoringDiagnosticArgument("parameterId", new StableTokenDiagnosticValue(expected[index].ParameterId)),
+                    new AuthoringDiagnosticArgument("rule", new StableTokenDiagnosticValue(expected[index].Rule)),
+                ],
+                CollectionOrdering.Matching);
         }
     }
 
@@ -280,10 +263,7 @@ internal sealed class ProjectEditorComponentContractTests
         return ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
             "Component contract fixture",
             LibrarySnapshot.Core,
-            new SymbolProfileReference(
-                "TeachingMixed",
-                "1.0.0",
-                IndicationConvention.Negation),
+            TeachingMixedProfile(),
             "Main"))).Revision;
     }
 
@@ -299,20 +279,6 @@ internal sealed class ProjectEditorComponentContractTests
             new ComponentPlacement(new GridPoint(
                 revision.Document.EntryCircuitDefinition.ComponentInstances.Count * 4,
                 0)));
-    }
-
-    private static ComponentParameterBinding[] ConstantParameters(
-        params LogicValue[] values)
-    {
-        return
-        [
-            new ComponentParameterBinding(
-                "width",
-                new Unsigned32ParameterValue(checked((uint)values.Length))),
-            new ComponentParameterBinding(
-                "value",
-                new LogicVectorParameterValue(values)),
-        ];
     }
 
     private static ComponentParameterBinding[] SplitParameters(
@@ -351,17 +317,6 @@ internal sealed class ProjectEditorComponentContractTests
         ];
     }
 
-    private static ComponentParameterBinding[] SinkParameters(uint width)
-    {
-        return
-        [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(width)),
-            new ComponentParameterBinding(
-                "radix",
-                new ChoiceParameterValue("binary")),
-        ];
-    }
-
     private static ComponentInstance FindByContract(
         ProjectRevision revision,
         string contractId)
@@ -369,10 +324,5 @@ internal sealed class ProjectEditorComponentContractTests
         return revision.Document.EntryCircuitDefinition.ComponentInstances.Single(
             instance => instance.Target is LibraryComponentTarget library
                 && library.ContractKey.ContractId == contractId);
-    }
-
-    private static ProjectRevision Commit(EditOutcome outcome)
-    {
-        return ((EditCommitted)outcome).Revision;
     }
 }

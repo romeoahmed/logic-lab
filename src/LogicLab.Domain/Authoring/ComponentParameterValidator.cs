@@ -290,17 +290,7 @@ internal static class ComponentParameterValidator
                 return "positiveLength";
             }
 
-            uint end;
-            try
-            {
-                end = checked(slice.Offset + slice.Length);
-            }
-            catch (OverflowException)
-            {
-                return "sliceContainment";
-            }
-
-            if (width == 0 || end > width)
+            if ((ulong)slice.Offset + slice.Length > width)
             {
                 return "sliceContainment";
             }
@@ -319,7 +309,7 @@ internal static class ComponentParameterValidator
             return "minimumItemCount";
         }
 
-        uint sum = 0;
+        ulong sum = 0;
         foreach (var width in widths.Values)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -328,11 +318,8 @@ internal static class ComponentParameterValidator
                 return "positiveWidth";
             }
 
-            try
-            {
-                sum = checked(sum + width);
-            }
-            catch (OverflowException)
+            sum += width;
+            if (sum > uint.MaxValue)
             {
                 return "widthSum";
             }

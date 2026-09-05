@@ -8,16 +8,16 @@ and observing gate-level circuits. It connects a Canvas-first schematic editor t
 deterministic four-state `0/1/X/Z` semantics, discrete Logical Time, and an integrated
 logic analyzer.
 
-> **Project status:** V1 behavior is implementation-complete. The component evidence
-> manifest and production qualification remain open; see [Delivery](./docs/delivery.md)
-> for the exact frontier. Azure deployment assets are implemented, but no environment
-> is represented as production-qualified.
+> **Project status:** Core modules and the Workbench are implemented. Workbench
+> conformance, the component evidence manifest, and production qualification remain
+> open; [Delivery](./docs/delivery.md) records the remaining work. Azure deployment
+> assets are implemented, but no environment is represented as production-qualified.
 
 ## What you can do
 
 - **Author real topology.** Place components, route orthogonal wires, create explicit
-  Junctions, build hierarchical Circuit Definitions, and move through revision
-  history without deriving identity from pixels.
+  Junctions, and inspect hierarchical Circuit Definitions without deriving identity
+  from pixels.
 - **Simulate honest digital behavior.** Explore combinational, sequential, clocked,
   register, counter, ROM, and single-port RAM circuits under deterministic four-state
   semantics, including conservative feedback settlement.
@@ -80,7 +80,7 @@ A first useful pass through the workbench is:
 
 1. choose a starter or author a circuit;
 2. compile the current Project Revision;
-3. add a Probe and create a Simulation Session; and
+3. create a Simulation Session, then choose Nets to observe with Probes; and
 4. apply inputs, Step or Run, then inspect values and waveform history.
 
 The in-app `/help/getting-started` page covers the editor controls. The production

@@ -121,14 +121,20 @@ public static partial class SimulationRuntime
         var nextTrace = createdObservations.Count == 0
             ? state.Trace
             : state.Trace.ForkWithAppend(state.LogicalTime, createdObservations);
+        var outcome = new ProbeBindingsReplaced(
+            nextVersion,
+            [.. replacement.Select(probe => probe.ProbeId)],
+            [.. replacement.Select(probe => new ProbeObservation(
+                probe.ProbeId,
+                probe.Source,
+                state.NetValues[probe.NetOrdinal]))],
+            nextTrace.Cursor);
+        cancellationToken.ThrowIfCancellationRequested();
 
         state.Probes = replacement;
         state.Trace = nextTrace;
         state.SessionVersion = nextVersion;
-        return new ProbeBindingsReplaced(
-            state.SessionVersion,
-            [.. replacement.Select(probe => probe.ProbeId)],
-            state.Trace.Cursor);
+        return outcome;
     }
 
     private static ProbeBindingsInvalid InvalidProbeBindings(

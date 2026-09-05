@@ -388,15 +388,7 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
             .HasSingleItem(operation =>
                 operation.Role == StrokeRoleV1.Qualifier
                 && operation.Path.Commands.OfType<CubicToV1>().Any());
-        var groupingPoints = groupingMark.Path.Commands.SelectMany(command =>
-            command switch
-            {
-                MoveToV1 move => new[] { move.Point },
-                LineToV1 line => [line.Point],
-                CubicToV1 cubic => [cubic.Control1, cubic.Control2, cubic.End],
-                ClosePathV1 => [],
-                _ => throw new InvalidOperationException("Unknown path command."),
-            }).ToArray();
+        var groupingPoints = PathPoints(groupingMark.Path).ToArray();
         var addressAnchor = plan.PortAnchors.Single(anchor => anchor.PortId == "A");
         var groupingIsInsideBody = addressAnchor.OutwardDirection switch
         {

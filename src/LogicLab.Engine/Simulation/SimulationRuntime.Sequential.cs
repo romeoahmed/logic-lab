@@ -353,9 +353,8 @@ public static partial class SimulationRuntime
                 var inputChanged = false;
                 foreach (var netOrdinal in evaluator.InputNetOrdinals)
                 {
-                    if (!ValuesEqual(
-                            previousNetValues[netOrdinal],
-                            currentNetValues[netOrdinal]))
+                    if (!previousNetValues[netOrdinal].ContentEquals(
+                            currentNetValues[netOrdinal], cancellationToken))
                     {
                         inputChanged = true;
                         break;
@@ -558,7 +557,7 @@ public static partial class SimulationRuntime
                     driverValues,
                     other.driverValues,
                     cancellationToken)
-                && NullableVectorArraysEqual(
+                && VectorArraysEqual(
                     sequentialStates,
                     other.sequentialStates,
                     cancellationToken)
@@ -569,28 +568,6 @@ public static partial class SimulationRuntime
         }
 
         private static bool VectorArraysEqual(
-            LogicVector[] left,
-            LogicVector[] right,
-            CancellationToken cancellationToken)
-        {
-            if (left.Length != right.Length)
-            {
-                return false;
-            }
-
-            for (var index = 0; index < left.Length; index++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!VectorsEqual(left[index], right[index], cancellationToken))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        private static bool NullableVectorArraysEqual(
             LogicVector?[] left,
             LogicVector?[] right,
             CancellationToken cancellationToken)
@@ -610,10 +587,7 @@ public static partial class SimulationRuntime
                         return false;
                     }
                 }
-                else if (!VectorsEqual(
-                        left[index]!,
-                        right[index]!,
-                        cancellationToken))
+                else if (!left[index]!.ContentEquals(right[index]!, cancellationToken))
                 {
                     return false;
                 }
@@ -645,29 +619,6 @@ public static partial class SimulationRuntime
                 else if (!left[index]!.ContentEquals(
                         right[index]!,
                         cancellationToken))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        private static bool VectorsEqual(
-            LogicVector left,
-            LogicVector right,
-            CancellationToken cancellationToken)
-        {
-            if (left.Width != right.Width)
-            {
-                return false;
-            }
-
-            for (var wordIndex = 0; wordIndex < left.WordCount; wordIndex++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (left.GetLowWord(wordIndex) != right.GetLowWord(wordIndex)
-                    || left.GetHighWord(wordIndex) != right.GetHighWord(wordIndex))
                 {
                     return false;
                 }

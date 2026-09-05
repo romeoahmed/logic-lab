@@ -424,7 +424,8 @@ internal sealed class EditorWorkspaceSchedulingTests
                         opened.Opened.WorkspaceId,
                         opened.Attached,
                         "create-session"),
-                    EditorWorkspaceTestDriver.SessionCreation(published)),
+                    EditorWorkspaceTestDriver.SessionCreation(published),
+                    SessionConfigurationV1.ForEntryOutputs(published.ProjectRevision)),
                 cancellationToken);
             await Assert.That(session).IsTypeOf<SimulationSessionCreated>();
 

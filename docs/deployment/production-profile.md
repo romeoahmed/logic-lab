@@ -27,6 +27,10 @@ availability. Startup and readiness probes gate ingress cutover, but scaling to 
 or replacing a revision discards active Interactive Server circuits and process-local
 anonymous Workspaces.
 
+HTTP ingress enables cookie-based session affinity so a client's Interactive Server
+circuit and process-local Workspace transfers stay on the same replica. Affinity
+does not preserve state when that replica disappears.
+
 The public boundary is Container Apps HTTPS ingress with its platform-managed
 `azurecontainerapps.io` host. PostgreSQL and the Data Protection storage account use
 private connectivity. The first profile has no custom domain, public database
@@ -93,10 +97,9 @@ admission without exposing addresses, counts, secrets, or exceptions.
 
 ## Infrastructure and release
 
-Bicep declares ACR, monitoring, PostgreSQL, storage, networking, private DNS,
-Container Apps environment, Web, bootstrap and Migration Jobs, managed identities,
-least-privilege assignments, probes, scaling, diagnostics, alerts, and tags. Templates
-and tracked files contain no credentials.
+The [infrastructure map](../../infra/README.md) identifies each template's
+responsibility. The [release workflow](../../.github/workflows/release.yml) owns
+deployment order and checks. Templates and tracked files contain no credentials.
 
 The GitHub `production` Environment owns the qualified deployment values. Private
 cloud identifiers, resource names, recovery targets, and alert destinations are
@@ -105,52 +108,27 @@ and Web scale range are non-sensitive variables. Tracked `.bicepparam` profiles 
 those values into typed template parameters at compile time without storing the live
 values.
 
-The release workflow:
-
-1. receives production-environment approval and verifies the release tag;
-2. restores the locked production graphs and authenticates through GitHub OIDC;
-3. validates, previews, and deploys the foundation through the official Bicep
-   deployment action;
-4. publishes versioned Web and Migrator images and records their digests;
-5. emits SBOM, provenance, lock, template, and release-manifest evidence;
-6. previews the application, deploys the Jobs without updating Web, and records the
-   pre-migration PITR boundary protected by PostgreSQL automatic backups;
-7. runs principal/grant bootstrap, migration, and grant convergence in order;
-8. deploys Web by exact digest and waits for readiness and external stability.
-
-Rollback redeploys the previous known-good digest; it never rebuilds an old commit.
-Database changes follow expand/contract compatibility. Logical data recovery restores
-PostgreSQL to a new server at a verified point in time before connection cutover.
+The runbook owns [release and verification](./runbook.md#release),
+[application rollback](./runbook.md#application-rollback), and
+[data recovery](./runbook.md#failed-migration-or-data-incident). Database changes
+must preserve N/N-1 application compatibility throughout the accepted rollback window.
 
 ## Cost and lifecycle
 
-For a time-bound public demonstration, scaling Web to zero removes its usage charge
-while idle, but PostgreSQL, ACR, storage, monitoring, and networking can continue to
-accrue charges. Stopping PostgreSQL is temporary because Azure starts it again after
-seven days. For a longer offline period, export and verify any data worth retaining,
-then delete the resource group.
-
-Azure Cost Management budgets provide delayed notifications, not a spending cap. The
-operator must configure a budget against the available spend and inspect actual cost
-after the first deployment.
+Scaling Web to zero leaves PostgreSQL, ACR, storage, monitoring, and networking
+resources in place; it is not a resource-group shutdown. The runbook owns
+[budgets and offline procedures](./runbook.md#cost-control-and-offline-periods).
 
 ## Qualification boundary
 
-Before item `42` can close, the selected profile still requires subscription quota,
-mainland reachability, owner assignments, explicit RTO/RPO acceptance, alert
-destinations, a credit budget, and calibrated policies.
-
-Item `43` requires recorded drills for migration, backup/restore, Data Protection key
-continuity, upgrade, rollback, telemetry, load, security, and the complete runbooks.
-No workflow, Bicep validation, or successful build alone proves production
-qualification.
-
-The [runbook](./runbook.md) owns the operating procedure and the
-[qualification record](./qualification.md) lists the evidence still required.
+The [qualification record](./qualification.md) owns the decision and drill criteria;
+[Delivery](../delivery.md#production-qualification) records completion. Source checks
+and successful builds do not replace deployment evidence or operational drills.
 
 ## Sources
 
 - [Azure Container Apps revisions](https://learn.microsoft.com/en-us/azure/container-apps/revisions)
+- [Azure Container Apps session affinity](https://learn.microsoft.com/en-us/azure/container-apps/sticky-sessions)
 - [Azure Container Apps health probes](https://learn.microsoft.com/en-us/azure/container-apps/health-probes)
 - [Azure Container Apps scaling](https://learn.microsoft.com/en-us/azure/container-apps/scale-app)
 - [Managed identities in Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/managed-identity)

@@ -92,7 +92,7 @@ internal sealed class BrowserSceneAdapterTests
         NonEmptyArray<NonNegativeInt> generatedRequests)
     {
         var handle = new RecordingJsObjectReference(
-            measurementFactory: CreateMeasurementRecord);
+            measurementFactory: BrowserMeasurementFixture.CreateRecord);
         var policy = MeasurementPolicy();
         var mounted = await MountAsync(handle, policy);
         using var sink = mounted.Sink;
@@ -153,6 +153,23 @@ internal sealed class BrowserSceneAdapterTests
             await Assert.That(handle.IsDisposed).IsTrue();
             await Assert.That(module.IsDisposed).IsTrue();
         }
+    }
+
+    [Test]
+    public async Task CaptureRecoveryState_NullViewport_RejectsTheBrowserContract()
+    {
+        using var recoveryJson = JsonDocument.Parse("""{"viewports":[null]}""");
+        var handle = new RecordingJsObjectReference(
+            recoveryStateRecord: recoveryJson.RootElement.Clone());
+        var mounted = await MountAsync(handle);
+        using var sink = mounted.Sink;
+        await using var adapter = mounted.Adapter;
+
+        var exception = await Assert.That(async () =>
+                await adapter.CaptureRecoveryStateAsync(CancellationToken.None))
+            .ThrowsExactly<BrowserSceneContractException>();
+
+        await Assert.That(exception!.TransferKind).IsEqualTo("recoveryState");
     }
 
     [Test]
@@ -245,38 +262,6 @@ internal sealed class BrowserSceneAdapterTests
                 0,
                 false)))],
         []);
-
-    private static JsonElement CreateMeasurementRecord(object?[] arguments)
-    {
-        var requests = arguments[0] as IReadOnlyList<BrowserTextMeasurementRequestV1>
-            ?? throw new InvalidOperationException("No measurement requests were provided.");
-        var assetFingerprint = new string('8', 64);
-        var measurements = requests.Select(request => new BrowserTextMeasurementV1(
-            request.Key,
-            120,
-            -4,
-            -80,
-            116,
-            20)).ToArray();
-        var canonical = string.Join('\n', measurements
-            .OrderBy(measurement => measurement.Key, StringComparer.Ordinal)
-            .Select(measurement => $"{measurement.Key}:{measurement.AdvanceWidth}:"
-                + $"{measurement.InkLeft}:{measurement.InkTop}:{measurement.InkRight}:"
-                + $"{measurement.InkBottom}"));
-        var fontFingerprint = Convert.ToHexStringLower(SHA256.HashData(
-            Encoding.UTF8.GetBytes(
-                $"logiclab-browser-font-v1\nAtkinson Hyperlegible Next\n"
-                + $"{assetFingerprint}\n{canonical}")));
-        return JsonSerializer.SerializeToElement(
-            new
-            {
-                FontFamily = "Atkinson Hyperlegible Next",
-                AssetFingerprint = assetFingerprint,
-                FontFingerprint = fontFingerprint,
-                Measurements = measurements,
-            },
-            WebJson);
-    }
 
     private sealed class Sink;
 

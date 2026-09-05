@@ -268,7 +268,7 @@ internal sealed class PackedMemory
 
     private void ValidateAddress(int address)
     {
-        if ((uint)address >= (uint)Depth)
+        if (address < 0 || address >= Depth)
         {
             throw new ArgumentOutOfRangeException(nameof(address));
         }

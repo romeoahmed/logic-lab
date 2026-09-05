@@ -178,6 +178,30 @@ internal sealed class EditorWorkspaceTraceTests
             .IsEqualTo(WorkspaceOutcomeReasons.SessionPreconditionFailed);
     }
 
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task TraceWindow_DefaultRange_RejectsBeforeDispatch(
+        bool summary,
+        CancellationToken cancellationToken)
+    {
+        await using var workspace = TestEditorWorkspaceFactory.Create(
+            WorkspaceBuild.TestFingerprint);
+        var session = await OpenVectorSessionAsync(workspace, cancellationToken);
+        var simulation = session.Projection.Simulation!;
+
+        await Assert.That(() => new TraceWindowRequest(
+                simulation.SessionId,
+                simulation.CompilationArtifactKey,
+                [simulation.Probes[0].ProbeId],
+                default,
+                summary
+                    ? new TraceVisualSummaryRequest(1, TraceVisualSummaryRequest.LogicEnvelopeV1)
+                    : TraceTransitionsRequest.Instance,
+                afterSequence: null))
+            .ThrowsExactly<ArgumentException>();
+    }
+
     [Test, FsCheckProperty]
     public Property LogicVectorTransfer_GeneratedLogic4ValuesRoundTripPackedData(
         NonEmptyArray<byte> generatedValues)
@@ -316,7 +340,8 @@ internal sealed class EditorWorkspaceTraceTests
         _ = await workspace.DispatchAsync(
             new CreateSession(
                 Command(opened.WorkspaceId, attached),
-                EditorWorkspaceTestDriver.SessionCreation(compiled)),
+                EditorWorkspaceTestDriver.SessionCreation(compiled),
+                SessionConfigurationV1.ForEntryOutputs(compiled.ProjectRevision)),
             cancellationToken);
         var projection = await ReadProjectionAsync(
             workspace,

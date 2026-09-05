@@ -87,8 +87,8 @@ public static partial class ProjectEditor
 
         foreach (var sourceNet in sourceNets)
         {
-            AddDistinct(finalTerminals, sourceNet.Terminals);
-            AddDistinct(finalJunctionIds, sourceNet.JunctionIds);
+            finalTerminals.AddRange(sourceNet.Terminals);
+            finalJunctionIds.AddRange(sourceNet.JunctionIds);
         }
 
         var hadNewTerminal = AddDistinct(
@@ -109,7 +109,7 @@ public static partial class ProjectEditor
         var newJunctions = intent.NewJunctionPositions
             .Select(position => new Junction(JunctionId.Create(), finalNetId, position))
             .ToArray();
-        AddDistinct(finalJunctionIds, newJunctions.Select(item => item.Id));
+        finalJunctionIds.AddRange(newJunctions.Select(item => item.Id));
         var newGeometries = intent.RouteAdditions
             .Select(route => new WireGeometry(
                 WireGeometryId.Create(),
@@ -571,8 +571,8 @@ public static partial class ProjectEditor
         var junctionIds = destination.JunctionIds.ToList();
         foreach (var source in orderedSources)
         {
-            AddDistinct(terminals, source.Terminals);
-            AddDistinct(junctionIds, source.JunctionIds);
+            terminals.AddRange(source.Terminals);
+            junctionIds.AddRange(source.JunctionIds);
         }
 
         var merged = new Net(
@@ -745,9 +745,13 @@ public static partial class ProjectEditor
         }
 
         var expected = destinationNet?.Width ?? terminals[0].Width;
-        var terminalMismatch = terminals.FirstOrDefault(item => item.Width != expected);
-        if (terminalMismatch is not null)
+        if (terminals.Any(item => item.Width != expected))
         {
+            // Canonicalize the diagnostic witness without changing authored membership order.
+            var ordered = terminals.OrderBy(item => TerminalKey(item.Reference), StringComparer.Ordinal)
+                .ToArray();
+            expected = destinationNet?.Width ?? ordered[0].Width;
+            var terminalMismatch = ordered.First(item => item.Width != expected);
             diagnostics.Add(WidthMismatch(expected, terminalMismatch.Width));
             return;
         }

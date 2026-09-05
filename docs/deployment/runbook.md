@@ -86,8 +86,9 @@ Environment values, then performs five ordered phases:
 4. **Database:** preview application resources, deploy Jobs without Web, record the
    pre-migration PITR boundary, converge principals, migrate, and converge grants
    again.
-5. **Web:** deploy the exact digest, wait for startup/readiness and external stability,
-   then record the endpoint and digests.
+5. **Web:** deploy the exact digest, verify the target revision and image are active
+   and ready, then check the public endpoint while continuing to verify revision
+   identity. A healthy response from the previous revision cannot complete release.
 
 If recovery-boundary capture, bootstrap, migration, or readiness fails, stop. Preserve
 deployment, Job, Application Insights, and Log Analytics evidence. Diagnose the root
@@ -100,7 +101,8 @@ schema manually or rerun unrelated substeps.
   evidence. Record the selected PostgreSQL server only in restricted operations
   evidence.
 - Verify `/health/live` and `/health/ready` externally over HTTPS.
-- Confirm one active Container Apps revision and the selected Web replica range.
+- Confirm the intended Container Apps revision, image digest, selected Web replica
+  range, and ingress session affinity.
 - Verify redacted request, dependency, migration, readiness, and alert telemetry.
 - Confirm Data Protection key continuity through one controlled Web restart.
 - Verify and retain OCI attestations and release evidence under the accepted policy.

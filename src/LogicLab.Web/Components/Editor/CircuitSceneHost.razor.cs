@@ -18,14 +18,14 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     private readonly CancellationTokenSource componentLifetime = new();
     private ElementReference hostElement;
     private BrowserSceneAdapter? adapter;
-    private SceneCallbackSink? callbackSink;
     private DotNetObjectReference<SceneCallbackSink>? callbackReference;
     private PublicationKey? publishedKey;
-    private PublicationKey? failedKey;
     private SceneSnapshotV1? currentSnapshot;
     private BrowserSceneRecoveryStateV1? recoveryState;
     private ulong nextSceneVersion;
-    private bool publishInProgress;
+    private bool rendererUpdateInProgress;
+    private bool retryInProgress;
+    private SceneToolV1? publishedTool;
     private string rendererState = RendererStartingState;
     private string? failureCode;
     private IReadOnlyList<string> projectionDiagnostics = [];
@@ -113,57 +113,114 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         ? SceneSelectToolV1.Instance
         : ActiveTool;
 
+    private bool CanUpdateRenderer => isDisposed == 0 && !retryInProgress
+        && rendererState != RendererUnavailableState;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!RendererInfo.IsInteractive || isDisposed != 0)
+        if (!RendererInfo.IsInteractive || !CanUpdateRenderer || rendererUpdateInProgress)
         {
             return;
         }
 
-        if (adapter is null && rendererState == RendererUnavailableState)
-        {
-            return;
-        }
-
-        if (adapter is null)
-        {
-            callbackSink = new SceneCallbackSink(this, rendererGeneration);
-            callbackReference = DotNetObjectReference.Create(callbackSink);
-            try
-            {
-                adapter = await BrowserSceneAdapter.MountAsync(
-                    JS,
-                    hostElement,
-                    LogicLabWebBuild.Fingerprint,
-                    Policy,
-                    callbackReference,
-                    componentLifetime.Token,
-                    recoveryState);
-                recoveryState = null;
-            }
-            catch (Exception exception) when (IsRecoverable(exception))
-            {
-                FailClosed("web_interop_failure");
-                return;
-            }
-        }
-
+        // Renders can reenter across interop awaits; update one browser handle at a time.
+        rendererUpdateInProgress = true;
+        var generation = rendererGeneration;
+        var observedFailureEpoch = failureEpoch;
+        var cancellationToken = componentLifetime.Token;
+        var renderRequired = false;
+        PublicationKey? attemptedKey = null;
         try
         {
-            await adapter.SetToolAsync(EffectiveTool, componentLifetime.Token);
-        }
-        catch (Exception exception) when (IsRecoverable(exception))
-        {
-            FailClosed("web_interop_failure");
-            return;
-        }
+            if (adapter is null)
+            {
+                var reference = DotNetObjectReference.Create(new SceneCallbackSink(this, generation));
+                try
+                {
+                    var candidate = await BrowserSceneAdapter.MountAsync(
+                        JS, hostElement, LogicLabWebBuild.Fingerprint, Policy,
+                        reference, cancellationToken, recoveryState);
+                    if (!IsCurrentRenderer(generation, observedFailureEpoch))
+                    {
+                        await candidate.DisposeAsync();
+                        return;
+                    }
 
-        await PublishIfRequiredAsync();
+                    adapter = candidate;
+                    callbackReference = reference;
+                    reference = null;
+                    recoveryState = null;
+                }
+                finally
+                {
+                    reference?.Dispose();
+                }
+            }
+
+            var tool = EffectiveTool;
+            if (publishedTool != tool)
+            {
+                await adapter.SetToolAsync(tool, cancellationToken);
+                if (!IsCurrentRenderer(generation, observedFailureEpoch))
+                {
+                    return;
+                }
+
+                publishedTool = tool;
+            }
+
+            var key = CurrentKey();
+            if (key != publishedKey)
+            {
+                attemptedKey = key;
+                renderRequired = true;
+                await PublishAsync(adapter, key, generation, observedFailureEpoch, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (IsRecoverable(exception) || exception is BrowserPolicyException)
+        {
+            // A browser failure callback may precede the failed interop response.
+            if (IsCurrentRenderer(generation, observedFailureEpoch)
+                && (attemptedKey is null || attemptedKey == CurrentKey()))
+            {
+                var code = exception switch
+                {
+                    BrowserPolicyException => "browserPolicyExhausted",
+                    BrowserSceneContractException { TransferKind: "patch" } => "invalidPatch",
+                    BrowserSceneContractException => "invalidSnapshot",
+                    _ => "web_interop_failure",
+                };
+                FailClosed(code, exception is BrowserPolicyException policyException
+                    ? BrowserPolicyEvidenceV1.From(policyException)
+                    : null);
+                renderRequired = true;
+            }
+        }
+        finally
+        {
+            rendererUpdateInProgress = false;
+            if (isDisposed == 0 && (renderRequired || HasPendingRendererUpdate()))
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
     }
+
+    private bool IsCurrentRenderer(ulong generation, ulong observedFailureEpoch) =>
+        CanUpdateRenderer && generation == rendererGeneration && observedFailureEpoch == failureEpoch;
+
+    private bool HasPendingRendererUpdate() => CanUpdateRenderer
+        && (adapter is null || publishedTool != EffectiveTool || CurrentKey() != publishedKey);
+
+    private bool CanAcceptCallback(ulong generation) =>
+        isDisposed == 0 && !retryInProgress && generation == rendererGeneration;
 
     private async Task ReceiveSceneIntentAsync(ulong generation, JsonElement record)
     {
-        if (isDisposed != 0 || generation != rendererGeneration)
+        if (!CanAcceptCallback(generation))
         {
             return;
         }
@@ -226,17 +283,6 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             return;
         }
 
-        await ReceiveSceneIntentCoreAsync(intent, payloadBytes);
-    }
-
-    private async Task ReceiveSceneIntentCoreAsync(SceneIntentV1 intent, ulong payloadBytes)
-    {
-        if (intent.BuildFingerprint != LogicLabWebBuild.Fingerprint)
-        {
-            Navigation.Refresh(forceReload: true);
-            return;
-        }
-
         var snapshot = currentSnapshot;
         if (snapshot is null
             || intent.SceneVersion != snapshot.SceneVersion
@@ -260,14 +306,11 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             return;
         }
 
-        if (payloadBytes > Policy.Limit(BrowserLimitDimension.SemanticIntentBytes)
-            || selection.Sources is null
-            || selection.SelectionMode is not ("replace" or "add" or "toggle")
+        if (selection.SelectionMode is not ("replace" or "add" or "toggle")
             || (selection.Sources.Count == 0 && selection.SelectionMode != "replace")
             || selection.Sources.Select(source => source.Key)
                 .Distinct(StringComparer.Ordinal).Count() != selection.Sources.Count
-            || selection.Sources.Any(source => source is null
-                || source.CircuitDefinitionId
+            || selection.Sources.Any(source => source.CircuitDefinitionId
                 != snapshot.CircuitDefinitionId
                 || !SceneSourceMap.Contains(ProjectRevision, source)))
         {
@@ -286,7 +329,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     private Task SceneSnapshotRequiredAsync(ulong generation)
     {
-        if (isDisposed != 0 || generation != rendererGeneration)
+        if (!CanAcceptCallback(generation))
         {
             return Task.CompletedTask;
         }
@@ -300,7 +343,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     private Task SceneRendererFailedAsync(ulong generation, string code)
     {
-        if (isDisposed != 0 || generation != rendererGeneration)
+        if (!CanAcceptCallback(generation))
         {
             return Task.CompletedTask;
         }
@@ -344,7 +387,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         string dimensionToken,
         string observedText)
     {
-        if (isDisposed != 0 || generation != rendererGeneration)
+        if (!CanAcceptCallback(generation))
         {
             return Task.CompletedTask;
         }
@@ -367,7 +410,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     private Task SceneConnectionChangedAsync(ulong generation, bool isConnected)
     {
-        if (isDisposed != 0 || generation != rendererGeneration || adapter is null)
+        if (!CanAcceptCallback(generation) || adapter is null)
         {
             return Task.CompletedTask;
         }
@@ -387,8 +430,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     private Task SceneToolConsumedAsync(ulong generation)
     {
-        if (isDisposed == 0
-            && generation == rendererGeneration
+        if (CanAcceptCallback(generation)
             && ActiveTool is ScenePlaceToolV1 { Pinned: false })
         {
             return OnToolConsumed.InvokeAsync();
@@ -399,7 +441,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     private Task SceneBuildMismatchAsync(ulong generation)
     {
-        if (isDisposed == 0 && generation == rendererGeneration)
+        if (CanAcceptCallback(generation))
         {
             Navigation.Refresh(forceReload: true);
         }
@@ -414,179 +456,154 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             return;
         }
 
+        var retiredAdapter = adapter;
+        var retiredReference = callbackReference;
+        adapter = null;
+        callbackReference = null;
         await componentLifetime.CancelAsync();
         try
         {
-            if (adapter is not null)
+            if (retiredAdapter is not null)
             {
-                await adapter.DisposeAsync();
+                await retiredAdapter.DisposeAsync();
             }
         }
         finally
         {
-            callbackReference?.Dispose();
-            callbackSink = null;
+            retiredReference?.Dispose();
             componentLifetime.Dispose();
         }
     }
 
-    private async Task PublishIfRequiredAsync()
+    private async Task PublishAsync(
+        BrowserSceneAdapter publishingAdapter,
+        PublicationKey key,
+        ulong generation,
+        ulong observedFailureEpoch,
+        CancellationToken cancellationToken)
     {
-        var key = CurrentKey();
-        var publishingAdapter = adapter;
-        if (publishingAdapter is null
-            || publishInProgress
-            || rendererState == RendererUnavailableState
-            || key == publishedKey
-            || key == failedKey)
+        var maximumPortCount = checked((ulong)WorkspacePolicy.AuthoringLimits.EntityCount);
+        var requests = BrowserTextMeasurements.Collect(
+            ProjectRevision, CircuitDefinitionId, UiCulture, maximumPortCount, cancellationToken);
+        var measurements = await publishingAdapter.MeasureTextAsync(requests, cancellationToken);
+        // Measurement awaits the browser; only project the revision it measured.
+        if (key != CurrentKey() || !IsCurrentRenderer(generation, observedFailureEpoch))
         {
             return;
         }
 
-        var observedFailureEpoch = failureEpoch;
-        publishInProgress = true;
-        try
+        var measurer = new BrowserMeasuredTextMeasurer(requests, measurements);
+        var sceneVersion = checked(++nextSceneVersion);
+        var replacement = BrowserSceneProjection.Project(
+            LogicLabWebBuild.Fingerprint,
+            sceneVersion,
+            ProjectionVersion,
+            ProjectRevision,
+            CircuitDefinitionId,
+            UiCulture,
+            Policy,
+            maximumPortCount,
+            measurer,
+            BuildOverlayInput(),
+            cancellationToken: cancellationToken);
+
+        if (replacement is SceneSnapshotV1 nextSnapshot
+            && currentSnapshot is { } publishedSnapshot
+            && ScenePatchV1.TryCreate(
+                publishedSnapshot,
+                nextSnapshot,
+                Policy.Limit(BrowserLimitDimension.ScenePatchRecordCount),
+                out var patch))
         {
-            var maximumPortCount = checked(
-                (ulong)WorkspacePolicy.AuthoringLimits.EntityCount);
-            var requests = BrowserTextMeasurements.Collect(
-                ProjectRevision,
-                CircuitDefinitionId,
-                UiCulture,
-                maximumPortCount,
-                componentLifetime.Token);
-            var measurements = await publishingAdapter.MeasureTextAsync(
-                requests,
-                componentLifetime.Token);
-            var measurer = new BrowserMeasuredTextMeasurer(requests, measurements);
-            var sceneVersion = checked(++nextSceneVersion);
-            var replacement = BrowserSceneProjection.Project(
-                LogicLabWebBuild.Fingerprint,
-                sceneVersion,
-                ProjectionVersion,
-                ProjectRevision,
-                CircuitDefinitionId,
-                UiCulture,
-                Policy,
-                maximumPortCount,
-                measurer,
-                BuildOverlayInput(),
-                cancellationToken: componentLifetime.Token);
-            if (key != CurrentKey()
-                || adapter != publishingAdapter
-                || observedFailureEpoch != failureEpoch)
+            try
             {
-                return;
+                await publishingAdapter.ApplyAsync(patch, cancellationToken);
             }
+            catch (BrowserSceneContractException exception) when (
+                exception.TransferKind == "patch"
+                && IsCurrentRenderer(generation, observedFailureEpoch))
+            {
+                await publishingAdapter.ReplaceAsync(nextSnapshot, cancellationToken);
+            }
+        }
+        else
+        {
+            await publishingAdapter.ReplaceAsync(replacement, cancellationToken);
+        }
 
-            if (replacement is SceneSnapshotV1 nextSnapshot
-                && currentSnapshot is { } publishedSnapshot
-                && ScenePatchV1.TryCreate(
-                    publishedSnapshot,
-                    nextSnapshot,
-                    Policy.Limit(BrowserLimitDimension.ScenePatchRecordCount),
-                    out var patch))
-            {
-                try
-                {
-                    await publishingAdapter.ApplyAsync(patch, componentLifetime.Token);
-                }
-                catch (BrowserSceneContractException exception) when (
-                    exception.TransferKind == "patch"
-                    && observedFailureEpoch == failureEpoch)
-                {
-                    await publishingAdapter.ReplaceAsync(
-                        nextSnapshot,
-                        componentLifetime.Token);
-                }
-            }
-            else
-            {
-                await publishingAdapter.ReplaceAsync(replacement, componentLifetime.Token);
-            }
-            if (adapter != publishingAdapter || observedFailureEpoch != failureEpoch)
-            {
-                return;
-            }
-
+        if (IsCurrentRenderer(generation, observedFailureEpoch))
+        {
             UpdateRendererState(replacement);
             publishedKey = key;
-            failedKey = null;
             browserPolicyEvidence = null;
-        }
-        catch (OperationCanceledException) when (componentLifetime.IsCancellationRequested)
-        {
-        }
-        catch (BrowserPolicyException exception)
-        {
-            failedKey = key;
-            FailClosed(
-                "browserPolicyExhausted",
-                BrowserPolicyEvidenceV1.From(exception));
-        }
-        catch (BrowserSceneContractException exception)
-        {
-            // A browser-owned policy failure clears the bitmap and reports its terminal
-            // state before the rejected transfer returns. Preserve that authoritative
-            // classification instead of overwriting it as a malformed candidate.
-            if (observedFailureEpoch == failureEpoch)
-            {
-                failedKey = key;
-                FailClosed(exception.TransferKind == "patch"
-                    ? "invalidPatch"
-                    : "invalidSnapshot");
-            }
-        }
-        catch (Exception exception) when (IsRecoverable(exception))
-        {
-            failedKey = key;
-            FailClosed("web_interop_failure");
-        }
-        finally
-        {
-            publishInProgress = false;
-            if (isDisposed == 0)
-            {
-                await InvokeAsync(StateHasChanged);
-            }
         }
     }
 
     private async Task RetryAsync()
     {
-        var failedAdapter = adapter;
-        if (failedAdapter is not null)
+        if (isDisposed != 0 || retryInProgress)
         {
-            try
-            {
-                recoveryState = await failedAdapter.CaptureRecoveryStateAsync(
-                    componentLifetime.Token);
-            }
-            catch (Exception exception) when (IsRecoverable(exception))
-            {
-            }
+            return;
         }
 
+        retryInProgress = true;
+        var retiredAdapter = adapter;
+        var retiredReference = callbackReference;
+        var cancellationToken = componentLifetime.Token;
         adapter = null;
-        callbackReference?.Dispose();
         callbackReference = null;
-        callbackSink = null;
+        publishedTool = null;
         currentSnapshot = null;
-        failedKey = null;
         publishedKey = null;
-        rendererState = RendererStartingState;
-        failureCode = null;
-        projectionDiagnostics = [];
-        browserPolicyEvidence = null;
-        rendererGeneration = checked(rendererGeneration + 1);
-        if (failedAdapter is not null)
+        try
+        {
+            if (retiredAdapter is not null)
+            {
+                try
+                {
+                    var captured = await retiredAdapter.CaptureRecoveryStateAsync(cancellationToken);
+                    if (isDisposed == 0)
+                    {
+                        recoveryState = captured;
+                    }
+                }
+                catch (Exception exception) when (IsRecoverable(exception))
+                {
+                }
+            }
+
+            if (isDisposed == 0)
+            {
+                // Keep the old host mounted until its viewport has been captured.
+                rendererGeneration = checked(rendererGeneration + 1);
+                rendererState = RendererStartingState;
+                failureCode = null;
+                projectionDiagnostics = [];
+                browserPolicyEvidence = null;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
         {
             try
             {
-                await failedAdapter.DisposeAsync();
+                if (retiredAdapter is not null)
+                {
+                    try
+                    {
+                        await retiredAdapter.DisposeAsync();
+                    }
+                    catch (Exception exception) when (IsRecoverable(exception))
+                    {
+                    }
+                }
             }
-            catch (Exception exception) when (IsRecoverable(exception))
+            finally
             {
+                retiredReference?.Dispose();
+                retryInProgress = false;
             }
         }
     }
@@ -609,52 +626,22 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         or "setWireRoute"
         or "toggleProbe";
 
+    // Constructors validate required references and own their collection elements.
     private static bool HasRequiredPayload(SceneIntentV1 intent) => intent switch
     {
-        PlaceComponentSceneIntentV1 place => place.Target is not null
-            && place.Parameters is not null
-            && place.Parameters.All(item => item is not null)
-            && place.Placement is not null
-            && IsSnapModifier(place.SnapModifier),
-        MoveComponentsSceneIntentV1 move => move.Moves is { Count: > 0 }
-            && move.Moves.All(item => item is not null)
+        PlaceComponentSceneIntentV1 place => IsSnapModifier(place.SnapModifier),
+        MoveComponentsSceneIntentV1 move => move.Moves.Count > 0
             && IsSnapModifier(move.SnapModifier),
-        MoveDefinitionPortsSceneIntentV1 move => move.Moves is { Count: > 0 }
-            && move.Moves.All(item => item is not null)
+        MoveDefinitionPortsSceneIntentV1 move => move.Moves.Count > 0
             && IsSnapModifier(move.SnapModifier),
-        MoveAnnotationsSceneIntentV1 move => move.Moves is { Count: > 0 }
-            && move.Moves.All(item => item is not null)
+        MoveAnnotationsSceneIntentV1 move => move.Moves.Count > 0
             && IsSnapModifier(move.SnapModifier),
-        CommitWireSceneIntentV1 wire => wire.Terminals is { Count: > 0 }
-            && wire.Terminals.All(item => item is not null)
-            && wire.NewJunctionPositions is not null
-            && wire.NewJunctionPositions.All(item => item is not null)
-            && wire.RouteAdditions is not null
-            && wire.RouteAdditions.All(item => item is not null)
-            && wire.RouteReplacements is not null
-            && wire.RouteReplacements.All(item => item is not null)
+        CommitWireSceneIntentV1 wire => wire.Terminals.Count > 0
             && IsSnapModifier(wire.SnapModifier),
-        AddJunctionSceneIntentV1 add => add.Net is not null
-            && add.Position is not null
-            && add.RouteAdditions is not null
-            && add.RouteAdditions.All(item => item is not null)
-            && add.RouteReplacements is not null
-            && add.RouteReplacements.All(item => item is not null)
-            && add.RouteRemovals is not null
-            && add.RouteRemovals.All(item => item is not null)
-            && IsSnapModifier(add.SnapModifier),
-        RemoveJunctionSceneIntentV1 remove => remove.Junction is not null
-            && remove.ResultingPartitions is not null
-            && remove.ResultingPartitions.All(item => item is not null)
-            && remove.RouteReplacements is not null
-            && remove.RouteReplacements.All(item => item is not null)
-            && remove.RouteRemovals is not null
-            && remove.RouteRemovals.All(item => item is not null)
-            && IsSnapModifier(remove.SnapModifier),
-        SetWireRouteSceneIntentV1 route => route.WireGeometry is not null
-            && route.Route is not null
-            && IsSnapModifier(route.SnapModifier),
-        ToggleProbeSceneIntentV1 probe => probe.Net is not null,
+        AddJunctionSceneIntentV1 add => IsSnapModifier(add.SnapModifier),
+        RemoveJunctionSceneIntentV1 remove => IsSnapModifier(remove.SnapModifier),
+        SetWireRouteSceneIntentV1 route => IsSnapModifier(route.SnapModifier),
+        ToggleProbeSceneIntentV1 => true,
         _ => false,
     };
 

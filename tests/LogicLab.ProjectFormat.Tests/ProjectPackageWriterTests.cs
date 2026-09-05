@@ -420,6 +420,26 @@ internal sealed class ProjectPackageWriterTests
     }
 
     [Test]
+    public async Task WriteAsync_CancelledDuringFinalFlush_RejectsCompletedCarrier()
+    {
+        using var cancellation = new CancellationTokenSource();
+        await using var destination = new CancellingFlushStream(cancellation);
+
+        var outcome = await ProjectPackage.WriteAsync(
+            new ProjectPackageWriteRequest(
+                BeginProject("Cancelled flush", "Main"), destination, PackagePolicy.Default),
+            cancellation.Token);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageWriteRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("package_cancelled");
+            await Assert.That(destination.Length).IsGreaterThan(0L);
+            await Assert.That(destination.CanWrite).IsTrue();
+        }
+    }
+
+    [Test]
     public async Task WriteAsync_DestinationFlushFails_PreservesBytesAndClassifiesInfrastructure()
     {
         var revision = BeginProject("Failing destination", "Main");
@@ -799,5 +819,11 @@ internal sealed class ProjectPackageWriterTests
     {
         public override Task FlushAsync(CancellationToken cancellationToken) =>
             Task.FromException(new InvalidOperationException("Destination flush failed."));
+    }
+
+    private sealed class CancellingFlushStream(CancellationTokenSource cancellation) : MemoryStream
+    {
+        public override Task FlushAsync(CancellationToken cancellationToken) =>
+            cancellation.CancelAsync();
     }
 }

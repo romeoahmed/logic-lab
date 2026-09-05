@@ -56,6 +56,23 @@ internal sealed class SimulationContractTests
     }
 
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task TraceWindow_DefaultRange_ThrowsBeforeRead(bool visualSummary)
+    {
+        TraceWindowRepresentation representation = visualSummary
+            ? new TraceVisualSummaryRepresentation(
+                1, TraceVisualSummaryRepresentation.LogicEnvelopeV1)
+            : TraceTransitionsRepresentation.Instance;
+
+        await Assert.That(() => new SimulationTraceWindowRequest(
+            [ProbeId.Create()],
+            default,
+            representation,
+            afterSequence: null)).ThrowsExactly<ArgumentException>();
+    }
+
+    [Test]
     public async Task ConfigurationAndStimulusBatch_MutatedInputs_PreserveOwnedOrder()
     {
         var context = SimulationTestContext.Create();

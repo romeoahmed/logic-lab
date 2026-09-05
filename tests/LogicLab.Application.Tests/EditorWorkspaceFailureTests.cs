@@ -113,7 +113,8 @@ internal sealed class EditorWorkspaceFailureTests
         var outcome = await workspace.DispatchAsync(
             new CreateSession(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
-                EditorWorkspaceTestDriver.SessionCreation(before)),
+                EditorWorkspaceTestDriver.SessionCreation(before),
+                SessionConfigurationV1.ForEntryOutputs(before.ProjectRevision)),
             CancellationToken.None);
         var after = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
@@ -155,7 +156,8 @@ internal sealed class EditorWorkspaceFailureTests
         var outcome = await workspace.DispatchAsync(
             new CreateSession(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
-                EditorWorkspaceTestDriver.SessionCreation(before)),
+                EditorWorkspaceTestDriver.SessionCreation(before),
+                SessionConfigurationV1.ForEntryOutputs(before.ProjectRevision)),
             CancellationToken.None);
         var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
 
@@ -188,27 +190,28 @@ internal sealed class EditorWorkspaceFailureTests
         var created = await workspace.DispatchAsync(
             new CreateSession(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
-                EditorWorkspaceTestDriver.SessionCreation(beforeSession)),
+                EditorWorkspaceTestDriver.SessionCreation(beforeSession),
+                SessionConfigurationV1.ForEntryOutputs(beforeSession.ProjectRevision)),
             CancellationToken.None);
         await Assert.That(created).IsTypeOf<SimulationSessionCreated>();
 
         var beforeFirstSchedule = await Read(workspace, opened);
         var first = await workspace.DispatchAsync(
-            new ScheduleInputStimulus(
+            EditorWorkspaceTestDriver.ScheduleInput(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
                 EditorWorkspaceTestDriver.SessionMutation(beforeFirstSchedule),
                 1,
-                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+                input.Id, [LogicValue.One]),
             CancellationToken.None);
         await Assert.That(first).IsTypeOf<StimulusScheduled>();
         var beforeRejectedSchedule = await Read(workspace, opened);
 
         var outcome = await workspace.DispatchAsync(
-            new ScheduleInputStimulus(
+            EditorWorkspaceTestDriver.ScheduleInput(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
                 EditorWorkspaceTestDriver.SessionMutation(beforeRejectedSchedule),
                 2,
-                [new InputStimulusAssignment(input.Id, [LogicValue.Zero])]),
+                input.Id, [LogicValue.Zero]),
             CancellationToken.None);
         var after = await Read(workspace, opened);
         var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
@@ -254,7 +257,8 @@ internal sealed class EditorWorkspaceFailureTests
         var outcome = await workspace.DispatchAsync(
             new CreateSession(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
-                EditorWorkspaceTestDriver.SessionCreation(before)),
+                EditorWorkspaceTestDriver.SessionCreation(before),
+                SessionConfigurationV1.ForEntryOutputs(before.ProjectRevision)),
             callerCancellation.Token);
         var after = await Read(workspace, opened);
 
@@ -294,7 +298,8 @@ internal sealed class EditorWorkspaceFailureTests
         var outcome = await workspace.DispatchAsync(
             new CreateSession(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
-                EditorWorkspaceTestDriver.SessionCreation(before)),
+                EditorWorkspaceTestDriver.SessionCreation(before),
+                SessionConfigurationV1.ForEntryOutputs(before.ProjectRevision)),
             CancellationToken.None);
         var after = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
@@ -345,7 +350,8 @@ internal sealed class EditorWorkspaceFailureTests
         var outcome = await workspace.DispatchAsync(
             new CreateSession(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
-                EditorWorkspaceTestDriver.SessionCreation(before)),
+                EditorWorkspaceTestDriver.SessionCreation(before),
+                SessionConfigurationV1.ForEntryOutputs(before.ProjectRevision)),
             cancellation.Token);
         var after = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
@@ -367,8 +373,15 @@ internal sealed class EditorWorkspaceFailureTests
         CancellationToken cancellationToken)
     {
         var readCount = 0;
+        AdvanceCommitted? committedAdvance = null;
         var operations = WorkspaceModuleOperations.Production with
         {
+            ExecuteSimulation = (handle, command, token) =>
+            {
+                var outcome = WorkspaceModuleOperations.Production.ExecuteSimulation(handle, command, token);
+                if (outcome is AdvanceCommitted committed) committedAdvance = committed;
+                return outcome;
+            },
             ReadSimulation = (handle, query, cancellationToken) =>
             {
                 if (Interlocked.Increment(ref readCount) > 1)
@@ -392,21 +405,30 @@ internal sealed class EditorWorkspaceFailureTests
         var session = await workspace.DispatchAsync(
             new CreateSession(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
-                EditorWorkspaceTestDriver.SessionCreation(beforeSession)),
+                EditorWorkspaceTestDriver.SessionCreation(beforeSession),
+                SessionConfigurationV1.ForEntryOutputs(beforeSession.ProjectRevision)),
             CancellationToken.None);
         var beforeSchedule = await Read(workspace, opened);
         var scheduled = await workspace.DispatchAsync(
-            new ScheduleInputStimulus(
+            EditorWorkspaceTestDriver.ScheduleInput(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
                 EditorWorkspaceTestDriver.SessionMutation(beforeSchedule),
                 1,
-                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+                input.Id, [LogicValue.One]),
             CancellationToken.None);
         var beforeStep = await Read(workspace, opened);
         var stepped = await workspace.DispatchAsync(
             new StepSession(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
                 EditorWorkspaceTestDriver.SessionMutation(beforeStep)),
+            CancellationToken.None);
+        var beforeProbeReplacement = await Read(workspace, opened);
+        var replacement = await workspace.DispatchAsync(
+            new ReplaceProbes(
+                EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
+                EditorWorkspaceTestDriver.SessionMutation(beforeProbeReplacement),
+                [new LogicLab.Application.Workspaces.CreateProbe(
+                    beforeProbeReplacement.Simulation!.Probes[0].Source)]),
             CancellationToken.None);
         var after = ((ProjectionSnapshot)await workspace.ReadAsync(
             EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
@@ -416,6 +438,7 @@ internal sealed class EditorWorkspaceFailureTests
         var created = (await Assert.That(session).IsTypeOf<SimulationSessionCreated>())!;
         var stimulus = (await Assert.That(scheduled).IsTypeOf<StimulusScheduled>())!;
         var step = (await Assert.That(stepped).IsTypeOf<SessionStepped>())!;
+        var probes = (await Assert.That(replacement).IsTypeOf<ProbesReplaced>())!;
         await Assert.That(after.Simulation).IsNotNull();
         using (Assert.Multiple())
         {
@@ -423,8 +446,19 @@ internal sealed class EditorWorkspaceFailureTests
                 .IsLessThan(stimulus.ProjectionVersion);
             await Assert.That(stimulus.ProjectionVersion)
                 .IsLessThan(step.ProjectionVersion);
-            await Assert.That(step.ProjectionVersion).IsEqualTo(after.ProjectionVersion);
-            await Assert.That(after.Simulation!.SessionVersion).IsEqualTo(3UL);
+            await Assert.That(step.ProjectionVersion).IsLessThan(probes.ProjectionVersion);
+            await Assert.That(probes.ProjectionVersion).IsEqualTo(after.ProjectionVersion);
+            await Assert.That(step.Advance).IsEqualTo(committedAdvance);
+            await Assert.That(step.Advance.SessionVersion)
+                .IsEqualTo(beforeProbeReplacement.Simulation!.SessionVersion);
+            await Assert.That(step.Advance.TraceCursor)
+                .IsEqualTo(beforeProbeReplacement.Simulation.TraceCursor);
+            await Assert.That(readCount).IsEqualTo(1);
+            await Assert.That(after.Simulation!.SessionVersion).IsEqualTo(4UL);
+            await Assert.That(after.Simulation.Probes[0].ProbeId)
+                .IsEqualTo(probes.ProbeIds[0]);
+            await Assert.That(probes.ProbeIds[0])
+                .IsNotEqualTo(beforeProbeReplacement.Simulation!.Probes[0].ProbeId);
             await Assert.That(after.Simulation.LogicalTime).IsEqualTo(1UL);
             await Assert.That(after.Simulation.Probes[0].Value)
                 .IsEquivalentTo([LogicValue.One]);
@@ -446,7 +480,8 @@ internal sealed class EditorWorkspaceFailureTests
         var session = await workspace.DispatchAsync(
             new CreateSession(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
-                EditorWorkspaceTestDriver.SessionCreation(beforeSession)),
+                EditorWorkspaceTestDriver.SessionCreation(beforeSession),
+                SessionConfigurationV1.ForEntryOutputs(beforeSession.ProjectRevision)),
             CancellationToken.None);
 
         var closed = await workspace.DispatchAsync(

@@ -15,18 +15,6 @@ internal static class SchematicGeometry
         checked(point.X + origin.X),
         checked(point.Y + origin.Y));
 
-    public static RectV1 Translate(RectV1 bounds, PointV1 origin) => new(
-        checked(bounds.Left + origin.X),
-        checked(bounds.Top + origin.Y),
-        checked(bounds.Right + origin.X),
-        checked(bounds.Bottom + origin.Y));
-
-    public static RectV1 Inflate(RectV1 bounds, int padding) => new(
-        checked(bounds.Left - padding),
-        checked(bounds.Top - padding),
-        checked(bounds.Right + padding),
-        checked(bounds.Bottom + padding));
-
     public static RectV1 CircleBounds(PointV1 center, int radius) => new(
         checked(center.X - radius),
         checked(center.Y - radius),

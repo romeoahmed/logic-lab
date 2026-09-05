@@ -1,5 +1,6 @@
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
 using LogicLab.Engine.Compilation;
 using TUnit.Assertions.Enums;
 
@@ -7,6 +8,83 @@ namespace LogicLab.Engine.Tests;
 
 internal sealed class CompilerSuccessTests
 {
+    [Test]
+    public async Task Compile_UnreferencedDefinitionWithPorts_PreservesElaboratedDimensions()
+    {
+        var circuit = CompilerTestCircuit.CreateComplete();
+        var extended = AddUnusedDefinition(circuit.Revision);
+        var original = (CompilationSucceeded)Compiler.Compile(
+            CompilerTestCircuit.Request(circuit.Revision), CancellationToken.None);
+        var actual = (CompilationSucceeded)Compiler.Compile(
+            CompilerTestCircuit.Request(extended), CancellationToken.None);
+
+        await Assert.That(actual.Evidence.ObservedDimensions.Where(IsElaboratedDimension))
+            .IsEquivalentTo(
+                original.Evidence.ObservedDimensions.Where(IsElaboratedDimension),
+                CollectionOrdering.Matching);
+
+        static bool IsElaboratedDimension(ObservedProjectScaleDimension value) =>
+            value.Dimension is not ProjectScaleDimension.DefinitionCount
+                and not ProjectScaleDimension.EntityCount;
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Compile_TwoInputsOnSameNet_ListsReceiverOnce(bool addUnusedDefinition)
+    {
+        var revision = PlaceInput(
+            CompilerTestCircuit.BeginProject(), new GridPoint(0, 0), LogicValue.One);
+        var source = CompilerTestCircuit.FindByContract(revision, "source.input");
+        revision = CompilerTestCircuit.Place(
+            revision,
+            "logic.and",
+            [
+                new("width", new Unsigned32ParameterValue(1)),
+                new("fanIn", new Unsigned32ParameterValue(2)),
+            ],
+            new GridPoint(4, 0));
+        var gate = CompilerTestCircuit.FindByContract(revision, "logic.and");
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        revision = CompilerTestCircuit.Commit(ProjectEditor.Apply(
+            revision,
+            new ConnectTerminalsIntent(
+                [
+                    new InstanceTerminalReference(definitionId, source.Id, "Q"),
+                    new InstanceTerminalReference(definitionId, gate.Id, "A0"),
+                    new InstanceTerminalReference(definitionId, gate.Id, "A1"),
+                ])));
+        if (addUnusedDefinition)
+        {
+            revision = AddUnusedDefinition(revision);
+        }
+
+        var outcome = Compiler.Compile(CompilerTestCircuit.Request(revision), CancellationToken.None);
+        var succeeded = (await Assert.That(outcome).IsTypeOf<CompilationSucceeded>())!;
+        var ir = succeeded.Artifact.SimulationIr;
+        var net = ir.Nets.Single();
+        var receiver = ir.Evaluators.Single(e => e.Kind == SimulationEvaluatorKind.LogicAnd);
+        using (Assert.Multiple())
+        {
+            await Assert.That(net.ReceiverEvaluatorOrdinals)
+                .IsEquivalentTo([receiver.Ordinal], CollectionOrdering.Matching);
+            await Assert.That(Fanout(ir, net.Ordinal))
+                .IsEquivalentTo([receiver.Ordinal], CollectionOrdering.Matching);
+            await Assert.That(receiver.InputNetOrdinals)
+                .IsEquivalentTo([net.Ordinal, net.Ordinal], CollectionOrdering.Matching);
+        }
+    }
+
+    private static ProjectRevision AddUnusedDefinition(ProjectRevision revision) =>
+        CompilerTestCircuit.Commit(ProjectEditor.Apply(
+            revision,
+            new CreateCircuitDefinitionIntent(
+                "Unused",
+                [
+                    new DefinitionPortDeclaration("A", PortDirection.Input, 1,
+                        new DefinitionPortPlacement(new GridPoint(0, 0), CardinalDirection.West)),
+                ])));
+
     [Test]
     public async Task Compile_CompleteFlatInverter_PublishesArtifactAndEvidence()
     {
@@ -61,7 +139,7 @@ internal sealed class CompilerSuccessTests
                     CollectionOrdering.Matching);
             await Assert.That(succeeded.Evidence.ObservedDimensions.Select(row => row.Observed))
                 .IsEquivalentTo(
-                    [1UL, 9UL, 5UL, 1UL, 0UL],
+                    [1UL, 10UL, 5UL, 1UL, 0UL],
                     CollectionOrdering.Matching);
         }
     }
@@ -521,8 +599,12 @@ internal sealed class CompilerSuccessTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(net.DriverOrdinals).Count().IsEqualTo(2);
-            await Assert.That(net.ReceiverEvaluatorOrdinals).Count().IsEqualTo(1);
+            await Assert.That(net.DriverOrdinals)
+                .IsEquivalentTo([0, 1], CollectionOrdering.Matching);
+            await Assert.That(net.ReceiverEvaluatorOrdinals).IsEquivalentTo(
+                [succeeded.Artifact.SimulationIr.Evaluators.Single(
+                    evaluator => evaluator.Kind == SimulationEvaluatorKind.OutputSink).Ordinal],
+                CollectionOrdering.Matching);
             await Assert.That(net.DriverOrdinals.Select(
                 ordinal => succeeded.Artifact.SimulationIr.Drivers[ordinal].NetOrdinal))
                 .IsEquivalentTo(

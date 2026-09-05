@@ -1,7 +1,9 @@
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Engine.Tests;
 
@@ -24,10 +26,7 @@ internal sealed class SimulationHotSwapTests
         var opened = Open(originalArtifact, outputNet);
         _ = Advance(opened);
 
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(20, 3)))]));
-        var replacementArtifact = circuit.Compile();
+        var replacementArtifact = CompileAfterMoving(circuit, sink);
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
@@ -83,10 +82,7 @@ internal sealed class SimulationHotSwapTests
         _ = Advance(opened);
         var beforeSwap = Snapshot(opened);
 
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
-        var replacementArtifact = circuit.Compile();
+        var replacementArtifact = CompileAfterMoving(circuit, sink);
 
         var committed = (HotSwapCommitted)SimulationRuntime.Execute(
             opened.Handle,
@@ -140,10 +136,7 @@ internal sealed class SimulationHotSwapTests
         var opened = Open(originalArtifact, outputNet);
         var beforeSwap = Snapshot(opened);
 
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
-        var replacementArtifact = circuit.Compile();
+        var replacementArtifact = CompileAfterMoving(circuit, sink);
 
         var committed = (HotSwapCommitted)SimulationRuntime.Execute(
             opened.Handle,
@@ -183,10 +176,7 @@ internal sealed class SimulationHotSwapTests
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
         var acceptedBefore = Snapshot(acceptedSession);
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
-        var replacementArtifact = circuit.Compile();
+        var replacementArtifact = CompileAfterMoving(circuit, sink);
 
         var committed = await AssertExactBudgetBoundary(
             acceptedSession,
@@ -213,10 +203,7 @@ internal sealed class SimulationHotSwapTests
             SequentialTestCircuit.Sink(width));
         var outputNet = circuit.Connect((input, "Q"), (sink, "D"));
         var originalArtifact = circuit.Compile();
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
-        var replacementArtifact = circuit.Compile();
+        var replacementArtifact = CompileAfterMoving(circuit, sink);
         var consumerBuffers = new HotSwapConsumerBufferRequirements(
             retainedOwnedBufferBytes: 0,
             ownedReferenceSlotsPerObservedProbe: 1,
@@ -253,10 +240,7 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
-        var replacementArtifact = circuit.Compile();
+        var replacementArtifact = CompileAfterMoving(circuit, sink);
 
         _ = await AssertExactBudgetBoundary(
             acceptedSession,
@@ -288,10 +272,7 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
-        var replacementArtifact = circuit.Compile();
+        var replacementArtifact = CompileAfterMoving(circuit, sink);
 
         var committed = await AssertExactBudgetBoundary(
             acceptedSession,
@@ -321,10 +302,7 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
-        var replacementArtifact = circuit.Compile();
+        var replacementArtifact = CompileAfterMoving(circuit, sink);
 
         var committed = await AssertExactBudgetBoundary(
             acceptedSession,
@@ -405,10 +383,7 @@ internal sealed class SimulationHotSwapTests
             rejectedSession.Handle,
             schedule,
             CancellationToken.None);
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
-        var replacementArtifact = circuit.Compile();
+        var replacementArtifact = CompileAfterMoving(circuit, sink);
 
         _ = await AssertExactBudgetBoundary(
             acceptedSession,
@@ -430,10 +405,7 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
-        var replacementArtifact = circuit.Compile();
+        var replacementArtifact = CompileAfterMoving(circuit, sink);
 
         _ = await AssertExactBudgetBoundary(
             acceptedSession,
@@ -446,28 +418,62 @@ internal sealed class SimulationHotSwapTests
     public async Task Execute_HotSwapMergingProbeNets_UnresolvesLaterDuplicateBinding()
     {
         var circuit = SequentialTestCircuit.Create();
-        var firstInput = circuit.Place(
-            "source.input",
-            SequentialTestCircuit.Input(LogicValue.One));
-        var secondInput = circuit.Place(
-            "source.input",
-            SequentialTestCircuit.Input(LogicValue.Zero));
-        var firstSink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
-        var secondSink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
-        var firstNet = circuit.Connect((firstInput, "Q"), (firstSink, "D"));
-        var secondNet = circuit.Connect((secondInput, "Q"), (secondSink, "D"));
+        var entryId = circuit.Revision.Document.EntryCircuitDefinitionId;
+        circuit.Apply(new CreateCircuitDefinitionIntent("Bridge",
+        [
+            new DefinitionPortDeclaration("A", PortDirection.Input, 1,
+                new DefinitionPortPlacement(new GridPoint(0, 0), CardinalDirection.West)),
+            new DefinitionPortDeclaration("Q", PortDirection.Output, 1,
+                new DefinitionPortPlacement(new GridPoint(8, 0), CardinalDirection.East)),
+        ]));
+        var child = circuit.Revision.Document.CircuitDefinitions.Single(item => item.Id != entryId);
+        var inputPort = child.Ports.Single(port => port.Direction == PortDirection.Input);
+        var outputPort = child.Ports.Single(port => port.Direction == PortDirection.Output);
+        circuit.Apply(new PlaceComponentInstanceIntent(
+            child.Id,
+            new ComponentContractKey(CoreLibrarySchema.LibraryId, "logic.buffer"),
+            [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
+            new ComponentPlacement(new GridPoint(4, 0))));
+        var buffer = circuit.Revision.Document.FindCircuitDefinition(child.Id)!
+            .ComponentInstances.Single();
+        circuit.Apply(new ConnectTerminalsIntent(
+        [
+            new DefinitionTerminalReference(child.Id, inputPort.Id),
+            new InstanceTerminalReference(child.Id, buffer.Id, "A"),
+        ]));
+        circuit.Apply(new ConnectTerminalsIntent(
+        [
+            new InstanceTerminalReference(child.Id, buffer.Id, "Q"),
+            new DefinitionTerminalReference(child.Id, outputPort.Id),
+        ]));
+        circuit.Apply(new PlaceComponentInstanceIntent(
+            entryId, new CircuitDefinitionComponentTarget(child.Id), [],
+            new ComponentPlacement(new GridPoint(4, 0))));
+        var call = circuit.Revision.Document.EntryCircuitDefinition.ComponentInstances.Single();
+        var input = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.One));
+        var sink = circuit.Place("sink.output", SequentialTestCircuit.Sink());
+        var firstNet = circuit.Connect((input, "Q"), (call, inputPort.Id.Value));
+        var secondNet = circuit.Connect((call, outputPort.Id.Value), (sink, "D"));
+        var rootPath = new HierarchyPath(entryId, []);
+        var firstSource = new CompilationSource(new NetSourceIdentity(entryId, firstNet.Id), rootPath);
+        var secondSource = new CompilationSource(new NetSourceIdentity(entryId, secondNet.Id), rootPath);
         var originalArtifact = circuit.Compile();
-        var opened = Open(originalArtifact, firstNet, secondNet);
+        var opened = (await Assert.That(SimulationRuntime.Open(
+            SequentialTestCircuit.Request(originalArtifact,
+                SimulationTestContext.PermissiveSimulationPolicy(), firstSource, secondSource),
+            CancellationToken.None)).IsTypeOf<SimulationOpened>())!;
+        await Assert.That(opened.ProbeIds).Count().IsEqualTo(2);
 
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(
-                firstSink.Id,
-                new ComponentPlacement(new GridPoint(20, 3)))]));
-        var replacementArtifact = MergeReplacementNetSources(
-            circuit.Compile(),
-            firstNet,
-            secondNet);
+        // Removing the internal buffer and joining its boundary Nets aliases both parent Nets.
+        circuit.Apply(new RemoveComponentInstancesIntent(child.Id, [buffer.Id]));
+        var childNets = circuit.Revision.Document.FindCircuitDefinition(child.Id)!.Nets;
+        circuit.Apply(new MergeNetsIntent(child.Id, childNets[0].Id, [childNets[1].Id]));
+        var replacementArtifact = circuit.Compile();
+        await Assert.That(replacementArtifact.SourceMap.TryGetNetOrdinal(firstSource, out var firstOrdinal))
+            .IsTrue();
+        await Assert.That(replacementArtifact.SourceMap.TryGetNetOrdinal(secondSource, out var secondOrdinal))
+            .IsTrue();
+        await Assert.That(secondOrdinal).IsEqualTo(firstOrdinal);
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
@@ -580,10 +586,7 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var opened = Open(originalArtifact, outputNet);
         var before = Snapshot(opened);
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(12, 2)))]));
-        var replacementArtifact = circuit.Compile();
+        var replacementArtifact = CompileAfterMoving(circuit, sink);
 
         var outcome = SimulationRuntime.Execute(
             opened.Handle,
@@ -669,10 +672,7 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(20, 3)))]));
-        var replacementArtifact = circuit.Compile();
+        var replacementArtifact = CompileAfterMoving(circuit, sink);
 
         _ = await AssertExactBudgetBoundary(
             acceptedSession,
@@ -701,10 +701,7 @@ internal sealed class SimulationHotSwapTests
         var originalArtifact = circuit.Compile();
         var acceptedSession = Open(originalArtifact, outputNet);
         var rejectedSession = Open(originalArtifact, outputNet);
-        circuit.Apply(new MoveComponentInstancesIntent(
-            circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(sink.Id, new ComponentPlacement(new GridPoint(20, 3)))]));
-        var replacementArtifact = circuit.Compile();
+        var replacementArtifact = CompileAfterMoving(circuit, sink);
 
         _ = await AssertExactBudgetBoundary(
             acceptedSession,
@@ -775,6 +772,16 @@ internal sealed class SimulationHotSwapTests
             rejectedSession,
             replacementArtifact,
             exactPeakOwnedBufferBytes);
+    }
+
+    private static CompilationArtifact CompileAfterMoving(
+        SequentialTestCircuit circuit,
+        ComponentInstance component)
+    {
+        circuit.Apply(new MoveComponentInstancesIntent(
+            circuit.Revision.Document.EntryCircuitDefinitionId,
+            [new ComponentMove(component.Id, new ComponentPlacement(new GridPoint(20, 3)))]));
+        return circuit.Compile();
     }
 
     private static SimulationOpened Open(
@@ -868,33 +875,6 @@ internal sealed class SimulationHotSwapTests
             HotSwapConsumerBufferRequirements.None);
     }
 
-    private static CompilationArtifact MergeReplacementNetSources(
-        CompilationArtifact artifact,
-        Net retainedNet,
-        Net mergedNet)
-    {
-        var retained = SequentialTestCircuit.NetSource(artifact, retainedNet);
-        var merged = SequentialTestCircuit.NetSource(artifact, mergedNet);
-        _ = artifact.SourceMap.TryGetNetOrdinal(retained, out var retainedOrdinal);
-        _ = artifact.SourceMap.TryGetNetOrdinal(merged, out var mergedOrdinal);
-        var nets = artifact.SourceMap.Nets.ToArray();
-        nets[mergedOrdinal] = new SourceMapEntry(
-            mergedOrdinal,
-            artifact.SourceMap.Evaluators[0].Source);
-        var sourceMap = new SourceMap(
-            [.. artifact.SourceMap.Evaluators],
-            [.. artifact.SourceMap.EvaluatorInputs],
-            [.. artifact.SourceMap.Drivers],
-            nets,
-            [.. artifact.SourceMap.StronglyConnectedComponentMembers],
-            [.. artifact.SourceMap.NetAliases, new SourceMapEntry(retainedOrdinal, merged)]);
-        return new CompilationArtifact(
-            artifact.Key,
-            artifact.SimulationIr,
-            sourceMap,
-            artifact.SourceRevision);
-    }
-
     private static AdvanceCommitted Advance(SimulationOpened opened)
     {
         return (AdvanceCommitted)SimulationRuntime.Execute(
@@ -936,9 +916,9 @@ internal sealed class SimulationHotSwapTests
             {
                 await Assert.That(actualProbe.ProbeId).IsEqualTo(expectedProbe.ProbeId);
                 await Assert.That(actualProbe.Source).IsEqualTo(expectedProbe.Source);
-                await Assert.That(LogicVectorTestData.ToValues(actualProbe.Value)
-                        .SequenceEqual(LogicVectorTestData.ToValues(expectedProbe.Value)))
-                    .IsTrue();
+                await Assert.That(LogicVectorTestData.ToValues(actualProbe.Value))
+                    .IsEquivalentTo(LogicVectorTestData.ToValues(expectedProbe.Value),
+                        CollectionOrdering.Matching);
             }
         }
 
@@ -954,12 +934,10 @@ internal sealed class SimulationHotSwapTests
                     .IsEqualTo(expectedDiagnostic.Severity);
                 await Assert.That(actualDiagnostic.Primary)
                     .IsEqualTo(expectedDiagnostic.Primary);
-                await Assert.That(actualDiagnostic.Arguments
-                        .SequenceEqual(expectedDiagnostic.Arguments))
-                    .IsTrue();
-                await Assert.That(actualDiagnostic.Related
-                        .SequenceEqual(expectedDiagnostic.Related))
-                    .IsTrue();
+                await Assert.That(actualDiagnostic.Arguments)
+                    .IsEquivalentTo(expectedDiagnostic.Arguments, CollectionOrdering.Matching);
+                await Assert.That(actualDiagnostic.Related)
+                    .IsEquivalentTo(expectedDiagnostic.Related, CollectionOrdering.Matching);
             }
         }
     }

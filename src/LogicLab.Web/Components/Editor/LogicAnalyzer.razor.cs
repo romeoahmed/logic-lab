@@ -44,6 +44,7 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
     private bool traceLoading;
     private bool isOpen = true;
     private bool rendererUnavailable;
+    private bool isPublishing;
     private TraceFailure? traceFailure;
     private BrowserPolicyEvidenceV1? browserPolicyEvidence;
     private int isDisposed;
@@ -81,6 +82,9 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
     private IStringLocalizer<EditorText> Text { get; set; } = null!;
 
     private SimulationProjection? Simulation => Projection?.Simulation;
+
+    private bool CanModifyProbes => IsConnected && Volatile.Read(ref isDisposed) == 0
+        && Simulation is { Run: not RunRunningProjection };
 
     private ProbePresentationLabels PresentationLabels => new(
         Text["ComponentInput"],
@@ -134,74 +138,105 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         await LoadTraceAsync(force: false);
     }
 
+    private bool CanPublish => isOpen && snapshot is not null
+        && !rendererUnavailable && Volatile.Read(ref isDisposed) == 0;
+
+    private WaveformInteractionMode InteractionMode => IsConnected
+        ? WaveformInteractionMode.CommitEnabled
+        : WaveformInteractionMode.LocalOnly;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!RendererInfo.IsInteractive || Volatile.Read(ref isDisposed) != 0)
+        if (!RendererInfo.IsInteractive || !CanPublish || isPublishing)
         {
             return;
         }
 
-        if (!isOpen
-            || snapshot is null
-            || rendererUnavailable)
-        {
-            return;
-        }
-
-        if (adapter is null)
-        {
-            callbackReference = DotNetObjectReference.Create(
-                new WaveformCallbackSink(this, rendererGeneration));
-            try
-            {
-                adapter = await BrowserWaveformAdapter.MountAsync(
-                    JS,
-                    hostElement,
-                    LogicLabWebBuild.Fingerprint,
-                    Policy,
-                    callbackReference,
-                    componentLifetime.Token);
-            }
-            catch (BrowserPolicyException exception)
-            {
-                await FailRendererAsync(BrowserPolicyEvidenceV1.From(exception));
-                return;
-            }
-            catch (Exception exception) when (IsRecoverable(exception))
-            {
-                await FailRendererAsync();
-                return;
-            }
-        }
-
+        // Renders can reenter while interop awaits a browser acknowledgement.
+        isPublishing = true;
+        var generation = rendererGeneration;
+        var cancellationToken = componentLifetime.Token;
         try
         {
-            var interactionMode = IsConnected
-                ? WaveformInteractionMode.CommitEnabled
-                : WaveformInteractionMode.LocalOnly;
+            if (adapter is null)
+            {
+                var reference = DotNetObjectReference.Create(
+                    new WaveformCallbackSink(this, generation));
+                try
+                {
+                    var candidate = await BrowserWaveformAdapter.MountAsync(
+                        JS, hostElement, LogicLabWebBuild.Fingerprint,
+                        Policy, reference, cancellationToken);
+                    if (!IsCurrentRenderer(generation))
+                    {
+                        await candidate.DisposeAsync();
+                        return;
+                    }
+
+                    adapter = candidate;
+                    callbackReference = reference;
+                    reference = null;
+                }
+                finally
+                {
+                    reference?.Dispose();
+                }
+            }
+
+            var currentAdapter = adapter;
+            var interactionMode = InteractionMode;
             if (publishedInteractionMode != interactionMode)
             {
-                await adapter.SetInteractionModeAsync(
-                    interactionMode,
-                    componentLifetime.Token);
+                await currentAdapter.SetInteractionModeAsync(interactionMode, cancellationToken);
+                if (!IsCurrentRenderer(generation))
+                {
+                    return;
+                }
+
                 publishedInteractionMode = interactionMode;
             }
 
-            if (publishedSnapshot?.WaveformVersion != snapshot.WaveformVersion)
+            var candidateSnapshot = snapshot!;
+            if (publishedSnapshot?.WaveformVersion != candidateSnapshot.WaveformVersion)
             {
-                await adapter.ReplaceAsync(snapshot, componentLifetime.Token);
-                publishedSnapshot = snapshot;
+                await currentAdapter.ReplaceAsync(candidateSnapshot, cancellationToken);
+                if (IsCurrentRenderer(generation))
+                {
+                    publishedSnapshot = candidateSnapshot;
+                }
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (BrowserPolicyException exception)
         {
-            await FailRendererAsync(BrowserPolicyEvidenceV1.From(exception));
+            if (IsCurrentRenderer(generation))
+            {
+                await FailRendererAsync(BrowserPolicyEvidenceV1.From(exception));
+            }
         }
         catch (Exception exception) when (IsRecoverable(exception))
         {
-            await FailRendererAsync();
+            if (IsCurrentRenderer(generation))
+            {
+                await FailRendererAsync();
+            }
+        }
+        finally
+        {
+            isPublishing = false;
+            if (CanPublish && (adapter is null
+                || publishedSnapshot?.WaveformVersion != snapshot!.WaveformVersion
+                || publishedInteractionMode != InteractionMode))
+            {
+                await InvokeAsync(StateHasChanged);
+            }
         }
     }
+
+    private bool IsCurrentRenderer(ulong generation) =>
+        generation == rendererGeneration && CanPublish;
 
     internal async Task ReceiveWaveformIntentAsync(ulong generation, JsonElement record)
     {
@@ -746,13 +781,18 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
     private bool CanMove(WaveformRowV1 row, int delta)
     {
         var destination = row.DisplayOrdinal + delta;
-        return row.Binding == "resolved"
+        return CanModifyProbes && row.Binding == "resolved"
             && destination >= 0
             && destination < (Simulation?.Probes.Count ?? 0);
     }
 
     private async Task MoveAsync(WaveformRowV1 row, int delta)
     {
+        if (!CanMove(row, delta))
+        {
+            return;
+        }
+
         var active = Rows.Where(candidate => candidate.Binding == "resolved")
             .Select(candidate => candidate.ProbeId)
             .ToList();
@@ -792,11 +832,14 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             return;
         }
 
-        await OnRemoveProbe.InvokeAsync(row.ProbeId);
+        if (CanModifyProbes)
+        {
+            await OnRemoveProbe.InvokeAsync(row.ProbeId);
+        }
     }
 
     private Task RebindAsync(WaveformRowV1 row) =>
-        CanRebind(row)
+        CanModifyProbes && CanRebind(row)
             ? OnRebindProbe.InvokeAsync(Source(row))
             : Task.CompletedTask;
 
@@ -938,31 +981,35 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
 
     private async Task ReleaseAdapterAsync()
     {
-        if (adapter is not null)
-        {
-            await adapter.DisposeAsync();
-        }
-
+        var retiredAdapter = adapter;
+        var retiredReference = callbackReference;
         adapter = null;
+        callbackReference = null;
         publishedSnapshot = null;
         publishedInteractionMode = null;
-        callbackReference?.Dispose();
-        callbackReference = null;
+        try
+        {
+            if (retiredAdapter is not null)
+            {
+                await retiredAdapter.DisposeAsync();
+            }
+        }
+        finally
+        {
+            retiredReference?.Dispose();
+        }
     }
 
     private async Task ResetRendererAsync()
     {
-        var advanceGeneration = adapter is not null
-            || callbackReference is not null
-            || rendererUnavailable;
-        await ReleaseAdapterAsync();
-        if (advanceGeneration)
+        if (adapter is not null || isPublishing || rendererUnavailable)
         {
             rendererGeneration = checked(rendererGeneration + 1);
         }
 
         rendererUnavailable = false;
         browserPolicyEvidence = null;
+        await ReleaseAdapterAsync();
     }
 
     private void CancelTraceLoad()
@@ -980,12 +1027,15 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
 
     private async Task FailRendererAsync(BrowserPolicyEvidenceV1? evidence = null)
     {
-        await ReleaseAdapterAsync();
+        rendererGeneration = checked(rendererGeneration + 1);
         rendererUnavailable = true;
         traceFailure = TraceFailure.Renderer;
         browserPolicyEvidence = evidence;
-        publishedSnapshot = null;
-        await InvokeAsync(StateHasChanged);
+        await ReleaseAdapterAsync();
+        if (Volatile.Read(ref isDisposed) == 0)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private Task InvokeBrowserCallbackAsync(Func<Task> callback) => InvokeAsync(callback);

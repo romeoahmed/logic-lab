@@ -11,7 +11,6 @@ public static class WorkspaceOutcomeReasons
 
     public const string RunGenerationPreconditionFailed =
         "run_generation_precondition_failed";
-    public const string NoScheduledStimulus = "no_scheduled_stimulus";
     public const string ProjectRevisionPreconditionFailed =
         "project_revision_precondition_failed";
     public const string ProjectionVersionPreconditionFailed =

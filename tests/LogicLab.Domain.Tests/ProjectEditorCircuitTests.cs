@@ -1,6 +1,7 @@
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
+using static LogicLab.Domain.Tests.ProjectEditorTestContext;
 
 namespace LogicLab.Domain.Tests;
 
@@ -32,7 +33,7 @@ internal sealed class ProjectEditorCircuitTests
         var (withOutput, output) = await Place(
             withNot,
             "sink.output",
-            SinkOutputParameters(1),
+            SinkParameters(1),
             new GridPoint(8, 0));
         var revisions = new[] { genesis, withInput, withNot, withOutput };
 
@@ -57,8 +58,8 @@ internal sealed class ProjectEditorCircuitTests
                 new ComponentContractKey("logiclab.core", "logic.not")));
             await Assert.That(output.Target).IsEqualTo(new LibraryComponentTarget(
                 new ComponentContractKey("logiclab.core", "sink.output")));
-            await Assert.That(input.Id == logicNot.Id).IsFalse();
-            await Assert.That(logicNot.Id == output.Id).IsFalse();
+            await Assert.That(new[] { input.Id, logicNot.Id, output.Id }.Distinct())
+                .Count().IsEqualTo(3);
         }
     }
 
@@ -108,14 +109,8 @@ internal sealed class ProjectEditorCircuitTests
             await Assert.That(nets.Any(net => net.Terminals.SequenceEqual(notToOutput)))
                 .IsTrue();
             await Assert.That(completed.Revision.Document.EntryCircuitDefinition.ComponentInstances
-                .Select(instance => instance.Id)
-                .OrderBy(id => id.Value, StringComparer.Ordinal)
-                .ToArray())
-                .IsEquivalentTo(
-                    new[] { circuit.Input.Id, circuit.LogicNot.Id, circuit.Output.Id }
-                        .OrderBy(id => id.Value, StringComparer.Ordinal)
-                        .ToArray(),
-                    CollectionOrdering.Matching);
+                .Select(instance => instance.Id))
+                .IsEquivalentTo([circuit.Input.Id, circuit.LogicNot.Id, circuit.Output.Id]);
         }
     }
 
@@ -140,8 +135,8 @@ internal sealed class ProjectEditorCircuitTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(committed.Revision.RevisionId == circuit.Revision.RevisionId)
-                .IsFalse();
+            await Assert.That(committed.Revision.RevisionId)
+                .IsNotEqualTo(circuit.Revision.RevisionId);
             await Assert.That(originalDefinition.FindComponentInstance(circuit.Input.Id)!
                     .Placement.Origin)
                 .IsEqualTo(new GridPoint(0, 0));
@@ -255,7 +250,7 @@ internal sealed class ProjectEditorCircuitTests
         var outcome = ProjectEditor.Apply(genesis, intent);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
-        await Assert.That(rejected.Diagnostics[0].Arguments)
+        await Assert.That(rejected.Diagnostics.Single().Arguments)
             .IsEquivalentTo(
                 [
                     new AuthoringDiagnosticArgument(
@@ -311,13 +306,14 @@ internal sealed class ProjectEditorCircuitTests
     {
         var circuit = await CreatePlacedCircuit();
         var definitionId = circuit.Revision.Document.EntryCircuitDefinition.Id;
+        AuthoredTerminalReference[] originalTerminals =
+        [
+            Terminal(definitionId, circuit.Input, "Q"),
+            Terminal(definitionId, circuit.LogicNot, "A"),
+        ];
         var connected = Commit(ProjectEditor.Apply(
             circuit.Revision,
-            new ConnectTerminalsIntent(
-                [
-                    Terminal(definitionId, circuit.Input, "Q"),
-                    Terminal(definitionId, circuit.LogicNot, "A"),
-                ])));
+            new ConnectTerminalsIntent(originalTerminals)));
 
         var committed = Commit(ProjectEditor.Apply(
             connected.Revision,
@@ -332,10 +328,13 @@ internal sealed class ProjectEditorCircuitTests
         using (Assert.Multiple())
         {
             await Assert.That(updatedNet.Id).IsEqualTo(originalNet.Id);
-            await Assert.That(updatedNet.Terminals).Count().IsEqualTo(3);
-            await Assert.That(connected.Revision.Document.EntryCircuitDefinition.Nets)
-                .Count().IsEqualTo(1);
-            await Assert.That(originalNet.Terminals).Count().IsEqualTo(2);
+            await Assert.That(updatedNet.Width).IsEqualTo(1U);
+            await Assert.That(updatedNet.Terminals).IsEquivalentTo(
+                originalTerminals.Append(Terminal(definitionId, circuit.Output, "D")),
+                CollectionOrdering.Matching);
+            await Assert.That(originalNet.Terminals).IsEquivalentTo(
+                originalTerminals,
+                CollectionOrdering.Matching);
         }
     }
 
@@ -403,10 +402,8 @@ internal sealed class ProjectEditorCircuitTests
         {
             await Assert.That(committed.ChangedSources)
                 .IsEquivalentTo(expectedPorts, CollectionOrdering.Matching);
-            await Assert.That(committed.ChangedSources.Distinct().Count())
-                .IsEqualTo(committed.ChangedSources.Count);
-            await Assert.That(net.Terminals.OfType<InstanceTerminalReference>())
-                .IsEquivalentTo(terminals, CollectionOrdering.Matching);
+            await Assert.That(net.Terminals)
+                .IsEquivalentTo(terminals.AsEnumerable<AuthoredTerminalReference>(), CollectionOrdering.Matching);
             await Assert.That(committed.RemovedSources).IsEmpty();
         }
     }
@@ -493,65 +490,39 @@ internal sealed class ProjectEditorCircuitTests
         var secondMissingMove = new ComponentMove(
             secondOtherCircuit.Input.Id,
             new ComponentPlacement(new GridPoint(30, 30)));
-        ComponentMove[] moveSet =
-            [existingMove, existingMove, firstMissingMove, secondMissingMove];
+        // Two distinct slots locate the missing instances; the other two repeat the valid move.
         var permutations = (
-                from first in Enumerable.Range(0, moveSet.Length)
-                from second in Enumerable.Range(0, moveSet.Length)
-                from third in Enumerable.Range(0, moveSet.Length)
-                from fourth in Enumerable.Range(0, moveSet.Length)
-                where new[] { first, second, third, fourth }.Distinct().Count() == moveSet.Length
-                select new[]
-                {
-                    moveSet[first],
-                    moveSet[second],
-                    moveSet[third],
-                    moveSet[fourth],
-                })
-            .DistinctBy(permutation => string.Join(
-                '\u001f',
-                permutation.Select(move =>
-                    $"{move.ComponentInstanceId.Value}@{move.Placement.Origin.X},{move.Placement.Origin.Y}")))
-            .ToArray();
+            from firstMissing in Enumerable.Range(0, 4)
+            from secondMissing in Enumerable.Range(0, 4)
+            where firstMissing != secondMissing
+            select Enumerable.Range(0, 4).Select(index =>
+                index == firstMissing ? firstMissingMove
+                    : index == secondMissing ? secondMissingMove
+                    : existingMove).ToArray()).ToArray();
+        var expected = new[]
+        {
+            ("authoring_duplicate_id", AuthoringDiagnosticSeverity.Error,
+                (AuthoredSourceIdentity?)null,
+                new AuthoringDiagnosticArgument("entityKind", new StableTokenDiagnosticValue("componentInstance"))),
+            ("authoring_missing_reference", AuthoringDiagnosticSeverity.Error,
+                (AuthoredSourceIdentity?)null,
+                new AuthoringDiagnosticArgument("referenceKind", new StableTokenDiagnosticValue("componentInstance"))),
+        };
 
         await Assert.That(permutations).Count().IsEqualTo(12);
-        var expectedOutcome = ProjectEditor.Apply(
-            circuit.Revision,
-            new MoveComponentInstancesIntent(definitionId, permutations[0]));
-        var expected = (await Assert.That(expectedOutcome).IsTypeOf<EditRejected>())!;
-
-        await Assert.That(expected.Diagnostics.Select(item => item.Code).ToArray())
-            .IsEquivalentTo(
-                ["authoring_duplicate_id", "authoring_missing_reference"],
-                CollectionOrdering.Matching);
-
-        foreach (var moves in permutations.Skip(1))
+        foreach (var moves in permutations)
         {
             var outcome = ProjectEditor.Apply(
                 circuit.Revision,
                 new MoveComponentInstancesIntent(definitionId, moves));
 
             var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
-            await Assert.That(rejected.Diagnostics).Count()
-                .IsEqualTo(expected.Diagnostics.Count);
-            for (var index = 0; index < expected.Diagnostics.Count; index++)
-            {
-                var expectedDiagnostic = expected.Diagnostics[index];
-                var actualDiagnostic = rejected.Diagnostics[index];
-                using (Assert.Multiple())
-                {
-                    await Assert.That(actualDiagnostic.Code)
-                        .IsEqualTo(expectedDiagnostic.Code);
-                    await Assert.That(actualDiagnostic.Severity)
-                        .IsEqualTo(expectedDiagnostic.Severity);
-                    await Assert.That(actualDiagnostic.Primary)
-                        .IsEqualTo(expectedDiagnostic.Primary);
-                    await Assert.That(actualDiagnostic.Arguments)
-                        .IsEquivalentTo(
-                            expectedDiagnostic.Arguments,
-                            CollectionOrdering.Matching);
-                }
-            }
+            await Assert.That(rejected.Diagnostics.Select(diagnostic =>
+                    (diagnostic.Code, diagnostic.Severity, diagnostic.Primary, diagnostic.Arguments.Single())))
+                .IsEquivalentTo(expected, CollectionOrdering.Matching);
+            await Assert.That(circuit.Revision.Document.EntryCircuitDefinition
+                    .FindComponentInstance(circuit.Input.Id)!.Placement.Origin)
+                .IsEqualTo(new GridPoint(0, 0));
         }
     }
 
@@ -616,10 +587,7 @@ internal sealed class ProjectEditorCircuitTests
         var outcome = ProjectEditor.Begin(new NewProjectSeed(
             "Inverter",
             LibrarySnapshot.Core,
-            new SymbolProfileReference(
-                "TeachingMixed",
-                "1.0.0",
-                IndicationConvention.Negation),
+            TeachingMixedProfile(),
             "Main"));
         return ((ProjectGenesisCommitted)outcome).Revision;
     }
@@ -640,7 +608,7 @@ internal sealed class ProjectEditorCircuitTests
         var (revision, output) = await Place(
             withNot,
             "sink.output",
-            SinkOutputParameters(1),
+            SinkParameters(1),
             new GridPoint(8, 0));
         return new PlacedCircuit(revision, input, logicNot, output);
     }
@@ -679,16 +647,6 @@ internal sealed class ProjectEditorCircuitTests
         return new InstanceTerminalReference(definitionId, instance.Id, portId);
     }
 
-    private static ComponentParameterBinding[] WidthParameters(uint width)
-    {
-        return
-        [
-            new ComponentParameterBinding(
-                "width",
-                new Unsigned32ParameterValue(width)),
-        ];
-    }
-
     private static ComponentParameterBinding[] SourceInputParameters(uint width)
     {
         return
@@ -700,19 +658,6 @@ internal sealed class ProjectEditorCircuitTests
                 "initialValue",
                 new LogicVectorParameterValue(
                     [.. Enumerable.Repeat(LogicValue.Zero, checked((int)width))])),
-        ];
-    }
-
-    private static ComponentParameterBinding[] SinkOutputParameters(uint width)
-    {
-        return
-        [
-            new ComponentParameterBinding(
-                "width",
-                new Unsigned32ParameterValue(width)),
-            new ComponentParameterBinding(
-                "radix",
-                new ChoiceParameterValue("binary")),
         ];
     }
 

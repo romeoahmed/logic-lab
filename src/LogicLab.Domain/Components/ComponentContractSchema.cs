@@ -46,8 +46,7 @@ public sealed class ComponentContractSchema
         IReadOnlyList<ComponentParameterBinding> parameters,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(parameters);
-        var ownedParameters = Array.AsReadOnly(parameters.ToArray());
+        var ownedParameters = AuthoringInput.CopyRequiredReferences(parameters, nameof(parameters));
         cancellationToken.ThrowIfCancellationRequested();
         if (ComponentParameterValidator.Validate(
                 Key,
@@ -79,7 +78,7 @@ public sealed class ComponentContractSchema
     {
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentException.ThrowIfNullOrEmpty(portId);
-        var ownedParameters = Array.AsReadOnly(parameters.ToArray());
+        var ownedParameters = AuthoringInput.CopyRequiredReferences(parameters, nameof(parameters));
         if (ComponentParameterValidator.Validate(
                 Key,
                 this,

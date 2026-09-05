@@ -9,12 +9,17 @@ internal sealed class AntiforgeryProblemDetailsMiddleware(
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        return context.Features.Get<IAntiforgeryValidationFeature>() is
-        { IsValid: false }
-            ? LogicLabProblemDetails.Create(
-                    context,
-                    LogicLabProblemDetails.AntiforgeryValidationFailedCode)
-                .ExecuteAsync(context)
-            : next(context);
+        if (context.Features.Get<IAntiforgeryValidationFeature>() is not
+            { IsValid: false } failure)
+        {
+            return next(context);
+        }
+
+        // Antiforgery wraps body-read failures, including Kestrel's size rejection.
+        var code = failure.Error?.InnerException is BadHttpRequestException
+        { StatusCode: StatusCodes.Status413PayloadTooLarge }
+            ? LogicLabProblemDetails.RequestBodyTooLargeCode
+            : LogicLabProblemDetails.AntiforgeryValidationFailedCode;
+        return LogicLabProblemDetails.Create(context, code).ExecuteAsync(context);
     }
 }

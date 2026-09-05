@@ -1,6 +1,7 @@
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
+using static LogicLab.Domain.Tests.ProjectEditorTestContext;
 
 namespace LogicLab.Domain.Tests;
 
@@ -98,14 +99,12 @@ internal sealed class ProjectEditorGenesisTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(first.Revision.Document.ProjectId == second.Revision.Document.ProjectId)
-                .IsFalse();
-            await Assert.That(first.Revision.RevisionId == second.Revision.RevisionId)
-                .IsFalse();
-            await Assert.That(
-                    first.Revision.Document.EntryCircuitDefinition.Id
-                    == second.Revision.Document.EntryCircuitDefinition.Id)
-                .IsFalse();
+            await Assert.That(first.Revision.Document.ProjectId)
+                .IsNotEqualTo(second.Revision.Document.ProjectId);
+            await Assert.That(first.Revision.RevisionId)
+                .IsNotEqualTo(second.Revision.RevisionId);
+            await Assert.That(first.Revision.Document.EntryCircuitDefinitionId)
+                .IsNotEqualTo(second.Revision.Document.EntryCircuitDefinitionId);
             await Assert.That(first.Revision.Document.DisplayName)
                 .IsEqualTo(second.Revision.Document.DisplayName);
             await Assert.That(first.Revision.Document.SymbolProfile)
@@ -165,7 +164,7 @@ internal sealed class ProjectEditorGenesisTests
             revision.Revision,
             new PlaceComponentInstanceIntent(
                 revision.Revision.Document.EntryCircuitDefinitionId,
-                new ComponentContractKey("logiclab.core", "source.input"),
+                Contract("source.input"),
                 [
                     new ComponentParameterBinding(
                         "width",
@@ -179,15 +178,8 @@ internal sealed class ProjectEditorGenesisTests
             inputPlaced.Revision,
             new PlaceComponentInstanceIntent(
                 inputPlaced.Revision.Document.EntryCircuitDefinitionId,
-                new ComponentContractKey("logiclab.core", "sink.output"),
-                [
-                    new ComponentParameterBinding(
-                        "width",
-                        new Unsigned32ParameterValue(1)),
-                    new ComponentParameterBinding(
-                        "radix",
-                        new ChoiceParameterValue("binary")),
-                ],
+                Contract("sink.output"),
+                SinkParameters(1),
                 new ComponentPlacement(new GridPoint(4, 0))));
         var instances = outputPlaced.Revision.Document.EntryCircuitDefinition
             .ComponentInstances.ToDictionary(
@@ -206,6 +198,7 @@ internal sealed class ProjectEditorGenesisTests
                         "D"),
                 ]));
 
+        var originalNet = connected.Revision.Document.EntryCircuitDefinition.Nets.Single();
         var candidate = new ProjectImportCandidate(connected.Revision.Document);
         var imported = (ProjectGenesisCommitted)ProjectEditor.Begin(
             new ImportedProjectSeed(candidate));
@@ -213,12 +206,10 @@ internal sealed class ProjectEditorGenesisTests
         var net = imported.Revision.Document.EntryCircuitDefinition.Nets.Single();
         using (Assert.Multiple())
         {
+            await Assert.That(net.Id).IsEqualTo(originalNet.Id);
             await Assert.That(net.Width).IsEqualTo(1U);
             await Assert.That(net.Terminals)
-                .Contains(new InstanceTerminalReference(
-                    imported.Revision.Document.EntryCircuitDefinitionId,
-                    instances["source.input"].Id,
-                    "Q"));
+                .IsEquivalentTo(originalNet.Terminals, CollectionOrdering.Matching);
         }
     }
 
@@ -302,10 +293,7 @@ internal sealed class ProjectEditorGenesisTests
         return new NewProjectSeed(
             displayName,
             LibrarySnapshot.Core,
-            new SymbolProfileReference(
-                "TeachingMixed",
-                "1.0.0",
-                IndicationConvention.Negation),
+            TeachingMixedProfile(),
             entryCircuitDefinitionDisplayName);
     }
 }

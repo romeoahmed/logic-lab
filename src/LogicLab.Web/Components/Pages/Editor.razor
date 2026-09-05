@@ -113,6 +113,7 @@
                             <SceneToolStrip ActiveTool="SceneTool"
                                             HierarchyPath="CurrentSceneHierarchyPath"
                                             CanProbe="CanUseSceneProbe"
+                                            CanWire="CanMutateWorkspace"
                                             ActiveToolChanged="ChangeSceneToolAsync" />
                             <CircuitSceneHost ProjectRevision="Projection.ProjectRevision"
                                               ProjectionVersion="Projection.ProjectionVersion"
@@ -128,6 +129,7 @@
                         </main>
                         <div class="library-dock" data-testid="workbench-library">
                             <ComponentPalette Options="ScenePlaceOptions"
+                                              Disabled="@(!CanMutateWorkspace)"
                                               ActiveTool="SceneTool"
                                               ActiveToolChanged="ChangeSceneToolAsync" />
                         </div>
@@ -136,37 +138,17 @@
                                 <h2 id="inspector-title">@Text["Inspector"]</h2>
                                 <p>@Text["InspectorDescription"]</p>
                             </header>
-                            @if (CanAuthor)
+                            @if (CanAuthor && SceneSelection is null)
                             {
                                 <StarterGuide BusyCommand="@ActiveCommand"
                                               OnSelect="RunStarterExampleAsync" />
                             }
-                            <details class="advanced-topology" open="@RouteDraftActive">
-                                <summary>
-                                    <span>@Text["AdvancedTopology"]</span>
-                                    <small>@Text["AdvancedTopologyDescription"]</small>
-                                </summary>
-                                <div>
-                                    <TopologyCommandBar CanMerge="CanMergeTopology"
-                                                        CanSplit="CanSplitTopology"
-                                                        CanAddJunction="CanAddJunction"
-                                                        CanRemoveJunction="CanRemoveJunction"
-                                                        CanPrepareRoute="CanPrepareRoute"
-                                                        CanRoute="CanRoute"
-                                                        CanUnroute="CanUnroute"
-                                                        RouteDraftActive="RouteDraftActive"
-                                                        ActiveCommand="@ActiveCommand"
-                                                        OnMerge="@(() => RunCommandAsync("topology-merge", () => CanMergeTopology, MergeTopology))"
-                                                        OnSplit="@(() => RunCommandAsync("topology-split", () => CanSplitTopology, SplitTopology))"
-                                                        OnAddJunction="@(() => RunCommandAsync("topology-add-junction", () => CanAddJunction, AddJunction))"
-                                                        OnRemoveJunction="@(() => RunCommandAsync("topology-remove-junction", () => CanRemoveJunction, RemoveJunction))"
-                                                        OnPrepareRoute="PrepareRoute"
-                                                        OnCommitRoute="@(() => RunCommandAsync("topology-commit-route", () => RouteDraftActive && CanEditTopology, CommitRoute))"
-                                                        OnCancelRoute="CancelRoute"
-                                                        OnRoute="@(() => RunCommandAsync("topology-route", () => CanRoute, RouteGeometry))"
-                                                        OnUnroute="@(() => RunCommandAsync("topology-unroute", () => CanUnroute, UnrouteGeometry))" />
-                                </div>
-                            </details>
+                            <SelectionInspector Projection="Projection"
+                                                DefinitionId="SelectedDefinitionId"
+                                                Selection="SceneSelection"
+                                                HierarchyPath="CurrentSceneHierarchyPath"
+                                                CanEdit="@(CanMutateWorkspace && ActiveCommand is null)"
+                                                OnEdit="HandleInspectorEditAsync" />
                         </aside>
                     </div>
                     <div class="instrument-bay">

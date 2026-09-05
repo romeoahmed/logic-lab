@@ -19,7 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace LogicLab.Web.Tests;
 
-internal sealed class WorkbenchComponentTests
+internal sealed partial class WorkbenchComponentTests
 {
     [Test]
     public async Task Editor_SceneToolStrip_ChangesTheHostPrimaryTool()
@@ -549,8 +549,7 @@ internal sealed class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "stimulus",
-            () => !IsDisabled(rendered, "step")
-                && IsDisabled(rendered, "stimulus"));
+            () => !IsDisabled(rendered, "step"));
         await ClickAndWaitForState(
             rendered,
             "step",
@@ -560,7 +559,7 @@ internal sealed class WorkbenchComponentTests
         using (Assert.Multiple())
         {
             await Assert.That(IsDisabled(rendered, "stimulus")).IsFalse();
-            await Assert.That(IsDisabled(rendered, "step")).IsTrue();
+            await Assert.That(IsDisabled(rendered, "step")).IsFalse();
         }
 
         var beforeToggle = await workspace.ReadCurrent();
@@ -585,6 +584,128 @@ internal sealed class WorkbenchComponentTests
         var afterToggle = await workspace.ReadCurrent();
 
         await Assert.That(afterToggle.Simulation!.Probes).IsEmpty();
+    }
+
+    [Test]
+    public async Task Editor_AutomaticClock_StepsWithoutSchedulingInput()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = await RenderClockEditor(context, workspace);
+
+        await Assert.That(IsDisabled(rendered, "step")).IsFalse();
+        await rendered.Find("[data-command='step']").ClickAsync();
+        var first = await workspace.ReadCurrent();
+        await rendered.Find("[data-command='step']").ClickAsync();
+        var second = await workspace.ReadCurrent();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(first.Simulation!.LogicalTime).IsGreaterThan(0UL);
+            await Assert.That(second.Simulation!.LogicalTime)
+                .IsGreaterThan(first.Simulation.LogicalTime);
+            await Assert.That(IsDisabled(rendered, "step")).IsFalse();
+        }
+    }
+
+    [Test]
+    [Arguments("restart")]
+    [Arguments("close-session")]
+    public async Task Editor_SessionLifecycleCommand_ClearsPendingStimulusAndUsesFreshProbeIds(
+        string command)
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = await RenderSimulationEditor(context, workspace);
+        var initial = await workspace.ReadCurrent();
+        var definition = initial.ProjectRevision.Document.EntryCircuitDefinition;
+        var originalProbe = initial.Simulation!.Probes.Single();
+        var additionalNet = definition.Nets.Single(net =>
+            net.Id != ((NetSourceIdentity)originalProbe.Source.Identity).NetId);
+        var sceneHost = rendered.FindComponent<CircuitSceneHost>();
+        await rendered.InvokeAsync(() => sceneHost.Instance.OnIntent.InvokeAsync(
+            ToggleProbeIntent(initial, definition, additionalNet.Id)));
+        var before = await workspace.ReadCurrent();
+        await rendered.Find("[data-command='stimulus']").ClickAsync();
+
+        await rendered.Find($"[data-command='{command}']").ClickAsync();
+        if (command == "close-session")
+        {
+            await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "session"));
+            await ClickAndWaitForState(rendered, "session", () => !IsDisabled(rendered, "stimulus"));
+        }
+        else
+        {
+            await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "stimulus"));
+        }
+
+        var after = await workspace.ReadCurrent();
+        using (Assert.Multiple())
+        {
+            await Assert.That(after.Simulation!.SessionId).IsNotEqualTo(before.Simulation!.SessionId);
+            await Assert.That(after.Simulation.LogicalTime).IsEqualTo(0UL);
+            await Assert.That(after.Simulation.Probes.Any(probe =>
+                before.Simulation.Probes.Any(previous => previous.ProbeId == probe.ProbeId)))
+                .IsFalse();
+            await Assert.That(after.Simulation.Probes).Count().IsEqualTo(command == "restart" ? 2 : 1);
+            await Assert.That(IsDisabled(rendered, "step")).IsFalse();
+            await Assert.That(IsDisabled(rendered, "stimulus")).IsFalse();
+        }
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Editor_ChangedCircuit_RecompilesBeforeRestartOrHotSwap(bool preserveState)
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = await RenderSimulationEditor(context, workspace);
+        await ClickAndWaitForState(rendered, "stimulus", () => !IsDisabled(rendered, "step"));
+        await ClickAndWaitForState(rendered, "step", () =>
+            rendered.Find("[data-status='logical-time'] dd").TextContent == "1");
+        var before = await workspace.ReadCurrent();
+        var definition = before.ProjectRevision.Document.EntryCircuitDefinition;
+        var component = definition.ComponentInstances[0];
+        var sceneHost = rendered.FindComponent<CircuitSceneHost>();
+
+        await rendered.InvokeAsync(() => sceneHost.Instance.OnIntent.InvokeAsync(
+            new MoveComponentsSceneIntentV1(
+                LogicLabWebBuild.Fingerprint, 1, before.ProjectionVersion, definition.Id.Value,
+                [new SceneComponentMoveV1(
+                    new SceneSourceRefV1(definition.Id.Value, "componentInstance", component.Id.Value),
+                    new SceneComponentPlacementV1(new SceneGridPointV1(20, 12), 0, false))],
+                "none")));
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "compile"));
+        using (Assert.Multiple())
+        {
+            await Assert.That(IsDisabled(rendered, "stimulus")).IsTrue();
+            await Assert.That(IsDisabled(rendered, "restart")).IsTrue();
+        }
+        await ClickAndWaitForState(rendered, "compile", () => !IsDisabled(rendered, "hot-swap"));
+        await rendered.Find($"[data-command='{(preserveState ? "hot-swap" : "restart")}']")
+            .ClickAsync();
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "stimulus"));
+        var after = await workspace.ReadCurrent();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(after.Simulation!.CompilationArtifactKey.ProjectRevisionId)
+                .IsEqualTo(after.ProjectRevision.RevisionId);
+            await Assert.That(after.Simulation.LogicalTime).IsEqualTo(preserveState ? 1UL : 0UL);
+            await Assert.That(after.Simulation.SessionId == before.Simulation!.SessionId)
+                .IsEqualTo(preserveState);
+            await Assert.That(IsDisabled(rendered, "hot-swap")).IsTrue();
+        }
+    }
+
+    private static async Task<IRenderedComponent<Editor>> RenderSimulationEditor(
+        BunitContext context, TrackingWorkspace workspace)
+    {
+        var rendered = await RenderAuthoredEditor(context, workspace);
+        await ClickAndWaitForState(rendered, "compile", () => !IsDisabled(rendered, "session"));
+        await ClickAndWaitForState(rendered, "session", () => !IsDisabled(rendered, "stimulus"));
+        return rendered;
     }
 
     private static ToggleProbeSceneIntentV1 ToggleProbeIntent(
@@ -633,13 +754,12 @@ internal sealed class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "step",
-            () => !IsDisabled(rendered, "stimulus")
-                && IsDisabled(rendered, "step"));
+            () => !IsDisabled(rendered, "stimulus"));
 
         using (Assert.Multiple())
         {
             await Assert.That(IsDisabled(rendered, "stimulus")).IsFalse();
-            await Assert.That(IsDisabled(rendered, "step")).IsTrue();
+            await Assert.That(IsDisabled(rendered, "step")).IsFalse();
         }
     }
 
@@ -686,7 +806,7 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task Editor_CarryLookaheadStarterWithMixedNetWidths_DisablesMergeCommand()
+    public async Task Editor_MixedWidthSelectedNets_DoesNotOfferMerge()
     {
         await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
@@ -702,7 +822,12 @@ internal sealed class WorkbenchComponentTests
             "author-carry-lookahead",
             () => !IsDisabled(rendered, "compile"));
 
-        await Assert.That(IsDisabled(rendered, "topology-merge")).IsTrue();
+        var definition = CurrentDefinition(rendered)!;
+        var nets = definition.Nets.DistinctBy(net => net.Width).Take(2).ToArray();
+        await Select(rendered, [.. nets.Select(net => SceneSourceMap.From(new NetSourceIdentity(definition.Id, net.Id)))]);
+
+        await Assert.That(rendered.FindAll("[data-command='selection-merge']")).IsEmpty();
+        await Assert.That(rendered.FindAll("[data-selection-item]")).Count().IsEqualTo(2);
     }
 
     [Test, Timeout(30_000)]
@@ -842,54 +967,44 @@ internal sealed class WorkbenchComponentTests
     }
 
     [Test]
-    public async Task Editor_TopologyCommands_ExerciseMergeSplitJunctionAndRouting()
+    public async Task Editor_SelectionEdits_TargetOnlySelectedRouteWhileSessionIsPaused()
     {
         await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
-        var rendered = RenderEditor(context, workspace);
-        _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
-        await ClickAndWaitForState(
-            rendered,
-            "create",
-            () => !IsDisabled(rendered, "author"));
-        await ClickAndWaitForState(
-            rendered,
-            "author",
-            () => CurrentDefinition(rendered)?.Nets.Count == 2);
+        var rendered = await RenderClockEditor(context, workspace);
+        await ClickAndWaitForState(rendered, "run", () => !IsDisabled(rendered, "pause"));
+        var before = await workspace.ReadCurrent();
+        var definition = before.ProjectRevision.Document.EntryCircuitDefinition;
+        var selected = definition.WireGeometries[^1];
+        var untouched = definition.WireGeometries[0];
+        await Select(rendered, [SceneSourceMap.From(new WireGeometrySourceIdentity(definition.Id, selected.Id))]);
+        await Assert.That(IsDisabled(rendered, "selection-unroute")).IsTrue();
+        await ClickAndWaitForState(rendered, "pause", () => !IsDisabled(rendered, "selection-unroute"));
 
-        await ClickAndWaitForState(
-            rendered,
-            "topology-merge",
-            () => CurrentDefinition(rendered)?.Nets.Count == 1);
+        await ClickAndWaitForState(rendered, "selection-unroute", () =>
+            CurrentDefinition(rendered)!.FindWireGeometry(selected.Id)!.Route is UnroutedWireRoute);
+        var after = await workspace.ReadCurrent();
+        using (Assert.Multiple())
+        {
+            await Assert.That(after.Simulation!.Run).IsTypeOf<RunPausedProjection>();
+            await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.FindWireGeometry(untouched.Id))
+                .IsSameReferenceAs(untouched);
+            await Assert.That(after.ProjectRevision.Document.EntryCircuitDefinition.Nets)
+                .IsEquivalentTo(definition.Nets);
+        }
 
-        await ClickAndWaitForState(
-            rendered,
-            "topology-split",
-            () => CurrentDefinition(rendered)?.Nets.Count == 2);
-
-        await ClickAndWaitForState(
-            rendered,
-            "topology-add-junction",
-            () => CurrentDefinition(rendered)?.Junctions.Count == 1);
-
-        await rendered.Find("[data-command='topology-unroute']").ClickAsync();
-        await Assert.That(await ReadFirstRoute(workspace))
-            .IsTypeOf<UnroutedWireRoute>();
-
-        await rendered.Find("[data-command='topology-route']").ClickAsync();
-        await Assert.That(await ReadFirstRoute(workspace))
-            .IsTypeOf<OrthogonalWireRoute>();
-
-        await ClickAndWaitForState(
-            rendered,
-            "topology-remove-junction",
-            () => CurrentDefinition(rendered)?.Junctions.Count == 0);
-
-        await ClickAndWaitForState(
-            rendered,
-            "compile",
-            () => !IsDisabled(rendered, "session"));
+        // A delayed click must not apply an intent built for the previous revision.
+        var inspector = rendered.FindComponent<SelectionInspector>();
+        var currentRevision = after.ProjectRevision.RevisionId;
+        await rendered.InvokeAsync(() => inspector.Instance.OnEdit.InvokeAsync(new SelectionInspector.EditRequest(
+            before.ProjectRevision.RevisionId, definition.Id,
+            new RemoveWireGeometryIntent(definition.Id, untouched.Id))));
+        await Assert.That((await workspace.ReadCurrent()).ProjectRevision.RevisionId).IsEqualTo(currentRevision);
     }
+
+    private static Task Select(IRenderedComponent<Editor> rendered, IReadOnlyList<SceneSourceRefV1> sources) =>
+        rendered.InvokeAsync(() => rendered.FindComponent<CircuitSceneHost>().Instance.OnSelect.InvokeAsync(
+            new SceneSelectionV1(sources, "replace")));
 
     private static BunitContext CreateContext()
     {
@@ -1020,14 +1135,6 @@ internal sealed class WorkbenchComponentTests
         var commands = rendered.FindAll("[data-command]");
         return commands.Count > 0
             && commands.All(command => command.HasAttribute("disabled"));
-    }
-
-    private static async Task<WireRoute> ReadFirstRoute(TrackingWorkspace workspace)
-    {
-        var projection = await workspace.ReadCurrent();
-        return projection.ProjectRevision.Document.EntryCircuitDefinition
-            .WireGeometries.OrderBy(geometry => geometry.Id.Value, StringComparer.Ordinal)
-            .First().Route;
     }
 
     private sealed class PassthroughWorkspace : DelegatingEditorWorkspace
@@ -1492,7 +1599,7 @@ internal sealed class WorkbenchComponentTests
         public void Release() => release.TrySetResult();
     }
 
-    private sealed class TrackingWorkspace(WorkspacePolicy? workspacePolicy = null)
+    private class TrackingWorkspace(WorkspacePolicy? workspacePolicy = null)
         : DelegatingEditorWorkspace(workspacePolicy)
     {
         private Attached? attachment;

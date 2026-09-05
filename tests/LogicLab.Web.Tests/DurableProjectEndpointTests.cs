@@ -8,6 +8,7 @@ using LogicLab.Application.Workspaces;
 using LogicLab.Web.Projects;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -75,14 +76,8 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                     new DurableDisplayName("Cache boundary")),
             ]
             : [];
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(
-                    new RecordingCatalog(new DurableProjectPage(items, next: null)));
-            }));
+        using var host = CreateAuthenticatedHost(
+            catalog: new RecordingCatalog(new DurableProjectPage(items, next: null)));
         using var client = host.CreateHttpsClient();
 
         using var response = await client.GetAsync(
@@ -108,13 +103,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                         new DurableDisplayName(projectedDisplayName)),
                 ],
                 next: null));
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(catalog);
-            }));
+        using var host = CreateAuthenticatedHost(catalog: catalog);
         using var client = host.CreateHttpsClient();
 
         using var response = await client.GetAsync(
@@ -144,13 +133,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     {
         var catalog = new RecordingCatalog(
             new DurableProjectPage([], next: null));
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(catalog);
-            }));
+        using var host = CreateAuthenticatedHost(catalog: catalog);
         using var client = host.CreateHttpsClient();
         client.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
@@ -170,13 +153,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     {
         var catalog = new RecordingCatalog(
             new DurableProjectPage([], next: null));
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(catalog);
-            }));
+        using var host = CreateAuthenticatedHost(catalog: catalog);
         using var client = host.CreateHttpsClient();
         client.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
@@ -206,15 +183,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         HttpStatusCode expectedStatus)
     {
         await using var workspace = new RejectingOpenWorkspace(code);
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
-                services.RemoveAll<IEditorWorkspace>();
-                services.AddSingleton<IEditorWorkspace>(workspace);
-            }));
+        using var host = CreateAuthenticatedHost(workspace: workspace);
         using var client = host.CreateHttpsClient();
 
         using var response = await PostOpenAsync(client, "project-a");
@@ -234,16 +203,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         await using var workspace = new RejectingOpenWorkspace(
             "workspace_admission_rejected",
             evidence);
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(
-                    new SingleProjectCatalog());
-                services.RemoveAll<IEditorWorkspace>();
-                services.AddSingleton<IEditorWorkspace>(workspace);
-            }));
+        using var host = CreateAuthenticatedHost(workspace: workspace);
         using var client = host.CreateHttpsClient();
 
         using var response = await PostOpenAsync(client, "project-a");
@@ -284,15 +244,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     public async Task Post_OpenWithNonFormContentType_ReturnsRequestInvalidProblemDetails()
     {
         await using var workspace = new RecordingOpenWorkspace();
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
-                services.RemoveAll<IEditorWorkspace>();
-                services.AddSingleton<IEditorWorkspace>(workspace);
-            }));
+        using var host = CreateAuthenticatedHost(workspace: workspace);
         using var client = host.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
@@ -317,15 +269,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     public async Task Post_OpenWithUnknownFormCharset_ReturnsRequestInvalidProblemDetailsWithoutWorkspaceAccess()
     {
         await using var workspace = new RecordingOpenWorkspace();
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
-                services.RemoveAll<IEditorWorkspace>();
-                services.AddSingleton<IEditorWorkspace>(workspace);
-            }));
+        using var host = CreateAuthenticatedHost(workspace: workspace);
         using var client = host.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
@@ -355,15 +299,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     public async Task Post_OpenWithInvalidUtf8FormBytes_ReturnsRequestInvalidProblemDetailsWithoutWorkspaceAccess()
     {
         await using var workspace = new RecordingOpenWorkspace();
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
-                services.RemoveAll<IEditorWorkspace>();
-                services.AddSingleton<IEditorWorkspace>(workspace);
-            }));
+        using var host = CreateAuthenticatedHost(workspace: workspace);
         using var client = host.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var antiforgeryContent = new FormUrlEncodedContent(
@@ -399,15 +335,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     {
         var loader = new FailOnCallDurableProjectLoader();
         await using var workspace = new CountingOpenWorkspace(loader);
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
-                services.RemoveAll<IEditorWorkspace>();
-                services.AddSingleton<IEditorWorkspace>(workspace);
-            }));
+        using var host = CreateAuthenticatedHost(workspace: workspace);
         using var client = host.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
@@ -443,14 +371,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         string reason,
         HttpStatusCode expectedStatus)
     {
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(
-                    new RejectedCatalog(reason));
-            }));
+        using var host = CreateAuthenticatedHost(catalog: new RejectedCatalog(reason));
         using var client = host.CreateHttpsClient();
         client.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
@@ -470,15 +391,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     public async Task Post_OpenWithAuthenticatedAntiforgeryForm_ReauthorizesAndRedirectsToWorkspace()
     {
         await using var workspace = new RecordingOpenWorkspace();
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
-                services.RemoveAll<IEditorWorkspace>();
-                services.AddSingleton<IEditorWorkspace>(workspace);
-            }));
+        using var host = CreateAuthenticatedHost(workspace: workspace);
         using var client = host.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
@@ -497,11 +410,14 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
 
         var open = (await Assert.That(workspace.Request)
             .IsTypeOf<OpenDurable>())!;
+        var openedId = workspace.OpenedWorkspaceId;
+        Assert.NotNull(openedId);
         using (Assert.Multiple())
         {
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Redirect);
             await Assert.That(response.Headers.Location?.OriginalString)
-                .StartsWith("/editor/");
+                .IsEqualTo($"/editor/{Uri.EscapeDataString(openedId.Value)}");
+            await Assert.That(workspace.CallCount).IsEqualTo(1);
             await Assert.That(open.DurableProjectId.Value).IsEqualTo("project-a");
             await Assert.That(((AuthenticatedWorkspaceCaller)open.Caller)
                     .SubjectId.Value)
@@ -544,15 +460,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     public async Task Post_OpenWithInvalidAntiforgeryToken_ReturnsProblemDetailsWithoutWorkspaceAccess()
     {
         await using var workspace = new RecordingOpenWorkspace();
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
-                services.RemoveAll<IEditorWorkspace>();
-                services.AddSingleton<IEditorWorkspace>(workspace);
-            }));
+        using var host = CreateAuthenticatedHost(workspace: workspace);
         using var client = host.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
@@ -583,15 +491,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     {
         const int maximumBodyBytes = 4096;
         await using var workspace = new RecordingOpenWorkspace();
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
-                services.RemoveAll<IEditorWorkspace>();
-                services.AddSingleton<IEditorWorkspace>(workspace);
-            }));
+        using var host = CreateAuthenticatedHost(workspace: workspace);
         using var client = host.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
 
@@ -679,15 +579,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         var permitLimit = DurableProjectIngressPolicy.Default.OpenPermitLimit;
         var loader = new NotFoundDurableProjectLoader();
         await using var workspace = new CountingOpenWorkspace(loader);
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
-                services.RemoveAll<IEditorWorkspace>();
-                services.AddSingleton<IEditorWorkspace>(workspace);
-            }));
+        using var host = CreateAuthenticatedHost(workspace: workspace);
         using var clientA = host.CreateHttpsClient();
         using var clientB = host.CreateHttpsClient();
         clientA.DefaultRequestHeaders.Add(
@@ -800,6 +692,24 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         }
     }
 
+    private WebApplicationFactory<Program> CreateAuthenticatedHost(
+        IEditorWorkspace? workspace = null,
+        IDurableProjectCatalog? catalog = null)
+    {
+        return factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                ConfigureAuthentication(services);
+                services.RemoveAll<IDurableProjectCatalog>();
+                services.AddSingleton(catalog ?? new SingleProjectCatalog());
+                if (workspace is not null)
+                {
+                    services.RemoveAll<IEditorWorkspace>();
+                    services.AddSingleton(workspace);
+                }
+            }));
+    }
+
     private static void ConfigureAuthentication(IServiceCollection services)
     {
         services.AddAuthentication(options =>
@@ -847,15 +757,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     private async Task AssertMalformedOpenRequest(string? durableProjectId)
     {
         await using var workspace = new RecordingOpenWorkspace();
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                ConfigureAuthentication(services);
-                services.RemoveAll<IDurableProjectCatalog>();
-                services.AddSingleton<IDurableProjectCatalog>(new SingleProjectCatalog());
-                services.RemoveAll<IEditorWorkspace>();
-                services.AddSingleton<IEditorWorkspace>(workspace);
-            }));
+        using var host = CreateAuthenticatedHost(workspace: workspace);
         using var client = host.CreateHttpsClient();
 
         using var response = await PostOpenAsync(client, durableProjectId);
@@ -939,36 +841,16 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         AntiforgeryForm form,
         int bodyLength)
     {
-        var values = new List<KeyValuePair<string, string>>
-        {
-            new("durableProjectId", "project-a"),
-            new("__RequestVerificationToken", form.RequestToken),
-            new("padding", string.Empty),
-        };
-        using var unpadded = new FormUrlEncodedContent(values);
-        var paddingLength = checked(
-            bodyLength - (int)(unpadded.Headers.ContentLength
-                ?? throw new InvalidOperationException(
-                    "The form content did not expose its length.")));
-        if (paddingLength < 0)
-        {
-            throw new InvalidOperationException(
-                "The requested body length is smaller than the form envelope.");
-        }
-
-        values[^1] = new("padding", new string('x', paddingLength));
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             new Uri("/projects/open", UriKind.Relative))
         {
-            Content = new FormUrlEncodedContent(values),
+            Content = WebTestHttp.CreateSizedFormContent(bodyLength,
+            [
+                new("durableProjectId", "project-a"),
+                new("__RequestVerificationToken", form.RequestToken),
+            ]),
         };
-        if (request.Content.Headers.ContentLength != bodyLength)
-        {
-            throw new InvalidOperationException(
-                "The encoded form did not reach the requested byte boundary.");
-        }
-
         request.Headers.Add("Cookie", form.Cookie);
         request.Headers.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
@@ -1057,15 +939,19 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
 
         public OpenWorkspaceRequest? Request { get; private set; }
 
-        public override Task<WorkspaceOpenOutcome> OpenAsync(
+        public WorkspaceId? OpenedWorkspaceId { get; private set; }
+
+        public override async Task<WorkspaceOpenOutcome> OpenAsync(
             OpenWorkspaceRequest request,
             CancellationToken cancellationToken)
         {
             CallCount++;
             Request = request;
-            return base.OpenAsync(
+            var opened = (WorkspaceOpened)await base.OpenAsync(
                 new CreateSandbox("Reopened project", "Main", AnonymousWorkspaceCaller.Instance),
                 cancellationToken);
+            OpenedWorkspaceId = opened.WorkspaceId;
+            return opened;
         }
     }
 

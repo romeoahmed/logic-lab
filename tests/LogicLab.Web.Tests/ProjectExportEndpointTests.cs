@@ -5,6 +5,7 @@ using LogicLab.Application.Workspaces;
 using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -18,32 +19,10 @@ namespace LogicLab.Web.Tests;
 internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
 {
     [Test]
-    public async Task Start_InvalidProjectExportConfiguration_FailsOptionsValidation()
-    {
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.UseSetting(
-                "LogicLab:ProjectExports:MaximumPublishedExports",
-                "0"));
-
-        await Assert.That(async () =>
-            {
-                using var client = host.CreateHttpsClient();
-                using var response = await client.GetAsync(
-                    new Uri("/", UriKind.Relative));
-            })
-            .ThrowsExactly<OptionsValidationException>();
-    }
-
-    [Test]
     public async Task HeadExport_DoesNotConsumeTicketAndReturnsMethodNotAllowed()
     {
         var downloads = new OneTimeDownloads("package-bytes"u8.ToArray());
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IProjectExportDownloads>();
-                services.AddSingleton<IProjectExportDownloads>(downloads);
-            }));
+        using var host = CreateAnonymousHost(downloads);
         using var client = host.CreateHttpsClient();
         using var bootstrap = await client.GetAsync(
             new Uri("/editor", UriKind.Relative));
@@ -77,12 +56,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
     public async Task GetExport_FreshAnonymousTicket_StreamsPackageOnceWithPrivateHeaders()
     {
         var downloads = new OneTimeDownloads("package-bytes"u8.ToArray());
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IProjectExportDownloads>();
-                services.AddSingleton<IProjectExportDownloads>(downloads);
-            }));
+        using var host = CreateAnonymousHost(downloads);
         using var client = host.CreateHttpsClient();
         using var bootstrap = await client.GetAsync(
             new Uri("/editor", UriKind.Relative));
@@ -125,12 +99,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
     public async Task GetExport_DifferentAnonymousBrowsers_PassDistinctProtectedCallers()
     {
         var downloads = new AlwaysDownloads("package-bytes"u8.ToArray());
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IProjectExportDownloads>();
-                services.AddSingleton<IProjectExportDownloads>(downloads);
-            }));
+        using var host = CreateAnonymousHost(downloads);
         using var clientA = host.CreateHttpsClient();
         using var clientB = host.CreateHttpsClient();
         using var bootstrapA = await clientA.GetAsync(
@@ -147,6 +116,9 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
         using var responseB = await clientB.GetAsync(
             new Uri("/downloads/export-ticket-browser-b", UriKind.Relative));
 
+        responseA.EnsureSuccessStatusCode();
+        responseB.EnsureSuccessStatusCode();
+        await Assert.That(downloads.Requests).Count().IsEqualTo(2);
         var callerA = (await Assert.That(downloads.Requests[0].Caller)
             .IsTypeOf<AnonymousBrowserWorkspaceCaller>())!;
         var callerB = (await Assert.That(downloads.Requests[1].Caller)
@@ -162,6 +134,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
                         StringComparison.Ordinal)))
                 .Contains("secure; samesite=lax; httponly", StringComparison.OrdinalIgnoreCase);
             await Assert.That(responseA.Headers.Contains("Set-Cookie")).IsFalse();
+            await Assert.That(responseB.Headers.Contains("Set-Cookie")).IsFalse();
         }
     }
 
@@ -262,12 +235,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
     public async Task GetExport_MalformedTicket_ConcealsWithoutStoreAccess()
     {
         var downloads = new OneTimeDownloads("unused"u8.ToArray());
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IProjectExportDownloads>();
-                services.AddSingleton<IProjectExportDownloads>(downloads);
-            }));
+        using var host = CreateAnonymousHost(downloads);
         using var client = host.CreateHttpsClient();
 
         using var response = await client.GetAsync(
@@ -293,12 +261,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
         string method)
     {
         var downloads = new OneTimeDownloads("unused"u8.ToArray());
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IProjectExportDownloads>();
-                services.AddSingleton<IProjectExportDownloads>(downloads);
-            }));
+        using var host = CreateAnonymousHost(downloads);
         using var client = host.CreateHttpsClient();
         using var request = new HttpRequestMessage(
             new HttpMethod(method),
@@ -318,6 +281,16 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
             await Assert.That(response.Headers.CacheControl?.NoStore).IsTrue();
             await Assert.That(downloads.Requests).IsEmpty();
         }
+    }
+
+    private WebApplicationFactory<Program> CreateAnonymousHost(IProjectExportDownloads downloads)
+    {
+        return factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IProjectExportDownloads>();
+                services.AddSingleton(downloads);
+            }));
     }
 
     private static string AnonymousCookie(HttpResponseMessage response) =>

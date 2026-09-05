@@ -146,35 +146,6 @@
   line-height: 1.4;
 }
 
-.advanced-topology {
-  border-block-start: 1px solid var(--ll-border);
-  background: var(--ll-panel);
-}
-
-.advanced-topology > summary {
-  display: grid;
-  gap: 0.15rem;
-  padding: 0.8rem 0.9rem;
-  color: var(--ll-signal-strong);
-  cursor: pointer;
-  font-size: 0.78rem;
-  font-weight: 750;
-}
-
-.advanced-topology > summary:hover {
-  background: var(--ll-signal-soft);
-}
-
-.advanced-topology > summary small {
-  color: var(--ll-muted);
-  font-weight: 400;
-  line-height: 1.35;
-}
-
-.advanced-topology > div {
-  border-block-start: 1px solid var(--ll-border);
-}
-
 .workbench-status-region {
   min-inline-size: 0;
   border-block-start: 1px solid var(--ll-border-strong);

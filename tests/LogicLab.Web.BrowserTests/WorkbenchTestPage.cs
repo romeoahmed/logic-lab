@@ -49,7 +49,17 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
 
     public ILocator StartSimulation => Command("session");
 
+    public ILocator RestartSimulation => Command("restart");
+
+    public ILocator CloseSimulation => Command("close-session");
+
     public ILocator Step => Command("step");
+
+    public ILocator Run => Command("run");
+
+    public ILocator Pause => Command("pause");
+
+    public ILocator SimulationStatus => page.Locator("[data-status='simulation'] dd");
 
     public ILocator PlaceOption(string accessibleName) =>
         Palette.GetByRole(

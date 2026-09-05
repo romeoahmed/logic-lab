@@ -654,6 +654,14 @@ internal sealed class DurableProjectRepository :
         DurableProjectId durableProjectId,
         CancellationToken cancellationToken)
     {
+        // Receipt-only saves do not update the project. Serialize their pruning
+        // without conflicting with the receipts' foreign-key checks.
+        await context.Database.ExecuteSqlInterpolatedAsync($"""
+            SELECT 1 FROM durable_projects
+            WHERE durable_project_id = {durableProjectId.Value}
+            FOR NO KEY UPDATE
+            """, cancellationToken).ConfigureAwait(false);
+
         var oldestRetainedSequence = await context.DurableCommandReceipts
             .AsNoTracking()
             .Where(receipt => receipt.DurableProjectId == durableProjectId.Value)

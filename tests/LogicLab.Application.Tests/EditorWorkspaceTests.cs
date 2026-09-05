@@ -8,7 +8,7 @@ using TUnit.Assertions.Enums;
 
 namespace LogicLab.Application.Tests;
 
-internal sealed class EditorWorkspaceTests
+internal sealed partial class EditorWorkspaceTests
 {
     [Test]
     public async Task DispatchAsync_CompilationPolicyExhausted_PreservesPolicyEvidence(
@@ -94,14 +94,14 @@ internal sealed class EditorWorkspaceTests
             opened.Attachment,
             cancellationToken);
         var scheduled = await workspace.DispatchAsync(
-            new ScheduleInputStimulus(
+            EditorWorkspaceTestDriver.ScheduleInput(
                 Context(opened.WorkspaceId, opened.Attachment, "schedule-after-edit"),
                 new SessionMutationPrecondition(
                     compiled.Simulation!.SessionId,
                     compiled.Simulation.SessionVersion,
                     compiled.Simulation.CompilationArtifactKey),
                 logicalTime: 1,
-                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+                input.Id, [LogicValue.One]),
             CancellationToken.None);
 
         using (Assert.Multiple())
@@ -150,14 +150,14 @@ internal sealed class EditorWorkspaceTests
         Assert.NotNull(committed);
         var after = await Read(workspace, opened);
         var scheduled = await workspace.DispatchAsync(
-            new ScheduleInputStimulus(
+            EditorWorkspaceTestDriver.ScheduleInput(
                 Context(opened.WorkspaceId, attachment, "schedule-after-undo"),
                 new SessionMutationPrecondition(
                     after.Simulation!.SessionId,
                     after.Simulation.SessionVersion,
                     after.Simulation.CompilationArtifactKey),
                 logicalTime: 1,
-                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+                input.Id, [LogicValue.One]),
             CancellationToken.None);
 
         using (Assert.Multiple())
@@ -451,11 +451,11 @@ internal sealed class EditorWorkspaceTests
         }
 
         var scheduled = await workspace.DispatchAsync(
-            new ScheduleInputStimulus(
+            EditorWorkspaceTestDriver.ScheduleInput(
                 Context(opened.WorkspaceId, opened.Attachment, "schedule"),
                 EditorWorkspaceTestDriver.SessionMutation(initial),
                 1,
-                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+                input.Id, [LogicValue.One]),
             CancellationToken.None);
         var afterSchedule = await Read(workspace, opened);
         var stepped = await workspace.DispatchAsync(
@@ -536,7 +536,8 @@ internal sealed class EditorWorkspaceTests
                         beforeCompilation.ProjectRevision.Document
                             .EntryCircuitDefinitionId,
                         beforeCompilation.ProjectRevision.Document.LibrarySnapshot.Fingerprint,
-                        "missing"))),
+                        "missing")),
+                SessionConfigurationV1.ForWorkbench([])),
             CancellationToken.None);
         var projection = await Read(workspace, opened);
 
@@ -760,20 +761,21 @@ internal sealed class EditorWorkspaceTests
     }
 
     [Test]
-    public async Task DispatchAsync_EmptyInputStimulus_ReturnsClosedPreconditionRejection(
+    public async Task DispatchAsync_UnresolvedStimulusSource_ReturnsClosedPreconditionRejection(
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.TestFingerprint);
-        var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
+        var (opened, _) = await OpenInputOutputSession(workspace, cancellationToken);
+        var sink = await FindByContract(workspace, opened, "sink.output");
 
         var outcome = await workspace.DispatchAsync(
-            new ScheduleInputStimulus(
-                Context(opened.WorkspaceId, opened.Attachment, "empty"),
+            EditorWorkspaceTestDriver.ScheduleInput(
+                Context(opened.WorkspaceId, opened.Attachment, "unresolved-source"),
                 EditorWorkspaceTestDriver.SessionMutation(
                     await Read(workspace, opened)),
                 1,
-                [new InputStimulusAssignment(input.Id, [])]),
+                sink.Id, [LogicValue.One]),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
@@ -789,12 +791,12 @@ internal sealed class EditorWorkspaceTests
         var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
 
         var outcome = await workspace.DispatchAsync(
-            new ScheduleInputStimulus(
+            EditorWorkspaceTestDriver.ScheduleInput(
                 Context(opened.WorkspaceId, opened.Attachment, "width"),
                 EditorWorkspaceTestDriver.SessionMutation(
                     await Read(workspace, opened)),
                 1,
-                [new InputStimulusAssignment(input.Id, [LogicValue.Zero, LogicValue.One])]),
+                input.Id, [LogicValue.Zero, LogicValue.One]),
             CancellationToken.None);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
@@ -802,19 +804,30 @@ internal sealed class EditorWorkspaceTests
     }
 
     [Test]
-    public async Task DispatchAsync_StepWithoutScheduledStimulus_ReturnsSimulationReason(
+    public async Task DispatchAsync_StepWithoutScheduledStimulus_ReturnsUnchangedBoundary(
         CancellationToken cancellationToken)
     {
         await using var workspace = TestEditorWorkspaceFactory.Create(
             WorkspaceBuild.TestFingerprint);
         var (opened, _) = await OpenInputOutputSession(workspace, cancellationToken);
+        var before = await Read(workspace, opened);
+        var command = Step(opened, before);
 
-        var outcome = await workspace.DispatchAsync(
-            Step(opened, await Read(workspace, opened)),
-            CancellationToken.None);
+        var outcome = await workspace.DispatchAsync(command, cancellationToken);
+        var replay = await workspace.DispatchAsync(command, cancellationToken);
+        var after = await Read(workspace, opened);
 
-        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
-        await Assert.That(rejected.Code).IsEqualTo("no_scheduled_stimulus");
+        var idle = (await Assert.That(outcome)
+            .IsTypeOf<LogicLab.Application.Workspaces.NoScheduledStimulus>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(idle.SessionVersion).IsEqualTo(before.Simulation!.SessionVersion);
+            await Assert.That(idle.LogicalTime).IsEqualTo(before.Simulation.LogicalTime);
+            await Assert.That(idle.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
+            await Assert.That(after.Simulation).IsEqualTo(before.Simulation);
+            await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
+            await Assert.That(replay).IsEqualTo(idle);
+        }
     }
 
     [Test, Timeout(30_000)]
@@ -844,12 +857,12 @@ internal sealed class EditorWorkspaceTests
             operations: operations);
         var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
         var scheduled = await workspace.DispatchAsync(
-            new ScheduleInputStimulus(
+            EditorWorkspaceTestDriver.ScheduleInput(
                 Context(opened.WorkspaceId, opened.Attachment, "schedule"),
                 EditorWorkspaceTestDriver.SessionMutation(
                     await Read(workspace, opened)),
                 1,
-                [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+                input.Id, [LogicValue.One]),
             cancellationToken);
 
         var stepPrecondition = EditorWorkspaceTestDriver.SessionMutation(
@@ -932,13 +945,16 @@ internal sealed class EditorWorkspaceTests
         var artifactKey = compiled.PublishedCompilation().ArtifactKey;
         var firstCommand = new CreateSession(
             Context(opened.WorkspaceId, attachment, "first"),
-            new SessionCreationPrecondition(artifactKey));
+            new SessionCreationPrecondition(artifactKey),
+            SessionConfigurationV1.ForEntryOutputs(compiled.ProjectRevision));
         var secondCommand = new CreateSession(
             Context(opened.WorkspaceId, attachment, "second"),
-            new SessionCreationPrecondition(artifactKey));
+            new SessionCreationPrecondition(artifactKey),
+            SessionConfigurationV1.ForEntryOutputs(compiled.ProjectRevision));
         var rejectedCommand = new CreateSession(
             Context(opened.WorkspaceId, attachment, "rejected"),
-            new SessionCreationPrecondition(artifactKey));
+            new SessionCreationPrecondition(artifactKey),
+            SessionConfigurationV1.ForEntryOutputs(compiled.ProjectRevision));
 
         var first = workspace.DispatchAsync(firstCommand, cancellationToken);
         Task<WorkspaceCommandOutcome> second;
@@ -959,7 +975,8 @@ internal sealed class EditorWorkspaceTests
                         attachment.Generation,
                         new ClientIntentId("stale"),
                         AnonymousWorkspaceCaller.Instance),
-                    new SessionCreationPrecondition(artifactKey)),
+                    new SessionCreationPrecondition(artifactKey),
+            SessionConfigurationV1.ForEntryOutputs(compiled.ProjectRevision)),
                 cancellationToken);
         }
         finally
@@ -1032,7 +1049,8 @@ internal sealed class EditorWorkspaceTests
             cancellationToken);
         var command = new CreateSession(
             Context(opened.WorkspaceId, opened.Attachment, "session"),
-            new SessionCreationPrecondition(compiled.PublishedCompilation().ArtifactKey));
+            new SessionCreationPrecondition(compiled.PublishedCompilation().ArtifactKey),
+            SessionConfigurationV1.ForEntryOutputs(compiled.ProjectRevision));
         var original = workspace.DispatchAsync(command, CancellationToken.None);
 
         WorkspaceCommandOutcome replay;
@@ -1178,7 +1196,8 @@ internal sealed class EditorWorkspaceTests
                 controlled.WorkspaceId,
                 controlled.Attachment,
                 Guid.CreateVersion7().ToString("N")),
-            EditorWorkspaceTestDriver.SessionCreation(projection));
+            EditorWorkspaceTestDriver.SessionCreation(projection),
+            SessionConfigurationV1.ForEntryOutputs(projection.ProjectRevision));
     }
 
     private static StepSession Step(

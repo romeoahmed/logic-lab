@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+
 namespace LogicLab.Presentation.Geometry;
 
 public readonly record struct PointV1(int X, int Y);
@@ -48,24 +49,37 @@ public readonly record struct RectV1
         && point.Y >= Top
         && point.Y <= Bottom;
 
-    internal static RectV1 Enclose(IReadOnlyList<PointV1> points)
+    internal RectV1 Translate(PointV1 origin) => new(
+        checked(Left + origin.X),
+        checked(Top + origin.Y),
+        checked(Right + origin.X),
+        checked(Bottom + origin.Y));
+
+    internal RectV1 Inflate(int padding) => new(
+        checked(Left - padding),
+        checked(Top - padding),
+        checked(Right + padding),
+        checked(Bottom + padding));
+
+    internal static RectV1 Enclose(IEnumerable<PointV1> points)
     {
         ArgumentNullException.ThrowIfNull(points);
-        if (points.Count == 0)
+        using var iterator = points.GetEnumerator();
+        if (!iterator.MoveNext())
         {
             throw new ArgumentException("At least one point is required.", nameof(points));
         }
 
-        var left = points[0].X;
-        var top = points[0].Y;
+        var left = iterator.Current.X;
+        var top = iterator.Current.Y;
         var right = left;
         var bottom = top;
-        for (var index = 1; index < points.Count; index++)
+        while (iterator.MoveNext())
         {
-            left = Math.Min(left, points[index].X);
-            top = Math.Min(top, points[index].Y);
-            right = Math.Max(right, points[index].X);
-            bottom = Math.Max(bottom, points[index].Y);
+            left = Math.Min(left, iterator.Current.X);
+            top = Math.Min(top, iterator.Current.Y);
+            right = Math.Max(right, iterator.Current.X);
+            bottom = Math.Max(bottom, iterator.Current.Y);
         }
 
         return new RectV1(left, top, right, bottom);
@@ -125,6 +139,30 @@ public sealed class PathV1
     public ReadOnlyCollection<PathCommandV1> Commands { get; }
 
     internal bool EveryContourClosed { get; }
+
+    // The control-point hull conservatively encloses every cubic segment.
+    internal RectV1 ControlBounds => RectV1.Enclose(ControlPoints());
+
+    private IEnumerable<PointV1> ControlPoints()
+    {
+        foreach (var command in Commands)
+        {
+            switch (command)
+            {
+                case MoveToV1 move:
+                    yield return move.Point;
+                    break;
+                case LineToV1 line:
+                    yield return line.Point;
+                    break;
+                case CubicToV1 cubic:
+                    yield return cubic.Control1;
+                    yield return cubic.Control2;
+                    yield return cubic.End;
+                    break;
+            }
+        }
+    }
 
     private static bool Validate(PathCommandV1[] commands)
     {

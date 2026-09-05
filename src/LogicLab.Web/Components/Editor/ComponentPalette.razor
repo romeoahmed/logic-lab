@@ -40,6 +40,7 @@
                             <button type="button"
                                     @key="option.Id"
                                     data-place-option="@option.Id"
+                                    disabled="@Disabled"
                                     aria-pressed="@(IsActive(option) ? "true" : "false")"
                                     @onclick="@(() => SelectAsync(option))">
                                 <ComponentSymbol ContractId="@SymbolContractId(option)" />

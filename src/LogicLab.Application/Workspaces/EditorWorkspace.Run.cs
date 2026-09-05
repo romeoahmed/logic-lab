@@ -48,78 +48,6 @@ internal sealed partial class EditorWorkspace
             state.ProjectionVersion);
     }
 
-    private WorkspaceCommandOutcome HotSwapWithPrecondition(
-        WorkspaceState state,
-        HotSwapSession command,
-        CancellationToken cancellationToken)
-    {
-        var activeSession = state.ActiveSession;
-        if (!MatchesSessionPrecondition(state, command.Precondition)
-            || state.Simulation is not { Run: not RunRunningProjection }
-            || activeSession is null
-            || state.Artifact is not { } replacement
-            || replacement.Key != command.TargetCompilationArtifactKey)
-        {
-            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
-        }
-
-        var priorSimulation = state.Simulation!;
-        var outcome = operations.ExecuteSimulation(
-            activeSession.Handle,
-            new HotSwapTo(
-                replacement,
-                workspacePolicy.HotSwapPeakBytes,
-                HotSwapProjectionBufferAccounting.RequirementsFor(priorSimulation)),
-            cancellationToken);
-        if (outcome is LogicLab.Engine.Simulation.HotSwapIncompatible)
-        {
-            return Reject(WorkspaceOutcomeReasons.HotSwapIncompatible);
-        }
-
-        if (outcome is SimulationCommandFailed failed)
-        {
-            return Reject(
-                WorkspaceOutcomeReasons.FromSimulation(failed.Reason),
-                failed.Diagnostics.Select(item => item.Code),
-                PolicyEvidenceFrom(failed.PolicyEvidence));
-        }
-
-        if (outcome is HotSwapResourceLimitExceeded resourceLimit)
-        {
-            return Reject(
-                WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
-                policyEvidence: new PolicyEvidenceProjection(
-                    workspacePolicy.PolicyId,
-                    workspacePolicy.PolicyRevision,
-                    "hot_swap_peak_bytes",
-                    resourceLimit.ObservedPeakOwnedBufferBytes));
-        }
-
-        if (outcome is not LogicLab.Engine.Simulation.HotSwapCommitted committed)
-        {
-            return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
-        }
-
-        state.ActiveSession = new ActiveSessionContext(
-            activeSession.Handle,
-            state.Revision,
-            replacement);
-        state.Simulation = SimulationProjection.FromOwnedProbes(
-            priorSimulation.SessionId,
-            committed.SessionVersion,
-            committed.CompilationArtifactKey,
-            priorSimulation.LogicalTime,
-            committed.TraceCursor,
-            ProjectProbes(committed.ObservedProbes),
-            priorSimulation.Run);
-        state.ProjectionVersion++;
-        return new HotSwapCommitted(
-            committed.SessionVersion,
-            committed.CompilationArtifactKey,
-            HotSwapMigrationProjection.FromImmutable(committed.MigrationEvidence),
-            state.ProjectionVersion);
-    }
-
     private WorkCoordinator.SchedulingRejection? TryStartRunContinuation(
         WorkspaceState state,
         RunGeneration generation)
@@ -341,8 +269,7 @@ internal sealed partial class EditorWorkspace
             return outcome;
         }
 
-        if (outcome is WorkspaceCommandRejected rejected
-            && rejected.Code == WorkspaceOutcomeReasons.NoScheduledStimulus)
+        if (outcome is NoScheduledStimulus)
         {
             return PauseRunAtBoundary(
                 state,

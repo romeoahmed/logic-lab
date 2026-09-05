@@ -345,11 +345,11 @@ internal sealed class TopologyRuntimeTests
             CancellationToken.None);
         var after = ReadSnapshot(opened);
 
-        var failed = (await Assert.That(outcome).IsTypeOf<SimulationCommandFailed>())!;
+        var invalid = (await Assert.That(outcome).IsTypeOf<StimulusBatchInvalid>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(failed.Reason)
-                .IsEqualTo(SimulationFailureReason.SimulationInternalDefect);
+            await Assert.That(invalid.Rule)
+                .IsEqualTo(StimulusBatchInvalidRule.DriverNotExternalInput);
             await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
             await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
             await Assert.That(ToValues(after.Probes[0].Value))

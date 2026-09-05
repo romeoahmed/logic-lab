@@ -152,9 +152,7 @@ public static class TeachingMixedSchematicProjector
                     presentationFingerprint));
             }
 
-            // ToLookup preserves source order within each group, so the preceding
-            // canonical Wire Geometry ID order remains observable in every Net.
-            // Source: https://learn.microsoft.com/dotnet/api/system.linq.enumerable.tolookup?view=net-10.0
+            // Grouping retains canonical Wire Geometry order within each Net.
             var wiresByNet = wireItems.ToLookup(item => item.NetId);
             var junctionById = junctionItems.ToDictionary(item => item.JunctionId);
             var netIds = definition.Nets.Select(net => net.Id).ToHashSet();
@@ -464,9 +462,7 @@ public static class TeachingMixedSchematicProjector
             switch (item)
             {
                 case ComponentSymbolItemV1 component:
-                    bounds.Add(SchematicGeometry.Translate(
-                        component.Plan.Bounds,
-                        component.Origin));
+                    bounds.Add(component.Plan.Bounds.Translate(component.Origin));
                     break;
                 case StaticSchematicItemV1 staticItem:
                     AddStaticBounds(
@@ -496,12 +492,9 @@ public static class TeachingMixedSchematicProjector
 
     private static RectV1 OperationBounds(DrawOperationV1 operation) => operation switch
     {
-        StrokePathV1 stroke => SchematicGeometry.Inflate(
-            RectV1.Enclose([.. PathPoints(stroke.Path)]),
-            GeometryPlanValidator.ConservativeStrokeMargin(
-                stroke.Width,
-                stroke.LineJoin)),
-        FillPathV1 fill => RectV1.Enclose([.. PathPoints(fill.Path)]),
+        StrokePathV1 stroke => stroke.Path.ControlBounds.Inflate(
+            GeometryPlanValidator.ConservativeStrokeMargin(stroke.Width, stroke.LineJoin)),
+        FillPathV1 fill => fill.Path.ControlBounds,
         DrawTextV1 text => text.Bounds,
         _ => throw new InvalidOperationException(
             "The Schematic draw operation variant is undefined."),
@@ -517,32 +510,6 @@ public static class TeachingMixedSchematicProjector
         _ => throw new InvalidOperationException(
             "The Schematic hit shape variant is undefined."),
     };
-
-    private static IEnumerable<PointV1> PathPoints(PathV1 path)
-    {
-        foreach (var command in path.Commands)
-        {
-            switch (command)
-            {
-                case MoveToV1 move:
-                    yield return move.Point;
-                    break;
-                case LineToV1 line:
-                    yield return line.Point;
-                    break;
-                case CubicToV1 cubic:
-                    yield return cubic.Control1;
-                    yield return cubic.Control2;
-                    yield return cubic.End;
-                    break;
-                case ClosePathV1:
-                    break;
-                default:
-                    throw new InvalidOperationException(
-                        "The Schematic path command variant is undefined.");
-            }
-        }
-    }
 
     private static RectV1 Enclose(List<RectV1> bounds)
     {
@@ -579,5 +546,4 @@ public static class TeachingMixedSchematicProjector
     private static SchematicProjectionRejectedV1 InternalDefect() => new(
         LayoutRejectionReasonV1.LayoutInternalDefect,
         [PresentationDiagnosticsV1.InternalInvariant()]);
-
 }

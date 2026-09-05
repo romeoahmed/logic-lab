@@ -503,6 +503,11 @@ internal static class ProbePresentation
             return FormattableString.Invariant($"P{ordinal + 1}");
         }
 
+        return NetLabel(definition, net, labels);
+    }
+
+    public static string NetLabel(CircuitDefinition definition, Net net, ProbePresentationLabels labels)
+    {
         var boundaryPorts = net.Terminals
             .OfType<DefinitionTerminalReference>()
             .Select(terminal => definition.FindPort(terminal.DefinitionPortId))

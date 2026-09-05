@@ -205,19 +205,15 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
                     is not { Viewports: not null } recoveryState
                 || (ulong)recoveryState.Viewports.Count
                     > policy.Limit(BrowserLimitDimension.SceneSnapshotRecordCount)
+                || recoveryState.Viewports.Any(viewport => viewport is null
+                    || !ValidViewport(viewport))
                 || recoveryState.Viewports.Select(viewport => viewport.CircuitDefinitionId)
-                    .Distinct(StringComparer.Ordinal).Count() != recoveryState.Viewports.Count
-                || recoveryState.Viewports.Any(viewport => !ValidViewport(viewport)))
+                    .Distinct(StringComparer.Ordinal).Count() != recoveryState.Viewports.Count)
             {
                 throw new JsonException("The browser Scene recovery state is invalid.");
             }
 
-            return new BrowserSceneRecoveryStateV1(
-                [.. recoveryState.Viewports.Select(viewport => new BrowserSceneViewportV1(
-                    viewport.CircuitDefinitionId,
-                    viewport.TranslateX,
-                    viewport.TranslateY,
-                    viewport.Zoom))]);
+            return recoveryState;
         }
         catch (Exception exception) when (exception is JsonException
             or NotSupportedException)

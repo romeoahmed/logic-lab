@@ -236,7 +236,15 @@ internal sealed partial class EditorWorkspace
                     state,
                     create,
                     cancellationToken),
-                ScheduleInputStimulus schedule => ScheduleWithPrecondition(
+                RestartSession restart => RestartSessionWithPrecondition(
+                    state,
+                    restart,
+                    cancellationToken),
+                CloseSession close => CloseSessionWithPrecondition(
+                    state,
+                    close,
+                    cancellationToken),
+                ScheduleStimulusBatch schedule => ScheduleWithPrecondition(
                     state,
                     schedule,
                     cancellationToken),

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
+using static LogicLab.Domain.Tests.ProjectEditorTestContext;
 
 namespace LogicLab.Domain.Tests;
 
@@ -144,7 +145,7 @@ internal sealed class SteeringComponentContractTests
     }
 
     [Test]
-    public async Task ResolvePorts_GateFanInBelowTwo_RejectsExactRule()
+    public async Task ResolvePorts_GateFanInBelowTwo_RejectsAtContractBoundary()
     {
         var contract = Find("logic.and");
 
@@ -161,10 +162,7 @@ internal sealed class SteeringComponentContractTests
         var genesis = (ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
             "Invalid gate",
             LibrarySnapshot.Core,
-            new SymbolProfileReference(
-                "TeachingMixed",
-                "1.0.0",
-                IndicationConvention.Negation),
+            TeachingMixedProfile(),
             "Main"));
 
         var outcome = ProjectEditor.Apply(
@@ -187,12 +185,13 @@ internal sealed class SteeringComponentContractTests
         using (Assert.Multiple())
         {
             await Assert.That(diagnostic.Code).IsEqualTo("authoring_invalid_parameter");
-            await Assert.That(diagnostic.Arguments).Contains(argument =>
-                argument.Name == "parameterId"
-                && argument.Value is StableTokenDiagnosticValue { Value: "fanIn" });
-            await Assert.That(diagnostic.Arguments).Contains(argument =>
-                argument.Name == "rule"
-                && argument.Value is StableTokenDiagnosticValue { Value: "minimumValue" });
+            await Assert.That(diagnostic.Arguments).IsEquivalentTo(
+                [
+                    new AuthoringDiagnosticArgument("contractKey", new ContractKeyDiagnosticValue(Contract("logic.and"))),
+                    new AuthoringDiagnosticArgument("parameterId", new StableTokenDiagnosticValue("fanIn")),
+                    new AuthoringDiagnosticArgument("rule", new StableTokenDiagnosticValue("minimumValue")),
+                ],
+                CollectionOrdering.Matching);
             await Assert.That(genesis.Revision.Document.EntryCircuitDefinition
                 .ComponentInstances).IsEmpty();
         }

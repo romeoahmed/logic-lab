@@ -98,10 +98,15 @@
   text-align: start;
 }
 
-.component-groups button:hover,
+.component-groups button:not(:disabled):hover,
 .component-groups button[aria-pressed="true"] {
   border-color: var(--ll-border-strong);
   background: var(--ll-signal-soft);
+}
+
+.component-groups button:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .component-groups button[aria-pressed="true"] {

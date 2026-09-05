@@ -21,6 +21,19 @@ export function contains(region, point) {
   ) {
     const currentPoint = region.points[index];
     const priorPoint = region.points[previous];
+    // Boundary points belong to every hit shape, including polygons.
+    const cross =
+      (point.x - currentPoint.x) * (priorPoint.y - currentPoint.y) -
+      (point.y - currentPoint.y) * (priorPoint.x - currentPoint.x);
+    if (
+      cross === 0 &&
+      point.x >= Math.min(currentPoint.x, priorPoint.x) &&
+      point.x <= Math.max(currentPoint.x, priorPoint.x) &&
+      point.y >= Math.min(currentPoint.y, priorPoint.y) &&
+      point.y <= Math.max(currentPoint.y, priorPoint.y)
+    ) {
+      return true;
+    }
     if (
       currentPoint.y > point.y !== priorPoint.y > point.y &&
       point.x <
@@ -155,12 +168,14 @@ export function gridToWorld(point, snapshot) {
   };
 }
 
-export function terminalWireRoute(snapshot, startHit, endHit, startWorld, endWorld, disableSnap) {
+export function terminalWireRoutes(snapshot, startHit, endHit, startWorld, endWorld, disableSnap) {
   const start = wireEndpoint(startHit, startWorld, snapshot, disableSnap);
   const end = wireEndpoint(endHit, endWorld, snapshot, disableSnap);
-  if (!start || !end || samePoint(start, end)) {
+  if (!start || !end) {
     return null;
   }
+  // Coincident anchors need no geometry; null cancels an invalid route.
+  if (samePoint(start, end)) return [];
 
   const points = orthogonalWirePoints(
     start,
@@ -169,7 +184,9 @@ export function terminalWireRoute(snapshot, startHit, endHit, startWorld, endWor
     terminalDirection(endHit),
     disableSnap ? 1 : snapshot.snapStepGridUnits,
   );
-  return points.length >= 2 ? { kind: "orthogonal", points } : null;
+  return points.length >= 2 && points.every(validGridPoint)
+    ? [{ kind: "orthogonal", points }]
+    : null;
 }
 
 export function orthogonalDragRoute(start, end) {
@@ -240,13 +257,14 @@ function wireEndpoint(hit, fallback, snapshot, disableSnap) {
   }
 
   const local = hit.region.anchor;
+  // A published terminal keeps its anchor even between the current snap lines.
   return gridPoint(
     {
       x: local.x + hit.item.origin.x,
       y: local.y + hit.item.origin.y,
     },
     snapshot,
-    disableSnap,
+    true,
   );
 }
 
@@ -345,9 +363,14 @@ function compactOrthogonalPoints(points) {
     while (compacted.length >= 2) {
       const previous = compacted.at(-2);
       const current = compacted.at(-1);
+      // Collinear reversals still carry route geometry and terminal lead direction.
+      const dotProduct =
+        (current.x - previous.x) * (point.x - current.x) +
+        (current.y - previous.y) * (point.y - current.y);
       if (
-        (previous.x === current.x && current.x === point.x) ||
-        (previous.y === current.y && current.y === point.y)
+        dotProduct > 0 &&
+        ((previous.x === current.x && current.x === point.x) ||
+          (previous.y === current.y && current.y === point.y))
       ) {
         compacted.pop();
       } else {

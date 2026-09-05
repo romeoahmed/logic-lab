@@ -527,6 +527,9 @@ public enum StimulusBatchInvalidRule
 {
     AtOrBeforeCommittedTime,
     ConflictingDriverAssignment,
+    DriverSourceUnresolved,
+    DriverNotExternalInput,
+    DriverWidthMismatch,
 }
 
 public sealed record ProbeObservation(
@@ -587,16 +590,20 @@ public sealed record ProbeBindingsReplaced : SimulationCommandOutcome
     internal ProbeBindingsReplaced(
         ulong sessionVersion,
         ProbeId[] ownedProbeIds,
+        ProbeObservation[] ownedObservedProbes,
         TraceCursor traceCursor)
     {
         SessionVersion = sessionVersion;
         ProbeIds = Array.AsReadOnly(ownedProbeIds);
+        ObservedProbes = Array.AsReadOnly(ownedObservedProbes);
         TraceCursor = traceCursor;
     }
 
     public ulong SessionVersion { get; }
 
     public ReadOnlyCollection<ProbeId> ProbeIds { get; }
+
+    public ReadOnlyCollection<ProbeObservation> ObservedProbes { get; }
 
     public TraceCursor TraceCursor { get; }
 }
@@ -825,6 +832,13 @@ public sealed class SimulationTraceWindowRequest
     {
         ArgumentNullException.ThrowIfNull(probeIds);
         ArgumentNullException.ThrowIfNull(representation);
+        // A default value type bypasses LogicalTimeRange's constructor.
+        if (range.StartInclusive >= range.EndExclusive)
+        {
+            throw new ArgumentException(
+                "A Trace window range must be nonempty.", nameof(range));
+        }
+
         if (representation is TraceVisualSummaryRepresentation
             && afterSequence is not null)
         {

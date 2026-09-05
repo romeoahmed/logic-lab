@@ -661,7 +661,9 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                         reservedSessionItems--;
                     }
 
-                    if (sessionQueue.Any(queued =>
+                    // Restore a wake-up consumed while its Workspace was busy;
+                    // an existing permit already covers ready work.
+                    if (sessionQueueSignal.CurrentCount == 0 && sessionQueue.Any(queued =>
                             !activeSessionWorkspaces.Contains(queued.WorkspaceId)))
                     {
                         sessionQueueSignal.Release();

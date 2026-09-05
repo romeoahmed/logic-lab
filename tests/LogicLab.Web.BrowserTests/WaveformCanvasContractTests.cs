@@ -8,6 +8,25 @@ namespace LogicLab.Web.BrowserTests;
 internal sealed class WaveformCanvasContractTests : PageTest
 {
     [Test]
+    [Arguments("abort")]
+    [Arguments("destroy")]
+    public async Task Transfer_CancelledDuringDigest_DoesNotPublish(string cancellation)
+    {
+        var waveform = new WaveformCanvasTestPage(Page);
+        await waveform.OpenAndMountAsync();
+
+        var committed = await waveform.CommitSnapshotAsync(
+            WaveformCanvasTestPage.Snapshot(), cancellation);
+
+        await Assert.That(committed).IsFalse();
+        if (cancellation == "abort")
+        {
+            await Assert.That(await waveform.CommitSnapshotAsync(
+                WaveformCanvasTestPage.Snapshot())).IsTrue();
+        }
+    }
+
+    [Test]
     public async Task Snapshot_ExactCoverage_CommitsWithOnePendingFrame()
     {
         var waveform = new WaveformCanvasTestPage(Page);
@@ -81,6 +100,38 @@ internal sealed class WaveformCanvasContractTests : PageTest
     }
 
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task CursorGesture_ReleaseCoordinate_UsesFinalClampedLogicalTime(bool fullRange)
+    {
+        var waveform = new WaveformCanvasTestPage(Page);
+        await waveform.OpenAndMountAsync();
+        var endExclusive = fullRange ? "18446744073709551616" : "10";
+        await Assert.That(await waveform.CommitSnapshotAsync(
+            WaveformCanvasTestPage.Snapshot(
+                viewportEndExclusive: endExclusive,
+                segmentEndExclusive: endExclusive))).IsTrue();
+        var bounds = await waveform.Canvas.BoundingBoxAsync();
+        await Assert.That(bounds).IsNotNull();
+        await Page.Mouse.MoveAsync(bounds!.X + 120, bounds.Y + 80);
+        await Page.Mouse.DownAsync();
+
+        await waveform.Canvas.EvaluateAsync("""
+            (canvas, x) => {
+              const bounds = canvas.getBoundingClientRect();
+              canvas.dispatchEvent(new PointerEvent('pointerup', {
+                pointerId: window.lastWaveformPointerId, button: 0,
+                clientX: bounds.left + x, clientY: bounds.top + 80,
+              }));
+            }
+            """, fullRange ? 650 : 480);
+        await Page.Mouse.UpAsync();
+
+        await Assert.That(await waveform.WaitForCursorLogicalTimeAsync())
+            .IsEqualTo(fullRange ? "18446744073709551615" : "8");
+    }
+
+    [Test]
     public async Task DeviceDensityChange_ResizesBitmapAndRearmsTheMediaQuery()
     {
         var waveform = new WaveformCanvasTestPage(Page);
@@ -130,6 +181,47 @@ internal sealed class WaveformCanvasContractTests : PageTest
             await Assert.That(await waveform.IntentCountAsync()).IsEqualTo(1);
             await Assert.That(await waveform.LastViewportAsync()).IsEqualTo("5:15");
         }
+    }
+
+    [Test]
+    public async Task ContextLost_PaintAndIntentsWaitForRestoration()
+    {
+        var waveform = new WaveformCanvasTestPage(Page);
+        await waveform.OpenAndMountAsync();
+        await Assert.That(await waveform.CommitSnapshotAsync(
+            WaveformCanvasTestPage.Snapshot())).IsTrue();
+        await waveform.WaitForFramesAsync();
+        await Page.Clock.InstallAsync(new ClockInstallOptions());
+        await waveform.Canvas.EvaluateAsync("""
+            canvas => {
+              const context = canvas.getContext('2d');
+              const fillRect = context.fillRect.bind(context);
+              window.paintCount = 0;
+              context.fillRect = (...args) => { window.paintCount++; fillRect(...args); };
+              canvas.dispatchEvent(new Event('contextlost'));
+            }
+            """);
+        await Assert.That(await waveform.CommitSnapshotAsync(
+            WaveformCanvasTestPage.Snapshot(waveformVersion: 2))).IsTrue();
+        await waveform.Canvas.ClickAsync(new LocatorClickOptions
+        {
+            Position = new Position { X = 180, Y = 80 },
+        });
+        await waveform.Canvas.PressAsync("ArrowRight");
+        await waveform.Canvas.DispatchEventAsync("wheel", new { deltaY = 100, offsetX = 180 });
+        await Page.Clock.RunForAsync(500);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(await waveform.IntentCountAsync()).IsEqualTo(0);
+            await Assert.That(await Page.EvaluateAsync<int>("() => window.paintCount"))
+                .IsEqualTo(0);
+        }
+
+        await waveform.Canvas.DispatchEventAsync("contextrestored");
+        await Page.Clock.RunForAsync(50);
+        await waveform.PlacePrimaryCursorAsync(180);
+        await Assert.That(await waveform.IntentCountAsync()).IsEqualTo(1);
     }
 
     [Test]
@@ -259,7 +351,7 @@ internal sealed class WaveformCanvasTestPage(IPage page)
             BuildFingerprint);
     }
 
-    public async Task<bool> CommitSnapshotAsync(object snapshot)
+    public async Task<bool> CommitSnapshotAsync(object snapshot, string? cancellation = null)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(snapshot, WebJson);
         var transferId = $"test-{Guid.CreateVersion7():N}";
@@ -272,6 +364,7 @@ internal sealed class WaveformCanvasTestPage(IPage page)
             byteLength,
             digest,
             chunk,
+            cancellation,
         };
         return await page.EvaluateAsync<bool>(
             """
@@ -285,7 +378,12 @@ internal sealed class WaveformCanvasTestPage(IPage page)
                 request.transferId,
                 0,
                 request.chunk);
-              return await window.waveformHandle.commitTransfer(request.transferId);
+              const pending = window.waveformHandle.commitTransfer(request.transferId);
+              if (request.cancellation === 'destroy') window.waveformHandle.destroy();
+              else if (request.cancellation === 'abort') {
+                window.waveformHandle.abortTransfer(request.transferId);
+              }
+              return await pending;
             }
             """,
             request);
@@ -377,8 +475,9 @@ internal sealed class WaveformCanvasTestPage(IPage page)
           const canvas = document.querySelector('[data-waveform-canvas]');
           const lost = new Event('contextlost', { cancelable: true });
           canvas.dispatchEvent(lost);
+          if (lost.defaultPrevented) return false;
           canvas.dispatchEvent(new Event('contextrestored'));
-          return lost.defaultPrevented;
+          return true;
         }
         """);
 

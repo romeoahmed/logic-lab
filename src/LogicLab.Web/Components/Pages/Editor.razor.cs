@@ -16,7 +16,7 @@ namespace LogicLab.Web.Components.Pages;
 
 public sealed partial class Editor : IAsyncDisposable
 {
-    private static readonly TimeSpan CompilationRefreshInterval =
+    private static readonly TimeSpan ProjectionRefreshInterval =
         TimeSpan.FromMilliseconds(250);
     private readonly IEditorWorkspace workspace;
     private readonly ProjectImportWorkflow projectImportWorkflow;
@@ -61,8 +61,6 @@ public sealed partial class Editor : IAsyncDisposable
 
     private bool IsInteractive { get; set; }
 
-    private bool StimulusIsScheduled { get; set; }
-
     private string? status;
 
     private string Status
@@ -89,9 +87,14 @@ public sealed partial class Editor : IAsyncDisposable
         ClaimDisplayName = ClaimDisplayName,
         CanCompile = CanCompile,
         CanCreateSession = CanCreateSession,
+        CanRestartSession = CanRestartSession,
+        CanCloseSession = CanCloseSession,
+        CanHotSwapSession = CanHotSwapSession,
         CanScheduleStimulus = CanScheduleStimulus,
         CanStep = CanStep,
-        ActiveCommand = WorkbenchActiveCommand,
+        CanRun = CanStep,
+        CanPause = CommandsAvailable && IsSimulationRunning,
+        ActiveCommand = ActiveCommand,
     };
 
     private WorkspaceCaller CurrentCaller { get; set; } =
@@ -200,7 +203,8 @@ public sealed partial class Editor : IAsyncDisposable
             CancellationToken.None);
     }
 
-    private bool CommandsAvailable => IsInteractive
+    private bool CommandsAvailable => Volatile.Read(ref isDisposed) == 0
+        && IsInteractive
         && IsCallerAvailable
         && (WorkspaceIdValue is null || Attachment is not null);
 
@@ -214,19 +218,23 @@ public sealed partial class Editor : IAsyncDisposable
         && Projection.Compilation is not CompilationPublishedProjection
         && Projection.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances.Count == 0;
 
-    private bool CanPrepareExport => CommandsAvailable && Projection is not null;
+    private bool IsSimulationRunning => Projection?.Simulation?.Run is RunRunningProjection;
+
+    private bool CanMutateWorkspace => CommandsAvailable && !IsSimulationRunning;
+
+    private bool CanPrepareExport => CanMutateWorkspace && Projection is not null;
 
     private bool ShowClaim => CommandsAvailable
         && CurrentCaller is AuthenticatedWorkspaceCaller
         && Projection?.Durability is SandboxWorkspaceDurabilityProjection;
 
-    private bool CanClaim => ShowClaim && ClaimDisplayName.Length != 0;
+    private bool CanClaim => ShowClaim && CanMutateWorkspace && ClaimDisplayName.Length != 0;
 
     private bool ShowSave => CommandsAvailable
         && CurrentCaller is AuthenticatedWorkspaceCaller
         && Projection?.Durability is DurableWorkspaceDurabilityProjection;
 
-    private bool CanSave => ShowSave
+    private bool CanSave => ShowSave && CanMutateWorkspace
         && Projection?.Durability is DurableWorkspaceDurabilityProjection
         {
             SaveStatus: DurableSaveStatus.Changed,
@@ -238,11 +246,12 @@ public sealed partial class Editor : IAsyncDisposable
             SaveStatus: DurableSaveStatus.Conflict,
         };
 
-    private bool CanImport => CommandsAvailable;
+    private bool CanImport => CanMutateWorkspace
+        && Projection?.Compilation is not (CompilationQueuedProjection or CompilationRunningProjection);
 
-    private bool CanSetEntryDefinition => CommandsAvailable
+    private bool CanSetEntryDefinition => CanMutateWorkspace
         && ActiveCommand is null
-        && Projection?.Simulation is null;
+        && Projection is not null;
 
     private bool CanEnterDefinitionInstances => Projection is not null
         && SelectedDefinitionId is not null
@@ -252,7 +261,7 @@ public sealed partial class Editor : IAsyncDisposable
 
     private bool CanCompile => CommandsAvailable
         && Projection is not null
-        && Projection.Simulation is null
+        && Projection.Simulation is not { Run: RunRunningProjection }
         && Projection.Compilation is not CompilationPublishedProjection
         && Projection.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances.Count > 0;
 
@@ -260,7 +269,23 @@ public sealed partial class Editor : IAsyncDisposable
         && Projection?.Simulation is null
         && Projection?.Compilation is CompilationPublishedProjection;
 
-    private bool CanUseSceneProbe => CommandsAvailable
+    private bool CanRestartSession => CommandsAvailable
+        && Projection?.Simulation is { Run: not RunRunningProjection }
+        && Projection.Compilation is CompilationPublishedProjection;
+
+    private bool CanCloseSession => CommandsAvailable
+        && Projection?.Simulation is { Run: not RunRunningProjection };
+
+    private bool CanHotSwapSession => CanRestartSession
+        && Projection!.Simulation!.CompilationArtifactKey
+            != ((CompilationPublishedProjection)Projection.Compilation).ArtifactKey;
+
+    private bool HasCurrentSimulation =>
+        Projection?.Simulation is { Run: not RunRunningProjection } simulation
+        && Projection.Compilation is CompilationPublishedProjection compilation
+        && simulation.CompilationArtifactKey == compilation.ArtifactKey;
+
+    private bool CanUseSceneProbe => CanMutateWorkspace
         && Projection?.Simulation is not null
         && CurrentSceneHierarchyPath is not null;
 
@@ -268,13 +293,11 @@ public sealed partial class Editor : IAsyncDisposable
         .EntryCircuitDefinition.ComponentInstances.Any(IsProgrammableInput) is true;
 
     private bool CanScheduleStimulus => CommandsAvailable
-        && Projection?.Simulation is not null
-        && HasProgrammableInputs
-        && !StimulusIsScheduled;
+        && HasCurrentSimulation
+        && HasProgrammableInputs;
 
     private bool CanStep => CommandsAvailable
-        && Projection?.Simulation is not null
-        && StimulusIsScheduled;
+        && HasCurrentSimulation;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -298,6 +321,12 @@ public sealed partial class Editor : IAsyncDisposable
             }
 
             StateHasChanged();
+        }
+
+        if (CommandsAvailable && IsSimulationRunning
+            && (runObservation is null || runObservation.IsCompleted))
+        {
+            runObservation = ObserveRunAsync(componentLifetime.Token);
         }
     }
 
@@ -414,6 +443,12 @@ public sealed partial class Editor : IAsyncDisposable
                 "session",
                 () => CanCreateSession,
                 CreateSimulationSession),
+            WorkbenchCommandBar.WorkbenchCommand.RestartSession => RunCommandAsync(
+                "restart", () => CanRestartSession, RestartSimulationSession),
+            WorkbenchCommandBar.WorkbenchCommand.CloseSession => RunCommandAsync(
+                "close-session", () => CanCloseSession, CloseSimulationSession),
+            WorkbenchCommandBar.WorkbenchCommand.HotSwapSession => RunCommandAsync(
+                "hot-swap", () => CanHotSwapSession, HotSwapSimulationSession),
             WorkbenchCommandBar.WorkbenchCommand.ScheduleStimulus => RunCommandAsync(
                 "stimulus",
                 () => CanScheduleStimulus,
@@ -422,6 +457,10 @@ public sealed partial class Editor : IAsyncDisposable
                 "step",
                 () => CanStep,
                 Step),
+            WorkbenchCommandBar.WorkbenchCommand.StartRun => RunCommandAsync(
+                "run", () => CanStep, StartSimulationRun),
+            WorkbenchCommandBar.WorkbenchCommand.PauseRun => RunCommandAsync(
+                "pause", () => CommandsAvailable && IsSimulationRunning, PauseSimulationRun),
             _ => throw new ArgumentOutOfRangeException(nameof(command), command, null),
         };
 
@@ -692,7 +731,7 @@ public sealed partial class Editor : IAsyncDisposable
                 or CompilationRunningProjection)
             {
                 await Task.Delay(
-                    CompilationRefreshInterval,
+                    ProjectionRefreshInterval,
                     timeProvider,
                     cancellationToken);
                 await Refresh(cancellationToken);
@@ -779,84 +818,11 @@ public sealed partial class Editor : IAsyncDisposable
         }
     }
 
-    private async Task CreateSimulationSession()
-    {
-        var compilation = Projection?.Compilation as CompilationPublishedProjection
-            ?? throw new InvalidOperationException("Compilation is not published.");
-        var precondition = new SessionCreationPrecondition(
-            compilation.ArtifactKey);
-        var outcome = await Execute(context => new CreateSession(context, precondition));
-        if (outcome is not SimulationSessionCreated)
-        {
-            Status = Text[
-                "SessionRejected",
-                ((WorkspaceCommandRejected)outcome).Code];
-            return;
-        }
-
-        Status = HasProgrammableInputs
-            ? Text["SessionCreated"]
-            : Text["SessionCreatedNoInputs"];
-    }
-
-    private async Task ScheduleStimulus()
-    {
-        var assignments = Projection!.ProjectRevision.Document.EntryCircuitDefinition
-            .ComponentInstances
-            .Where(IsProgrammableInput)
-            .Select(CreateHighStimulus)
-            .ToArray();
-        var logicalTime = checked(Projection!.Simulation!.LogicalTime + 1);
-        var precondition = SessionPrecondition();
-        var outcome = await Execute(context => new ScheduleInputStimulus(
-            context,
-            precondition,
-            logicalTime,
-            assignments));
-        StimulusIsScheduled = outcome is StimulusScheduled;
-        Status = StimulusIsScheduled
-            ? Text["StimulusScheduled", logicalTime]
-            : Text["StimulusRejected", ((WorkspaceCommandRejected)outcome).Code];
-    }
-
-    private async Task Step()
-    {
-        var precondition = SessionPrecondition();
-        var outcome = await Execute(context => new StepSession(context, precondition));
-        StimulusIsScheduled = false;
-        Status = outcome switch
-        {
-            SessionStepped stepped => Text["StepCommitted", stepped.LogicalTime],
-            SessionAdvanceFailed failed => Text[
-                "StepFailed",
-                AdvanceFailureText(failed.Failure.Reason)],
-            WorkspaceCommandRejected rejected => Text["StepRejected", rejected.Code],
-            _ => Text["StepFailed", Text["FailureSimulationInternal"]],
-        };
-    }
-
-    private string AdvanceFailureText(AdvanceFailureReason reason)
-    {
-        return reason switch
-        {
-            AdvanceFailureReason.ZeroTimeOscillation => Text["FailureZeroTimeOscillation"],
-            AdvanceFailureReason.SimulationResourceLimit =>
-                Text["FailureSimulationResourceLimit"],
-            AdvanceFailureReason.SimulationCancelled =>
-                Text["FailureSimulationCancelled"],
-            AdvanceFailureReason.SimulationInfrastructureFailure =>
-                Text["FailureSimulationInfrastructure"],
-            AdvanceFailureReason.SimulationInternalDefect =>
-                Text["FailureSimulationInternal"],
-            _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null),
-        };
-    }
-
     private async Task<bool> Apply(EditIntent intent)
     {
         ArgumentNullException.ThrowIfNull(intent);
         var projection = Projection;
-        if (projection is null)
+        if (projection is null || !CanMutateWorkspace)
         {
             return false;
         }
@@ -1015,7 +981,8 @@ public sealed partial class Editor : IAsyncDisposable
             QueryContext(),
             ReadProjection.Instance,
             cancellationToken);
-        if (!IsCallerAvailable
+        if (Volatile.Read(ref isDisposed) != 0
+            || !IsCallerAvailable
             || caller != CurrentCaller
             || Attachment is not { } currentAttachment
             || currentAttachment.AttachmentId != attachment.AttachmentId
@@ -1048,8 +1015,6 @@ public sealed partial class Editor : IAsyncDisposable
         Attachment = null;
         SelectedDefinitionId = null;
         HierarchyNavigation.Clear();
-        StimulusIsScheduled = false;
-        RouteDraftActive = false;
         PreparedExportUrl = null;
     }
 
@@ -1067,6 +1032,14 @@ public sealed partial class Editor : IAsyncDisposable
     private void UpdateProjection(WorkspaceProjection projection)
     {
         ArgumentNullException.ThrowIfNull(projection);
+        // A delayed observation must not undo a newer command publication.
+        if (Projection is { } current
+            && current.WorkspaceId == projection.WorkspaceId
+            && projection.ProjectionVersion < current.ProjectionVersion)
+        {
+            return;
+        }
+
         var projectRevisionChanged = Projection?.ProjectRevision.RevisionId
             != projection.ProjectRevision.RevisionId;
         Projection = projection;
@@ -1091,6 +1064,11 @@ public sealed partial class Editor : IAsyncDisposable
         await componentLifetime.CancelAsync();
         try
         {
+            if (runObservation is not null)
+            {
+                await runObservation;
+            }
+
             if (attachment is not null)
             {
                 _ = await workspace.DetachAsync(
@@ -1159,18 +1137,6 @@ public sealed partial class Editor : IAsyncDisposable
                 "The current authentication state has no stable Workspace caller.");
     }
 
-    private SessionMutationPrecondition SessionPrecondition()
-    {
-        var projection = Projection
-            ?? throw new InvalidOperationException("Workspace is not open.");
-        var simulation = projection.Simulation
-            ?? throw new InvalidOperationException("Simulation Session is not open.");
-        return new SessionMutationPrecondition(
-            simulation.SessionId,
-            simulation.SessionVersion,
-            simulation.CompilationArtifactKey);
-    }
-
     private void ProjectScene()
     {
         if (Projection is null)
@@ -1192,6 +1158,11 @@ public sealed partial class Editor : IAsyncDisposable
     private Task ChangeSceneToolAsync(SceneToolV1 tool)
     {
         ArgumentNullException.ThrowIfNull(tool);
+        if (!CanMutateWorkspace && tool is not (SceneSelectToolV1 or ScenePanToolV1))
+        {
+            return Task.CompletedTask;
+        }
+
         if (tool is SceneProbeToolV1 && !CanUseSceneProbe)
         {
             return Task.CompletedTask;
@@ -1203,6 +1174,12 @@ public sealed partial class Editor : IAsyncDisposable
 
     private void EnsureSceneToolAvailable()
     {
+        if (!CanMutateWorkspace && SceneTool is not (SceneSelectToolV1 or ScenePanToolV1))
+        {
+            SceneTool = SceneSelectToolV1.Instance;
+            return;
+        }
+
         if (SceneTool is ScenePlaceToolV1 place
             && !ScenePlaceOptions.Any(option => option.Tool.Target == place.Target))
         {
@@ -1290,32 +1267,6 @@ public sealed partial class Editor : IAsyncDisposable
         SceneSelection = retained.Length == 0
             ? null
             : new SceneSelectionV1(retained, "replace");
-    }
-
-    private static bool IsProgrammableInput(ComponentInstance instance)
-    {
-        return instance.Target is LibraryComponentTarget library
-            && string.Equals(
-                library.ContractKey.LibraryId,
-                CoreLibrarySchema.LibraryId,
-                StringComparison.Ordinal)
-            && string.Equals(
-                library.ContractKey.ContractId,
-                "source.input",
-                StringComparison.Ordinal);
-    }
-
-    private static InputStimulusAssignment CreateHighStimulus(ComponentInstance input)
-    {
-        var width = input.Parameters.Single(parameter => string.Equals(
-            parameter.ParameterId,
-            "width",
-            StringComparison.Ordinal)).Value as Unsigned32ParameterValue
-            ?? throw new InvalidOperationException(
-                "A programmable input must define its validated width.");
-        return new InputStimulusAssignment(
-            input.Id,
-            [.. Enumerable.Repeat(LogicValue.One, checked((int)width.Value))]);
     }
 
     private static ComponentContractKey Contract(string contractId)

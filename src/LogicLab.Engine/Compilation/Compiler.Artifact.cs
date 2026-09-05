@@ -62,4 +62,59 @@ public static partial class Compiler
             sourceMap,
             request.ProjectRevision);
     }
+
+    private static (
+        int[] Offsets,
+        int[] EvaluatorOrdinals) BuildFanout(
+        SimulationNet[] simulationNets,
+        CancellationToken cancellationToken)
+    {
+        var fanoutOffsets = new int[simulationNets.Length + 1];
+        var fanoutEvaluators = new List<int>();
+        for (var netOrdinal = 0; netOrdinal < simulationNets.Length; netOrdinal++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            fanoutOffsets[netOrdinal] = fanoutEvaluators.Count;
+            fanoutEvaluators.AddRange(simulationNets[netOrdinal].ReceiverEvaluatorOrdinals);
+        }
+
+        fanoutOffsets[^1] = fanoutEvaluators.Count;
+        return (fanoutOffsets, fanoutEvaluators.ToArray());
+    }
+
+    private static int[][] BuildEvaluatorAdjacency(
+        SimulationEvaluator[] evaluators,
+        SimulationDriver[] drivers,
+        SimulationNet[] simulationNets,
+        CancellationToken cancellationToken)
+    {
+        var adjacency = Enumerable.Range(0, evaluators.Length)
+            .Select(_ => new SortedSet<int>())
+            .ToArray();
+        foreach (var driver in drivers.Where(item => item.NetOrdinal is not null))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (SimulationEvaluatorKindFacts.IsStateBoundary(
+                    evaluators[driver.EvaluatorOrdinal].Kind))
+            {
+                continue;
+            }
+
+            foreach (var receiver in simulationNets[driver.NetOrdinal!.Value]
+                .ReceiverEvaluatorOrdinals)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!SimulationEvaluatorKindFacts.ConsumesNetCombinationally(
+                        evaluators[receiver],
+                        driver.NetOrdinal.Value))
+                {
+                    continue;
+                }
+
+                adjacency[driver.EvaluatorOrdinal].Add(receiver);
+            }
+        }
+
+        return [.. adjacency.Select(edges => edges.ToArray())];
+    }
 }

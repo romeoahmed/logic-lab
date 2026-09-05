@@ -65,7 +65,7 @@
   <data name="HelpCanvasPanDescription" xml:space="preserve"><value>Choose Pan and drag the schematic. Holding Space temporarily activates Pan.</value></data>
   <data name="HelpCanvasZoom" xml:space="preserve"><value>Zoom</value></data>
   <data name="HelpCanvasZoomDescription" xml:space="preserve"><value>Use the controls inside the Canvas. Fit restores the complete circuit when it leaves the viewport.</value></data>
-  <data name="HelpAdvancedTopologyTitle" xml:space="preserve"><value>Advanced wiring</value></data>
-  <data name="HelpAdvancedTopologyDescription" xml:space="preserve"><value>Open this only to edit net membership, junctions, or exact wire routes.</value></data>
+  <data name="HelpSelectionActionsTitle" xml:space="preserve"><value>Inspect and edit selection</value></data>
+  <data name="HelpSelectionActionsDescription" xml:space="preserve"><value>Inspector shows the selected objects and available edits, including deletion, net merging, and member separation. Hold Shift to select multiple objects.</value></data>
   <data name="HelpKeepWorkTitle" xml:space="preserve"><value>Keep work beyond this Sandbox</value></data>
 </root>

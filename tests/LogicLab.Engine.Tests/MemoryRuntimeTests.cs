@@ -19,14 +19,8 @@ internal sealed class MemoryRuntimeTests
             [LogicValue.One, LogicValue.Zero],
             [LogicValue.Zero, LogicValue.One],
             [LogicValue.One, LogicValue.One]);
-        _ = circuit.Place("memory.rom", MemoryTestCircuit.Memory(2, 2, image));
-        _ = circuit.Place("memory.ram_single_port", MemoryTestCircuit.Memory(2, 2, image));
-        var rom = circuit.Revision.Document.EntryCircuitDefinition.ComponentInstances.Single(
-            instance => instance.Target is LogicLab.Domain.Authoring.LibraryComponentTarget target
-                && target.ContractKey.ContractId == "memory.rom");
-        var ram = circuit.Revision.Document.EntryCircuitDefinition.ComponentInstances.Single(
-            instance => instance.Target is LogicLab.Domain.Authoring.LibraryComponentTarget target
-                && target.ContractKey.ContractId == "memory.ram_single_port");
+        var rom = circuit.Place("memory.rom", MemoryTestCircuit.Memory(2, 2, image));
+        var ram = circuit.Place("memory.ram_single_port", MemoryTestCircuit.Memory(2, 2, image));
         var address = circuit.Place(
             "source.input",
             MemoryTestCircuit.Input(LogicValue.Zero, LogicValue.Zero));
@@ -404,9 +398,13 @@ internal sealed class MemoryRuntimeTests
                 .IsEqualTo("advance_work_item_count");
             await Assert.That(after.SessionVersion).IsEqualTo(before.SessionVersion);
             await Assert.That(after.LogicalTime).IsEqualTo(before.LogicalTime);
-            await Assert.That(after.Probes.Single().Value[0])
-                .IsEqualTo(before.Probes.Single().Value[0]);
+            await Assert.That(after.TraceCursor).IsEqualTo(before.TraceCursor);
+            await Assert.That(LogicVectorTestData.ToValues(after.Probes.Single().Value))
+                .IsEquivalentTo(initialWord, CollectionOrdering.Matching);
         }
+
+        await AssertMemoryAndClockRetained(
+            opened, circuit.Artifact, circuit.Address, circuit.WriteEnable, initialWord);
     }
 
     [Test]
@@ -498,6 +496,8 @@ internal sealed class MemoryRuntimeTests
             await Assert.That(afterFirst.Probes.Single().Value[0]).IsEqualTo(LogicValue.Zero);
             await Assert.That(afterRetry.Probes.Single().Value[0]).IsEqualTo(LogicValue.Zero);
         }
+
+        await AssertMemoryAndClockRetained(opened, artifact, address, writeEnable, [LogicValue.Zero]);
     }
 
     [Test]
@@ -668,7 +668,49 @@ internal sealed class MemoryRuntimeTests
         var succeeded = (CompilationSucceeded)circuit.Compile(
             MemoryPolicy(checked(
                 (ulong)initialWords.Length * (ulong)initialWords[0].Length)));
-        return new RamCircuit(succeeded.Artifact, outputNet, address);
+        return new RamCircuit(succeeded.Artifact, outputNet, address, writeEnable);
+    }
+
+    private static async Task AssertMemoryAndClockRetained(
+        SimulationOpened opened,
+        CompilationArtifact artifact,
+        ComponentInstance address,
+        ComponentInstance writeEnable,
+        LogicValue[] expectedWord)
+    {
+        var traceBefore = Snapshot(opened).TraceCursor;
+        var addressSource = MemoryTestCircuit.DriverSource(artifact, address);
+        var disableWrite = new StimulusAssignment(
+            MemoryTestCircuit.DriverSource(artifact, writeEnable),
+            new LogicVector([LogicValue.Zero]));
+        // Read both cells again so an unchanged cached Probe cannot hide a leaked RAM write.
+        foreach (var (time, addressBit) in new[] { (1UL, LogicValue.One), (2UL, LogicValue.Zero) })
+        {
+            var scheduled = SimulationRuntime.Execute(
+                opened.Handle,
+                new ScheduleStimulusBatch(new StimulusBatch(time,
+                [
+                    disableWrite,
+                    new StimulusAssignment(addressSource, new LogicVector([addressBit])),
+                ])),
+                CancellationToken.None);
+            await Assert.That(scheduled).IsTypeOf<StimulusBatchScheduled>();
+            var advanced = Advance(opened);
+            using (Assert.Multiple())
+            {
+                await Assert.That(advanced.LogicalTime).IsEqualTo(time);
+                await Assert.That(LogicVectorTestData.ToValues(Snapshot(opened).Probes.Single().Value))
+                    .IsEquivalentTo(expectedWord, CollectionOrdering.Matching);
+            }
+        }
+
+        var clock = Advance(opened);
+        using (Assert.Multiple())
+        {
+            await Assert.That(clock.LogicalTime).IsEqualTo(5UL);
+            await Assert.That(clock.TraceCursor).IsEqualTo(traceBefore);
+            await Assert.That(clock.ObservedProbePatch).IsEmpty();
+        }
     }
 
     private static SimulationOpened Open(CompilationArtifact artifact, Net outputNet)
@@ -756,5 +798,6 @@ internal sealed class MemoryRuntimeTests
     private sealed record RamCircuit(
         CompilationArtifact Artifact,
         Net OutputNet,
-        LogicLab.Domain.Authoring.ComponentInstance Address);
+        ComponentInstance Address,
+        ComponentInstance WriteEnable);
 }

@@ -61,11 +61,11 @@ internal sealed partial class EditorWorkspaceRunTests
             target.Attached.Generation,
             clientIntentId,
             caller);
-        ScheduleInputStimulus Stimulus(WorkspaceCaller caller) => new(
+        WorkspaceCommand Stimulus(WorkspaceCaller caller) => EditorWorkspaceTestDriver.ScheduleInput(
             Context(caller),
             precondition,
             logicalTime: 1,
-            [new InputStimulusAssignment(input.Id, [LogicValue.One])]);
+            input.Id, [LogicValue.One]);
 
         var ownerPending = workspace.DispatchAsync(
             Stimulus(owner),

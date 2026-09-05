@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Scene;
 
@@ -6,6 +7,35 @@ namespace LogicLab.Web.Tests;
 
 internal sealed class SceneIntentTests
 {
+    [Test]
+    [MethodDataSource(nameof(IntentVariants))]
+    public async Task DeserializeSceneIntent_NullRequiredPayload_RejectsAtTheBoundary(
+        SceneIntentV1 intent)
+    {
+        var record = JsonSerializer.SerializeToNode(
+            intent, SceneJsonSerializerContext.Strict.SceneIntentV1)!.AsObject();
+        foreach (var property in record.Where(property =>
+            property.Value is JsonObject or JsonArray).ToArray())
+        {
+            var malformed = record.DeepClone().AsObject();
+            malformed[property.Key] = null;
+            await AssertRejectedAsync(malformed);
+            if (property.Value is JsonArray)
+            {
+                malformed[property.Key] = new JsonArray((JsonNode?)null);
+                await AssertRejectedAsync(malformed);
+            }
+        }
+    }
+
+    private static async Task AssertRejectedAsync(JsonObject record)
+    {
+        using var document = JsonDocument.Parse(record.ToJsonString());
+        var exception = await Assert.That(() =>
+            CircuitSceneHost.DeserializeSceneIntent(document.RootElement)).Throws<Exception>();
+        await Assert.That(exception is JsonException or ArgumentException).IsTrue();
+    }
+
     [Test]
     [MethodDataSource(nameof(IntentVariants))]
     public async Task SceneIntentV1_ClosedVariant_RoundTripsCompletePayload(

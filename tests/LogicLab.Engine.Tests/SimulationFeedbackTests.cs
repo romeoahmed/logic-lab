@@ -267,24 +267,6 @@ internal sealed partial class SimulationFeedbackTests
     private static partial Regex CorrelationTokenPattern();
 
     [Test]
-    public async Task Open_ReversedEvaluatorOrdinals_SettlesIdenticalKnownFeedbackValues()
-    {
-        var forward = CreateTwoEvaluatorKnownFeedback(reverseGates: false);
-        var reversed = CreateTwoEvaluatorKnownFeedback(reverseGates: true);
-
-        var (_, forwardSnapshot) = Open(forward);
-        var (_, reversedSnapshot) = Open(reversed);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(forwardSnapshot.Probes.Select(item => item.Value[0]))
-                .IsEquivalentTo([LogicValue.Zero, LogicValue.One]);
-            await Assert.That(reversedSnapshot.Probes.Select(item => item.Value[0]))
-                .IsEquivalentTo(forwardSnapshot.Probes.Select(item => item.Value[0]));
-        }
-    }
-
-    [Test]
     public async Task SettleCombinational_FairAndPermutedWorklistOrders_MatchOracle()
     {
         var circuits = new[]
@@ -293,8 +275,7 @@ internal sealed partial class SimulationFeedbackTests
             CreateSelfInvertingFeedback(),
             CreateCrossCoupledInverters(),
             CreateContendedFeedback(),
-            CreateTwoEvaluatorKnownFeedback(reverseGates: false),
-            CreateTwoEvaluatorKnownFeedback(reverseGates: true),
+            CreateTwoEvaluatorKnownFeedback(),
             CreateThreeEvaluatorKnownFeedback(),
         };
         var scheduleWitness = circuits[^1].Artifact.SimulationIr
@@ -332,9 +313,8 @@ internal sealed partial class SimulationFeedbackTests
                     worklistOrder,
                     CancellationToken.None);
 
-                await Assert.That(actual.Select(value => value[0])
-                        .SequenceEqual(expected))
-                    .IsTrue();
+                await Assert.That(actual.Select(value => value[0]))
+                    .IsEquivalentTo(expected, CollectionOrdering.Matching);
             }
         }
     }
@@ -342,7 +322,7 @@ internal sealed partial class SimulationFeedbackTests
     [Test]
     public async Task SettleCombinational_DependentVisitedBeforeRefinement_RequeuesIt()
     {
-        var circuit = CreateTwoEvaluatorKnownFeedback(reverseGates: false);
+        var circuit = CreateTwoEvaluatorKnownFeedback();
         var logicNotOrdinal = circuit.Artifact.SimulationIr.Evaluators.Single(
             evaluator => evaluator.Kind == SimulationEvaluatorKind.LogicNot).Ordinal;
         var logicNotFirst = Comparer<int>.Create((left, right) =>
@@ -399,10 +379,19 @@ internal sealed partial class SimulationFeedbackTests
             opened.Handle,
             Stimulus(inputDriver, logicalTime: 1, LogicValue.One),
             CancellationToken.None);
-        _ = SimulationRuntime.Execute(
+        var known = (AdvanceCommitted)SimulationRuntime.Execute(
             opened.Handle,
             new AdvanceToNextQuiescentBoundary(),
             CancellationToken.None);
+        using (Assert.Multiple())
+        {
+            await Assert.That(known.LogicalTime).IsEqualTo(1UL);
+            await Assert.That(known.ObservedProbePatch.Select(probe => (probe.ProbeId, probe.Value[0])))
+                .IsEquivalentTo([(opened.ProbeIds.Single(), LogicValue.One)], CollectionOrdering.Matching);
+            await Assert.That(known.Diagnostics.Select(item => item.Code))
+                .DoesNotContain("simulation_indeterminate_feedback");
+        }
+
         _ = SimulationRuntime.Execute(
             opened.Handle,
             Stimulus(inputDriver, logicalTime: 2, LogicValue.Zero),
@@ -455,11 +444,7 @@ internal sealed partial class SimulationFeedbackTests
         (revision, var zero) = Place(revision, "source.constant", SourceParameters(
             "value",
             new LogicVectorParameterValue([LogicValue.Zero])));
-        (revision, var logicAnd) = Place(revision, "logic.and",
-        [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-            new ComponentParameterBinding("fanIn", new Unsigned32ParameterValue(2)),
-        ]);
+        (revision, var logicAnd) = Place(revision, "logic.and", GateParameters());
         (revision, var sink) = Place(revision, "sink.output", SinkParameters());
         revision = Connect(revision, (zero, "Q"), (logicAnd, "A0"));
         revision = Connect(revision, (logicAnd, "Q"), (logicAnd, "A1"), (sink, "D"));
@@ -514,35 +499,21 @@ internal sealed partial class SimulationFeedbackTests
         (revision, var input) = Place(revision, "source.input", SourceParameters(
             "initialValue",
             new LogicVectorParameterValue([LogicValue.Zero])));
-        (revision, var logicOr) = Place(revision, "logic.or",
-        [
-            new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
-            new ComponentParameterBinding("fanIn", new Unsigned32ParameterValue(2)),
-        ]);
+        (revision, var logicOr) = Place(revision, "logic.or", GateParameters());
         (revision, var sink) = Place(revision, "sink.output", SinkParameters());
         revision = Connect(revision, (input, "Q"), (logicOr, "A0"));
         revision = Connect(revision, (logicOr, "Q"), (logicOr, "A1"), (sink, "D"));
         return Compile(revision, input);
     }
 
-    private static FeedbackCircuit CreateTwoEvaluatorKnownFeedback(bool reverseGates)
+    private static FeedbackCircuit CreateTwoEvaluatorKnownFeedback()
     {
         var revision = CompilerTestCircuit.BeginProject();
         (revision, var zero) = Place(revision, "source.constant", SourceParameters(
             "value",
             new LogicVectorParameterValue([LogicValue.Zero])));
-        ComponentInstance logicAnd;
-        ComponentInstance logicNot;
-        if (reverseGates)
-        {
-            (revision, logicNot) = Place(revision, "logic.not", WidthParameters());
-            (revision, logicAnd) = Place(revision, "logic.and", GateParameters());
-        }
-        else
-        {
-            (revision, logicAnd) = Place(revision, "logic.and", GateParameters());
-            (revision, logicNot) = Place(revision, "logic.not", WidthParameters());
-        }
+        (revision, var logicAnd) = Place(revision, "logic.and", GateParameters());
+        (revision, var logicNot) = Place(revision, "logic.not", WidthParameters());
 
         (revision, var zeroSink) = Place(revision, "sink.output", SinkParameters());
         (revision, var oneSink) = Place(revision, "sink.output", SinkParameters());

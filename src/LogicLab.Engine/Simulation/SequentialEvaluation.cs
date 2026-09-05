@@ -18,13 +18,12 @@ internal static class SequentialEvaluation
         LogicVector data,
         LogicValue enable)
     {
-        var normalizedData = NormalizeForStorage(data);
         return enable switch
         {
             LogicValue.Zero => current,
-            LogicValue.One => normalizedData,
+            LogicValue.One => NormalizeForStorage(data),
             LogicValue.X or LogicValue.Z => VectorConservativeMerge.Merge(
-                [current, normalizedData]),
+                [current, NormalizeForStorage(data)]),
             _ => throw new InvalidOperationException(
                 "The sequential enable value is undefined."),
         };
@@ -38,25 +37,24 @@ internal static class SequentialEvaluation
         var normalizedCurrent = ScalarLogic.NormalizeInput(current);
         var normalizedSet = ScalarLogic.NormalizeInput(set);
         var normalizedReset = ScalarLogic.NormalizeInput(reset);
-        var candidates = new List<LogicVector>(4);
+        var candidates = new List<LogicValue>(4);
         foreach (var setActive in ReachableControlValues(normalizedSet))
         {
             foreach (var resetActive in ReachableControlValues(normalizedReset))
             {
-                candidates.Add(new LogicVector([
+                candidates.Add(
                     (setActive, resetActive) switch
                     {
                         (false, false) => normalizedCurrent,
                         (true, false) => LogicValue.One,
                         (false, true) => LogicValue.Zero,
                         (true, true) => LogicValue.X,
-                    },
-                ]));
+                    });
             }
         }
 
         return new SrLatchEvaluation(
-            VectorConservativeMerge.Merge(candidates),
+            new LogicVector([ConservativeMerge.Merge(candidates)]),
             normalizedSet == LogicValue.One && normalizedReset == LogicValue.One);
     }
 
@@ -66,30 +64,28 @@ internal static class SequentialEvaluation
         LogicValue k)
     {
         var normalizedCurrent = ScalarLogic.NormalizeInput(current);
-        var candidates = new List<LogicVector>(4);
+        var candidates = new List<LogicValue>(4);
         foreach (var jActive in ReachableControlValues(ScalarLogic.NormalizeInput(j)))
         {
             foreach (var kActive in ReachableControlValues(ScalarLogic.NormalizeInput(k)))
             {
-                candidates.Add(new LogicVector([
+                candidates.Add(
                     (jActive, kActive) switch
                     {
                         (false, false) => normalizedCurrent,
                         (true, false) => LogicValue.One,
                         (false, true) => LogicValue.Zero,
                         (true, true) => ScalarLogic.Not(normalizedCurrent),
-                    },
-                ]));
+                    });
             }
         }
 
-        return VectorConservativeMerge.Merge(candidates);
+        return new LogicVector([ConservativeMerge.Merge(candidates)]);
     }
 
     public static LogicVector TFlipFlop(LogicValue current, LogicValue toggle)
     {
-        var state = new LogicVector([ScalarLogic.NormalizeInput(current)]);
-        return WithEnable(state, VectorLogic.Not(state), toggle);
+        return new LogicVector([ScalarLogic.Xor(current, toggle)]);
     }
 
     public static LogicVector ShiftRegister(

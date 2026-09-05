@@ -15,7 +15,7 @@ internal sealed class TeachingMixedConformanceExporterTests
         new ExportTextMeasurer(FontFingerprint);
 
     [Test]
-    public async Task Export_TeachingMixedProjection_OrdersEntriesAndCopiesExactEvidence()
+    public async Task Export_TeachingMixedProjection_OrdersEntriesAndPreservesExactEvidence()
     {
         var projection = Projection("source.input", "logic.and");
         var sourceItems = projection.Items.OfType<ComponentSymbolItemV1>()
@@ -55,11 +55,36 @@ internal sealed class TeachingMixedConformanceExporterTests
                     .IsEquivalentTo(
                         source.Plan.Conformance.Deviations,
                         CollectionOrdering.Matching);
-                await Assert.That(ReferenceEquals(
-                        entry.StandardReferences[0],
-                        source.Plan.Conformance.StandardReferences[0]))
-                    .IsFalse();
             }
+        }
+    }
+
+    [Test]
+    public async Task ManifestEntry_MutatedInputArrays_PreservesEvidence()
+    {
+        string[] clauses = ["2.1.2"];
+        string[] affectedPorts = ["A"];
+        StandardReferenceV1[] references = [new("IEEE-91A", "1991", clauses)];
+        ConformanceDeviationV1[] deviations = [new("teaching-extension", affectedPorts)];
+        var component = Projection("logic.and").Items.OfType<ComponentSymbolItemV1>().Single();
+        var entry = new TeachingMixedConformanceManifestEntryV1(
+            component.ComponentInstanceId,
+            SymbolVariantCatalog.RectangularId,
+            ConformanceClaimV1.TeachingExtension,
+            references,
+            deviations);
+
+        clauses[0] = "changed";
+        affectedPorts[0] = "changed";
+        Array.Clear(references);
+        Array.Clear(deviations);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(entry.StandardReferences.Single().ClauseIds)
+                .IsEquivalentTo(["2.1.2"]);
+            await Assert.That(entry.Deviations.Single().AffectedPortIds)
+                .IsEquivalentTo(["A"]);
         }
     }
 
